@@ -1,0 +1,9 @@
+# ADR-0005 - Assurance cycle: version lifecycle inside a deliverable; lead reviewer closes rounds; review period is a guide, not a gate
+
+**Status:** Accepted.
+
+**Context:** A promoted version is reviewed, responded to, and re-reviewed across rounds until the deliverable is accepted. Something must own the transitions, and review periods exist on real schemes but are not always hard deadlines.
+
+**Decision:** A deliverable is long-lived and spans versions; it ends when a lead reviewer applies an accepting code. Each version moves through: promoted (round opens, reviewers notified), in review (reviewers comment and code on the PDF), review closed (comment set goes to the consultant), responded (consultant addresses comments in the sandbox, writes responses with mandatory links, promotes the next version, opening a fresh round). A round closes only by an explicit lead reviewer action. A round carries a configurable review period that sets a target date, drives automatic reminders, and marks the round overdue once passed, but the period never closes a round or locks commenting; only the lead reviewer closes it. Even as the assurance cycle becomes configurable per project, closing a round stays a human action and is never rule-automated.
+
+**Consequences:** State transitions are owned by people, not the clock. The review period is a notification-and-status attribute with no power over state. Configurability extends to the gate sequence and codes but never to automating the close of a round. Builds on ADR-0002 (immutable versions), ADR-0003 (acceptance coding) and ADR-0004 (PDF review).
