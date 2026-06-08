@@ -2,7 +2,7 @@
 
 Companion to the glossary (`infora-ubiquitous-language.md`). This document captures our shared understanding of the system: the overarching architecture, then each component, what we have agreed, and the open questions to resolve.
 
-**How to use it.** The glossary is the canonical terms (the CONTEXT.md role). This document is the design-tree map. The next step is a `grill-with-docs` pass on one component at a time, walking its open questions until each becomes a precise enough instruction to generate the code for that component. Open questions below are the branches to walk. A few decisions are flagged as **candidate ADRs**: hard to reverse, surprising without context, and the result of a real trade-off.
+**How to use it.** Four document types divide the labour. `CONTEXT.md` is the **language** (the canonical terms). This document is the **vision and whole-system overview**: the aim, the four architecture views, and a thin overview of each component. Each **component doc** (for example `docs/architecture/access-model.md`, `docs/architecture/document-management.md`) is the **structure** of one component: a prose overview plus a sub-component register. `docs/adr/` holds the **decisions** (why each fork went the way it did). A component is grilled one at a time with `grill-with-docs`, walking its open questions until each is precise enough to generate the code; as a component locks, its detail moves out of this doc into its own component doc and the section here shrinks to an overview with a pointer. Components not yet grilled still carry their open questions and **candidate ADRs** below, as the live roadmap.
 
 ---
 
@@ -155,19 +155,9 @@ Grilling order. Access model first; everything inherits from it.
 
 ### 1. Access model
 
-**Responsibility.** Resolve who can see and do what, across organisations, workspaces, projects, programmes, roles, and ethical walls, below the UI and before any data is touched.
+**Responsibility.** Resolve who can see and do what, across organisations, workspaces, projects, programmes, roles, and ethical walls, below the UI and before any data is touched. The purple access layer in the app-architecture diagram.
 
-**What we have agreed.** A network, not a hierarchy. One owner organisation per project (transfer possible in principle, not designed for). Members are uniform; one member is the owner. Org context is private to the workspace and portable; project context is shared by access. A programme groups projects under one owner and gives a portfolio view. Ethical walls isolate members on the same project from each other. Access resolution is a first-class layer (the purple layer above), not UI logic. See the network model diagram.
-
-**Open questions to grill.**
-- What exactly can each project role do? The full permission matrix for owner, contributor, viewer.
-- What is the unit of sharing? Whole project, a folder, an individual source, a work item?
-- How does a consultant's org context get used on a project without leaking to other members? What, if anything, becomes visible when they produce shared output from private precedents?
-- Cross-org comment visibility: a consultant's internal markup versus client-facing comments on the same document.
-- Can a member sub-invite (a contractor bringing a sub-consultant onto a project)?
-- How does the responsibility-matrix concept (from the Bentley analysis) map onto roles and assignment, if at all?
-
-**Candidate ADR.** Network-with-single-owner model over a programme hierarchy. Hard to reverse, shapes the entire data model.
+**Status: locked.** Grilled and decided in ADRs 0014-0019; the full breakdown is in [access-model.md](access-model.md). In short: a network with one owner organisation per project; two access levels (organisation Membership sets the ceiling, user-level Participant grants narrow within it and never pierce a wall); members uniform with only the owner distinct (contributor and viewer retired); a flat coded library, default-deny per deliverable, shared only by the owner; ethical walls as the standing posture, with a private floor (org context and the private sandbox) invisible even to the owner; the authoring and review sides appointed symmetrically and amendable by each lead; and DRR access split into permanent per-round visibility plus a single alternating edit lock flipped by transmittal.
 
 ### 2. Context
 
@@ -186,37 +176,9 @@ Grilling order. Access model first; everything inherits from it.
 
 ### 3. Document management (the wedge engine)
 
-**Responsibility.** Store, version, review, approve, and query written documents and static drawings (Word, Excel, PDF, PowerPoint, static drawings), with AI that interrogates the corpus and orchestrates work off it. This is the engine room of the wedge.
+**Responsibility.** Store, version, review, approve and publish written deliverables, and hold the project library the AI grounds on, with the controlled-document basics (document-versus-file separation, immutable versions, locking, audit) that make the AI trustworthy. The engine room of the wedge.
 
-**What we have agreed.** The unglamorous CDE basics live inside this component because they are what make the AI trustworthy: document-versus-file separation, revisions with history, check-in/out locking, approval tied to a workflow, and audit on everything (the Bentley table stakes). On top sits the value: query your documents with integrated AI that can then orchestrate tasks and workflows. The review mechanism is the **Word-comment-to-record** flow: reviewers comment in Word as they always have; Infora captures the comments (ingest on upload, or live via the add-in), turns each into a tracked record with a decision status, applies AI triage (cluster, route via responsibility, draft responses, flag compliance issues), and exports the client's existing formal format (DRN, transmittal) while keeping the record database-native. Resolutions can be written back into the Word document.
-
-<svg width="100%" viewBox="0 0 680 250" role="img" xmlns="http://www.w3.org/2000/svg"><title>Word comments to formal record</title>
-<style>
-.t{font:500 13px system-ui,-apple-system,sans-serif;fill:#28261f;}
-.s{font:400 11px system-ui,-apple-system,sans-serif;fill:#6b6760;}
-.box{fill:#f7f7f5;stroke:#d6d3cd;stroke-width:.5;}
-.teal{fill:#e7f4f0;stroke:#159a74;stroke-width:1;}
-</style>
-<defs><marker id="aD" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9b988f"/></marker></defs>
-<rect class="box" x="24" y="44" width="150" height="58" rx="8"/><text class="t" x="99" y="66" text-anchor="middle">Word document</text><text class="s" x="99" y="84" text-anchor="middle">Comment as usual</text>
-<rect class="box" x="187" y="44" width="150" height="58" rx="8"/><text class="t" x="262" y="66" text-anchor="middle">Capture</text><text class="s" x="262" y="84" text-anchor="middle">Live or on upload</text>
-<rect class="teal" x="350" y="44" width="150" height="58" rx="8"/><text class="t" x="425" y="66" text-anchor="middle">Review record</text><text class="s" x="425" y="84" text-anchor="middle">Database-backed</text>
-<rect class="box" x="513" y="44" width="150" height="58" rx="8"/><text class="t" x="588" y="66" text-anchor="middle">Formal export</text><text class="s" x="588" y="84" text-anchor="middle">DRN, transmittal</text>
-<line x1="174" y1="73" x2="185" y2="73" stroke="#9b988f" marker-end="url(#aD)"/><line x1="337" y1="73" x2="348" y2="73" stroke="#9b988f" marker-end="url(#aD)"/><line x1="500" y1="73" x2="511" y2="73" stroke="#9b988f" marker-end="url(#aD)"/>
-<rect class="teal" x="350" y="150" width="150" height="50" rx="8"/><text class="t" x="425" y="168" text-anchor="middle">AI triage</text><text class="s" x="425" y="186" text-anchor="middle">Cluster + route</text>
-<line x1="425" y1="150" x2="425" y2="106" stroke="#9b988f" marker-end="url(#aD)"/>
-<text class="s" x="340" y="228" text-anchor="middle">Reviewers stay in Word. Infora builds the record and the export.</text>
-</svg>
-
-**Open questions to grill.**
-- The big one: is Infora the **system of record** for documents, a **mirror** of the client's CDE, or both depending on who owns the project? This is the fork that most shapes scope.
-- Integrate with ProjectWise, host documents natively, or both?
-- Word comment anchors break when text changes between revisions. How are comments re-anchored or pinned to a revision?
-- What does "AI orchestrates tasks and workflows off documents" mean concretely? The bridge from a query/result to a launched workflow.
-- Supported file types for v1, and where preview/rendering happens.
-- Where do static drawings sit, and what is the exact boundary with the spatial connectors component?
-
-**Candidate ADRs.** System-of-record stance. Native hosting versus integration. Both are hard to reverse and carry real trade-offs.
+**Status: locked.** Grilled and decided in ADRs 0001-0013; the full breakdown is in [document-management.md](document-management.md). In short: working copy separated from controlled record, with immutable versions and one revision in flight at a time; every deliverable planned up front as an empty container; review on the PDF in a native Infora viewer with anchored comments stored as structured fields (the Word add-in is consultant authoring, not a reviewer capture path, in build 1); one live append-only DRR per deliverable; two-level acceptance coding; an assurance cycle whose rounds close only by human action; transmittal as an on-platform event that moves no file; two record configurations (record and integrate); and the project library as the sole grounded corpus, default-deny and owner-curated.
 
 ### 4. Standard workflows
 
@@ -297,9 +259,9 @@ Grilling order. Access model first; everything inherits from it.
 
 ## The Word plug-in (cross-cutting, do not lose)
 
-The Word add-in spans two components — Surfaces (it is a surface) and Document management (it feeds the review record) — so it is recorded here explicitly.
+The Word add-in spans two components, Surfaces (it is a surface) and Document management (it is the consultant authoring surface), so it is recorded here explicitly.
 
-It is a **thin client**: a task-pane web app (Office.js plus a manifest) with no intelligence locally, calling the same API as every other surface, so it inherits orchestration, context, capabilities, governance, audit, and access scoping. On open it resolves which project the document belongs to. It does two jobs. First, **governed editing**: agent changes land as native Word tracked changes carrying a citation and rationale, never silent rewrites; the user accepts, edits, or rejects using Word's own review controls, and that resolution is the **Signal**. Second, it is one capture path for the **Word-comment-to-record** flow in component 3. Deployment is a GTM lever: Office add-ins push centrally through the M365 admin centre, so an owner can roll Infora out to every appointed consultant at once.
+It is a **thin client**: a task-pane web app (Office.js plus a manifest) with no intelligence locally, calling the same API as every other surface, so it inherits orchestration, context, capabilities, governance, audit, and access scoping. On open it resolves which project the document belongs to. Its job is **governed editing**: agent changes land as native Word tracked changes carrying a citation and rationale, never silent rewrites; the user accepts, edits, or rejects using Word's own review controls, and that resolution is the **Signal**. It is a consultant authoring surface, not a reviewer capture path: reviewers comment on the PDF in Infora's own viewer (ADR-0004), so the add-in does not capture review comments in build 1. Deployment is a GTM lever: Office add-ins push centrally through the M365 admin centre, so an owner can roll Infora out to every appointed consultant at once.
 
 <svg width="100%" viewBox="0 0 680 280" role="img" xmlns="http://www.w3.org/2000/svg"><title>Word add-in data flow</title>
 <style>
@@ -325,14 +287,14 @@ It is a **thin client**: a task-pane web app (Office.js plus a manifest) with no
 
 Grill in this order, because later components inherit from earlier ones.
 
-1. **Access model** — permission matrix; unit of sharing; org-context leakage; cross-org comment visibility; sub-invites.
-2. **Context** — assembly and ranking at query time; knowledge distillation; precedent selection; store choice.
-3. **Document management** — system of record versus mirror; host versus integrate; comment re-anchoring; query-to-workflow bridge; file types.
-4. **Standard workflows** — MVP set; how defined; checkpoints; status and the approval lifecycle.
-5. **Custom-workflow builder** — who builds and how; rails inheritance; sharing; validation.
-6. **Compliance capability** — encoding the framework; jurisdiction; checking versus generative; presenting results.
-7. **Governance envelope** — where rails live; grounding thresholds; audit retention; residency routing.
-8. **Spatial connectors** — products first; depth; linking to documents; timing.
-9. **Surfaces** — workspace versus project home; owner portfolio view; mobile; document-management boundary.
+1. **Access model.** Locked. See [access-model.md](access-model.md) and ADRs 0014-0019.
+2. **Context.** In progress. Assembly and ranking at query time; access-resolved grounding; knowledge distillation; precedent selection; store choice.
+3. **Document management.** Locked. See [document-management.md](document-management.md) and ADRs 0001-0013.
+4. **Standard workflows.** MVP set; how defined; checkpoints; status and the approval lifecycle.
+5. **Custom-workflow builder.** Who builds and how; rails inheritance; sharing; validation.
+6. **Compliance capability.** Encoding the framework; jurisdiction; checking versus generative; presenting results.
+7. **Governance envelope.** Where rails live; grounding thresholds; audit retention; residency routing.
+8. **Spatial connectors.** Products first; depth; linking to documents; timing.
+9. **Surfaces.** Workspace versus project home; owner portfolio view; mobile; document-management boundary.
 
-**Candidate ADRs to write as decisions firm up:** the network-with-single-owner model; the org/project context split; the document system-of-record stance; native hosting versus integration; audit-of-every-action as an invariant.
+**Candidate ADRs still to write as decisions firm up:** the org/project context split (component 2); audit-of-every-action as an invariant (component 7). Already decided: the network-with-single-owner model (access model); the document record-versus-integrate stance and native hosting (ADR-0001).

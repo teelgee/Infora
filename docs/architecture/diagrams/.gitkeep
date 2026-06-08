@@ -1,0 +1,9 @@
+Diagrams for the architecture and component docs.
+
+Convention: author each diagram as a standalone .svg file here, then reference it
+from a markdown doc with an image link, e.g.
+
+    ![Access model sub-components](diagrams/access-model.svg)
+
+Keep diagrams as external .svg rather than inline <svg> in the markdown, because
+GitHub's markdown sanitiser strips inline SVG (it renders linked .svg images fine).
