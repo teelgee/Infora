@@ -40,10 +40,13 @@ An organisation granted access to a project. The owner is also a member.
 The record linking an organisation to a project with a role and a scope.
 
 **Project role**
-What a member can do on a project: owner, contributor, or viewer.
+Whether an organisation is the owner or a plain member. Every organisation on a project is a member with one shared baseline: promote deliverables, start review cycles, work in shared sandboxes, and read the deliverables it authored or the owner has shared with it. Exactly one member is also the owner, which adds control of project settings and the library, including sharing deliverables with organisations and granting review access. There is no tier below member; differences between members come only from those per-deliverable grants. "Contributor" and "viewer" are retired.
+
+**Participant**
+A user with access to a project. The user-level subject of access, beneath the organisation. A Participant's grants are access-bearing: they gate what the user may see and do. Most access is the member baseline shared by all of an organisation's Participants; specific things are granted to named Participants per deliverable, namely the review group and the authoring team on a deliverable, and a work item's assignee. No Participant grant can reveal a deliverable the owner has not shared with the user's organisation, or cross an ethical wall the organisation is outside. Distinct from Member (an organisation on the project) and from a billing seat.
 
 **Ethical wall**
-Enforced isolation so members on the same project cannot see each other's private contributions.
+The isolation between organisations on a project, and the standing default rather than a feature switched on. By default an organisation sees only its own work, what the owner has shared with it, and the shared sandboxes it is in. Two things are private to an organisation and never shared, not even with the owner: its org context and its private sandbox. The owner opens cross-organisation visibility deliberately, by sharing deliverables and by adding organisations to shared sandboxes; within an open review round, comments are visible across the review group (ADR-0014), the one live cross-organisation window. See ADR-0018.
 
 ---
 
@@ -68,7 +71,7 @@ Curated, structured memory distilled from sources and work: decisions, commitmen
 A reusable exemplar (document, clause, or approach) held in org context and brought to any project.
 
 **Project library**
-The curated, owner-controlled corpus of trusted project knowledge, and the only corpus the AI grounds on for both chat queries and drafting. Accepted deliverables enter automatically on acceptance; the owner may also add other material (reference documents, standards, baseline data) and may segment or withhold parts for IP or ethical-wall reasons. Generalises the real-world MIDP. The sandbox and the DRR are not part of it.
+The curated, owner-controlled corpus of trusted project knowledge, and the only corpus the AI grounds on for both chat queries and drafting. A flat collection of deliverables identified by coded references, not a folder structure: sorted, searched and queried by code, never navigated as a tree. Accepted deliverables enter automatically on acceptance; the owner may also add other material (reference documents, standards, baseline data) and shares each deliverable with named organisations. Library visibility is default-deny: a deliverable is seen only by the owner organisation, its author, and organisations the owner has shared it with. Generalises the real-world MIDP. The sandbox and the DRR are not part of it.
 
 ---
 
@@ -81,7 +84,7 @@ A defined, governed, repeatable process that produces an output. Examples: docum
 The AI workflow that checks a document against predetermined rules and style guides. Distinct from the Assurance cycle: a team typically runs the assurance workflow on a draft, then pushes the document through the assurance cycle to publish it.
 
 **Sandbox**
-A working area free of document controls (no versioning ceremony, no locking) where teams produce work-in-progress and informal deliverables, assisted by the AI knowledge layer. Exists at two levels: a project sandbox in the project space (shared per the owner's access rules) and a workspace sandbox private to one organisation for that project. Access controls always apply; only document controls are absent.
+A working area free of document controls (no versioning ceremony, no locking) where teams produce work-in-progress and informal deliverables, assisted by the AI. A sandbox is either shared across a chosen set of organisations or private to one organisation; sharing is set when it is created. A private sandbox is part of an organisation's private floor and is never visible to others, not even the owner. Document controls are absent, but access controls always apply, and the AI never grounds on the sandbox (ADR-0011). A shared sandbox is where organisations collaborate on work in progress, including co-authoring one deliverable (ADR-0019).
 
 **Promote**
 The act of taking a sandbox working copy into the assurance cycle as a candidate controlled revision. The crossing from sandbox to controlled record. Distinct from approve (passing a gate) and transmit (issuing the approved deliverable).
@@ -150,13 +153,25 @@ A captured resolution decision on a Comment or a Suggestion. The feedback data b
 The single live log of a deliverable's review across every version: comments, consultant responses, and acceptance coding. Spans v1, v2, v3 and so on as one artifact. Its history is append-only: once a version is issued, that version's comments and responses become permanent and cannot be rewritten. Users only ever interact with the live DRR. At each transmittal (lead reviewer to consultant, and consultant back) the system freezes an internal snapshot of the comments and responses as the formal record, retrievable if needed but never a document users open. Replaces the Excel Document Review Notice; no separate notice is ever issued.
 
 **Reviewer**
-A project member assigned to review a transmitted deliverable. May belong to any organisation on the project, not only the owner. Adds and codes comments in the DRR. Assigned per deliverable at the point of transmittal.
+A project member assigned to review a transmitted deliverable. May belong to any organisation on the project, not only the owner. Adds and codes comments in the DRR. Appointed per deliverable at planning, when the review group is named on the deliverable plan (ADR-0008), not at transmittal.
 
 **Lead reviewer**
 A reviewer with authority over a deliverable's review. May edit or amend other reviewers' comments and codes, and sets the authoritative overall acceptance code for the document.
 
 **Review group**
-The named reviewers and the lead reviewer appointed to a deliverable's review. Holds DRR access while the round is open; the consultant joins only after the lead reviewer issues the DRR.
+The named reviewers and the lead reviewer appointed to a deliverable's review. Holds the DRR edit lock while a round is open, so only the group may write comments and codes then. It does not hold visibility alone: every party with deliverable access sees each issued round. The consultant never joins the group; it takes the edit lock in its own right when the lead reviewer issues the round. Named on the deliverable plan and amendable by the owner at any time, including mid-cycle.
+
+**Edit lock**
+The single write token on a deliverable's DRR that decides who may add or change comments, codes and responses. It alternates with the review cycle, driven by transmittal in both directions: the appointed reviewers hold it while a round is open, the authoring team holds it once the lead reviewer issues the round, and it returns to the reviewers when the lead author promotes the next version. Distinct from visibility, which is permanent for every issued round and shared by all parties with deliverable access, with only the open round hidden from the consultant. Distinct also from the document check-in/out lock, which governs a controlled revision, not the review record. See ADR-0014.
+
+**Author**
+A Participant on the producing side of a deliverable, who writes the deliverable and its responses to reviewer comments, belonging to an organisation that shares the deliverable's sandbox (normally the producing organisation, possibly several when the sandbox is shared). The producing-side counterpart to a Reviewer. Named on the deliverable plan and amendable by the lead author at any time, including mid-cycle.
+
+**Lead author**
+The author with authority over a deliverable's production. Promotes each version, which opens the review round and flips the DRR edit lock, and names or changes the other authors, drawn from the organisations sharing the deliverable's sandbox, at any time. The producing-side counterpart to the Lead reviewer.
+
+**Authoring team**
+The lead author and authors appointed to produce and respond on a deliverable. Holds the DRR edit lock once the lead reviewer issues a round. The producing-side counterpart to the Review group.
 
 ---
 
@@ -201,7 +216,7 @@ A single assigned action with a due date. Not yet built. Reserved for when we bu
 A formal contractual output to be issued, with formal transmission behind it. Reserved so that not every work item is wrongly implied to be a formal issue. Note: Bentley uses "Deliverable" and "Transmittal" for exactly this.
 
 **Transmittal**
-In record configuration, the event record of a deliverable version being issued for review: sender, recipients, version, purpose code, issue and due dates. Moves no file on-platform; it changes DRR access phase, freezes the snapshot, and notifies recipients. In integrate configuration it drives a physical handover to the incumbent, deferred. (No longer reserved: minted as a live term.)
+In record configuration, the event record of a deliverable version being issued for review: sender, recipients, version, purpose code, issue and due dates. Moves no file on-platform; it flips the DRR edit lock and, on issue, reveals the closed round to the consultant, freezes the snapshot, and notifies recipients. In integrate configuration it drives a physical handover to the incumbent, deferred. (No longer reserved: minted as a live term.)
 
 ---
 

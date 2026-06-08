@@ -1,6 +1,6 @@
 # ADR-0007 - DRR access follows the review cycle: appointed review group while open, consultant team after issue; comments live and cross-organisation within the active group
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0014. The "no live visibility" and "two scopes per deliverable" framing below is superseded: DRR visibility is per-round and permanent, the consultant sees every issued round rather than a one-time moderated set, and write access is governed by an alternating edit lock. The open-round wall, cross-organisation liveness within the group, and lead-reviewer moderation all stand.
 
 **Context:** During an open round, reviewers may come from several organisations and need to see each other's comments. The consultant must not see comments form live, only receive them at close, and once received, the consultant organisation needs several of its own people working the responses. So DRR visibility is phased, not a single fixed group.
 

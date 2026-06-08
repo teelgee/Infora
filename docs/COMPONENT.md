@@ -43,7 +43,7 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 ## 5. The DRR
 
 **Responsibility.** Hold one live, append-only review record per deliverable spanning every version: comments, consultant responses, acceptance codes; freeze an internal snapshot at each transmittal in either direction; never materialise an issued notice.
-**Governing ADRs.** 0003, 0006, 0009.
+**Governing ADRs.** 0003, 0006, 0009, 0014.
 **Terms owned.** Deliverable Review Record (DRR), Comment, Suggestion, Signal.
 **Surfaces.** The DRR table interface, with hover-to-anchor and click-through response links.
 **Depends on.** PDF review (anchors), acceptance and coding (§6), access phasing (§7 and the access model).
@@ -59,7 +59,7 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 ## 7. Transmittal
 
 **Responsibility.** Record the event of a deliverable version being issued for review (sender, recipients, version, purpose code, dates); drive the DRR access-phase change and notifications; in integrate configuration drive a physical handover to the incumbent (deferred).
-**Governing ADRs.** 0010, 0007, 0001.
+**Governing ADRs.** 0010, 0007, 0001, 0014.
 **Terms owned.** Transmittal.
 **Surfaces.** Transmittal action and event record.
 **Depends on.** Access model (DRR access phasing); record configuration. Integrate handover deferred until a target system is known.

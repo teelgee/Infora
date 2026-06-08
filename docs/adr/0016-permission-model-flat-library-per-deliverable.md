@@ -1,0 +1,17 @@
+# ADR-0016 - The permission model: a flat coded library, default-deny, shared per deliverable per organisation by the owner; members are uniform and only the owner is distinct
+
+**Status:** Accepted. Refines ADR-0011 and ADR-0015. Refined by ADR-0017 (intra-organisation appointment delegated to each side's lead; promotion is the lead author's act).
+
+**Context:** ADR-0015 set two access levels (organisation and user) but left the shape open: a fixed role tier, or access granted per resource. It also spoke of "library segments." Walking a concrete three-party project settled both. The library has no folders or sections; it is a flat collection of deliverables with coded references, sorted and queried by code. The owner/contributor/viewer tier carries no weight, because every member needs the same baseline and the real differences are set per deliverable. And cross-organisation confidentiality is the norm on a shared project, so the library is default-deny: nothing is visible across organisations until the owner deliberately shares it.
+
+**Decision:** The library is flat. It is a collection of deliverables identified by coded references, not a folder tree, and it is sorted, searched and queried by code. There are no sections to grant against.
+
+Standing roles collapse to owner and member. Every member organisation can promote deliverables, start review cycles, and work in shared sandboxes. The owner is the one member that also controls project settings and the library. "Contributor" and "viewer" are retired.
+
+Library visibility is default-deny, decided per deliverable, per organisation. By default a deliverable is visible only to the owner organisation, which controls the library, and to the organisation that authored it. No other organisation sees it until the owner shares that deliverable with that organisation. The owner organisation sees the whole library; an authoring organisation always sees the deliverables it authored.
+
+Review access to an in-review deliverable and its DRR is per person and may span organisations: the owner sets which organisations take part, and within each organisation that side's lead names the individual Participants, subject to the ethical-wall limits of ADR-0015 (see ADR-0017).
+
+The owner grants all sharing. Sharing a deliverable with an organisation is a deliberate, audited owner action; absent it, only the owner and the author see it.
+
+**Consequences:** There is no folder or section access list anywhere. The only access objects are the deliverable (read, per organisation) and the in-review deliverable with its DRR (per person). Resolution stays simple and default-deny: an organisation may read a deliverable only if it is the owner, the author, or an organisation the owner has shared it with. There is no role matrix to maintain. The operative owner action is sharing a deliverable, not hiding one; the term "cordon" is retired. This refines ADR-0015 by replacing the role-tier ceiling with the organisation boundary and the ethical wall as the only hard limits, and refines ADR-0011 by making the flat library default-deny with visibility granted per deliverable. Builds on ADR-0008, ADR-0011, ADR-0014 and ADR-0015.

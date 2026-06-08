@@ -1,0 +1,17 @@
+# ADR-0015 - Access has two levels: organisation membership sets the ceiling, user-level Participant grants narrow within it and never pierce an organisation's ethical wall
+
+**Status:** Accepted. Refined by ADR-0016, which retires the owner/contributor/viewer tier and the "library segment" idea; the two-level model and the organisation-binds-the-user invariant below stand.
+
+**Context:** The access model had to settle whether the subject of access is one level (the organisation) or two (organisation plus user). ADR-0007 and ADR-0014 already assume named-user sets: a review group is named individuals, the consultant team holds the edit lock, a work item has an assignee. A real collaboration makes both levels visible at once. Take a project owned by a client with two consultant firms on it: the firm's seat on the project and its project role are organisation facts, but the DRR and a deliverable under review reach only named individuals inside each firm. One level cannot express "only named people in each organisation," so the subject of access is two levels.
+
+**Decision:** Access has two levels.
+
+Level one is the organisation. Membership sets the ceiling of what a firm may touch on the project; every member shares one baseline and the owner additionally holds control and grant powers (the owner/contributor/viewer tier is retired, see ADR-0016).
+
+Level two is the user. A Participant is a user with project access, and a Participant grant is access-bearing, meaning it gates what the user may see and do; it is not a label. Most of the project defaults to all of a firm's Participants within what the firm is permitted: the deliverable plan, the firm's own deliverables, deliverables the owner has shared with the firm, and shared project sandboxes. Specific resources narrow to named Participants: the open-round DRR review group, the edit-lock holders, a work item's assignee.
+
+The organisation boundary binds. A user-level grant can never let a Participant see or do what the user's organisation is not permitted: it cannot reveal a deliverable the owner has not shared with the organisation, and it cannot pierce an ethical wall the organisation is outside. Naming a Participant as a reviewer of a deliverable not shared with their organisation is not allowed; the owner must share that deliverable with the organisation first. Assignment is one of the ways a Participant grant is created, not a parallel system that can outrun organisation access.
+
+Access scope can also move with lifecycle state. A deliverable under review reaches named Participants; once accepted it widens to whoever can see its library segment. The unit-of-sharing detail behind that is settled separately and is not part of this decision.
+
+**Consequences:** The data model carries access on two edges: an organisation-to-project edge (Membership) and a user-to-resource grant (Participant access), with a hard invariant that the second is always a subset of the first. Ethical walls stay hard organisation-level boundaries, so no per-user appointment can breach one, which removes the failure where a wall is punched through one user at a time. "Participant" enters the language as the user with project access, distinct from Member (an organisation) and from a billing seat. The narrow-within-ceiling invariant is the rule access resolution enforces before any data is touched. Builds on the network-with-single-owner model, ADR-0007 and ADR-0014.

@@ -20,7 +20,7 @@ Four views of the same system: the network model (who relates to whom), the laye
 
 ### 1. The network model
 
-An organisation acts through its **workspace**. Each **project** is a shared space with exactly one **owner** organisation and other organisations as **members** (contributor or viewer). A **programme** groups projects under a single owner. The owner controls what is shared; **ethical walls** isolate members from each other. Org context is private and portable; project context is shared by access.
+An organisation acts through its **workspace**. Each **project** is a shared space with exactly one **owner** organisation and other organisations as **members**. A **programme** groups projects under a single owner. The owner controls what is shared; **ethical walls** isolate members from each other. Org context is private and portable; project context is shared by access.
 
 <svg width="100%" viewBox="0 0 680 444" role="img" xmlns="http://www.w3.org/2000/svg"><title>Network model</title>
 <style>
@@ -48,7 +48,7 @@ An organisation acts through its **workspace**. Each **project** is a shared spa
 <rect class="teal" x="298" y="170" width="338" height="104" rx="12"/>
 <text class="t" x="316" y="196" text-anchor="start">Footbridge upgrade</text>
 <rect class="purple" x="316" y="208" width="150" height="22" rx="5"/><text class="s" x="391" y="223" text-anchor="middle">Owner: your firm</text>
-<rect class="box" x="316" y="240" width="208" height="22" rx="5"/><text class="s" x="420" y="255" text-anchor="middle">Small client · view only</text>
+<rect class="box" x="316" y="240" width="208" height="22" rx="5"/><text class="s" x="420" y="255" text-anchor="middle">Small client</text>
 <rect class="teal" x="298" y="294" width="338" height="104" rx="12"/>
 <text class="t" x="316" y="320" text-anchor="start">Rail depot expansion</text>
 <rect class="box" x="316" y="332" width="176" height="22" rx="5"/><text class="s" x="404" y="347" text-anchor="middle">Owner: Network Rail</text>
@@ -157,7 +157,7 @@ Grilling order. Access model first; everything inherits from it.
 
 **Responsibility.** Resolve who can see and do what, across organisations, workspaces, projects, programmes, roles, and ethical walls, below the UI and before any data is touched.
 
-**What we have agreed.** A network, not a hierarchy. One owner organisation per project (transfer possible in principle, not designed for). Members hold a project role (owner, contributor, viewer). Org context is private to the workspace and portable; project context is shared by access. A programme groups projects under one owner and gives a portfolio view. Ethical walls isolate members on the same project from each other. Access resolution is a first-class layer (the purple layer above), not UI logic. See the network model diagram.
+**What we have agreed.** A network, not a hierarchy. One owner organisation per project (transfer possible in principle, not designed for). Members are uniform; one member is the owner. Org context is private to the workspace and portable; project context is shared by access. A programme groups projects under one owner and gives a portfolio view. Ethical walls isolate members on the same project from each other. Access resolution is a first-class layer (the purple layer above), not UI logic. See the network model diagram.
 
 **Open questions to grill.**
 - What exactly can each project role do? The full permission matrix for owner, contributor, viewer.

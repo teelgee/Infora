@@ -1,0 +1,13 @@
+# ADR-0019 - Sub-invites and sharing by location: membership is flat and owner-approved; work in progress is shared through shared sandboxes while the record is shared only by the owner; cross-organisation authoring happens in a shared sandbox
+
+**Status:** Accepted. Refines ADR-0016 and ADR-0017.
+
+**Context:** We had to decide whether a member can bring another organisation onto a project, the contractor-and-sub-consultant case, and how a member shares its own work. The answer turns on where the work sits: in a sandbox or in the library.
+
+**Decision:** Membership is flat and owner-approved. Only the owner admits an organisation to a project. A member may propose one, for example a contractor proposing its sub-consultant, but the owner confirms, and the new organisation is a normal member under default-deny with owner-granted sharing. There is no nested membership, and no organisation holds access on behalf of another. This keeps the owner the single point that opens cross-organisation visibility (ADR-0018).
+
+Sharing splits by location. Work in progress is shared through sandboxes: an organisation in a shared sandbox sees the work in that sandbox, so a member shares its own work in progress by working in a sandbox shared with the other organisation. Once a deliverable is promoted into the library it is owner-controlled, and no member can share a library deliverable; only the owner can (ADR-0016). Collaboration is shared in the sandbox, the record is shared by the owner.
+
+Cross-organisation authoring happens in a shared sandbox. A deliverable produced in a sandbox shared across several organisations may have an authoring team drawn from those organisations, relaxing ADR-0017's single-organisation authors. An author must belong to an organisation that shares the deliverable's sandbox, since that is what lets them see the work; the lead author stays a single responsible person who promotes.
+
+**Consequences:** The subcontracting need is met without nesting: a contractor brings a sub-consultant, owner-approved, collaborates with it in a shared sandbox including co-authoring a deliverable, and the formal record stays owner-controlled. Authoring-team membership is bounded by sandbox membership, which ties the producing side to where the work actually lives. ADR-0017's "authors within the producing organisation only" is relaxed accordingly. Builds on ADR-0016, ADR-0017 and ADR-0018.
