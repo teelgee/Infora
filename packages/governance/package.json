@@ -1,0 +1,14 @@
+{
+  "name": "@infora/governance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "audit log, grounding/NLI, rails, access policy",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

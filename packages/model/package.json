@@ -1,0 +1,14 @@
+{
+  "name": "@infora/model",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "model-agnostic router + provider adapters",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

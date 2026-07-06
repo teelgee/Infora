@@ -1,0 +1,14 @@
+{
+  "name": "@infora/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "shared types + API schema (single source of truth)",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

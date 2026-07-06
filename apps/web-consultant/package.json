@@ -1,0 +1,14 @@
+{
+  "name": "@infora/web-consultant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "workspace + project home, editor, chat, review",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

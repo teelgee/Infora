@@ -1,0 +1,14 @@
+{
+  "name": "@infora/workflows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "standard + custom workflows composing capabilities",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

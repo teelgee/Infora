@@ -1,0 +1,14 @@
+{
+  "name": "@infora/capabilities",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "grounded generation, compliance, tabular review, plain-english",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

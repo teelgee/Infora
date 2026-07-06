@@ -1,0 +1,14 @@
+{
+  "name": "@infora/data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "connectors, ingestion, retrieval (pgvector)",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

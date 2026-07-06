@@ -1,0 +1,14 @@
+{
+  "name": "@infora/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Postgres + pgvector: schema, migrations, seed",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

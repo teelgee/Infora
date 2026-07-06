@@ -1,0 +1,14 @@
+{
+  "name": "@infora/knowledge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "project + org context stores, signal capture",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

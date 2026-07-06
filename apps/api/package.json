@@ -1,0 +1,14 @@
+{
+  "name": "@infora/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "only deployable that touches the DB and models",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
