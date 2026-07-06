@@ -2,7 +2,7 @@
 
 The agreed term set for Infora. One word per concept, one concept per word. Every diagram, document, interface label, and the eventual code should use these terms exactly as defined here. Where a term collides with established industry usage (especially Bentley / ProjectWise), the collision is noted so we use the word deliberately.
 
-Status: agreed. Open items, where any remain, are listed at the end.
+Status: agreed. This glossary holds settled language only; open questions live in the [grill tracker](docs/grill-sessions/grill-questions.md), the sole source for open questions across the system.
 
 ---
 
@@ -12,7 +12,7 @@ Status: agreed. Open items, where any remain, are listed at the end.
 A company with an Infora account. The boundary for all private data. Examples: a consultant firm, a client body, a contractor.
 
 **Workspace**
-An organisation's environment in Infora. One per organisation. It holds the org's private context (knowledge, precedents, custom workflows) and surfaces every project and programme the org owns or is a member of. An organisation acts through its workspace.
+An organisation's environment in Infora and its entry point to the platform. One per organisation. It holds the org's private context (knowledge, precedents, custom workflows), its users' personal sandboxes for free-form work (per-user, private — refined 2026-07-06), and surfaces every project and programme the org owns or is a member of. Only the organisation's own users can reach its workspace, and agents working there draw on the org's own channels alone. An organisation acts through its workspace.
 
 **User**
 An individual belonging to one organisation.
@@ -28,7 +28,7 @@ Roles an organisation plays on a given project, not fixed account types. The sam
 A defined construction scheme (for example, build the road from A to B). The central unit of the platform. Has a lifecycle and persists for years.
 
 **Programme**
-A set of projects under a single owner organisation, where each project is individual and belongs to at most one programme. Example: National Grid runs an upgrade programme; each upgrade is its own project. The programme owner owns its projects and so has a portfolio view across the set.
+A set of projects under a single owner organisation, where each project is individual and belongs to at most one programme. Example: National Grid runs an upgrade programme; each upgrade is its own project. The programme owner owns its projects and so has a portfolio view across the set. A programme may also hold overarching grounded and guiding context that its projects inherit — a programme-scoped corpus and, where the owner allows, access for a project's agents to its sibling projects' libraries — with whether a given project draws on it configured per project by the programme owner (ADR-0020).
 
 **Owner**
 The single organisation that controls a project: its settings, members, and what is shared. A per-project role that can be held by a client or a consultant. Exactly one owner organisation per project. (Ownership transfer is possible in principle but is not designed for.)
@@ -46,23 +46,29 @@ Whether an organisation is the owner or a plain member. Every organisation on a 
 A user with access to a project. The user-level subject of access, beneath the organisation. A Participant's grants are access-bearing: they gate what the user may see and do. Most access is the member baseline shared by all of an organisation's Participants; specific things are granted to named Participants per deliverable, namely the review group and the authoring team on a deliverable, and a work item's assignee. No Participant grant can reveal a deliverable the owner has not shared with the user's organisation, or cross an ethical wall the organisation is outside. Distinct from Member (an organisation on the project) and from a billing seat.
 
 **Ethical wall**
-The isolation between organisations on a project, and the standing default rather than a feature switched on. By default an organisation sees only its own work, what the owner has shared with it, and the shared sandboxes it is in. Two things are private to an organisation and never shared, not even with the owner: its org context and its private sandbox. The owner opens cross-organisation visibility deliberately, by sharing deliverables and by adding organisations to shared sandboxes; within an open review round, comments are visible across the review group (ADR-0014), the one live cross-organisation window. See ADR-0018.
+The isolation between organisations on a project, and the standing default rather than a feature switched on. By default an organisation sees only its own work, what the owner has shared with it, and the shared sandboxes it is in. Its org context — including its users' personal sandboxes — is private to the organisation and never shared, not even with a project owner. A private project sandbox is private by default too, but the project owner holds an audited override to reach it when necessary (ADR-0018). The owner opens cross-organisation visibility deliberately, by sharing deliverables and by adding organisations to shared sandboxes; within an open review round, comments are visible across the review group (ADR-0014), the one live cross-organisation window. See ADR-0018.
 
 ---
 
 ## Context and knowledge
 
 **Context**
-The umbrella for everything that can be assembled into an agent's working input. Has two scopes (org context and project context).
+The umbrella for everything that can be assembled into an agent's working input. Has four scopes, ordered by breadth of travel: universal (the public authority corpus), org context, programme context, project context. At query time one working input is assembled per request, within the assembly environment the request runs in, from the requester's own private stores plus the access-resolved slice of project context plus the public authority corpus. Grounding follows one rule, set by confidentiality: a scope may ground its own projects but never grounds outside itself. The universal authority corpus grounds everywhere; a project's library subset grounds its members; a programme owner may additionally let its own projects ground on programme-scoped corpora and sibling-project libraries, configured per project; org context never grounds, because it travels to unrelated clients (ADR-0020).
+
+**Assembly environment**
+The single environment a request runs in, which sets the channels reachable to it — not the user's identity alone. Two kinds: a *project environment* (reaches that project's grounded and guiding channels, access-resolved to the requester, plus the requester's own informing channel and the universal authority corpus) and the organisation's *own workspace* (reaches only the organisation's own informing channel and the authority corpus — no project grounding or guiding). The informing channel is portable, travelling with a Participant into every environment; a project's grounded and guiding channels are fixed to that project and never travel. So one consultant in client A's project reaches A's grounded and guiding plus its own informing; the same consultant in client B's project reaches B's plus the same informing; A's context is never reachable from B's environment, by construction. Sandbox privacy is a separate axis: a private project sandbox still reaches its project's channels (privacy controls who sees the work, not which channels are reachable). The substrate for the distillation and egress boundary (ADR-0025, ADR-0026).
 
 **Org context**
-Context private to one organisation and portable to every project it touches. Held in the org's workspace. Contains the org's sources, knowledge, precedents, and custom workflows.
+Context private to one organisation and portable to every project it touches, owned or joined. Held in the org's workspace. Contains the org's sources, knowledge, precedents, and custom workflows. Private-by-construction and informs only: it steers an organisation's own output but never grounds a claim and never reaches another organisation (ADR-0020).
+
+**Programme context**
+Context private to a programme owner organisation and scoped to that programme's projects only. Holds the knowledge, precedents, and standards the owner wants to compound across its portfolio without carrying them into unrelated projects where it is merely a member. Sits between org and project on breadth of travel: narrower than org context (one programme, not everywhere), broader than project context (the programme's projects, not one). Private-by-construction, never reaching an organisation outside the programme. Unlike org context it is not informs-only: a programme owner may let its projects ground on programme-scoped corpora and sibling-project libraries and inherit programme guiding context, configured per project — grounding stays within the owner's own projects, so confidentiality holds (ADR-0020).
 
 **Project context**
-Context scoped to one project and shared among its members by access. Contains the project's sources, knowledge, and history.
+Context scoped to one project and shared among its members by access. Contains the project's sources, knowledge, and history. The only access-resolved scope, and — alongside the public authority corpus — one of the two scopes that ground, through its project-library subset (ADR-0011, ADR-0020).
 
 **Source**
-A raw ingested document or dataset, held in either context.
+A raw ingested document or dataset, held in any context store (org, programme or project).
 
 **Knowledge**
 Curated, structured memory distilled from sources and work: decisions, commitments, precedent positions, history. The compounding layer. (Sits inside Context; Context is the umbrella, Knowledge is the curated store within it.)
@@ -71,7 +77,31 @@ Curated, structured memory distilled from sources and work: decisions, commitmen
 A reusable exemplar (document, clause, or approach) held in org context and brought to any project.
 
 **Project library**
-The curated, owner-controlled corpus of trusted project knowledge, and the only corpus the AI grounds on for both chat queries and drafting. A flat collection of deliverables identified by coded references, not a folder structure: sorted, searched and queried by code, never navigated as a tree. Accepted deliverables enter automatically on acceptance; the owner may also add other material (reference documents, standards, baseline data) and shares each deliverable with named organisations. Library visibility is default-deny: a deliverable is seen only by the owner organisation, its author, and organisations the owner has shared it with. Generalises the real-world MIDP. The sandbox and the DRR are not part of it.
+The curated, owner-controlled corpus of trusted project knowledge: the project's own grounded corpus for both chat queries and drafting, and one of the two corpora on the grounded channel (the other being the authority corpus — ADR-0021). A collection of deliverables identified by coded references, presented **flat or foldered per project configuration** (refined 2026-07-06): folders organise the view but are never access objects — visibility stays per deliverable, per organisation, default-deny — and sort, search and query by code remain primary. Accepted deliverables enter automatically on acceptance; the owner may also add other material (reference documents, standards, baseline data) and shares each deliverable with named organisations. Library visibility is default-deny: a deliverable is seen only by the owner organisation, its author, and organisations the owner has shared it with. Generalises the real-world MIDP. The sandbox and the DRR are not part of it.
+
+**Project artefact**
+An item in the project library that did not pass the assurance review cycle but was added to the library by deliberate owner action — a reference document, baseline data, or an informal output worth keeping as a trusted record. A library member alongside formal deliverables and, like them, groundable (ADR-0011); its trust comes from owner curation rather than from the assurance cycle. Distinct from a Formal deliverable (assured through the review cycle) and from sandbox work in progress (which is not in the library).
+
+**Channel**
+One of the roles in which Context feeds a generation; every input plays exactly one. Two families: grounded (cited) and steering (never cited). The dividing invariant is privacy — only non-private sources may ground, because a citation enters the shared project record and must never carry private material across the ethical wall. So grounding draws only from the access-resolved project library and the public authority corpus; every private store can only steer. Steering then splits by scope, giving three live channels in all: grounded, guiding and informing (ADR-0021).
+
+**Grounded channel**
+The cited sources; the only channel whose content may back a citation. Two corpora: the **project library** (this project's own knowledge, cited as project fact, access-resolved before retrieval so citations are safe by construction — ADR-0020, ADR-0022) and the **authority corpus** (legislation, policy, standards, regulatory requirements, cited as external authority; public and cross-project, not walled). Distilled Knowledge may power a grounded answer but cites through to one of these sources, never standing as the citation itself. The technical channel — answers and their sources. See Grounding, Citation.
+
+**Authority corpus**
+The grounded channel's second corpus: legislation, government policy, published standards and regulatory requirements (ADR-0021). Cited as external authority rather than project fact, and public and cross-project rather than project-private — so, unlike the project library, it is not access-resolved per organisation: the law is the law. Licensed standards carry a licensing gate, which is distinct from the ethical wall; it is searched as a separate grounded pipeline (ADR-0022). Held and kept current by the authority register, owned within Context (revised ADR-0023), and dual-purpose: retrievable by users to cite when drafting, not only a reference the compliance-checking capability tests against. Dividing line from the library: produced by or for this project (→ library) versus external and published (→ authority corpus).
+
+**Guiding channel**
+Project-scoped steering: the project's templates, style guides and guardrails, owner-curated into project context the way deliverables are curated into the library. Shared among project members by access and persisting with the project when any member leaves. Never cited as project fact. The one channel that also configures the Rail, since a guardrail can be expressed as a negative constraint. On conflict with an organisation's informing steer, guiding wins: the project's guidance governs its own deliverables, and firm know-how fills in where the project is silent (ADR-0029, refined 2026-07-06).
+
+**Informing channel**
+Private steering held in org context and programme context: an organisation's, or a programme owner's, precedents, custom workflows and firm know-how. Classified by ownership, not purpose — material a consultant builds for a project is still informing if it is the consultant's IP, and it leaves when that organisation leaves the project. Private-by-construction: never shared, not even with the owner, never reaching another organisation, and never cited. Improves an organisation's own output without ever entering the shared project record (ADR-0020). Yields to project guiding on conflict (ADR-0029, refined 2026-07-06).
+
+**Attached source**
+A document or data the user explicitly selects and pins to a single generation as a direct input, distinct from channel retrieval (where the system chooses what to pull). Lets a user draw on material the channels never reach — most importantly a sandbox file — without making it part of any corpus: the trust is the user's, scoped to that input and ephemeral to the task. Reconciles ADR-0011 (the AI never grounds on the sandbox automatically) with user-directed use of sandbox material (ADR-0022). Shown with a visible user-supplied marker, never as a grounded library citation, so the trust distinction stays honest and the audit records who vouched for it.
+
+**Guidance note**
+A per-document guidance artefact: a living `.md` generated and maintained for each document or artefact from the **Signals** gathered as people edit and interact with an agent on it — how to draft it, what to watch for, the producing team's standing instructions. It **steers** any agent working on the document: it guides generation but never grounds a claim and is never cited. It is a living layer that travels with the document and sits beside the immutable controlled revisions, not inside them (ADR-0002). Its visibility follows **document access** — it is seen only by those who can see the document: the sandbox members while it is in a sandbox, and whoever the owner has shared the deliverable with once it is in the project library. So it is document-scoped, not org-private informing (which never leaves its organisation). Not an annotation sidecar: ADR-0006 retired the sidecar for comment anchors, and this is document guidance, not markup. *(Residual cross-organisation confidentiality question tracked in the [grill tracker](docs/grill-sessions/grill-questions.md), to be settled when the guidance-note ADR is grilled.)*
 
 ---
 
@@ -84,7 +114,7 @@ A defined, governed, repeatable process that produces an output. Examples: docum
 The AI workflow that checks a document against predetermined rules and style guides. Distinct from the Assurance cycle: a team typically runs the assurance workflow on a draft, then pushes the document through the assurance cycle to publish it.
 
 **Sandbox**
-A working area free of document controls (no versioning ceremony, no locking) where teams produce work-in-progress and informal deliverables, assisted by the AI. A sandbox is either shared across a chosen set of organisations or private to one organisation; sharing is set when it is created. A private sandbox is part of an organisation's private floor and is never visible to others, not even the owner. Document controls are absent, but access controls always apply, and the AI never grounds on the sandbox (ADR-0011). A shared sandbox is where organisations collaborate on work in progress, including co-authoring one deliverable (ADR-0019).
+A working area free of document controls (no versioning ceremony, no locking) where teams produce work-in-progress and informal work, assisted by the AI, organising it in folders as they wish. Sandboxes exist at two scopes (refined 2026-07-06). In the workspace: the **personal sandbox**, a per-user private area within the organisation's workspace — private to that user and sitting inside the org's absolute private floor, never reachable by another organisation or any project owner (ADR-0018); this refines the former org-wide "workspace sandbox" (whether an org admin can reach a user's personal sandbox is a small open item, to settle with the sandbox drawer). In a project: **project sandboxes**, created in the project and defined by their sharing scope — shared across a chosen set of organisations, or scoped to a single organisation; sharing is set at creation. A single-organisation project sandbox is not visible to other organisations and, by default, not to the project owner either; the project owner holds an override to gain visibility when necessary, which is exceptional and audited, not the standing state (ADR-0018). Document controls are absent, but access controls always apply, and the AI never grounds on the sandbox (ADR-0011) — though a user may pin a sandbox file to a single generation as an Attached source (ADR-0022). A shared sandbox is where organisations collaborate on work in progress, including co-authoring one deliverable (ADR-0019).
 
 **Promote**
 The act of taking a sandbox working copy into the assurance cycle as a candidate controlled revision. The crossing from sandbox to controlled record. Distinct from approve (passing a gate) and transmit (issuing the approved deliverable).
@@ -128,11 +158,20 @@ A workflow built by an organisation, held in org context, deployable to any proj
 **Capability**
 A reusable domain skill that workflows compose. Examples: grounded generation, compliance check, tabular review, plain-English, document understanding.
 
+**Agent**
+The software actor that performs the work: it carries out the steps of a workflow, drawing on capabilities and the assembled working input, and produces suggestions and outputs. It is the actor, distinct from the *workflow* (the governed process it runs), the *capability* (a reusable skill it draws on), the *run* (the audit record of its execution), and *orchestration* (the layer that plans the work and routes it across specialist sub-agents). Every agent executes inside exactly one assembly environment (ADR-0025), reaching only that environment's channels, and runs within the governance envelope, bound by the project's Rails — it cannot step outside them. An agent has one of two provenances, mirroring workflows: an **Infora-built agent** ships with the platform and runs the standard workflows; a **custom agent** (org-built) is built by an organisation, held in org context, and deployable to any project the org works on — the build-your-own layer of the long-term vision. Both kinds run in the same environment under the same envelope: a custom agent deployed into a project inherits that project owner's Rails and may tighten its own organisation's private work but can never loosen them (governance authority to be recorded in a forthcoming ADR).
+
 **Work item**
 One unit of work on a project. Carries a type (the workflow behind it), a status, and an assignee. The underlying type, not the spoken label: in the interface a work item is titled by its real name (for example, "Statement of community consultation"), the way you would say "the document" or "the review". Reserved alternatives below.
 
+**Conversation**
+The persistent thread an agent interaction happens in — the chat-interface "thread" that accumulates messages and the Runs they trigger. Every Run happens in exactly one Conversation; a Conversation may carry many Runs over its life. A Conversation is optionally bound to a Work item when its thread is doing governed project work; an ad-hoc chat question is a Conversation with no Work item. (M1.)
+
 **Run**
-The recorded execution of orchestration behind a work item. The unit of the audit trail.
+The recorded execution of an agent — one agent execution, whether a chat answer or a workflow step. Used in the same sense as the Assistants-API "Run." Has exactly one parent Conversation and an optional Work item link; a Work item accumulates many Runs over its life. The unit of the agent-execution audit trail, append-only and immutable once written (mirroring the DRR and ADR-0002). Decomposes into Steps, and may itself be a child Run spawned by a sub-agent, so the run/step record is a tree.
+
+**Step**
+One atomic action within a Run — a retrieval, a capability call, a generation. The granular unit each Run records for the audit trail (the Assistants-API "run step"). A Step may delegate to a sub-agent, spawning a **child Run**, so a Run is a tree of Runs and Steps. Sub-agents are real from v1: the main chat agent delegates retrieval to a sub-agent whose child Run finds relevant documents and folds them into the main agent's context. All retrieval — baseline and agentic — runs **through Context** (the assembly API, M3), never reaching stores directly, so access-resolution-before-retrieval (ADR-0020, ADR-0022) holds by construction. Append-only with its Run. (M1.)
 
 **Comment**
 Human review input on a document, raised against a specific version. May be authored in Infora or ingested from a Word document. Carries an acceptance code and, on the next version, a consultant response. Distinct from a Suggestion.
@@ -147,7 +186,7 @@ The structured location of a comment on a version's PDF: page plus highlight coo
 An agent-produced change offered for accept, edit, or reject. Distinct from a Comment (a Comment is human; a Suggestion is the agent).
 
 **Signal**
-A captured resolution decision on a Comment or a Suggestion. The feedback data behind the moat and the future training set.
+A captured resolution decision on a Comment or a Suggestion. The feedback data behind the moat. It compounds by retrieval and by codified workflows, not by training a shared model on customer data; any future training use is per-tenant on de-identified or aggregate data only (ADR-0026). The Signal sink is grilled in Session 7.
 
 **Deliverable Review Record (DRR)**
 The single live log of a deliverable's review across every version: comments, consultant responses, and acceptance coding. Spans v1, v2, v3 and so on as one artifact. Its history is append-only: once a version is issued, that version's comments and responses become permanent and cannot be rewritten. Users only ever interact with the live DRR. At each transmittal (lead reviewer to consultant, and consultant back) the system freezes an internal snapshot of the comments and responses as the formal record, retrievable if needed but never a document users open. Replaces the Excel Document Review Notice; no separate notice is ever issued.
@@ -184,13 +223,25 @@ Tying every generated claim to a source, with a check that can withhold unsuppor
 The link from a claim to its supporting source.
 
 **Rail**
-A governance rule applied at generation time: register, negative constraints, confidence calibration.
+A governance rule applied at generation time: register, negative constraints, confidence calibration. Rails carry an authority model that mirrors access (ADR-0015): the project **owner** sets the project's rails — the ceiling every agent and member works within — and members inherit them. A member may **tighten** rails on its own private work but can never loosen the owner's or step outside them, exactly as a Participant grant narrows within Membership and never pierces a wall. Every rail set or change is **audited** — configurable, never silent. Posture: Infora ships rails so output can meet regulation; an organisation that erodes its own rails owns that liability, since it is the firm's name on the submission, not Infora's (governance authority to be recorded in a forthcoming ADR).
 
 **Compliance**
 Conformance to policy and legislation (the DCO regime, planning policy, PINS requirements).
 
 **Audit trail**
 The complete record of every agent, user, and system action on a run or project.
+
+---
+
+## System description
+
+**Feature**
+What Infora does, described in the language a customer would recognise — the product view. Examples: AI document production, controlled document management, project chat. Outward-facing.
+
+**Component**
+A buildable, bounded unit the software is structured into — the build view, the way a team would own and reason about a part behind a clear interface. Examples: the Engine, Context, the Access model. Inward-facing. Distinct from a Capability (a reusable skill inside the Engine) and a Workflow (a recipe the Engine runs), neither of which is a component.
+
+Feature and Component are two lenses on the same system, and the mapping between them is many-to-many: one feature spans several components, and one component serves many features. They are therefore kept as two separate lists (see the overview's feature list and component list), never collapsed into one.
 
 ---
 
@@ -222,4 +273,6 @@ In record configuration, the event record of a deliverable version being issued 
 
 ## Open items
 
-None outstanding. Future additions to be agreed and folded in here so this remains the single source of truth.
+Open questions are not held here. They live in the **[grill tracker](docs/grill-sessions/grill-questions.md)**, the sole source for open questions across the system; this glossary holds settled language only, and a term lands here once its concept is agreed. The previously listed open item — *signal-derived guidance crossing organisations* — now sits in the grill backlog, to be settled when the per-document guidance-note ADR is grilled.
+
+New terms are agreed and folded in here as they firm up, so this remains the single source of truth for language.

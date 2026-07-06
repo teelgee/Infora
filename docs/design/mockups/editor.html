@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Infora — Editor (sandbox document + chat)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<aside class="rail">
+  <div class="wordmark">In<span>fora</span></div>
+
+  <div class="ws-zone"><b>Calder &amp; Hale</b> <a href="workspace-landing.html">All projects ▸</a></div>
+
+  <div class="project-switcher">
+    <div class="kicker">Project</div>
+    <div class="name">Wrenfield–Ashcombe 400kV</div>
+    <div class="chev">▾</div>
+  </div>
+
+  <nav>
+    <a href="project-home.html"><span class="glyph">⌂</span> Home</a>
+    <a href="ask.html"><span class="glyph">✦</span> Ask</a>
+    <a class="active" href="editor.html"><span class="glyph">✎</span> Editor</a>
+    <a href="library.html"><span class="glyph">▤</span> Documents</a>
+    <a href="review.html"><span class="glyph">✓</span> Review</a>
+    <a href="sandbox.html"><span class="glyph">▧</span> Sandbox</a>
+    <a href="#"><span class="glyph">▸</span> Workflows</a>
+  </nav>
+
+  <div class="spacer"></div>
+
+  <div class="user-chip">
+    <div class="avatar">EP</div>
+    <div class="who">
+      <div class="name">Eleanor Price</div>
+      <div class="org">Calder &amp; Hale — Consultant</div>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <span class="crumb">Sandbox ▸ Land Quality ▸ <b>EIA Scoping Method Statement — Land Quality</b></span>
+    <div class="right">
+      <div class="avatar-stack">
+        <div class="avatar">EP</div>
+        <div class="avatar" style="background:#8a5a12">MW</div>
+      </div>
+      <button class="btn sm quiet" title="Promotion is the document-management bridge — Slice A">↑ Promote…</button>
+      <span class="badge b-grey"><span class="dot"></span>Sandbox — no ceremony</span>
+    </div>
+  </div>
+
+  <div class="editor-layout">
+
+    <!-- Document canvas -->
+    <div class="canvas">
+      <div class="doc-body">
+        <h2>3&nbsp;&nbsp;Scope of the assessment</h2>
+
+        <h3>3.2&nbsp;&nbsp;Baseline conditions</h3>
+        <p>
+          The study area comprises predominantly agricultural land with two former industrial
+          sites at Wrenfield Sidings and the Ashcombe depot.
+          <span class="num-badge" style="vertical-align:2px">2</span><span class="del">Historical landfill is recorded east of the order limits.</span>
+          <span class="ins">Historical landfill is recorded east of the order limits, within 250&nbsp;m
+          of the proposed cable corridor <span class="cite lib">▤ WA-ENV-BAS-003 v3 · Fig 4</span>.</span>
+        </p>
+
+        <div class="proposed">
+          <div class="proposed-tag"><span class="num-badge" style="vertical-align:-4px">1</span> Suggestion 1 · Insert §3.3 · pending your decision</div>
+          <h3 style="margin-top:0">3.3&nbsp;&nbsp;Potential contamination pathways</h3>
+          <p>
+            Ground investigation identified made ground to a depth of 2.4&nbsp;m across the
+            Wrenfield Sidings compound, with elevated concentrations of polycyclic aromatic
+            hydrocarbons in three of eleven trial pits
+            <span class="cite lib">▤ WA-GEO-GIR-004 v2 · §5.2</span>.
+            A shallow perched water table provides a plausible pollutant linkage to the
+            Ashcombe Brook receptor during construction dewatering
+            <span class="cite lib">▤ WA-ENV-BAS-003 v3 · Table 9</span>.
+          </p>
+          <p>
+            The assessment will therefore scope in construction-phase mobilisation of
+            contaminants, in accordance with Regulation 4(2) of the Infrastructure Planning
+            (Environmental Impact Assessment) Regulations 2017
+            <span class="cite auth">§ EIA Regs 2017 · Reg 4(2)</span>, and adopt the
+            source–pathway–receptor model set out in LCRM
+            <span class="cite auth">§ LCRM · Stage 1</span>.
+          </p>
+        </div>
+
+        <h3>3.4&nbsp;&nbsp;Assessment methodology</h3>
+        <p style="color:var(--muted)">The methodology section continues as manually written text — typed by hand,
+        no suggestion machinery, no Signal, exactly as if AI didn't exist.</p>
+      </div>
+    </div>
+
+    <!-- Chat / suggestions panel -->
+    <div class="suggest-panel">
+      <div class="panel-tabs">
+        <a class="active" href="#">Chat</a>
+        <a href="#">Suggestions · 2</a>
+        <a href="#">Insert</a>
+      </div>
+
+      <div class="msg user" style="max-width:100%">
+        <div class="who">Eleanor · 10:42</div>
+        <div class="bubble" style="font-size:12.5px">
+          Draft the contamination pathways subsection. Use the GIR and the baseline, keep to
+          the project style for scoping statements.
+        </div>
+      </div>
+
+      <div class="msg agent" style="max-width:100%">
+        <div class="who">Infora agent</div>
+        <div class="bubble" style="font-size:12.5px">
+          Done — 2 suggestions on the document, numbered in the margin. 6 citations
+          (4 project fact, 2 external authority). One claim was withheld.
+        </div>
+        <div class="meta">Run 0d8f · retrieve → draft → ground-check → cite · <a href="ask.html" style="color:var(--accent)">full trace</a></div>
+      </div>
+
+      <div class="s-card active">
+        <div class="s-title"><span class="num-badge">1</span> Insert §3.3 — contamination pathways</div>
+        <div class="s-desc">New subsection from the GIR and baseline; scopes in construction-phase mobilisation per EIA Regs 2017.</div>
+        <div class="s-actions">
+          <button class="btn sm primary">✓ Accept</button>
+          <button class="btn sm">✎ Edit</button>
+          <button class="btn sm danger">✕ Reject</button>
+        </div>
+      </div>
+
+      <div class="s-card">
+        <div class="s-title"><span class="num-badge">2</span> Amend §3.2 — landfill proximity</div>
+        <div class="s-desc">Adds the 250&nbsp;m corridor-proximity qualifier, cited to baseline Fig 4 — tightens the receptor argument §3.3 relies on.</div>
+        <div class="s-actions">
+          <button class="btn sm primary">✓ Accept</button>
+          <button class="btn sm">✎ Edit</button>
+          <button class="btn sm danger">✕ Reject</button>
+        </div>
+      </div>
+
+      <div class="withheld" style="margin:12px 0">
+        ⚠ 1 claim withheld — “northern compound remediated 2019” had no supporting source in
+        your entitled slice. Add a source to the library, or attach one and re-draft.
+      </div>
+
+      <div class="command" style="margin-top:8px; padding:10px 13px; font-size:12.5px">
+        <span class="glyph">✦</span> Ask about this document, or draft into it… <span class="hint">＋ attach</span>
+      </div>
+
+      <p style="font-size:11px; color:var(--muted); line-height:1.55; padding:8px 2px 0">
+        Each decision writes a <b>Signal</b>. Accepting applies the change to this sandbox document;
+        manual edits in the canvas carry no suggestion machinery and write no Signal.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

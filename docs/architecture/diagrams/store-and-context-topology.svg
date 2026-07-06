@@ -1,0 +1,96 @@
+<svg width="100%" viewBox="0 0 1060 980" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Infora — store &amp; context topology</title>
+<style>
+.t{font:600 13px system-ui,-apple-system,sans-serif;fill:#28261f;}
+.h{font:600 14px system-ui,-apple-system,sans-serif;fill:#28261f;}
+.s{font:400 11px system-ui,-apple-system,sans-serif;fill:#6b6760;}
+.box{fill:#f7f7f5;stroke:#d6d3cd;stroke-width:1;}
+.outer{fill:none;stroke:#9b988f;stroke-width:1.2;}
+.teal{fill:#e7f4f0;stroke:#159a74;stroke-width:1;}
+.tealout{fill:none;stroke:#159a74;stroke-width:1.2;}
+.purple{fill:#ecebfb;stroke:#6d5dd3;stroke-width:1;}
+.pdash{fill:#f4f3fc;stroke:#6d5dd3;stroke-width:1;stroke-dasharray:4 3;}
+.shared{fill:#f3f1ec;stroke:#9b8f78;stroke-width:1;stroke-dasharray:4 3;}
+.org2{fill:#eaf2fb;stroke:#4a78b8;stroke-width:1;stroke-dasharray:4 3;}
+.org3{fill:#fdf3e3;stroke:#c98a2e;stroke-width:1;stroke-dasharray:4 3;}
+.org4{fill:#ecf6ec;stroke:#4a9a55;stroke-width:1;stroke-dasharray:4 3;}
+</style>
+<defs><marker id="au" viewBox="0 0 8 8" refX="4" refY="1" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 8 L4 0 L8 8 z" fill="#9b988f"/></marker></defs>
+
+<!-- Authority corpus: universal, outside every org -->
+<rect class="teal" x="40" y="28" width="980" height="34" rx="8"/>
+<text class="t" x="530" y="49" text-anchor="middle">Authority corpus — universal · public · cross-project · grounds everywhere (legislation, policy, standards)</text>
+
+<!-- OWNER ORG -->
+<rect class="outer" x="40" y="86" width="980" height="360" rx="14"/>
+<text class="h" x="56" y="110" text-anchor="start">Client – Org 1</text>
+<text class="s" x="146" y="110" text-anchor="start">owner of Programme 1 and its projects (and a member of them too)</text>
+<rect class="box" x="60" y="120" width="940" height="28" rx="6"/><text class="t" x="530" y="139" text-anchor="middle">Workspace</text>
+
+<!-- org-level stores, OUTSIDE the programme -->
+<rect class="purple" x="60" y="162" width="176" height="120" rx="8"/>
+<text class="t" x="148" y="200" text-anchor="middle">Org context</text>
+<text class="s" x="148" y="220" text-anchor="middle">informing · private</text>
+<text class="s" x="148" y="236" text-anchor="middle">toolkit, precedents,</text>
+<text class="s" x="148" y="252" text-anchor="middle">workflows &amp; agents</text>
+<rect class="pdash" x="60" y="292" width="176" height="140" rx="8"/>
+<text class="t" x="148" y="356" text-anchor="middle">Workspace sandbox</text>
+<text class="s" x="148" y="374" text-anchor="middle">org's free-form area · private</text>
+
+<!-- PROGRAMME -->
+<rect class="tealout" x="252" y="160" width="752" height="276" rx="12"/>
+<text class="t" x="264" y="182" text-anchor="start">Programme 1</text>
+<rect class="teal" x="268" y="196" width="150" height="224" rx="8"/>
+<text class="t" x="343" y="232" text-anchor="middle">Programme</text>
+<text class="t" x="343" y="248" text-anchor="middle">context</text>
+<text class="s" x="343" y="270" text-anchor="middle">private to owner ·</text>
+<text class="s" x="343" y="286" text-anchor="middle">may ground its</text>
+<text class="s" x="343" y="302" text-anchor="middle">own projects</text>
+<text class="s" x="343" y="318" text-anchor="middle">(per project)</text>
+
+<!-- Project 1 -->
+<rect class="tealout" x="432" y="196" width="272" height="224" rx="10"/>
+<text class="t" x="444" y="218" text-anchor="start">Project 1</text>
+<rect class="teal" x="444" y="228" width="248" height="40" rx="6"/><text class="t" x="568" y="252" text-anchor="middle">Project library · grounds</text>
+<rect class="shared" x="444" y="280" width="248" height="36" rx="6"/><text class="s" x="568" y="302" text-anchor="middle">Shared sandbox · Org 1 + Org 2</text>
+<rect class="org2" x="444" y="328" width="120" height="44" rx="6"/><text class="s" x="504" y="349" text-anchor="middle">Org 2</text><text class="s" x="504" y="364" text-anchor="middle">private SB</text>
+
+<!-- Project 2 -->
+<rect class="tealout" x="716" y="196" width="276" height="224" rx="10"/>
+<text class="t" x="728" y="218" text-anchor="start">Project 2</text>
+<rect class="teal" x="728" y="228" width="248" height="40" rx="6"/><text class="t" x="852" y="252" text-anchor="middle">Project library · grounds</text>
+<rect class="shared" x="728" y="280" width="248" height="36" rx="6"/><text class="s" x="852" y="302" text-anchor="middle">Shared sandbox · Org 1 + Org 3 + Org 4</text>
+<rect class="org3" x="728" y="328" width="120" height="44" rx="6"/><text class="s" x="788" y="349" text-anchor="middle">Org 3</text><text class="s" x="788" y="364" text-anchor="middle">private SB</text>
+<rect class="org4" x="856" y="328" width="120" height="44" rx="6"/><text class="s" x="916" y="349" text-anchor="middle">Org 4</text><text class="s" x="916" y="364" text-anchor="middle">private SB</text>
+
+<!-- MEMBER ORGS -->
+<rect class="outer" x="40" y="486" width="300" height="344" rx="14"/>
+<text class="h" x="52" y="512" text-anchor="start">Consultant – Org 2</text>
+<rect class="box" x="56" y="524" width="268" height="26" rx="6"/><text class="t" x="190" y="542" text-anchor="middle">Workspace</text>
+<rect class="purple" x="56" y="562" width="268" height="116" rx="8"/><text class="t" x="190" y="612" text-anchor="middle">Org context</text><text class="s" x="190" y="632" text-anchor="middle">informing · private toolkit &amp; agents</text>
+<rect class="pdash" x="56" y="690" width="268" height="124" rx="8"/><text class="t" x="190" y="748" text-anchor="middle">Workspace sandbox</text><text class="s" x="190" y="766" text-anchor="middle">private</text>
+
+<rect class="outer" x="380" y="486" width="300" height="344" rx="14"/>
+<text class="h" x="392" y="512" text-anchor="start">Consultant – Org 3</text>
+<rect class="box" x="396" y="524" width="268" height="26" rx="6"/><text class="t" x="530" y="542" text-anchor="middle">Workspace</text>
+<rect class="purple" x="396" y="562" width="268" height="116" rx="8"/><text class="t" x="530" y="612" text-anchor="middle">Org context</text><text class="s" x="530" y="632" text-anchor="middle">informing · private toolkit &amp; agents</text>
+<rect class="pdash" x="396" y="690" width="268" height="124" rx="8"/><text class="t" x="530" y="748" text-anchor="middle">Workspace sandbox</text><text class="s" x="530" y="766" text-anchor="middle">private</text>
+
+<rect class="outer" x="720" y="486" width="300" height="344" rx="14"/>
+<text class="h" x="732" y="512" text-anchor="start">Contractor – Org 4</text>
+<rect class="box" x="736" y="524" width="268" height="26" rx="6"/><text class="t" x="870" y="542" text-anchor="middle">Workspace</text>
+<rect class="purple" x="736" y="562" width="268" height="116" rx="8"/><text class="t" x="870" y="612" text-anchor="middle">Org context</text><text class="s" x="870" y="632" text-anchor="middle">informing · private toolkit &amp; agents</text>
+<rect class="pdash" x="736" y="690" width="268" height="124" rx="8"/><text class="t" x="870" y="748" text-anchor="middle">Workspace sandbox</text><text class="s" x="870" y="766" text-anchor="middle">private</text>
+
+<!-- membership + informing connectors (org works here; its toolkit/agents travel in) -->
+<path d="M190 486 Q 230 450 470 420" class="" fill="none" stroke="#9b988f" stroke-width="1.3" marker-end="url(#au)"/>
+<path d="M515 486 Q 515 452 545 420" fill="none" stroke="#9b988f" stroke-width="1.3" marker-end="url(#au)"/>
+<path d="M548 486 Q 640 448 845 420" fill="none" stroke="#9b988f" stroke-width="1.3" marker-end="url(#au)"/>
+<path d="M870 486 Q 872 452 872 420" fill="none" stroke="#9b988f" stroke-width="1.3" marker-end="url(#au)"/>
+
+<!-- LEGEND -->
+<rect class="teal" x="60" y="858" width="16" height="16" rx="3"/><text class="s" x="84" y="871">Grounds — cited corpora: authority corpus, project library; programme context may ground its own projects.</text>
+<rect class="purple" x="60" y="886" width="16" height="16" rx="3"/><text class="s" x="84" y="899">Private — org context (informing) and every sandbox: steer only, never grounds, never crosses the wall.</text>
+<rect class="pdash" x="60" y="914" width="16" height="16" rx="3"/><text class="s" x="84" y="927">Sandbox — no document controls. A private sandbox is invisible to the project owner (audited override only).</text>
+<line x1="60" y1="950" x2="76" y2="950" stroke="#9b988f" stroke-width="1.3" marker-end="url(#au)"/><text class="s" x="84" y="954">Membership + informing — the org works in the project and its toolkit/agents travel in, under the owner's rails. Private-sandbox chips are tinted by owning org.</text>
+</svg>

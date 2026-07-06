@@ -1,0 +1,17 @@
+<svg width="100%" viewBox="0 0 680 280" role="img" xmlns="http://www.w3.org/2000/svg"><title>Word add-in data flow</title>
+<style>
+.t{font:500 13px system-ui,-apple-system,sans-serif;fill:#28261f;}
+.s{font:400 11px system-ui,-apple-system,sans-serif;fill:#6b6760;}
+.box{fill:#f7f7f5;stroke:#d6d3cd;stroke-width:.5;}
+.teal{fill:#e7f4f0;stroke:#159a74;stroke-width:1;}
+</style>
+<defs><marker id="aE" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#9b988f"/></marker></defs>
+<text class="s" x="340" y="34" text-anchor="middle">Context + capability request</text>
+<rect class="box" x="50" y="78" width="170" height="66" rx="8"/><text class="t" x="135" y="104" text-anchor="middle">Word document</text><text class="s" x="135" y="122" text-anchor="middle">Selection, text, changes</text>
+<rect class="box" x="255" y="78" width="170" height="66" rx="8"/><text class="t" x="340" y="104" text-anchor="middle">Add-in task pane</text><text class="s" x="340" y="122" text-anchor="middle">Thin client, no models</text>
+<rect class="box" x="460" y="78" width="170" height="66" rx="8"/><text class="t" x="545" y="104" text-anchor="middle">Infora backend</text><text class="s" x="545" y="122" text-anchor="middle">The full stack</text>
+<line x1="220" y1="111" x2="253" y2="111" stroke="#9b988f" marker-end="url(#aE)"/><line x1="425" y1="111" x2="458" y2="111" stroke="#9b988f" marker-end="url(#aE)"/>
+<path d="M545 144 L545 186 L135 186 L135 148" fill="none" stroke="#159a74" stroke-width="1" marker-end="url(#aE)"/>
+<text class="s" x="340" y="204" text-anchor="middle">Proposed as tracked changes; accept / edit / reject captured</text>
+<rect class="teal" x="50" y="226" width="580" height="38" rx="8"/><text class="s" x="340" y="247" text-anchor="middle">Every suggestion, source access and model call written to the audit trail</text>
+</svg>

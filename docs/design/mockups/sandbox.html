@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Infora — Project sandbox</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<aside class="rail">
+  <div class="wordmark">In<span>fora</span></div>
+
+  <div class="ws-zone"><b>Calder &amp; Hale</b> <a href="workspace-landing.html">All projects ▸</a></div>
+
+  <div class="project-switcher">
+    <div class="kicker">Project</div>
+    <div class="name">Wrenfield–Ashcombe 400kV</div>
+    <div class="chev">▾</div>
+  </div>
+
+  <nav>
+    <a href="project-home.html"><span class="glyph">⌂</span> Home</a>
+    <a href="ask.html"><span class="glyph">✦</span> Ask</a>
+    <a href="editor.html"><span class="glyph">✎</span> Editor</a>
+    <a href="library.html"><span class="glyph">▤</span> Documents</a>
+    <a href="review.html"><span class="glyph">✓</span> Review</a>
+    <a class="active" href="sandbox.html"><span class="glyph">▧</span> Sandbox</a>
+    <a href="#"><span class="glyph">▸</span> Workflows</a>
+  </nav>
+
+  <div class="spacer"></div>
+
+  <div class="user-chip">
+    <div class="avatar">EP</div>
+    <div class="who">
+      <div class="name">Eleanor Price</div>
+      <div class="org">Calder &amp; Hale — Consultant</div>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <span class="crumb"><b>Sandbox</b> · Calder &amp; Hale (this organisation only) ▾</span>
+    <div class="right">
+      <button class="btn sm">＋ New folder</button>
+      <button class="btn sm">＋ New document</button>
+      <span class="badge b-grey"><span class="dot"></span>No document controls</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <h1 class="page">Sandbox</h1>
+    <p class="page-sub">Work in progress, organised however your team likes. No versioning ceremony, no locking; the AI never grounds on anything here — attach a file to a generation when you want an agent to use one.</p>
+
+    <div class="section-label">Calder &amp; Hale — private project sandbox · switch: <span class="chip">Shared: C&amp;H + Fairway Ecology</span></div>
+    <div class="card tree">
+      <table>
+        <thead><tr><th>Name</th><th>Modified</th><th>By</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="ficon">▾ 📁</span><b>Land Quality</b></td>
+            <td>Today</td><td>—</td><td></td>
+          </tr>
+          <tr>
+            <td class="indent"><span class="ficon">📄</span>EIA Scoping Method Statement — Land Quality <span class="chip">draft v2 working head</span></td>
+            <td>Today 10:51</td><td>Eleanor Price</td>
+            <td><a class="btn sm quiet" href="editor.html">Open in Editor</a></td>
+          </tr>
+          <tr>
+            <td class="indent"><span class="ficon">📊</span>Trial pit results — working calcs.xlsx</td>
+            <td>Mon</td><td>Marcus Webb</td>
+            <td><button class="btn sm quiet">Attach to generation</button></td>
+          </tr>
+          <tr>
+            <td><span class="ficon">▸ 📁</span><b>Ground Investigation</b></td>
+            <td>Yesterday</td><td>—</td><td></td>
+          </tr>
+          <tr>
+            <td><span class="ficon">▸ 📁</span><b>Meeting notes</b></td>
+            <td>3 d ago</td><td>—</td><td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="footer-note">
+      <b>Mockup notes (not UI copy).</b> The project sandbox (owner's wireframe frame 5): folder-organised by choice (the glossary allows it —
+      folders here are the team's own organisation). This one is scoped to a single organisation; the switcher exposes any shared sandboxes
+      the user is in (ADR-0019 — cross-org co-authoring happens there). A single-org sandbox is invisible to other organisations and, by
+      default, to the project owner, whose override is exceptional and audited (ADR-0018). The <b>personal sandbox</b> is different and lives
+      in the workspace (per-user, private — ruled 2026-07-06). "Attach to generation" is the ADR-0022 attached-source path; promotion into
+      a controlled Version happens from here when Slice A lands.
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
