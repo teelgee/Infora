@@ -12,6 +12,7 @@
   "dependencies": {
     "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
+    "@infora/knowledge": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

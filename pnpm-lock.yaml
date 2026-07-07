@@ -207,6 +207,9 @@ importers:
       '@infora/db':
         specifier: workspace:*
         version: link:../db
+      '@infora/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
