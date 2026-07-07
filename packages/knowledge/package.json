@@ -6,9 +6,18 @@
   "description": "project + org context stores, signal capture",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*",
+    "@infora/db": "workspace:*",
+    "@infora/governance": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
