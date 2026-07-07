@@ -10,9 +10,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@infora/capabilities": "workspace:*",
     "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
     "@infora/knowledge": "workspace:*",
+    "@infora/model": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

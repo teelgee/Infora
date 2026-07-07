@@ -6,9 +6,15 @@
   "description": "grounded generation, compliance, tabular review, plain-english",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*",
+    "@infora/model": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
