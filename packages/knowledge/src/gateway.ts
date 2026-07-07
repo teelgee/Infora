@@ -12,6 +12,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
+import { mergeChannels } from './merge';
 import { groundedLibrary } from './retrieval';
 
 // v1 budget: fixed and naive (ADR-0029 §5); Session 6 tunes it behind the
@@ -41,17 +42,18 @@ export function createAssembler(deps: GatewayDeps): Assemble {
     const slice = await resolveRequester(deps.db, req);
     if (!slice) return emptyInput();
 
-    const [groundedItems, guidingItems, informingItems] = await Promise.all([
+    const [grounded, guidingItems, informingItems] = await Promise.all([
       groundedLibrary(deps, slice, req.request),
       guiding(deps, slice, req.request),
       informing(deps, slice, req.request),
     ]);
 
-    // v1 merge order is grounded → guiding → informing (ADR-0029 §5); the
-    // budgeted drop-lowest-first merge lands at T-032 — every channel is
-    // empty until T-031 fills grounded.
-    const items = [...groundedItems, ...guidingItems, ...informingItems];
-    return { items, budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 } };
+    // v1 merge (T-032): grounded-first within the budget, lowest-priority
+    // channel dropped first (ADR-0029 §5)
+    return mergeChannels(
+      { grounded, guiding: guidingItems, informing: informingItems },
+      TOKEN_LIMIT,
+    );
   };
 }
 
