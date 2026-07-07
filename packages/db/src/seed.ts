@@ -20,7 +20,7 @@ await db.execute(sql`
 const [trentmoor] = await db.insert(s.organisations).values({ name: 'Trentmoor Energy' }).returning();
 const [calderHale] = await db.insert(s.organisations).values({ name: 'Calder & Hale' }).returning();
 // wall-test subject: an organisation with no Membership on the project
-await db.insert(s.organisations).values({ name: 'Halvern Associates' });
+const [halvern] = await db.insert(s.organisations).values({ name: 'Halvern Associates' }).returning();
 
 const [rachel] = await db
   .insert(s.users)
@@ -35,12 +35,17 @@ const [marcus] = await db
   .insert(s.users)
   .values({ name: 'Marcus Webb', email: 'marcus.webb@calderhale.example', organisationId: calderHale!.id })
   .returning();
+// wall-test subject: an authenticated user in the membership-less third org (T-022)
+const [priya] = await db
+  .insert(s.users)
+  .values({ name: 'Priya Nair', email: 'priya.nair@halvern.example', organisationId: halvern!.id })
+  .returning();
 
-// skeleton session login (T-021) — dev password, printed below; Marcus can
-// log in too so the wall tests exercise an authenticated but unentitled user
+// skeleton session login (T-021) — dev password, printed below; the wall
+// subjects can log in too, so T-022 exercises authenticated but unentitled users
 const DEV_PASSWORD = 'wrenfield-dev';
 await db.insert(s.userCredentials).values(
-  [rachel!, eleanor!, marcus!].map((u) => ({
+  [rachel!, eleanor!, marcus!, priya!].map((u) => ({
     userId: u.id,
     passwordHash: hashPassword(DEV_PASSWORD),
   })),

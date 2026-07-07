@@ -43,6 +43,9 @@ jobs:
 
       - run: pnpm --filter @infora/db run migrate
 
+      # the wall tests (T-022) run against the seeded subjects
+      - run: pnpm --filter @infora/db run seed
+
       - run: pnpm run test
 
       - run: pnpm run test:tools
