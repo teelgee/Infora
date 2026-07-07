@@ -16,6 +16,7 @@ cp .env.example .env                     # defaults match the compose file
 pnpm --filter @infora/db run migrate     # apply the five-drawer schema
 pnpm --filter @infora/db run seed        # the walking-skeleton seed data
 pnpm run check                           # dep rules + lint + typecheck + tests
+pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 
 `pnpm run check` mirrors CI exactly. The dependency rules between workspace

@@ -6,9 +6,20 @@
   "description": "only deployable that touches the DB and models",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@infora/contracts": "workspace:*",
+    "hono": "^4.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "tsx": "^4.23.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
