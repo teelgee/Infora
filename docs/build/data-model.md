@@ -52,6 +52,10 @@ Relationship: Project ─< Container.
 Fields: `id`, `container_id` → Container, `version_reference` (v1, v2…), `created_at`, `content_ref` (pointer to the stored file/text), `is_current` (bool).
 Relationship: Container ─< Version. Only versions whose Container is `in_library` and `state = live` are retrievable for grounding (ADR-0022).
 
+**Version chunk** *(retrieval index, added at T-012)* — one embedded slice of a Version's content, co-located with the relational access data so ADR-0022's access and state rules apply as SQL **pre-filters** in the same query as vector search (ADR-0024). Derived and rebuildable, not a record: every Version is chunked (including superseded/withdrawn — exclusion is retrieval's job, which is what makes it provable, T-033). The embedding model id **and** version are pinned beside every vector; a model change is a re-index migration, never a mix.
+Fields: `id`, `version_id` → Version, `chunk_index`, `content`, `embedding` (pgvector), `embedding_model_id`, `embedding_model_version`.
+Relationship: Version ─< Version chunk.
+
 **Sandbox document** — a working copy in the project sandbox: the home of a draft before promotion (owner-decided 2026-07-04, closing the ↩ item below). Freely editable with **no document controls** — a user creates and edits it manually exactly as they would if AI didn't exist, with no Suggestion and no Signal; an agent proposes content to it only when prompted (via a Suggestion, Drawer 4). The AI never grounds on it (ADR-0011). **Deliberately mutable** — it is the uncontrolled working area, the one non-append-only content table by design.
 Fields: `id`, `project_id` → Project, `organisation_id` → Organisation (whose sandbox it sits in — the skeleton models one implicit private project sandbox per organisation; the full sandbox model — shared/private sandboxes, the workspace sandbox, folders, the owner's audited override — is deferred to its own drawer), `title`, `content`, `created_by_participant_id` → Participant, `updated_at`.
 Relationship: Project ─< Sandbox document.

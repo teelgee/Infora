@@ -1,12 +1,15 @@
 // Drawer 2 — documents, the grounding corpus (ADR-0002, ADR-0011, ADR-0013).
 import {
   boolean,
+  index,
+  integer,
   pgEnum,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from 'drizzle-orm/pg-core';
 import { organisations, participants, projects } from './drawer1-parties.js';
 
@@ -39,6 +42,31 @@ export const versions = pgTable('versions', {
   content: text('content').notNull(),
   isCurrent: boolean('is_current').notNull().default(true),
 });
+
+// The grounding corpus's retrieval index (T-012, ADR-0024): derived,
+// rebuildable rows — chunk text and vector co-located with the relational
+// access data so ADR-0022's access/state rules run as SQL pre-filters in the
+// same query as similarity. The embedding model id and version are pinned
+// beside every vector; a model change is a re-index migration, never a mix.
+// Dimensions match the pinned Voyage default (packages/model).
+export const versionChunks = pgTable(
+  'version_chunks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => versions.id),
+    chunkIndex: integer('chunk_index').notNull(),
+    content: text('content').notNull(),
+    embedding: vector('embedding', { dimensions: 1024 }).notNull(),
+    embeddingModelId: text('embedding_model_id').notNull(),
+    embeddingModelVersion: text('embedding_model_version').notNull(),
+  },
+  (t) => [
+    uniqueIndex('version_chunks_version_chunk_unique').on(t.versionId, t.chunkIndex),
+    index('version_chunks_embedding_hnsw').using('hnsw', t.embedding.op('vector_cosine_ops')),
+  ],
+);
 
 // Deliberately mutable — the uncontrolled working area (draft-location
 // decision, 2026-07-04). The one non-append-only content table by design.
