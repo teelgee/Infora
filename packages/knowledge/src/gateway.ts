@@ -11,25 +11,26 @@ import { resolveAccess } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Router } from '@infora/model';
+import { groundedLibrary } from './retrieval';
 
 // v1 budget: fixed and naive (ADR-0029 §5); Session 6 tunes it behind the
 // same signature.
 export const TOKEN_LIMIT = 12000;
 
-export type GatewayDeps = { db: Db };
+export type GatewayDeps = { db: Db; router: Router };
 
 // Per-channel pipelines (ADR-0022): a separate pipeline per channel — and per
-// corpus within grounded — behind the one signature. Guiding and informing
-// are present but empty in the skeleton (their stores are post-MVP drawers);
-// the grounded library pipeline becomes real at T-031, the authority corpus
-// with its slice.
+// corpus within grounded — behind the one signature. The grounded library is
+// real (T-031); guiding and informing are present but empty in the skeleton
+// (their stores are post-MVP drawers), and the authority corpus arrives with
+// its slice.
 type Pipeline = (
   deps: GatewayDeps,
   slice: EntitledSlice,
   request: AssemblyRequest['request'],
 ) => Promise<AssembledItem[]>;
 
-const groundedLibrary: Pipeline = async () => []; // T-031
 const guiding: Pipeline = async () => [];
 const informing: Pipeline = async () => [];
 

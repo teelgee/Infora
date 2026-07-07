@@ -5,9 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AssembledInput, AssemblyRequest } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { createAssembler, TOKEN_LIMIT } from './gateway';
+import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
-const assemble = createAssembler({ db });
+const assemble = createAssembler({ db, router: fakeRouter() });
 
 let projectId: string;
 let organisationId: string; // org A, on the project
