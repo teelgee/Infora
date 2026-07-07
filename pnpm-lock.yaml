@@ -220,6 +220,9 @@ importers:
       '@infora/db':
         specifier: workspace:*
         version: link:../db
+      '@infora/governance':
+        specifier: workspace:*
+        version: link:../governance
       '@infora/knowledge':
         specifier: workspace:*
         version: link:../knowledge

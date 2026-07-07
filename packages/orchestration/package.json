@@ -13,6 +13,7 @@
     "@infora/capabilities": "workspace:*",
     "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
+    "@infora/governance": "workspace:*",
     "@infora/knowledge": "workspace:*",
     "@infora/model": "workspace:*",
     "drizzle-orm": "^0.45.2"
