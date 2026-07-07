@@ -4,8 +4,11 @@ import { buildApp } from './app';
 
 const uuid = '3f8a2c1e-9b4d-4f6a-8c2e-1d5b7a9f0e3c';
 
-// The contracts.md §3 endpoints still awaiting their tickets (auth is live, T-021).
-const pendingRoutes: Array<[string, string]> = [
+// Every contracts.md §3 endpoint that requires a resolved requester (T-023);
+// the entitled pass-through to the 501 placeholders is covered in
+// requester.test.ts against the live database.
+export const scopedRoutes: Array<[string, string]> = [
+  ['GET', '/me'],
   ['POST', `/projects/${uuid}/conversations`],
   ['POST', `/conversations/${uuid}/runs`],
   ['GET', `/conversations/${uuid}`],
@@ -19,24 +22,18 @@ const pendingRoutes: Array<[string, string]> = [
   ['GET', `/projects/${uuid}/library`],
 ];
 
-describe('apps/api skeleton (T-009)', () => {
-  // the pool is lazy — these tests never touch the database
+describe('apps/api skeleton (T-009/T-023)', () => {
+  // no cookie means the middleware answers before any query — no database needed
   const app = buildApp({ db: createDb().db, sessionSecret: 'test-secret' });
 
-  it.each(pendingRoutes)('%s %s is registered (501 until its ticket lands)', async (method, path) => {
+  it.each(scopedRoutes)('%s %s requires a session', async (method, path) => {
     const res = await app.request(path, { method });
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'unauthenticated' });
   });
 
-  it('an unknown resource returns the contracts §4 envelope', async () => {
-    const res = await app.request('/nope');
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'not_found' });
-  });
-
-  it('a wrong method reads as not_found, never method-not-allowed (principle 4)', async () => {
-    const res = await app.request(`/runs/${uuid}`, { method: 'DELETE' });
-    expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'not_found' });
+  it('login itself is the one sessionless endpoint', async () => {
+    const res = await app.request('/auth/session', { method: 'POST' });
+    expect(res.status).not.toBe(401);
   });
 });

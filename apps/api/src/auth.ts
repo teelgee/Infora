@@ -4,19 +4,20 @@
 // infra/security session lands production identity (Entra-first); requester
 // resolution on every other endpoint is T-023.
 import { Hono } from 'hono';
-import { getSignedCookie, setSignedCookie } from 'hono/cookie';
+import { setSignedCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
 import { createSessionBody } from '@infora/contracts';
 import type { ApiError, MeResponse } from '@infora/contracts';
 import { schema as s, verifyPassword } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { AppEnv } from './requester';
 
 export const sessionCookie = 'infora_session';
 
 const unauthenticated = { error: 'unauthenticated' } satisfies ApiError;
 
 export function authRoutes(deps: { db: Db; sessionSecret: string }) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
 
   app.post('/auth/session', async (c) => {
     const body = createSessionBody.safeParse(await c.req.json().catch(() => null));
@@ -45,11 +46,8 @@ export function authRoutes(deps: { db: Db; sessionSecret: string }) {
   });
 
   app.get('/me', async (c) => {
-    const userId = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
-    if (!userId) return c.json(unauthenticated, 401);
-
-    const [user] = await deps.db.select().from(s.users).where(eq(s.users.id, userId)).limit(1);
-    if (!user) return c.json(unauthenticated, 401); // stale cookie after a reseed
+    // the requester was resolved by the T-023 session middleware
+    const user = c.get('user');
 
     const participants = await deps.db
       .select()
