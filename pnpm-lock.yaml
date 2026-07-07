@@ -200,10 +200,23 @@ importers:
         version: 3.2.6(@types/node@24.13.2)(tsx@4.23.0)
 
   packages/orchestration:
+    dependencies:
+      '@infora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@infora/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
     devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@24.13.2)(vite@7.3.6(@types/node@24.13.2)(tsx@4.23.0))
 
   packages/ui:
     devDependencies:
