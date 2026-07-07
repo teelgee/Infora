@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: infora-db
+    environment:
+      POSTGRES_USER: infora
+      POSTGRES_PASSWORD: infora
+      POSTGRES_DB: infora
+    ports:
+      - "5432:5432"
+    volumes:
+      - infora-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infora -d infora"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  infora-pgdata:
