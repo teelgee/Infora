@@ -5,6 +5,7 @@
 // Dev-only: wipes and reseeds (TRUNCATE bypasses row triggers by design).
 import { sql } from 'drizzle-orm';
 import { createDb } from './client.js';
+import { hashPassword } from './credentials.js';
 import * as s from './schema/index.js';
 
 const { db, pool } = createDb();
@@ -12,7 +13,7 @@ const { db, pool } = createDb();
 await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,
     comments, drrs, sandbox_documents, versions, containers, work_items,
-    participants, memberships, projects, users, organisations CASCADE
+    participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
 
 // ── Drawer 1: parties & access ──────────────────────────────────────────────
@@ -30,9 +31,20 @@ const [eleanor] = await db
   .values({ name: 'Eleanor Price', email: 'eleanor.price@calderhale.example', organisationId: calderHale!.id })
   .returning();
 // wall-test subject: member-org user with NO Participant on the project
-await db
+const [marcus] = await db
   .insert(s.users)
-  .values({ name: 'Marcus Webb', email: 'marcus.webb@calderhale.example', organisationId: calderHale!.id });
+  .values({ name: 'Marcus Webb', email: 'marcus.webb@calderhale.example', organisationId: calderHale!.id })
+  .returning();
+
+// skeleton session login (T-021) — dev password, printed below; Marcus can
+// log in too so the wall tests exercise an authenticated but unentitled user
+const DEV_PASSWORD = 'wrenfield-dev';
+await db.insert(s.userCredentials).values(
+  [rachel!, eleanor!, marcus!].map((u) => ({
+    userId: u.id,
+    passwordHash: hashPassword(DEV_PASSWORD),
+  })),
+);
 
 const [project] = await db
   .insert(s.projects)
@@ -212,4 +224,5 @@ const counts = await db.execute(sql`
 console.log('seeded:', counts.rows[0]);
 console.log(`owner participant ${ownerParticipant!.id} (Rachel Bowen, Trentmoor Energy)`);
 console.log(`consultant participant ${consultant!.id} (Eleanor Price, Calder & Hale)`);
+console.log(`dev login password for all seeded users: ${DEV_PASSWORD}`);
 await pool.end();

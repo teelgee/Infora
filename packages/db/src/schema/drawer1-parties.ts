@@ -25,6 +25,16 @@ export const users = pgTable(
   (t) => [uniqueIndex('users_email_unique').on(t.email)],
 );
 
+// Skeleton-auth scaffolding (plan.md's recorded build-time decision, T-021):
+// its own table, not a column on users, so it drops cleanly when the
+// infra/security session replaces it with production identity (Entra-first).
+export const userCredentials = pgTable('user_credentials', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  passwordHash: text('password_hash').notNull(),
+});
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

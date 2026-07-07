@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { ApiError } from '@infora/contracts';
+import type { Db } from '@infora/db';
+import { authRoutes } from './auth';
 
 // T-009: every contracts.md §3 endpoint registered, handlers empty. The 501
 // body is scaffolding outside the contracts §4 envelope; each placeholder
@@ -8,12 +10,13 @@ import type { ApiError } from '@infora/contracts';
 const notImplemented = (ticket: string) => (c: Context) =>
   c.json({ error: 'not_implemented', ticket }, 501);
 
-export function buildApp() {
+export type AppDeps = { db: Db; sessionSecret: string };
+
+export function buildApp(deps: AppDeps) {
   const app = new Hono();
 
-  // Auth & session (M1, M6)
-  app.post('/auth/session', notImplemented('T-021'));
-  app.get('/me', notImplemented('T-021'));
+  // Auth & session (M1, M6) — T-021
+  app.route('/', authRoutes(deps));
 
   // Conversations & runs (M3, M6)
   app.post('/projects/:projectId/conversations', notImplemented('T-046'));

@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { createDb } from '@infora/db';
 import { buildApp } from './app';
 
 const uuid = '3f8a2c1e-9b4d-4f6a-8c2e-1d5b7a9f0e3c';
 
-// Every external endpoint of contracts.md §3, one line each.
-const routes: Array<[string, string]> = [
-  ['POST', '/auth/session'],
-  ['GET', '/me'],
+// The contracts.md §3 endpoints still awaiting their tickets (auth is live, T-021).
+const pendingRoutes: Array<[string, string]> = [
   ['POST', `/projects/${uuid}/conversations`],
   ['POST', `/conversations/${uuid}/runs`],
   ['GET', `/conversations/${uuid}`],
@@ -21,9 +20,10 @@ const routes: Array<[string, string]> = [
 ];
 
 describe('apps/api skeleton (T-009)', () => {
-  const app = buildApp();
+  // the pool is lazy — these tests never touch the database
+  const app = buildApp({ db: createDb().db, sessionSecret: 'test-secret' });
 
-  it.each(routes)('%s %s is registered (501 until its ticket lands)', async (method, path) => {
+  it.each(pendingRoutes)('%s %s is registered (501 until its ticket lands)', async (method, path) => {
     const res = await app.request(path, { method });
     expect(res.status).toBe(501);
   });

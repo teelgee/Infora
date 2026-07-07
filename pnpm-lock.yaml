@@ -41,6 +41,12 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@infora/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
       hono:
         specifier: ^4.9.0
         version: 4.12.28

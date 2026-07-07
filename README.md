@@ -19,6 +19,10 @@ pnpm run check                           # dep rules + lint + typecheck + tests
 pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 
+Seeded dev logins (password `wrenfield-dev`): `rachel.bowen@trentmoor.example`
+(owner), `eleanor.price@calderhale.example` (consultant),
+`marcus.webb@calderhale.example` (the no-Participant wall subject).
+
 `pnpm run check` mirrors CI exactly. The dependency rules between workspace
 packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on
 `contracts` and `ui`; a violation fails the build.

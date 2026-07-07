@@ -23,6 +23,10 @@ Fields: `id`, `name`.
 Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031).
 Relationship: Organisation ─< User.
 
+**User credential** *(skeleton-auth scaffolding — plan.md's recorded build-time decision, added at T-021)* — the password hash behind the seeded users' session login. Kept as its own table, not a column on User, so the scaffold drops cleanly when the infra/security session replaces it with production identity (Entra-first).
+Fields: `user_id` → User (primary key), `password_hash`.
+Relationship: User ─ User credential (at most one).
+
 **Project** — a construction scheme; the central unit.
 Fields: `id`, `name`, `owner_organisation_id` → Organisation.
 Relationship: one Organisation owns many Projects (owner is a role, ADR-0015).
