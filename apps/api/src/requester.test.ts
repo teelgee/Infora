@@ -6,9 +6,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
-const app = buildApp({ db, sessionSecret: 'test-secret' });
+const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
 
 const stamp = Date.now();
 const password = 'pw-t023';
@@ -115,18 +116,20 @@ afterAll(async () => {
   await pool.end();
 });
 
-const routes = (): Array<[string, string]> => [
-  ['POST', `/projects/${projectId}/conversations`],
-  ['POST', `/conversations/${conversationId}/runs`],
-  ['GET', `/conversations/${conversationId}`],
-  ['GET', `/runs/${runId}`],
-  ['GET', `/projects/${projectId}/work-items`],
-  ['GET', `/work-items/${workItemId}`],
-  ['POST', `/projects/${projectId}/sandbox-documents`],
-  ['GET', `/sandbox-documents/${sandboxDocumentId}`],
-  ['PATCH', `/sandbox-documents/${sandboxDocumentId}`],
-  ['POST', `/suggestions/${suggestionId}/resolution`],
-  ['GET', `/projects/${projectId}/library`],
+// route → the status the entitled requester's handler answers (bodyless
+// POSTs validate to 400; T-046 routes are live; the rest still 501)
+const routes = (): Array<[string, string, number]> => [
+  ['POST', `/projects/${projectId}/conversations`, 400],
+  ['POST', `/conversations/${conversationId}/runs`, 400],
+  ['GET', `/conversations/${conversationId}`, 200],
+  ['GET', `/runs/${runId}`, 200],
+  ['GET', `/projects/${projectId}/work-items`, 200],
+  ['GET', `/work-items/${workItemId}`, 200],
+  ['POST', `/projects/${projectId}/sandbox-documents`, 501],
+  ['GET', `/sandbox-documents/${sandboxDocumentId}`, 501],
+  ['PATCH', `/sandbox-documents/${sandboxDocumentId}`, 501],
+  ['POST', `/suggestions/${suggestionId}/resolution`, 501],
+  ['GET', `/projects/${projectId}/library`, 501],
 ];
 
 const hit = (cookie: string, method: string, path: string) =>
@@ -134,9 +137,9 @@ const hit = (cookie: string, method: string, path: string) =>
 
 describe('T-023 — the boundary admits the entitled requester', () => {
   it('passes every scoped route through to its handler', async () => {
-    for (const [method, path] of routes()) {
+    for (const [method, path, expected] of routes()) {
       const res = await hit(entitled, method, path);
-      expect(`${method} ${path} → ${res.status}`).toBe(`${method} ${path} → 501`);
+      expect(`${method} ${path} → ${res.status}`).toBe(`${method} ${path} → ${expected}`);
     }
   });
 });

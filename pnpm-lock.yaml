@@ -47,6 +47,15 @@ importers:
       '@infora/governance':
         specifier: workspace:*
         version: link:../../packages/governance
+      '@infora/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
+      '@infora/model':
+        specifier: workspace:*
+        version: link:../../packages/model
+      '@infora/orchestration':
+        specifier: workspace:*
+        version: link:../../packages/orchestration
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)

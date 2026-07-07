@@ -1,9 +1,17 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { ApiError } from '@infora/contracts';
+import { createAssembler } from '@infora/knowledge';
+import {
+  createCiteLeaf,
+  createDraftLeaf,
+  createGroundCheckLeaf,
+  createRetrieveLeaf,
+} from '@infora/orchestration';
 import { authRoutes } from './auth';
 import { projectScope, resourceHomes, resourceScope, sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
+import { runRoutes } from './runs';
 
 export type { AppDeps } from './requester';
 
@@ -24,27 +32,21 @@ export function buildApp(deps: AppDeps) {
 
   const project = projectScope(deps);
 
-  // Conversations & runs (M3, M6) — T-046 fills the handlers and the finer
-  // run read-scope rule (ad-hoc runs org-only, ruled 2026-07-06)
-  app.post('/projects/:projectId/conversations', project, notImplemented('T-046'));
-  app.post(
-    '/conversations/:conversationId/runs',
-    resourceScope(deps, 'conversationId', resourceHomes.conversation),
-    notImplemented('T-046'),
-  );
-  app.get(
-    '/conversations/:conversationId',
-    resourceScope(deps, 'conversationId', resourceHomes.conversation),
-    notImplemented('T-046'),
-  );
-  app.get('/runs/:runId', resourceScope(deps, 'runId', resourceHomes.run), notImplemented('T-046'));
-
-  // Work items (M3, M5) — T-046
-  app.get('/projects/:projectId/work-items', project, notImplemented('T-046'));
-  app.get(
-    '/work-items/:workItemId',
-    resourceScope(deps, 'workItemId', resourceHomes.workItem),
-    notImplemented('T-046'),
+  // Conversations, runs & work items (M3, M5, M6) — T-046. The chain's
+  // leaves are bound once here: retrieval reaches stores only through the
+  // assembly gateway (T-030), draft through the Router.
+  const assemble = createAssembler({ db: deps.db, router: deps.router });
+  app.route(
+    '/',
+    runRoutes({
+      db: deps.db,
+      leaves: {
+        retrieve: createRetrieveLeaf({ assemble }),
+        draft: createDraftLeaf(deps.router),
+        groundCheck: createGroundCheckLeaf(),
+        cite: createCiteLeaf(),
+      },
+    }),
   );
 
   // Sandbox documents (M4) — organisation-private inside the project (ADR-0018)

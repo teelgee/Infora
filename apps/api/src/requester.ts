@@ -14,17 +14,21 @@ import { resolveAccess } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Router } from '@infora/model';
 import { sessionCookie } from './auth';
 
 export type UserRow = typeof s.users.$inferSelect;
 export type AppEnv = { Variables: { user: UserRow; slice: EntitledSlice } };
-export type AppDeps = { db: Db; sessionSecret: string };
+export type AppDeps = { db: Db; sessionSecret: string; router: Router };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
 /** Every request except login carries a session; 401 otherwise. */
-export function sessionMiddleware(deps: AppDeps): MiddlewareHandler<AppEnv> {
+export function sessionMiddleware(deps: {
+  db: Db;
+  sessionSecret: string;
+}): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     if (c.req.path === '/auth/session') return next();
     const userId = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
@@ -113,7 +117,7 @@ export const resourceHomes = {
 } satisfies Record<string, ResourceResolver>;
 
 /** Scope a route on its :projectId param. */
-export function projectScope(deps: AppDeps): MiddlewareHandler<AppEnv> {
+export function projectScope(deps: { db: Db }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const slice = await resolveSlice(deps.db, c.get('user'), c.req.param('projectId') ?? '');
     if (!slice) return notFound(c);
@@ -124,7 +128,7 @@ export function projectScope(deps: AppDeps): MiddlewareHandler<AppEnv> {
 
 /** Scope a route on a resource id param: resource → home project → slice. */
 export function resourceScope(
-  deps: AppDeps,
+  deps: { db: Db },
   param: string,
   resolver: ResourceResolver,
 ): MiddlewareHandler<AppEnv> {

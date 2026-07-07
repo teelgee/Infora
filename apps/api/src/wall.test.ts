@@ -9,9 +9,10 @@ import { eq } from 'drizzle-orm';
 import type { MeResponse } from '@infora/contracts';
 import { createDb, loadDbEnv, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
-const app = buildApp({ db, sessionSecret: 'test-secret' });
+const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
 
 const password = 'wrenfield-dev'; // the seed's dev password
 let projectId: string;
@@ -108,9 +109,16 @@ describe('T-022 — the seeded wall subjects resolve to nothing', () => {
 
     for (const [method, path] of routes()) {
       const res = await hit(consultant, method, path);
-      // project- and work-item-scoped routes reach their (placeholder)
-      // handlers; ghost-addressed resources are 404 for everyone alike
-      const expected = path.includes(ghost) ? 404 : 501;
+      // ghost-addressed resources are 404 for everyone alike; live routes
+      // reach their handlers (bodyless POSTs validate to 400); the rest
+      // are still 501 placeholders
+      const expected = path.includes(ghost)
+        ? 404
+        : method === 'POST' && path.endsWith('/conversations')
+          ? 400
+          : path.includes('work-items')
+            ? 200
+            : 501;
       expect(`${method} ${path} → ${res.status}`).toBe(`${method} ${path} → ${expected}`);
     }
   });

@@ -7,8 +7,8 @@
   "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "node --env-file=../../.env --watch --import tsx src/index.ts",
+    "start": "node --env-file=../../.env --import tsx src/index.ts",
     "test": "vitest run"
   },
   "dependencies": {
@@ -16,6 +16,9 @@
     "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
     "@infora/governance": "workspace:*",
+    "@infora/knowledge": "workspace:*",
+    "@infora/model": "workspace:*",
+    "@infora/orchestration": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.9.0",
     "zod": "^4.4.3"

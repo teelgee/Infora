@@ -89,13 +89,19 @@ export function parseClaims(
 
   let consumed = 0;
   for (const match of text.matchAll(marked)) {
-    const claimText = match[1]!.trim();
-    if (claimText !== '') {
+    // the previous sentence often closes after its marker — "claim [S1]." —
+    // so leading punctuation here is layout, not part of this claim
+    const claimText = match[1]!.replace(/^[\s.,;:!?)\]]+/, '').trim();
+    if (!isNoise(claimText)) {
       claims.push({ text: claimText, sourceRef: sourceByMarker.get(match[2]!) });
     }
     consumed = match.index + match[0].length;
   }
   const tail = text.slice(consumed).trim();
-  if (tail !== '') claims.push({ text: tail });
+  if (!isNoise(tail)) claims.push({ text: tail });
   return claims;
+}
+
+function isNoise(text: string): boolean {
+  return /^[\s.,;:!?)\]]*$/.test(text);
 }

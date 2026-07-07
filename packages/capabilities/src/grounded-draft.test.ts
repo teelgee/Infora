@@ -74,6 +74,17 @@ describe('groundedDraft (T-043)', () => {
     });
   });
 
+  it('swallows bare punctuation left when a sentence closes after its marker', () => {
+    const sources = new Map([
+      ['S1', { versionId: 'v-gir' } as const],
+      ['S2', { versionId: 'v-fra' } as const],
+    ]);
+    expect(parseClaims('First claim [S1]. Second claim [S2].', sources)).toEqual([
+      { text: 'First claim', sourceRef: { versionId: 'v-gir' } },
+      { text: 'Second claim', sourceRef: { versionId: 'v-fra' } },
+    ]);
+  });
+
   it('leaves unmarked or unknown-marker text as unsourced claims for the verifier', () => {
     const sources = new Map([['S1', { versionId: 'v-gir' } as const]]);
     expect(

@@ -4,9 +4,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
-const app = buildApp({ db, sessionSecret: 'test-secret' });
+const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
 
 const email = `t021-${Date.now()}@test.local`;
 const password = 'pw-t021';
