@@ -59,6 +59,19 @@ export function EditorScreen() {
     setDirty(false);
   }
 
+  // T-053: accept/edit/reject — one Signal per Suggestion; accept/edit lands
+  // the content in the document, reject leaves it untouched
+  async function resolve(suggestion: Suggestion, resolution: 'accepted' | 'edited' | 'rejected') {
+    let editedContent: string | undefined;
+    if (resolution === 'edited') {
+      const edited = window.prompt('Edit the proposed content', suggestion.content);
+      if (edited === null) return;
+      editedContent = edited;
+    }
+    await api.resolveSuggestion(suggestion.id, resolution, editedContent);
+    await load();
+  }
+
   async function sendChat(event: FormEvent) {
     event.preventDefault();
     const request = chatText.trim();
@@ -196,7 +209,19 @@ export function EditorScreen() {
                   title={`${suggestion.kind === 'insert' ? 'Insert' : 'Replace'} — proposed content`}
                   description={suggestion.rationale}
                   active={at === 0}
-                  actions={<span style={{ fontSize: 11.5, color: 'var(--muted)' }}>Accept / edit / reject arrive with T-053</span>}
+                  actions={
+                    <>
+                      <Button size="sm" variant="primary" onClick={() => void resolve(suggestion, 'accepted')}>
+                        ✓ Accept
+                      </Button>
+                      <Button size="sm" onClick={() => void resolve(suggestion, 'edited')}>
+                        ✎ Edit
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => void resolve(suggestion, 'rejected')}>
+                        Reject
+                      </Button>
+                    </>
+                  }
                 />
               ))}
               {pendingSuggestions.length === 0 && (

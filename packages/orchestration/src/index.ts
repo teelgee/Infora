@@ -13,6 +13,8 @@ export { createDraftLeaf } from './draft-leaf';
 export { createGroundCheckLeaf } from './ground-check-leaf';
 export { createCiteLeaf } from './cite-leaf';
 export { readDocumentSuggestions, readRun } from './run-reader';
+export { resolveSuggestion } from './resolution';
+export type { ResolutionResult } from './resolution';
 export type {
   ChainInput,
   ChainLeaves,

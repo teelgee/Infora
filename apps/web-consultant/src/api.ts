@@ -8,6 +8,8 @@ import type {
   ListSuggestionsResponse,
   ListWorkItemsResponse,
   MeResponse,
+  Resolution,
+  ResolveSuggestionResponse,
   Run,
   SandboxDocument,
 } from '@infora/contracts';
@@ -60,6 +62,11 @@ export const api = {
     request<CreateConversationResponse>(`/projects/${projectId}/conversations`, {
       method: 'POST',
       body: JSON.stringify({ surface: 'web', ...(workItemId !== undefined && { workItemId }) }),
+    }),
+  resolveSuggestion: (suggestionId: string, resolution: Resolution, editedContent?: string) =>
+    request<ResolveSuggestionResponse>(`/suggestions/${suggestionId}/resolution`, {
+      method: 'POST',
+      body: JSON.stringify({ resolution, ...(editedContent !== undefined && { editedContent }) }),
     }),
   createRun: (conversationId: string, requestText: string, sandboxDocumentId?: string) =>
     request<Run>(`/conversations/${conversationId}/runs`, {

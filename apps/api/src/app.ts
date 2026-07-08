@@ -9,10 +9,11 @@ import {
   createRetrieveLeaf,
 } from '@infora/orchestration';
 import { authRoutes } from './auth';
-import { projectScope, resourceHomes, resourceScope, sessionMiddleware } from './requester';
+import { projectScope, sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
+import { suggestionRoutes } from './suggestions';
 
 export type { AppDeps } from './requester';
 
@@ -55,11 +56,7 @@ export function buildApp(deps: AppDeps) {
   app.route('/', sandboxRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
-  app.post(
-    '/suggestions/:suggestionId/resolution',
-    resourceScope(deps, 'suggestionId', resourceHomes.suggestion),
-    notImplemented('T-053'),
-  );
+  app.route('/', suggestionRoutes(deps));
 
   // Library (M2 read path)
   app.get('/projects/:projectId/library', project, notImplemented('M2'));

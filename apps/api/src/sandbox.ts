@@ -4,7 +4,7 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { createSandboxDocumentBody, patchSandboxDocumentBody } from '@infora/contracts';
 import type {
   ApiError,
@@ -80,7 +80,8 @@ export function sandboxRoutes(deps: { db: Db }) {
     }
     const [row] = await deps.db
       .update(s.sandboxDocuments)
-      .set({ content: body.data.content, updatedAt: new Date() })
+      // DB time, like the insert default — one clock for updatedAt
+      .set({ content: body.data.content, updatedAt: sql`now()` })
       .where(eq(s.sandboxDocuments.id, c.req.param('id')))
       .returning();
     return c.json(toSandboxDocument(row!));
