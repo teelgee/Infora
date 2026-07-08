@@ -2,10 +2,21 @@
 // contracts §2 Run shape (principle 5 — there is no mutating verb here).
 // Citations resolve their documentReference through the version's container;
 // the Signal, when present, rides its Suggestion.
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Citation, Id, Run, Step, Suggestion } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+
+/** The document's Suggestions, newest first (T-082's Editor panel read). */
+export async function readDocumentSuggestions(db: Db, sandboxDocumentId: Id): Promise<Suggestion[]> {
+  const rows = await db
+    .select({ suggestion: s.suggestions })
+    .from(s.suggestions)
+    .innerJoin(s.runs, eq(s.suggestions.runId, s.runs.id))
+    .where(eq(s.suggestions.sandboxDocumentId, sandboxDocumentId))
+    .orderBy(desc(s.runs.startedAt));
+  return readSuggestions(db, rows.map((row) => row.suggestion));
+}
 
 export async function readRun(db: Db, runId: Id): Promise<Run | null> {
   const [run] = await db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);

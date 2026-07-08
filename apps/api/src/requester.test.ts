@@ -127,7 +127,7 @@ const routes = (): Array<[string, string, number]> => [
   ['GET', `/work-items/${workItemId}`, 200],
   ['POST', `/projects/${projectId}/sandbox-documents`, 400],
   ['GET', `/sandbox-documents/${sandboxDocumentId}`, 200],
-  ['PATCH', `/sandbox-documents/${sandboxDocumentId}`, 501],
+  ['PATCH', `/sandbox-documents/${sandboxDocumentId}`, 400],
   ['POST', `/suggestions/${suggestionId}/resolution`, 501],
   ['GET', `/projects/${projectId}/library`, 501],
 ];

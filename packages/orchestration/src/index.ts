@@ -12,7 +12,7 @@ export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 export { createGroundCheckLeaf } from './ground-check-leaf';
 export { createCiteLeaf } from './cite-leaf';
-export { readRun } from './run-reader';
+export { readDocumentSuggestions, readRun } from './run-reader';
 export type {
   ChainInput,
   ChainLeaves,

@@ -139,6 +139,9 @@ GET   /projects/:projectId/sandbox-documents       → { items: SandboxDocument[
       // list added 2026-07-08 (T-051): the requester's organisation's private
       // project sandbox (ADR-0018) — org-scoped by construction, no parameter
 GET   /sandbox-documents/:id                       → SandboxDocument
+GET   /sandbox-documents/:id/suggestions           → { items: Suggestion[] }
+      // added 2026-07-08 (T-082): the document's Suggestions, newest first —
+      // what the Editor's Suggestions tab renders; same scope as the document
 PATCH /sandbox-documents/:id                       body: { content }          → SandboxDocument
       // manual editing: no Suggestion, no Signal, no ceremony — by design
 

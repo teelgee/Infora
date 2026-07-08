@@ -2,6 +2,7 @@
 // the list is the requester's organisation's private sandbox only, by
 // construction (ADR-0018).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { ListSandboxDocumentsResponse, SandboxDocument } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
@@ -104,5 +105,81 @@ describe('sandbox documents (T-051)', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('PATCH is manual editing — content lands, no Suggestion, no Signal (T-082)', async () => {
+    const created = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, {
+        method: 'POST',
+        headers: { cookie: alice, 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Hand-written note' }),
+      })
+    ).json()) as SandboxDocument;
+
+    const patched = await app.request(`/sandbox-documents/${created.id}`, {
+      method: 'PATCH',
+      headers: { cookie: alice, 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'Typed by hand, as if AI did not exist.' }),
+    });
+    expect(patched.status).toBe(200);
+    const doc = (await patched.json()) as SandboxDocument;
+    expect(doc.content).toBe('Typed by hand, as if AI did not exist.');
+    expect(new Date(doc.updatedAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(created.updatedAt).getTime(),
+    );
+
+    const suggestions = await db
+      .select()
+      .from(s.suggestions)
+      .where(eq(s.suggestions.sandboxDocumentId, created.id));
+    expect(suggestions).toEqual([]); // no ceremony, by design
+  });
+
+  it('lists the document’s suggestions for the Editor panel (T-082)', async () => {
+    const created = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, {
+        method: 'POST',
+        headers: { cookie: alice, 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Drafted into' }),
+      })
+    ).json()) as SandboxDocument;
+
+    // a run leaves a Suggestion on the document
+    const [conversation] = await db
+      .insert(s.conversations)
+      .values({ projectId, surface: 'web' })
+      .returning();
+    const [participant] = await db
+      .select()
+      .from(s.participants)
+      .where(eq(s.participants.projectId, projectId))
+      .limit(1);
+    const [run] = await db
+      .insert(s.runs)
+      .values({
+        conversationId: conversation!.id,
+        agentId: 'infora.grounded_draft',
+        agentProvenance: 'infora',
+        request: 'draft it',
+        environmentKey: projectId,
+        requesterParticipantId: participant!.id,
+      })
+      .returning();
+    await db.insert(s.suggestions).values({
+      runId: run!.id,
+      sandboxDocumentId: created.id,
+      kind: 'insert',
+      content: 'Proposed text.',
+      rationale: 'Grounded draft: 1 cited claim from project sources; nothing was withheld.',
+    });
+
+    const res = await app.request(`/sandbox-documents/${created.id}/suggestions`, {
+      headers: { cookie: alice },
+    });
+    expect(res.status).toBe(200);
+    const { items } = (await res.json()) as { items: Array<{ content: string; signal?: unknown }> };
+    expect(items).toHaveLength(1);
+    expect(items[0]!.content).toBe('Proposed text.');
+    expect(items[0]!.signal).toBeUndefined(); // pending
   });
 });

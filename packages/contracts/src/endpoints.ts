@@ -6,7 +6,7 @@
 // (principle 3).
 
 import { z } from 'zod';
-import type { Id, Resolution, Run, Surface } from './shared';
+import type { Id, Resolution, Run, Suggestion, Surface } from './shared';
 
 const id = z.uuid();
 
@@ -71,6 +71,9 @@ export type GetWorkItemResponse = WorkItem & { runs: Run[] };
 //       list added 2026-07-08 (T-051): the requester's organisation's private
 //       project sandbox (ADR-0018) — org-scoped by construction, no parameter
 // GET   /sandbox-documents/:id
+// GET   /sandbox-documents/:id/suggestions
+//       added 2026-07-08 (T-082): the document's Suggestions, newest first —
+//       what the Editor's Suggestions tab renders; same scope as the document
 // PATCH /sandbox-documents/:id
 //       manual editing: no Suggestion, no Signal, no ceremony — by design
 
@@ -84,6 +87,7 @@ export type SandboxDocument = {
 };
 
 export type ListSandboxDocumentsResponse = { items: SandboxDocument[] };
+export type ListSuggestionsResponse = { items: Suggestion[] };
 
 export const createSandboxDocumentBody = z.object({ title: z.string().min(1) });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;

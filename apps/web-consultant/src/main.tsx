@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';
+import { EditorScreen } from './screens/editor';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { SandboxScreen } from './screens/sandbox';
 import { WorkspaceLanding } from './screens/workspace';
@@ -16,14 +17,8 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <ProjectHome /> },
       { path: 'ask', element: <AskScreen /> },
-      {
-        path: 'editor',
-        element: <EmptyState title="Editor" note="The document canvas arrives with T-082." />,
-      },
-      {
-        path: 'editor/:documentId',
-        element: <EmptyState title="Editor" note="The document canvas arrives with T-082." />,
-      },
+      { path: 'editor', element: <EditorScreen /> },
+      { path: 'editor/:documentId', element: <EditorScreen /> },
       {
         path: 'documents',
         element: <EmptyState title="Documents" note="The library view arrives with its wiring." />,

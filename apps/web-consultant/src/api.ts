@@ -5,6 +5,7 @@ import type {
   CreateConversationResponse,
   GetWorkItemResponse,
   ListSandboxDocumentsResponse,
+  ListSuggestionsResponse,
   ListWorkItemsResponse,
   MeResponse,
   Run,
@@ -48,6 +49,13 @@ export const api = {
       body: JSON.stringify({ title }),
     }),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
+  documentSuggestions: (id: string) =>
+    request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),
+  patchSandboxDocument: (id: string, content: string) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    }),
   createConversation: (projectId: string, workItemId?: string) =>
     request<CreateConversationResponse>(`/projects/${projectId}/conversations`, {
       method: 'POST',

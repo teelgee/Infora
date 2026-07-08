@@ -51,13 +51,8 @@ export function buildApp(deps: AppDeps) {
   );
 
   // Sandbox documents (M4) — organisation-private inside the project
-  // (ADR-0018); create/list/open live at T-051, manual editing at T-082
+  // (ADR-0018): create/list/open (T-051), suggestions read + manual PATCH (T-082)
   app.route('/', sandboxRoutes(deps));
-  app.patch(
-    '/sandbox-documents/:id',
-    resourceScope(deps, 'id', resourceHomes.sandboxDocument),
-    notImplemented('T-082'),
-  );
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.post(

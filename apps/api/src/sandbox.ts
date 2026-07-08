@@ -5,10 +5,16 @@
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
 import { and, desc, eq } from 'drizzle-orm';
-import { createSandboxDocumentBody } from '@infora/contracts';
-import type { ApiError, ListSandboxDocumentsResponse, SandboxDocument } from '@infora/contracts';
+import { createSandboxDocumentBody, patchSandboxDocumentBody } from '@infora/contracts';
+import type {
+  ApiError,
+  ListSandboxDocumentsResponse,
+  ListSuggestionsResponse,
+  SandboxDocument,
+} from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { readDocumentSuggestions } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -49,18 +55,36 @@ export function sandboxRoutes(deps: { db: Db }) {
     return c.json({ items: rows.map(toSandboxDocument) } satisfies ListSandboxDocumentsResponse);
   });
 
-  app.get(
-    '/sandbox-documents/:id',
-    resourceScope(deps, 'id', resourceHomes.sandboxDocument),
-    async (c) => {
-      const [row] = await deps.db
-        .select()
-        .from(s.sandboxDocuments)
-        .where(eq(s.sandboxDocuments.id, c.req.param('id')))
-        .limit(1);
-      return c.json(toSandboxDocument(row!));
-    },
-  );
+  const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
+
+  app.get('/sandbox-documents/:id', documentScope, async (c) => {
+    const [row] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    return c.json(toSandboxDocument(row!));
+  });
+
+  // T-082: the document's Suggestions, newest first (contracts, 2026-07-08)
+  app.get('/sandbox-documents/:id/suggestions', documentScope, async (c) => {
+    const items = await readDocumentSuggestions(deps.db, c.req.param('id'));
+    return c.json({ items } satisfies ListSuggestionsResponse);
+  });
+
+  // T-082: manual editing — no Suggestion, no Signal, no ceremony, by design
+  app.patch('/sandbox-documents/:id', documentScope, async (c) => {
+    const body = patchSandboxDocumentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: 'invalid', detail: 'content required' } satisfies ApiError, 400);
+    }
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ content: body.data.content, updatedAt: new Date() })
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .returning();
+    return c.json(toSandboxDocument(row!));
+  });
 
   return app;
 }
