@@ -22,7 +22,10 @@ export type GroundCheckOutput = {
   surviving: Array<{ text: string; sourceRef: SourceRef }>;
   withheld: DraftClaim[];
 };
-export type CiteOutput = { suggestionIds: Id[] };
+export type CiteOutput = {
+  suggestionIds: Id[];
+  answer: string | null; // the grounded, cited answer text — the run's response
+};
 
 export type LeafContext = {
   db: Db;
@@ -110,7 +113,7 @@ export async function runChain(
     withSources,
   );
 
-  const finished = await finishRun(db, run.id, 'completed');
+  const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
   return { run: finished, suggestionIds: cited.suggestionIds };
 }
 

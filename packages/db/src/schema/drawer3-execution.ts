@@ -51,6 +51,10 @@ export const runs = pgTable('runs', {
   agentProvenance: agentProvenance('agent_provenance').notNull(),
   state: runState('state').notNull().default('running'),
   request: text('request').notNull(), // the prompt/task text — part of the record (ruled 2026-07-06)
+  // the produced answer — part of the record too (added 2026-07-08, T-052):
+  // ADR-0031 §6 returns it with citations for Copilot to render; set once at
+  // completion (the T-008 trigger freezes it with the rest once finished)
+  response: text('response'),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
   environmentKey: text('environment_key').notNull(),

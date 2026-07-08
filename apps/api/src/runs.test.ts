@@ -157,6 +157,7 @@ describe('the full chain over HTTP (T-046)', () => {
 
     expect(run.state).toBe('completed');
     expect(run.request).toBe('Draft the contamination summary');
+    expect(run.response).toBe('The investigation recorded contamination exceedances.'); // part of the record (2026-07-08)
     expect(run.steps.map((st) => st.type)).toEqual([
       'retrieve',
       'delegate',

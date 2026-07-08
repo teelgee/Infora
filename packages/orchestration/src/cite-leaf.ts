@@ -13,7 +13,7 @@ import type { ChainLeaves, GroundCheckOutput } from './chain';
 export function createCiteLeaf(): ChainLeaves['cite'] {
   return async (ctx, input) => {
     const { surviving, withheld } = input.checked;
-    if (surviving.length === 0) return { output: { suggestionIds: [] } };
+    if (surviving.length === 0) return { output: { suggestionIds: [], answer: null } };
 
     // the draft text and each claim's span within it — resolved
     // deterministically because content is the surviving claims joined
@@ -28,7 +28,7 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
           claimSpan: spans[at],
         })),
       );
-      return { output: { suggestionIds: [] } };
+      return { output: { suggestionIds: [], answer: content } };
     }
 
     const [conversation] = await ctx.db
@@ -60,7 +60,7 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
       return suggestion!.id as Id;
     });
 
-    return { output: { suggestionIds: [suggestionId] } };
+    return { output: { suggestionIds: [suggestionId], answer: content } };
   };
 }
 

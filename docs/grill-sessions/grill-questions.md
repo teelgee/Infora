@@ -57,6 +57,9 @@ The grilling order and what remains open per component. A **locked** component c
 - ~~**Governance authority**~~ — ✅ **done → ADR-0030** (owner-set rails ceiling, member tighten-only, most-restrictive intersection, every change audited; mirrors the access ceiling ADRs 0015–0018 and completes ADR-0028 §8's custom-agent deployment reference).
 - **Per-document guidance artefact** (the *guidance note*: signal-derived, steers never grounds, lives beside the immutable revision per ADR-0002, visibility follows document access — Context, component 4) — carries the residual cross-organisation question below.
 
+### Small build residuals (noted during Phase 6, low-stakes)
+- **Chat-run citations in the Run read (for M6/T-070).** A document-targeted run's citations ride its Suggestion; an untargeted chat run's citations are written against the `cite` Step but the contracts `Run` read doesn't surface step citations yet. ADR-0031 §6 requires citations returned in the response for Copilot to render, so the Run reconstruction (or a response-level citation list) needs to expose them by T-070. Noted 2026-07-08 while building T-052; mechanical contract completion, no design fork.
+
 ### Open item carried from the glossary
 - **Signal-derived guidance crossing organisations.** A guidance note's visibility follows document access (the chosen rule), so once the owner shares a deliverable the note — generated from one organisation's edits and agent interactions (Signals) — becomes visible to another organisation that can now see the document. A deliberate scope choice, not the org-private informing rule (ADR-0020); the residual to settle is whether signal-derived steer carrying one organisation's private approach should be scrubbed or re-scoped before another organisation sees it. To be settled when the guidance-note ADR is grilled.
 

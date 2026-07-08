@@ -76,7 +76,7 @@ Fields: `id`, `project_id` → Project (the bound environment, ADR-0025/0029 —
 Relationship: Conversation ─< Run. (A plain chat = a Conversation with `work_item_id` null; a workflow = one bound to a Work item — ADR-0028 §1. A Copilot conversation is a `surface = copilot`, `work_item_id` null thread bound to one `project_id`.)
 
 **Run** — one agent execution (a chat answer or a workflow step). **Append-only, immutable once finished** (ADR-0028 §3).
-Fields: `id`, `conversation_id` → Conversation, `parent_run_id` → Run **(nullable — set when this run is a sub-agent spawned by a step)**, `agent_id`, `agent_provenance` (`infora` | `custom`), `state` (`running` | `completed` | `failed`), `request` (the prompt/task text — part of the record, ruled 2026-07-06), `started_at`, `ended_at`, `environment_key` (the project the request ran in), `requester_participant_id` → Participant.
+Fields: `id`, `conversation_id` → Conversation, `parent_run_id` → Run **(nullable — set when this run is a sub-agent spawned by a step)**, `agent_id`, `agent_provenance` (`infora` | `custom`), `state` (`running` | `completed` | `failed`), `request` (the prompt/task text — part of the record, ruled 2026-07-06), `response` (nullable — the produced answer text, set once at completion; part of the record for the same reason the request is, and what ADR-0031 §6 returns with citations for Copilot to render — added 2026-07-08, T-052), `started_at`, `ended_at`, `environment_key` (the project the request ran in), `requester_participant_id` → Participant.
 Relationships: Conversation ─< Run; Run ─< Run (the sub-agent tree, via `parent_run_id`).
 
 **Step** — one atomic action within a run — a retrieve, draft, ground-check, cite, or delegate. **Append-only.**

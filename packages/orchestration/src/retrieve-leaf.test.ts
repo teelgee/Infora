@@ -3,7 +3,7 @@
 // from the run record, not the caller; and the sub-agent is a real child Run
 // on the audit tree.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
 import type { AssembledItem, AssemblyRequest } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { runChain } from './chain';
@@ -57,7 +57,7 @@ const passthroughLeaves = (retrieve: ChainLeaves['retrieve']): ChainLeaves => ({
   retrieve,
   draft: async () => ({ output: { claims: [] } }),
   groundCheck: async () => ({ output: { surviving: [], withheld: [] } }),
-  cite: async () => ({ output: { suggestionIds: [] } }),
+  cite: async () => ({ output: { suggestionIds: [], answer: null } }),
 });
 
 describe('the retrieve leaf + retrieval sub-agent (T-042)', () => {
@@ -161,7 +161,7 @@ describe('the retrieve leaf + retrieval sub-agent (T-042)', () => {
     const [child] = await db
       .select()
       .from(s.runs)
-      .where(isNotNull(s.runs.parentRunId))
+      .where(and(eq(s.runs.conversationId, conversationId), isNotNull(s.runs.parentRunId)))
       .orderBy(desc(s.runs.startedAt))
       .limit(1);
     expect(child!.state).toBe('failed');

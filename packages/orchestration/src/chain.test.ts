@@ -92,7 +92,7 @@ function stubLeaves(calls: string[]): ChainLeaves {
     },
     cite: async () => {
       calls.push('cite');
-      return { output: { suggestionIds: [] } };
+      return { output: { suggestionIds: [], answer: 'a grounded claim.' } };
     },
   };
 }
@@ -111,6 +111,7 @@ describe('the coded chain (T-041)', () => {
       const { run } = await runChain(db, stubLeaves(calls), input());
       expect(calls).toEqual(['retrieve', 'draft', 'ground_check', 'cite']);
       expect(run.state).toBe('completed');
+      expect(run.response).toBe('a grounded claim.'); // the answer is part of the record
     }
   });
 

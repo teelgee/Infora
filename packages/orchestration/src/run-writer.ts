@@ -48,15 +48,20 @@ export async function openRun(
   return row!;
 }
 
-/** running → completed/failed, exactly once; the trigger rejects a second finish. */
+/**
+ * running → completed/failed, exactly once; the trigger rejects a second
+ * finish. The produced answer lands in the same UPDATE (part of the record,
+ * 2026-07-08) — after it, the row is frozen.
+ */
 export async function finishRun(
   db: Db,
   runId: Id,
   state: 'completed' | 'failed',
+  record: { response?: string | null } = {},
 ): Promise<RunRow> {
   const [row] = await db
     .update(s.runs)
-    .set({ state, endedAt: new Date() })
+    .set({ state, endedAt: new Date(), response: record.response ?? null })
     .where(eq(s.runs.id, runId))
     .returning();
   if (!row) throw new Error(`run ${runId} not found`);

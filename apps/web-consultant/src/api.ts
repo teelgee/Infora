@@ -2,10 +2,12 @@
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
   ApiError,
+  CreateConversationResponse,
   GetWorkItemResponse,
   ListSandboxDocumentsResponse,
   ListWorkItemsResponse,
   MeResponse,
+  Run,
   SandboxDocument,
 } from '@infora/contracts';
 
@@ -46,4 +48,17 @@ export const api = {
       body: JSON.stringify({ title }),
     }),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
+  createConversation: (projectId: string, workItemId?: string) =>
+    request<CreateConversationResponse>(`/projects/${projectId}/conversations`, {
+      method: 'POST',
+      body: JSON.stringify({ surface: 'web', ...(workItemId !== undefined && { workItemId }) }),
+    }),
+  createRun: (conversationId: string, requestText: string, sandboxDocumentId?: string) =>
+    request<Run>(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      body: JSON.stringify({
+        request: requestText,
+        ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
+      }),
+    }),
 };

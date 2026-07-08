@@ -24,6 +24,7 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
     agentProvenance: run.agentProvenance,
     state: run.state,
     request: run.request,
+    response: run.response,
     startedAt: run.startedAt.toISOString(),
     endedAt: run.endedAt?.toISOString() ?? null,
     steps: stepRows.map(toStep),

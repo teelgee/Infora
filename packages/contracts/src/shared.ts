@@ -40,6 +40,7 @@ export type Run = {
   agentProvenance: 'infora' | 'custom';
   state: 'running' | 'completed' | 'failed';
   request: string; // the prompt/task text — part of the record
+  response: string | null; // the produced answer — part of the record too (added 2026-07-08, T-052; ADR-0031 §6 renders it in Copilot)
   startedAt: string;
   endedAt: string | null;
   steps: Step[]; // the append-only tree, flattened by parentStepId
