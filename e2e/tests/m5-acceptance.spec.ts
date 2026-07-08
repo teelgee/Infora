@@ -96,11 +96,21 @@ test('browser: the owner walks to the audit screen and reads the trail', async (
   await page.getByText('EIA Scoping Method Statement — Land Quality').click();
 
   await expect(page.getByText('Append-only audit.')).toBeVisible();
-  await expect(page.getByText('T-061 governed draft for the record')).toBeVisible();
+
+  // the bound run is on the record — its table row, found by run id, carries
+  // the prompt text (the bare text also appears in the detail panel, and other
+  // suites may have written further runs to this work item)
+  const boundRow = page.getByRole('row').filter({ hasText: boundRun.id.slice(0, 8) });
+  await expect(boundRow.getByText('T-061 governed draft for the record')).toBeVisible();
   await expect(page.getByText('T-061 private ad-hoc ask')).not.toBeVisible();
 
-  // the newest run is selected — its step tree and defensibility panels show
-  await expect(page.getByText('step tree (retrieve → draft → ground-check → cite)')).toBeVisible();
+  // select it explicitly — its step tree and defensibility panels show
+  await boundRow.click();
+  await expect(
+    page.getByText(
+      `Run ${boundRun.id.slice(0, 8)} — step tree (retrieve → draft → ground-check → cite)`,
+    ),
+  ).toBeVisible();
   await expect(page.getByText('Deterministic verifier', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('Access-resolved source set (defensibility)')).toBeVisible();
 });
