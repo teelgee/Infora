@@ -92,6 +92,8 @@ The design layer defers real identity/security to the infra/security session (co
 
 ## M6 — The Copilot Ask surface
 
+> **Deferred (owner-ruled 2026-07-08):** the M365 integration (T-085 and everything downstream of it) is postponed — no dev tenant / Entra registration for now, so sign-in stays the skeleton's email+password path. The Entra-first production-identity commitment above stands unchanged; this defers the build, not the decision. T-080 drops T-073 from its dependencies and closes the skeleton over the web surface alone; M6 re-enters the board when the M365 enablers are available.
+
 | # | Ticket | Deps |
 |---|--------|------|
 | T-085 | **M365 dev enablers** — Entra app registration, dev tenant, tunnel + sideload workflow for the declarative agent; documented so M6 is testable by any contributor. | — |
@@ -105,7 +107,8 @@ The design layer defers real identity/security to the infra/security session (co
 | # | Ticket | Deps |
 |---|--------|------|
 | T-084 | **E2E harness** — Playwright + API-level suite scaffolding wired into CI; the substrate for T-054, T-061 and T-080. | T-002, T-050 |
-| T-080 | **End-to-end acceptance run** — the whole walking-skeleton journey (its "the skeleton is done" list, steps 1–6) against seed data, plus the two negative wall tests, as one automated e2e suite. | T-047, T-054, T-061, T-073, T-084 |
+| T-080 | **End-to-end acceptance run** — the whole walking-skeleton journey (its "the skeleton is done" list, steps 1–6) against seed data, plus the two negative wall tests, as one automated e2e suite. *(T-073 dropped from deps with the M6 deferral, 2026-07-08.)* | T-047, T-054, T-061, T-084 |
+| T-086 | **Library list endpoint** — `GET /projects/:id/library` per contracts §Library (the one remaining 501; the Documents tab renders an empty state today). One row per container, access-resolved, live only. Mechanical contract completion. *(Added 2026-07-08.)* | T-030 |
 | T-081 | **QA pass (Phase 7)** — human review against the journey; bugs and gaps raised as new tickets on this board. | T-080 |
 
 ### Parallel tracks
