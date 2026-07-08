@@ -41,6 +41,9 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@infora/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@infora/db':
         specifier: workspace:*
         version: link:../../packages/db

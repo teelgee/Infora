@@ -4,7 +4,7 @@
 // is retrieval's job (ADR-0022's SQL pre-filters, T-031), and only an indexed
 // excluded version can prove the filter works (T-033). Chunks are derived,
 // rebuildable rows: each run replaces a version's chunks wholesale.
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -43,7 +43,17 @@ export async function ingestVersions(
     modelVersion = result.model.version;
 
     await db.transaction(async (tx) => {
-      await tx.delete(s.versionChunks).where(eq(s.versionChunks.versionId, version.id));
+      // replace this model's rows only — each pinned model is its own index
+      // (ADR-0024), so e.g. the e2e substrate's fake index coexists with the
+      // real one and retrieval's pre-filter keeps them disjoint
+      await tx
+        .delete(s.versionChunks)
+        .where(
+          and(
+            eq(s.versionChunks.versionId, version.id),
+            eq(s.versionChunks.embeddingModelId, result.model.id),
+          ),
+        );
       await tx.insert(s.versionChunks).values(
         chunks.map((chunk, at) => ({
           versionId: version.id,

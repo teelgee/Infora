@@ -63,7 +63,14 @@ export const versionChunks = pgTable(
     embeddingModelVersion: text('embedding_model_version').notNull(),
   },
   (t) => [
-    uniqueIndex('version_chunks_version_chunk_unique').on(t.versionId, t.chunkIndex),
+    // unique per pinned model: each embedding model is its own index over the
+    // same corpus (ADR-0024), so e.g. the e2e substrate's fake index coexists
+    // with the real one
+    uniqueIndex('version_chunks_version_model_chunk_unique').on(
+      t.versionId,
+      t.embeddingModelId,
+      t.chunkIndex,
+    ),
     index('version_chunks_embedding_hnsw').using('hnsw', t.embedding.op('vector_cosine_ops')),
   ],
 );

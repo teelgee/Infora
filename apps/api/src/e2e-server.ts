@@ -3,12 +3,21 @@
 // without provider keys and with reproducible model output. Never deployed;
 // the production entry is index.ts.
 import { serve } from '@hono/node-server';
+import { ingestVersions } from '@infora/data';
 import { createDb } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
 const { db } = createDb();
-const app = buildApp({ db, sessionSecret: 'e2e-secret', router: fakeRouter() });
+const router = fakeRouter();
+
+// index the library under the fake embedding model so retrieval has a
+// grounded corpus here; the real voyage index coexists untouched (each
+// pinned model is its own index, ADR-0024)
+const { chunks } = await ingestVersions(db, router);
+console.log(`e2e substrate: ${chunks} chunks indexed under the fake embedding model`);
+
+const app = buildApp({ db, sessionSecret: 'e2e-secret', router });
 
 serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {
   console.log(`@infora/api (e2e substrate, fake providers) listening on :${info.port}`);

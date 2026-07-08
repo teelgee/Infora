@@ -1,0 +1,2 @@
+DROP INDEX "version_chunks_version_chunk_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "version_chunks_version_model_chunk_unique" ON "version_chunks" USING btree ("version_id","embedding_model_id","chunk_index");
