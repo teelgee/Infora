@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
+import { SandboxScreen } from './screens/sandbox';
 import { WorkspaceLanding } from './screens/workspace';
 
 const router = createBrowserRouter([
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
         element: <EmptyState title="Editor" note="The document canvas arrives with T-082." />,
       },
       {
+        path: 'editor/:documentId',
+        element: <EmptyState title="Editor" note="The document canvas arrives with T-082." />,
+      },
+      {
         path: 'documents',
         element: <EmptyState title="Documents" note="The library view arrives with its wiring." />,
       },
@@ -34,10 +39,7 @@ const router = createBrowserRouter([
           />
         ),
       },
-      {
-        path: 'sandbox',
-        element: <EmptyState title="Sandbox" note="Sandbox documents arrive with T-051." />,
-      },
+      { path: 'sandbox', element: <SandboxScreen /> },
       {
         path: 'workflows',
         element: (

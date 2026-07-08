@@ -3,8 +3,10 @@
 import type {
   ApiError,
   GetWorkItemResponse,
+  ListSandboxDocumentsResponse,
   ListWorkItemsResponse,
   MeResponse,
+  SandboxDocument,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -36,4 +38,12 @@ export const api = {
   workItems: (projectId: string) =>
     request<ListWorkItemsResponse>(`/projects/${projectId}/work-items`),
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
+  sandboxDocuments: (projectId: string) =>
+    request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
+  createSandboxDocument: (projectId: string, title: string) =>
+    request<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
 };

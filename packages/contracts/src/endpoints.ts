@@ -67,6 +67,9 @@ export type GetWorkItemResponse = WorkItem & { runs: Run[] };
 // ── Sandbox documents (M4 — the draft-location decision) ──────────────────
 //
 // POST  /projects/:projectId/sandbox-documents
+// GET   /projects/:projectId/sandbox-documents
+//       list added 2026-07-08 (T-051): the requester's organisation's private
+//       project sandbox (ADR-0018) — org-scoped by construction, no parameter
 // GET   /sandbox-documents/:id
 // PATCH /sandbox-documents/:id
 //       manual editing: no Suggestion, no Signal, no ceremony — by design
@@ -79,6 +82,8 @@ export type SandboxDocument = {
   content: string;
   updatedAt: string;
 };
+
+export type ListSandboxDocumentsResponse = { items: SandboxDocument[] };
 
 export const createSandboxDocumentBody = z.object({ title: z.string().min(1) });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;

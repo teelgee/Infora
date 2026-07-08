@@ -12,6 +12,7 @@ import { authRoutes } from './auth';
 import { projectScope, resourceHomes, resourceScope, sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { runRoutes } from './runs';
+import { sandboxRoutes } from './sandbox';
 
 export type { AppDeps } from './requester';
 
@@ -49,13 +50,9 @@ export function buildApp(deps: AppDeps) {
     }),
   );
 
-  // Sandbox documents (M4) — organisation-private inside the project (ADR-0018)
-  app.post('/projects/:projectId/sandbox-documents', project, notImplemented('T-051'));
-  app.get(
-    '/sandbox-documents/:id',
-    resourceScope(deps, 'id', resourceHomes.sandboxDocument),
-    notImplemented('T-051'),
-  );
+  // Sandbox documents (M4) — organisation-private inside the project
+  // (ADR-0018); create/list/open live at T-051, manual editing at T-082
+  app.route('/', sandboxRoutes(deps));
   app.patch(
     '/sandbox-documents/:id',
     resourceScope(deps, 'id', resourceHomes.sandboxDocument),

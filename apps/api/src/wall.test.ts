@@ -114,7 +114,7 @@ describe('T-022 — the seeded wall subjects resolve to nothing', () => {
       // are still 501 placeholders
       const expected = path.includes(ghost)
         ? 404
-        : method === 'POST' && path.endsWith('/conversations')
+        : method === 'POST' && (path.endsWith('/conversations') || path.endsWith('/sandbox-documents'))
           ? 400
           : path.includes('work-items')
             ? 200
