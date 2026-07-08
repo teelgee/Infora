@@ -1,0 +1,18 @@
+{
+  "name": "@infora/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright + API-level e2e harness (T-084)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "typescript": "^5.8.3"
+  }
+}

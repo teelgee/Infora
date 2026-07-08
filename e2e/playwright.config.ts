@@ -1,0 +1,30 @@
+// T-084 — the e2e harness: the api on its e2e substrate (real DB, fake
+// providers — CI carries no keys) and the vite-served consultant app.
+// Requires the dev database migrated and seeded, as in CI and the first-day
+// path.
+import { defineConfig } from '@playwright/test';
+
+export const API_URL = 'http://localhost:3210';
+const WEB_URL = 'http://localhost:5273';
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: false, // suites share the seeded database
+  retries: process.env['CI'] ? 1 : 0,
+  reporter: process.env['CI'] ? 'github' : 'list',
+  use: { baseURL: WEB_URL },
+  webServer: [
+    {
+      command: 'pnpm --filter @infora/api run start:e2e',
+      url: `${API_URL}/me`, // 401 counts as up
+      env: { PORT: '3210' },
+      reuseExistingServer: !process.env['CI'],
+    },
+    {
+      command: 'pnpm --filter @infora/web-consultant exec vite --port 5273 --strictPort',
+      url: WEB_URL,
+      env: { API_PROXY_TARGET: API_URL },
+      reuseExistingServer: !process.env['CI'],
+    },
+  ],
+});

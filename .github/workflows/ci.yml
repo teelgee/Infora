@@ -51,3 +51,8 @@ jobs:
       - run: pnpm run test:tools
 
       - run: pnpm run build
+
+      # the e2e harness (T-084): browser + API suites against the seeded DB
+      - run: pnpm --filter @infora/e2e exec playwright install --with-deps chromium
+
+      - run: pnpm --filter @infora/e2e run test:e2e

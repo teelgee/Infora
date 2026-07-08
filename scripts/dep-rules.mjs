@@ -50,6 +50,7 @@ export const ALLOWED = {
     '@infora/workflows',
     '@infora/governance',
   ],
+  '@infora/e2e': ['@infora/contracts'], // the harness drives HTTP + browser only
   '@infora/web-consultant': ['@infora/contracts', '@infora/ui'],
   '@infora/web-owner': ['@infora/contracts', '@infora/ui'],
   '@infora/word-addin': ['@infora/contracts', '@infora/ui'],

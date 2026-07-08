@@ -14,9 +14,11 @@ const apiPrefixes = [
   '/suggestions',
 ];
 
+const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';
+
 export default defineConfig({
   plugins: [react()],
   server: {
-    proxy: Object.fromEntries(apiPrefixes.map((prefix) => [prefix, 'http://localhost:3000'])),
+    proxy: Object.fromEntries(apiPrefixes.map((prefix) => [prefix, apiTarget])),
   },
 });
