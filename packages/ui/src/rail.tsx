@@ -1,13 +1,13 @@
 // T-049 — the left rail per the mockups: wordmark, workspace zone, project
 // switcher, the seven-item nav, and the user chip pinned to the foot.
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 
 export type RailNavItem = {
   label: string;
   glyph: string;
   href: string;
   active?: boolean;
-  onClick?: () => void;
+  onClick?: (event: MouseEvent<HTMLAnchorElement>) => void; // routers preventDefault here
 };
 
 export function Rail(props: { children: ReactNode }) {
@@ -29,10 +29,10 @@ export function WorkspaceZone(props: { organisation: string; action?: ReactNode 
   );
 }
 
-export function ProjectSwitcher(props: { name: string; onClick?: () => void }) {
+export function ProjectSwitcher(props: { name: string; kicker?: string; onClick?: () => void }) {
   return (
     <div className="project-switcher" onClick={props.onClick}>
-      <div className="kicker">Project</div>
+      <div className="kicker">{props.kicker ?? 'Project'}</div>
       <div className="name">{props.name}</div>
       <div className="chev">▾</div>
     </div>

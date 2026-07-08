@@ -4,11 +4,23 @@
   "private": true,
   "type": "module",
   "description": "workspace + project home, editor, chat, review",
-  "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*",
+    "@infora/ui": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
   }
 }

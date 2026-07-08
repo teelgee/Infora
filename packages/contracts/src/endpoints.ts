@@ -141,8 +141,19 @@ export const createSessionBody = z.object({
 });
 export type CreateSessionBody = z.infer<typeof createSessionBody>;
 
+// Display facts added 2026-07-08 (T-050): the workspace landing and rail
+// render names and role badges, and every fact here is the requester's own
+// entitlement — no wall implication, purely a completion of the read.
 export type MeResponse = {
   userId: Id;
+  name: string;
   organisationId: Id;
-  participants: Array<{ projectId: Id; participantId: Id }>;
+  organisationName: string;
+  participants: Array<{
+    projectId: Id;
+    participantId: Id;
+    projectName: string;
+    ownerOrganisationName: string;
+    membershipRole: 'owner' | 'member';
+  }>;
 };

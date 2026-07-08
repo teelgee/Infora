@@ -85,14 +85,24 @@ describe('GET /me (T-021)', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns the resolved identity and project participants', async () => {
+  it('returns the resolved identity, display facts and project participants', async () => {
     const session = (await login({ email, password })).headers.get('set-cookie')!.split(';')[0]!;
     const res = await app.request('/me', { headers: { cookie: session } });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       userId,
+      name: 't021 user',
       organisationId,
-      participants: [{ projectId, participantId }],
+      organisationName: 't021 org',
+      participants: [
+        {
+          projectId,
+          participantId,
+          projectName: 't021 project',
+          ownerOrganisationName: 't021 org',
+          membershipRole: 'owner',
+        },
+      ],
     });
   });
 });

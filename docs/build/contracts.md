@@ -167,8 +167,14 @@ GET /projects/:projectId/library
 
 ```
 POST /auth/session            // skeleton login for seeded users (see plan.md ticket note)
-GET  /me                      → { userId, organisationId,
-                                  participants: Array<{ projectId: Id; participantId: Id }> }
+GET  /me                      → { userId, name, organisationId, organisationName,
+                                  participants: Array<{ projectId: Id; participantId: Id;
+                                                        projectName: string;
+                                                        ownerOrganisationName: string;
+                                                        membershipRole: 'owner' | 'member' }> }
+      // display facts added 2026-07-08 (T-050): the workspace landing and the
+      // rail render names and role badges; every fact is the requester's own
+      // entitlement, so this completes the read rather than widening any scope
 ```
 
 Copilot adds no endpoints: the API plugin (ADR-0031) calls the same contracts with `surface: 'copilot'`, identity mapped from Entra SSO via `User.external_identity`.
