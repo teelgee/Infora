@@ -108,6 +108,7 @@ export function ProjectShell() {
 export function ProjectHome() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
+  const navigate = useNavigate();
   const [items, setItems] = useState<WorkItem[] | null>(null);
 
   useEffect(() => {
@@ -146,7 +147,13 @@ export function ProjectHome() {
             {(items ?? []).map((item) => {
               const status = statusBadge(item.status);
               return (
-                <tr key={item.id}>
+                <tr
+                  key={item.id}
+                  onClick={() =>
+                    void navigate(`/projects/${participant.projectId}/work-items/${item.id}`)
+                  }
+                  style={{ cursor: 'pointer' }}
+                >
                   <td>
                     <div className="title">{item.title}</div>
                   </td>

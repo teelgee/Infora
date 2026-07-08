@@ -43,6 +43,7 @@ export const api = {
   workItems: (projectId: string) =>
     request<ListWorkItemsResponse>(`/projects/${projectId}/work-items`),
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
+  run: (runId: string) => request<Run>(`/runs/${runId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
   createSandboxDocument: (projectId: string, title: string) =>

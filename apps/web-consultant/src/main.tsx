@@ -7,6 +7,7 @@ import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { SandboxScreen } from './screens/sandbox';
+import { WorkItemAuditScreen } from './screens/work-item';
 import { WorkspaceLanding } from './screens/workspace';
 
 const router = createBrowserRouter([
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
         ),
       },
       { path: 'sandbox', element: <SandboxScreen /> },
+      { path: 'work-items/:workItemId', element: <WorkItemAuditScreen /> },
       {
         path: 'workflows',
         element: (
