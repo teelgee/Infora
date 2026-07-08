@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import type { Context } from 'hono';
 import type { ApiError } from '@infora/contracts';
 import { createAssembler } from '@infora/knowledge';
 import {
@@ -9,7 +8,8 @@ import {
   createRetrieveLeaf,
 } from '@infora/orchestration';
 import { authRoutes } from './auth';
-import { projectScope, sessionMiddleware } from './requester';
+import { libraryRoutes } from './library';
+import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
@@ -17,12 +17,9 @@ import { suggestionRoutes } from './suggestions';
 
 export type { AppDeps } from './requester';
 
-// T-009: every contracts.md §3 endpoint registered; T-023 puts requester
-// resolution in front of each. The 501 body is scaffolding outside the
-// contracts §4 envelope; each placeholder names the ticket that replaces it.
-const notImplemented = (ticket: string) => (c: Context) =>
-  c.json({ error: 'not_implemented', ticket }, 501);
-
+// T-009 registered every contracts.md §3 endpoint (as 501 scaffolding where
+// the milestone hadn't landed); T-023 puts requester resolution in front of
+// each. T-086 replaced the last placeholder — every route is live.
 export function buildApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
@@ -31,8 +28,6 @@ export function buildApp(deps: AppDeps) {
 
   // Auth & session (M1, M6) — T-021
   app.route('/', authRoutes(deps));
-
-  const project = projectScope(deps);
 
   // Conversations, runs & work items (M3, M5, M6) — T-046. The chain's
   // leaves are bound once here: retrieval reaches stores only through the
@@ -58,8 +53,8 @@ export function buildApp(deps: AppDeps) {
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));
 
-  // Library (M2 read path)
-  app.get('/projects/:projectId/library', project, notImplemented('M2'));
+  // Library (M2 read path) — T-086
+  app.route('/', libraryRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

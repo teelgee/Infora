@@ -5,6 +5,7 @@ import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
+import { LibraryScreen } from './screens/library';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { SandboxScreen } from './screens/sandbox';
 import { WorkItemAuditScreen } from './screens/work-item';
@@ -20,10 +21,7 @@ const router = createBrowserRouter([
       { path: 'ask', element: <AskScreen /> },
       { path: 'editor', element: <EditorScreen /> },
       { path: 'editor/:documentId', element: <EditorScreen /> },
-      {
-        path: 'documents',
-        element: <EmptyState title="Documents" note="The library view arrives with its wiring." />,
-      },
+      { path: 'documents', element: <LibraryScreen /> },
       {
         path: 'review',
         element: (

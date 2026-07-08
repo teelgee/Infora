@@ -3,6 +3,7 @@
 import type {
   ApiError,
   CreateConversationResponse,
+  GetLibraryResponse,
   GetWorkItemResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
@@ -44,6 +45,7 @@ export const api = {
     request<ListWorkItemsResponse>(`/projects/${projectId}/work-items`),
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
+  library: (projectId: string) => request<GetLibraryResponse>(`/projects/${projectId}/library`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
   createSandboxDocument: (projectId: string, title: string) =>

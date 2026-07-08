@@ -110,15 +110,13 @@ describe('T-022 — the seeded wall subjects resolve to nothing', () => {
     for (const [method, path] of routes()) {
       const res = await hit(consultant, method, path);
       // ghost-addressed resources are 404 for everyone alike; live routes
-      // reach their handlers (bodyless POSTs validate to 400); the rest
-      // are still 501 placeholders
+      // reach their handlers (bodyless POSTs validate to 400) — no 501
+      // placeholders remain since T-086
       const expected = path.includes(ghost)
         ? 404
         : method === 'POST' && (path.endsWith('/conversations') || path.endsWith('/sandbox-documents'))
           ? 400
-          : path.includes('work-items')
-            ? 200
-            : 501;
+          : 200;
       expect(`${method} ${path} → ${res.status}`).toBe(`${method} ${path} → ${expected}`);
     }
   });

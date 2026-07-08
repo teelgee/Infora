@@ -117,7 +117,7 @@ afterAll(async () => {
 });
 
 // route → the status the entitled requester's handler answers (bodyless
-// POSTs validate to 400; T-046 routes are live; the rest still 501)
+// POSTs validate to 400; no 501 placeholders remain since T-086)
 const routes = (): Array<[string, string, number]> => [
   ['POST', `/projects/${projectId}/conversations`, 400],
   ['POST', `/conversations/${conversationId}/runs`, 400],
@@ -129,7 +129,7 @@ const routes = (): Array<[string, string, number]> => [
   ['GET', `/sandbox-documents/${sandboxDocumentId}`, 200],
   ['PATCH', `/sandbox-documents/${sandboxDocumentId}`, 400],
   ['POST', `/suggestions/${suggestionId}/resolution`, 400],
-  ['GET', `/projects/${projectId}/library`, 501],
+  ['GET', `/projects/${projectId}/library`, 200],
 ];
 
 const hit = (cookie: string, method: string, path: string) =>
@@ -165,7 +165,7 @@ describe('T-023 — deny is the same 404 as nonexistence', () => {
     expect((await hit(otherOrg, 'PATCH', `/sandbox-documents/${sandboxDocumentId}`)).status).toBe(404);
     expect((await hit(otherOrg, 'POST', `/suggestions/${suggestionId}/resolution`)).status).toBe(404);
     // while the same requester passes on project-scoped routes
-    expect((await hit(otherOrg, 'GET', `/projects/${projectId}/library`)).status).toBe(501);
+    expect((await hit(otherOrg, 'GET', `/projects/${projectId}/library`)).status).toBe(200);
   });
 
   it('answers nonexistent and malformed ids identically', async () => {
