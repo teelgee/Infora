@@ -127,8 +127,11 @@ export function ProjectHome() {
       </p>
 
       <div style={{ marginTop: 22 }}>
-        <CommandBar hint="⌘K">
-          Ask anything, or start a workflow — the Ask surface arrives with T-052
+        <CommandBar
+          hint="⌘K"
+          onClick={() => void navigate(`/projects/${participant.projectId}/ask`)}
+        >
+          Ask about the project — grounded on its library, every claim cited or withheld
         </CommandBar>
       </div>
 
