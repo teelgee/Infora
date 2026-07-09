@@ -66,9 +66,12 @@ type Step = {
   model?: { id: string; version: string };                   // the Router's choice
   usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
   sourceSet: Array<{ versionId: Id } | { authorityRef: string }>;  // defensibility field 1 (ADR-0028 §7)
-  railOutcomes: Array<{ rail: string; outcome: 'passed' | 'withheld';
+  railOutcomes: Array<{ rail: string; outcome: 'passed' | 'withheld' | 'open_world';
                         detail?: string }>;                        // defensibility field 2; detail carries
-                                                                   // e.g. the withheld claim text for the UI
+                                                                   // e.g. the withheld claim text for the UI.
+                                                                   // 'open_world' added 2026-07-09 (T-089): an uncited
+                                                                   // model-knowledge claim kept in *chat*, labelled —
+                                                                   // document-targeted drafting stays grounded-only
   childRunId?: Id;                                           // when type = 'delegate'
 };
 
