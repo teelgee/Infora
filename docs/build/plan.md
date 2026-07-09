@@ -112,6 +112,20 @@ The design layer defers real identity/security to the infra/security session (co
 | T-081 | **QA pass (Phase 7)** — human review against the journey; bugs and gaps raised as new tickets on this board. | T-080 |
 | T-087 | **Draft reassembly keeps sentence punctuation** — the claim parser strips the full stop that follows a claim's marker ("claim [S1]. Next…"), so the cite leaf's rejoined content runs sentences together; restore terminal punctuation at the parse boundary, keeping claim text, spans and content consistent. *(Phase 7 pre-sweep finding on the real substrate, 2026-07-09.)* | T-080 |
 
+## Phase 7 QA batch (owner review, 2026-07-09)
+
+Raised from the owner's T-081 review of the workspace, Ask and Editor surfaces. Design themes from the same review live on the grill tracker; these rows are the actionable cut. Chat = the untargeted Ask path; drafting = document-targeted Suggestions, which stay grounded-only (the 2026-07-09 labelled-channels ruling).
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-088 | **Ask reads like a chat** — markdown-formatted answers (paragraph-preserving reassembly + rendered markdown), citations shown per answer (the Run read exposes cite-step citations — the old step-citation residual, now needed by the web surface), the run trace collapsed to an expandable detail line, and the output-target chip removed (drafting belongs to the Editor). | T-080 |
+| T-089 | **Labelled open-world channel in chat** — untargeted runs may keep model-knowledge claims, labelled (`open_world` rail outcome) instead of withheld; grounded claims keep citations; document-targeted drafting unchanged (grounded-only). Web search waits on a provider (infra session). | T-088 |
+| T-090 | **Editor entry screen** — no document open: browse the org's project-sandbox documents and create new (flat; folders arrive with the sandbox drawer). | — |
+| T-091 | **In-callout suggestion controls with refine stack** — accept / edit / reprompt-to-refine inside the document callout; pending suggestions stack newest-first (new green, older red); unaccepted ones disappear from the surface once one is accepted (rows retained — append-only; retention ruling parked on the tracker). | T-090 |
+| T-092 | **Personal settings** — the user chip opens a settings page: profile, editable display name, password change, saved theme (light/dark scheme in the UI tokens); `users.preferences` migration; self-scoped PATCH `/me` + password endpoint. | — |
+| T-093 | **Workspace nav functions** — every rail item routes to a real page: honest empty states for workspace Ask / Editor / personal sandbox / workflows naming their slice, and a new "Your knowledge" item for the organisation-knowledge page (placeholder until the org-context store lands). | — |
+| T-094 | **Citation chips open the source** — click a citation to read the cited version's content (self-scoped version read endpoint); hover-render of the exact chunk waits on the chunk-provenance data-model theme (tracker). | T-088 |
+
 ### Parallel tracks
 
 Sequential spine: **T-001 → T-003/T-009 → migrations → T-020 → T-030 → T-041 → T-046 → T-082 → T-053 → T-080.** Off the spine, these run concurrently: T-010 (model), T-002 (CI), T-083 (config/bootstrap) and T-049 (UI tokens from the mockups) from day one; T-050/T-051 (scaffold + sandbox surface) once contracts and the skeleton auth exist (T-009/T-021 — shell work can begin earlier against a stubbed session), well before M3 completes; T-084 (e2e harness) beside M4; T-085 then T-070 (Copilot enablers + manifest) once T-046 is stable; T-012 (ingestion) beside M1.
