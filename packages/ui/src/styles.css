@@ -430,3 +430,12 @@ tr.group-row .count { color: var(--muted); font-weight: 400; }
   margin: 0 0 10px; padding: 2px 12px;
   border-left: 2px solid var(--hairline); color: var(--muted);
 }
+
+/* ---------- Refine stack (T-091): newest proposal green, older red ---------- */
+.proposed.stale {
+  background: #faf3f2; border-left-color: #b3564d;
+}
+.proposed.stale .proposed-tag { color: #9a4a42; }
+.proposed-actions {
+  display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;
+}

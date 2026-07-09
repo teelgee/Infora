@@ -168,7 +168,9 @@ test('4 — a manual edit lands with no ceremony: no Suggestion, no Signal', asy
 
   manualText = `${SURVIVING}\n\nTyped by hand, as if AI did not exist.`;
   await page.locator('.doc-body textarea').fill(manualText);
-  await page.getByRole('button', { name: 'Save' }).click();
+  // the editor saves on blur by design — clicking Save races the blur-save
+  // that removes the button, so leave the field and assert the saved state
+  await page.locator('.doc-body textarea').blur();
   await expect(page.getByText('No document controls')).toBeVisible(); // saved: the Save control is gone
 
   const doc = await consultant.get<SandboxDocument>(`/sandbox-documents/${documentId}`);

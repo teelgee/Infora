@@ -3,7 +3,8 @@
 // no ceremony), pending Suggestions rendered as proposed blocks with their
 // citations, and the right panel's Chat and Suggestions tabs — Chat reuses
 // the Ask composer bound to this document; the Insert tab is post-skeleton.
-// Resolution controls land with T-053.
+// Resolution lives in the callout itself with reprompt-to-refine stacking
+// (T-091, ruled 2026-07-09); the panel tab is the read-only queue.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
@@ -13,6 +14,7 @@ import {
   Button,
   Card,
   CitationChip,
+  Markdown,
   NumBadge,
   RunTrace,
   SectionLabel,
@@ -151,11 +153,8 @@ export function EditorScreen() {
     await load();
   }
 
-  async function sendChat(event: FormEvent) {
-    event.preventDefault();
-    const request = chatText.trim();
-    if (request === '' || pending || documentId === undefined) return;
-    setChatText('');
+  async function runAgainst(request: string) {
+    if (pending || documentId === undefined) return;
     setChatLog((log) => [...log, { id: nextId.current++, who: 'user', text: request }]);
     setPending(true);
     try {
@@ -181,10 +180,36 @@ export function EditorScreen() {
     }
   }
 
+  async function sendChat(event: FormEvent) {
+    event.preventDefault();
+    const request = chatText.trim();
+    if (request === '') return;
+    setChatText('');
+    await runAgainst(request);
+  }
+
+  // T-091: reprompt-to-refine — a new run seeded with the pending proposal;
+  // the refined suggestion stacks above the old one in the callout
+  async function refine(suggestion: Suggestion) {
+    const refinement = window.prompt('How should the proposal change?');
+    if (refinement === null || refinement.trim() === '') return;
+    await runAgainst(
+      `Refine the pending draft below.\n\nRefinement: ${refinement.trim()}\n\nThe pending draft:\n${suggestion.content}`,
+    );
+  }
+
   if (documentId === undefined) return <EditorEntry />;
   if (doc === null) return null;
 
-  const pendingSuggestions = suggestions.filter((suggestion) => suggestion.signal === undefined);
+  // T-091, the refine-stack rule (ruled 2026-07-09): pending suggestions
+  // stack newest-first; once one is accepted or edited, unaccepted ones
+  // older than it leave the surface (the rows remain — append-only).
+  const resolvedAt = suggestions.findIndex(
+    (sg) => sg.signal !== undefined && sg.signal.resolution !== 'rejected',
+  );
+  const pendingSuggestions = suggestions.filter(
+    (sg, at) => sg.signal === undefined && (resolvedAt === -1 || at < resolvedAt),
+  );
 
   return (
     <>
@@ -228,13 +253,15 @@ export function EditorScreen() {
             />
 
             {pendingSuggestions.map((suggestion, at) => (
-              <div key={suggestion.id} className="proposed">
+              <div key={suggestion.id} className={at === 0 ? 'proposed' : 'proposed stale'}>
                 <div className="proposed-tag">
-                  <NumBadge>{at + 1}</NumBadge> Suggestion {at + 1} · {suggestion.kind} · pending
-                  your decision
+                  <NumBadge>{at + 1}</NumBadge>{' '}
+                  {at === 0
+                    ? `Suggestion · ${suggestion.kind} · pending your decision`
+                    : 'earlier proposal · superseded by the one above, still resolvable'}
                 </div>
-                <p>
-                  {suggestion.content}{' '}
+                <Markdown>{suggestion.content}</Markdown>
+                <div style={{ marginTop: 6 }}>
                   {suggestion.citations.map((citation) => (
                     <CitationChip
                       key={citation.id}
@@ -245,11 +272,25 @@ export function EditorScreen() {
                         : citation.source.authorityRef}
                     </CitationChip>
                   ))}
-                </p>
+                </div>
                 {suggestion.rationale.includes('withheld') &&
                   !suggestion.rationale.includes('nothing was withheld') && (
                     <WithheldNotice>{suggestion.rationale}</WithheldNotice>
                   )}
+                <div className="proposed-actions">
+                  <Button size="sm" variant="primary" onClick={() => void resolve(suggestion, 'accepted')}>
+                    ✓ Accept
+                  </Button>
+                  <Button size="sm" onClick={() => void resolve(suggestion, 'edited')}>
+                    ✎ Edit
+                  </Button>
+                  <Button size="sm" onClick={() => void refine(suggestion)} disabled={pending}>
+                    ↻ Refine
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={() => void resolve(suggestion, 'rejected')}>
+                    Reject
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -280,21 +321,8 @@ export function EditorScreen() {
                   key={suggestion.id}
                   number={at + 1}
                   title={`${suggestion.kind === 'insert' ? 'Insert' : 'Replace'} — proposed content`}
-                  description={suggestion.rationale}
+                  description={`${suggestion.rationale} Resolve it in the document.`}
                   active={at === 0}
-                  actions={
-                    <>
-                      <Button size="sm" variant="primary" onClick={() => void resolve(suggestion, 'accepted')}>
-                        ✓ Accept
-                      </Button>
-                      <Button size="sm" onClick={() => void resolve(suggestion, 'edited')}>
-                        ✎ Edit
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => void resolve(suggestion, 'rejected')}>
-                        Reject
-                      </Button>
-                    </>
-                  }
                 />
               ))}
               {pendingSuggestions.length === 0 && (
