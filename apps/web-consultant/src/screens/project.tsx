@@ -87,6 +87,7 @@ export function ProjectShell() {
           initials={initialsOf(me.name)}
           name={me.name}
           org={`${me.organisationName} — ${role === 'Owner' ? 'Owner' : 'Consultant'}`}
+          onClick={() => void navigate('/settings')}
         />
       </Rail>
 

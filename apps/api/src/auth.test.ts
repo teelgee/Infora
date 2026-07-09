@@ -92,8 +92,10 @@ describe('GET /me (T-021)', () => {
     expect(await res.json()).toEqual({
       userId,
       name: 't021 user',
+      email,
       organisationId,
       organisationName: 't021 org',
+      preferences: {},
       participants: [
         {
           projectId,
@@ -104,5 +106,54 @@ describe('GET /me (T-021)', () => {
         },
       ],
     });
+  });
+});
+
+// T-092 — personal settings: self-scoped writes on the session's own row
+describe('PATCH /me and POST /me/password (T-092)', () => {
+  const authed = async () =>
+    (await login({ email, password: currentPassword })).headers.get('set-cookie')!.split(';')[0]!;
+  let currentPassword = password;
+
+  it('saves display name and preferences, returning the updated read', async () => {
+    const session = await authed();
+    const res = await app.request('/me', {
+      method: 'PATCH',
+      headers: { cookie: session, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 't021 renamed', preferences: { theme: 'dark' } }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { name: string; preferences: { theme?: string } };
+    expect(body.name).toBe('t021 renamed');
+    expect(body.preferences).toEqual({ theme: 'dark' });
+
+    const empty = await app.request('/me', {
+      method: 'PATCH',
+      headers: { cookie: session, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
+  });
+
+  it('changes the password only against the correct current one', async () => {
+    const session = await authed();
+    const wrong = await app.request('/me/password', {
+      method: 'POST',
+      headers: { cookie: session, 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'not-the-password', newPassword: 'long-enough-pw' }),
+    });
+    expect(wrong.status).toBe(401);
+
+    const res = await app.request('/me/password', {
+      method: 'POST',
+      headers: { cookie: session, 'content-type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword: 'long-enough-pw' }),
+    });
+    expect(res.status).toBe(204);
+    currentPassword = 'long-enough-pw';
+
+    // the old password is gone, the new one signs in
+    expect((await login({ email, password })).status).toBe(401);
+    expect((await login({ email, password: currentPassword })).status).toBe(204);
   });
 });

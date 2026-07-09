@@ -29,6 +29,31 @@
   --mono: "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 }
 
+
+/* Dark scheme (T-092): the same vocabulary, remapped. Applied via
+   data-theme on <html>, a saved personal preference. */
+:root[data-theme='dark'] {
+  --paper: #191813;
+  --panel: #22211b;
+  --ink: #ece9e1;
+  --ink-soft: #c4c0b5;
+  --muted: #8a867c;
+  --hairline: #35332b;
+  --hairline-soft: #2a2822;
+  --accent: #3f9b74;
+  --accent-soft: #1d2f27;
+  --accent-ink: #7cc4a3;
+  --authority: #6f9cc9;
+  --authority-soft: #1e2836;
+  --amber: #d1a04e;
+  --amber-soft: #322a1a;
+  --danger: #d1706f;
+  --danger-soft: #362222;
+}
+:root[data-theme='dark'] .proposed { background: #1d2a22; }
+:root[data-theme='dark'] .proposed.stale { background: #2e211f; border-left-color: #a05a52; }
+:root[data-theme='dark'] .proposed.stale .proposed-tag { color: #c98077; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body { height: 100%; }

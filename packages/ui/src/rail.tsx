@@ -60,9 +60,19 @@ export function RailSpacer() {
   return <div className="spacer" />;
 }
 
-export function UserChip(props: { initials: string; name: string; org: string }) {
+export function UserChip(props: {
+  initials: string;
+  name: string;
+  org: string;
+  onClick?: () => void; // opens personal settings (T-092)
+}) {
   return (
-    <div className="user-chip">
+    <div
+      className="user-chip"
+      onClick={props.onClick}
+      style={props.onClick !== undefined ? { cursor: 'pointer' } : undefined}
+      title={props.onClick !== undefined ? 'Personal settings' : undefined}
+    >
       <div className="avatar">{props.initials}</div>
       <div className="who">
         <div className="name">{props.name}</div>

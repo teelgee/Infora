@@ -190,6 +190,13 @@ GET  /me                      → { userId, name, organisationId, organisationNa
       // display facts added 2026-07-08 (T-050): the workspace landing and the
       // rail render names and role badges; every fact is the requester's own
       // entitlement, so this completes the read rather than widening any scope
+      // + email and preferences { theme } added 2026-07-09 (T-092)
+
+PATCH /me                     body: { name?, preferences?: { theme? } }  → MeResponse
+POST  /me/password            body: { currentPassword, newPassword }    → 204 (401 on wrong current)
+      // personal settings (T-092, 2026-07-09): both writes are self-scoped —
+      // the session's own user row, no id parameter, no wall implication;
+      // password change stays useful as the break-glass path after Entra SSO
 ```
 
 Copilot adds no endpoints: the API plugin (ADR-0031) calls the same contracts with `surface: 'copilot'`, identity mapped from Entra SSO via `User.external_identity`.

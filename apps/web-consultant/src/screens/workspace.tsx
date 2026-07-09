@@ -35,7 +35,12 @@ export function WorkspaceLanding() {
           ]}
         />
         <RailSpacer />
-        <UserChip initials={initialsOf(me.name)} name={me.name} org={me.organisationName} />
+        <UserChip
+          initials={initialsOf(me.name)}
+          name={me.name}
+          org={me.organisationName}
+          onClick={() => void navigate('/settings')}
+        />
       </Rail>
 
       <div className="main">

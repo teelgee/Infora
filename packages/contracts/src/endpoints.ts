@@ -153,11 +153,14 @@ export type CreateSessionBody = z.infer<typeof createSessionBody>;
 // Display facts added 2026-07-08 (T-050): the workspace landing and rail
 // render names and role badges, and every fact here is the requester's own
 // entitlement — no wall implication, purely a completion of the read.
+export type UserPreferences = { theme?: 'light' | 'dark' };
 export type MeResponse = {
   userId: Id;
   name: string;
+  email: string; // the requester's own sign-in identity (T-092, 2026-07-09)
   organisationId: Id;
   organisationName: string;
+  preferences: UserPreferences; // personal settings (T-092, 2026-07-09)
   participants: Array<{
     projectId: Id;
     participantId: Id;
@@ -166,3 +169,24 @@ export type MeResponse = {
     membershipRole: 'owner' | 'member';
   }>;
 };
+
+// Personal settings (T-092, 2026-07-09): both writes are self-scoped — the
+// session's own user row, no id parameter, no wall implication.
+//
+// PATCH /me                 body: PatchMeBody          → MeResponse
+// POST  /me/password        body: ChangePasswordBody   → 204 (401 on a wrong current password)
+export const patchMeBody = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    preferences: z.object({ theme: z.enum(['light', 'dark']).optional() }).optional(),
+  })
+  .refine((body) => body.name !== undefined || body.preferences !== undefined, {
+    message: 'nothing to change',
+  });
+export type PatchMeBody = z.infer<typeof patchMeBody>;
+
+export const changePasswordBody = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+export type ChangePasswordBody = z.infer<typeof changePasswordBody>;

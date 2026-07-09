@@ -9,6 +9,7 @@ import type {
   ListSuggestionsResponse,
   ListWorkItemsResponse,
   MeResponse,
+  PatchMeBody,
   Resolution,
   ResolveSuggestionResponse,
   Run,
@@ -41,6 +42,13 @@ export const api = {
   login: (email: string, password: string) =>
     request<void>('/auth/session', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request<MeResponse>('/me'),
+  patchMe: (body: PatchMeBody) =>
+    request<MeResponse>('/me', { method: 'PATCH', body: JSON.stringify(body) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/me/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   workItems: (projectId: string) =>
     request<ListWorkItemsResponse>(`/projects/${projectId}/work-items`),
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),

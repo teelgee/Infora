@@ -43,6 +43,13 @@
       "when": 1783494286273,
       "tag": "0005_chunk-index-per-model",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783629933171,
+      "tag": "0006_user-preferences",
+      "breakpoints": true
     }
   ]
 }

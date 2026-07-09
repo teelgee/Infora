@@ -20,7 +20,7 @@ The skeleton journey these tables must support (from the grill tracker): *a cons
 Fields: `id`, `name`.
 
 **User** — an individual belonging to one organisation.
-Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031).
+Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031), `preferences` (jsonb — the user's own display choices, e.g. `{ theme }`; never an access or context fact; added 2026-07-09, T-092).
 Relationship: Organisation ─< User.
 
 **User credential** *(skeleton-auth scaffolding — plan.md's recorded build-time decision, added at T-021)* — the password hash behind the seeded users' session login. Kept as its own table, not a column on User, so the scaffold drops cleanly when the infra/security session replaces it with production identity (Entra-first).

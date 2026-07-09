@@ -1,6 +1,6 @@
 // Drawer 1 — parties & access (data-model.md; ADR-0015–0018).
 // Every other table is scoped by these.
-import { pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { jsonb, pgEnum, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const membershipRole = pgEnum('membership_role', ['owner', 'member']);
@@ -21,6 +21,9 @@ export const users = pgTable(
       .references(() => organisations.id),
     // the Entra ID / M365 subject; maps a Copilot SSO login to this user (ADR-0031)
     externalIdentity: text('external_identity'),
+    // personal settings (T-092, 2026-07-09) — the user's own display choices,
+    // e.g. { theme: 'dark' }; never an access or context fact
+    preferences: jsonb('preferences').notNull().default({}),
   },
   (t) => [uniqueIndex('users_email_unique').on(t.email)],
 );

@@ -8,11 +8,13 @@ import { EditorScreen } from './screens/editor';
 import { LibraryScreen } from './screens/library';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { SandboxScreen } from './screens/sandbox';
+import { SettingsScreen } from './screens/settings';
 import { WorkItemAuditScreen } from './screens/work-item';
 import { WorkspaceLanding } from './screens/workspace';
 
 const router = createBrowserRouter([
   { path: '/', element: <WorkspaceLanding /> },
+  { path: '/settings', element: <SettingsScreen /> },
   {
     path: '/projects/:projectId',
     element: <ProjectShell />,
