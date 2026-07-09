@@ -18,8 +18,12 @@ export type SourceRef = { versionId: Id } | { authorityRef: string };
 // claim→source markers are produced by the draft leaf for the verifier.
 export type DraftClaim = { text: string; sourceRef?: SourceRef };
 export type DraftOutput = { claims: DraftClaim[] };
+// The chain's two modes (labelled-channels ruling, 2026-07-09): a
+// document-targeted run drafts grounded-only; an untargeted chat run may
+// keep model-knowledge claims, labelled open-world — never cited.
+export type ChainMode = 'document' | 'chat';
 export type GroundCheckOutput = {
-  surviving: Array<{ text: string; sourceRef: SourceRef }>;
+  surviving: Array<{ text: string; sourceRef?: SourceRef }>; // no ref = labelled open-world
   withheld: DraftClaim[];
 };
 export type CiteOutput = {
@@ -38,8 +42,11 @@ export type Leaf<In, Out> = (ctx: LeafContext, input: In) => Promise<{ output: O
 
 export type ChainLeaves = {
   retrieve: Leaf<{ request: string }, AssembledInput>; // doing — the gateway (T-042)
-  draft: Leaf<{ request: string; retrieved: AssembledInput }, DraftOutput>; // thinking (T-043)
-  groundCheck: Leaf<{ draft: DraftOutput; retrieved: AssembledInput }, GroundCheckOutput>; // doing (T-044)
+  draft: Leaf<{ request: string; retrieved: AssembledInput; mode: ChainMode }, DraftOutput>; // thinking (T-043)
+  groundCheck: Leaf<
+    { draft: DraftOutput; retrieved: AssembledInput; mode: ChainMode },
+    GroundCheckOutput
+  >; // doing (T-044)
   cite: Leaf<
     { checked: GroundCheckOutput; retrieved: AssembledInput; sandboxDocumentId: Id | null },
     CiteOutput
@@ -99,13 +106,19 @@ export async function runChain(
   const sourceSet = sourcesOf(retrieved);
   const withSources = () => ({ sourceSet });
 
+  const mode: ChainMode = input.sandboxDocumentId != null ? 'document' : 'chat';
   const draft = await step(
     'draft',
     leaves.draft,
-    { request: input.request, retrieved },
+    { request: input.request, retrieved, mode },
     withSources,
   );
-  const checked = await step('ground_check', leaves.groundCheck, { draft, retrieved }, withSources);
+  const checked = await step(
+    'ground_check',
+    leaves.groundCheck,
+    { draft, retrieved, mode },
+    withSources,
+  );
   const cited = await step(
     'cite',
     leaves.cite,

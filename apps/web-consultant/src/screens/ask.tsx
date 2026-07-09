@@ -124,10 +124,11 @@ function AgentMessage(props: { run: Run }) {
       ]),
     ).entries(),
   ];
-  const withheld = run.steps
+  const outcomes = run.steps
     .filter((step) => step.type === 'ground_check')
-    .flatMap((step) => step.railOutcomes)
-    .filter((outcome) => outcome.outcome === 'withheld').length;
+    .flatMap((step) => step.railOutcomes);
+  const withheld = outcomes.filter((outcome) => outcome.outcome === 'withheld').length;
+  const openWorld = outcomes.filter((outcome) => outcome.outcome === 'open_world').length;
 
   return (
     <div className="msg agent" style={{ maxWidth: '100%' }}>
@@ -140,13 +141,18 @@ function AgentMessage(props: { run: Run }) {
       {run.response === null && (
         <div className="withheld">Nothing survived ground-check — no answer was produced.</div>
       )}
-      {cited.length > 0 && (
-        <div style={{ margin: '6px 0 2px' }}>
+      {(cited.length > 0 || openWorld > 0) && (
+        <div style={{ margin: '6px 0 2px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {cited.map(([label, source]) => (
             <CitationChip key={label} corpus={'versionId' in source ? 'library' : 'authority'}>
               {label}
             </CitationChip>
           ))}
+          {openWorld > 0 && (
+            <Badge tone="grey">
+              includes model knowledge — {openWorld} uncited claim{openWorld === 1 ? '' : 's'}
+            </Badge>
+          )}
         </div>
       )}
       <details className="meta" style={{ marginTop: 4 }}>

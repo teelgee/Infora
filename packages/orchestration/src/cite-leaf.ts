@@ -18,18 +18,27 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
     // the draft text and each claim's span within it — resolved
     // deterministically because content is the surviving claims joined; the
     // paragraph join keeps the prose readable as a chat answer and a document
-    // block alike (T-088, 2026-07-09)
+    // block alike (T-088, 2026-07-09). A labelled open-world claim (chat
+    // only, T-089) joins the answer but earns no citation — citations attach
+    // to grounded sources only, by construction.
     const content = surviving.map((claim) => claim.text).join(CLAIM_SEPARATOR);
     const spans = claimSpans(surviving);
+    const cited = surviving
+      .map((claim, at) => ({ sourceRef: claim.sourceRef, claimSpan: spans[at] }))
+      .filter((claim): claim is { sourceRef: SourceRefValue; claimSpan: { start: number; end: number } } =>
+        claim.sourceRef !== undefined,
+      );
 
     if (input.sandboxDocumentId === null) {
-      await ctx.db.insert(s.citations).values(
-        surviving.map((claim, at) => ({
-          stepId: ctx.stepId,
-          ...sourceColumns(claim.sourceRef),
-          claimSpan: spans[at],
-        })),
-      );
+      if (cited.length > 0) {
+        await ctx.db.insert(s.citations).values(
+          cited.map((claim) => ({
+            stepId: ctx.stepId,
+            ...sourceColumns(claim.sourceRef),
+            claimSpan: claim.claimSpan,
+          })),
+        );
+      }
       return { output: { suggestionIds: [], answer: content } };
     }
 
@@ -53,10 +62,10 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
         })
         .returning();
       await tx.insert(s.citations).values(
-        surviving.map((claim, at) => ({
+        cited.map((claim) => ({
           suggestionId: suggestion!.id,
           ...sourceColumns(claim.sourceRef),
-          claimSpan: spans[at],
+          claimSpan: claim.claimSpan,
         })),
       );
       return suggestion!.id as Id;
@@ -66,7 +75,9 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
   };
 }
 
-function sourceColumns(ref: { versionId: Id } | { authorityRef: string }) {
+type SourceRefValue = { versionId: Id } | { authorityRef: string };
+
+function sourceColumns(ref: SourceRefValue) {
   return 'versionId' in ref
     ? { versionId: ref.versionId, authorityRef: null }
     : { versionId: null, authorityRef: ref.authorityRef };

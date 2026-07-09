@@ -22,16 +22,33 @@ export type GroundedDraftOptions = {
   costPerPromptMTok?: number;
   costPerCompletionMTok?: number;
   maxTokens?: number;
+  // 'document' (default) drafts grounded-only; 'chat' may add the model's own
+  // knowledge, unmarked — the verifier labels it open-world rather than
+  // withholding it (the labelled-channels ruling, 2026-07-09)
+  mode?: 'document' | 'chat';
 };
 
-const SYSTEM = [
-  'You draft sections of governed deliverables for infrastructure projects.',
-  'Use ONLY the numbered sources provided; never draw on outside knowledge.',
-  'Every sentence must end with the marker of the source that supports it, e.g. [S1].',
-  'If the sources do not support a claim the task needs, omit that claim entirely.',
-  'Formal register; cite by fact, not by speculation; no cost or programme commitments.',
+const SYSTEM_SHARED = [
+  'Every sentence supported by a numbered source must end with its marker, e.g. [S1].',
   // ADR-0029 §5 precedence, stated to the agent rather than left to ordering:
   'Where project guidance and organisational know-how conflict, the project guidance governs.',
+];
+
+const SYSTEM_DOCUMENT = [
+  'You draft sections of governed deliverables for infrastructure projects.',
+  'Use ONLY the numbered sources provided; never draw on outside knowledge.',
+  'If the sources do not support a claim the task needs, omit that claim entirely.',
+  'Formal register; cite by fact, not by speculation; no cost or programme commitments.',
+  ...SYSTEM_SHARED,
+].join(' ');
+
+const SYSTEM_CHAT = [
+  'You answer questions about infrastructure projects, clearly and helpfully.',
+  'Prefer the numbered sources provided and mark every sentence they support.',
+  'You may add relevant knowledge of your own where it helps — leave those sentences unmarked;',
+  'they will be labelled as uncited for the reader. Never invent a marker.',
+  'Format for reading: short paragraphs, bold for key terms, lists where they help.',
+  ...SYSTEM_SHARED,
 ].join(' ');
 
 export async function groundedDraft(
@@ -58,7 +75,7 @@ export async function groundedDraft(
   ].join('\n');
 
   const result = await router.chat('draft', {
-    system: SYSTEM,
+    system: options.mode === 'chat' ? SYSTEM_CHAT : SYSTEM_DOCUMENT,
     messages: [{ role: 'user', content: prompt }],
     ...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
   });

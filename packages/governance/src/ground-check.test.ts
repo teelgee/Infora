@@ -52,4 +52,38 @@ describe('groundCheck (T-044)', () => {
     expect(result.surviving).toEqual([]);
     expect(result.withheld).toHaveLength(1);
   });
+
+  // T-089 — the labelled-channels ruling (2026-07-09): chat keeps
+  // model-knowledge claims, labelled; nothing is ever silently trusted
+  it("unsourced: 'label' keeps unsourced claims uncited, one open_world outcome each", () => {
+    const result = groundCheck({
+      claims: [
+        { text: 'Grounded and cited.', sourceRef: { versionId: 'v-gir' } },
+        { text: 'Model knowledge, kept and labelled.' },
+      ],
+      sourceSet,
+      unsourced: 'label',
+    });
+    expect(result.surviving).toEqual([
+      { text: 'Grounded and cited.', sourceRef: { versionId: 'v-gir' } },
+      { text: 'Model knowledge, kept and labelled.' },
+    ]);
+    expect(result.withheld).toEqual([]);
+    expect(result.railOutcomes).toEqual([
+      { rail: 'grounding', outcome: 'open_world', detail: 'Model knowledge, kept and labelled.' },
+    ]);
+  });
+
+  it("unsourced: 'label' never trusts a marker naming a source the run did not see", () => {
+    const result = groundCheck({
+      claims: [{ text: 'Cites a phantom.', sourceRef: { versionId: 'v-elsewhere' } }],
+      sourceSet,
+      unsourced: 'label',
+    });
+    // survives as open-world — the unverified ref is dropped, not carried
+    expect(result.surviving).toEqual([{ text: 'Cites a phantom.' }]);
+    expect(result.railOutcomes).toEqual([
+      { rail: 'grounding', outcome: 'open_world', detail: 'Cites a phantom.' },
+    ]);
+  });
 });

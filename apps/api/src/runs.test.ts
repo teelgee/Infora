@@ -209,6 +209,28 @@ describe('the full chain over HTTP (T-046)', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0]!.parentRunId).toBeNull();
   });
+
+  // T-089 — the labelled-channels ruling (2026-07-09): chat keeps the
+  // model-knowledge claim, labelled open-world; the grounded claim keeps its
+  // citation, surfaced on the Run read (T-088)
+  it('an untargeted chat run labels model knowledge instead of withholding it', async () => {
+    const conversationId = await openConversation(consultant);
+    const res = await post(consultant, `/conversations/${conversationId}/runs`, {
+      request: 'What did the investigation find?',
+    });
+    const run = (await res.json()) as Run;
+
+    expect(run.response).toBe(
+      'The investigation recorded contamination exceedances.\n\nAn unsupported figure of 40%.',
+    );
+    const groundCheck = run.steps.find((st) => st.type === 'ground_check')!;
+    expect(groundCheck.railOutcomes).toEqual([
+      { rail: 'grounding', outcome: 'open_world', detail: 'An unsupported figure of 40%.' },
+    ]);
+    expect(run.suggestions).toEqual([]);
+    expect(run.citations).toHaveLength(1); // the grounded claim only
+    expect(run.citations[0]!.source).toEqual({ versionId, documentReference });
+  });
 });
 
 describe('run read scope — the 2026-07-06 ruling (T-046)', () => {

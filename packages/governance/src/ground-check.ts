@@ -11,35 +11,51 @@ export type CheckedClaim = { text: string; sourceRef?: SourceRef };
 export type RailOutcome = Step['railOutcomes'][number];
 
 export type GroundCheckResult = {
-  surviving: Array<{ text: string; sourceRef: SourceRef }>;
+  surviving: Array<{ text: string; sourceRef?: SourceRef }>; // no ref = labelled open-world (chat only)
   withheld: CheckedClaim[];
   railOutcomes: RailOutcome[];
 };
 
+/**
+ * `unsourced` is the labelled-channels ruling (2026-07-09, grill tracker):
+ * 'withhold' (the default — document-targeted drafting stays grounded-only)
+ * drops any claim that does not resolve to an admitted source; 'label' (chat)
+ * lets it survive uncited, recorded per claim as an `open_world` rail
+ * outcome so the surface can mark it. A claim whose marker names a source
+ * the run never saw is never trusted: it is withheld or re-labelled, per mode.
+ */
 export function groundCheck(input: {
   claims: CheckedClaim[];
   sourceSet: SourceRef[];
+  unsourced?: 'withhold' | 'label';
 }): GroundCheckResult {
   const admitted = new Set(input.sourceSet.map(refKey));
+  const label = input.unsourced === 'label';
 
   const surviving: GroundCheckResult['surviving'] = [];
   const withheld: CheckedClaim[] = [];
+  const openWorld: RailOutcome[] = [];
   for (const claim of input.claims) {
     if (claim.sourceRef !== undefined && admitted.has(refKey(claim.sourceRef))) {
       surviving.push({ text: claim.text, sourceRef: claim.sourceRef });
+    } else if (label) {
+      surviving.push({ text: claim.text }); // the unverified marker (if any) is dropped, not trusted
+      openWorld.push({ rail: 'grounding', outcome: 'open_world', detail: claim.text });
     } else {
       withheld.push(claim);
     }
   }
 
+  const perClaim: RailOutcome[] = [
+    ...withheld.map((claim) => ({
+      rail: 'grounding',
+      outcome: 'withheld' as const,
+      detail: claim.text,
+    })),
+    ...openWorld,
+  ];
   const railOutcomes: RailOutcome[] =
-    withheld.length === 0
-      ? [{ rail: 'grounding', outcome: 'passed' }]
-      : withheld.map((claim) => ({
-          rail: 'grounding',
-          outcome: 'withheld' as const,
-          detail: claim.text,
-        }));
+    perClaim.length === 0 ? [{ rail: 'grounding', outcome: 'passed' }] : perClaim;
 
   return { surviving, withheld, railOutcomes };
 }

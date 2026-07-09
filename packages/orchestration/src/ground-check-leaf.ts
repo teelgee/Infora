@@ -11,6 +11,9 @@ export function createGroundCheckLeaf(): ChainLeaves['groundCheck'] {
     const result = groundCheck({
       claims: input.draft.claims,
       sourceSet: sourcesOf(input.retrieved),
+      // chat keeps model-knowledge claims, labelled open-world; drafting
+      // into a document stays grounded-only (ruled 2026-07-09, T-089)
+      unsourced: input.mode === 'chat' ? 'label' : 'withhold',
     });
     return {
       output: { surviving: result.surviving, withheld: result.withheld },

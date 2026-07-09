@@ -12,7 +12,7 @@ export function createDraftLeaf(
   options: GroundedDraftOptions = {},
 ): ChainLeaves['draft'] {
   return async (_ctx, input) => {
-    const result = await groundedDraft(router, input, options);
+    const result = await groundedDraft(router, input, { ...options, mode: input.mode });
     return {
       output: { claims: result.claims },
       audit: { model: result.model, usage: result.usage },

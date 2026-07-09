@@ -26,7 +26,10 @@ export type Step = {
   sourceSet: Array<{ versionId: Id } | { authorityRef: string }>; // defensibility field 1 (ADR-0028 §7)
   railOutcomes: Array<{
     rail: string;
-    outcome: 'passed' | 'withheld';
+    outcome: 'passed' | 'withheld' | 'open_world';
+    // 'open_world' added 2026-07-09 (T-089, labelled-channels ruling): an
+    // uncited model-knowledge claim allowed through in chat, labelled — never
+    // in document-targeted drafting, which stays grounded-only
     detail?: string; // defensibility field 2's carrier — e.g. the withheld claim text for the UI
   }>;
   childRunId?: Id; // when type = 'delegate'
