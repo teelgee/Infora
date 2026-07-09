@@ -74,14 +74,16 @@ describe('groundedDraft (T-043)', () => {
     });
   });
 
-  it('swallows bare punctuation left when a sentence closes after its marker', () => {
+  it('keeps sentence boundaries when a sentence closes after its marker (T-087)', () => {
     const sources = new Map([
       ['S1', { versionId: 'v-gir' } as const],
       ['S2', { versionId: 'v-fra' } as const],
     ]);
+    // the stray full stop after [S1] is layout, not the next claim's head —
+    // but each claim keeps a terminal of its own, so rejoined prose reads
     expect(parseClaims('First claim [S1]. Second claim [S2].', sources)).toEqual([
-      { text: 'First claim', sourceRef: { versionId: 'v-gir' } },
-      { text: 'Second claim', sourceRef: { versionId: 'v-fra' } },
+      { text: 'First claim.', sourceRef: { versionId: 'v-gir' } },
+      { text: 'Second claim.', sourceRef: { versionId: 'v-fra' } },
     ]);
   });
 

@@ -110,6 +110,7 @@ The design layer defers real identity/security to the infra/security session (co
 | T-080 | **End-to-end acceptance run** — the whole walking-skeleton journey (its "the skeleton is done" list, steps 1–6) against seed data, plus the two negative wall tests, as one automated e2e suite. *(T-073 dropped from deps with the M6 deferral, 2026-07-08.)* | T-047, T-054, T-061, T-084 |
 | T-086 | **Library list endpoint** — `GET /projects/:id/library` per contracts §Library (the one remaining 501; the Documents tab renders an empty state today). One row per container, access-resolved, live only. Mechanical contract completion. *(Added 2026-07-08.)* | T-030 |
 | T-081 | **QA pass (Phase 7)** — human review against the journey; bugs and gaps raised as new tickets on this board. | T-080 |
+| T-087 | **Draft reassembly keeps sentence punctuation** — the claim parser strips the full stop that follows a claim's marker ("claim [S1]. Next…"), so the cite leaf's rejoined content runs sentences together; restore terminal punctuation at the parse boundary, keeping claim text, spans and content consistent. *(Phase 7 pre-sweep finding on the real substrate, 2026-07-09.)* | T-080 |
 
 ### Parallel tracks
 

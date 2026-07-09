@@ -93,13 +93,20 @@ export function parseClaims(
     // so leading punctuation here is layout, not part of this claim
     const claimText = match[1]!.replace(/^[\s.,;:!?)\]]+/, '').trim();
     if (!isNoise(claimText)) {
-      claims.push({ text: claimText, sourceRef: sourceByMarker.get(match[2]!) });
+      claims.push({ text: ensureTerminal(claimText), sourceRef: sourceByMarker.get(match[2]!) });
     }
     consumed = match.index + match[0].length;
   }
   const tail = text.slice(consumed).trim();
-  if (!isNoise(tail)) claims.push({ text: tail });
+  if (!isNoise(tail)) claims.push({ text: ensureTerminal(tail) });
   return claims;
+}
+
+// A claim whose sentence closed after its marker lost its full stop to the
+// leading-punctuation strip above — restore one, so the cite leaf's rejoined
+// content keeps its sentence boundaries (T-087).
+function ensureTerminal(text: string): string {
+  return /[.!?:;…]["'”’)\]]*$/.test(text) ? text : `${text}.`;
 }
 
 function isNoise(text: string): boolean {
