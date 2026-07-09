@@ -4,6 +4,7 @@ import type {
   ApiError,
   CreateConversationResponse,
   GetLibraryResponse,
+  GetVersionResponse,
   GetWorkItemResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
@@ -54,6 +55,7 @@ export const api = {
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
   library: (projectId: string) => request<GetLibraryResponse>(`/projects/${projectId}/library`),
+  version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
   createSandboxDocument: (projectId: string, title: string) =>

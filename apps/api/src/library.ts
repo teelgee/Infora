@@ -6,10 +6,10 @@
 // are omitted here for the skeleton per the contract.
 import { Hono } from 'hono';
 import { and, asc, eq } from 'drizzle-orm';
-import type { GetLibraryResponse, LibraryItem } from '@infora/contracts';
+import type { GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { projectScope } from './requester';
+import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
 export function libraryRoutes(deps: { db: Db }) {
@@ -37,6 +37,27 @@ export function libraryRoutes(deps: { db: Db }) {
       .orderBy(asc(s.containers.documentReference));
     const items = rows.map((row): LibraryItem => ({ ...row, state: 'live' }));
     return c.json({ items } satisfies GetLibraryResponse);
+  });
+
+  // T-094 (2026-07-09): the cited source, readable — a citation chip opens
+  // the version it names. Superseded/withdrawn stay readable (the immutable
+  // record's citations must resolve) with their state carried to badge;
+  // grounding is untouched — retrieval's pre-filters admit none of this.
+  app.get('/versions/:versionId', resourceScope(deps, 'versionId', resourceHomes.version), async (c) => {
+    const [row] = await deps.db
+      .select({
+        versionId: s.versions.id,
+        documentReference: s.containers.documentReference,
+        versionReference: s.versions.versionReference,
+        content: s.versions.content,
+        containerState: s.containers.state,
+        isCurrent: s.versions.isCurrent,
+      })
+      .from(s.versions)
+      .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+      .where(eq(s.versions.id, c.req.param('versionId')))
+      .limit(1);
+    return c.json(row! satisfies GetVersionResponse);
   });
 
   return app;

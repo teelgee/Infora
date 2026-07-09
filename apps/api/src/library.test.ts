@@ -4,7 +4,7 @@
 // appear — the list shows exactly what grounding admits (contracts §Library).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import type { GetLibraryResponse } from '@infora/contracts';
+import type { GetLibraryResponse, GetVersionResponse } from '@infora/contracts';
 import { createDb, loadDbEnv, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
@@ -87,5 +87,30 @@ describe('T-086 — GET /projects/:projectId/library', () => {
     const { items } = (await res.json()) as GetLibraryResponse;
     expect(items.some((item) => item.containerId === withdrawnContainerId)).toBe(false);
     expect(items.some((item) => item.currentVersionId === girSupersededVersionId)).toBe(false);
+  });
+});
+
+// T-094 — the cited source, readable: the version read behind the same wall
+describe('T-094 — GET /versions/:versionId', () => {
+  it('reads the current version with its state facts', async () => {
+    const res = await app.request(`/versions/${girCurrentVersionId}`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as GetVersionResponse;
+    expect(body).toMatchObject({
+      versionId: girCurrentVersionId,
+      documentReference: 'WA-GEO-GIR-004',
+      versionReference: 'v2',
+      containerState: 'live',
+      isCurrent: true,
+    });
+    expect(body.content.length).toBeGreaterThan(0);
+  });
+
+  it('a superseded version stays readable — the immutable record must resolve', async () => {
+    const res = await app.request(`/versions/${girSupersededVersionId}`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as GetVersionResponse;
+    expect(body.isCurrent).toBe(false);
+    expect(body.versionReference).toBe('v1');
   });
 });

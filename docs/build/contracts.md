@@ -176,6 +176,15 @@ GET /projects/:projectId/library
       // expands within the container view when Slice A lands.
       // pre-filtered to the requester's access-resolved slice; superseded/withdrawn
       // stay out of grounding by ADR-0013 and are omitted here for the skeleton
+
+GET /versions/:versionId
+  →  { versionId; documentReference; versionReference; content;
+       containerState: 'live' | 'superseded' | 'withdrawn'; isCurrent }
+      // added 2026-07-09 (T-094): a citation chip opens the version it names.
+      // scoped like the library (the version's project, through the wall);
+      // superseded/withdrawn stay readable here — the immutable record's
+      // citations must resolve — with state carried for the surface to badge.
+      // grounding untouched: retrieval's pre-filters admit none of this
 ```
 
 ### Auth & session (M1, M6)

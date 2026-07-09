@@ -23,6 +23,7 @@ import {
 } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
+import { SourceModal } from '../source-modal';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -114,6 +115,7 @@ export function EditorScreen() {
   const [chatLog, setChatLog] = useState<Array<{ id: number; who: 'user' | 'agent'; text: string; run?: Run }>>([]);
   const [chatText, setChatText] = useState('');
   const [pending, setPending] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
   const conversationRef = useRef<string | null>(null);
   const nextId = useRef(0);
 
@@ -133,10 +135,14 @@ export function EditorScreen() {
     void load();
   }, [load]);
 
-  async function save() {
-    if (documentId === undefined || !dirty) return;
-    const updated = await api.patchSandboxDocument(documentId, content);
+  // takes the value rather than reading state: the blur that triggers a save
+  // can fire before React re-renders, and the closure's `content` would be
+  // one keystroke stale — a fast type-then-click-away must not lose the edit
+  async function save(value: string) {
+    if (documentId === undefined || doc === null || value === doc.content) return;
+    const updated = await api.patchSandboxDocument(documentId, value);
     setDoc(updated);
+    setContent(updated.content);
     setDirty(false);
   }
 
@@ -213,13 +219,16 @@ export function EditorScreen() {
 
   return (
     <>
+      {sourceOpen !== null && (
+        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
+      )}
       <div className="topbar" style={{ position: 'static' }}>
         <span className="crumb">
           <b>{doc.title}</b> · Sandbox document
         </span>
         <div className="right">
           {dirty ? (
-            <Button size="sm" variant="primary" onClick={() => void save()}>
+            <Button size="sm" variant="primary" onClick={() => void save(content)}>
               Save
             </Button>
           ) : (
@@ -237,7 +246,7 @@ export function EditorScreen() {
                 setContent(e.target.value);
                 setDirty(true);
               }}
-              onBlur={() => void save()}
+              onBlur={(e) => void save(e.currentTarget.value)}
               placeholder="Write here — manual editing has no ceremony: no Suggestion, no Signal."
               style={{
                 width: '100%',
@@ -266,6 +275,11 @@ export function EditorScreen() {
                     <CitationChip
                       key={citation.id}
                       corpus={'versionId' in citation.source ? 'library' : 'authority'}
+                      onClick={
+                        'versionId' in citation.source
+                          ? () => setSourceOpen((citation.source as { versionId: string }).versionId)
+                          : undefined
+                      }
                     >
                       {'versionId' in citation.source
                         ? citation.source.documentReference

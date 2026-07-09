@@ -133,6 +133,21 @@ export type LibraryItem = {
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
+// GET /versions/:versionId — the cited source, readable (T-094, 2026-07-09):
+// a citation chip opens the version it names. Scoped exactly like the
+// library (the version's project, through the wall predicate); superseded
+// and withdrawn versions stay readable here — a citation in the immutable
+// record must remain resolvable — with their state carried for the surface
+// to badge. Never grounding: retrieval's pre-filters are untouched.
+export type GetVersionResponse = {
+  versionId: Id;
+  documentReference: string;
+  versionReference: string;
+  content: string;
+  containerState: 'live' | 'superseded' | 'withdrawn';
+  isCurrent: boolean;
+};
+
 // ── Auth & session (M1, M6) ────────────────────────────────────────────────
 //
 // POST /auth/session — skeleton login for the seeded users (plan.md's recorded

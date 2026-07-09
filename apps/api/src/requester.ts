@@ -105,6 +105,15 @@ export const resourceHomes = {
       .limit(1);
     return row ?? null;
   },
+  version: async (db, id): Promise<ResourceHome> => {
+    const [row] = await db
+      .select({ projectId: s.containers.projectId })
+      .from(s.versions)
+      .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+      .where(eq(s.versions.id, id))
+      .limit(1);
+    return row ?? null;
+  },
   suggestion: async (db, id): Promise<ResourceHome> => {
     const [row] = await db
       .select({ projectId: s.sandboxDocuments.projectId, organisationId: s.sandboxDocuments.organisationId })

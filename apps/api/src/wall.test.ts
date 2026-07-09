@@ -17,6 +17,7 @@ const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() })
 const password = 'wrenfield-dev'; // the seed's dev password
 let projectId: string;
 let workItemId: string;
+let versionId: string;
 let consultant: string;
 let marcus: string;
 let priya: string;
@@ -48,6 +49,13 @@ beforeAll(async () => {
     .where(eq(s.workItems.projectId, projectId))
     .limit(1);
   workItemId = workItem!.id;
+  const [version] = await db
+    .select({ id: s.versions.id })
+    .from(s.versions)
+    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .where(eq(s.containers.projectId, projectId))
+    .limit(1);
+  versionId = version!.id;
 
   [consultant, marcus, priya] = await Promise.all([
     session('eleanor.price@calderhale.example'),
@@ -77,6 +85,7 @@ const routes = (): Array<[string, string]> => [
   ['PATCH', `/sandbox-documents/${ghost}`],
   ['POST', `/suggestions/${ghost}/resolution`],
   ['GET', `/projects/${projectId}/library`],
+  ['GET', `/versions/${versionId}`],
 ];
 
 const hit = (cookie: string, method: string, path: string) =>

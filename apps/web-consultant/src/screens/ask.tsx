@@ -10,6 +10,7 @@ import type { MeResponse, Run } from '@infora/contracts';
 import { Badge, Button, CitationChip, Markdown, RunTrace } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
+import { SourceModal } from '../source-modal';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 type Message = { id: number; kind: 'user'; text: string } | { id: number; kind: 'agent'; run: Run };
@@ -22,6 +23,7 @@ export function AskScreen() {
   const [text, setText] = useState('');
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
   const conversationRef = useRef<string | null>(null);
   const nextId = useRef(0);
 
@@ -66,7 +68,7 @@ export function AskScreen() {
                 <div className="bubble">{message.text}</div>
               </div>
             ) : (
-              <AgentMessage key={message.id} run={message.run} />
+              <AgentMessage key={message.id} run={message.run} onOpenSource={setSourceOpen} />
             ),
           )}
 
@@ -93,6 +95,10 @@ export function AskScreen() {
         </div>
       </div>
 
+      {sourceOpen !== null && (
+        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
+      )}
+
       <div className="chat-composer">
         <div className="inner">
           <form onSubmit={send} className="command" style={{ marginTop: 0 }}>
@@ -113,7 +119,7 @@ export function AskScreen() {
   );
 }
 
-function AgentMessage(props: { run: Run }) {
+function AgentMessage(props: { run: Run; onOpenSource: (versionId: string) => void }) {
   const { run } = props;
   // one chip per cited document, not per claim
   const cited = [
@@ -144,7 +150,11 @@ function AgentMessage(props: { run: Run }) {
       {(cited.length > 0 || openWorld > 0) && (
         <div style={{ margin: '6px 0 2px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {cited.map(([label, source]) => (
-            <CitationChip key={label} corpus={'versionId' in source ? 'library' : 'authority'}>
+            <CitationChip
+              key={label}
+              corpus={'versionId' in source ? 'library' : 'authority'}
+              onClick={'versionId' in source ? () => props.onOpenSource(source.versionId) : undefined}
+            >
               {label}
             </CitationChip>
           ))}
