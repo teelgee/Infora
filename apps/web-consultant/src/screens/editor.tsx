@@ -6,20 +6,99 @@
 // Resolution controls land with T-053.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { MeResponse, Run, SandboxDocument, Suggestion } from '@infora/contracts';
 import {
   Badge,
   Button,
+  Card,
   CitationChip,
   NumBadge,
   RunTrace,
+  SectionLabel,
   SuggestionCard,
   WithheldNotice,
 } from '@infora/ui';
 import { api } from '../api';
+import { useMe } from '../session';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
+
+// T-090 — the Editor's front door (2026-07-09 QA review): with no document
+// open, browse the organisation's project sandbox or create a document and
+// land straight in it. Flat for now — folders arrive with the sandbox drawer.
+function EditorEntry() {
+  const me = useMe();
+  const { participant } = useOutletContext<ShellContext>();
+  const navigate = useNavigate();
+  const [docs, setDocs] = useState<SandboxDocument[] | null>(null);
+
+  useEffect(() => {
+    void api.sandboxDocuments(participant.projectId).then((res) => setDocs(res.items));
+  }, [participant.projectId]);
+
+  const open = (id: string) => void navigate(`/projects/${participant.projectId}/editor/${id}`);
+
+  async function create() {
+    const title = window.prompt('Document title');
+    if (title === null || title.trim() === '') return;
+    const doc = await api.createSandboxDocument(participant.projectId, title.trim());
+    open(doc.id);
+  }
+
+  return (
+    <div className="content">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <h1 className="page">Editor</h1>
+        <span style={{ marginLeft: 'auto' }}>
+          <Button size="sm" variant="primary" onClick={() => void create()}>
+            ＋ New document
+          </Button>
+        </span>
+      </div>
+      <p className="page-sub">
+        Open a working document from the sandbox, or start a new one — drafting with the agent
+        happens here, against the document.
+      </p>
+
+      <SectionLabel>{me.organisationName} — private project sandbox</SectionLabel>
+      <Card className="tree">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Modified</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(docs ?? []).map((doc) => (
+              <tr key={doc.id} onClick={() => open(doc.id)} style={{ cursor: 'pointer' }}>
+                <td>
+                  <span className="ficon">📄</span>
+                  {doc.title}
+                </td>
+                <td>{new Date(doc.updatedAt).toLocaleString()}</td>
+                <td style={{ textAlign: 'right' }}>
+                  <Button size="sm" variant="quiet" onClick={() => open(doc.id)}>
+                    Open
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {docs !== null && docs.length === 0 && (
+              <tr>
+                <td colSpan={3} style={{ color: 'var(--muted)' }}>
+                  Nothing here yet — create a document to start drafting.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
 
 export function EditorScreen() {
   const { participant } = useOutletContext<ShellContext>();
@@ -102,14 +181,8 @@ export function EditorScreen() {
     }
   }
 
-  if (documentId === undefined || doc === null) {
-    return (
-      <div className="content">
-        <h1 className="page">Editor</h1>
-        <p className="page-sub">Open a document from the Sandbox to edit it here.</p>
-      </div>
-    );
-  }
+  if (documentId === undefined) return <EditorEntry />;
+  if (doc === null) return null;
 
   const pendingSuggestions = suggestions.filter((suggestion) => suggestion.signal === undefined);
 
