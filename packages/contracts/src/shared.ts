@@ -45,6 +45,9 @@ export type Run = {
   endedAt: string | null;
   steps: Step[]; // the append-only tree, flattened by parentStepId
   suggestions: Suggestion[]; // zero or more, per-item (ruled 2026-07-06)
+  citations: Citation[]; // the answer's citations when no Suggestion carries them
+  // (untargeted chat runs — cite-step citations surfaced; added 2026-07-09,
+  // T-088, discharging the step-citation residual for web and M6 alike)
 };
 
 export type Suggestion = {

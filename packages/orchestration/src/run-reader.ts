@@ -40,7 +40,25 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
     endedAt: run.endedAt?.toISOString() ?? null,
     steps: stepRows.map(toStep),
     suggestions: await readSuggestions(db, suggestionRows),
+    citations: await readStepCitations(db, stepRows.map((row) => row.id)),
   };
+}
+
+// The answer's citations when no Suggestion carries them: an untargeted chat
+// run writes its citations against the cite Step (T-045); surfaced on the Run
+// read since 2026-07-09 (T-088).
+async function readStepCitations(db: Db, stepIds: Id[]): Promise<Citation[]> {
+  if (stepIds.length === 0) return [];
+  const rows = await db
+    .select({
+      citation: s.citations,
+      documentReference: s.containers.documentReference,
+    })
+    .from(s.citations)
+    .leftJoin(s.versions, eq(s.citations.versionId, s.versions.id))
+    .leftJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .where(inArray(s.citations.stepId, stepIds));
+  return rows.map((row) => toCitation(row.citation, row.documentReference));
 }
 
 function toStep(row: typeof s.steps.$inferSelect): Step {

@@ -118,7 +118,7 @@ describe('cite resolution + Suggestion write (T-045)', () => {
       sandboxDocumentId,
       kind: 'insert',
       anchor: null,
-      content: 'Grounded claim one. Grounded claim two.',
+      content: 'Grounded claim one.\n\nGrounded claim two.',
     });
     expect(suggestion!.rationale).toContain('1 unsupported claim was withheld');
 
@@ -130,7 +130,10 @@ describe('cite resolution + Suggestion write (T-045)', () => {
     expect(citations.every((c) => c.versionId === versionId && c.authorityRef === null)).toBe(true);
     expect(citations.map((c) => c.claimSpan)).toEqual([
       { start: 0, end: 'Grounded claim one.'.length },
-      { start: 'Grounded claim one.'.length + 1, end: 'Grounded claim one. Grounded claim two.'.length },
+      {
+        start: 'Grounded claim one.\n\n'.length,
+        end: 'Grounded claim one.\n\nGrounded claim two.'.length,
+      },
     ]);
   });
 

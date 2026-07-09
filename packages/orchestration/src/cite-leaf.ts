@@ -16,8 +16,10 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
     if (surviving.length === 0) return { output: { suggestionIds: [], answer: null } };
 
     // the draft text and each claim's span within it — resolved
-    // deterministically because content is the surviving claims joined
-    const content = surviving.map((claim) => claim.text).join(' ');
+    // deterministically because content is the surviving claims joined; the
+    // paragraph join keeps the prose readable as a chat answer and a document
+    // block alike (T-088, 2026-07-09)
+    const content = surviving.map((claim) => claim.text).join(CLAIM_SEPARATOR);
     const spans = claimSpans(surviving);
 
     if (input.sandboxDocumentId === null) {
@@ -70,12 +72,14 @@ function sourceColumns(ref: { versionId: Id } | { authorityRef: string }) {
     : { versionId: null, authorityRef: ref.authorityRef };
 }
 
+const CLAIM_SEPARATOR = '\n\n';
+
 function claimSpans(claims: GroundCheckOutput['surviving']): Array<{ start: number; end: number }> {
   const spans: Array<{ start: number; end: number }> = [];
   let at = 0;
   for (const claim of claims) {
     spans.push({ start: at, end: at + claim.text.length });
-    at += claim.text.length + 1; // the joining space
+    at += claim.text.length + CLAIM_SEPARATOR.length;
   }
   return spans;
 }

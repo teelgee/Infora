@@ -405,3 +405,28 @@ tr.group-row .count { color: var(--muted); font-weight: 400; }
   font-size: 12px; color: var(--muted); line-height: 1.6;
 }
 .footer-note b { color: var(--ink-soft); }
+
+/* ---------- Markdown prose (agent output, T-088) ---------- */
+.md { line-height: 1.65; color: var(--ink-soft); font-size: 13.5px; }
+.md p { margin: 0 0 10px; }
+.md p:last-child { margin-bottom: 0; }
+.md h1, .md h2, .md h3, .md h4 {
+  font-family: var(--serif); color: var(--ink); font-weight: 500;
+  margin: 16px 0 6px; line-height: 1.3;
+}
+.md h1 { font-size: 17px; }
+.md h2 { font-size: 15.5px; }
+.md h3, .md h4 { font-size: 14px; }
+.md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
+.md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
+.md li { margin: 3px 0; }
+.md strong { color: var(--ink); font-weight: 600; }
+.md code {
+  font-family: var(--mono); font-size: 12px;
+  background: var(--panel); border: 1px solid var(--hairline);
+  border-radius: 4px; padding: 1px 4px;
+}
+.md blockquote {
+  margin: 0 0 10px; padding: 2px 12px;
+  border-left: 2px solid var(--hairline); color: var(--muted);
+}

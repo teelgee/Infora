@@ -13,7 +13,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@infora/contracts": "workspace:*"
+    "@infora/contracts": "workspace:*",
+    "react-markdown": "^10.1.0"
   },
   "peerDependencies": {
     "react": "^19.0.0"
