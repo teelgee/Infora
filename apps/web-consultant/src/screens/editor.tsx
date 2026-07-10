@@ -18,7 +18,6 @@ import {
   Markdown,
   NumBadge,
   SectionLabel,
-  SuggestionCard,
   WithheldNotice,
 } from '@infora/ui';
 import { api } from '../api';
@@ -104,14 +103,15 @@ function EditorEntry() {
 }
 
 export function EditorScreen() {
+  const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const { documentId } = useParams();
+  const navigate = useNavigate();
 
   const [doc, setDoc] = useState<SandboxDocument | null>(null);
   const [content, setContent] = useState('');
   const [dirty, setDirty] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [tab, setTab] = useState<'chat' | 'suggestions'>('suggestions');
   const [chatLog, setChatLog] = useState<Array<{ id: number; who: 'user' | 'agent'; text: string; run?: Run }>>([]);
   const [pending, setPending] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
@@ -276,7 +276,15 @@ export function EditorScreen() {
       )}
       <div className="topbar" style={{ position: 'static' }}>
         <span className="crumb">
-          <b>{doc.title}</b> · Sandbox document
+          {/* T-098: where the document lives, clickable */}
+          <a
+            className="location-chip"
+            title="Open the sandbox"
+            onClick={() => void navigate(`/projects/${participant.projectId}/sandbox`)}
+          >
+            ▧ {me.organisationName} — project sandbox
+          </a>{' '}
+          / <b>{doc.title}</b>
         </span>
         <div className="right">
           {dirty ? (
@@ -437,75 +445,45 @@ export function EditorScreen() {
           </div>
         </div>
 
+        {/* T-098: the panel is the chat — proposals live inline in the
+            document itself, resolved in their callouts */}
         <div className="suggest-panel">
           <div className="panel-tabs">
-            <a
-              className={tab === 'chat' ? 'active' : undefined}
-              onClick={() => setTab('chat')}
-              style={{ cursor: 'pointer' }}
-            >
-              Chat
-            </a>
-            <a
-              className={tab === 'suggestions' ? 'active' : undefined}
-              onClick={() => setTab('suggestions')}
-              style={{ cursor: 'pointer' }}
-            >
-              Suggestions · {pendingSuggestions.length}
-            </a>
+            <a className="active">Chat</a>
+            {pendingSuggestions.length > 0 && (
+              <a style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
+                {pendingSuggestions.length} pending in the document
+              </a>
+            )}
           </div>
 
-          {tab === 'suggestions' && (
-            <>
-              {pendingSuggestions.map((suggestion, at) => (
-                <SuggestionCard
-                  key={suggestion.id}
-                  number={at + 1}
-                  title={`${suggestion.kind === 'insert' ? 'Insert' : 'Replace'} — proposed content`}
-                  description={`${suggestion.rationale} Resolve it in the document.`}
-                  active={at === 0}
-                />
-              ))}
-              {pendingSuggestions.length === 0 && (
-                <p style={{ fontSize: 12.5, color: 'var(--muted)', padding: '4px 2px' }}>
-                  Nothing pending — ask the agent in the Chat tab to propose content for this
-                  document.
-                </p>
-              )}
-            </>
-          )}
-
-          {tab === 'chat' && (
-            <>
-              {/* just the request and the reply — the run stays fully audited
-                  server-side, readable on the work item (T-096) */}
-              {chatLog.map((entry) => (
-                <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
-                  <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
-                  <div className="bubble" style={{ fontSize: 12.5 }}>
-                    <Markdown>{entry.text}</Markdown>
-                  </div>
-                </div>
-              ))}
-              {pending && (
-                <div className="msg agent" style={{ maxWidth: '100%' }}>
-                  <div className="who">Infora agent</div>
-                  <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                    Working…
-                  </div>
-                </div>
-              )}
-              <div style={{ marginTop: 8 }}>
-                <ChatComposer
-                  placeholder="Ask for a draft into this document"
-                  pending={pending}
-                  onSend={(request) => void runAgainst(request)}
-                  onCancel={cancelRun}
-                  fontSize={12.5}
-                />
+          {/* just the request and the reply — the run stays fully audited
+              server-side, readable on the work item (T-096) */}
+          {chatLog.map((entry) => (
+            <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
+              <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
+              <div className="bubble" style={{ fontSize: 12.5 }}>
+                <Markdown>{entry.text}</Markdown>
               </div>
-            </>
+            </div>
+          ))}
+          {pending && (
+            <div className="msg agent" style={{ maxWidth: '100%' }}>
+              <div className="who">Infora agent</div>
+              <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                Working…
+              </div>
+            </div>
           )}
+          <div style={{ marginTop: 8 }}>
+            <ChatComposer
+              placeholder="Ask for a draft into this document"
+              pending={pending}
+              onSend={(request) => void runAgainst(request)}
+              onCancel={cancelRun}
+              fontSize={12.5}
+            />
+          </div>
         </div>
       </div>
     </>
