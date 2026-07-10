@@ -81,12 +81,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ resolution, ...(editedContent !== undefined && { editedContent }) }),
     }),
-  createRun: (conversationId: string, requestText: string, sandboxDocumentId?: string) =>
+  createRun: (
+    conversationId: string,
+    requestText: string,
+    sandboxDocumentId?: string,
+    signal?: AbortSignal, // cancels the wait, not the run (T-097; tracker)
+  ) =>
     request<Run>(`/conversations/${conversationId}/runs`, {
       method: 'POST',
       body: JSON.stringify({
         request: requestText,
         ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
       }),
+      ...(signal !== undefined && { signal }),
     }),
 };

@@ -4,47 +4,61 @@
 // Drafting into documents belongs to the Editor; Ask carries no output
 // target. v1 returns on completion (streaming is a later, additive change).
 import { useRef, useState } from 'react';
-import type { FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { MeResponse, Run } from '@infora/contracts';
-import { Badge, Button, CitedProse, RunTrace } from '@infora/ui';
+import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
-type Message = { id: number; kind: 'user'; text: string } | { id: number; kind: 'agent'; run: Run };
+type Message =
+  | { id: number; kind: 'user'; text: string }
+  | { id: number; kind: 'agent'; run: Run }
+  | { id: number; kind: 'note'; text: string }; // e.g. a cancelled wait (T-097)
 
 export function AskScreen() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [text, setText] = useState('');
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
   const conversationRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const nextId = useRef(0);
 
-  async function send(event: FormEvent) {
-    event.preventDefault();
-    const request = text.trim();
-    if (request === '' || pending) return;
-    setText('');
+  async function send(request: string) {
+    if (pending) return;
     setFailed(false);
     setMessages((m) => [...m, { id: nextId.current++, kind: 'user', text: request }]);
     setPending(true);
+    abortRef.current = new AbortController();
     try {
       conversationRef.current ??= (await api.createConversation(participant.projectId)).conversationId;
-      const run = await api.createRun(conversationRef.current, request);
+      const run = await api.createRun(conversationRef.current, request, undefined, abortRef.current.signal);
       setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run }]);
-    } catch {
-      setFailed(true);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setMessages((m) => [
+          ...m,
+          {
+            id: nextId.current++,
+            kind: 'note',
+            text: 'Cancelled — the answer was discarded; the run itself still completes in the audit record.',
+          },
+        ]);
+      } else {
+        setFailed(true);
+      }
     } finally {
       setPending(false);
+      abortRef.current = null;
     }
   }
+
+  const cancel = () => abortRef.current?.abort();
 
   return (
     <div className="chat-main">
@@ -65,7 +79,15 @@ export function AskScreen() {
                 <div className="who" style={{ textAlign: 'right' }}>
                   {me.name.split(' ')[0]}
                 </div>
-                <div className="bubble">{message.text}</div>
+                <div className="bubble">
+                  <Markdown>{message.text}</Markdown>
+                </div>
+              </div>
+            ) : message.kind === 'note' ? (
+              <div key={message.id} className="msg agent" style={{ maxWidth: '100%' }}>
+                <div className="bubble" style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+                  {message.text}
+                </div>
               </div>
             ) : (
               <AgentMessage key={message.id} run={message.run} onOpenSource={setSourceOpen} />
@@ -101,18 +123,12 @@ export function AskScreen() {
 
       <div className="chat-composer">
         <div className="inner">
-          <form onSubmit={send} className="command" style={{ marginTop: 0 }}>
-            <span className="glyph">✦</span>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Ask about the project"
-              style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', color: 'var(--ink)', background: 'transparent' }}
-            />
-            <Button size="sm" variant="primary" type="submit" disabled={pending}>
-              ↵
-            </Button>
-          </form>
+          <ChatComposer
+            placeholder="Ask about the project"
+            pending={pending}
+            onSend={(request) => void send(request)}
+            onCancel={cancel}
+          />
         </div>
       </div>
     </div>

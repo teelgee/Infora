@@ -127,6 +127,7 @@ Raised from the owner's T-081 review of the workspace, Ask and Editor surfaces. 
 | T-094 | **Citation chips open the source** — click a citation to read the cited version's content (self-scoped version read endpoint); hover-render of the exact chunk waits on the chunk-provenance data-model theme (tracker). | T-088 |
 | T-095 | **Citations ride their claims inline** — each chip renders at the end of the claim it backs (the `claimSpan` already marks it), in Ask answers and Editor callouts alike; uncited chat claims stay plain with the summary badge. *(Owner follow-up to the QA batch, 2026-07-10.)* | T-094 |
 | T-096 | **Editor polish** — refine opens an inline dialog in the suggestion callout (no browser prompt); the document chat shows only the user's request and the agent's reply (no chain trace); a formatting toolbar (bold/italic/headings/lists/quote + preview) over the canvas, markdown-honest — true WYSIWYG waits on the canonical document-format theme (tracker). *(Owner follow-up, 2026-07-10.)* | T-091 |
+| T-097 | **The chat composer, everywhere** — one shared composer for Ask and the Editor chat: multiline (Shift+⏎ newline, ⏎ sends), list auto-continuation for hyphen/numbered bullets, markdown-rendered user messages, auto-growing input, and cancel-the-wait (Esc or the stop button) — client-side abort; a true server-side run stop needs a state ruling (tracker). *(Owner follow-up, 2026-07-10.)* | T-096 |
 
 ### Parallel tracks
 

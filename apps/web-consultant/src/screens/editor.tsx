@@ -13,6 +13,7 @@ import {
   Badge,
   Button,
   Card,
+  ChatComposer,
   CitedProse,
   Markdown,
   NumBadge,
@@ -112,7 +113,6 @@ export function EditorScreen() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [tab, setTab] = useState<'chat' | 'suggestions'>('suggestions');
   const [chatLog, setChatLog] = useState<Array<{ id: number; who: 'user' | 'agent'; text: string; run?: Run }>>([]);
-  const [chatText, setChatText] = useState('');
   const [pending, setPending] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
   const [refining, setRefining] = useState<string | null>(null); // suggestion id (T-096)
@@ -120,6 +120,7 @@ export function EditorScreen() {
   const [previewing, setPreviewing] = useState(false); // canvas: write / preview (T-096)
   const canvasRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const nextId = useRef(0);
 
   const load = useCallback(async () => {
@@ -166,11 +167,12 @@ export function EditorScreen() {
     if (pending || documentId === undefined) return;
     setChatLog((log) => [...log, { id: nextId.current++, who: 'user', text: request }]);
     setPending(true);
+    abortRef.current = new AbortController();
     try {
       conversationRef.current ??= (
         await api.createConversation(participant.projectId)
       ).conversationId;
-      const run = await api.createRun(conversationRef.current, request, documentId);
+      const run = await api.createRun(conversationRef.current, request, documentId, abortRef.current.signal);
       setChatLog((log) => [
         ...log,
         {
@@ -184,18 +186,26 @@ export function EditorScreen() {
         },
       ]);
       await load(); // the new Suggestion appears on the canvas and the panel
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setChatLog((log) => [
+          ...log,
+          {
+            id: nextId.current++,
+            who: 'agent',
+            text: 'Cancelled — the wait was abandoned; the run itself still completes in the audit record. Reload the document to see any suggestion it produced.',
+          },
+        ]);
+      } else {
+        throw error;
+      }
     } finally {
       setPending(false);
+      abortRef.current = null;
     }
   }
 
-  async function sendChat(event: FormEvent) {
-    event.preventDefault();
-    const request = chatText.trim();
-    if (request === '') return;
-    setChatText('');
-    await runAgainst(request);
-  }
+  const cancelRun = () => abortRef.current?.abort();
 
   // T-091/T-096: reprompt-to-refine — an inline dialog in the callout fires a
   // new run seeded with the pending proposal; the refined suggestion stacks
@@ -408,6 +418,9 @@ export function EditorScreen() {
                       autoFocus
                       value={refineText}
                       onChange={(e) => setRefineText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setRefining(null);
+                      }}
                       placeholder="How should this proposal change?"
                       style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', fontSize: 12.5, background: 'transparent', color: 'var(--ink)' }}
                     />
@@ -470,7 +483,7 @@ export function EditorScreen() {
                 <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
                   <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
                   <div className="bubble" style={{ fontSize: 12.5 }}>
-                    {entry.text}
+                    <Markdown>{entry.text}</Markdown>
                   </div>
                 </div>
               ))}
@@ -482,15 +495,15 @@ export function EditorScreen() {
                   </div>
                 </div>
               )}
-              <form onSubmit={sendChat} className="command" style={{ marginTop: 8, padding: '10px 12px' }}>
-                <span className="glyph">✦</span>
-                <input
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
+              <div style={{ marginTop: 8 }}>
+                <ChatComposer
                   placeholder="Ask for a draft into this document"
-                  style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', fontSize: 12.5, background: 'transparent' }}
+                  pending={pending}
+                  onSend={(request) => void runAgainst(request)}
+                  onCancel={cancelRun}
+                  fontSize={12.5}
                 />
-              </form>
+              </div>
             </>
           )}
         </div>
