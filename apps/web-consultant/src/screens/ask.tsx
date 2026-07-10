@@ -7,7 +7,9 @@ import { useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { MeResponse, Run } from '@infora/contracts';
 import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
+import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
+import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
 
@@ -27,6 +29,7 @@ export function AskScreen() {
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const composerRef = useRef<ChatComposerHandle | null>(null);
   const nextId = useRef(0);
 
   async function send(request: string) {
@@ -124,10 +127,17 @@ export function AskScreen() {
       <div className="chat-composer">
         <div className="inner">
           <ChatComposer
+            ref={composerRef}
             placeholder="Ask about the project"
             pending={pending}
             onSend={(request) => void send(request)}
             onCancel={cancel}
+            sources={
+              <ComposerSources
+                projectId={participant.projectId}
+                onInsert={(snippet) => composerRef.current?.insert(snippet)}
+              />
+            }
           />
         </div>
       </div>

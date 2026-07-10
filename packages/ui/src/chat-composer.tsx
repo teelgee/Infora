@@ -4,21 +4,39 @@
 // content, and while a run is in flight the send button becomes a stop
 // (Esc does the same). Cancel aborts the caller's wait — whether the run
 // itself can be stopped is the server's business, not the composer's.
-import { useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+// T-100: a `sources` slot beneath the input carries the surface's source
+// chips, and the ref exposes insert() so a picker can write into the draft.
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { Button } from './primitives';
 
 const MAX_HEIGHT = 168; // ~7 lines before the composer scrolls
 
-export function ChatComposer(props: {
-  placeholder: string;
-  pending: boolean;
-  onSend: (text: string) => void;
-  onCancel?: () => void;
-  fontSize?: number;
-}) {
+export type ChatComposerHandle = { insert: (snippet: string) => void };
+
+export const ChatComposer = forwardRef<
+  ChatComposerHandle,
+  {
+    placeholder: string;
+    pending: boolean;
+    onSend: (text: string) => void;
+    onCancel?: () => void;
+    fontSize?: number;
+    sources?: ReactNode;
+  }
+>(function ChatComposer(props, ref) {
   const [text, setText] = useState('');
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    insert: (snippet: string) => {
+      setText((prev) => (prev === '' ? snippet : `${prev.replace(/\s+$/, '')} ${snippet}`));
+      requestAnimationFrame(() => {
+        resize();
+        areaRef.current?.focus();
+      });
+    },
+  }));
 
   function resize() {
     const area = areaRef.current;
@@ -70,9 +88,10 @@ export function ChatComposer(props: {
   }
 
   return (
-    <div className="command chat-composer-box">
-      <span className="glyph">✦</span>
-      <textarea
+    <div>
+      <div className="command chat-composer-box">
+        <span className="glyph">✦</span>
+        <textarea
         ref={areaRef}
         rows={1}
         value={text}
@@ -92,26 +111,28 @@ export function ChatComposer(props: {
           ...(props.fontSize !== undefined && { fontSize: props.fontSize }),
         }}
       />
-      {props.pending && props.onCancel !== undefined ? (
-        <button
-          type="button"
-          className="stop-btn"
-          title="Cancel run (Esc)"
-          onClick={props.onCancel}
-        >
-          <span />
-        </button>
-      ) : (
-        <Button
-          size="sm"
-          variant="primary"
-          type="button"
-          disabled={props.pending || text.trim() === ''}
-          onClick={send}
-        >
-          ↵
-        </Button>
-      )}
+        {props.pending && props.onCancel !== undefined ? (
+          <button
+            type="button"
+            className="stop-btn"
+            title="Cancel run (Esc)"
+            onClick={props.onCancel}
+          >
+            <span />
+          </button>
+        ) : (
+          <Button
+            size="sm"
+            variant="primary"
+            type="button"
+            disabled={props.pending || text.trim() === ''}
+            onClick={send}
+          >
+            ↵
+          </Button>
+        )}
+      </div>
+      {props.sources !== undefined && <div className="composer-sources">{props.sources}</div>}
     </div>
   );
-}
+});

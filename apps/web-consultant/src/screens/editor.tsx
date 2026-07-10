@@ -20,7 +20,9 @@ import {
   SectionLabel,
   WithheldNotice,
 } from '@infora/ui';
+import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
+import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
 
@@ -121,6 +123,7 @@ export function EditorScreen() {
   const canvasRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const composerRef = useRef<ChatComposerHandle | null>(null);
   const nextId = useRef(0);
 
   const load = useCallback(async () => {
@@ -477,11 +480,18 @@ export function EditorScreen() {
           )}
           <div style={{ marginTop: 8 }}>
             <ChatComposer
+              ref={composerRef}
               placeholder="Ask for a draft into this document"
               pending={pending}
               onSend={(request) => void runAgainst(request)}
               onCancel={cancelRun}
               fontSize={12.5}
+              sources={
+                <ComposerSources
+                  projectId={participant.projectId}
+                  onInsert={(snippet) => composerRef.current?.insert(snippet)}
+                />
+              }
             />
           </div>
         </div>

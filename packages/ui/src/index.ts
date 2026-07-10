@@ -21,3 +21,4 @@ export { RunTrace } from './run-trace';
 export { Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
 export { ChatComposer } from './chat-composer';
+export type { ChatComposerHandle } from './chat-composer';
