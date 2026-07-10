@@ -509,3 +509,33 @@ tr.group-row .count { color: var(--muted); font-weight: 400; }
   border-radius: 999px; padding: 2px 10px;
 }
 .location-chip:hover { border-color: var(--accent); }
+
+/* ---------- Switcher menu + drill-down nav (T-099) ---------- */
+.switcher-menu {
+  position: absolute; top: calc(100% + 4px); left: 10px; right: 10px; z-index: 40;
+  background: var(--panel); border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(20, 19, 15, .12);
+  padding: 4px; max-height: 320px; overflow-y: auto;
+}
+.switcher-menu a {
+  display: block; padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  font-size: 12.5px; color: var(--ink-soft);
+}
+.switcher-menu a:hover { background: var(--hairline-soft); color: var(--ink); }
+.switcher-menu a.current { color: var(--accent-ink); background: var(--accent-soft); cursor: default; }
+.switcher-menu a .kicker {
+  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 1px;
+}
+nav a .drill {
+  margin-left: auto; color: var(--muted); padding: 0 4px; border-radius: 4px;
+}
+nav a .drill:hover { color: var(--ink); background: var(--hairline-soft); }
+nav a.sub {
+  padding-left: 40px; font-size: 12px; color: var(--muted); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+}
+nav a.sub:hover { color: var(--ink); }
+nav a.sub.active { color: var(--accent-ink); }
+nav a.sub.empty { cursor: default; font-style: italic; }
+nav a.sub.empty:hover { color: var(--muted); }

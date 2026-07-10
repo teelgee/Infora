@@ -58,7 +58,18 @@ function WorkspaceRail(props: { active: 'home' | SectionKey }) {
   };
   return (
     <Rail>
-      <ProjectSwitcher kicker="Workspace" name={me.organisationName} />
+      <ProjectSwitcher
+        kicker="Workspace"
+        name={me.organisationName}
+        items={[
+          { label: me.organisationName, kicker: 'Workspace', current: true, onSelect: () => {} },
+          ...me.participants.map((p) => ({
+            label: p.projectName,
+            kicker: `Project · ${p.membershipRole === 'owner' ? 'Owner' : 'Member'}`,
+            onSelect: () => void navigate(`/projects/${p.projectId}`),
+          })),
+        ]}
+      />
       <RailNav
         items={[
           { label: 'Home', glyph: '⌂', href: '/', active: props.active === 'home', onClick: go('/') },
