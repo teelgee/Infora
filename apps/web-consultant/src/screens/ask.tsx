@@ -7,7 +7,7 @@ import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { MeResponse, Run } from '@infora/contracts';
-import { Badge, Button, CitationChip, Markdown, RunTrace } from '@infora/ui';
+import { Badge, Button, CitedProse, RunTrace } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
@@ -121,15 +121,6 @@ export function AskScreen() {
 
 function AgentMessage(props: { run: Run; onOpenSource: (versionId: string) => void }) {
   const { run } = props;
-  // one chip per cited document, not per claim
-  const cited = [
-    ...new Map(
-      run.citations.map((citation) => [
-        'versionId' in citation.source ? citation.source.documentReference : citation.source.authorityRef,
-        citation.source,
-      ]),
-    ).entries(),
-  ];
   const outcomes = run.steps
     .filter((step) => step.type === 'ground_check')
     .flatMap((step) => step.railOutcomes);
@@ -141,28 +132,18 @@ function AgentMessage(props: { run: Run; onOpenSource: (versionId: string) => vo
       <div className="who">Infora agent</div>
       {run.response !== null && (
         <div className="bubble">
-          <Markdown>{run.response}</Markdown>
+          {/* each citation rides the claim it backs (T-095) */}
+          <CitedProse content={run.response} citations={run.citations} onOpenSource={props.onOpenSource} />
         </div>
       )}
       {run.response === null && (
         <div className="withheld">Nothing survived ground-check — no answer was produced.</div>
       )}
-      {(cited.length > 0 || openWorld > 0) && (
-        <div style={{ margin: '6px 0 2px', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {cited.map(([label, source]) => (
-            <CitationChip
-              key={label}
-              corpus={'versionId' in source ? 'library' : 'authority'}
-              onClick={'versionId' in source ? () => props.onOpenSource(source.versionId) : undefined}
-            >
-              {label}
-            </CitationChip>
-          ))}
-          {openWorld > 0 && (
-            <Badge tone="grey">
-              includes model knowledge — {openWorld} uncited claim{openWorld === 1 ? '' : 's'}
-            </Badge>
-          )}
+      {openWorld > 0 && (
+        <div style={{ margin: '6px 0 2px' }}>
+          <Badge tone="grey">
+            includes model knowledge — {openWorld} uncited claim{openWorld === 1 ? '' : 's'}
+          </Badge>
         </div>
       )}
       <details className="meta" style={{ marginTop: 4 }}>

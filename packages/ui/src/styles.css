@@ -464,3 +464,12 @@ tr.group-row .count { color: var(--muted); font-weight: 400; }
 .proposed-actions {
   display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;
 }
+
+/* ---------- Cited prose (T-095): the chip rides its claim's last line ---------- */
+.cited-claim { margin: 0 0 10px; }
+.cited-claim:last-child { margin-bottom: 0; }
+/* inline the wrapper and the last paragraph so the chip lands on the last
+   text line; earlier blocks (headings, lists) still break naturally */
+.cited-claim .md { display: inline; }
+.cited-claim .md > p:last-child { display: inline; }
+.cited-claim .cite { margin-left: 6px; white-space: nowrap; }

@@ -13,8 +13,7 @@ import {
   Badge,
   Button,
   Card,
-  CitationChip,
-  Markdown,
+  CitedProse,
   NumBadge,
   RunTrace,
   SectionLabel,
@@ -269,24 +268,12 @@ export function EditorScreen() {
                     ? `Suggestion · ${suggestion.kind} · pending your decision`
                     : 'earlier proposal · superseded by the one above, still resolvable'}
                 </div>
-                <Markdown>{suggestion.content}</Markdown>
-                <div style={{ marginTop: 6 }}>
-                  {suggestion.citations.map((citation) => (
-                    <CitationChip
-                      key={citation.id}
-                      corpus={'versionId' in citation.source ? 'library' : 'authority'}
-                      onClick={
-                        'versionId' in citation.source
-                          ? () => setSourceOpen((citation.source as { versionId: string }).versionId)
-                          : undefined
-                      }
-                    >
-                      {'versionId' in citation.source
-                        ? citation.source.documentReference
-                        : citation.source.authorityRef}
-                    </CitationChip>
-                  ))}
-                </div>
+                {/* each citation rides the claim it backs (T-095) */}
+                <CitedProse
+                  content={suggestion.content}
+                  citations={suggestion.citations}
+                  onOpenSource={setSourceOpen}
+                />
                 {suggestion.rationale.includes('withheld') &&
                   !suggestion.rationale.includes('nothing was withheld') && (
                     <WithheldNotice>{suggestion.rationale}</WithheldNotice>
