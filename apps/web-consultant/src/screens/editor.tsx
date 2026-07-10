@@ -14,8 +14,8 @@ import {
   Button,
   Card,
   CitedProse,
+  Markdown,
   NumBadge,
-  RunTrace,
   SectionLabel,
   SuggestionCard,
   WithheldNotice,
@@ -115,6 +115,10 @@ export function EditorScreen() {
   const [chatText, setChatText] = useState('');
   const [pending, setPending] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
+  const [refining, setRefining] = useState<string | null>(null); // suggestion id (T-096)
+  const [refineText, setRefineText] = useState('');
+  const [previewing, setPreviewing] = useState(false); // canvas: write / preview (T-096)
+  const canvasRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationRef = useRef<string | null>(null);
   const nextId = useRef(0);
 
@@ -193,15 +197,54 @@ export function EditorScreen() {
     await runAgainst(request);
   }
 
-  // T-091: reprompt-to-refine — a new run seeded with the pending proposal;
-  // the refined suggestion stacks above the old one in the callout
-  async function refine(suggestion: Suggestion) {
-    const refinement = window.prompt('How should the proposal change?');
-    if (refinement === null || refinement.trim() === '') return;
+  // T-091/T-096: reprompt-to-refine — an inline dialog in the callout fires a
+  // new run seeded with the pending proposal; the refined suggestion stacks
+  // above the old one
+  async function submitRefine(event: FormEvent, suggestion: Suggestion) {
+    event.preventDefault();
+    const refinement = refineText.trim();
+    if (refinement === '') return;
+    setRefining(null);
+    setRefineText('');
     await runAgainst(
-      `Refine the pending draft below.\n\nRefinement: ${refinement.trim()}\n\nThe pending draft:\n${suggestion.content}`,
+      `Refine the pending draft below.\n\nRefinement: ${refinement}\n\nThe pending draft:\n${suggestion.content}`,
     );
   }
+
+  // T-096: the formatting toolbar writes markdown around the canvas
+  // selection — the sandbox document *is* markdown text (see the
+  // canonical-format theme on the grill tracker for true WYSIWYG)
+  function applyFormat(action: (text: string, from: number, to: number) => { text: string; from: number; to: number }) {
+    const area = canvasRef.current;
+    if (area === null) return;
+    const applied = action(area.value, area.selectionStart, area.selectionEnd);
+    setContent(applied.text);
+    setDirty(true);
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(applied.from, applied.to);
+    });
+  }
+
+  const wrapWith = (mark: string) => (text: string, from: number, to: number) => ({
+    text: `${text.slice(0, from)}${mark}${text.slice(from, to)}${mark}${text.slice(to)}`,
+    from: from + mark.length,
+    to: to + mark.length,
+  });
+
+  const prefixLines = (prefix: string) => (text: string, from: number, to: number) => {
+    const lineStart = text.lastIndexOf('\n', from - 1) + 1;
+    const block = text.slice(lineStart, to);
+    const prefixed = block
+      .split('\n')
+      .map((line) => (line.startsWith(prefix) ? line.slice(prefix.length) : `${prefix}${line}`))
+      .join('\n');
+    return {
+      text: `${text.slice(0, lineStart)}${prefixed}${text.slice(to)}`,
+      from: lineStart,
+      to: lineStart + prefixed.length,
+    };
+  };
 
   if (documentId === undefined) return <EditorEntry />;
   if (doc === null) return null;
@@ -238,27 +281,82 @@ export function EditorScreen() {
 
       <div className="editor-layout">
         <div className="canvas">
+          {/* T-096 — the formatting toolbar: markdown-honest word-processor
+              controls; mousedown is swallowed so the selection (and the
+              blur-save) are not disturbed */}
+          <div className="format-bar" onMouseDown={(e) => e.preventDefault()}>
+            <button title="Bold" style={{ fontWeight: 700 }} onClick={() => applyFormat(wrapWith('**'))}>
+              B
+            </button>
+            <button title="Italic" style={{ fontStyle: 'italic' }} onClick={() => applyFormat(wrapWith('*'))}>
+              I
+            </button>
+            <span className="rule" />
+            <button title="Heading" onClick={() => applyFormat(prefixLines('## '))}>
+              H2
+            </button>
+            <button title="Subheading" onClick={() => applyFormat(prefixLines('### '))}>
+              H3
+            </button>
+            <span className="rule" />
+            <button title="Bulleted list" onClick={() => applyFormat(prefixLines('- '))}>
+              • List
+            </button>
+            <button title="Numbered list" onClick={() => applyFormat(prefixLines('1. '))}>
+              1. List
+            </button>
+            <button title="Quote" onClick={() => applyFormat(prefixLines('> '))}>
+              ❝ Quote
+            </button>
+            <span style={{ marginLeft: 'auto' }} />
+            <button
+              className={previewing ? undefined : 'active'}
+              onClick={() => setPreviewing(false)}
+            >
+              Write
+            </button>
+            <button
+              className={previewing ? 'active' : undefined}
+              onClick={() => {
+                void save(content);
+                setPreviewing(true);
+              }}
+            >
+              Preview
+            </button>
+          </div>
           <div className="doc-body">
-            <textarea
-              value={content}
-              onChange={(e) => {
-                setContent(e.target.value);
-                setDirty(true);
-              }}
-              onBlur={(e) => void save(e.currentTarget.value)}
-              placeholder="Write here — manual editing has no ceremony: no Suggestion, no Signal."
-              style={{
-                width: '100%',
-                minHeight: 260,
-                border: 'none',
-                outline: 'none',
-                resize: 'vertical',
-                font: 'inherit',
-                lineHeight: 'inherit',
-                color: 'inherit',
-                background: 'transparent',
-              }}
-            />
+            {previewing ? (
+              <div style={{ minHeight: 260 }}>
+                {content.trim() === '' ? (
+                  <p style={{ color: 'var(--muted)' }}>Nothing to preview yet.</p>
+                ) : (
+                  <Markdown>{content}</Markdown>
+                )}
+              </div>
+            ) : (
+              <textarea
+                ref={canvasRef}
+                value={content}
+                onChange={(e) => {
+                  setContent(e.target.value);
+                  setDirty(true);
+                }}
+                onBlur={(e) => void save(e.currentTarget.value)}
+                placeholder="Write here — manual editing has no ceremony: no Suggestion, no Signal."
+                style={{
+                  width: '100%',
+                  minHeight: 260,
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'vertical',
+                  font: 'inherit',
+                  lineHeight: 'inherit',
+                  color: 'inherit',
+                  background: 'transparent',
+                }}
+              />
+            )}
 
             {pendingSuggestions.map((suggestion, at) => (
               <div key={suggestion.id} className={at === 0 ? 'proposed' : 'proposed stale'}>
@@ -285,13 +383,42 @@ export function EditorScreen() {
                   <Button size="sm" onClick={() => void resolve(suggestion, 'edited')}>
                     ✎ Edit
                   </Button>
-                  <Button size="sm" onClick={() => void refine(suggestion)} disabled={pending}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setRefining(refining === suggestion.id ? null : suggestion.id);
+                      setRefineText('');
+                    }}
+                    disabled={pending}
+                  >
                     ↻ Refine
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => void resolve(suggestion, 'rejected')}>
                     Reject
                   </Button>
                 </div>
+                {refining === suggestion.id && (
+                  <form
+                    onSubmit={(e) => void submitRefine(e, suggestion)}
+                    className="command"
+                    style={{ marginTop: 10, padding: '8px 12px' }}
+                  >
+                    <span className="glyph">↻</span>
+                    <input
+                      autoFocus
+                      value={refineText}
+                      onChange={(e) => setRefineText(e.target.value)}
+                      placeholder="How should this proposal change?"
+                      style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', fontSize: 12.5, background: 'transparent', color: 'var(--ink)' }}
+                    />
+                    <Button size="sm" variant="primary" type="submit" disabled={pending}>
+                      Refine ↵
+                    </Button>
+                    <Button size="sm" variant="quiet" type="button" onClick={() => setRefining(null)}>
+                      Cancel
+                    </Button>
+                  </form>
+                )}
               </div>
             ))}
           </div>
@@ -337,20 +464,21 @@ export function EditorScreen() {
 
           {tab === 'chat' && (
             <>
+              {/* just the request and the reply — the run stays fully audited
+                  server-side, readable on the work item (T-096) */}
               {chatLog.map((entry) => (
                 <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
                   <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
                   <div className="bubble" style={{ fontSize: 12.5 }}>
                     {entry.text}
                   </div>
-                  {entry.run !== undefined && <RunTrace steps={entry.run.steps} />}
                 </div>
               ))}
               {pending && (
                 <div className="msg agent" style={{ maxWidth: '100%' }}>
                   <div className="who">Infora agent</div>
-                  <div className="bubble" style={{ fontSize: 12.5 }}>
-                    Working — retrieve → draft → ground-check → cite…
+                  <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                    Working…
                   </div>
                 </div>
               )}

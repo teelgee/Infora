@@ -126,6 +126,7 @@ Raised from the owner's T-081 review of the workspace, Ask and Editor surfaces. 
 | T-093 | **Workspace nav functions** — every rail item routes to a real page: honest empty states for workspace Ask / Editor / personal sandbox / workflows naming their slice, and a new "Your knowledge" item for the organisation-knowledge page (placeholder until the org-context store lands). | — |
 | T-094 | **Citation chips open the source** — click a citation to read the cited version's content (self-scoped version read endpoint); hover-render of the exact chunk waits on the chunk-provenance data-model theme (tracker). | T-088 |
 | T-095 | **Citations ride their claims inline** — each chip renders at the end of the claim it backs (the `claimSpan` already marks it), in Ask answers and Editor callouts alike; uncited chat claims stay plain with the summary badge. *(Owner follow-up to the QA batch, 2026-07-10.)* | T-094 |
+| T-096 | **Editor polish** — refine opens an inline dialog in the suggestion callout (no browser prompt); the document chat shows only the user's request and the agent's reply (no chain trace); a formatting toolbar (bold/italic/headings/lists/quote + preview) over the canvas, markdown-honest — true WYSIWYG waits on the canonical document-format theme (tracker). *(Owner follow-up, 2026-07-10.)* | T-091 |
 
 ### Parallel tracks
 

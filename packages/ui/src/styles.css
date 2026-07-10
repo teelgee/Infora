@@ -473,3 +473,18 @@ tr.group-row .count { color: var(--muted); font-weight: 400; }
 .cited-claim .md { display: inline; }
 .cited-claim .md > p:last-child { display: inline; }
 .cited-claim .cite { margin-left: 6px; white-space: nowrap; }
+
+/* ---------- Formatting toolbar (T-096): markdown-honest controls ---------- */
+.format-bar {
+  display: flex; align-items: center; gap: 2px;
+  padding: 6px 10px; border-bottom: 1px solid var(--hairline);
+  background: var(--panel); position: sticky; top: 0; z-index: 5;
+}
+.format-bar button {
+  font-family: var(--sans); font-size: 12px; color: var(--ink-soft);
+  background: transparent; border: none; border-radius: 6px;
+  padding: 4px 9px; cursor: pointer; line-height: 1.4;
+}
+.format-bar button:hover { background: var(--hairline-soft); color: var(--ink); }
+.format-bar button.active { background: var(--accent-soft); color: var(--accent-ink); }
+.format-bar .rule { width: 1px; height: 16px; background: var(--hairline); margin: 0 6px; }
