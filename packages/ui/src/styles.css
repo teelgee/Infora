@@ -565,3 +565,18 @@ nav a.sub.empty:hover { color: var(--muted); }
 }
 .src-picker a:hover { background: var(--hairline-soft); color: var(--ink); }
 .src-picker a.empty { cursor: default; color: var(--muted); font-style: italic; }
+
+/* ---------- Create-from-new cards (T-101, editor landing) ---------- */
+.create-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.create-card {
+  font-family: var(--sans); text-align: left; cursor: pointer;
+  background: var(--panel); border: 1px dashed var(--hairline);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.create-card:hover { border-color: var(--accent); }
+.create-card .glyph { font-size: 20px; margin-bottom: 8px; color: var(--accent-ink); }
+.create-card .name { font-weight: 600; font-size: 13.5px; color: var(--ink); margin-bottom: 3px; }
+.create-card .note { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.create-card.disabled { cursor: help; }
+.create-card.disabled:hover { border-color: var(--hairline); }
+.create-card.disabled .glyph, .create-card.disabled .name { color: var(--muted); }

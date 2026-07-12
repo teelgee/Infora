@@ -28,14 +28,21 @@ import { SourceModal } from '../source-modal';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
-// T-090 — the Editor's front door (2026-07-09 QA review): with no document
-// open, browse the organisation's project sandbox or create a document and
-// land straight in it. Flat for now — folders arrive with the sandbox drawer.
+// T-090/T-101 — the Editor's landing page, per the owner's wireframe
+// (2026-07-12): before the canvas, a create-from-new card row over the
+// project's sandbox tree. One create path works today (a Word-bound prose
+// document — the sandbox document, rendered to docx at promotion); Templates
+// waits on the organisation-knowledge store and PowerPoint on the
+// slide-shaped document type (the canonical-format theme, tracker). The
+// tree has one root for now — the organisation's private project sandbox;
+// shared/personal sandboxes and folders arrive with the sandbox drawer.
 function EditorEntry() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const navigate = useNavigate();
   const [docs, setDocs] = useState<SandboxDocument[] | null>(null);
+  const [naming, setNaming] = useState(false);
+  const [title, setTitle] = useState('');
 
   useEffect(() => {
     void api.sandboxDocuments(participant.projectId).then((res) => setDocs(res.items));
@@ -43,46 +50,83 @@ function EditorEntry() {
 
   const open = (id: string) => void navigate(`/projects/${participant.projectId}/editor/${id}`);
 
-  async function create() {
-    const title = window.prompt('Document title');
-    if (title === null || title.trim() === '') return;
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    if (title.trim() === '') return;
     const doc = await api.createSandboxDocument(participant.projectId, title.trim());
     open(doc.id);
   }
 
   return (
     <div className="content">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 className="page">Editor</h1>
-        <span style={{ marginLeft: 'auto' }}>
-          <Button size="sm" variant="primary" onClick={() => void create()}>
-            ＋ New document
-          </Button>
-        </span>
-      </div>
+      <h1 className="page">{participant.projectName}</h1>
       <p className="page-sub">
-        Open a working document from the sandbox, or start a new one — drafting with the agent
-        happens here, against the document.
+        Editor — start a document, or open one from the project&apos;s sandboxes; drafting with
+        the agent happens on the canvas, against the document.
       </p>
 
-      <SectionLabel>{me.organisationName} — private project sandbox</SectionLabel>
+      <SectionLabel>Create from new</SectionLabel>
+      <div className="create-grid">
+        <button className="create-card" onClick={() => setNaming((open_) => !open_)}>
+          <div className="glyph">📄</div>
+          <div className="name">Word document</div>
+          <div className="note">A prose deliverable — drafts here, renders to Word at promotion</div>
+        </button>
+        <button
+          className="create-card disabled"
+          title="Arrives with the organisation-knowledge store — your firm's house style and templates"
+        >
+          <div className="glyph">▤</div>
+          <div className="name">From a template</div>
+          <div className="note">Your organisation&apos;s templates — arrives with Your knowledge</div>
+        </button>
+        <button
+          className="create-card disabled"
+          title="A slide-shaped document type — arrives with the canonical-format decision (grill tracker)"
+        >
+          <div className="glyph">▦</div>
+          <div className="name">PowerPoint</div>
+          <div className="note">Slide deck — arrives with the presentation document type</div>
+        </button>
+      </div>
+      {naming && (
+        <form onSubmit={(e) => void create(e)} className="command" style={{ marginTop: 10 }}>
+          <span className="glyph">📄</span>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setNaming(false);
+            }}
+            placeholder="Name the document"
+            style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', color: 'var(--ink)', background: 'transparent' }}
+          />
+          <Button size="sm" variant="primary" type="submit" disabled={title.trim() === ''}>
+            Create ↵
+          </Button>
+        </form>
+      )}
+
+      <SectionLabel>Sandboxes</SectionLabel>
       <Card className="tree">
         <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Modified</th>
-              <th></th>
-            </tr>
-          </thead>
           <tbody>
+            <tr>
+              <td colSpan={3} style={{ fontWeight: 600 }}>
+                <span className="ficon">▧</span>
+                {me.organisationName} — private project sandbox
+              </td>
+            </tr>
             {(docs ?? []).map((doc) => (
               <tr key={doc.id} onClick={() => open(doc.id)} style={{ cursor: 'pointer' }}>
-                <td>
+                <td className="indent">
                   <span className="ficon">📄</span>
                   {doc.title}
                 </td>
-                <td>{new Date(doc.updatedAt).toLocaleString()}</td>
+                <td style={{ color: 'var(--muted)', fontSize: 12 }}>
+                  {new Date(doc.updatedAt).toLocaleString()}
+                </td>
                 <td style={{ textAlign: 'right' }}>
                   <Button size="sm" variant="quiet" onClick={() => open(doc.id)}>
                     Open
@@ -92,11 +136,16 @@ function EditorEntry() {
             ))}
             {docs !== null && docs.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ color: 'var(--muted)' }}>
+                <td colSpan={3} className="indent" style={{ color: 'var(--muted)' }}>
                   Nothing here yet — create a document to start drafting.
                 </td>
               </tr>
             )}
+            <tr>
+              <td colSpan={3} style={{ color: 'var(--muted)', fontSize: 12, fontStyle: 'italic' }}>
+                Shared and personal sandboxes — and folders — arrive with the sandbox drawer.
+              </td>
+            </tr>
           </tbody>
         </table>
       </Card>
