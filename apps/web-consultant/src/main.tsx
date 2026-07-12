@@ -10,7 +10,7 @@ import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
 import { SettingsScreen } from './screens/settings';
-import { WorkItemAuditScreen } from './screens/work-item';
+import { WorkItemScreen } from './screens/work-item';
 import { WorkspaceLanding, WorkspaceSection } from './screens/workspace';
 
 const router = createBrowserRouter([
@@ -28,7 +28,7 @@ const router = createBrowserRouter([
       { path: 'documents', element: <LibraryScreen /> },
       { path: 'review', element: <ReviewScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
-      { path: 'work-items/:workItemId', element: <WorkItemAuditScreen /> },
+      { path: 'work-items/:workItemId', element: <WorkItemScreen /> },
       {
         path: 'workflows',
         element: (

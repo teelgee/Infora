@@ -120,10 +120,13 @@ GET  /runs/:runId          → Run                    // the immutable audit rea
 GET  /conversations/:conversationId → { runs: Run[] }
 ```
 
-Read scope (ruled 2026-07-06): a Run bound to a Work item is project record — readable by the owner
-role in full. An ad-hoc Run (no Work item; every Copilot run in v1) is readable by the requester's
-organisation only; any other reader gets `404 not_found` (principle 4). The owner's audited override
-(ADR-0018) is post-skeleton.
+Read scope (ruled 2026-07-12, superseding 2026-07-06's project-record read): **every Run is readable
+by its producing organisation only**, work-item bound or not; any other reader gets `404 not_found`
+(principle 4). The record is retained background data anchored to the work — the consultant carries
+the professional liability for the work product, and the client owner reviews the *document* through
+the review cycle (ADR-0005–0014), never the agent's internals. The work-item read returns its
+review-cycle facts to every entitled reader; its `runs` list carries the requester organisation's
+own runs only.
 
 ```
 ```

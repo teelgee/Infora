@@ -97,6 +97,8 @@ Prove access scoping across a role boundary on real data.
 - `web-owner` (or a role switch in the consultant app for the slice): the owner Participant reads the **Work item** — live status — and the **full audited Run/Step tree**.
 - **Acceptance:** the owner sees the work item's live status and the complete run; access is correctly scoped (the owner sees what the owner role admits, no more); the audit trail the owner reads is the same immutable record M3 wrote — nothing was mutated between production and review.
 
+> **Superseded in part, owner-ruled 2026-07-12 (T-104):** the record turns inward. Every Run is producing-organisation-private background data — the consultant carries the professional liability for the work product, and the client owner reviews the *document* through the review cycle, never the agent's internals. M5's cross-role read becomes the work item's review-cycle facts; the owner audit screen built for this milestone was scaffolding that proved the record and is retired. What M5 permanently established stands: the record is immutable, byte-identical between production and any later read, and access-scoped through the one predicate.
+
 ### M6 — The Copilot Ask surface
 `@Infora` in Microsoft 365 Copilot over the same API (ADR-0031).
 - New `apps/copilot-agent`: a **declarative agent** (what users tag) + an **API plugin** calling Infora's API — no intelligence in the client (ADR-0031 §1).

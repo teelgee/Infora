@@ -1,8 +1,10 @@
 // T-046 — conversations, runs and work items live over HTTP; the full chain
-// callable. Read scope per the 2026-07-06 ruling: a work-item-bound Run is
-// project record — readable by its producing organisation and by the owner
-// role; an ad-hoc Run is working-area material — the producing organisation
-// only. Everything else is the same not_found as nonexistence.
+// callable. Read scope per the 2026-07-12 ruling (supersedes 2026-07-06's
+// project-record read): every Run is readable by its producing organisation
+// only. The record is retained background data — the consultant carries the
+// professional liability for the work product, and the client reviews the
+// *document* through the review cycle, never the agent's internals.
+// Everything else is the same not_found as nonexistence.
 import { Hono } from 'hono';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { createConversationBody, createRunBody } from '@infora/contracts';
@@ -136,9 +138,10 @@ function toWorkItem(row: typeof s.workItems.$inferSelect): WorkItem {
   };
 }
 
-// The 2026-07-06 read-scope ruling. The producing organisation is the run's
-// requester participant's organisation — derived from the record, never the
-// caller. The owner's audited override for ad-hoc runs is post-skeleton.
+// The 2026-07-12 read-scope ruling (supersedes 2026-07-06): the record turns
+// inward — a Run is readable by its producing organisation only, work-item
+// bound or not. The producing organisation is the run's requester
+// participant's organisation — derived from the record, never the caller.
 async function runVisibleTo(db: Db, run: RunRow, slice: EntitledSlice): Promise<boolean> {
   const [producer] = await db
     .select({ organisationId: s.users.organisationId })
@@ -146,16 +149,7 @@ async function runVisibleTo(db: Db, run: RunRow, slice: EntitledSlice): Promise<
     .innerJoin(s.users, eq(s.participants.userId, s.users.id))
     .where(eq(s.participants.id, run.requesterParticipantId))
     .limit(1);
-  const producedByReader = producer?.organisationId === slice.organisationId;
-
-  const [conversation] = await db
-    .select({ workItemId: s.conversations.workItemId })
-    .from(s.conversations)
-    .where(eq(s.conversations.id, run.conversationId))
-    .limit(1);
-  const workItemBound = conversation?.workItemId != null;
-
-  return workItemBound ? producedByReader || slice.membershipRole === 'owner' : producedByReader;
+  return producer?.organisationId === slice.organisationId;
 }
 
 async function visibleRuns(db: Db, rows: RunRow[], slice: EntitledSlice): Promise<Run[]> {

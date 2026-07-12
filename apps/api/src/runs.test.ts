@@ -233,36 +233,34 @@ describe('the full chain over HTTP (T-046)', () => {
   });
 });
 
-describe('run read scope — the 2026-07-06 ruling (T-046)', () => {
-  it('a work-item-bound run is project record: the owner reads it in full', async () => {
-    const conversationId = await openConversation(consultant, workItemId);
-    const created = (await (
-      await post(consultant, `/conversations/${conversationId}/runs`, { request: 'governed draft' })
+describe('run read scope — the 2026-07-12 ruling (supersedes 2026-07-06)', () => {
+  it('every run is producing-organisation-private — work-item bound or not', async () => {
+    const bound = await openConversation(consultant, workItemId);
+    const boundRun = (await (
+      await post(consultant, `/conversations/${bound}/runs`, { request: 'governed draft' })
+    ).json()) as Run;
+    const adHoc = await openConversation(consultant);
+    const adHocRun = (await (
+      await post(consultant, `/conversations/${adHoc}/runs`, { request: 'private ask' })
     ).json()) as Run;
 
-    const res = await get(owner, `/runs/${created.id}`);
-    expect(res.status).toBe(200);
-    const run = (await res.json()) as Run;
-    expect(run.request).toBe('governed draft'); // prompt text included — the full record
-    expect(run.steps.length).toBeGreaterThan(0);
+    // the producer reads its own record in full — retained background data
+    for (const run of [boundRun, adHocRun]) {
+      const res = await get(consultant, `/runs/${run.id}`);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Run).steps.length).toBeGreaterThan(0);
+    }
 
-    // and it appears on the work item's record for the owner
+    // the client owner never sees the agent's internals — the consultant
+    // carries the liability; the client reviews the document, not the runs
+    expect((await get(owner, `/runs/${boundRun.id}`)).status).toBe(404);
+    expect((await get(owner, `/runs/${adHocRun.id}`)).status).toBe(404);
+
+    // work-item and conversation reads filter identically
     const workItem = await get(owner, `/work-items/${workItemId}`);
-    const body = (await workItem.json()) as { runs: Run[] };
-    expect(body.runs.some((r) => r.id === run.id)).toBe(true);
-  });
-
-  it("an ad-hoc run is the producing organisation's only — the owner gets 404", async () => {
-    const conversationId = await openConversation(consultant); // no work item
-    const created = (await (
-      await post(consultant, `/conversations/${conversationId}/runs`, { request: 'private ask' })
-    ).json()) as Run;
-
-    expect((await get(consultant, `/runs/${created.id}`)).status).toBe(200);
-    expect((await get(owner, `/runs/${created.id}`)).status).toBe(404);
-
-    // the conversation read filters the same way
-    const asOwner = await get(owner, `/conversations/${conversationId}`);
-    expect(((await asOwner.json()) as { runs: Run[] }).runs).toEqual([]);
+    expect(workItem.status).toBe(200); // the review-cycle facts stay readable
+    expect(((await workItem.json()) as { runs: Run[] }).runs).toEqual([]);
+    const conversation = await get(owner, `/conversations/${bound}`);
+    expect(((await conversation.json()) as { runs: Run[] }).runs).toEqual([]);
   });
 });

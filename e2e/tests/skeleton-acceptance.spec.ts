@@ -183,30 +183,26 @@ test('4 — a manual edit lands with no ceremony: no Suggestion, no Signal', asy
   );
 });
 
-test('5 — the owner reads the same record across the role boundary', async ({ page }) => {
-  // the producer's read and the owner's read are the same bytes, and the
-  // Run/Step record is exactly what production wrote (append-only)
-  const owner = await ApiSession.login(SEEDED.owner);
+test('5 — the record stays with its producer; the owner sees the review cycle', async ({ page }) => {
+  // T-104 (2026-07-12): the record is producing-organisation-private
+  // background data — retained immutably for the consultant, invisible to
+  // the client owner, who reads the work item's review-cycle facts instead
   const producerRead = await consultant.get<Run>(`/runs/${run.id}`);
-  const ownerRead = await owner.get<Run>(`/runs/${run.id}`);
-  expect(JSON.stringify(ownerRead)).toBe(JSON.stringify(producerRead));
-  expect(JSON.stringify(ownerRead.steps)).toBe(JSON.stringify(run.steps));
+  expect(JSON.stringify(producerRead.steps)).toBe(JSON.stringify(run.steps)); // nothing mutated
 
-  const workItem = await owner.get<{ runs: Run[] }>(`/work-items/${workItemId}`);
-  expect(workItem.runs.some((r) => r.id === run.id)).toBe(true);
+  const owner = await ApiSession.login(SEEDED.owner);
+  expect((await owner.raw('get', `/runs/${run.id}`)).status()).toBe(404);
+  const workItem = await owner.get<{ runs: Run[]; status: string }>(`/work-items/${workItemId}`);
+  expect(workItem.status).toBeTruthy();
+  expect(workItem.runs).toEqual([]);
   await owner.dispose();
 
-  // and the walk: landing → work item → the audited trail on screen
+  // and the walk: landing → work item → the review cycle, never the agent
   await loginAs(page, SEEDED.owner);
   await page.getByText(PROJECT).click();
   await page.getByText(WORK_ITEM).click();
-  await expect(page.getByText('Append-only audit.')).toBeVisible();
-  const boundRow = page.getByRole('row').filter({ hasText: run.id.slice(0, 8) });
-  await boundRow.click();
-  await expect(
-    page.getByText(`Run ${run.id.slice(0, 8)} — step tree (retrieve → draft → ground-check → cite)`),
-  ).toBeVisible();
-  await expect(page.getByText('Access-resolved source set (defensibility)')).toBeVisible();
+  await expect(page.getByText('Review cycle')).toBeVisible();
+  await expect(page.getByText(run.request)).not.toBeVisible();
 });
 
 // step 6 (Copilot: the same answer over the same API, audited as
