@@ -21,7 +21,9 @@ export function WorkItemAuditScreen() {
     if (workItemId === undefined) return;
     void api.workItem(workItemId).then((item) => {
       setWorkItem(item);
-      setSelected(item.runs.at(-1) ?? null);
+      // default to the newest run without clobbering a selection the reader
+      // already made — a late-landing reload must not steal the view
+      setSelected((prev) => prev ?? item.runs.at(-1) ?? null);
     });
   }, [workItemId]);
 
@@ -78,7 +80,7 @@ export function WorkItemAuditScreen() {
               <tr
                 key={run.id}
                 onClick={() => setSelected(run)}
-                style={{ cursor: 'pointer', background: selected?.id === run.id ? '#fcfbf8' : undefined }}
+                style={{ cursor: 'pointer', background: selected?.id === run.id ? 'var(--tint-2)' : undefined }}
               >
                 <td className="mono">{run.id.slice(0, 8)}</td>
                 <td>

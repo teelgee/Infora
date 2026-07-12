@@ -7,6 +7,7 @@ import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { LibraryScreen } from './screens/library';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
+import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
 import { SettingsScreen } from './screens/settings';
 import { WorkItemAuditScreen } from './screens/work-item';
@@ -25,15 +26,7 @@ const router = createBrowserRouter([
       { path: 'editor', element: <EditorScreen /> },
       { path: 'editor/:documentId', element: <EditorScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
-      {
-        path: 'review',
-        element: (
-          <EmptyState
-            title="Review"
-            note="Review cycles arrive with the document-management slice (ruled 2026-07-06)."
-          />
-        ),
-      },
+      { path: 'review', element: <ReviewScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemAuditScreen /> },
       {
