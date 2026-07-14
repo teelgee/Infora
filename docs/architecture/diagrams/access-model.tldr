@@ -1,0 +1,1166 @@
+{
+ "tldrawFileFormatVersion": 1,
+ "schema": {
+  "schemaVersion": 2,
+  "sequences": {
+   "com.tldraw.store": 5,
+   "com.tldraw.asset": 1,
+   "com.tldraw.camera": 1,
+   "com.tldraw.document": 2,
+   "com.tldraw.instance": 26,
+   "com.tldraw.instance_page_state": 5,
+   "com.tldraw.page": 1,
+   "com.tldraw.instance_presence": 6,
+   "com.tldraw.pointer": 1,
+   "com.tldraw.shape": 4,
+   "com.tldraw.user": 1,
+   "com.tldraw.asset.image": 6,
+   "com.tldraw.asset.video": 5,
+   "com.tldraw.asset.bookmark": 2,
+   "com.tldraw.shape.arrow": 8,
+   "com.tldraw.shape.bookmark": 2,
+   "com.tldraw.shape.draw": 5,
+   "com.tldraw.shape.embed": 4,
+   "com.tldraw.shape.frame": 1,
+   "com.tldraw.shape.geo": 11,
+   "com.tldraw.shape.group": 0,
+   "com.tldraw.shape.highlight": 4,
+   "com.tldraw.shape.image": 5,
+   "com.tldraw.shape.line": 5,
+   "com.tldraw.shape.note": 13,
+   "com.tldraw.shape.text": 4,
+   "com.tldraw.shape.video": 4,
+   "com.tldraw.binding.arrow": 1
+  }
+ },
+ "records": [
+  {
+   "typeName": "document",
+   "id": "document:document",
+   "gridSize": 10,
+   "name": "",
+   "meta": {}
+  },
+  {
+   "typeName": "page",
+   "id": "page:page",
+   "name": "Access model",
+   "index": "a1",
+   "meta": {}
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:client",
+   "type": "geo",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a1",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1560,
+    "h": 730,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Client — Org 1"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:orgctx1",
+   "type": "geo",
+   "x": 50,
+   "y": 140,
+   "rotation": 0,
+   "index": "a2SUk",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 430,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Org Context — Org 1"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "toolkit, precedents, tools & agents"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "org-private: never crosses the wall (ADR-0020)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:programme",
+   "type": "geo",
+   "x": 350,
+   "y": 100,
+   "rotation": 0,
+   "index": "a3QoQ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1160,
+    "h": 580,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Programme 1"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:progctx",
+   "type": "geo",
+   "x": 380,
+   "y": 180,
+   "rotation": 0,
+   "index": "a4Nk6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 170,
+    "h": 460,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Programme Context"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "(the third scoped store, ADR-0020)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:project",
+   "type": "geo",
+   "x": 580,
+   "y": 160,
+   "rotation": 0,
+   "index": "a5KNv",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 900,
+    "h": 490,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 — a meeting space: the wall runs through it"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:projctx",
+   "type": "geo",
+   "x": 610,
+   "y": 230,
+   "rotation": 0,
+   "index": "a6Rze",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 840,
+    "h": 74,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project Context — guiding material the owner curates in (templates, style guides; steers everyone on the project, never grounds — ADR-0021)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:library",
+   "type": "geo",
+   "x": 610,
+   "y": 318,
+   "rotation": 0,
+   "index": "a77cv",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 840,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project Library — confirmed docs, the controlled record"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:shared",
+   "type": "geo",
+   "x": 610,
+   "y": 392,
+   "rotation": 0,
+   "index": "a8CzN",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 840,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Shared sandbox — orgs collaborate on work in progress (ADR-0019)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:priv1",
+   "type": "geo",
+   "x": 610,
+   "y": 470,
+   "rotation": 0,
+   "index": "a9D3b",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 260,
+    "h": 110,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Private sandbox — Org 1 (client)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:priv2",
+   "type": "geo",
+   "x": 900,
+   "y": 470,
+   "rotation": 0,
+   "index": "aAcCQ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 260,
+    "h": 110,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Private sandbox — Org 2 (consultant)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:wallnote",
+   "type": "text",
+   "x": 1185,
+   "y": 478,
+   "rotation": 0,
+   "index": "aByoz",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 250,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "per-org: default-deny to everyone else, including the owner — the override is exceptional and audited (ADR-0018)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:consultant",
+   "type": "geo",
+   "x": 280,
+   "y": 900,
+   "rotation": 0,
+   "index": "aCjkf",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 720,
+    "h": 450,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Consultant — Org 2"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:workspace",
+   "type": "geo",
+   "x": 310,
+   "y": 970,
+   "rotation": 0,
+   "index": "aDBpU",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 660,
+    "h": 350,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:orgctx2",
+   "type": "geo",
+   "x": 340,
+   "y": 1030,
+   "rotation": 0,
+   "index": "aEEN6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 290,
+    "h": 260,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Org Context — Org 2"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "toolkit, precedents, tools & agents"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:personal",
+   "type": "geo",
+   "x": 660,
+   "y": 1030,
+   "rotation": 0,
+   "index": "aFbXE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 280,
+    "h": 260,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Personal sandboxes"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "(per user, private — never AI context)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-orgctx-travel",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aGWFE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 40,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "travels with Org 2's users into the project — informs their own work only; never visible to Org 1, never grounds (ADR-0020)"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:0",
+   "type": "arrow",
+   "fromId": "shape:a-orgctx-travel",
+   "toId": "shape:orgctx2",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:1",
+   "type": "arrow",
+   "fromId": "shape:a-orgctx-travel",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.1,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-owner-curates",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aHeTr",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -60,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the owner curates guiding material in — the one deliberate crossing"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:2",
+   "type": "arrow",
+   "fromId": "shape:a-owner-curates",
+   "toId": "shape:orgctx1",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:3",
+   "type": "arrow",
+   "fromId": "shape:a-owner-curates",
+   "toId": "shape:projctx",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.03,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-user-sees",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aIOKj",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -40,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Org 2's users see the project in their app: the library's confirmed docs + the project's guiding material"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:4",
+   "type": "arrow",
+   "fromId": "shape:a-user-sees",
+   "toId": "shape:consultant",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.97,
+     "y": 0.15
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:5",
+   "type": "arrow",
+   "fromId": "shape:a-user-sees",
+   "toId": "shape:library",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 1,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-push",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aJNXj",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "red",
+    "color": "red",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 20,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "push a doc into the project's own-org sandbox — proposed, unruled (tracker: sandbox drawer)"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:6",
+   "type": "arrow",
+   "fromId": "shape:a-push",
+   "toId": "shape:personal",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.65,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:7",
+   "type": "arrow",
+   "fromId": "shape:a-push",
+   "toId": "shape:priv2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:title",
+   "type": "text",
+   "x": 0,
+   "y": -90,
+   "rotation": 0,
+   "index": "aKI6b",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "l",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 1100,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Access model — orgs, programme, project, sandboxes and the context stores (ADR-0018/0019/0020/0021)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:legend",
+   "type": "text",
+   "x": 1180,
+   "y": -60,
+   "rotation": 0,
+   "index": "aLWkE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 380,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "blue — the correction: project context is its own store, and the only wall crossing is deliberate. red — proposed flow, not yet ruled."
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  }
+ ]
+}
