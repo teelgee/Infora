@@ -7,11 +7,11 @@ export {
   Button,
   Card,
   Chip,
-  CitationChip,
   CommandBar,
   MadeCard,
   OutChip,
   SectionLabel,
+  SourceChip,
   WithheldNotice,
 } from './primitives';
 export { ProjectSwitcher, Rail, RailNav, RailSpacer, UserChip, WorkspaceZone } from './rail';

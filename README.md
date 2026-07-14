@@ -31,6 +31,6 @@ packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on
 
 ## Layout
 
-- `apps/` — deployable surfaces (`api`, `web-consultant`, later `copilot-agent`, `word-addin`)
+- `apps/` — deployable surfaces (`api`, `web` — one app, role-scoped views; later `copilot-agent`, `word-addin`)
 - `packages/` — the layers; see [docs/build/repo-structure.md](docs/build/repo-structure.md)
 - `docs/` — the design layer: glossary (`CONTEXT.md`), architecture, ADRs, build docs, mockups

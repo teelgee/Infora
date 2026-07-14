@@ -4,7 +4,7 @@
 // infra/security session lands production identity (Entra-first); requester
 // resolution on every other endpoint is T-023.
 import { Hono } from 'hono';
-import { setSignedCookie } from 'hono/cookie';
+import { deleteCookie, setSignedCookie } from 'hono/cookie';
 import { and, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { changePasswordBody, createSessionBody, patchMeBody } from '@infora/contracts';
@@ -44,6 +44,14 @@ export function authRoutes(deps: { db: Db; sessionSecret: string }) {
       path: '/',
     });
     return c.body(null, 204); // the cookie is the product; identity reads via GET /me
+  });
+
+  // T-111 — sign out: the cookie is the session, so deleting it ends the
+  // session. Idempotent and unauthenticated by design (the middleware exempts
+  // the /auth/session path): a stale or absent cookie signs out the same way.
+  app.delete('/auth/session', (c) => {
+    deleteCookie(c, sessionCookie, { path: '/' });
+    return c.body(null, 204);
   });
 
   app.get('/me', async (c) => {

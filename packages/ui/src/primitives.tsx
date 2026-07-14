@@ -18,8 +18,10 @@ export function Chip(props: { children: ReactNode }) {
   return <span className="chip">{props.children}</span>;
 }
 
-/** A citation chip: library fact (▤, green) or external authority (§, slate). */
-export function CitationChip(props: {
+/** A source — the inline pill after the claim it backs (named "source" per the
+ * 2026-07-13 ruling; formerly the citation chip): library fact (▤, green) or
+ * external authority (§, slate). Clicking one opens the source panel. */
+export function SourceChip(props: {
   corpus: 'library' | 'authority';
   children: ReactNode;
   onClick?: () => void;

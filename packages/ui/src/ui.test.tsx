@@ -7,7 +7,6 @@ import type { Step } from '@infora/contracts';
 import {
   Badge,
   Button,
-  CitationChip,
   CommandBar,
   MadeCard,
   OutChip,
@@ -15,6 +14,7 @@ import {
   Rail,
   RailNav,
   RunTrace,
+  SourceChip,
   SuggestionCard,
   UserChip,
 } from './index';
@@ -26,9 +26,9 @@ describe('primitives (T-049)', () => {
     expect(html).toContain('class="dot"');
   });
 
-  it('citation chips distinguish library fact from external authority', () => {
-    expect(renderToStaticMarkup(<CitationChip corpus="library">WA-GEO-GIR-004 v2</CitationChip>)).toContain('cite lib');
-    expect(renderToStaticMarkup(<CitationChip corpus="authority">EIA Regs 2017</CitationChip>)).toContain('cite auth');
+  it('sources distinguish library fact from external authority', () => {
+    expect(renderToStaticMarkup(<SourceChip corpus="library">WA-GEO-GIR-004 v2</SourceChip>)).toContain('cite lib');
+    expect(renderToStaticMarkup(<SourceChip corpus="authority">EIA Regs 2017</SourceChip>)).toContain('cite auth');
   });
 
   it('buttons compose variant and size classes', () => {

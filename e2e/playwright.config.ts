@@ -21,7 +21,7 @@ export default defineConfig({
       reuseExistingServer: !process.env['CI'],
     },
     {
-      command: 'pnpm --filter @infora/web-consultant exec vite --port 5273 --strictPort',
+      command: 'pnpm --filter @infora/web exec vite --port 5273 --strictPort',
       url: WEB_URL,
       env: { API_PROXY_TARGET: API_URL },
       reuseExistingServer: !process.env['CI'],

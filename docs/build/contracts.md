@@ -4,7 +4,7 @@
 
 ## Principles (from the design layer, restated as API law)
 
-1. **One typed API, thin surfaces.** Every surface — `web-consultant`, `web-owner`, `word-addin`, `copilot-agent` — calls these contracts and resolves nothing locally (component 8). `packages/contracts` is the single source of truth; `apps/api` implements it.
+1. **One typed API, thin surfaces.** Every surface — `web` (one app, role-scoped views — was `web-consultant`; the planned `web-owner` split is superseded, T-110, 2026-07-14), `word-addin`, `copilot-agent` — calls these contracts and resolves nothing locally (component 8). `packages/contracts` is the single source of truth; `apps/api` implements it.
 2. **No scope-widening parameter exists.** No call takes a corpus, store, organisation or visibility argument that could widen what the requester reaches. Scope is derived server-side from `(environment, requester)` — the ADR-0029 shape, applied to the whole API, not just assembly.
 3. **The requester is resolved, never supplied.** Identity comes from the session (or Entra SSO for Copilot, ADR-0031), resolved server-side to `(user, organisation, participant)`. No endpoint accepts a caller-supplied identity.
 4. **Deny is silent.** An unentitled request returns the same `404 not_found` as a nonexistent resource — existence is never leaked across the wall (M1's deny path).
@@ -129,6 +129,16 @@ review-cycle facts to every entitled reader; its `runs` list carries the request
 own runs only.
 
 ```
+GET /projects/:projectId/history → { items: HistoryEntry[] }
+     // added 2026-07-13 (T-108): the requester's own prompted turns on the
+     // project, newest first — Ask chats and agent use in a document alike.
+     // Self-scoped by construction (only runs the caller requested), so the
+     // producer-private read above is not widened. A turn's document is read
+     // off its suggestions (the run row names none — residual, tracker).
+
+type HistoryEntry = { runId: Id; conversationId: Id; request: string;
+                      state: Run['state']; startedAt: string;
+                      sandboxDocument: { id: Id; title: string } | null };  // null = an Ask chat turn
 ```
 
 ### Work items (M3, M5)
@@ -193,7 +203,10 @@ GET /versions/:versionId
 ### Auth & session (M1, M6)
 
 ```
-POST /auth/session            // skeleton login for seeded users (see plan.md ticket note)
+POST   /auth/session          // skeleton login for seeded users (see plan.md ticket note)
+DELETE /auth/session          // sign out (added 2026-07-14, T-111): clears the cookie, 204;
+                              // idempotent and unauthenticated by design — the cookie is the
+                              // session, so a stale or absent one signs out the same way
 GET  /me                      → { userId, name, organisationId, organisationName,
                                   participants: Array<{ projectId: Id; participantId: Id;
                                                         projectName: string;

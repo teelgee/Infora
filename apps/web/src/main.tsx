@@ -5,6 +5,7 @@ import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
+import { HistoryScreen } from './screens/history';
 import { LibraryScreen } from './screens/library';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { ReviewScreen } from './screens/review';
@@ -28,13 +29,14 @@ const router = createBrowserRouter([
       { path: 'documents', element: <LibraryScreen /> },
       { path: 'review', element: <ReviewScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
+      { path: 'history', element: <HistoryScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemScreen /> },
       {
-        path: 'workflows',
+        path: 'tools',
         element: (
           <EmptyState
-            title="Workflows"
-            note="Workflow launch beyond the chat/draft path is post-skeleton (ruled 2026-07-06)."
+            title="Tools"
+            note="Infora's standard tools, your organisation's own, and the ones you build — each tool runs a codified workflow. Tool launch beyond the chat/draft path is post-skeleton (ruled 2026-07-06); the builder's shape is on the grill tracker."
           />
         ),
       },

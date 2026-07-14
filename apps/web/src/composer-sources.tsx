@@ -2,9 +2,11 @@
 // owner named. One source works today: picking a library document inserts
 // its reference code, which retrieval's lexical arm already honours (T-031).
 // The rest are honest placeholders, each naming what it waits on — attached
-// sources (post-skeleton), standard prompts (to be developed), web search
-// (provider — infra session), sandbox search (ADR-0011 ruling, tracker) and
-// model choice (multi-model routing behind the Router seam, ADR-0028 §9).
+// sources (post-skeleton), standard prompts (to be developed), response style
+// (predetermined styles set by the project/organisation — T-107, design on
+// the tracker), web search (provider — infra session), sandbox search
+// (ADR-0011 ruling, tracker) and model choice (multi-model routing behind
+// the Router seam, ADR-0028 §9).
 import { useEffect, useState } from 'react';
 import type { LibraryItem } from '@infora/contracts';
 import { api } from './api';
@@ -29,6 +31,11 @@ export function ComposerSources(props: { projectId: string; onInsert: (snippet: 
       </button>
       <Placeholder glyph="＋" label="Attach a file" waitsOn="attached sources arrive post-skeleton" />
       <Placeholder glyph="≡" label="Prompts" waitsOn="standard prompts — to be developed" />
+      <Placeholder
+        glyph="✒"
+        label="Style"
+        waitsOn="respond in a set style — predetermined styles from the project/organisation, to be designed (tracker)"
+      />
       <Placeholder glyph="◍" label="Web search" waitsOn="arrives with the search provider (infra session)" />
       <Placeholder
         glyph="▧"

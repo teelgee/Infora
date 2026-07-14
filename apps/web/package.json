@@ -1,9 +1,9 @@
 {
-  "name": "@infora/web-consultant",
+  "name": "@infora/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "workspace + project home, editor, chat, review",
+  "description": "the web surface — one app, role-scoped views: workspace + project home, editor, chat, review",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "dev": "vite",

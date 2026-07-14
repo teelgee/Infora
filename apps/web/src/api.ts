@@ -3,6 +3,8 @@
 import type {
   ApiError,
   CreateConversationResponse,
+  GetConversationResponse,
+  GetHistoryResponse,
   GetLibraryResponse,
   GetVersionResponse,
   GetWorkItemResponse,
@@ -42,6 +44,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   login: (email: string, password: string) =>
     request<void>('/auth/session', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  logout: () => request<void>('/auth/session', { method: 'DELETE' }), // T-111
   me: () => request<MeResponse>('/me'),
   patchMe: (body: PatchMeBody) =>
     request<MeResponse>('/me', { method: 'PATCH', body: JSON.stringify(body) }),
@@ -71,6 +74,9 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ content }),
     }),
+  conversation: (conversationId: string) =>
+    request<GetConversationResponse>(`/conversations/${conversationId}`),
+  history: (projectId: string) => request<GetHistoryResponse>(`/projects/${projectId}/history`),
   createConversation: (projectId: string, workItemId?: string) =>
     request<CreateConversationResponse>(`/projects/${projectId}/conversations`, {
       method: 'POST',

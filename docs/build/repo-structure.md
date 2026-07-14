@@ -8,8 +8,9 @@ A pnpm + Turborepo monorepo, TypeScript throughout. Surfaces are apps; the layer
 infora/
 ├─ apps/
 │  ├─ api/                # only deployable that touches the DB and models
-│  ├─ web-consultant/     # React: workspace + project home, editor, chat, review
-│  ├─ web-owner/          # React: owner/client portfolio view (later)
+│  ├─ web/                # React: the one web app, role-scoped views (was web-consultant;
+│  │                      #   renamed T-110, 2026-07-14 — the owner sees the same app, so the
+│  │                      #   formerly planned web-owner portfolio split is superseded)
 │  ├─ word-addin/         # Office.js task pane, thin client → api (later)
 │  └─ copilot-agent/      # M365 Copilot declarative agent + API plugin → api (ADR-0031)
 ├─ packages/

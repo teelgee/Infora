@@ -110,4 +110,4 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 
 ## Repository mapping
 
-These capabilities land mainly in the `data`, `knowledge`, `workflows` (review cycle) and `governance` packages, with surfaces in `web-consultant` (PDF review, DRR table, plan), `web-owner` (plan and library curation, portfolio) and `word-addin` (consultant authoring). See the build layer's repo-structure.
+These capabilities land mainly in the `data`, `knowledge`, `workflows` (review cycle) and `governance` packages, with surfaces in `web` (PDF review, DRR table, plan for the consultant; plan and library curation, portfolio for the owner — one app, role-scoped views, T-110 2026-07-14) and `word-addin` (consultant authoring). See the build layer's repo-structure.

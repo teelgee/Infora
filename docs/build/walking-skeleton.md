@@ -88,7 +88,7 @@ The append-only Run/Step tree and the coded chain (ADR-0028, ADR-0027).
 
 ### M4 — The consultant surface + Signal loop
 The sandbox document in the editor, the draft proposed against it, and the resolution captured.
-- `web-consultant`: open project, create/open a **sandbox document**, edit it **manually** with no ceremony (no Suggestion, no Signal — as if AI didn't exist), chat, draft rendered **with citations**, accept / edit / reject controls.
+- `web` (the app, renamed from `web-consultant` at T-110): open project, create/open a **sandbox document**, edit it **manually** with no ceremony (no Suggestion, no Signal — as if AI didn't exist), chat, draft rendered **with citations**, accept / edit / reject controls.
 - Resolution written as an append-only **Signal** on the Suggestion (`accepted` | `edited` | `rejected`, `edited_content` when edited) — Drawer 4; on accept or edit, the content is **applied to the sandbox document**.
 - **Acceptance:** the consultant sees the cited draft; each of the three resolutions writes exactly one Signal; accept/edit lands the content in the sandbox document, reject leaves it untouched; a manual edit writes no Suggestion and no Signal; the Signal is stored and **sunk nowhere** (the loop is thin — nothing distils it yet, as intended); a re-draft opens a **new Run** on the same Work item (ADR-0028 §2), leaving the first Run's record intact.
 

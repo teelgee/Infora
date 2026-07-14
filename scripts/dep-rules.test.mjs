@@ -7,7 +7,7 @@ describe('checkDeps', () => {
   it('passes a surface depending only on contracts and ui', () => {
     expect(
       checkDeps([
-        pkg('@infora/web-consultant', {
+        pkg('@infora/web', {
           '@infora/contracts': 'workspace:*',
           '@infora/ui': 'workspace:*',
           react: '^19.0.0',
@@ -18,10 +18,10 @@ describe('checkDeps', () => {
 
   it('rejects a surface reaching below the API', () => {
     const violations = checkDeps([
-      pkg('@infora/web-consultant', { '@infora/db': 'workspace:*' }),
+      pkg('@infora/web', { '@infora/db': 'workspace:*' }),
     ]);
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('@infora/web-consultant → @infora/db');
+    expect(violations[0]).toContain('@infora/web → @infora/db');
   });
 
   it('rejects db or contracts depending on anything internal', () => {

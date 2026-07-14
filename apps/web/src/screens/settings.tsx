@@ -1,7 +1,7 @@
 // Personal settings (T-092, from the 2026-07-09 QA review): the user chip
 // opens this page — profile facts, an editable display name, a saved theme,
-// and the skeleton password change (useful as the break-glass path even
-// after Entra SSO lands). Every write here is self-scoped.
+// the skeleton password change (useful as the break-glass path even after
+// Entra SSO lands), and sign out (T-111). Every write here is self-scoped.
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -50,6 +50,12 @@ export function SettingsScreen() {
       if (error instanceof RequestError && error.status === 401) setPasswordState('wrong');
       else throw error;
     }
+  }
+
+  // T-111 — the full reload lands on the login screen via the session gate
+  async function signOut() {
+    await api.logout();
+    window.location.assign('/');
   }
 
   const field = {
@@ -170,6 +176,18 @@ export function SettingsScreen() {
               {passwordState === 'short' && <Badge tone="red">New password too short</Badge>}
             </div>
           </form>
+        </Card>
+
+        <SectionLabel>Session</SectionLabel>
+        <Card>
+          <div style={{ padding: 18, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+            <Button size="sm" variant="danger" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+            <span style={{ color: 'var(--muted)' }}>
+              Ends this session on this device — you land back at the login screen.
+            </span>
+          </div>
         </Card>
       </div>
     </div>

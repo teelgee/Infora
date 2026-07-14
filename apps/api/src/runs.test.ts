@@ -3,7 +3,7 @@
 // ruling — work-item-bound runs are project record (owner-readable in full);
 // ad-hoc runs belong to the producing organisation only.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Run } from '@infora/contracts';
+import type { GetHistoryResponse, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
@@ -15,6 +15,7 @@ const stamp = Date.now();
 const password = 'pw-t046';
 let owner: string; // owner-org session
 let consultant: string; // member-org session
+let memberOrgId: string;
 let projectId: string;
 let workItemId: string;
 let sandboxDocumentId: string; // the consultant org's
@@ -59,6 +60,7 @@ const get = (cookie: string, path: string) => app.request(path, { headers: { coo
 beforeAll(async () => {
   const [orgOwner] = await db.insert(s.organisations).values({ name: 't046 owner org' }).returning();
   const [orgMember] = await db.insert(s.organisations).values({ name: 't046 member org' }).returning();
+  memberOrgId = orgMember!.id;
   const [project] = await db
     .insert(s.projects)
     .values({ name: 't046 project', ownerOrganisationId: orgOwner!.id })
@@ -230,6 +232,43 @@ describe('the full chain over HTTP (T-046)', () => {
     expect(run.suggestions).toEqual([]);
     expect(run.citations).toHaveLength(1); // the grounded claim only
     expect(run.citations[0]!.source).toEqual({ versionId, documentReference });
+  });
+});
+
+// T-108 — History: the log of the requester's own prompted turns on the
+// project, newest first; a fresh user keeps the assertions exact against the
+// shared database
+describe('project history (T-108)', () => {
+  it("lists only the requester's own turns, newest first, naming the document a turn targeted", async () => {
+    await makeUser('t046-historian', memberOrgId, projectId);
+    const historian = await session(`t046-historian-${stamp}@test.local`);
+
+    const chat = await openConversation(historian);
+    await post(historian, `/conversations/${chat}/runs`, { request: 'history chat turn' });
+    const drafting = await openConversation(historian);
+    await post(historian, `/conversations/${drafting}/runs`, {
+      request: 'history document turn',
+      sandboxDocumentId,
+    });
+
+    const res = await get(historian, `/projects/${projectId}/history`);
+    expect(res.status).toBe(200);
+    const { items } = (await res.json()) as GetHistoryResponse;
+
+    // exactly their two turns — no sub-agent runs, one entry per run
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      request: 'history document turn',
+      state: 'completed',
+      sandboxDocument: { id: sandboxDocumentId, title: 't046 draft' },
+    });
+    expect(items[1]).toMatchObject({ request: 'history chat turn', sandboxDocument: null });
+    expect(items[1]!.conversationId).toBe(chat); // Ask reopens the conversation from here
+
+    // self-scoped: a colleague in the same organisation sees none of it
+    const colleague = await get(consultant, `/projects/${projectId}/history`);
+    const colleagueItems = ((await colleague.json()) as GetHistoryResponse).items;
+    expect(colleagueItems.some((entry) => entry.request.startsWith('history '))).toBe(false);
   });
 });
 

@@ -36,10 +36,10 @@ const SECTIONS = {
     glyph: '▧',
     note: 'Your private drive — folders and documents only you can see, never visible to the AI as context. It arrives with the sandbox drawer.',
   },
-  workflows: {
-    label: 'Workflows',
-    glyph: '▸',
-    note: 'The workflow builder — compose and tighten your own workflows. Proposed as its own slice (2026-07-09); its shape is on the grill tracker.',
+  tools: {
+    label: 'Tools',
+    glyph: '⚒',
+    note: "Your organisation's toolkit — Infora's standard tools and the ones your firm builds; each tool runs a codified workflow. Building your own happens here too (proposed as its own slice, 2026-07-09); the builder's shape and the tool-scoping ruling (2026-07-13) are on the grill tracker.",
   },
   knowledge: {
     label: 'Your knowledge',
@@ -144,7 +144,7 @@ export function WorkspaceLanding() {
             {greeting()}, {me.name.split(' ')[0]}
           </h1>
           <p className="page-sub">
-            Your firm&apos;s workspace — its own knowledge, sandboxes and workflows. No client
+            Your firm&apos;s workspace — its own knowledge, sandboxes and tools. No client
             project is in scope here.
           </p>
 

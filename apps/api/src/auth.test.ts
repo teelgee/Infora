@@ -109,6 +109,28 @@ describe('GET /me (T-021)', () => {
   });
 });
 
+// T-111 — sign out: deleting the cookie ends the session; idempotent
+describe('DELETE /auth/session (T-111)', () => {
+  it('clears the cookie so /me is unauthenticated again', async () => {
+    const session = (await login({ email, password })).headers.get('set-cookie')!.split(';')[0]!;
+    expect((await app.request('/me', { headers: { cookie: session } })).status).toBe(200);
+
+    const res = await app.request('/auth/session', {
+      method: 'DELETE',
+      headers: { cookie: session },
+    });
+    expect(res.status).toBe(204);
+    // the clearing Set-Cookie empties the value and expires it
+    const cleared = res.headers.get('set-cookie')!;
+    expect(cleared).toContain('infora_session=;');
+    expect(cleared.toLowerCase()).toContain('max-age=0');
+  });
+
+  it('is idempotent — signing out without a session still succeeds', async () => {
+    expect((await app.request('/auth/session', { method: 'DELETE' })).status).toBe(204);
+  });
+});
+
 // T-092 — personal settings: self-scoped writes on the session's own row
 describe('PATCH /me and POST /me/password (T-092)', () => {
   const authed = async () =>

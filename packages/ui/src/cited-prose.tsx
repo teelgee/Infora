@@ -1,11 +1,11 @@
-// T-095 — prose with its citations inline: each chip renders at the end of
+// T-095 — prose with its sources inline: each source renders at the end of
 // the claim it backs, located by the citation's claimSpan over the text
 // (the cite leaf computes spans against the same paragraph-joined content).
 // Claims without a citation (labelled open-world in chat) render plain; a
 // citation without a span — none are written today — falls back to trailing.
 import type { Citation } from '@infora/contracts';
 import { Markdown } from './markdown';
-import { CitationChip } from './primitives';
+import { SourceChip } from './primitives';
 
 type Segment = { text: string; citations: Citation[] };
 
@@ -36,7 +36,7 @@ function chip(citation: Citation, onOpenSource?: (versionId: string) => void) {
   const library = 'versionId' in citation.source;
   const source = citation.source;
   return (
-    <CitationChip
+    <SourceChip
       key={citation.id}
       corpus={library ? 'library' : 'authority'}
       onClick={
@@ -46,7 +46,7 @@ function chip(citation: Citation, onOpenSource?: (versionId: string) => void) {
       }
     >
       {'versionId' in source ? source.documentReference : source.authorityRef}
-    </CitationChip>
+    </SourceChip>
   );
 }
 

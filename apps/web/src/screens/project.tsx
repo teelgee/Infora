@@ -1,9 +1,11 @@
 // The project shell (T-050) per docs/design/mockups/project-home.html: the
-// seven-item rail (Home · Ask · Editor · Documents · Review · Sandbox ·
-// Workflows — component 8's fixed set; Knowledge is staged out of the v1
-// nav), the topbar crumb, and the home content. Review and Workflows ship as
-// empty states (ruled 2026-07-06); Ask/Editor/Documents/Sandbox fill with
-// their tickets.
+// rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools ·
+// History — component 8's set plus the T-108 History log; Workflows renamed
+// Tools, owner-ruled 2026-07-13/T-109: a tool is the packaged capability you
+// launch, a workflow is the codified sequence it runs; Knowledge is staged
+// out of the v1 nav), the topbar crumb, and the home content. Review and
+// Tools ship as empty states (ruled 2026-07-06); Ask/Editor/Documents/
+// Sandbox fill with their tickets.
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
@@ -35,7 +37,8 @@ const NAV = [
   { label: 'Documents', glyph: '▤', path: 'documents' },
   { label: 'Review', glyph: '✓', path: 'review' },
   { label: 'Sandbox', glyph: '▧', path: 'sandbox' },
-  { label: 'Workflows', glyph: '▸', path: 'workflows' },
+  { label: 'Tools', glyph: '⚒', path: 'tools' }, // Workflows renamed (T-109)
+  { label: 'History', glyph: '↺', path: 'history' }, // your prompted turns (T-108)
 ];
 
 export function ProjectShell() {

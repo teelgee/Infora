@@ -6,9 +6,9 @@
 // *document* through the review cycle, never the agent's internals.
 // Everything else is the same not_found as nonexistence.
 import { Hono } from 'hono';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { createConversationBody, createRunBody } from '@infora/contracts';
-import type { ApiError, Id, Run, WorkItem } from '@infora/contracts';
+import type { ApiError, GetHistoryResponse, HistoryEntry, Id, Run, WorkItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
@@ -92,6 +92,53 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
       return c.json({ runs: await visibleRuns(deps.db, rows, c.get('slice')) });
     },
   );
+
+  // T-108 — the requester's own history on the project: their prompted
+  // turns, newest first, Ask chats and document runs alike. Self-scoped by
+  // construction (only runs the caller requested), so the producer-private
+  // read (T-104) holds without a visibility walk. The document a turn
+  // targeted is read off its suggestions (the run row carries no document;
+  // a document run that produced none reads as a chat turn — tracker).
+  app.get('/projects/:projectId/history', project, async (c) => {
+    const slice = c.get('slice');
+    const rows = await deps.db
+      .select({
+        run: s.runs,
+        documentId: s.sandboxDocuments.id,
+        documentTitle: s.sandboxDocuments.title,
+      })
+      .from(s.runs)
+      .innerJoin(s.conversations, eq(s.runs.conversationId, s.conversations.id))
+      .leftJoin(s.suggestions, eq(s.suggestions.runId, s.runs.id))
+      .leftJoin(s.sandboxDocuments, eq(s.suggestions.sandboxDocumentId, s.sandboxDocuments.id))
+      .where(
+        and(
+          eq(s.conversations.projectId, slice.projectId),
+          eq(s.runs.requesterParticipantId, slice.participantId),
+          isNull(s.runs.parentRunId),
+        ),
+      )
+      .orderBy(desc(s.runs.startedAt));
+
+    const items: HistoryEntry[] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      if (seen.has(row.run.id)) continue; // one entry per run — its suggestions share a document
+      seen.add(row.run.id);
+      items.push({
+        runId: row.run.id,
+        conversationId: row.run.conversationId,
+        request: row.run.request,
+        state: row.run.state,
+        startedAt: row.run.startedAt.toISOString(),
+        sandboxDocument:
+          row.documentId !== null && row.documentTitle !== null
+            ? { id: row.documentId, title: row.documentTitle }
+            : null,
+      });
+    }
+    return c.json({ items } satisfies GetHistoryResponse);
+  });
 
   app.get('/projects/:projectId/work-items', project, async (c) => {
     const rows = await deps.db

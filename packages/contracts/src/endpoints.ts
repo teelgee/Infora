@@ -48,6 +48,23 @@ export type CreateRunResponse = Run; // completed, with steps, suggestions and c
 export type GetRunResponse = Run; // the immutable audit read (owner path, M5)
 export type GetConversationResponse = { runs: Run[] };
 
+// GET /projects/:projectId/history
+//     added 2026-07-13 (T-108): the requester's own prompted turns on the
+//     project, newest first — Ask chats and agent use in a document alike.
+//     Self-scoped by construction (only runs the caller requested), so the
+//     producer-private record read (T-104) is not widened. The document a
+//     turn targeted is read off its suggestions; a document run that
+//     produced none reads as a chat turn (residual, tracker).
+export type HistoryEntry = {
+  runId: Id;
+  conversationId: Id;
+  request: string;
+  state: Run['state'];
+  startedAt: string;
+  sandboxDocument: { id: Id; title: string } | null; // null = an Ask chat turn
+};
+export type GetHistoryResponse = { items: HistoryEntry[] };
+
 // ── Work items (M3, M5) ────────────────────────────────────────────────────
 //
 // GET /projects/:projectId/work-items
@@ -150,10 +167,12 @@ export type GetVersionResponse = {
 
 // ── Auth & session (M1, M6) ────────────────────────────────────────────────
 //
-// POST /auth/session — skeleton login for the seeded users (plan.md's recorded
-// build-time decision: email + password, httpOnly cookie; T-021 implements —
-// the cookie is the product, the response shape lands there).
-// GET  /me
+// POST   /auth/session — skeleton login for the seeded users (plan.md's recorded
+//        build-time decision: email + password, httpOnly cookie; T-021 implements —
+//        the cookie is the product, the response shape lands there).
+// DELETE /auth/session — sign out (added 2026-07-14, T-111): clears the cookie,
+//        204; idempotent and unauthenticated by design.
+// GET    /me
 //
 // Copilot adds no endpoints: the API plugin (ADR-0031) calls the same
 // contracts with `surface: 'copilot'`, identity mapped from Entra SSO via

@@ -105,10 +105,13 @@ A per-document guidance artefact: a living `.md` generated and maintained for ea
 
 ---
 
-## Work and workflows
+## Work, workflows and tools
 
 **Workflow**
-A defined, governed, repeatable process that produces an output. Examples: document production, assurance, feedback triage.
+A defined, governed, repeatable process that produces an output. Examples: document production, assurance, feedback triage. The engine's term — on the surfaces users meet workflows packaged as **tools** (renamed from the Workflows nav section, 2026-07-13, T-109).
+
+**Tool**
+The packaged, launchable capability a user meets on the Tools surface. The minimal tool is a single workflow with a name and description; a richer tool (e.g. a QA tool) steps through several workflows. Users see tools; *workflow* stays the engine's term for the codified sequence underneath. Three provenances (owner-ruled 2026-07-13): **standard** (Infora's, for all users), **org-built** (the organisation's own — travelling with its users into projects, never visible across the wall, per the org-context informing rule ADR-0020), and **individually-built** (org-visible in the MVP; per-org privacy is a future organisation choice). Building your own happens in the Tools surface (the Slice F builder); the built workflow surfaces as your own tool.
 
 **Assurance (workflow)**
 The AI workflow that checks a document against predetermined rules and style guides. Distinct from the Assurance cycle: a team typically runs the assurance workflow on a draft, then pushes the document through the assurance cycle to publish it.
@@ -150,10 +153,10 @@ The changing part of the reference, appended to the document reference, that ide
 A representation of a version of a deliverable. The native file is the owned source; the PDF is the authoritative review-and-record rendition, bound to the native file at promotion.
 
 **Standard workflow**
-A workflow provided by Infora.
+A workflow provided by Infora; surfaces as a **standard tool** on the Tools page, available to all users.
 
 **Custom workflow**
-A workflow built by an organisation, held in org context, deployable to any project the organisation works on.
+A workflow built by an organisation, held in org context, deployable to any project the organisation works on; surfaces as one of the organisation's own **tools**, visible only to that organisation's users (individually-built tools are org-visible in the MVP — 2026-07-13 scoping ruling, tracker).
 
 **Capability**
 A reusable domain skill that workflows compose. Examples: grounded generation, compliance check, tabular review, plain-English, document understanding.
