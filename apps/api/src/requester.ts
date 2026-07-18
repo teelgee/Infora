@@ -41,7 +41,7 @@ export function sessionMiddleware(deps: {
 }
 
 /** (user, project) → EntitledSlice via the wall predicate; null is deny. */
-async function resolveSlice(db: Db, user: UserRow, projectId: string): Promise<EntitledSlice | null> {
+export async function resolveSlice(db: Db, user: UserRow, projectId: string): Promise<EntitledSlice | null> {
   if (!isUuid(projectId)) return null;
   const [project] = await db.select().from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
   const [membership] = await db

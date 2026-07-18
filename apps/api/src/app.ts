@@ -11,6 +11,7 @@ import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
+import { containerRoutes, planRoutes } from './plan';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { runRoutes } from './runs';
@@ -57,6 +58,11 @@ export function buildApp(deps: AppDeps) {
 
   // Access administration + the roster (Slice A, ADR-0033) — T-117
   app.route('/', administrationRoutes(deps));
+
+  // The deliverable plan: TIDP rows, MIDP consolidation, appointments
+  // (Slice A, ADR-0008/0017/0033) — T-118/T-119
+  app.route('/', planRoutes(deps));
+  app.route('/', containerRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

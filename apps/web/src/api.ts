@@ -7,6 +7,7 @@ import type {
   GetConversationResponse,
   GetHistoryResponse,
   GetLibraryResponse,
+  GetPlanResponse,
   GetVersionResponse,
   GetWorkItemResponse,
   ListOrgUsersResponse,
@@ -17,8 +18,10 @@ import type {
   ListWorkItemsResponse,
   MeResponse,
   PatchMeBody,
+  PlanRow,
   Resolution,
   ResolveSuggestionResponse,
+  ReviewerGrant,
   RosterEntry,
   Run,
   SandboxComment,
@@ -78,6 +81,15 @@ export const api = {
   // T-112 — sandbox comments: working-draft threads, mutable like the sandbox
   participants: (projectId: string) =>
     request<ListRosterResponse>(`/projects/${projectId}/participants`),
+  // T-118/T-119 — the deliverable plan (ADR-0008/0033)
+  plan: (projectId: string) => request<GetPlanResponse>(`/projects/${projectId}/plan`),
+  createPlanRow: (projectId: string, documentReference: string, title: string) =>
+    request<PlanRow>(`/projects/${projectId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify({ documentReference, title }),
+    }),
+  confirmReviewer: (grantId: string) =>
+    request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
   // T-117 — access administration (ADR-0033): org admins staff their seat
   orgUsers: () => request<ListOrgUsersResponse>('/organisation/users'),
   enrolParticipant: (projectId: string, userId: string) =>
