@@ -3,7 +3,17 @@
 import type {
   ApiError,
   CreateConversationResponse,
+  CreateReviewCommentBody,
   CreateSandboxCommentBody,
+  FreezeResult,
+  IssueRoundResponse,
+  ListAcceptanceCodesResponse,
+  ListRenditionsResponse,
+  PromotionResult,
+  ReviewComment,
+  ReviewCycle,
+  ReviewResponseRecord,
+  Round,
   GetConversationResponse,
   GetHistoryResponse,
   GetLibraryResponse,
@@ -90,6 +100,38 @@ export const api = {
     }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
+  // T-120–T-126 — promotion, the freeze and the round loop (ADR-0032)
+  cycle: (containerId: string) => request<ReviewCycle | null>(`/containers/${containerId}/cycle`),
+  acceptanceCodes: (projectId: string) =>
+    request<ListAcceptanceCodesResponse>(`/projects/${projectId}/acceptance-codes`),
+  promoteDocument: (documentId: string) =>
+    request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, { method: 'POST' }),
+  freezeDocument: (documentId: string) =>
+    request<FreezeResult>(`/sandbox-documents/${documentId}/freeze`, { method: 'POST' }),
+  addReviewComment: (roundId: string, body: CreateReviewCommentBody) =>
+    request<ReviewComment>(`/rounds/${roundId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  setDeliverableCode: (roundId: string, acceptanceCodeId: string) =>
+    request<Round>(`/rounds/${roundId}/deliverable-code`, {
+      method: 'POST',
+      body: JSON.stringify({ acceptanceCodeId }),
+    }),
+  issueRound: (roundId: string) =>
+    request<IssueRoundResponse>(`/rounds/${roundId}/issue`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  respondToComment: (commentId: string, body: string, noChangeReason: string) =>
+    request<ReviewResponseRecord>(`/review-comments/${commentId}/response`, {
+      method: 'POST',
+      body: JSON.stringify({ body, noChangeReason }),
+    }),
+  closeRejected: (cycleId: string) =>
+    request<ReviewCycle>(`/cycles/${cycleId}/close-rejected`, { method: 'POST' }),
+  renditions: (versionId: string) =>
+    request<ListRenditionsResponse>(`/versions/${versionId}/renditions`),
   // T-117 — access administration (ADR-0033): org admins staff their seat
   orgUsers: () => request<ListOrgUsersResponse>('/organisation/users'),
   enrolParticipant: (projectId: string, userId: string) =>

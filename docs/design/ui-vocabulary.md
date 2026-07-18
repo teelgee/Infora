@@ -58,6 +58,16 @@
 | **Workflow** | The engine's term for the codified step sequence a tool — or the review cycle — runs (`packages/workflows`, ADR-0026/0027). Never a navigation destination; say "tool" on the surfaces. |
 | **Builder** | The build-a-tool entry inside Tools (Slice F); a built workflow surfaces as your own tool, org-visible in the MVP (scoping ruling on the tracker). |
 
+## Review & the cycle
+
+| Term | What it is |
+|------|------------|
+| **Plan table** | The Review page's table (T-118/T-119): a member's own TIDP rows with "+ Plan a deliverable"; the owner's consolidated MIDP with confirm-proposed-reviewer. Rows open the cycle page. |
+| **Cycle page** | The deliverable's DRR made a screen (T-127): rounds newest-first with comments, codes, responses, transmittal downloads; the actions each role holds at each phase. |
+| **Round card** | One round on the cycle page: state badge, verdict badge, rendition downloads, the comment list, and the phase's forms (comment/code while open; verdict + "Close & issue" for the lead reviewer; "Record the response" for authors while issued). |
+| **Checked out** | The Editor's amber badge while an internal round is open on the frozen head (T-125): saving and promotion pause until issue hands the pen back. |
+| **Freeze / Promote buttons** | The Editor topbar's two crossings (T-125/T-120): ❄ Freeze snapshots into the org-private P-series; ⇧ Promote is the near-empty hand-off into the waiting container. |
+
 ## Settings
 
 | Term | What it is |

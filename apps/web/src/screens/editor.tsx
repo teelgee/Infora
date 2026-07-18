@@ -21,7 +21,7 @@ import {
   WithheldNotice,
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
@@ -417,12 +417,58 @@ export function EditorScreen() {
           / <b>{doc.title}</b>
         </span>
         <div className="right">
-          {dirty ? (
+          {doc.headLocked && (
+            <Badge tone="amber">Checked out — an internal round is open on the frozen head</Badge>
+          )}
+          {!doc.headLocked && doc.origin === 'authored' && (
+            <span title="Freeze the head into the document's org-private P-series (ADR-0032)">
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() =>
+                void api
+                  .freezeDocument(doc.id)
+                  .then((f) => {
+                    void load();
+                    window.alert(`Frozen as ${f.versionReference} in the internal series.`);
+                  })
+                  .catch(() => window.alert('Freeze refused — a round may already be open.'))
+              }
+            >
+              ❄ Freeze
+            </Button>
+            </span>
+          )}
+          {doc.containerId && !doc.headLocked && (
+            <span title="Promote into the waiting container — the near-empty hand-off (ADR-0008)">
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() =>
+                void api
+                  .promoteDocument(doc.id)
+                  .then((r) =>
+                    navigate(`/projects/${participant.projectId}/review/${doc.containerId}`, {
+                      state: { promoted: r.versionReference },
+                    }),
+                  )
+                  .catch((error: unknown) => {
+                    const detail =
+                      error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : 'failed';
+                    window.alert(`Promotion refused: ${detail}`);
+                  })
+              }
+            >
+              ⇧ Promote
+            </Button>
+            </span>
+          )}
+          {dirty && !doc.headLocked ? (
             <Button size="sm" variant="primary" onClick={() => void save(content)}>
               Save
             </Button>
           ) : (
-            <Badge tone="grey">No document controls</Badge>
+            !doc.headLocked && <Badge tone="grey">No document controls</Badge>
           )}
         </div>
       </div>

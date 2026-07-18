@@ -6,7 +6,7 @@
 // DRR open from each row as the cycle tickets land (T-123+).
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, PlanRow, ReviewerGrant, RosterEntry } from '@infora/contracts';
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api } from '../api';
@@ -16,6 +16,7 @@ type ShellContext = { participant: MeResponse['participants'][number] };
 
 export function ReviewScreen() {
   const { participant } = useOutletContext<ShellContext>();
+  const navigate = useNavigate();
   const isOwner = participant.membershipRole === 'owner';
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
@@ -125,7 +126,11 @@ export function ReviewScreen() {
                 (g) => g.revokedAt === null && g.confirmedAt === null,
               );
               return (
-                <tr key={row.containerId}>
+                <tr
+                  key={row.containerId}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => void navigate(`/projects/${participant.projectId}/review/${row.containerId}`)}
+                >
                   <td style={{ fontFamily: 'var(--mono, monospace)', fontSize: 12 }}>
                     {row.documentReference}
                   </td>
@@ -149,9 +154,11 @@ export function ReviewScreen() {
                           <span key={g.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                             <Badge tone="amber">proposed: {g.name}</Badge>
                             {isOwner && (
-                              <Button size="sm" variant="quiet" onClick={() => void confirmReviewer(g)}>
-                                Confirm
-                              </Button>
+                              <span onClick={(e) => e.stopPropagation()}>
+                                <Button size="sm" variant="quiet" onClick={() => void confirmReviewer(g)}>
+                                  Confirm
+                                </Button>
+                              </span>
                             )}
                           </span>
                         ))}
