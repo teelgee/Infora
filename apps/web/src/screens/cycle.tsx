@@ -99,7 +99,6 @@ export function CycleScreen() {
   const myReviewer = row.reviewers.find(
     (g) => g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null,
   );
-  const isOwner = me.membershipRole === 'owner';
   const status = statusBadge(row.workItem?.status ?? row.state);
 
   async function act(action: () => Promise<unknown>) {
@@ -147,19 +146,11 @@ export function CycleScreen() {
             Promote the next version
           </Button>
         )}
-        {cycle?.state === 'active' && (myAuthor?.isLead || isOwner) && (
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => {
-              if (window.confirm('Close this deliverable as rejected? It stays on the record and never grounds.')) {
-                void act(() => api.closeRejected(cycle.id));
-              }
-            }}
-          >
-            Close as rejected
-          </Button>
-        )}
+        {/* "Close as rejected" once sat here for the lead author or owner.
+            Abandoning a deliverable (→ container `rejected`, never grounds —
+            ADR-0032/T-126) is a governance-level, destructive act, not a
+            routine project-role power, so it moves to the admin/super-user
+            tier (T-133). The API path stands until that tier lands. */}
       </div>
 
       {!cycle && (
