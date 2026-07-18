@@ -1,6 +1,6 @@
 # ADR-0002 - Controlled revisions are immutable snapshots; one in flight per document
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): promotion takes a *version* — the live head snapshot, or a QA-accepted frozen version from an internal sandbox-scope cycle — never a head that has drifted past its QA. The sandbox also gains ambient version history and an optional freeze; the head-stays-live rule below holds for the project-scope cycle, while a sandbox-scope round locks the head.
 
 **Context:** A sandbox working copy and the controlled document are different entities. Teams keep drafting while a revision is under review. The current world issues controlled revisions (v1, v2...) each with a DRN round-trip, and never runs two controlled revisions of one document in parallel.
 

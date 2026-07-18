@@ -1,6 +1,6 @@
 # ADR-0017 - The authoring side mirrors the review side: lead author and authors; both sides named on the deliverable plan, inherited at cycle launch, and amendable at any time, each side only over its own set
 
-**Status:** Accepted. Refines ADR-0008, ADR-0014 and ADR-0016. Refined by ADR-0019 (authors may span the organisations sharing the deliverable's sandbox).
+**Status:** Accepted. Refines ADR-0008, ADR-0014 and ADR-0016. Refined by ADR-0019 (authors may span the organisations sharing the deliverable's sandbox). Refined by ADR-0033 (2026-07-18): both sides are stored as append-only interval grant rows on the container (`deliverable_author` / `deliverable_reviewer`) — inherit-at-launch collapses to the cycle reading the live sets; reviewers may be *proposed* by the producing organisation, conferring no access until owner-confirmed; past-round attribution is reconstructed from intervals, never from snapshots.
 
 **Context:** ADR-0014 handed the edit lock to "the consultant team" at issue without saying who they are or who appoints them, and ADR-0016 said the owner grants all access. A deliverable needs a producing side with the same shape as the reviewing side: people who write it and respond to comments, and one person who holds the authority to promote, which transmits the version and flips the edit lock. We also had to decide who names these people and when.
 

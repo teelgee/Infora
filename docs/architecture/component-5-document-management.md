@@ -12,6 +12,8 @@ Transmittal is the event that issues a version for review and returns it. On pla
 
 The project library is the curated, owner-controlled corpus and the only project-side corpus the AI grounds on, for both chat and drafting (ADR-0011, refined by ADR-0021). Accepted deliverables enter automatically; the owner may add other reference material. It is a collection of coded deliverables, presented flat or foldered per project configuration (refined 2026-07-06) — folders organise the view but are never access objects. A document's currency is expressed by state, not deletion: superseded and withdrawn documents stay in the library and remain auditable, but leave the grounded corpus (ADR-0013).
 
+**The review cycle generalised (2026-07-18, ADR-0032; drawn in [diagrams/slice-a-review-model.tldr](diagrams/slice-a-review-model.tldr)).** The cycle is role-agnostic — an authoring side and a reviewing side per instance, not consultant-vs-client — and runs at two scopes on one Version substrate: a **sandbox-scope** instance is the org-private internal formal review (its DRR is the firm's QA evidence, retained permanently, never crossing the wall), a **project-scope** instance is the client review described above. The sandbox itself gains SharePoint-style ambient version history (a tool, not a record) and a **freeze** ("check out") — promotion's twin at sandbox scope — with the head locked while an internal round is open. The internal cycle is optional ceremony, never a system gate: promotion takes the live head snapshot or a QA-accepted frozen version, never a drifted head. The cycle is the instance unit with the DRR as its record, and carries two terminals — accepted, and closed-rejected by explicit audited action of the lead author or project owner; a rejected deliverable stays in the library, badged (state `rejected`, ADR-0013), and never grounds. Sandbox-scope review's rendition (PDF vs frozen native text) is deliberately parked.
+
 The component owns one workflow, the review cycle, and no other; how workflows are defined, composed and launched belongs to the Engine (component 6) (ADR-0012). All access is resolved by the access model (component 2) before any data is touched; this component consumes those decisions, including DRR visibility and the edit lock, and never resolves its own permissions.
 
 ---
@@ -28,25 +30,25 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 
 ## 1. Deliverable plan
 
-**Responsibility.** Hold the project's schedule of deliverable containers; generate each reference from the project's naming rules; appoint the review group and authoring team per deliverable, at planning time, both amendable thereafter.
-**Governing ADRs.** 0008, 0017.
+**Responsibility.** Hold each producing organisation's schedule of deliverable containers (the TIDP — the organisation creates its containers, sets metadata, names its authoring team, proposes reviewers where known) and the owner's consolidation of all plans into the single project schedule (the MIDP view, with access curation and reviewer confirmation); generate each reference from the project's naming rules.
+**Governing ADRs.** 0008, 0017, 0033.
 **Terms owned.** Deliverable plan, Document reference, Version reference (shared with §2). References Review group and the authoring team, owned by the access model (component 2), both named on the plan.
 **Surfaces.** Plan builder (owner); the plan doubles as the live MIDP-style status tracker.
 **Depends on.** Access model (who may edit the plan and appoint reviewers and authors); the per-project naming scheme, which is deferred.
 
 ## 2. Container and versioning
 
-**Responsibility.** Be the persistent home of one deliverable; hold its immutable versions and both renditions (native source and PDF); enforce one in-flight controlled revision at a time.
-**Governing ADRs.** 0002, 0004.
-**Terms owned.** Container, Rendition, Formal deliverable.
+**Responsibility.** Be the persistent home of one deliverable; hold its immutable versions and their stored renditions (native — docx/xlsx/pptx, generated for authored documents, the file itself for uploaded ones; and the review-and-record PDF); enforce one in-flight controlled revision at a time; carry canonical content by document origin (authored = Infora structured text, uploaded = the native file, ADR-0034).
+**Governing ADRs.** 0002, 0004, 0034.
+**Terms owned.** Container, Rendition, Formal deliverable, Document origin.
 **Surfaces.** Container / document view.
 **Depends on.** Deliverable plan (a container is a planned row); data and db packages.
 
 ## 3. Promotion and the assurance cycle
 
-**Responsibility.** Cross a sandbox working copy into the controlled zone (promotion); run the version lifecycle through review rounds to acceptance; close rounds by explicit human action; carry a configurable gate sequence and a review period that only guides.
-**Governing ADRs.** 0005, 0008, 0002.
-**Terms owned.** Promote, Assurance cycle, Review round.
+**Responsibility.** Cross a version of sandbox work into the controlled zone (promotion — the head snapshot or a QA-accepted frozen version); run the version lifecycle through review rounds to a terminal — acceptance, or an explicit audited close-rejected; close rounds by explicit human action; carry a configurable gate sequence and a review period that only guides. Own the sandbox-scope instance: ambient version history, the freeze/check-out, and the org-private internal cycle.
+**Governing ADRs.** 0005, 0008, 0002, 0032.
+**Terms owned.** Promote, Assurance cycle, Review cycle, Review round, Freeze (check out), Ambient version history.
 **Surfaces.** Promotion action; round and status lifecycle view.
 **Depends on.** Deliverable plan (container and reviewers already set); the Engine (component 6) — the review cycle is the one workflow owned here, per ADR-0012.
 
@@ -60,16 +62,16 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 
 ## 5. The DRR
 
-**Responsibility.** Hold one live, append-only review record per deliverable spanning every version: comments, consultant responses, acceptance codes; freeze an internal snapshot at each transmittal in either direction; never materialise an issued notice.
-**Governing ADRs.** 0003, 0006, 0009, 0014.
-**Terms owned.** Deliverable Review Record (DRR), Comment, Suggestion, Signal.
+**Responsibility.** Hold one live, append-only review record per cycle (per deliverable at project scope) spanning every version it reviews: comments, authoring-side responses, acceptance codes; freeze an internal snapshot at each transmittal in either direction; never materialise an issued notice; keep a sandbox-scope cycle's record org-private, permanently.
+**Governing ADRs.** 0003, 0006, 0009, 0014, 0032.
+**Terms owned.** Deliverable Review Record (DRR), Comment, Response, Suggestion, Signal.
 **Surfaces.** The DRR table interface, with hover-to-anchor and click-through response links.
 **Depends on.** PDF review (anchors), acceptance and coding (§6), the access model (DRR visibility and the edit lock, ADR-0014).
 
 ## 6. Acceptance and coding
 
-**Responsibility.** Carry acceptance codes at two levels, per comment and per deliverable, on a per-project configurable scheme; make the lead reviewer authoritative; support reviewer approval of responses; close the work item on client acceptance of a version.
-**Governing ADRs.** 0003, 0005.
+**Responsibility.** Carry acceptance codes at two levels, per comment and per deliverable, on a per-project configurable scheme (copied from Infora's default at project creation; used codes retire, never redefine); make the lead reviewer authoritative; support reviewer approval of responses; close the work item on the cycle's terminal — acceptance, or the explicit audited close-rejected (ADR-0032).
+**Governing ADRs.** 0003, 0005, 0032.
 **Terms owned.** Acceptance code, Work item. References Reviewer and Lead reviewer, owned by the access model (component 2).
 **Surfaces.** Coding controls within the DRR; the deliverable-code action; acceptance closes the work item.
 **Depends on.** The DRR. Sign-off needs no separate mechanism: acceptance is the sign-off, audited; consultant authorship lives on the document's own cover sheet (ADR-0013).
@@ -92,9 +94,9 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 
 ## 9. Records lifecycle
 
-**Responsibility.** Express a document's currency through state rather than deletion: supersede (automatic when a newer version is promoted, or owner-set) and withdraw (owner-set); retention. Nothing is deleted.
-**Governing ADRs.** 0013, 0002.
-**Terms owned.** Supersede, Withdraw.
+**Responsibility.** Express a document's currency through state rather than deletion: supersede (automatic when a newer version is promoted, or owner-set), withdraw (owner-set), and rejected (set when a cycle is closed-rejected, ADR-0032); retention. Nothing is deleted.
+**Governing ADRs.** 0013, 0002, 0032.
+**Terms owned.** Supersede, Withdraw, Rejected (state).
 **Surfaces.** Owner state actions on a document.
 **Depends on.** Project library (library membership and groundability are distinct: superseded and withdrawn documents stay in the library but leave the grounded corpus); governance envelope (audit and retention).
 

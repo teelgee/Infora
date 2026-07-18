@@ -1,6 +1,6 @@
 # Data model — the walking skeleton (first cut)
 
-> **Status: first cut, 2026-07-01; draft-location item closed 2026-07-04.** This is the `CONTEXT.md` glossary drawn as **stored tables** — the things the database remembers — scoped to the walking-skeleton journey and nothing wider. It is drawn *drawer by drawer*: only the entities the first build slice touches. Deferred concepts (programme context, the org-context/Knowledge stores, custom agents, spatial) get their tables when they are built. Where drawing this surfaced a genuine design gap, it is flagged **↩ back to grill** and not resolved here (the build-layer gate). Review before the first migration.
+> **Status: first cut, 2026-07-01; draft-location item closed 2026-07-04; Drawer 5 rebuilt and sandbox versioning added 2026-07-18 (Slice A session, ADR-0032) — no migration yet; the drawer is drawn ahead of the Slice A tickets per the data-model-first rule.** This is the `CONTEXT.md` glossary drawn as **stored tables** — the things the database remembers — scoped to the walking-skeleton journey and nothing wider. It is drawn *drawer by drawer*: only the entities the first build slice touches. Deferred concepts (programme context, the org-context/Knowledge stores, custom agents, spatial) get their tables when they are built. Where drawing this surfaced a genuine design gap, it is flagged **↩ back to grill** and not resolved here (the build-layer gate). Review before the first migration.
 
 ## How to read this
 
@@ -20,7 +20,7 @@ The skeleton journey these tables must support (from the grill tracker): *a cons
 Fields: `id`, `name`.
 
 **User** — an individual belonging to one organisation.
-Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031), `preferences` (jsonb — the user's own display choices, e.g. `{ theme }`; never an access or context fact; added 2026-07-09, T-092).
+Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `org_role` (`admin` | `member` — an org admin manages the organisation's own users and enrols/removes them on projects the org is a member of, ADR-0033), `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031), `preferences` (jsonb — the user's own display choices, e.g. `{ theme }`; never an access or context fact; added 2026-07-09, T-092).
 Relationship: Organisation ─< User.
 
 **User credential** *(skeleton-auth scaffolding — plan.md's recorded build-time decision, added at T-021)* — the password hash behind the seeded users' session login. Kept as its own table, not a column on User, so the scaffold drops cleanly when the infra/security session replaces it with production identity (Entra-first).
@@ -31,34 +31,46 @@ Relationship: User ─ User credential (at most one).
 Fields: `id`, `name`, `owner_organisation_id` → Organisation.
 Relationship: one Organisation owns many Projects (owner is a role, ADR-0015).
 
-**Membership** — the record that an organisation is on a project, with a role.
-Fields: `id`, `organisation_id` → Organisation, `project_id` → Project, `role` (`owner` | `member`).
+**Membership** — the record that an organisation is on a project, with a role. An auditable record, not just an edge (ADR-0033).
+Fields: `id`, `organisation_id` → Organisation, `project_id` → Project, `role` (`owner` | `member`), `state` (`proposed` | `active` — ADR-0019's member-proposes-owner-confirms, carried as data), `added_by_participant_id` → Participant, `created_at`.
 Relationship: Organisation ─< Membership >─ Project (an organisation joins many projects; a project has many member organisations). Exactly one Membership per project has `role = owner`.
 
-**Participant** — a user's access to a project; the user-level subject of access.
-Fields: `id`, `user_id` → User, `project_id` → Project. (Per-deliverable grants — review group, authoring team, assignee — are recorded on the work/review tables in later drawers, not here, per ADR-0016's flat model.)
-Relationship: User ─< Participant >─ Project.
+**Participant** — a user's access to a project; the user-level subject of access. An interval, never a deleted row: removal closes `removed_at`, so attribution survives departures (ADR-0033).
+Fields: `id`, `user_id` → User, `project_id` → Project, `added_by_participant_id` → Participant (nullable — the enrolling org admin; null for seeded/first users), `created_at`, `removed_at` (nullable — set on removal; closing it auto-revokes the participant's live grants from that moment, past rounds untouched). (Per-deliverable grants — review group, authoring team, assignee — are recorded on the work/review tables in later drawers, not here, per ADR-0016's flat model.)
+Relationship: User ─< Participant >─ Project. **The roster is project-visible**: every Participant sees every Participant's name, organisation and project role — the wall hides work, never presence (ADR-0033).
 
 ---
 
 ## Drawer 2 — Documents (the grounding corpus)
 *The project's own sources the AI grounds on. In the skeleton these already exist to be drafted *from*; producing a new controlled document is thin (see the ↩ note). (ADR-0002, ADR-0011.)*
 
-**Container** — the persistent home of one deliverable, identified by a document reference, unchanged across versions.
-Fields: `id`, `project_id` → Project, `document_reference`, `in_library` (bool — is this a grounded library member), `state` (`live` | `superseded` | `withdrawn`, ADR-0013).
-Relationship: Project ─< Container.
+**Container** — the persistent home of one immutable version series. Two scopes (ADR-0032): a **library** container is one deliverable, identified by its coded document reference, a row of the deliverable plan (ADR-0008); a **sandbox** container is a sandbox document's freeze series — org-private, no coded reference, no plan row, auto-created at first freeze.
+Fields: `id`, `project_id` → Project, `scope` (`library` | `sandbox`), `producing_organisation_id` → Organisation (whose plan row this is — container creation and metadata are producing-org acts, ADR-0033; an organisation's deliverable plan *is* its set of planned library-scope containers, the owner's MIDP the view over all of them), `document_reference` (nullable — null at sandbox scope; the freeze series and the issued series are two reference sequences, the P-rev/C-rev convention), `sandbox_document_id` → Sandbox document (nullable — set only at sandbox scope: whose freeze series this is), `in_library` (bool — is this a grounded library member), `state` (`live` | `superseded` | `withdrawn` | `rejected`, ADR-0013/0032), `metadata` (jsonb — the plan-authored extras ADR-0008 promises, e.g. discipline, work package; its per-project *schema* is deferred alongside the naming scheme). **The Documents view's at-a-glance columns are derived by query, never duplicated into a metadata table** — reference and state here, revision from the current Version, originator from `producing_organisation_id`, latest verdict from the cycle's rounds (ruled 2026-07-18; the ProjectWise B4 lesson: sensible defaults, no hand-built views, no drift).
+Relationship: Project ─< Container. A sandbox-scope container never grounds and is never visible across the wall (ADR-0011/0032).
 
 **Version** — one immutable revision of a deliverable (ADR-0002). **Append-only.**
-Fields: `id`, `container_id` → Container, `version_reference` (v1, v2…), `created_at`, `content_ref` (pointer to the stored file/text), `is_current` (bool).
+Fields: `id`, `container_id` → Container, `version_reference` (v1, v2…), `created_at`, `content_ref` (the canonical snapshot — Infora structured text for an authored document, the native file for an uploaded one, ADR-0034), `is_current` (bool).
 Relationship: Container ─< Version. Only versions whose Container is `in_library` and `state = live` are retrievable for grounding (ADR-0022).
+
+**Rendition** *(added 2026-07-18, ADR-0034)* — a stored, immutable, one-way export bound to its version; a snapshot of the record, never an editing surface. For an authored version the native rendition is generated at promotion (house styles at export — future config); for an uploaded version the native rendition *is* the file, the PDF derived. **Append-only** with its Version.
+Fields: `id`, `version_id` → Version, `kind` (`native` — the asset the client owns and reuses | `pdf` — the authoritative review-and-record rendition, ADR-0004), `format` (`docx` | `xlsx` | `pptx` | `pdf` — the dwg/CAD class deferred), `content_ref`, `created_at`.
+Relationship: Version ─< Rendition.
 
 **Version chunk** *(retrieval index, added at T-012)* — one embedded slice of a Version's content, co-located with the relational access data so ADR-0022's access and state rules apply as SQL **pre-filters** in the same query as vector search (ADR-0024). Derived and rebuildable, not a record: every Version is chunked (including superseded/withdrawn — exclusion is retrieval's job, which is what makes it provable, T-033). The embedding model id **and** version are pinned beside every vector; a model change is a re-index migration, never a mix. Chunks are unique per `(version_id, embedding_model_id, chunk_index)` — each pinned model is its own complete index over the corpus (the e2e substrate's fake index coexists with the live voyage-3.5 index this way, migration 0005), and retrieval pins exactly one model id per query, which is where "never a mix" is enforced (2026-07-08, T-054).
 Fields: `id`, `version_id` → Version, `chunk_index`, `content`, `embedding` (pgvector), `embedding_model_id`, `embedding_model_version`.
 Relationship: Version ─< Version chunk.
 
 **Sandbox document** — a working copy in the project sandbox: the home of a draft before promotion (owner-decided 2026-07-04, closing the ↩ item below). Freely editable with **no document controls** — a user creates and edits it manually exactly as they would if AI didn't exist, with no Suggestion and no Signal; an agent proposes content to it only when prompted (via a Suggestion, Drawer 4). The AI never grounds on it (ADR-0011). **Deliberately mutable** — it is the uncontrolled working area, the one non-append-only content table by design.
-Fields: `id`, `project_id` → Project, `organisation_id` → Organisation (whose sandbox it sits in — the skeleton models one implicit private project sandbox per organisation; the full sandbox model — shared/private sandboxes, the workspace sandbox, folders, the owner's audited override — is deferred to its own drawer), `title`, `content`, `created_by_participant_id` → Participant, `updated_at`.
-Relationship: Project ─< Sandbox document.
+Fields: `id`, `project_id` → Project, `organisation_id` → Organisation (whose sandbox it sits in — the skeleton models one implicit private project sandbox per organisation; the full sandbox model — shared/private sandboxes, the workspace sandbox, folders, the owner's audited override — is deferred to its own drawer), `title`, `origin` (`authored` | `uploaded` — canonical format follows origin, ADR-0034), `kind` (`text` | `slides` — authored only; a slide deck is a differently-shaped document in the same substrate), `format` (`infora_text` | `docx` | `xlsx` | `pptx` | …), `content` (nullable — the canonical structured text when authored), `file_ref` (nullable — the canonical native file when uploaded; exactly one of the two is set), `created_by_participant_id` → Participant, `updated_at`, `container_id` → Container **(nullable, added 2026-07-18, ADR-0032 — the intended plan row this draft is producing: the previously missing sandbox-document ↔ deliverable link; the work item's production click-through follows it; null for ad-hoc documents)**, `head_locked` (bool — the freeze's check-out lock: set while a sandbox-scope round is open, released by transmittal-back or audited early release, ADR-0032). "Open in editor" converts an uploaded document to authored **in place**, the original file preserved in the ambient history — a deliberate act, honest about formatting fidelity (ADR-0034).
+Relationship: Project ─< Sandbox document; Container (library scope) ─< Sandbox document (the drafts feeding a deliverable). A sandbox document's *freeze series* is a separate sandbox-scope Container pointing back via `sandbox_document_id`.
+
+**Sandbox document version** *(ambient history, ADR-0032)* — the SharePoint-style automatic version history: a snapshot at each save boundary, browsable and restorable. **A working tool, not a record** — nothing review-grade binds to it, it never grounds, and it is not the freeze (a freeze is an immutable Version in the document's sandbox-scope container). Derived working data: restore copies a snapshot back into the head, it never rewrites history.
+Fields: `id`, `sandbox_document_id` → Sandbox document, `content`, `created_at`, `created_by_participant_id` → Participant.
+Relationship: Sandbox document ─< Sandbox document version.
+
+**Sandbox comment** *(owner-ruled 2026-07-18)* — a working-draft comment on a Sandbox document: Word-style collaboration in the Editor. **Distinct from the DRR Comment** (Drawer 5 — formal review input on a frozen version, append-only): this is uncontrolled working-area conversation, **mutable like the sandbox it annotates** — authors edit or delete their own comments, threads close and reopen, nothing survives into the controlled record. A thread is a root comment plus replies; any participant entitled to the document can comment, reply, and close. A "suggested edit" is just what a comment *says* ("change x to y") — a colleague edits the canvas manually and closes the thread; there is no apply machinery, no Suggestion, no Signal (those stay agent-only, Drawer 4). Anchoring reuses the Suggestion pattern: a quoted span against the mutable head, **advisory** — a drifted anchor degrades to an unanchored comment and never blocks. `@`-mentions are stored as participant references; mention *delivery* (notification) is a design gap parked on the tracker — mentions render as highlights only for now.
+Fields: `id`, `sandbox_document_id` → Sandbox document, `parent_comment_id` → Sandbox comment (nullable — null = thread root; replies point at their root; `status` is meaningful on the root only), `author_participant_id` → Participant, `body`, `anchor` (nullable quoted span, advisory), `status` (`open` | `closed`), `closed_by_participant_id` → Participant (nullable), `closed_at` (nullable), `mentions` (participant ids referenced in the body), `created_at`, `updated_at`.
+Relationship: Sandbox document ─< Sandbox comment; Sandbox comment ─< Sandbox comment (the thread, one level deep).
 
 > ✅ **Resolved (owner-confirmed 2026-07-04):** the *new* draft the consultant produces lives **in the sandbox** as a Sandbox document (above), not as content dangling off the Run or a controlled Version. The agent's proposed draft is held on the **Suggestion** (Drawer 4, which gains a `sandbox_document_id`); accept/edit applies the content to the Sandbox document; promotion into a controlled `Version` (ADR-0002) remains the document-management bridge, **stubbed** in the first slice. `Container`/`Version` stay read-only in this slice.
 
@@ -67,9 +79,9 @@ Relationship: Project ─< Sandbox document.
 ## Drawer 3 — Work & execution
 *The heart of the skeleton: a unit of work, the chat thread it happens in, and the audited runs. (ADR-0028.)*
 
-**Work item** — one unit of governed work on a project; the persistent thing with a status and an assignee.
-Fields: `id`, `project_id` → Project, `type` (the workflow behind it, e.g. `document_production`), `title` (the human name, e.g. "Statement of community consultation"), `status`, `assignee_participant_id` → Participant.
-Relationship: Project ─< Work item. Its status is its own state machine, *driven by* but *separate from* its runs (ADR-0028 §2).
+**Work item** — one unit of governed work on a project: the deliverable's *work half* (the Container is its record half; the plan row is their join — clarity ruling, owner 2026-07-18).
+Fields: `id`, `project_id` → Project, `type` (the workflow behind it, e.g. `document_production`), `title` (the human name, e.g. "Statement of community consultation"), `container_id` → Container **(required for `document_production`, null for future non-document types)**, `status`, `assignee_participant_id` → Participant.
+Relationship: Project ─< Work item; Container ─ Work item (at most one). **Status is event-driven, never hand-set:** `planned` (container created) → `drafting` (a linked sandbox document exists) → `in_review` (first project-cycle transmittal; the round number is derivable from the cycle, not stored) → `accepted` | `rejected` (the cycle's terminal closes it, ADR-0032/0033). Runs still inform but never move it (ADR-0028 §2). Per-role click-throughs follow the links: consultant in production → the linked sandbox document; reviewer in an open round → the round's DRR; owner → the MIDP row with cycle state. **Not every container has a work item**: owner-added reference material (ADR-0011) is a container with no work item — the Documents view keys off containers, the Review view off cycles, and work items exist only where work was planned.
 
 **Conversation** — the persistent thread an agent interaction happens in.
 Fields: `id`, `project_id` → Project (the bound environment, ADR-0025/0029 — for a Copilot thread this is the one project the conversation is bound to, ADR-0031), `work_item_id` → Work item **(nullable)** — set when the thread is doing governed work, null for ad-hoc chat, `surface` (`web` | `word_addin` | `copilot` — where the thread originated; its Runs inherit it for the audit trail, ADR-0031).
@@ -104,18 +116,44 @@ Relationship: Suggestion ─< Signal (one resolution per suggestion in v1).
 
 ---
 
-## Drawer 5 — Review (thin in the skeleton)
-*Enough of the review record for the owner to see status; the full cycle is document management (ADR-0005–0014), largely stubbed in the first slice.*
+## Drawer 5 — Review (rebuilt 2026-07-18, Slice A session)
+*The review cycle as stored tables: one workflow at two scopes — the org-private internal formal cycle and the wall-crossing project cycle — role-agnostic, an authoring side and a reviewing side per instance (ADR-0032; mechanics per ADRs 0002–0017). Replaces the thin skeleton cut (a container-level DRR + Comment), which was never migrated.*
 
-**DRR (Deliverable Review Record)** — the one live, append-only review log per deliverable.
-Fields: `id`, `container_id` → Container, `edit_lock_holder` (which side holds the write token, ADR-0014).
-Relationship: Container ─ DRR (one live DRR per deliverable).
+**Review cycle** — one launch of the review workflow on a container; the instance unit. The DRR is this row's record — one live, append-only record per cycle (ADR-0009 refined). Scope is the container's: a sandbox-scope cycle is the internal formal review, org-private and retained permanently (the QA evidence); a project-scope cycle is the client review — one per deliverable, spanning every issued version, which preserves ADR-0009's per-deliverable reading.
+Fields: `id`, `container_id` → Container, `state` (`active` | `accepted` | `closed_rejected` — both terminals by explicit human action: acceptance via the lead reviewer's accepting code, rejection closed by the lead author or project owner, audited, ADR-0032), `edit_lock_holder` (`authoring` | `reviewing`, ADR-0014), `launched_at`.
+Relationship: Container ─< Review cycle (at most one active cycle per container — the one-in-flight rule, ADR-0002). The appointed sides are the two grant tables below — the cycle reads the live sets at all times; there is no copy at launch (ADR-0033).
 
-**Comment** — human review input on a version (distinct from a Suggestion). **Append-only once a round is issued.**
-Fields: `id`, `drr_id` → DRR, `version_id` → Version, `author_participant_id` → Participant, `body`, `acceptance_code` (ADR-0003), `anchor` (page + highlight, ADR-0006).
-Relationship: DRR ─< Comment.
+**Deliverable author** — an authoring-team appointment on a deliverable (ADR-0017/0033). **Append-only interval rows** — an amendment is a new row or a closed interval, never an edit; "who could act in round N" is reconstructed from intervals against the round's timestamps.
+Fields: `id`, `container_id` → Container, `participant_id` → Participant, `is_lead` (bool — exactly one live lead per container), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable). Written by the producing side (the lead author amends their own set, ADR-0017); authors must belong to organisations sharing the deliverable's sandbox (ADR-0019).
+Relationship: Container ─< Deliverable author.
 
-> The full review cycle (transmittal, round phases, snapshots, two-level coding) is defined in ADRs 0005–0014 and is **not** drawn here — the skeleton needs only enough for the owner to see a work item's status and its audited run. Draw the rest when the review slice is built.
+**Deliverable reviewer** — a review-group appointment on a deliverable (ADR-0017/0033), same interval shape, plus propose-then-confirm: the producing organisation may propose reviewers on its plan ("if known"), conferring **no access until the owner confirms** — and confirmation is where ADR-0015's invariant bites (a reviewer whose organisation lacks the deliverable share forces the owner to share first, or decline).
+Fields: `id`, `container_id` → Container, `participant_id` → Participant (any roster Participant — the roster is project-visible, ADR-0033), `is_lead` (bool), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable), `confirmed_by_participant_id` → Participant (nullable — null = proposed, no access), `confirmed_at` (nullable).
+Relationship: Container ─< Deliverable reviewer.
+
+**Round** — one pass of review of one frozen version.
+Fields: `id`, `cycle_id` → Review cycle, `number` (1, 2…), `version_id` → Version (the frozen version under review — anchors never drift, ADR-0006), `state` (`open` | `issued` | `responded`, ADR-0005), `review_period_target` (guides — reminders and overdue — never gates, ADR-0005), `deliverable_code_id` → Acceptance code (nullable — the lead reviewer's authoritative per-round verdict, suggested from the comment codes, ADR-0003; a code with `is_accepting` ends the cycle).
+Relationship: Review cycle ─< Round. **At most one open round per cycle, enforced by a partial unique index** — ADR-0014's load-bearing invariant held by the schema, not by convention.
+
+**Transmittal** — the flip event in both directions (ADR-0010/0014); on-platform it moves no file. **Append-only.**
+Fields: `id`, `round_id` → Round, `direction` (`issue` — the closed round to the authoring side, revealing it and handing over the pen | `return` — the next version back, opening the next round), `sender_participant_id` → Participant, `recipients` (participant ids notified), `purpose_code`, `issued_at`, `due_at` (nullable). Flips the cycle's edit lock, freezes the snapshot, notifies.
+Relationship: Round ─< Transmittal (normally one per direction).
+
+**Review snapshot** — the internal frozen record at each transmittal: the comments and responses as they stood (ADR-0009). Retrievable, never a surface users open. **Append-only.**
+Fields: `id`, `transmittal_id` → Transmittal, `content` (the frozen comment/response state), `created_at`.
+Relationship: Transmittal ─ Review snapshot (one each).
+
+**Comment** — human review input on a frozen version, within a round; distinct from an agent Suggestion (Drawer 4) and from the mutable working-area Sandbox comment (Drawer 2). **Append-only once its round is issued.**
+Fields: `id`, `round_id` → Round, `version_id` → Version, `author_participant_id` → Participant, `body`, `acceptance_code_id` → Acceptance code (per-comment, ADR-0003), `anchor` (structured fields, rendition-agnostic — page + highlight/point on the PDF at project scope, ADR-0006; the sandbox-scope review surface is parked, ADR-0032).
+Relationship: Round ─< Comment.
+
+**Acceptance code** *(added 2026-07-18)* — one review-verdict code in a project's scheme (ADR-0003 made storable). **Seeded by copying Infora's default scheme at project creation** — a copy, not a reference, so one project's edits never rewrite another's. **A code ever referenced is immutable: retire and replace, never redefine** — `retired_at` keeps it valid and displayed on old rounds while unavailable for new coding (currency by state, the standing principle).
+Fields: `id`, `project_id` → Project, `code` (e.g. "B"), `description` (e.g. "Accepted with comments"), `level` (`comment` | `deliverable` | `both` — where it may be applied), `is_accepting` (bool — a deliverable-level code that ends the cycle and closes the work item), `sort_order`, `retired_at` (nullable).
+Relationship: Project ─< Acceptance code; referenced by Comment (`acceptance_code_id`) and Round (`deliverable_code_id`).
+
+**Response** — the authoring side's reply to a comment (first-class per ADR-0032; previously unmodelled): the mandatory link to the section of the next version that addresses it, or an explicit no-change with a reason (ADR-0004). Paired with its comment, the comment-to-resolution moat data.
+Fields: `id`, `comment_id` → Comment, `author_participant_id` → Participant, `body`, `next_version_id` → Version (nullable), `next_version_anchor` (nullable — the linked section), `no_change_reason` (nullable — exactly one of the link or the reason is present), `created_at`.
+Relationship: Comment ─ Response (one per comment in v1).
 
 ---
 
@@ -124,4 +162,5 @@ Per drawer-by-drawer discipline, and because these are post-MVP (grill tracker b
 
 ## Open items sent back to the grill tracker
 - **Draft location before promotion** — ✅ **closed, owner-confirmed 2026-07-04** (Drawer 2): the draft lives in the sandbox as a Sandbox document; Suggestions arise only from agent prompts; promotion stays stubbed in the skeleton.
-- Everything else the skeleton omits is already tracked; this doc adds no new open design questions.
+- **Still open from the Slice A session (2026-07-18):** the sandbox-scope review surface (PDF vs frozen native text — parked in ADR-0032); sandbox-comment mention delivery (owner note, Drawer 2); the per-project metadata *schema* and naming scheme (the standing ADR-0008 deferral — `Container.metadata` jsonb holds the values meanwhile). *(Closed same-day: grant tables — agenda item 6 → ADR-0033; work-item clarity — agenda item 1 → ADR-0032 addendum; renditions, canonical format and the slides kind — agenda item 4 → ADR-0034; acceptance-code scheme + derived library metadata — agenda item 5, ADR-0003 note + Drawer 5's Acceptance code table.)*
+- Everything else the skeleton omits is already tracked.

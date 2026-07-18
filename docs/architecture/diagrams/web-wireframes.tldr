@@ -1,0 +1,3456 @@
+{
+ "tldrawFileFormatVersion": 1,
+ "schema": {
+  "schemaVersion": 2,
+  "sequences": {
+   "com.tldraw.store": 5,
+   "com.tldraw.asset": 1,
+   "com.tldraw.camera": 1,
+   "com.tldraw.document": 2,
+   "com.tldraw.instance": 26,
+   "com.tldraw.instance_page_state": 5,
+   "com.tldraw.page": 1,
+   "com.tldraw.instance_presence": 6,
+   "com.tldraw.pointer": 1,
+   "com.tldraw.shape": 4,
+   "com.tldraw.user": 1,
+   "com.tldraw.asset.image": 6,
+   "com.tldraw.asset.video": 5,
+   "com.tldraw.asset.bookmark": 2,
+   "com.tldraw.shape.arrow": 8,
+   "com.tldraw.shape.bookmark": 2,
+   "com.tldraw.shape.draw": 5,
+   "com.tldraw.shape.embed": 4,
+   "com.tldraw.shape.frame": 1,
+   "com.tldraw.shape.geo": 11,
+   "com.tldraw.shape.group": 0,
+   "com.tldraw.shape.highlight": 4,
+   "com.tldraw.shape.image": 5,
+   "com.tldraw.shape.line": 5,
+   "com.tldraw.shape.note": 13,
+   "com.tldraw.shape.text": 4,
+   "com.tldraw.shape.video": 4,
+   "com.tldraw.binding.arrow": 1
+  }
+ },
+ "records": [
+  {
+   "typeName": "document",
+   "id": "document:document",
+   "gridSize": 10,
+   "name": "",
+   "meta": {}
+  },
+  {
+   "typeName": "page",
+   "id": "page:page",
+   "name": "Web app wireframes",
+   "index": "a1",
+   "meta": {}
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-title",
+   "type": "text",
+   "x": 10,
+   "y": -55,
+   "rotation": 0,
+   "index": "a1",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "landing page - workspace interface"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a2",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-user",
+   "type": "geo",
+   "x": 20,
+   "y": 20,
+   "rotation": 0,
+   "index": "a3",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 20,
+   "rotation": 0,
+   "index": "a4",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 85,
+   "rotation": 0,
+   "index": "a5",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 585,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane, includes:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to personal sandbox"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-proj1",
+   "type": "geo",
+   "x": 300,
+   "y": 110,
+   "rotation": 0,
+   "index": "a6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 230,
+    "h": 180,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - project that user is a member of (only shows where access granted)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-proj2",
+   "type": "geo",
+   "x": 570,
+   "y": 120,
+   "rotation": 0,
+   "index": "a7",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 130,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 2"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p1-proj3",
+   "type": "geo",
+   "x": 300,
+   "y": 330,
+   "rotation": 0,
+   "index": "a8",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 230,
+    "h": 150,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 3"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-title",
+   "type": "text",
+   "x": 10,
+   "y": 795,
+   "rotation": 0,
+   "index": "a9",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - ask interface"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 850,
+   "rotation": 0,
+   "index": "aA",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-user",
+   "type": "geo",
+   "x": 20,
+   "y": 870,
+   "rotation": 0,
+   "index": "aB",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 870,
+   "rotation": 0,
+   "index": "aC",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-proj",
+   "type": "geo",
+   "x": 20,
+   "y": 935,
+   "rotation": 0,
+   "index": "aD",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 1000,
+   "rotation": 0,
+   "index": "aE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane to:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• Project library - library based"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to project sandbox"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p2-content",
+   "type": "geo",
+   "x": 290,
+   "y": 1000,
+   "rotation": 0,
+   "index": "aF",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "ask - chat interface, opens editor if requested, can find and open files in a viewer, cites sources where answering based on documents from project library"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-title",
+   "type": "text",
+   "x": 10,
+   "y": 1645,
+   "rotation": 0,
+   "index": "aG",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - project library"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 1700,
+   "rotation": 0,
+   "index": "aH",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-user",
+   "type": "geo",
+   "x": 20,
+   "y": 1720,
+   "rotation": 0,
+   "index": "aI",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 1720,
+   "rotation": 0,
+   "index": "aJ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-proj",
+   "type": "geo",
+   "x": 20,
+   "y": 1785,
+   "rotation": 0,
+   "index": "aK",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-ptitle",
+   "type": "geo",
+   "x": 290,
+   "y": 1785,
+   "rotation": 0,
+   "index": "aL",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 45,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "project title"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 1850,
+   "rotation": 0,
+   "index": "aM",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane to:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• Project library - library, access based on user",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• review - review cycle interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to project sandbox user has access to"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p3-content",
+   "type": "geo",
+   "x": 290,
+   "y": 1850,
+   "rotation": 0,
+   "index": "aN",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "folder structure (if applicable, depending on organisation configuration)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-title",
+   "type": "text",
+   "x": 10,
+   "y": 2495,
+   "rotation": 0,
+   "index": "aO",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - editor - in editor"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 2550,
+   "rotation": 0,
+   "index": "aP",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-user",
+   "type": "geo",
+   "x": 20,
+   "y": 2570,
+   "rotation": 0,
+   "index": "aQ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 2570,
+   "rotation": 0,
+   "index": "aR",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-proj",
+   "type": "geo",
+   "x": 20,
+   "y": 2635,
+   "rotation": 0,
+   "index": "aS",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-ptitle",
+   "type": "geo",
+   "x": 290,
+   "y": 2635,
+   "rotation": 0,
+   "index": "aT",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 45,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "project title"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 2700,
+   "rotation": 0,
+   "index": "aU",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane to:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• Project library - library, access based on user"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• review - review cycle interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to project sandbox user has access to"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-doc",
+   "type": "geo",
+   "x": 290,
+   "y": 2700,
+   "rotation": 0,
+   "index": "aV",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "document - editor pane which allows user to manually edit content"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p4-chat",
+   "type": "geo",
+   "x": 770,
+   "y": 2700,
+   "rotation": 0,
+   "index": "aW",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 210,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "chat interface - where user prompts agent"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-title",
+   "type": "text",
+   "x": 1160,
+   "y": 2495,
+   "rotation": 0,
+   "index": "aX",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - editor landing page"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-frame",
+   "type": "geo",
+   "x": 1150,
+   "y": 2550,
+   "rotation": 0,
+   "index": "aY",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-user",
+   "type": "geo",
+   "x": 1170,
+   "y": 2570,
+   "rotation": 0,
+   "index": "aZ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-ws",
+   "type": "geo",
+   "x": 1440,
+   "y": 2570,
+   "rotation": 0,
+   "index": "aa",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-proj",
+   "type": "geo",
+   "x": 1170,
+   "y": 2635,
+   "rotation": 0,
+   "index": "ab",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-ptitle",
+   "type": "geo",
+   "x": 1440,
+   "y": 2635,
+   "rotation": 0,
+   "index": "ac",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 45,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "project title"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-nav",
+   "type": "geo",
+   "x": 1170,
+   "y": 2700,
+   "rotation": 0,
+   "index": "ad",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "nav pane"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-create",
+   "type": "geo",
+   "x": 1440,
+   "y": 2700,
+   "rotation": 0,
+   "index": "ae",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 200,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "create from new"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-templates",
+   "type": "geo",
+   "x": 1460,
+   "y": 2760,
+   "rotation": 0,
+   "index": "af",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 200,
+    "h": 120,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "templates"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-word",
+   "type": "geo",
+   "x": 1680,
+   "y": 2760,
+   "rotation": 0,
+   "index": "ag",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 200,
+    "h": 120,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "word"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-ppt",
+   "type": "geo",
+   "x": 1900,
+   "y": 2760,
+   "rotation": 0,
+   "index": "ah",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 210,
+    "h": 120,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "powerpoint"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p5-sandbox",
+   "type": "geo",
+   "x": 1440,
+   "y": 2930,
+   "rotation": 0,
+   "index": "ai",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 290,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "sandbox - shows folder structure of user accessible sandboxes for project"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-title",
+   "type": "text",
+   "x": 10,
+   "y": 3345,
+   "rotation": 0,
+   "index": "aj",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - sandbox"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 3400,
+   "rotation": 0,
+   "index": "ak",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-user",
+   "type": "geo",
+   "x": 20,
+   "y": 3420,
+   "rotation": 0,
+   "index": "al",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 3420,
+   "rotation": 0,
+   "index": "am",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-proj",
+   "type": "geo",
+   "x": 20,
+   "y": 3485,
+   "rotation": 0,
+   "index": "an",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-ptitle",
+   "type": "geo",
+   "x": 290,
+   "y": 3485,
+   "rotation": 0,
+   "index": "ao",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 45,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "project title"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 3550,
+   "rotation": 0,
+   "index": "ap",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane to:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• Project library - library, access based on user"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• review - review cycle interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to project sandbox user has access to",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p6-content",
+   "type": "geo",
+   "x": 290,
+   "y": 3550,
+   "rotation": 0,
+   "index": "aq",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Sandbox - folder structure that user has access to"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-title",
+   "type": "text",
+   "x": 10,
+   "y": 4195,
+   "rotation": 0,
+   "index": "ar",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project 1 - review"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-frame",
+   "type": "geo",
+   "x": 0,
+   "y": 4250,
+   "rotation": 0,
+   "index": "as",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 1000,
+    "h": 700,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-user",
+   "type": "geo",
+   "x": 20,
+   "y": 4270,
+   "rotation": 0,
+   "index": "at",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-ws",
+   "type": "geo",
+   "x": 290,
+   "y": 4270,
+   "rotation": 0,
+   "index": "au",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Workspace details - organisation details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-proj",
+   "type": "geo",
+   "x": 20,
+   "y": 4335,
+   "rotation": 0,
+   "index": "av",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 200,
+    "h": 50,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project details"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-ptitle",
+   "type": "geo",
+   "x": 290,
+   "y": 4335,
+   "rotation": 0,
+   "index": "aw",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 45,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "project title"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-nav",
+   "type": "geo",
+   "x": 20,
+   "y": 4400,
+   "rotation": 0,
+   "index": "ax",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 250,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "navigation pane to:"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• project - nav back to project options"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• ask - nav to chat interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• editor - nav to document editor interface"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• Project library - library, access based on user"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• review - review cycle interface",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• sandbox - nav to project sandbox user has access to"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "• workflows - nav to workflow builder and standard workflows"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-content",
+   "type": "geo",
+   "x": 290,
+   "y": 4400,
+   "rotation": 0,
+   "index": "ay",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 690,
+    "h": 520,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Review"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-task1",
+   "type": "geo",
+   "x": 320,
+   "y": 4480,
+   "rotation": 0,
+   "index": "az",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "task 1"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-ref1",
+   "type": "geo",
+   "x": 470,
+   "y": 4480,
+   "rotation": 0,
+   "index": "b10",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Doc ref"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-status1",
+   "type": "geo",
+   "x": 620,
+   "y": 4480,
+   "rotation": 0,
+   "index": "b11",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "status"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-open1",
+   "type": "geo",
+   "x": 800,
+   "y": 4480,
+   "rotation": 0,
+   "index": "b12",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "open doc button"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-task2",
+   "type": "geo",
+   "x": 320,
+   "y": 4575,
+   "rotation": 0,
+   "index": "b13",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "task 2"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-ref2",
+   "type": "geo",
+   "x": 470,
+   "y": 4575,
+   "rotation": 0,
+   "index": "b14",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Doc ref"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-status2",
+   "type": "geo",
+   "x": 620,
+   "y": 4575,
+   "rotation": 0,
+   "index": "b15",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "status"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-open2",
+   "type": "geo",
+   "x": 800,
+   "y": 4575,
+   "rotation": 0,
+   "index": "b16",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "open doc button"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-task3",
+   "type": "geo",
+   "x": 320,
+   "y": 4670,
+   "rotation": 0,
+   "index": "b17",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "task 3"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-ref3",
+   "type": "geo",
+   "x": 470,
+   "y": 4670,
+   "rotation": 0,
+   "index": "b18",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 130,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Doc ref"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-status3",
+   "type": "geo",
+   "x": 620,
+   "y": 4670,
+   "rotation": 0,
+   "index": "b19",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "status"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:p7-open3",
+   "type": "geo",
+   "x": 800,
+   "y": 4670,
+   "rotation": 0,
+   "index": "b1A",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 160,
+    "h": 60,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "open doc button"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

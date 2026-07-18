@@ -1,6 +1,6 @@
 # ADR-0004 - PDF review model: PDF is the authoritative review rendition; in-PDF anchored comments; mandatory response links
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): this ADR applies as written at project scope; whether the sandbox-scope internal cycle reviews on a PDF rendition or directly on the frozen native text is deliberately parked (a frozen native version is already a fixed artefact) — the comment anchor stays rendition-agnostic either way. The mandatory response link becomes a first-class Response record. Refined by ADR-0034 (same day): renditions are stored, immutable rows per version — native (docx/xlsx/pptx; generated for authored documents, the file itself for uploaded ones) and the PDF this ADR makes authoritative for review.
 
 **Context:** Deliverables exist as native files (Word, PowerPoint, Excel), but reviewing and recording need a fixed artifact that does not drift between versions, and comments need real anchors rather than typed location descriptions. Making review work inside native Word for promoted deliverables is hard and is out of scope for build 1.
 

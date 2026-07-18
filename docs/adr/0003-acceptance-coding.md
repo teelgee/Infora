@@ -1,6 +1,6 @@
 # ADR-0003 - Acceptance coding: two levels, configurable per project, lead reviewer authoritative
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): a rejecting deliverable code leaves resubmission open — the cycle (and its work item) closes either on an accepting code or by an explicit audited close to rejected; "client acceptance closes the work item" below gains that second terminal. Made storable same day (Slice A session, data-model Drawer 5): codes are per-project rows **copied** from Infora's default scheme at project creation (never a shared reference, so history can't re-read); each carries a level (comment | deliverable | both) and `is_accepting`; a code ever referenced is immutable — **retire and replace, never redefine**.
 
 **Context:** A deliverable is reviewed by several reviewers and accepted or rejected by the client against a specific version. Verdicts are expressed as codes, and different projects use different classification schemes. A verdict is needed both on each comment and on the whole deliverable, and someone must own the deliverable verdict.
 

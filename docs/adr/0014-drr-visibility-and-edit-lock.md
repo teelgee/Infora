@@ -1,6 +1,6 @@
 # ADR-0014 - DRR visibility is permanent for every issued round; only the open round is hidden from the consultant; one edit lock alternates between reviewers and consultant at each transmittal
 
-**Status:** Accepted. Refines ADR-0007.
+**Status:** Accepted. Refines ADR-0007. Refined by ADR-0032 (2026-07-18): "the consultant" reads as *the authoring side* of the cycle instance — the visibility and lock rules below apply verbatim at project scope, and the edit lock generalises at sandbox scope to a check-out lock on the sandbox head while an internal round is open (audited early release by the lead).
 
 **Context:** ADR-0007 phased DRR access "per deliverable" with a single open/issued flip and said the consultant has no live visibility, receiving a moderated comment set only at issue. That framing is too coarse for a deliverable that runs across many rounds. By round three the consultant has already seen and responded to rounds one and two, so the DRR cannot go dark on the consultant each time a new round opens. ADR-0007 also settled only who may see the DRR, never who may write to it at each phase. Separating visibility from write rights resolves both at once.
 

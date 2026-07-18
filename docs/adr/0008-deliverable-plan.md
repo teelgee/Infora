@@ -1,6 +1,6 @@
 # ADR-0008 - The deliverable plan: planned rows are empty containers from day one; promotion is a planned-container hand-off, not a metadata gate
 
-**Status:** Accepted. Refined by ADR-0017 (the plan also names the authoring team; named sets are amendable at any time).
+**Status:** Accepted. Refined by ADR-0017 (the plan also names the authoring team; named sets are amendable at any time). Refined by ADR-0033 (2026-07-18): the plan is **per-producing-organisation** (the TIDP) — each organisation plans, creates and metadatas its own containers and proposes reviewers where known; the owner consolidates all plans into the single project schedule (the MIDP view), curates access and confirms reviewer appointments. "The plan" below reads as that per-org structure plus the owner's consolidation.
 
 **Context:** At project start a consultant and client agree a schedule of deliverables (a Task Information Delivery Plan, TIDP), rolling up into the client's Master Information Delivery Plan (MIDP). Each deliverable's coded reference is generated from the project's naming rules, and its reviewers are known in advance. We previously modelled promotion as a gate where the consultant supplies metadata, naming and reviewers in the moment, which risked fast-but-wrong click-through and left reviewer appointment timing unclear.
 

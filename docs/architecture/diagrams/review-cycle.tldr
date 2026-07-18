@@ -1,0 +1,2233 @@
+{
+ "tldrawFileFormatVersion": 1,
+ "schema": {
+  "schemaVersion": 2,
+  "sequences": {
+   "com.tldraw.store": 5,
+   "com.tldraw.asset": 1,
+   "com.tldraw.camera": 1,
+   "com.tldraw.document": 2,
+   "com.tldraw.instance": 26,
+   "com.tldraw.instance_page_state": 5,
+   "com.tldraw.page": 1,
+   "com.tldraw.instance_presence": 6,
+   "com.tldraw.pointer": 1,
+   "com.tldraw.shape": 4,
+   "com.tldraw.user": 1,
+   "com.tldraw.asset.image": 6,
+   "com.tldraw.asset.video": 5,
+   "com.tldraw.asset.bookmark": 2,
+   "com.tldraw.shape.arrow": 8,
+   "com.tldraw.shape.bookmark": 2,
+   "com.tldraw.shape.draw": 5,
+   "com.tldraw.shape.embed": 4,
+   "com.tldraw.shape.frame": 1,
+   "com.tldraw.shape.geo": 11,
+   "com.tldraw.shape.group": 0,
+   "com.tldraw.shape.highlight": 4,
+   "com.tldraw.shape.image": 5,
+   "com.tldraw.shape.line": 5,
+   "com.tldraw.shape.note": 13,
+   "com.tldraw.shape.text": 4,
+   "com.tldraw.shape.video": 4,
+   "com.tldraw.binding.arrow": 1
+  }
+ },
+ "records": [
+  {
+   "typeName": "document",
+   "id": "document:document",
+   "gridSize": 10,
+   "name": "",
+   "meta": {}
+  },
+  {
+   "typeName": "page",
+   "id": "page:page",
+   "name": "Review cycle",
+   "index": "a1",
+   "meta": {}
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:title",
+   "type": "text",
+   "x": 0,
+   "y": -120,
+   "rotation": 0,
+   "index": "a1",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "l",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 2400,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Review cycle — the one workflow document management owns (ADR-0012; cycle per ADR-0002/0003/0005/0009/0010/0014)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:lane-consultant",
+   "type": "geo",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a2",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 3260,
+    "h": 320,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Consultant — authoring team (lead author holds the pen when the lock is theirs)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:lane-system",
+   "type": "geo",
+   "x": 0,
+   "y": 340,
+   "rotation": 0,
+   "index": "a3",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 3260,
+    "h": 320,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "System — container / DRR / transmittal / library",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:lane-client",
+   "type": "geo",
+   "x": 0,
+   "y": 680,
+   "rotation": 0,
+   "index": "a4",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 3260,
+    "h": 320,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Client — review group (cross-org), lead reviewer authoritative",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:plan",
+   "type": "geo",
+   "x": 40,
+   "y": 400,
+   "rotation": 0,
+   "index": "a5",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Deliverable planned",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "empty Container with its coded document reference; review group + authoring team appointed at planning time (ADR-0008/0017)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:draft",
+   "type": "geo",
+   "x": 390,
+   "y": 60,
+   "rotation": 0,
+   "index": "a6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Draft in the sandbox",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "free editing, no document controls; the sandbox head is the working copy — the AI never grounds on it (ADR-0011)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:promote",
+   "type": "geo",
+   "x": 740,
+   "y": 60,
+   "rotation": 0,
+   "index": "a7",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Promote",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "snapshot the sandbox head → immutable Version vN in the container; one in-flight revision at a time (ADR-0002); near-empty hand-off — metadata comes from the plan"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:transmit-in",
+   "type": "geo",
+   "x": 1090,
+   "y": 400,
+   "rotation": 0,
+   "index": "a8",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Transmittal (to review)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "audit event only — no file moves: sender, recipients, version, purpose code, dates (ADR-0010); round N opens, reviewers notified; edit lock → reviewers (ADR-0014)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:review",
+   "type": "geo",
+   "x": 1440,
+   "y": 740,
+   "rotation": 0,
+   "index": "a9",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "In review",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "reviewers comment + code on the PDF rendition; anchors stored as structured DRR fields (ADR-0004/0006); the open round is hidden from the consultant (ADR-0014)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:close",
+   "type": "geo",
+   "x": 1790,
+   "y": 740,
+   "rotation": 0,
+   "index": "aA",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 260,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Lead reviewer closes the round",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "moderates comments, sets the authoritative deliverable code (ADR-0003); explicit human action only — the review period guides (target date, reminders, overdue) but never closes (ADR-0005)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:decision",
+   "type": "geo",
+   "x": 2160,
+   "y": 760,
+   "rotation": 0,
+   "index": "aB",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "diamond",
+    "dash": "draw",
+    "url": "",
+    "w": 280,
+    "h": 220,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "deliverable code accepting?"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:transmit-out",
+   "type": "geo",
+   "x": 2140,
+   "y": 400,
+   "rotation": 0,
+   "index": "aC",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Transmittal (issue)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "freeze an internal snapshot as the formal record — never a document (ADR-0009); reveal the closed round to the consultant; edit lock → authoring team (ADR-0014)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:respond",
+   "type": "geo",
+   "x": 2490,
+   "y": 60,
+   "rotation": 0,
+   "index": "aD",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 230,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Respond",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "address comments in the sandbox; write responses with mandatory links in the DRR; promote the next version vN+1 — a fresh round opens (ADR-0005)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:accepted",
+   "type": "geo",
+   "x": 2840,
+   "y": 400,
+   "rotation": 0,
+   "index": "aE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 310,
+    "h": 260,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Accepted",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "acceptance is the sign-off, audited — the work item closes (ADR-0003); the version auto-admits to the project library → grounded corpus (ADR-0011); prior versions supersede, nothing is deleted (ADR-0013)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f1",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aF",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the appointed team drafts"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:0",
+   "type": "arrow",
+   "fromId": "shape:f1",
+   "toId": "shape:plan",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:1",
+   "type": "arrow",
+   "fromId": "shape:f1",
+   "toId": "shape:draft",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aG",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:2",
+   "type": "arrow",
+   "fromId": "shape:f2",
+   "toId": "shape:draft",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:3",
+   "type": "arrow",
+   "fromId": "shape:f2",
+   "toId": "shape:promote",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f3",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aH",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:4",
+   "type": "arrow",
+   "fromId": "shape:f3",
+   "toId": "shape:promote",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:5",
+   "type": "arrow",
+   "fromId": "shape:f3",
+   "toId": "shape:transmit-in",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f4",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aI",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:6",
+   "type": "arrow",
+   "fromId": "shape:f4",
+   "toId": "shape:transmit-in",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:7",
+   "type": "arrow",
+   "fromId": "shape:f4",
+   "toId": "shape:review",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f5",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aJ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:8",
+   "type": "arrow",
+   "fromId": "shape:f5",
+   "toId": "shape:review",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:9",
+   "type": "arrow",
+   "fromId": "shape:f5",
+   "toId": "shape:close",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f6",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aK",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:10",
+   "type": "arrow",
+   "fromId": "shape:f6",
+   "toId": "shape:close",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:11",
+   "type": "arrow",
+   "fromId": "shape:f6",
+   "toId": "shape:decision",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f7",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aL",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "no — comments go back"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:12",
+   "type": "arrow",
+   "fromId": "shape:f7",
+   "toId": "shape:decision",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:13",
+   "type": "arrow",
+   "fromId": "shape:f7",
+   "toId": "shape:transmit-out",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.3,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f8",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aM",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:14",
+   "type": "arrow",
+   "fromId": "shape:f8",
+   "toId": "shape:transmit-out",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:15",
+   "type": "arrow",
+   "fromId": "shape:f8",
+   "toId": "shape:respond",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f9",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aN",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -170,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "vN+1 transmitted back — the lock flips to the reviewers; round N+1 opens; strict sequentiality: only ever one open round"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:16",
+   "type": "arrow",
+   "fromId": "shape:f9",
+   "toId": "shape:respond",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:17",
+   "type": "arrow",
+   "fromId": "shape:f9",
+   "toId": "shape:transmit-in",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f10",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aO",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "green",
+    "color": "green",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 30,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "yes"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:18",
+   "type": "arrow",
+   "fromId": "shape:f10",
+   "toId": "shape:decision",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 1,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:19",
+   "type": "arrow",
+   "fromId": "shape:f10",
+   "toId": "shape:accepted",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.3,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:states-label",
+   "type": "text",
+   "x": 40,
+   "y": 1060,
+   "rotation": 0,
+   "index": "aP",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 600,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Version states inside a round (ADR-0005):",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:state-0",
+   "type": "geo",
+   "x": 40,
+   "y": 1110,
+   "rotation": 0,
+   "index": "aQ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 240,
+    "h": 70,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "promoted"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:state-1",
+   "type": "geo",
+   "x": 340,
+   "y": 1110,
+   "rotation": 0,
+   "index": "aR",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 240,
+    "h": 70,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "in review"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:sa-1",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aS",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:20",
+   "type": "arrow",
+   "fromId": "shape:sa-1",
+   "toId": "shape:state-0",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:21",
+   "type": "arrow",
+   "fromId": "shape:sa-1",
+   "toId": "shape:state-1",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:state-2",
+   "type": "geo",
+   "x": 640,
+   "y": 1110,
+   "rotation": 0,
+   "index": "aT",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 240,
+    "h": 70,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "review closed"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:sa-2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aU",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:22",
+   "type": "arrow",
+   "fromId": "shape:sa-2",
+   "toId": "shape:state-1",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:23",
+   "type": "arrow",
+   "fromId": "shape:sa-2",
+   "toId": "shape:state-2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:state-3",
+   "type": "geo",
+   "x": 940,
+   "y": 1110,
+   "rotation": 0,
+   "index": "aV",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 240,
+    "h": 70,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "middle",
+    "verticalAlign": "middle",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "responded"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:sa-3",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aW",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:24",
+   "type": "arrow",
+   "fromId": "shape:sa-3",
+   "toId": "shape:state-2",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:25",
+   "type": "arrow",
+   "fromId": "shape:sa-3",
+   "toId": "shape:state-3",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:states-note",
+   "type": "text",
+   "x": 1240,
+   "y": 1125,
+   "rotation": 0,
+   "index": "aX",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 700,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "→ next promotion opens a fresh round, until the lead reviewer applies an accepting code — the deliverable, not the version, is what gets accepted"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:invariants",
+   "type": "geo",
+   "x": 2440,
+   "y": 1060,
+   "rotation": 0,
+   "index": "aY",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 820,
+    "h": 420,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Invariants the build must hold",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· one live DRR per deliverable, append-only, spanning every version — users only ever work in the live DRR; snapshots are internal (ADR-0009)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· only one round open at a time — this is what guarantees the consultant sees every round but the open one (ADR-0014)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· one edit lock, alternating at each transmittal; issued rounds are permanently visible to everyone"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· review happens on the frozen PDF — anchors never drift (ADR-0004/0006)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· rounds close by human action, never the clock (ADR-0005)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· access (visibility + lock) is resolved by the access model, never here (ADR-0014)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

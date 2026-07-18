@@ -1,6 +1,6 @@
 # ADR-0013 - Supersede and withdraw are owner-set states; the library keeps them but stops grounding on them
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): the state set gains **rejected** — a deliverable whose cycle was closed-rejected and never resubmitted stays in the library as a record, badged, with its DRR attached, and never grounds (it also never had an accepted version). Same currency-by-state, nothing-deleted principle as below.
 
 **Context:** Promoting a new version structurally supersedes the prior one. Separately, an owner needs to mark a document superseded or withdrawn while keeping it in the library as a record. ADR-0011 auto-admits accepted deliverables to the trusted corpus, so withdrawal needs a defined effect on grounding.
 

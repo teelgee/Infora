@@ -1,0 +1,1663 @@
+{
+ "tldrawFileFormatVersion": 1,
+ "schema": {
+  "schemaVersion": 2,
+  "sequences": {
+   "com.tldraw.store": 5,
+   "com.tldraw.asset": 1,
+   "com.tldraw.camera": 1,
+   "com.tldraw.document": 2,
+   "com.tldraw.instance": 26,
+   "com.tldraw.instance_page_state": 5,
+   "com.tldraw.page": 1,
+   "com.tldraw.instance_presence": 6,
+   "com.tldraw.pointer": 1,
+   "com.tldraw.shape": 4,
+   "com.tldraw.user": 1,
+   "com.tldraw.asset.image": 6,
+   "com.tldraw.asset.video": 5,
+   "com.tldraw.asset.bookmark": 2,
+   "com.tldraw.shape.arrow": 8,
+   "com.tldraw.shape.bookmark": 2,
+   "com.tldraw.shape.draw": 5,
+   "com.tldraw.shape.embed": 4,
+   "com.tldraw.shape.frame": 1,
+   "com.tldraw.shape.geo": 11,
+   "com.tldraw.shape.group": 0,
+   "com.tldraw.shape.highlight": 4,
+   "com.tldraw.shape.image": 5,
+   "com.tldraw.shape.line": 5,
+   "com.tldraw.shape.note": 13,
+   "com.tldraw.shape.text": 4,
+   "com.tldraw.shape.video": 4,
+   "com.tldraw.binding.arrow": 1
+  }
+ },
+ "records": [
+  {
+   "typeName": "document",
+   "id": "document:document",
+   "gridSize": 10,
+   "name": "",
+   "meta": {}
+  },
+  {
+   "typeName": "page",
+   "id": "page:page",
+   "name": "Slice A \u2014 review model",
+   "index": "a1",
+   "meta": {}
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:title",
+   "type": "text",
+   "x": 0,
+   "y": -130,
+   "rotation": 0,
+   "index": "a1",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "l",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 3260,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Slice A \u2014 two scopes, one review cycle (playback, 2026-07-18; refines ADR-0002/0007/0008/0009/0014; role-agnostic rewrite of 0005\u20130014 to follow)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:lane-sandbox",
+   "type": "geo",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a2",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 3260,
+    "h": 380,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Sandbox \u2014 the org-private working area, SharePoint-shaped: a mutable head with ambient version history",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:s1",
+   "type": "geo",
+   "x": 60,
+   "y": 90,
+   "rotation": 0,
+   "index": "a3",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 250,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Sandbox document \u2014 the live head",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "mutable by design. Ambient history auto-snapshots every save (SharePoint-style): browsable, restorable, a working tool \u2014 nothing review-grade binds to it and it never grounds (ADR-0011)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:s2",
+   "type": "geo",
+   "x": 620,
+   "y": 90,
+   "rotation": 0,
+   "index": "a4",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 250,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Collaborate on the head (modes 1\u20132)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "informal + QA review: human marked-up edits and comments (new primitive, human authorship \u2014 no Signal) beside agent Suggestions; every anchor advisory \u2014 drift degrades, never blocks"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:s3",
+   "type": "geo",
+   "x": 1180,
+   "y": 90,
+   "rotation": 0,
+   "index": "a5",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 250,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Freeze \u2014 'check out'",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "snapshot the head \u2192 an immutable frozen Version at sandbox scope. Same primitive as promotion, different target scope. The head locks while a round is open; audited early release by the lead"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:s4",
+   "type": "geo",
+   "x": 1740,
+   "y": 90,
+   "rotation": 0,
+   "index": "a6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 500,
+    "h": 250,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Internal formal cycle (mode 3)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the same review-cycle workflow at sandbox scope: rounds on the frozen PDF, anchored comments, org-private DRR \u2014 retained permanently, never crosses the wall (the QA evidence). Lead closes; respond releases the lock; an accepting code = the QA-approved version"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-s1-s2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a7",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "draft freely"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-s2-s3",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a8",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "formal ceremony needed"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-s3-s4",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a9",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "round opens"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:lane-library",
+   "type": "geo",
+   "x": 0,
+   "y": 470,
+   "rotation": 0,
+   "index": "aA",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 3260,
+    "h": 430,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project library \u2014 the controlled, wall-crossing record (the plan container; ADR-0008/0017 unchanged)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:l1",
+   "type": "geo",
+   "x": 220,
+   "y": 570,
+   "rotation": 0,
+   "index": "aB",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Planned container",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "empty from day one: coded document reference, review group + authoring team named on the plan, both amendable (ADR-0008/0017). The owner's MIDP view shows 'in production' until first issue \u2014 internal churn is invisible"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:l2",
+   "type": "geo",
+   "x": 1180,
+   "y": 570,
+   "rotation": 0,
+   "index": "aC",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 460,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Promote \u2192 Version vN",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "promotion takes a version \u2014 the head snapshot, or post-QA the accepted frozen version, never a drifted head (ADR-0002 refined). Near-empty hand-off: metadata comes from the plan"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:l3",
+   "type": "geo",
+   "x": 1900,
+   "y": 570,
+   "rotation": 0,
+   "index": "aD",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 500,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project review cycle",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the same workflow at project scope: transmittal issues vN (audit event, no file moves, ADR-0010); rounds on the frozen PDF; DRR wall-visible per ADR-0014; one edit lock alternating at each transmittal; the head stays live (ADR-0002)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:l4",
+   "type": "geo",
+   "x": 2660,
+   "y": 570,
+   "rotation": 0,
+   "index": "aE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 480,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Accepted",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": []
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "acceptance is the sign-off \u2014 the work item closes (ADR-0003). The accepted version auto-admits to the grounded corpus; in-review versions sit in the library but the AI cannot see them (ADR-0011/0013)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-l1-l2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aF",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the waiting container receives vN"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-s2-l2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aG",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 30,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "or promote straight from the head \u2014 the internal cycle is optional ceremony, not a gate (ADR-0002's original path)"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-s4-l2",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aH",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "or promote the QA-approved frozen version \u2014 cross the wall"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-l2-l3",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aI",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "transmittal (issue) \u2014 round N opens"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-l3-l4",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aJ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "lead reviewer applies an accepting code"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:f-l3-s1",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aK",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -60,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "respond: issued comments to the authoring side \u2192 address in the sandbox, mandatory response links \u2192 promote vN+1 (the lock flips back)"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:note-link",
+   "type": "text",
+   "x": 0,
+   "y": 950,
+   "rotation": 0,
+   "index": "aL",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 3260,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "The missing link, made real: sandbox_document.container_id (nullable) \u2014 a draft carries its intended document reference from early drafting; the work item's production click-through follows it. Ad-hoc docs carry null until planned."
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:note-numbering",
+   "type": "text",
+   "x": 0,
+   "y": 1030,
+   "rotation": 0,
+   "index": "aM",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 3260,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Two reference series per deliverable: the sandbox freeze series (P-revs \u2014 internal churn, org-private) and the plan container's issued series (C-revs) \u2014 the reviewing side's history opens cleanly at v1. No gaps, no leak."
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:note-parked",
+   "type": "text",
+   "x": 0,
+   "y": 1110,
+   "rotation": 0,
+   "index": "aN",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 3260,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Parked (owner, 2026-07-18): whether the sandbox cycle reviews on a PDF rendition (ADR-0004) or on the frozen native text directly \u2014 establish the workflow first, finalise the method, then decide if the sandbox instance is identical. The comment anchor stays rendition-agnostic either way."
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:invariants",
+   "type": "text",
+   "x": 0,
+   "y": 1190,
+   "rotation": 0,
+   "index": "aO",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "m",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 3260,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Invariants this drawing commits us to",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 one Version substrate \u2014 everything review-grade (rounds, DRR, anchored comments, renditions) binds to immutable Versions only; freeze = promote at sandbox scope"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 scope carries the rules \u2014 sandbox scope: never grounds, never crosses the wall, DRR org-private and retained permanently; project scope: ADR-0014 visibility + lock unchanged"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 ambient sandbox history is a tool, not a record \u2014 auto-snapshots, browsable, restorable; nothing binds to it"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 the check-out lock is ADR-0014's edit lock generalised to the sandbox head \u2014 per-cycle policy: internal formal = locked head, project cycle = live head"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 the cycle is role-agnostic \u2014 authoring side / reviewing side per cycle instance, not consultant/client; internal QA and client review are the same workflow at different scopes"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 the internal cycle is optional \u2014 a team may promote straight from the live head (ADR-0002's original path); freeze/QA is ceremony a team chooses, never a system gate"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "\u00b7 unchanged: one round open at a time; rounds close by human action, never the clock; anchors never drift; access resolved by the access model (ADR-0005/0006/0014)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:0",
+   "type": "arrow",
+   "fromId": "shape:f-s1-s2",
+   "toId": "shape:s1",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:1",
+   "type": "arrow",
+   "fromId": "shape:f-s1-s2",
+   "toId": "shape:s2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:2",
+   "type": "arrow",
+   "fromId": "shape:f-s2-s3",
+   "toId": "shape:s2",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:3",
+   "type": "arrow",
+   "fromId": "shape:f-s2-s3",
+   "toId": "shape:s3",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:4",
+   "type": "arrow",
+   "fromId": "shape:f-s3-s4",
+   "toId": "shape:s3",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:5",
+   "type": "arrow",
+   "fromId": "shape:f-s3-s4",
+   "toId": "shape:s4",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:6",
+   "type": "arrow",
+   "fromId": "shape:f-l1-l2",
+   "toId": "shape:l1",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:7",
+   "type": "arrow",
+   "fromId": "shape:f-l1-l2",
+   "toId": "shape:l2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:8",
+   "type": "arrow",
+   "fromId": "shape:f-s2-l2",
+   "toId": "shape:s2",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:9",
+   "type": "arrow",
+   "fromId": "shape:f-s2-l2",
+   "toId": "shape:l2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:10",
+   "type": "arrow",
+   "fromId": "shape:f-s4-l2",
+   "toId": "shape:s4",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:11",
+   "type": "arrow",
+   "fromId": "shape:f-s4-l2",
+   "toId": "shape:l2",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:12",
+   "type": "arrow",
+   "fromId": "shape:f-l2-l3",
+   "toId": "shape:l2",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:13",
+   "type": "arrow",
+   "fromId": "shape:f-l2-l3",
+   "toId": "shape:l3",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:14",
+   "type": "arrow",
+   "fromId": "shape:f-l3-l4",
+   "toId": "shape:l3",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:15",
+   "type": "arrow",
+   "fromId": "shape:f-l3-l4",
+   "toId": "shape:l4",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:16",
+   "type": "arrow",
+   "fromId": "shape:f-l3-s1",
+   "toId": "shape:l3",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:17",
+   "type": "arrow",
+   "fromId": "shape:f-l3-s1",
+   "toId": "shape:s1",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  }
+ ]
+}

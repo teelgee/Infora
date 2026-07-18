@@ -1,0 +1,4183 @@
+{
+ "tldrawFileFormatVersion": 1,
+ "schema": {
+  "schemaVersion": 2,
+  "sequences": {
+   "com.tldraw.store": 5,
+   "com.tldraw.asset": 1,
+   "com.tldraw.camera": 1,
+   "com.tldraw.document": 2,
+   "com.tldraw.instance": 26,
+   "com.tldraw.instance_page_state": 5,
+   "com.tldraw.page": 1,
+   "com.tldraw.instance_presence": 6,
+   "com.tldraw.pointer": 1,
+   "com.tldraw.shape": 4,
+   "com.tldraw.user": 1,
+   "com.tldraw.asset.image": 6,
+   "com.tldraw.asset.video": 5,
+   "com.tldraw.asset.bookmark": 2,
+   "com.tldraw.shape.arrow": 8,
+   "com.tldraw.shape.bookmark": 2,
+   "com.tldraw.shape.draw": 5,
+   "com.tldraw.shape.embed": 4,
+   "com.tldraw.shape.frame": 1,
+   "com.tldraw.shape.geo": 11,
+   "com.tldraw.shape.group": 0,
+   "com.tldraw.shape.highlight": 4,
+   "com.tldraw.shape.image": 5,
+   "com.tldraw.shape.line": 5,
+   "com.tldraw.shape.note": 13,
+   "com.tldraw.shape.text": 4,
+   "com.tldraw.shape.video": 4,
+   "com.tldraw.binding.arrow": 1
+  }
+ },
+ "records": [
+  {
+   "typeName": "document",
+   "id": "document:document",
+   "gridSize": 10,
+   "name": "",
+   "meta": {}
+  },
+  {
+   "typeName": "page",
+   "id": "page:page",
+   "name": "Data model",
+   "index": "a1",
+   "meta": {}
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:title",
+   "type": "text",
+   "x": 0,
+   "y": -110,
+   "rotation": 0,
+   "index": "a1",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "black",
+    "size": "l",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 1900,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Infora data model — the walking skeleton, drawer by drawer (docs/build/data-model.md)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:z1",
+   "type": "geo",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "a2",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 660,
+    "h": 730,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Drawer 1 — Parties & access: who exists, who may see what (ADR-0015–0018)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:org",
+   "type": "geo",
+   "x": 30,
+   "y": 70,
+   "rotation": 0,
+   "index": "a3",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 280,
+    "h": 140,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Organisation",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the boundary for all private data"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· id, name"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:project",
+   "type": "geo",
+   "x": 340,
+   "y": 70,
+   "rotation": 0,
+   "index": "a4",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 290,
+    "h": 160,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Project",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a construction scheme; the central unit"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· id, name"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· owner_organisation_id → Organisation"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:user",
+   "type": "geo",
+   "x": 30,
+   "y": 270,
+   "rotation": 0,
+   "index": "a5",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 280,
+    "h": 210,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· id, name, email"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· organisation_id → Organisation"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· external_identity (Entra/M365, nullable)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· preferences (jsonb — display only)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:membership",
+   "type": "geo",
+   "x": 340,
+   "y": 290,
+   "rotation": 0,
+   "index": "a6",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 290,
+    "h": 180,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Membership",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "an organisation on a project, with a role"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· organisation_id → Organisation"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· role: owner | member"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:cred",
+   "type": "geo",
+   "x": 30,
+   "y": 530,
+   "rotation": 0,
+   "index": "a7",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 280,
+    "h": 150,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "User credential",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "(skeleton-auth scaffold, drops cleanly)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· user_id → User (PK)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· password_hash"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:participant",
+   "type": "geo",
+   "x": 340,
+   "y": 530,
+   "rotation": 0,
+   "index": "a8",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 290,
+    "h": 150,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "blue",
+    "color": "blue",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Participant",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a user's access to a project"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· user_id → User"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:z2",
+   "type": "geo",
+   "x": 730,
+   "y": 0,
+   "rotation": 0,
+   "index": "a9",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 790,
+    "h": 790,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Drawer 2 — Documents: the grounding corpus (ADR-0002, 0011)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:container",
+   "type": "geo",
+   "x": 760,
+   "y": 70,
+   "rotation": 0,
+   "index": "aA",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 330,
+    "h": 200,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Container",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the persistent home of one deliverable"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· document_reference (never changes)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· in_library (grounded member?)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· state: live | superseded | withdrawn"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:version",
+   "type": "geo",
+   "x": 760,
+   "y": 320,
+   "rotation": 0,
+   "index": "aB",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 330,
+    "h": 190,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Version ▣",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one immutable revision (append-only)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· container_id → Container"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· version_reference (v1, v2…)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· content_ref, is_current, created_at"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:chunk",
+   "type": "geo",
+   "x": 760,
+   "y": 560,
+   "rotation": 0,
+   "index": "aC",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 330,
+    "h": 200,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Version chunk",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "derived, rebuildable retrieval index"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· version_id → Version"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· chunk_index, content"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· embedding (pgvector, ADR-0024)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· embedding model id + version (pinned)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:sandboxdoc",
+   "type": "geo",
+   "x": 1130,
+   "y": 70,
+   "rotation": 0,
+   "index": "aD",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 360,
+    "h": 240,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "green",
+    "color": "green",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Sandbox document",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the uncontrolled working copy — mutable by design; the AI never grounds on it"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· organisation_id → Organisation (whose sandbox)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· title, content, updated_at"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· created_by → Participant"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:n-ground",
+   "type": "text",
+   "x": 1130,
+   "y": 380,
+   "rotation": 0,
+   "index": "aE",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 360,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "only Versions whose Container is in_library and live are retrievable for grounding — exclusion is retrieval's job, in-query SQL pre-filters (ADR-0022/0024)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:z3",
+   "type": "geo",
+   "x": 1590,
+   "y": 0,
+   "rotation": 0,
+   "index": "aF",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 870,
+    "h": 730,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "orange",
+    "color": "orange",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Drawer 3 — Work & execution: the audited heart (ADR-0028)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:workitem",
+   "type": "geo",
+   "x": 1620,
+   "y": 70,
+   "rotation": 0,
+   "index": "aG",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 360,
+    "h": 200,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "orange",
+    "color": "orange",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Work item",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one unit of governed work; its own state machine"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· type (the workflow), title, status"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· assignee → Participant"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:conversation",
+   "type": "geo",
+   "x": 2040,
+   "y": 70,
+   "rotation": 0,
+   "index": "aH",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 390,
+    "h": 210,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "orange",
+    "color": "orange",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Conversation",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the persistent thread"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· project_id → Project (bound environment)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· work_item_id → Work item (nullable — null = ad-hoc chat)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· surface: web | word_addin | copilot"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:run",
+   "type": "geo",
+   "x": 1620,
+   "y": 330,
+   "rotation": 0,
+   "index": "aI",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 360,
+    "h": 270,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "orange",
+    "color": "orange",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Run ▣",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one agent execution — append-only, immutable once finished"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· conversation_id → Conversation"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· parent_run_id → Run (sub-agent tree)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· agent_id + provenance"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· state, request, response"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· environment_key, requester → Participant"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:step",
+   "type": "geo",
+   "x": 2040,
+   "y": 330,
+   "rotation": 0,
+   "index": "aJ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 390,
+    "h": 330,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "orange",
+    "color": "orange",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Step ▣",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one atomic action within a run (append-only)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· run_id → Run; parent_step_id → Step"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· type: retrieve | draft | ground_check | cite | delegate"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· model + version, tokens, cost"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· source_set — the defensibility field"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· rail_outcomes"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· child_run_id → Run (when delegate)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:z5",
+   "type": "geo",
+   "x": 730,
+   "y": 870,
+   "rotation": 0,
+   "index": "aK",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 790,
+    "h": 620,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Drawer 5 — Review: thin in the skeleton (ADR-0005–0014)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:drr",
+   "type": "geo",
+   "x": 760,
+   "y": 940,
+   "rotation": 0,
+   "index": "aL",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 340,
+    "h": 180,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "DRR",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the one live, append-only review log per deliverable"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· container_id → Container (one live DRR)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· edit_lock_holder (which side may write)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:comment",
+   "type": "geo",
+   "x": 760,
+   "y": 1170,
+   "rotation": 0,
+   "index": "aM",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 340,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "red",
+    "color": "red",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Comment ▣",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "human review input — distinct from a Suggestion"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· drr_id → DRR"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· version_id → Version (frozen — anchors never drift)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· author → Participant"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· body, acceptance_code (ADR-0003)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· anchor: page + highlight (ADR-0006)"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:n-review",
+   "type": "text",
+   "x": 1140,
+   "y": 940,
+   "rotation": 0,
+   "index": "aN",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 350,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the full cycle — rounds, transmittal, snapshots, the alternating edit lock — is drawn in review-cycle.tldr; the skeleton needs only enough for the owner to see status"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:z4",
+   "type": "geo",
+   "x": 1590,
+   "y": 870,
+   "rotation": 0,
+   "index": "aO",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "dashed",
+    "url": "",
+    "w": 870,
+    "h": 620,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "violet",
+    "color": "violet",
+    "fill": "none",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Drawer 4 — AI output & feedback: the Signal loop (ADR-0026/0028)",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:suggestion",
+   "type": "geo",
+   "x": 1620,
+   "y": 940,
+   "rotation": 0,
+   "index": "aP",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 390,
+    "h": 280,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "violet",
+    "color": "violet",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Suggestion",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "an agent-proposed change, offered for accept / edit / reject; exists only when a user prompts an agent"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· run_id → Run"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· work_item_id → Work item"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· sandbox_document_id → Sandbox document"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· kind: insert | replace"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· anchor (advisory — never blocks), content, rationale"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:citation",
+   "type": "geo",
+   "x": 2070,
+   "y": 940,
+   "rotation": 0,
+   "index": "aQ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 360,
+    "h": 170,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "violet",
+    "color": "violet",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Citation",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "grounded claim → supporting source"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· suggestion_id → Suggestion (or step_id)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· version_id → Version, or authority_ref"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:signal",
+   "type": "geo",
+   "x": 2070,
+   "y": 1160,
+   "rotation": 0,
+   "index": "aR",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "geo": "rectangle",
+    "dash": "draw",
+    "url": "",
+    "w": 360,
+    "h": 240,
+    "growY": 0,
+    "scale": 1,
+    "labelColor": "violet",
+    "color": "violet",
+    "fill": "semi",
+    "size": "s",
+    "font": "draw",
+    "align": "start",
+    "verticalAlign": "start",
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Signal ▣",
+         "marks": [
+          {
+           "type": "bold"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "the captured human resolution — the moat's raw material (append-only)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· suggestion_id → Suggestion"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· resolution: accepted | edited | rejected"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· edited_content (nullable)"
+        }
+       ]
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "· resolved_by → Participant, resolved_at"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:n-signal",
+   "type": "text",
+   "x": 1620,
+   "y": 1260,
+   "rotation": 0,
+   "index": "aS",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 390,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "captured but not yet sunk — nothing distils Signals into Knowledge until Session 7 (post-MVP); zero training on customer data (ADR-0026)"
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:legend",
+   "type": "text",
+   "x": 0,
+   "y": 780,
+   "rotation": 0,
+   "index": "aT",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "color": "grey",
+    "size": "s",
+    "font": "draw",
+    "textAlign": "start",
+    "w": 640,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "▣ = append-only: rows are only ever added, never edited or deleted — the permanent, auditable history (ADR-0002/0028)."
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Arrows run parent → child: one row at the tail relates to many at the head, unless labelled."
+        }
+       ]
+      },
+      {
+       "type": "paragraph"
+      },
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "Skeleton scope only — programme context, org-context / Knowledge stores, custom agents, the full sandbox model, rails-as-records all return as their own drawers when their slice is built."
+        }
+       ]
+      }
+     ]
+    },
+    "scale": 1,
+    "autoSize": false
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-org-user",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aU",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:0",
+   "type": "arrow",
+   "fromId": "shape:a-org-user",
+   "toId": "shape:org",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:1",
+   "type": "arrow",
+   "fromId": "shape:a-org-user",
+   "toId": "shape:user",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-org-project",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aV",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "owns"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:2",
+   "type": "arrow",
+   "fromId": "shape:a-org-project",
+   "toId": "shape:org",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:3",
+   "type": "arrow",
+   "fromId": "shape:a-org-project",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-org-membership",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aW",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 20,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:4",
+   "type": "arrow",
+   "fromId": "shape:a-org-membership",
+   "toId": "shape:org",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:5",
+   "type": "arrow",
+   "fromId": "shape:a-org-membership",
+   "toId": "shape:membership",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-project-membership",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aX",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:6",
+   "type": "arrow",
+   "fromId": "shape:a-project-membership",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:7",
+   "type": "arrow",
+   "fromId": "shape:a-project-membership",
+   "toId": "shape:membership",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-user-cred",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aY",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "0..1"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:8",
+   "type": "arrow",
+   "fromId": "shape:a-user-cred",
+   "toId": "shape:user",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:9",
+   "type": "arrow",
+   "fromId": "shape:a-user-cred",
+   "toId": "shape:cred",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-user-participant",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aZ",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 20,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:10",
+   "type": "arrow",
+   "fromId": "shape:a-user-participant",
+   "toId": "shape:user",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:11",
+   "type": "arrow",
+   "fromId": "shape:a-user-participant",
+   "toId": "shape:participant",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-project-participant",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aa",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -30,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:12",
+   "type": "arrow",
+   "fromId": "shape:a-project-participant",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:13",
+   "type": "arrow",
+   "fromId": "shape:a-project-participant",
+   "toId": "shape:participant",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-project-container",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ab",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:14",
+   "type": "arrow",
+   "fromId": "shape:a-project-container",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 1,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:15",
+   "type": "arrow",
+   "fromId": "shape:a-project-container",
+   "toId": "shape:container",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0,
+     "y": 0.3
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-project-sandboxdoc",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ac",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -120,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:16",
+   "type": "arrow",
+   "fromId": "shape:a-project-sandboxdoc",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.7,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:17",
+   "type": "arrow",
+   "fromId": "shape:a-project-sandboxdoc",
+   "toId": "shape:sandboxdoc",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.3,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-project-workitem",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ad",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -110,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:18",
+   "type": "arrow",
+   "fromId": "shape:a-project-workitem",
+   "toId": "shape:project",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.9,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:19",
+   "type": "arrow",
+   "fromId": "shape:a-project-workitem",
+   "toId": "shape:workitem",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-container-version",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ae",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:20",
+   "type": "arrow",
+   "fromId": "shape:a-container-version",
+   "toId": "shape:container",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:21",
+   "type": "arrow",
+   "fromId": "shape:a-container-version",
+   "toId": "shape:version",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-version-chunk",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "af",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:22",
+   "type": "arrow",
+   "fromId": "shape:a-version-chunk",
+   "toId": "shape:version",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:23",
+   "type": "arrow",
+   "fromId": "shape:a-version-chunk",
+   "toId": "shape:chunk",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-workitem-conversation",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ag",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "nullable"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:24",
+   "type": "arrow",
+   "fromId": "shape:a-workitem-conversation",
+   "toId": "shape:workitem",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:25",
+   "type": "arrow",
+   "fromId": "shape:a-workitem-conversation",
+   "toId": "shape:conversation",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-conversation-run",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ah",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:26",
+   "type": "arrow",
+   "fromId": "shape:a-conversation-run",
+   "toId": "shape:conversation",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:27",
+   "type": "arrow",
+   "fromId": "shape:a-conversation-run",
+   "toId": "shape:run",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-run-step",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ai",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:28",
+   "type": "arrow",
+   "fromId": "shape:a-run-step",
+   "toId": "shape:run",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:29",
+   "type": "arrow",
+   "fromId": "shape:a-run-step",
+   "toId": "shape:step",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-step-run",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aj",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 60,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "delegate spawns a child run"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:30",
+   "type": "arrow",
+   "fromId": "shape:a-step-run",
+   "toId": "shape:step",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.3,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:31",
+   "type": "arrow",
+   "fromId": "shape:a-step-run",
+   "toId": "shape:run",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.7,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-run-suggestion",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ak",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "a run proposes 0..n"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:32",
+   "type": "arrow",
+   "fromId": "shape:a-run-suggestion",
+   "toId": "shape:run",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:33",
+   "type": "arrow",
+   "fromId": "shape:a-run-suggestion",
+   "toId": "shape:suggestion",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-suggestion-citation",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "al",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:34",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-citation",
+   "toId": "shape:suggestion",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:35",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-citation",
+   "toId": "shape:citation",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-suggestion-signal",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "am",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 20,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one resolution in v1"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:36",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-signal",
+   "toId": "shape:suggestion",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:37",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-signal",
+   "toId": "shape:signal",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-suggestion-sandboxdoc",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "an",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 130,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "applied on accept / edit; promotion to a controlled Version stays stubbed"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:38",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-sandboxdoc",
+   "toId": "shape:suggestion",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:39",
+   "type": "arrow",
+   "fromId": "shape:a-suggestion-sandboxdoc",
+   "toId": "shape:sandboxdoc",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-citation-version",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ao",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -40,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "cites"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:40",
+   "type": "arrow",
+   "fromId": "shape:a-citation-version",
+   "toId": "shape:citation",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:41",
+   "type": "arrow",
+   "fromId": "shape:a-citation-version",
+   "toId": "shape:version",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 1,
+     "y": 0.3
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-container-drr",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ap",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 60,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "one live DRR"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:42",
+   "type": "arrow",
+   "fromId": "shape:a-container-drr",
+   "toId": "shape:container",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0,
+     "y": 0.8
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:43",
+   "type": "arrow",
+   "fromId": "shape:a-container-drr",
+   "toId": "shape:drr",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0,
+     "y": 0.2
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-drr-comment",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "aq",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "black",
+    "color": "black",
+    "fill": "none",
+    "dash": "draw",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": 0,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph"
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:44",
+   "type": "arrow",
+   "fromId": "shape:a-drr-comment",
+   "toId": "shape:drr",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:45",
+   "type": "arrow",
+   "fromId": "shape:a-drr-comment",
+   "toId": "shape:comment",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0.5
+    },
+    "isExact": false,
+    "isPrecise": false,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "shape",
+   "id": "shape:a-comment-version",
+   "type": "arrow",
+   "x": 0,
+   "y": 0,
+   "rotation": 0,
+   "index": "ar",
+   "parentId": "page:page",
+   "isLocked": false,
+   "opacity": 1,
+   "meta": {},
+   "props": {
+    "kind": "arc",
+    "labelColor": "grey",
+    "color": "grey",
+    "fill": "none",
+    "dash": "dashed",
+    "size": "s",
+    "arrowheadStart": "none",
+    "arrowheadEnd": "arrow",
+    "font": "draw",
+    "start": {
+     "x": 0,
+     "y": 0
+    },
+    "end": {
+     "x": 100,
+     "y": 100
+    },
+    "bend": -30,
+    "richText": {
+     "type": "doc",
+     "content": [
+      {
+       "type": "paragraph",
+       "content": [
+        {
+         "type": "text",
+         "text": "bound to the immutable version"
+        }
+       ]
+      }
+     ]
+    },
+    "labelPosition": 0.5,
+    "scale": 1,
+    "elbowMidPoint": 0.5
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:46",
+   "type": "arrow",
+   "fromId": "shape:a-comment-version",
+   "toId": "shape:comment",
+   "meta": {},
+   "props": {
+    "terminal": "start",
+    "normalizedAnchor": {
+     "x": 0.5,
+     "y": 0
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  },
+  {
+   "typeName": "binding",
+   "id": "binding:47",
+   "type": "arrow",
+   "fromId": "shape:a-comment-version",
+   "toId": "shape:version",
+   "meta": {},
+   "props": {
+    "terminal": "end",
+    "normalizedAnchor": {
+     "x": 0.2,
+     "y": 1
+    },
+    "isExact": false,
+    "isPrecise": true,
+    "snap": "none"
+   }
+  }
+ ]
+}

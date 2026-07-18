@@ -16,6 +16,8 @@ The producing and reviewing sides are appointed symmetrically (ADR-0017). A deli
 
 DRR access is split into visibility and write rights (ADR-0014, refining ADR-0007). Every party with deliverable access sees every issued round permanently; only the currently open round is hidden from the consultant, until the lead reviewer issues it. A single edit lock decides who may write, and it alternates with the cycle, flipped by transmittal in both directions: the reviewers hold it while a round is open, the authoring team holds it once the round is issued, and it returns to the reviewers when the lead author promotes the next version. This rests on the one-open-round invariant, so the consultant always sees every round but the single open one.
 
+**Administration and the roster (2026-07-18, ADR-0033).** The project roster — every Participant's name, organisation and project role — is visible to all Participants: the wall hides work, never presence, which is what lets reviewers, authors and assignees be picked from a list. An **org admin** (`org_role` on the user) manages the organisation's own users and enrols or removes them on projects the organisation is a member of — the owner opens the seat, each organisation staffs it. The access edges are auditable records: Membership carries ADR-0019's propose-then-confirm as a state with added-by and timestamps; a Participant is an interval (removal closes it, auto-revoking live grants from that moment) so attribution in past rounds survives departures. Appointments themselves are stored as append-only interval grant rows per deliverable, reviewer rows propose-then-confirm by the owner (see ADR-0033 and Drawer 5).
+
 Membership is flat and owner-approved (ADR-0019). Only the owner admits an organisation; a member may propose one, such as a contractor proposing its sub-consultant, but there is no nested membership and no organisation holds access on behalf of another. Sharing splits by location: work in progress is shared through shared sandboxes, while a promoted library deliverable is owner-controlled and only the owner can share it. Cross-organisation authoring happens in a shared sandbox, since sandbox membership is what lets an author see the work.
 
 Access resolution is a first-class layer, not UI logic. Every other component consumes its decisions: document management, for instance, consumes the per-deliverable visibility, the DRR visibility and the edit lock rather than implementing its own.
@@ -34,9 +36,9 @@ The cut is by **domain capability**: the distinct access questions the layer ans
 
 ## 1. Organisation membership and roles
 
-**Responsibility.** Hold the organisation-to-project edge; admit organisations to a project, flat and owner-approved; set the owner/member distinction and the shared member baseline; carry programme grouping under one owner.
-**Governing ADRs.** 0015, 0016, 0019.
-**Terms owned.** Membership, Project role, Owner, Member.
+**Responsibility.** Hold the organisation-to-project edge; admit organisations to a project, flat and owner-approved (propose-then-confirm as a stored state); set the owner/member distinction and the shared member baseline; carry programme grouping under one owner.
+**Governing ADRs.** 0015, 0016, 0019, 0033.
+**Terms owned.** Membership, Project role, Owner, Member, Org admin.
 **Depends on.** The network-with-single-owner model (the agreed top-level shape).
 
 ## 2. Participant access
@@ -62,8 +64,8 @@ The cut is by **domain capability**: the distinct access questions the layer ans
 
 ## 5. Appointment of the authoring and review sides
 
-**Responsibility.** Name the review group and the authoring team per deliverable on the plan; inherit both at cycle launch; let each lead amend only its own set at any time within owner-granted scope; keep past rounds frozen across any membership change.
-**Governing ADRs.** 0017, 0008, 0016, 0015.
+**Responsibility.** Name the review group and the authoring team per deliverable as append-only interval grants on the container; the cycle reads the live sets (no copy at launch); reviewers propose-then-confirm — the producing organisation proposes from the visible roster, the owner confirms and maintains; let each lead amend only its own set at any time within owner-granted scope; keep past rounds frozen across any membership change (reconstructed from intervals).
+**Governing ADRs.** 0017, 0008, 0016, 0015, 0033.
 **Terms owned.** Author, Lead author, Authoring team, Reviewer, Lead reviewer, Review group.
 **Depends on.** Deliverable plan (component 5, where both sides are named); organisation membership (the owner-granted scope each lead distributes within).
 

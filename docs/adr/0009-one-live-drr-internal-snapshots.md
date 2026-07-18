@@ -1,6 +1,6 @@
 # ADR-0009 - One live DRR; transmittals freeze internal snapshots; no issued document
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): the DRR is the review *cycle's* record — one live DRR per cycle instance, with the cycle absorbed as the instance unit. The per-deliverable reading below is preserved at project scope (one project cycle per container, spanning every issued version); an internal sandbox-scope cycle carries its own org-private DRR that never crosses the wall. The live-record, snapshot-on-transmittal and no-issued-document rules are unchanged.
 
 **Context:** A transmittal in the old world carries a separate review-notice file, which makes the review record look like a document to be issued and versioned. Materialising that file would rebuild the static Excel notice and fragment the live web view that is the DRR's advantage. But the comments and responses do still need to be frozen as a formal record at each handover.
 

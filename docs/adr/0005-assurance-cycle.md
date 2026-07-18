@@ -1,6 +1,6 @@
 # ADR-0005 - Assurance cycle: version lifecycle inside a deliverable; lead reviewer closes rounds; review period is a guide, not a gate
 
-**Status:** Accepted.
+**Status:** Accepted. Refined by ADR-0032 (2026-07-18): the cycle is role-agnostic (authoring side / reviewing side, not consultant/client) and runs at two scopes (org-private sandbox, wall-crossing project); the cycle is the instance unit with two terminal states — accepted, and **closed-rejected** by explicit audited action of the lead author or project owner (this ADR named no end other than acceptance). The round/close/review-period mechanics below are unchanged.
 
 **Context:** A promoted version is reviewed, responded to, and re-reviewed across rounds until the deliverable is accepted. Something must own the transitions, and review periods exist on real schemes but are not always hard deadlines.
 
