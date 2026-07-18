@@ -66,7 +66,7 @@ export function buildApp(deps: AppDeps) {
   app.route('/', containerRoutes(deps));
 
   // Promotion + the review cycle (Slice A, ADR-0002/0005–0014/0032) — T-120+
-  app.route('/', cycleRoutes(deps));
+  app.route('/', cycleRoutes({ db: deps.db, router: deps.router }));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

@@ -9,6 +9,13 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import {
+  createReviewCommentBody,
+  createReviewResponseBody,
+  issueRoundBody,
+  patchReviewCommentBody,
+  setDeliverableCodeBody,
+} from '@infora/contracts';
 import type {
   AcceptanceCode,
   ApiError,
@@ -21,8 +28,10 @@ import type {
   Round,
   TransmittalRecord,
 } from '@infora/contracts';
+import { ingestVersions } from '@infora/data';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
@@ -260,7 +269,7 @@ export async function snapshotState(db: Db, roundId: string) {
   return { comments, responses };
 }
 
-export function cycleRoutes(deps: { db: Db }) {
+export function cycleRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -439,5 +448,315 @@ export function cycleRoutes(deps: { db: Db }) {
     return c.json(result, 201);
   });
 
+  // ── The round loop (T-123/T-124/T-126) ───────────────────────────────────
+
+  /** Load a round with its container, resolve the requester, check sight. */
+  async function roundScope(c: Context, roundId: string) {
+    if (!isUuid(roundId)) return null;
+    const [row] = await deps.db
+      .select({ round: s.rounds, cycle: s.reviewCycles, container: s.containers })
+      .from(s.rounds)
+      .innerJoin(s.reviewCycles, eq(s.rounds.cycleId, s.reviewCycles.id))
+      .innerJoin(s.containers, eq(s.reviewCycles.containerId, s.containers.id))
+      .where(eq(s.rounds.id, roundId))
+      .limit(1);
+    if (!row) return null;
+    const slice = await resolveSlice(deps.db, c.get('user'), row.container.projectId);
+    if (!slice || !(await canSeeContainer(deps.db, slice, row.container))) return null;
+    return { ...row, slice };
+  }
+
+  // Reviewers comment while the round is open (ADR-0007/0014); comments are
+  // live and cross-organisation within the group.
+  app.post('/rounds/:roundId/comments', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    if (!reviewer) return forbidden(c, 'reviewers_only');
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    const body = createReviewCommentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    if (body.data.acceptanceCodeId && !(await codeUsable(body.data.acceptanceCodeId, container.projectId, 'comment'))) {
+      return c.json({ error: 'invalid', detail: 'unknown_code' } satisfies ApiError, 400);
+    }
+    const [comment] = await deps.db
+      .insert(s.reviewComments)
+      .values({
+        roundId: round.id,
+        versionId: round.versionId,
+        authorParticipantId: slice.participantId,
+        body: body.data.body,
+        acceptanceCodeId: body.data.acceptanceCodeId ?? null,
+        anchor: body.data.anchor ?? null,
+      })
+      .returning();
+    return c.json(await commentRead(deps.db, comment!.id), 201);
+  });
+
+  // Moderation while open: the author their own, the lead reviewer any
+  // (ADR-0007); the DB itself freezes the round at issue.
+  app.patch('/review-comments/:commentId', async (c) => {
+    const commentId = c.req.param('commentId');
+    if (!isUuid(commentId)) return notFound(c);
+    const [comment] = await deps.db
+      .select()
+      .from(s.reviewComments)
+      .where(eq(s.reviewComments.id, commentId))
+      .limit(1);
+    if (!comment) return notFound(c);
+    const scope = await roundScope(c, comment.roundId);
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    const mayModerate =
+      comment.authorParticipantId === slice.participantId || (reviewer?.isLead ?? false);
+    if (!reviewer || !mayModerate) return forbidden(c, 'author_or_lead_reviewer');
+    const body = patchReviewCommentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    await deps.db
+      .update(s.reviewComments)
+      .set({
+        ...(body.data.body !== undefined && { body: body.data.body }),
+        ...(body.data.acceptanceCodeId !== undefined && { acceptanceCodeId: body.data.acceptanceCodeId }),
+        ...(body.data.anchor !== undefined && { anchor: body.data.anchor }),
+      })
+      .where(eq(s.reviewComments.id, comment.id));
+    return c.json(await commentRead(deps.db, comment.id));
+  });
+
+  // The lead reviewer's authoritative per-round verdict (ADR-0003).
+  app.post('/rounds/:roundId/deliverable-code', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    if (!reviewer?.isLead) return forbidden(c, 'lead_reviewer_only');
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    const body = setDeliverableCodeBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    if (!(await codeUsable(body.data.acceptanceCodeId, container.projectId, 'deliverable'))) {
+      return c.json({ error: 'invalid', detail: 'unknown_code' } satisfies ApiError, 400);
+    }
+    await deps.db
+      .update(s.rounds)
+      .set({ deliverableCodeId: body.data.acceptanceCodeId })
+      .where(eq(s.rounds.id, round.id));
+    const cycle = await readCycle(deps.db, container, slice);
+    return c.json(cycle!.rounds.find((r) => r.id === round.id)!);
+  });
+
+  // The lead reviewer closes and issues (ADR-0005/0009/0010/0014): the
+  // transmittal records the audit facts, the snapshot freezes, the round is
+  // revealed and the lock flips — or an accepting code closes the cycle:
+  // the work item accepts and the version auto-admits to grounding (T-126).
+  app.post('/rounds/:roundId/issue', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, cycle, container, slice } = scope;
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    if (!reviewer?.isLead) return forbidden(c, 'lead_reviewer_only');
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    const body = issueRoundBody.safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+
+    const [code] = round.deliverableCodeId
+      ? await deps.db
+          .select()
+          .from(s.acceptanceCodes)
+          .where(eq(s.acceptanceCodes.id, round.deliverableCodeId))
+          .limit(1)
+      : [];
+    const accepting = code?.isAccepting ?? false;
+
+    const authors = await deps.db
+      .select({ participantId: s.deliverableAuthors.participantId })
+      .from(s.deliverableAuthors)
+      .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)));
+
+    const transmittalId = await deps.db.transaction(async (tx) => {
+      const [transmittal] = await tx
+        .insert(s.transmittals)
+        .values({
+          roundId: round.id,
+          direction: 'issue',
+          senderParticipantId: slice.participantId,
+          recipients: authors.map((a) => a.participantId),
+          purposeCode: body.data.purposeCode ?? null,
+          dueAt: body.data.dueAt ? new Date(body.data.dueAt) : null,
+        })
+        .returning();
+      await tx
+        .insert(s.reviewSnapshots)
+        .values({ transmittalId: transmittal!.id, content: await snapshotState(tx as unknown as Db, round.id) });
+      await tx.update(s.rounds).set({ state: 'issued' }).where(eq(s.rounds.id, round.id));
+      if (accepting) {
+        await tx
+          .update(s.reviewCycles)
+          .set({
+            state: 'accepted',
+            closedByParticipantId: slice.participantId,
+            closedAt: sql`now()`,
+          })
+          .where(eq(s.reviewCycles.id, cycle.id));
+        await tx
+          .update(s.workItems)
+          .set({ status: 'accepted' })
+          .where(eq(s.workItems.containerId, container.id));
+        // acceptance is what admits the deliverable to the grounded corpus
+        // (ADR-0003/0011/0013)
+        await tx
+          .update(s.containers)
+          .set({ inLibrary: true })
+          .where(eq(s.containers.id, container.id));
+      } else {
+        await tx
+          .update(s.reviewCycles)
+          .set({ editLockHolder: 'authoring' })
+          .where(eq(s.reviewCycles.id, cycle.id));
+        await tx
+          .update(s.workItems)
+          .set({ status: 'responding' })
+          .where(eq(s.workItems.containerId, container.id));
+      }
+      return transmittal!.id;
+    });
+    if (accepting) {
+      // chunk + embed whatever newly grounds — an idempotent sweep (T-012)
+      await ingestVersions(deps.db, deps.router);
+    }
+    const fresh = await readCycle(deps.db, container, slice);
+    return c.json({ transmittalId, cycle: fresh! });
+  });
+
+  // The authoring side's mandatory reply (ADR-0004), during the respond phase.
+  app.post('/review-comments/:commentId/response', async (c) => {
+    const commentId = c.req.param('commentId');
+    if (!isUuid(commentId)) return notFound(c);
+    const [comment] = await deps.db
+      .select()
+      .from(s.reviewComments)
+      .where(eq(s.reviewComments.id, commentId))
+      .limit(1);
+    if (!comment) return notFound(c);
+    const scope = await roundScope(c, comment.roundId);
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    const author = await isLiveAuthor(deps.db, container.id, slice.participantId);
+    if (!author) return forbidden(c, 'authors_only');
+    if (round.state !== 'issued') return conflict(c, 'round_not_in_respond_phase');
+    const body = createReviewResponseBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    try {
+      const [response] = await deps.db
+        .insert(s.responses)
+        .values({
+          commentId: comment.id,
+          authorParticipantId: slice.participantId,
+          body: body.data.body,
+          nextVersionId: body.data.nextVersionId ?? null,
+          nextVersionAnchor: body.data.nextVersionAnchor ?? null,
+          noChangeReason: body.data.noChangeReason ?? null,
+        })
+        .returning();
+      const cycleRead = await readCycle(deps.db, container, slice);
+      const fresh = cycleRead!.rounds
+        .flatMap((r) => r.comments)
+        .find((cm) => cm.id === comment.id)!;
+      return c.json(fresh.response ?? { id: response!.id }, 201);
+    } catch (error) {
+      if (error instanceof Error && /responses_comment_unique|duplicate key/.test(String(error.cause ?? error.message))) {
+        return conflict(c, 'already_responded');
+      }
+      throw error;
+    }
+  });
+
+  // The explicit audited stop (ADR-0032): lead author or project owner.
+  app.post('/cycles/:cycleId/close-rejected', async (c) => {
+    const cycleId = c.req.param('cycleId');
+    if (!isUuid(cycleId)) return notFound(c);
+    const [cycle] = await deps.db
+      .select()
+      .from(s.reviewCycles)
+      .where(eq(s.reviewCycles.id, cycleId))
+      .limit(1);
+    if (!cycle || cycle.state !== 'active') return notFound(c);
+    const [container] = await deps.db
+      .select()
+      .from(s.containers)
+      .where(eq(s.containers.id, cycle.containerId))
+      .limit(1);
+    const slice = await resolveSlice(deps.db, c.get('user'), container!.projectId);
+    if (!slice || !(await canSeeContainer(deps.db, slice, container!))) return notFound(c);
+    const author = await isLiveAuthor(deps.db, container!.id, slice.participantId);
+    const mayClose = (author?.isLead ?? false) || slice.membershipRole === 'owner';
+    if (!mayClose) return forbidden(c, 'lead_author_or_owner');
+    await deps.db.transaction(async (tx) => {
+      await tx
+        .update(s.reviewCycles)
+        .set({ state: 'closed_rejected', closedByParticipantId: slice.participantId, closedAt: sql`now()` })
+        .where(eq(s.reviewCycles.id, cycle.id));
+      // the deliverable stands as a record and never grounds (ADR-0013/0032)
+      await tx.update(s.containers).set({ state: 'rejected' }).where(eq(s.containers.id, container!.id));
+      await tx
+        .update(s.workItems)
+        .set({ status: 'rejected' })
+        .where(eq(s.workItems.containerId, container!.id));
+    });
+    return c.json(await readCycle(deps.db, container!, slice));
+  });
+
+  async function codeUsable(codeId: string, projectId: string, level: 'comment' | 'deliverable') {
+    const [code] = await deps.db
+      .select()
+      .from(s.acceptanceCodes)
+      .where(and(eq(s.acceptanceCodes.id, codeId), eq(s.acceptanceCodes.projectId, projectId), isNull(s.acceptanceCodes.retiredAt)))
+      .limit(1);
+    return code !== undefined && (code.level === 'both' || code.level === level);
+  }
+
   return app;
+}
+
+async function commentRead(db: Db, commentId: string): Promise<ReviewComment> {
+  const [row] = await db
+    .select({ comment: s.reviewComments, authorName: s.users.name })
+    .from(s.reviewComments)
+    .innerJoin(s.participants, eq(s.reviewComments.authorParticipantId, s.participants.id))
+    .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+    .where(eq(s.reviewComments.id, commentId))
+    .limit(1);
+  const comment = row!.comment;
+  const code = comment.acceptanceCodeId
+    ? (await db.select().from(s.acceptanceCodes).where(eq(s.acceptanceCodes.id, comment.acceptanceCodeId)).limit(1))[0]
+    : undefined;
+  const [response] = await db
+    .select()
+    .from(s.responses)
+    .where(eq(s.responses.commentId, comment.id))
+    .limit(1);
+  return {
+    id: comment.id,
+    roundId: comment.roundId,
+    versionId: comment.versionId,
+    author: { participantId: comment.authorParticipantId, name: row!.authorName },
+    body: comment.body,
+    acceptanceCode: code ? { id: code.id, code: code.code } : null,
+    anchor: (comment.anchor as ReviewComment['anchor']) ?? null,
+    createdAt: comment.createdAt.toISOString(),
+    response: response
+      ? {
+          id: response.id,
+          commentId: response.commentId,
+          author: { participantId: response.authorParticipantId, name: '' },
+          body: response.body,
+          nextVersionId: response.nextVersionId,
+          nextVersionAnchor: (response.nextVersionAnchor as ReviewComment['anchor']) ?? null,
+          noChangeReason: response.noChangeReason,
+          createdAt: response.createdAt.toISOString(),
+        }
+      : null,
+  };
 }

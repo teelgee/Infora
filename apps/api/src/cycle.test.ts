@@ -231,3 +231,249 @@ describe('the cycle read is phased (ADR-0014)', () => {
     expect(asAuthor.rounds[0]!.comments).toHaveLength(0); // hidden until issued
   });
 });
+
+describe('the round loop (T-123/T-124/T-126)', () => {
+  let roundId: string;
+  let commentId: string;
+  let codes: { accepting: string; revise: string };
+
+  it('reviewers comment and code while open; authors may not', async () => {
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    roundId = cycle.rounds[0]!.id;
+    const codeRows = await db.select().from(s.acceptanceCodes).where(eq(s.acceptanceCodes.projectId, projectId));
+    codes = {
+      accepting: codeRows.find((r) => r.isAccepting)!.id,
+      revise: codeRows.find((r) => !r.isAccepting)!.id,
+    };
+
+    const byAuthor = await app.request(`/rounds/${roundId}/comments`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ body: 'sneaky' }),
+    });
+    expect(byAuthor.status).toBe(403);
+
+    const res = await app.request(`/rounds/${roundId}/comments`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({
+        body: 'Clarify the drainage assumption.',
+        anchor: { page: 1, quote: 'ready for round one' },
+        acceptanceCodeId: codes.revise,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const comment = (await res.json()) as { id: string; anchor: { page?: number } | null };
+    commentId = comment.id;
+    expect(comment.anchor?.page).toBe(1);
+  });
+
+  it('the lead reviewer moderates, sets the verdict, and issues — lock flips, round revealed', async () => {
+    const moderated = await app.request(`/review-comments/${commentId}`, {
+      method: 'PATCH',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ body: 'Clarify the drainage assumption at WS-TP07.' }),
+    });
+    expect(moderated.status).toBe(200);
+
+    const verdict = await app.request(`/rounds/${roundId}/deliverable-code`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ acceptanceCodeId: codes.revise }),
+    });
+    expect(verdict.status).toBe(200);
+
+    const issued = await app.request(`/rounds/${roundId}/issue`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ purposeCode: 'For review' }),
+    });
+    expect(issued.status).toBe(200);
+    const { cycle } = (await issued.json()) as { cycle: ReviewCycle };
+    expect(cycle.state).toBe('active'); // revise-and-resubmit, not accepted
+    expect(cycle.editLockHolder).toBe('authoring');
+    expect(cycle.rounds[0]!.state).toBe('issued');
+
+    // the closed round is now visible to the authoring side (ADR-0014) —
+    // both comments: the phasing test's direct one and the API one
+    const asAuthor = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as ReviewCycle;
+    expect(asAuthor.rounds[0]!.comments).toHaveLength(2);
+
+    const [workItem] = await db.select().from(s.workItems).where(eq(s.workItems.containerId, containerId));
+    expect(workItem!.status).toBe('responding');
+  });
+
+  it('responses are the authoring side’s, one per comment, exactly one of link or no-change', async () => {
+    const both = await app.request(`/review-comments/${commentId}/response`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ body: 'x', noChangeReason: 'y', nextVersionId: commentId }),
+    });
+    expect(both.status).toBe(400); // the zod refine
+
+    const res = await app.request(`/review-comments/${commentId}/response`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ body: 'Assumption clarified in §3.2 of the next revision.', noChangeReason: 'section updated in v2' }),
+    });
+    expect(res.status).toBe(201);
+
+    const dup = await app.request(`/review-comments/${commentId}/response`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ body: 'again', noChangeReason: 'again' }),
+    });
+    expect(dup.status).toBe(409);
+
+    // the mandatory-response rule bites the transmittal back: one comment is
+    // still unanswered, so promotion refuses (ADR-0004)
+    const early = await promote(leadAuthorCookie);
+    expect(early.status).toBe(409);
+    expect(((await early.json()) as { detail?: string }).detail).toBe('unanswered_comments');
+
+    // answer the remaining comment
+    const asAuthor = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as ReviewCycle;
+    const unanswered = asAuthor.rounds[0]!.comments.filter((cm) => cm.response === null);
+    for (const cm of unanswered) {
+      const res = await app.request(`/review-comments/${cm.id}/response`, {
+        method: 'POST',
+        headers: asJson(leadAuthorCookie),
+        body: JSON.stringify({ body: 'Noted for the record.', noChangeReason: 'deliberation point, no change required' }),
+      });
+      expect(res.status).toBe(201);
+    }
+  });
+
+  it('the transmittal back: promote v2, round 2 opens, lock returns to reviewers', async () => {
+    await db
+      .update(s.sandboxDocuments)
+      .set({ content: 'The drafted statement, drainage assumption clarified.' })
+      .where(eq(s.sandboxDocuments.id, documentId));
+    const res = await promote(leadAuthorCookie);
+    expect(res.status).toBe(201);
+    const result = (await res.json()) as PromotionResult;
+    expect(result.versionReference).toBe('v2');
+    expect(result.roundNumber).toBe(2);
+
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    expect(cycle.editLockHolder).toBe('reviewing');
+    expect(cycle.rounds.map((r) => r.state)).toEqual(['responded', 'open']);
+  });
+
+  it('an accepting verdict closes the cycle: work item accepted, the version admitted to grounding (T-126)', async () => {
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    const round2 = cycle.rounds[1]!;
+    await app.request(`/rounds/${round2.id}/deliverable-code`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ acceptanceCodeId: codes.accepting }),
+    });
+    const issued = await app.request(`/rounds/${round2.id}/issue`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({}),
+    });
+    expect(issued.status).toBe(200);
+    const closed = ((await issued.json()) as { cycle: ReviewCycle }).cycle;
+    expect(closed.state).toBe('accepted');
+
+    const [workItem] = await db.select().from(s.workItems).where(eq(s.workItems.containerId, containerId));
+    expect(workItem!.status).toBe('accepted');
+    const [container] = await db.select().from(s.containers).where(eq(s.containers.id, containerId));
+    expect(container!.inLibrary).toBe(true);
+
+    // the accepted current version is chunked for grounding (T-012 sweep)
+    const cycleRounds = closed.rounds;
+    const acceptedVersionId = cycleRounds[1]!.versionId;
+    const chunks = await db.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, acceptedVersionId));
+    expect(chunks.length).toBeGreaterThan(0);
+
+    // promoting after acceptance is a NEW revision entering review: a fresh
+    // cycle launches (the one-ACTIVE-cycle rule; the accepted record stands)
+    const rePromote = await promote(leadAuthorCookie);
+    expect(rePromote.status).toBe(201);
+    const again = (await rePromote.json()) as PromotionResult;
+    expect(again.cycleId).not.toBe(closed.id);
+    expect(again.versionReference).toBe('v3');
+    expect(again.roundNumber).toBe(1);
+  });
+
+  it('close-rejected is the explicit audited stop: container rejected, never grounds (ADR-0032)', async () => {
+    // a second deliverable, launched then abandoned
+    const [container2] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: consultOrg,
+        documentReference: `T120-DEL2-${stamp}`,
+        inLibrary: false,
+      })
+      .returning();
+    await db.insert(s.workItems).values({
+      projectId,
+      type: 'document_production',
+      title: 't120 abandoned',
+      status: 'drafting',
+      containerId: container2!.id,
+    });
+    await db.insert(s.deliverableAuthors).values({
+      containerId: container2!.id,
+      participantId: leadAuthorParticipantId,
+      isLead: true,
+      grantedByParticipantId: leadAuthorParticipantId,
+    });
+    await db.insert(s.deliverableReviewers).values({
+      containerId: container2!.id,
+      participantId: ownerParticipantId,
+      isLead: true,
+      grantedByParticipantId: ownerParticipantId,
+      confirmedByParticipantId: ownerParticipantId,
+      confirmedAt: new Date(),
+    });
+    const [doc2] = await db
+      .insert(s.sandboxDocuments)
+      .values({
+        projectId,
+        organisationId: consultOrg,
+        title: 't120 abandoned draft',
+        content: 'never to be',
+        containerId: container2!.id,
+        createdByParticipantId: leadAuthorParticipantId,
+      })
+      .returning();
+    await promote(leadAuthorCookie, doc2!.id);
+
+    const [cycle2] = await db
+      .select()
+      .from(s.reviewCycles)
+      .where(and(eq(s.reviewCycles.containerId, container2!.id), eq(s.reviewCycles.state, 'active')));
+
+    // a plain reviewer cannot close; the lead author can
+    const sneaky = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
+      method: 'POST',
+      headers: asJson(colleagueCookie),
+    });
+    expect(sneaky.status).toBe(403);
+    const closed = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(closed.status).toBe(200);
+    expect(((await closed.json()) as ReviewCycle).state).toBe('closed_rejected');
+
+    const [container] = await db.select().from(s.containers).where(eq(s.containers.id, container2!.id));
+    expect(container!.state).toBe('rejected');
+    const [workItem] = await db.select().from(s.workItems).where(eq(s.workItems.containerId, container2!.id));
+    expect(workItem!.status).toBe('rejected');
+  });
+});
