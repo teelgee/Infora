@@ -225,141 +225,189 @@ function RoundCard(props: {
             ))}
           </div>
 
-          {/* The review surface itself: the frozen version's PDF, anchors
-              painted from the stored fields. This round paints only its own
-              version's rendition, so anchors never migrate forward. */}
-          {pdf ? (
+          {/* T-131 — the review reads side by side: the frozen version's
+              PDF on the left (anchors painted from the stored fields — this
+              round paints only its own version's rendition, so anchors never
+              migrate forward), the DRR on the right. The list↔region hover
+              spans the split; the columns stack when the content area is too
+              narrow to hold both. */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 640px', minWidth: 0 }}>
+              {pdf ? (
+                <div
+                  className="review-viewer"
+                  style={{
+                    background: 'var(--panel)',
+                    border: '1px solid var(--hairline)',
+                    borderRadius: 8,
+                    padding: 12,
+                    maxHeight: 620,
+                    overflow: 'auto',
+                  }}
+                >
+                  {props.canComment && (
+                    <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
+                      Select text on the page to quote it, or click to drop a point — then write the comment
+                      alongside.
+                    </div>
+                  )}
+                  <Suspense
+                    fallback={<div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading the review PDF…</div>}
+                  >
+                    <ReviewPdf
+                      renditionId={pdf.id}
+                      comments={round.comments}
+                      interactive={props.canComment}
+                      draft={draftAnchor}
+                      onDraft={setDraftAnchor}
+                      hoveredCommentId={hovered}
+                      onHoverComment={setHovered}
+                    />
+                  </Suspense>
+                </div>
+              ) : (
+                <TextFallback versionId={round.versionId} />
+              )}
+            </div>
+
             <div
-              className="review-viewer"
+              className="review-drr"
               style={{
-                background: 'var(--panel)',
-                border: '1px solid var(--hairline)',
-                borderRadius: 8,
-                padding: 12,
-                maxHeight: 560,
-                overflow: 'auto',
+                flex: '1 1 320px',
+                minWidth: 280,
+                maxHeight: 620,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
               }}
             >
-              {props.canComment && (
-                <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
-                  Select text on the page to quote it, or click to drop a point — then write the comment below.
-                </div>
-              )}
-              <Suspense
-                fallback={<div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading the review PDF…</div>}
-              >
-                <ReviewPdf
-                  renditionId={pdf.id}
-                  comments={round.comments}
-                  interactive={props.canComment}
-                  draft={draftAnchor}
-                  onDraft={setDraftAnchor}
-                  hoveredCommentId={hovered}
-                  onHoverComment={setHovered}
-                />
-              </Suspense>
-            </div>
-          ) : (
-            <TextFallback versionId={round.versionId} />
-          )}
-
-          {round.comments.length === 0 && (
-            <span style={{ color: 'var(--muted)' }}>
-              {round.state === 'open'
-                ? 'No comments yet — the round is open to the review group.'
-                : 'No comments were recorded in this round.'}
-            </span>
-          )}
-          {round.comments.map((comment) => (
-            <CommentRow
-              key={comment.id}
-              comment={comment}
-              canRespond={props.canRespond}
-              act={props.act}
-              hovered={hovered === comment.id}
-              onHover={setHovered}
-            />
-          ))}
-
-          {props.canComment && (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <AnchorChip anchor={draftAnchor} onClear={() => setDraftAnchor(null)} />
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <textarea
-                  placeholder="Add a review comment…"
-                  value={commentBody}
-                  onChange={(e) => setCommentBody(e.target.value)}
-                  style={{ ...field, flex: 1, minHeight: 54 }}
-                />
-                <select value={commentCode} onChange={(e) => setCommentCode(e.target.value)} style={field}>
-                  <option value="">no code</option>
-                  {codes
-                    .filter((c) => c.level !== 'deliverable')
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.code} — {c.description}
-                      </option>
-                    ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  disabled={!commentBody.trim()}
-                  onClick={() =>
-                    void props
-                      .act(() =>
-                        api.addReviewComment(round.id, {
-                          body: commentBody.trim(),
-                          ...(commentCode && { acceptanceCodeId: commentCode }),
-                          ...(draftAnchor && { anchor: draftAnchor }),
-                        }),
-                      )
-                      .then(() => {
-                        setCommentBody('');
-                        setCommentCode('');
-                        setDraftAnchor(null);
-                      })
-                  }
-                >
-                  Comment
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {props.canModerate && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
-              <span style={{ color: 'var(--muted)' }}>Deliverable verdict</span>
-              <select value={verdict} onChange={(e) => setVerdict(e.target.value)} style={field}>
-                <option value="">choose a code…</option>
-                {codes
-                  .filter((c) => c.level !== 'comment')
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.description}
-                      {c.isAccepting ? ' (accepting)' : ''}
-                    </option>
-                  ))}
-              </select>
-              {verdict && verdict !== round.deliverableCode?.id && (
-                <Button size="sm" variant="quiet" onClick={() => void props.act(() => api.setDeliverableCode(round.id, verdict))}>
-                  Set verdict
-                </Button>
-              )}
-              <span style={{ flex: 1 }} />
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  if (window.confirm('Close and issue this round? The snapshot freezes and the pen changes hands.')) {
-                    void props.act(() => api.issueRound(round.id));
-                  }
+              <div
+                style={{
+                  overflowY: 'auto',
+                  minHeight: 0,
+                  flex: '1 1 auto',
+                  display: 'grid',
+                  gap: 12,
+                  alignContent: 'start',
                 }}
               >
-                Close &amp; issue the round
-              </Button>
+                {round.comments.length === 0 && (
+                  <span style={{ color: 'var(--muted)' }}>
+                    {round.state === 'open'
+                      ? 'No comments yet — the round is open to the review group.'
+                      : 'No comments were recorded in this round.'}
+                  </span>
+                )}
+                {round.comments.map((comment) => (
+                  <CommentRow
+                    key={comment.id}
+                    comment={comment}
+                    canRespond={props.canRespond}
+                    act={props.act}
+                    hovered={hovered === comment.id}
+                    onHover={setHovered}
+                  />
+                ))}
+              </div>
+
+              {props.canComment && (
+                <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+                  <AnchorChip anchor={draftAnchor} onClear={() => setDraftAnchor(null)} />
+                  <textarea
+                    placeholder="Add a review comment…"
+                    value={commentBody}
+                    onChange={(e) => setCommentBody(e.target.value)}
+                    style={{ ...field, minHeight: 54 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select
+                      value={commentCode}
+                      onChange={(e) => setCommentCode(e.target.value)}
+                      style={{ ...field, flex: 1 }}
+                    >
+                      <option value="">no code</option>
+                      {codes
+                        .filter((c) => c.level !== 'deliverable')
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.code} — {c.description}
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={!commentBody.trim()}
+                      onClick={() =>
+                        void props
+                          .act(() =>
+                            api.addReviewComment(round.id, {
+                              body: commentBody.trim(),
+                              ...(commentCode && { acceptanceCodeId: commentCode }),
+                              ...(draftAnchor && { anchor: draftAnchor }),
+                            }),
+                          )
+                          .then(() => {
+                            setCommentBody('');
+                            setCommentCode('');
+                            setDraftAnchor(null);
+                          })
+                      }
+                    >
+                      Comment
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {props.canModerate && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 8,
+                    borderTop: '1px solid var(--hairline)',
+                    paddingTop: 12,
+                  }}
+                >
+                  <span style={{ color: 'var(--muted)' }}>Deliverable verdict</span>
+                  <select value={verdict} onChange={(e) => setVerdict(e.target.value)} style={field}>
+                    <option value="">choose a code…</option>
+                    {codes
+                      .filter((c) => c.level !== 'comment')
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} — {c.description}
+                          {c.isAccepting ? ' (accepting)' : ''}
+                        </option>
+                      ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {verdict && verdict !== round.deliverableCode?.id && (
+                      <Button
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => void props.act(() => api.setDeliverableCode(round.id, verdict))}
+                      >
+                        Set verdict
+                      </Button>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        if (window.confirm('Close and issue this round? The snapshot freezes and the pen changes hands.')) {
+                          void props.act(() => api.issueRound(round.id));
+                        }
+                      }}
+                    >
+                      Close &amp; issue the round
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </Card>
     </>
