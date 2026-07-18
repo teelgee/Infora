@@ -1,8 +1,10 @@
-// Drawer 2 — documents, the grounding corpus (ADR-0002, ADR-0011, ADR-0013).
+// Drawer 2 — documents, the grounding corpus (ADR-0002, ADR-0011, ADR-0013;
+// rebuilt for Slice A per ADR-0032/0034, T-114).
 import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -12,9 +14,21 @@ import {
   vector,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { organisations, participants, projects } from './drawer1-parties.js';
 
-export const containerState = pgEnum('container_state', ['live', 'superseded', 'withdrawn']);
+// rejected: the cycle was closed-rejected and never resubmitted — the document
+// stays in the library as a record and never grounds (ADR-0013/0032)
+export const containerState = pgEnum('container_state', [
+  'live',
+  'superseded',
+  'withdrawn',
+  'rejected',
+]);
+// a library container is a deliverable (a plan row, ADR-0008); a sandbox
+// container is a sandbox document's freeze series — org-private, no coded
+// reference, auto-created at first freeze (ADR-0032)
+export const containerScope = pgEnum('container_scope', ['library', 'sandbox']);
 
 export const containers = pgTable(
   'containers',
@@ -23,11 +37,34 @@ export const containers = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => projects.id),
-    documentReference: text('document_reference').notNull(),
+    scope: containerScope('scope').notNull().default('library'),
+    // whose plan row this is — container creation and metadata are
+    // producing-organisation acts; an organisation's deliverable plan is its
+    // set of planned library-scope containers (ADR-0033)
+    producingOrganisationId: uuid('producing_organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    // null at sandbox scope — the freeze series and the issued series are two
+    // reference sequences (the P-rev/C-rev convention, ADR-0032)
+    documentReference: text('document_reference'),
+    // set only at sandbox scope: whose freeze series this is (ADR-0032)
+    sandboxDocumentId: uuid('sandbox_document_id').references(
+      (): AnyPgColumn => sandboxDocuments.id,
+    ),
     inLibrary: boolean('in_library').notNull().default(false),
     state: containerState('state').notNull().default('live'),
+    // plan-authored extras (ADR-0008); the per-project schema is deferred with
+    // the naming scheme — at-a-glance columns are derived by query, never
+    // duplicated here (2026-07-18 ruling)
+    metadata: jsonb('metadata').notNull().default({}),
   },
-  (t) => [uniqueIndex('containers_project_reference_unique').on(t.projectId, t.documentReference)],
+  (t) => [
+    uniqueIndex('containers_project_reference_unique').on(t.projectId, t.documentReference),
+    // one freeze series per sandbox document
+    uniqueIndex('containers_sandbox_document_unique')
+      .on(t.sandboxDocumentId)
+      .where(sql`${t.sandboxDocumentId} IS NOT NULL`),
+  ],
 );
 
 // Append-only (enforced by trigger, T-008).
@@ -43,6 +80,31 @@ export const versions = pgTable('versions', {
   content: text('content').notNull(),
   isCurrent: boolean('is_current').notNull().default(true),
 });
+
+// A stored, immutable, one-way export bound to its version — a snapshot of
+// the record, never an editing surface (ADR-0034, T-114). Native = the asset
+// the client owns and reuses (generated for authored documents, the file
+// itself for uploaded ones); pdf = the authoritative review-and-record
+// rendition (ADR-0004). Append-only by trigger, like its Version. The
+// dwg/CAD format class is deliberately deferred.
+export const renditionKind = pgEnum('rendition_kind', ['native', 'pdf']);
+export const renditionFormat = pgEnum('rendition_format', ['docx', 'xlsx', 'pptx', 'pdf']);
+
+export const renditions = pgTable(
+  'renditions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => versions.id),
+    kind: renditionKind('kind').notNull(),
+    format: renditionFormat('format').notNull(),
+    // a pointer into the dev blob substrate; real storage is the infra session
+    contentRef: text('content_ref').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('renditions_version_kind_unique').on(t.versionId, t.kind)],
+);
 
 // The grounding corpus's retrieval index (T-012, ADR-0024): derived,
 // rebuildable rows — chunk text and vector co-located with the relational
@@ -76,6 +138,13 @@ export const versionChunks = pgTable(
   ],
 );
 
+// canonical format follows origin (ADR-0034): authored = Infora structured
+// text is canonical; uploaded = the native file is canonical. A slide deck is
+// a differently-shaped authored document, not a rendition trick.
+export const documentOrigin = pgEnum('document_origin', ['authored', 'uploaded']);
+export const documentKind = pgEnum('document_kind', ['text', 'slides']);
+export const documentFormat = pgEnum('document_format', ['infora_text', 'docx', 'xlsx', 'pptx']);
+
 // Deliberately mutable — the uncontrolled working area (draft-location
 // decision, 2026-07-04). The one non-append-only content table by design.
 export const sandboxDocuments = pgTable('sandbox_documents', {
@@ -89,12 +158,47 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
     .notNull()
     .references(() => organisations.id),
   title: text('title').notNull(),
+  origin: documentOrigin('origin').notNull().default('authored'),
+  kind: documentKind('kind').notNull().default('text'),
+  format: documentFormat('format').notNull().default('infora_text'),
+  // content stays NOT NULL until the upload path lands (T-122 relaxes it and
+  // adds the one-of-content-or-file check per ADR-0034/data-model Drawer 2)
   content: text('content').notNull().default(''),
+  // the canonical native file when uploaded (T-122 writes it)
+  fileRef: text('file_ref'),
+  // the intended plan row this draft is producing — the previously missing
+  // sandbox-document ↔ deliverable link (ADR-0032); null for ad-hoc documents
+  containerId: uuid('container_id').references(() => containers.id),
+  // the freeze's check-out lock: set while a sandbox-scope round is open,
+  // released by transmittal-back or audited early release (ADR-0032)
+  headLocked: boolean('head_locked').notNull().default(false),
   createdByParticipantId: uuid('created_by_participant_id')
     .notNull()
     .references(() => participants.id),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Ambient version history (ADR-0032, T-114; written from T-128): the
+// SharePoint-style automatic snapshot at each save boundary — browsable,
+// restorable, a working tool, not a record. Nothing review-grade binds to it
+// and it never grounds; restore copies a snapshot back into the head, it
+// never rewrites history. Distinct from the freeze (an immutable Version in
+// the document's sandbox-scope container).
+export const sandboxDocumentVersions = pgTable(
+  'sandbox_document_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
+    content: text('content').notNull(),
+    createdByParticipantId: uuid('created_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sandbox_document_versions_document_idx').on(t.sandboxDocumentId)],
+);
 
 export const sandboxCommentStatus = pgEnum('sandbox_comment_status', ['open', 'closed']);
 

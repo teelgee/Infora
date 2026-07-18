@@ -12,7 +12,8 @@ const { db, pool } = createDb();
 
 await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,
-    comments, drrs, sandbox_documents, versions, containers, work_items,
+    comments, drrs, sandbox_document_versions, sandbox_documents, renditions,
+    versions, containers, work_items,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
 
@@ -206,6 +207,9 @@ for (const doc of library) {
     .insert(s.containers)
     .values({
       projectId: project!.id,
+      // the seed library is owner-added reference material (ADR-0011), so the
+      // owner organisation is its producing organisation (ADR-0033)
+      producingOrganisationId: trentmoor!.id,
       documentReference: doc.reference,
       inLibrary: true,
       state: doc.state ?? 'live',

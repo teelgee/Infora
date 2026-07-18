@@ -41,7 +41,7 @@ beforeAll(async () => {
   participantId = participant!.id;
   const [container] = await db
     .insert(s.containers)
-    .values({ projectId: project!.id, documentReference: `T008-${Date.now()}`, inLibrary: true })
+    .values({ projectId: project!.id, producingOrganisationId: org!.id, documentReference: `T008-${Date.now()}`, inLibrary: true })
     .returning();
   containerId = container!.id;
   const [version] = await db
@@ -82,6 +82,18 @@ describe('strictly insert-only tables', () => {
   it('rejects UPDATE and DELETE on versions', async () => {
     await expectDbError(db.update(s.versions).set({ content: 'tampered' }).where(eq(s.versions.id, versionId)), /append-only/);
     await expectDbError(db.delete(s.versions).where(eq(s.versions.id, versionId)), /append-only/);
+  });
+
+  it('rejects UPDATE and DELETE on renditions — a rendition is a snapshot of the record (ADR-0034, T-114)', async () => {
+    const [rendition] = await db
+      .insert(s.renditions)
+      .values({ versionId, kind: 'pdf', format: 'pdf', contentRef: 'blob://t114-test' })
+      .returning();
+    await expectDbError(
+      db.update(s.renditions).set({ contentRef: 'blob://tampered' }).where(eq(s.renditions.id, rendition!.id)),
+      /append-only/,
+    );
+    await expectDbError(db.delete(s.renditions).where(eq(s.renditions.id, rendition!.id)), /append-only/);
   });
 
   it('rejects UPDATE and DELETE on signals and comments', async () => {
