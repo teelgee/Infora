@@ -17,14 +17,13 @@ import type {
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { projectScope, resourceHomes, resourceScope } from './requester';
+import { resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
 type CommentRow = typeof s.sandboxComments.$inferSelect;
 
 export function commentRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
-  const project = projectScope(deps);
   const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
   const commentScope = resourceScope(deps, 'id', resourceHomes.sandboxComment);
 
