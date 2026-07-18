@@ -22,23 +22,26 @@ const [calderHale] = await db.insert(s.organisations).values({ name: 'Calder & H
 // wall-test subject: an organisation with no Membership on the project
 const [halvern] = await db.insert(s.organisations).values({ name: 'Halvern Associates' }).returning();
 
+// each organisation names an org admin (ADR-0033, T-113) — the intra-org
+// enrolment power T-117 exercises; never a project-level fact
 const [rachel] = await db
   .insert(s.users)
-  .values({ name: 'Rachel Bowen', email: 'rachel.bowen@trentmoor.example', organisationId: trentmoor!.id })
+  .values({ name: 'Rachel Bowen', email: 'rachel.bowen@trentmoor.example', organisationId: trentmoor!.id, orgRole: 'admin' })
   .returning();
 const [eleanor] = await db
   .insert(s.users)
-  .values({ name: 'Eleanor Price', email: 'eleanor.price@calderhale.example', organisationId: calderHale!.id })
+  .values({ name: 'Eleanor Price', email: 'eleanor.price@calderhale.example', organisationId: calderHale!.id, orgRole: 'admin' })
   .returning();
 // wall-test subject: member-org user with NO Participant on the project
 const [marcus] = await db
   .insert(s.users)
   .values({ name: 'Marcus Webb', email: 'marcus.webb@calderhale.example', organisationId: calderHale!.id })
   .returning();
-// wall-test subject: an authenticated user in the membership-less third org (T-022)
+// wall-test subject: an authenticated user in the membership-less third org (T-022);
+// their org's admin, proving org_role grants nothing across the wall
 const [priya] = await db
   .insert(s.users)
-  .values({ name: 'Priya Nair', email: 'priya.nair@halvern.example', organisationId: halvern!.id })
+  .values({ name: 'Priya Nair', email: 'priya.nair@halvern.example', organisationId: halvern!.id, orgRole: 'admin' })
   .returning();
 
 // skeleton session login (T-021) — dev password, printed below; the wall

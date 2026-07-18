@@ -8,6 +8,7 @@
 import type { Id } from '@infora/contracts';
 
 export type MembershipRole = 'owner' | 'member';
+export type MembershipState = 'proposed' | 'active';
 
 // The rows the predicate judges — shaped after Drawer 1, loaded by the caller
 // (the API boundary at T-023, the assembly gateway at T-030).
@@ -15,9 +16,9 @@ export type AccessFacts = {
   user: { id: Id; organisationId: Id } | null;
   project: { id: Id } | null;
   /** the requesting user's organisation's Membership on the project, if any */
-  membership: { organisationId: Id; projectId: Id; role: MembershipRole } | null;
+  membership: { organisationId: Id; projectId: Id; role: MembershipRole; state: MembershipState } | null;
   /** the requesting user's Participant on the project, if any */
-  participant: { id: Id; userId: Id; projectId: Id } | null;
+  participant: { id: Id; userId: Id; projectId: Id; removedAt: Date | null } | null;
 };
 
 // What resolution admits: the scope every read is derived from. Nothing wider
@@ -41,13 +42,18 @@ export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
   const { user, project, membership, participant } = facts;
   if (!user || !project || !membership || !participant) return null;
 
-  // level one — the organisation is on the project
+  // level one — the organisation is on the project, on an *active* seat:
+  // a proposed Membership confers nothing until the owner confirms (ADR-0033)
   if (membership.organisationId !== user.organisationId) return null;
   if (membership.projectId !== project.id) return null;
+  if (membership.state !== 'active') return null;
 
-  // level two — this user holds a Participant grant on this project
+  // level two — this user holds a *live* Participant grant on this project:
+  // a Participant is an interval, and a closed interval is no access, while
+  // the row survives so past-round attribution stands (ADR-0033)
   if (participant.userId !== user.id) return null;
   if (participant.projectId !== project.id) return null;
+  if (participant.removedAt !== null) return null;
 
   return {
     organisationId: user.organisationId,

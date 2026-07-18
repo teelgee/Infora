@@ -57,6 +57,13 @@
       "when": 1784353077306,
       "tag": "0007_sandbox-comments",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784372417619,
+      "tag": "0008_access-administration",
+      "breakpoints": true
     }
   ]
 }

@@ -14,8 +14,8 @@ const projectId = 'project-1';
 const consultantFacts: AccessFacts = {
   user: { id: 'user-consultant', organisationId: memberOrg },
   project: { id: projectId },
-  membership: { organisationId: memberOrg, projectId, role: 'member' },
-  participant: { id: 'participant-consultant', userId: 'user-consultant', projectId },
+  membership: { organisationId: memberOrg, projectId, role: 'member', state: 'active' },
+  participant: { id: 'participant-consultant', userId: 'user-consultant', projectId, removedAt: null },
 };
 
 describe('resolveAccess — the two-level predicate (ADR-0015)', () => {
@@ -32,8 +32,8 @@ describe('resolveAccess — the two-level predicate (ADR-0015)', () => {
     const slice = resolveAccess({
       user: { id: 'user-owner', organisationId: ownerOrg },
       project: { id: projectId },
-      membership: { organisationId: ownerOrg, projectId, role: 'owner' },
-      participant: { id: 'participant-owner', userId: 'user-owner', projectId },
+      membership: { organisationId: ownerOrg, projectId, role: 'owner', state: 'active' },
+      participant: { id: 'participant-owner', userId: 'user-owner', projectId, removedAt: null },
     });
     expect(slice?.membershipRole).toBe('owner');
   });
@@ -68,23 +68,46 @@ describe('resolveAccess — the two-level predicate (ADR-0015)', () => {
     ).toBeNull();
   });
 
+  it('denies a proposed Membership — the seat confers nothing until the owner confirms (ADR-0033)', () => {
+    expect(
+      resolveAccess({
+        ...consultantFacts,
+        membership: { organisationId: memberOrg, projectId, role: 'member', state: 'proposed' },
+      }),
+    ).toBeNull();
+  });
+
+  it('denies a removed Participant — a closed interval is no access, while the row survives (ADR-0033)', () => {
+    expect(
+      resolveAccess({
+        ...consultantFacts,
+        participant: {
+          id: 'participant-consultant',
+          userId: 'user-consultant',
+          projectId,
+          removedAt: new Date('2026-07-18T09:00:00Z'),
+        },
+      }),
+    ).toBeNull();
+  });
+
   it('denies edges belonging to a different project or user', () => {
     expect(
       resolveAccess({
         ...consultantFacts,
-        membership: { organisationId: memberOrg, projectId: 'project-2', role: 'member' },
+        membership: { organisationId: memberOrg, projectId: 'project-2', role: 'member', state: 'active' },
       }),
     ).toBeNull();
     expect(
       resolveAccess({
         ...consultantFacts,
-        participant: { id: 'participant-other', userId: 'user-other', projectId },
+        participant: { id: 'participant-other', userId: 'user-other', projectId, removedAt: null },
       }),
     ).toBeNull();
     expect(
       resolveAccess({
         ...consultantFacts,
-        participant: { id: 'participant-elsewhere', userId: 'user-consultant', projectId: 'project-2' },
+        participant: { id: 'participant-elsewhere', userId: 'user-consultant', projectId: 'project-2', removedAt: null },
       }),
     ).toBeNull();
   });
