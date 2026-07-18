@@ -117,7 +117,11 @@ export type SandboxDocument = {
 export type ListSandboxDocumentsResponse = { items: SandboxDocument[] };
 export type ListSuggestionsResponse = { items: Suggestion[] };
 
-export const createSandboxDocumentBody = z.object({ title: z.string().min(1) });
+export const createSandboxDocumentBody = z.object({
+  title: z.string().min(1),
+  // the intended plan row (ADR-0032's link), own-org library containers only
+  containerId: id.optional(),
+});
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
 export const patchSandboxDocumentBody = z.object({ content: z.string() });

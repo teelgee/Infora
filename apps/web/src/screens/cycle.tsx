@@ -37,24 +37,32 @@ export function CycleScreen() {
 
   const me = participant;
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
   const reload = useCallback(async () => {
     if (!containerId) return;
-    const [plan, cycleRead, codeList, docs] = await Promise.all([
-      api.plan(me.projectId),
-      api.cycle(containerId),
-      api.acceptanceCodes(me.projectId),
-      api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
-    ]);
-    setRow(plan.items.find((r) => r.containerId === containerId) ?? null);
-    setCycle(cycleRead);
-    setCodes(codeList.items.filter((c) => c.retiredAt === null));
-    setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
-    if (cycleRead) {
-      const wanted = cycleRead.rounds.map((r) => r.versionId);
-      const loaded = await Promise.all(
-        wanted.map(async (v) => [v, (await api.renditions(v)).items] as const),
-      );
-      setRenditions(Object.fromEntries(loaded));
+    try {
+      const [plan, cycleRead, codeList, docs] = await Promise.all([
+        api.plan(me.projectId),
+        api.cycle(containerId),
+        api.acceptanceCodes(me.projectId).catch(() => ({ items: [] as AcceptanceCode[] })),
+        api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
+      ]);
+      setRow(plan.items.find((r) => r.containerId === containerId) ?? null);
+      setCycle(cycleRead);
+      setCodes(codeList.items.filter((c) => c.retiredAt === null));
+      setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
+      setLoaded(true);
+      if (cycleRead) {
+        const wanted = cycleRead.rounds.map((r) => r.versionId);
+        const entries = await Promise.all(
+          wanted.map(async (v) => [v, await api.renditions(v).then((r) => r.items, () => [])] as const),
+        );
+        setRenditions(Object.fromEntries(entries));
+      }
+    } catch (error) {
+      setLoadError(error instanceof RequestError ? (error.body?.error ?? 'failed') : String(error));
     }
   }, [containerId, me.projectId]);
 
@@ -63,10 +71,19 @@ export function CycleScreen() {
   }, [reload]);
 
   if (!containerId) return null;
+  if (loadError) {
+    return (
+      <div className="content">
+        <p style={{ color: 'var(--muted)' }}>Could not load the deliverable ({loadError}).</p>
+      </div>
+    );
+  }
   if (row === null) {
     return (
       <div className="content">
-        <p style={{ color: 'var(--muted)' }}>Loading the deliverable…</p>
+        <p style={{ color: 'var(--muted)' }}>
+          {loaded ? 'This deliverable is not on a plan you can see.' : 'Loading the deliverable…'}
+        </p>
       </div>
     );
   }

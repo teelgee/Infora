@@ -17,6 +17,17 @@ const apiPrefixes = [
   '/sandbox-comments',
   '/suggestions',
   '/versions',
+  // Slice A (T-117–T-128): administration, the plan, the cycle, renditions
+  '/organisation',
+  '/memberships',
+  '/containers',
+  '/authors',
+  '/reviewers',
+  '/shares',
+  '/rounds',
+  '/review-comments',
+  '/cycles',
+  '/renditions',
 ];
 
 const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';

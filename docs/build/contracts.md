@@ -154,7 +154,9 @@ type WorkItem = { id: Id; projectId: Id; type: string; title: string;
 ### Sandbox documents (M4 — the draft-location decision)
 
 ```
-POST  /projects/:projectId/sandbox-documents       body: { title }            → SandboxDocument
+POST  /projects/:projectId/sandbox-documents       body: { title, containerId? } → SandboxDocument
+      // containerId added 2026-07-18 (T-129): the draft's plan-row link
+      // (ADR-0032) — own-org library containers on this project only
 GET   /projects/:projectId/sandbox-documents       → { items: SandboxDocument[] }
       // list added 2026-07-08 (T-051): the requester's organisation's private
       // project sandbox (ADR-0018) — org-scoped by construction, no parameter

@@ -23,7 +23,7 @@ Most grilling so far has been the **Context** component (component 4) and its of
 | **M1** | **Orchestration / run / agent model** (⭐ MVP critical path) | **0028** | ✅ Done |
 | **M2** | Thinking vs doing — finish | **0027** (accepted) | ✅ Done |
 | **M3** | Context-assembly API + v1 channel merge | **0029** | ✅ Done |
-| **A** | Slice A — the review drawer / document management (2026-07-18) | **0032**, **0033**, **0034** | ✅ Design done (ticketing next) |
+| **A** | Slice A — the review drawer / document management (2026-07-18) | **0032**, **0033**, **0034** | ✅ Designed **and built** same day (T-113–T-129, CI green) |
 
 **Status & approach (updated 2026-07-01).** Sessions 1–3 (the confidentiality spine), **M1 (→ ADR-0028)**, and now **M2 (→ ADR-0027), M3 (→ ADR-0029), the governance-authority ADR (→ ADR-0030), and a first cut of the skeleton data model ([docs/build/data-model.md](../build/data-model.md))** are all done. **The MVP is design-complete and build-ready.** The last build-time item — the draft-location decision — was **closed, owner-confirmed 2026-07-04**: the draft lives in the sandbox as a real working document (a minimal Sandbox document table enters the skeleton; Suggestions arise only from agent prompts; manual editing carries no Signal). Recorded in the [data model](../build/data-model.md) and [walking skeleton](../build/walking-skeleton.md). **Nothing gates the build**; the ticket board is [docs/build/plan.md](../build/plan.md). See **Path to MVP** below.
 
@@ -249,7 +249,7 @@ Nothing remains open from this session; the residual items already live in their
 - What format is a document? → **ADR-0034:** canonical format follows origin (uploaded = native file; authored = Infora structured text with one-way Word/PowerPoint exports; slides = an authored document kind); renditions stored immutable (docx/xlsx/pptx/pdf; dwg-class deferred); the Slice B add-in serves the native-docx population.
 - Acceptance codes + library metadata → per-project `acceptance_code` table (copied at creation, retire-never-redefine, `is_accepting` ends the cycle); Documents-view metadata derived by query, plan extras in `Container.metadata` jsonb.
 
-**Parked from the session:** the sandbox-scope review surface (PDF rendition vs frozen native text — establish the workflow, then the method); mention delivery (T-112 residual); the per-project metadata schema + naming scheme (standing ADR-0008 deferral). **Next: ticket Slice A onto the board.**
+**Parked from the session:** the sandbox-scope review surface (PDF rendition vs frozen native text — establish the workflow, then the method); mention delivery (T-112 residual); the per-project metadata schema + naming scheme (standing ADR-0008 deferral). **Ticketed and then built the same day: T-113–T-129 all landed 2026-07-18, CI green** — the review cycle is browser-drivable end to end (see the board's Slice A status note for the honest deviations: text-first review reads with the PDF rendition downloadable, the in-PDF anchored viewer as follow-up; ADR-0016 shares landed as data mid-slice at T-119).
 
 ---
 

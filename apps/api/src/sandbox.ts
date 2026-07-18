@@ -33,12 +33,30 @@ export function sandboxRoutes(deps: { db: Db }) {
       return c.json({ error: 'invalid', detail: 'title required' } satisfies ApiError, 400);
     }
     const slice = c.get('slice');
+    if (body.data.containerId) {
+      // the draft's plan link (T-129, ADR-0032): the container must be the
+      // requester organisation's own library-scope plan row on this project
+      const [container] = await deps.db
+        .select()
+        .from(s.containers)
+        .where(eq(s.containers.id, body.data.containerId))
+        .limit(1);
+      if (
+        !container ||
+        container.projectId !== slice.projectId ||
+        container.scope !== 'library' ||
+        container.producingOrganisationId !== slice.organisationId
+      ) {
+        return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      }
+    }
     const [row] = await deps.db
       .insert(s.sandboxDocuments)
       .values({
         projectId: slice.projectId,
         organisationId: slice.organisationId,
         title: body.data.title,
+        containerId: body.data.containerId ?? null,
         createdByParticipantId: slice.participantId,
       })
       .returning();
