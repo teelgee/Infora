@@ -71,6 +71,13 @@
       "when": 1784374863109,
       "tag": "0009_documents-drawer-rebuilt",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784375923837,
+      "tag": "0010_review-drawer",
+      "breakpoints": true
     }
   ]
 }

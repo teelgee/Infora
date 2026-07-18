@@ -118,16 +118,57 @@ describe('strictly insert-only tables', () => {
     await expectDbError(db.update(s.signals).set({ resolution: 'rejected' }).where(eq(s.signals.id, signal!.id)), /append-only/);
     await expectDbError(db.delete(s.signals).where(eq(s.signals.id, signal!.id)), /append-only/);
 
-    const [drr] = await db
-      .insert(s.drrs)
-      .values({ containerId, editLockHolder: 'review_group' })
+  });
+
+  it('review drawer (T-115): comments live while the round is open, frozen once issued; transmittals and snapshots strictly append-only; grants are intervals', async () => {
+    const [cycle] = await db.insert(s.reviewCycles).values({ containerId }).returning();
+    const [round] = await db
+      .insert(s.rounds)
+      .values({ cycleId: cycle!.id, number: 1, versionId })
       .returning();
     const [comment] = await db
-      .insert(s.comments)
-      .values({ drrId: drr!.id, versionId, authorParticipantId: participantId, body: 'b' })
+      .insert(s.reviewComments)
+      .values({ roundId: round!.id, versionId, authorParticipantId: participantId, body: 'b' })
       .returning();
-    await expectDbError(db.update(s.comments).set({ body: 'rewritten' }).where(eq(s.comments.id, comment!.id)), /append-only/);
-    await expectDbError(db.delete(s.comments).where(eq(s.comments.id, comment!.id)), /append-only/);
+
+    // open round: moderation edits are allowed (ADR-0007), identity is not
+    await db.update(s.reviewComments).set({ body: 'moderated' }).where(eq(s.reviewComments.id, comment!.id));
+    await expectDbError(
+      db.update(s.reviewComments).set({ authorParticipantId: participantId, roundId: round!.id, versionId: crypto.randomUUID() }).where(eq(s.reviewComments.id, comment!.id)),
+      /identity is immutable/,
+    );
+    await expectDbError(db.delete(s.reviewComments).where(eq(s.reviewComments.id, comment!.id)), /append-only/);
+
+    // transmittal + snapshot: strictly append-only records (ADR-0009/0010)
+    const [transmittal] = await db
+      .insert(s.transmittals)
+      .values({ roundId: round!.id, direction: 'issue', senderParticipantId: participantId })
+      .returning();
+    const [snapshot] = await db
+      .insert(s.reviewSnapshots)
+      .values({ transmittalId: transmittal!.id, content: { comments: [] } })
+      .returning();
+    await expectDbError(db.update(s.transmittals).set({ purposeCode: 'x' }).where(eq(s.transmittals.id, transmittal!.id)), /append-only/);
+    await expectDbError(db.delete(s.transmittals).where(eq(s.transmittals.id, transmittal!.id)), /append-only/);
+    await expectDbError(db.update(s.reviewSnapshots).set({ content: {} }).where(eq(s.reviewSnapshots.id, snapshot!.id)), /append-only/);
+    await expectDbError(db.delete(s.reviewSnapshots).where(eq(s.reviewSnapshots.id, snapshot!.id)), /append-only/);
+
+    // issued round: the comment freezes (ADR-0014)
+    await db.update(s.rounds).set({ state: 'issued' }).where(eq(s.rounds.id, round!.id));
+    await expectDbError(db.update(s.reviewComments).set({ body: 'rewritten after issue' }).where(eq(s.reviewComments.id, comment!.id)), /frozen/);
+
+    // grants: interval rows — revocation closes, identity never changes,
+    // nothing is deleted (ADR-0033)
+    const [grant] = await db
+      .insert(s.deliverableAuthors)
+      .values({ containerId, participantId, isLead: true, grantedByParticipantId: participantId })
+      .returning();
+    await db.update(s.deliverableAuthors).set({ revokedAt: new Date() }).where(eq(s.deliverableAuthors.id, grant!.id));
+    await expectDbError(
+      db.update(s.deliverableAuthors).set({ participantId: crypto.randomUUID() }).where(eq(s.deliverableAuthors.id, grant!.id)),
+      /interval/,
+    );
+    await expectDbError(db.delete(s.deliverableAuthors).where(eq(s.deliverableAuthors.id, grant!.id)), /append-only/);
   });
 });
 

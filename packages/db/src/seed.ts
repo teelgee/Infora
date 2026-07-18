@@ -12,7 +12,9 @@ const { db, pool } = createDb();
 
 await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,
-    comments, drrs, sandbox_document_versions, sandbox_documents, renditions,
+    responses, review_comments, review_snapshots, transmittals, rounds, review_cycles,
+    deliverable_authors, deliverable_reviewers, acceptance_codes,
+    sandbox_document_versions, sandbox_documents, renditions,
     versions, containers, work_items,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
@@ -74,12 +76,51 @@ const [consultant] = await db
   .values({ userId: eleanor!.id, projectId: project!.id })
   .returning();
 
+// ── Drawer 5: the project's acceptance-code scheme (T-115, ADR-0003) ────────
+// Infora's default scheme, COPIED to the project at creation — a copy, not a
+// reference, so this project's edits never rewrite another's history.
+await db.insert(s.acceptanceCodes).values([
+  { projectId: project!.id, code: 'A', description: 'Accepted', level: 'both', isAccepting: true, sortOrder: 1 },
+  { projectId: project!.id, code: 'B', description: 'Accepted with comments', level: 'both', isAccepting: true, sortOrder: 2 },
+  { projectId: project!.id, code: 'C', description: 'Revise and resubmit', level: 'both', isAccepting: false, sortOrder: 3 },
+  { projectId: project!.id, code: 'D', description: 'Rejected', level: 'both', isAccepting: false, sortOrder: 4 },
+]);
+
 // ── Drawer 3: the governed-work anchor for M3–M5 ────────────────────────────
+// The work item's record half (ADR-0032 addendum): a planned, not-yet-produced
+// container on the consultant's plan (ADR-0033 — the producing organisation
+// creates its own plan rows), with both sides granted (T-115, ADR-0017).
+const [plannedContainer] = await db
+  .insert(s.containers)
+  .values({
+    projectId: project!.id,
+    producingOrganisationId: calderHale!.id,
+    documentReference: 'WA-EIA-MST-001',
+    inLibrary: false,
+    state: 'live',
+  })
+  .returning();
+await db.insert(s.deliverableAuthors).values({
+  containerId: plannedContainer!.id,
+  participantId: consultant!.id,
+  isLead: true,
+  grantedByParticipantId: consultant!.id,
+});
+await db.insert(s.deliverableReviewers).values({
+  containerId: plannedContainer!.id,
+  participantId: ownerParticipant!.id,
+  isLead: true,
+  grantedByParticipantId: ownerParticipant!.id,
+  confirmedByParticipantId: ownerParticipant!.id,
+  confirmedAt: sql`now()`,
+});
+
 await db.insert(s.workItems).values({
   projectId: project!.id,
   type: 'document_production',
   title: 'EIA Scoping Method Statement — Land Quality',
   status: 'in_production',
+  containerId: plannedContainer!.id,
   assigneeParticipantId: consultant!.id,
 });
 

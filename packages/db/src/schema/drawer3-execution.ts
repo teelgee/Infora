@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { participants, projects } from './drawer1-parties.js';
+import { containers } from './drawer2-documents.js';
 
 export const surface = pgEnum('surface', ['web', 'word_addin', 'copilot']);
 export const runState = pgEnum('run_state', ['running', 'completed', 'failed']);
@@ -27,6 +28,10 @@ export const workItems = pgTable('work_items', {
   type: text('type').notNull(),
   title: text('title').notNull(),
   status: text('status').notNull(),
+  // the deliverable's work half ↔ record half join (ADR-0032 addendum,
+  // T-115): required for document_production, null for future non-document
+  // types; status is event-driven off the cycle, never hand-set
+  containerId: uuid('container_id').references(() => containers.id),
   assigneeParticipantId: uuid('assignee_participant_id').references(() => participants.id),
 });
 
