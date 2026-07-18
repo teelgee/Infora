@@ -572,3 +572,219 @@ describe('upload & conversion (T-122, ADR-0034)', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
+  let internalDocId: string;
+  let freezeContainerId: string;
+
+  it('a plain freeze snapshots without ceremony; the series is P-numbered and org-private', async () => {
+    const [doc] = await db
+      .insert(s.sandboxDocuments)
+      .values({
+        projectId,
+        organisationId: consultOrg,
+        title: 't125 management plan',
+        content: 'Internal management plan, first cut.',
+        createdByParticipantId: leadAuthorParticipantId,
+      })
+      .returning();
+    internalDocId = doc!.id;
+    const res = await app.request(`/sandbox-documents/${internalDocId}/freeze`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(res.status).toBe(201);
+    const frozen = (await res.json()) as { versionReference: string; containerId: string };
+    expect(frozen.versionReference).toBe('P1');
+    freezeContainerId = frozen.containerId;
+
+    // org-private: the project OWNER cannot see the freeze series (ADR-0032)
+    const ownerRead = await app.request(`/containers/${freezeContainerId}/cycle`, {
+      headers: { cookie: ownerCookie },
+    });
+    expect(ownerRead.status).toBe(404);
+    // and its versions 404 on the project-wide library read (T-114)
+    const [pVersion] = await db
+      .select()
+      .from(s.versions)
+      .where(and(eq(s.versions.containerId, freezeContainerId), eq(s.versions.isCurrent, true)));
+    const versionRead = await app.request(`/versions/${pVersion!.id}`, {
+      headers: { cookie: ownerCookie },
+    });
+    expect(versionRead.status).toBe(404);
+  });
+
+  it('with an internal lead reviewer granted, the next freeze opens the round and locks the head', async () => {
+    // the org appoints its own reviewer on the freeze container — auto-confirmed
+    const grant = await app.request(`/containers/${freezeContainerId}/reviewers`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ participantId: colleagueParticipantId, isLead: true }),
+    });
+    expect(grant.status).toBe(201);
+    expect(((await grant.json()) as { confirmedAt: string | null }).confirmedAt).not.toBeNull();
+
+    await db
+      .update(s.sandboxDocuments)
+      .set({ content: 'Internal management plan, ready for QA.' })
+      .where(eq(s.sandboxDocuments.id, internalDocId));
+    const res = await app.request(`/sandbox-documents/${internalDocId}/freeze`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { versionReference: string }).versionReference).toBe('P2');
+
+    const [doc] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, internalDocId));
+    expect(doc!.headLocked).toBe(true); // checked out
+
+    // the locked head refuses manual edits (409 head_locked)
+    const edit = await app.request(`/sandbox-documents/${internalDocId}`, {
+      method: 'PATCH',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ content: 'drifting' }),
+    });
+    expect(edit.status).toBe(409);
+    expect(((await edit.json()) as { detail?: string }).detail).toBe('head_locked');
+
+    // a third freeze while the round is open refuses
+    const again = await app.request(`/sandbox-documents/${internalDocId}/freeze`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(again.status).toBe(409);
+  });
+
+  it('QA acceptance releases the lock and never touches the library; the record stays producer-private', async () => {
+    const cycle = (await (
+      await app.request(`/containers/${freezeContainerId}/cycle`, { headers: { cookie: colleagueCookie } })
+    ).json()) as ReviewCycle;
+    const round = cycle.rounds.at(-1)!;
+    const codeRows = await db.select().from(s.acceptanceCodes).where(eq(s.acceptanceCodes.projectId, projectId));
+    const accepting = codeRows.find((r) => r.isAccepting)!.id;
+    await app.request(`/rounds/${round.id}/deliverable-code`, {
+      method: 'POST',
+      headers: asJson(colleagueCookie),
+      body: JSON.stringify({ acceptanceCodeId: accepting }),
+    });
+    const issued = await app.request(`/rounds/${round.id}/issue`, {
+      method: 'POST',
+      headers: asJson(colleagueCookie),
+      body: JSON.stringify({}),
+    });
+    expect(issued.status).toBe(200);
+    expect(((await issued.json()) as { cycle: ReviewCycle }).cycle.state).toBe('accepted');
+
+    const [doc] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, internalDocId));
+    expect(doc!.headLocked).toBe(false); // the pen is back
+    const [container] = await db.select().from(s.containers).where(eq(s.containers.id, freezeContainerId));
+    expect(container!.inLibrary).toBe(false); // QA evidence, never the corpus
+  });
+
+  it('promotion takes the QA-accepted frozen version, never a drifted head (ADR-0032)', async () => {
+    // link the doc to a fresh plan row so it can promote
+    const [container3] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: consultOrg,
+        documentReference: `T125-DEL-${stamp}`,
+        inLibrary: false,
+      })
+      .returning();
+    await db.insert(s.workItems).values({
+      projectId,
+      type: 'document_production',
+      title: 't125 plan deliverable',
+      status: 'drafting',
+      containerId: container3!.id,
+    });
+    await db.insert(s.deliverableAuthors).values({
+      containerId: container3!.id,
+      participantId: leadAuthorParticipantId,
+      isLead: true,
+      grantedByParticipantId: leadAuthorParticipantId,
+    });
+    await db.insert(s.deliverableReviewers).values({
+      containerId: container3!.id,
+      participantId: ownerParticipantId,
+      isLead: true,
+      grantedByParticipantId: ownerParticipantId,
+      confirmedByParticipantId: ownerParticipantId,
+      confirmedAt: new Date(),
+    });
+    await db
+      .update(s.sandboxDocuments)
+      .set({ containerId: container3!.id, content: 'Head drifted AFTER the QA acceptance.' })
+      .where(eq(s.sandboxDocuments.id, internalDocId));
+
+    const res = await app.request(`/sandbox-documents/${internalDocId}/promotion`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(res.status).toBe(201);
+    const result = (await res.json()) as PromotionResult;
+    const [version] = await db.select().from(s.versions).where(eq(s.versions.id, result.versionId));
+    // the promoted content is the ACCEPTED frozen version, not the drifted head
+    expect(version!.content).toBe('Internal management plan, ready for QA.');
+  });
+
+  it('promotion refuses while an internal cycle is active', async () => {
+    // a fresh planned deliverable whose QA is mid-flight
+    const [container4] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: consultOrg,
+        documentReference: `T125-DEL2-${stamp}`,
+        inLibrary: false,
+      })
+      .returning();
+    await db.insert(s.deliverableAuthors).values({
+      containerId: container4!.id,
+      participantId: leadAuthorParticipantId,
+      isLead: true,
+      grantedByParticipantId: leadAuthorParticipantId,
+    });
+    await db.insert(s.deliverableReviewers).values({
+      containerId: container4!.id,
+      participantId: ownerParticipantId,
+      isLead: true,
+      grantedByParticipantId: ownerParticipantId,
+      confirmedByParticipantId: ownerParticipantId,
+      confirmedAt: new Date(),
+    });
+    const [doc4] = await db
+      .insert(s.sandboxDocuments)
+      .values({
+        projectId,
+        organisationId: consultOrg,
+        title: 't125 mid-QA draft',
+        content: 'Mid-QA content.',
+        containerId: container4!.id,
+        createdByParticipantId: leadAuthorParticipantId,
+      })
+      .returning();
+    // freeze once (plain), appoint the internal reviewer, freeze again → round opens
+    await app.request(`/sandbox-documents/${doc4!.id}/freeze`, { method: 'POST', headers: asJson(leadAuthorCookie) });
+    const [fc] = await db.select().from(s.containers).where(eq(s.containers.sandboxDocumentId, doc4!.id));
+    await app.request(`/containers/${fc!.id}/reviewers`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ participantId: colleagueParticipantId, isLead: true }),
+    });
+    await db.update(s.sandboxDocuments).set({ headLocked: false }).where(eq(s.sandboxDocuments.id, doc4!.id));
+    const frozen = await app.request(`/sandbox-documents/${doc4!.id}/freeze`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(frozen.status).toBe(201);
+
+    const res = await app.request(`/sandbox-documents/${doc4!.id}/promotion`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail?: string }).detail).toBe('internal_cycle_active');
+  });
+});

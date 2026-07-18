@@ -48,10 +48,13 @@ type ContainerRow = typeof s.containers.$inferSelect;
 /** A plan-visible container for the requester: own-org rows for a member,
  * every row for the owner (contracts §4 — access-decided, no parameter). */
 function planVisible(slice: EntitledSlice, container: ContainerRow): boolean {
-  return (
-    container.scope === 'library' &&
-    (slice.membershipRole === 'owner' || container.producingOrganisationId === slice.organisationId)
-  );
+  // a sandbox-scope (freeze-series) container is org-private machinery:
+  // producer only, never the owner (ADR-0032) — its grants are the internal
+  // cycle's own-org sides (T-125)
+  if (container.scope === 'sandbox') {
+    return container.producingOrganisationId === slice.organisationId;
+  }
+  return slice.membershipRole === 'owner' || container.producingOrganisationId === slice.organisationId;
 }
 
 async function loadContainer(db: Db, containerId: string): Promise<ContainerRow | null> {
@@ -292,6 +295,7 @@ export function containerRoutes(deps: { db: Db }) {
     const isOwner = slice.membershipRole === 'owner';
     const isProducer = container.producingOrganisationId === slice.organisationId;
     if (!isOwner && !isProducer) return notFound(c);
+    if (container.scope === 'sandbox' && !isProducer) return notFound(c);
     const body = grantAppointmentBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     const target = await liveParticipant(deps.db, body.data.participantId, container.projectId);
@@ -300,6 +304,9 @@ export function containerRoutes(deps: { db: Db }) {
       const lead = await liveLead(deps.db, 'reviewers', container.id);
       if (lead) return conflict(c);
     }
+    // owner grants auto-confirm; so do sandbox-scope (internal cycle) grants —
+    // the org appoints its own reviewers, no wall is crossed (ADR-0032)
+    const autoConfirm = isOwner || container.scope === 'sandbox';
     const [grant] = await deps.db
       .insert(s.deliverableReviewers)
       .values({
@@ -307,8 +314,8 @@ export function containerRoutes(deps: { db: Db }) {
         participantId: target.id,
         isLead: body.data.isLead ?? false,
         grantedByParticipantId: slice.participantId,
-        confirmedByParticipantId: isOwner ? slice.participantId : null,
-        confirmedAt: isOwner ? sql`now()` : null,
+        confirmedByParticipantId: autoConfirm ? slice.participantId : null,
+        confirmedAt: autoConfirm ? sql`now()` : null,
       })
       .returning();
     return c.json(await grantRead(deps.db, 'reviewers', grant!.id), 201);

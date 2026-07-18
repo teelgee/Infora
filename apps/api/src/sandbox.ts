@@ -78,6 +78,15 @@ export function sandboxRoutes(deps: { db: Db }) {
     if (!body.success) {
       return c.json({ error: 'invalid', detail: 'content required' } satisfies ApiError, 400);
     }
+    const [locked] = await deps.db
+      .select({ headLocked: s.sandboxDocuments.headLocked })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (locked?.headLocked) {
+      // checked out: an internal round is open on the frozen head (ADR-0032)
+      return c.json({ error: 'conflict', detail: 'head_locked' } satisfies ApiError, 409);
+    }
     const [row] = await deps.db
       .update(s.sandboxDocuments)
       // DB time, like the insert default — one clock for updatedAt

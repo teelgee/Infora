@@ -46,8 +46,13 @@ const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
 type ContainerRow = typeof s.containers.$inferSelect;
 
-/** producer | owner | live share — who may see the deliverable and its DRR. */
+/** producer | owner | live share — who may see the deliverable and its DRR.
+ * A sandbox-scope (freeze-series) container is org-private machinery: the
+ * producing organisation only, never the owner, never a share (ADR-0032). */
 async function canSeeContainer(db: Db, slice: EntitledSlice, container: ContainerRow) {
+  if (container.scope === 'sandbox') {
+    return container.producingOrganisationId === slice.organisationId;
+  }
   if (container.producingOrganisationId === slice.organisationId) return true;
   const [project] = await db
     .select({ ownerOrganisationId: s.projects.ownerOrganisationId })
@@ -299,6 +304,138 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     return c.json(cycle satisfies GetCycleResponse);
   });
 
+  // T-125 — Freeze ("check out"): snapshot the head into the document's
+  // org-private freeze series (ADR-0032). Promotion's twin: when the freeze
+  // container carries a confirmed lead reviewer, the freeze also opens the
+  // internal round (first freeze without one is a plain snapshot). While a
+  // sandbox-scope round is open the head locks; issue releases it.
+  app.post('/sandbox-documents/:id/freeze', async (c) => {
+    const id = c.req.param('id');
+    if (!isUuid(id)) return notFound(c);
+    const [doc] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, id))
+      .limit(1);
+    if (!doc) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
+    if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
+
+    let [freezeContainer] = await deps.db
+      .select()
+      .from(s.containers)
+      .where(eq(s.containers.sandboxDocumentId, doc.id))
+      .limit(1);
+    if (!freezeContainer) {
+      [freezeContainer] = await deps.db
+        .insert(s.containers)
+        .values({
+          projectId: doc.projectId,
+          scope: 'sandbox',
+          producingOrganisationId: doc.organisationId,
+          sandboxDocumentId: doc.id,
+          inLibrary: false,
+        })
+        .returning();
+    }
+
+    const reviewers = await deps.db
+      .select({ participantId: s.deliverableReviewers.participantId, isLead: s.deliverableReviewers.isLead })
+      .from(s.deliverableReviewers)
+      .where(
+        and(
+          eq(s.deliverableReviewers.containerId, freezeContainer!.id),
+          isNull(s.deliverableReviewers.revokedAt),
+          sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
+        ),
+      );
+    const hasLead = reviewers.some((r) => r.isLead);
+
+    const [activeCycle] = await deps.db
+      .select()
+      .from(s.reviewCycles)
+      .where(and(eq(s.reviewCycles.containerId, freezeContainer!.id), eq(s.reviewCycles.state, 'active')))
+      .limit(1);
+    const priorRounds = activeCycle
+      ? await deps.db.select().from(s.rounds).where(eq(s.rounds.cycleId, activeCycle.id)).orderBy(asc(s.rounds.number))
+      : [];
+    const latestRound = priorRounds.at(-1);
+    if (activeCycle && latestRound?.state === 'open') return conflict(c, 'round_open');
+    if (activeCycle && latestRound?.state === 'issued') {
+      const [unanswered] = await deps.db
+        .select({ id: s.reviewComments.id })
+        .from(s.reviewComments)
+        .leftJoin(s.responses, eq(s.responses.commentId, s.reviewComments.id))
+        .where(and(eq(s.reviewComments.roundId, latestRound.id), isNull(s.responses.id)))
+        .limit(1);
+      if (unanswered) return conflict(c, 'unanswered_comments');
+    }
+
+    const versionCount = await deps.db
+      .select({ id: s.versions.id })
+      .from(s.versions)
+      .where(eq(s.versions.containerId, freezeContainer!.id));
+    const versionReference = `P${versionCount.length + 1}`;
+
+    const result = await deps.db.transaction(async (tx) => {
+      await tx
+        .update(s.versions)
+        .set({ isCurrent: false })
+        .where(and(eq(s.versions.containerId, freezeContainer!.id), eq(s.versions.isCurrent, true)));
+      const [version] = await tx
+        .insert(s.versions)
+        .values({
+          containerId: freezeContainer!.id,
+          versionReference,
+          content: doc.content,
+          isCurrent: true,
+        })
+        .returning();
+      if (hasLead) {
+        let cycleId: string;
+        let roundNumber: number;
+        if (activeCycle) {
+          cycleId = activeCycle.id;
+          roundNumber = latestRound!.number + 1;
+          await tx.update(s.rounds).set({ state: 'responded' }).where(eq(s.rounds.id, latestRound!.id));
+          await tx
+            .update(s.reviewCycles)
+            .set({ editLockHolder: 'reviewing' })
+            .where(eq(s.reviewCycles.id, activeCycle.id));
+        } else {
+          const [cycle] = await tx
+            .insert(s.reviewCycles)
+            .values({ containerId: freezeContainer!.id })
+            .returning();
+          cycleId = cycle!.id;
+          roundNumber = 1;
+        }
+        const [round] = await tx
+          .insert(s.rounds)
+          .values({ cycleId, number: roundNumber, versionId: version!.id })
+          .returning();
+        const [transmittal] = await tx
+          .insert(s.transmittals)
+          .values({
+            roundId: round!.id,
+            direction: 'return',
+            senderParticipantId: slice.participantId,
+            recipients: reviewers.map((r) => r.participantId),
+          })
+          .returning();
+        await tx.insert(s.reviewSnapshots).values({
+          transmittalId: transmittal!.id,
+          content: activeCycle && latestRound ? await snapshotState(tx as unknown as Db, latestRound.id) : { comments: [], responses: [] },
+        });
+        // the check-out: the head holds still while the round is open
+        await tx.update(s.sandboxDocuments).set({ headLocked: true }).where(eq(s.sandboxDocuments.id, doc.id));
+      }
+      return { versionId: version!.id, versionReference, containerId: freezeContainer!.id };
+    });
+    await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
+    return c.json(result, 201);
+  });
+
   // T-120 — Promote: the lead author's near-empty hand-off (ADR-0008/0017).
   app.post('/sandbox-documents/:id/promotion', async (c) => {
     const id = c.req.param('id');
@@ -371,6 +508,34 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       if (unanswered) return conflict(c, 'unanswered_comments');
     }
 
+    // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
+    // version — never a head drifting past an active internal cycle
+    let sourceContent = doc.content;
+    const [freezeContainer] = await deps.db
+      .select()
+      .from(s.containers)
+      .where(eq(s.containers.sandboxDocumentId, doc.id))
+      .limit(1);
+    if (freezeContainer) {
+      const [latestFreezeCycle] = await deps.db
+        .select()
+        .from(s.reviewCycles)
+        .where(eq(s.reviewCycles.containerId, freezeContainer.id))
+        .orderBy(sql`${s.reviewCycles.launchedAt} desc`)
+        .limit(1);
+      if (latestFreezeCycle?.state === 'active') return conflict(c, 'internal_cycle_active');
+      if (latestFreezeCycle?.state === 'accepted') {
+        const [acceptedRound] = await deps.db
+          .select({ content: s.versions.content })
+          .from(s.rounds)
+          .innerJoin(s.versions, eq(s.rounds.versionId, s.versions.id))
+          .where(eq(s.rounds.cycleId, latestFreezeCycle.id))
+          .orderBy(sql`${s.rounds.number} desc`)
+          .limit(1);
+        if (acceptedRound) sourceContent = acceptedRound.content;
+      }
+    }
+
     const versionCount = await deps.db
       .select({ id: s.versions.id })
       .from(s.versions)
@@ -388,7 +553,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .values({
           containerId: container.id,
           versionReference,
-          content: doc.content, // the head snapshot (ADR-0032's first source)
+          content: sourceContent, // head snapshot, or the QA-accepted frozen version
           isCurrent: true,
         })
         .returning();
@@ -446,7 +611,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       } satisfies PromotionResult;
     });
     // the record's renditions, generated beside the version (T-121, ADR-0034)
-    await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
+    await generateRenditions(deps.db, { id: result.versionId, content: sourceContent }, doc);
 
     return c.json(result, 201);
   });
@@ -594,6 +759,13 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .insert(s.reviewSnapshots)
         .values({ transmittalId: transmittal!.id, content: await snapshotState(tx as unknown as Db, round.id) });
       await tx.update(s.rounds).set({ state: 'issued' }).where(eq(s.rounds.id, round.id));
+      if (container.scope === 'sandbox' && container.sandboxDocumentId) {
+        // issue hands the pen back: the check-out lock releases (ADR-0032)
+        await tx
+          .update(s.sandboxDocuments)
+          .set({ headLocked: false })
+          .where(eq(s.sandboxDocuments.id, container.sandboxDocumentId));
+      }
       if (accepting) {
         await tx
           .update(s.reviewCycles)
@@ -607,12 +779,15 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           .update(s.workItems)
           .set({ status: 'accepted' })
           .where(eq(s.workItems.containerId, container.id));
-        // acceptance is what admits the deliverable to the grounded corpus
-        // (ADR-0003/0011/0013)
-        await tx
-          .update(s.containers)
-          .set({ inLibrary: true })
-          .where(eq(s.containers.id, container.id));
+        // acceptance admits a LIBRARY deliverable to the grounded corpus
+        // (ADR-0003/0011/0013); a sandbox-scope (internal QA) acceptance is
+        // producer-private evidence and never grounds (ADR-0032)
+        if (container.scope === 'library') {
+          await tx
+            .update(s.containers)
+            .set({ inLibrary: true })
+            .where(eq(s.containers.id, container.id));
+        }
       } else {
         await tx
           .update(s.reviewCycles)
@@ -707,6 +882,12 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .update(s.workItems)
         .set({ status: 'rejected' })
         .where(eq(s.workItems.containerId, container!.id));
+      if (container!.scope === 'sandbox' && container!.sandboxDocumentId) {
+        await tx
+          .update(s.sandboxDocuments)
+          .set({ headLocked: false })
+          .where(eq(s.sandboxDocuments.id, container!.sandboxDocumentId));
+      }
     });
     return c.json(await readCycle(deps.db, container!, slice));
   });
