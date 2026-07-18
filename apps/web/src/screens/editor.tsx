@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import type { MeResponse, Run, SandboxDocument, Suggestion } from '@infora/contracts';
+import type { MeResponse, Run, SandboxComment, SandboxDocument, Suggestion } from '@infora/contracts';
 import {
   Badge,
   Button,
@@ -22,6 +22,7 @@ import {
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
+import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
@@ -163,6 +164,15 @@ export function EditorScreen() {
   const [content, setContent] = useState('');
   const [dirty, setDirty] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [comments, setComments] = useState<SandboxComment[]>([]); // T-112
+  const [panelTab, setPanelTab] = useState<'chat' | 'comments'>('chat');
+  const [draftAnchor, setDraftAnchor] = useState<string | null>(null); // captured canvas selection
+  const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
+  // two-way linking (T-112): a canvas click on a highlight focuses its thread
+  // in the panel; a panel click selects and scrolls to the text. `at` makes a
+  // repeated click on the same thread re-trigger the focus.
+  const [focusedThread, setFocusedThread] = useState<{ id: string; at: number } | null>(null);
+  const [flashThread, setFlashThread] = useState<string | null>(null);
   const [chatLog, setChatLog] = useState<Array<{ id: number; who: 'user' | 'agent'; text: string; run?: Run }>>([]);
   const [pending, setPending] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
@@ -177,14 +187,16 @@ export function EditorScreen() {
 
   const load = useCallback(async () => {
     if (documentId === undefined) return;
-    const [document, list] = await Promise.all([
+    const [document, list, threads] = await Promise.all([
       api.sandboxDocument(documentId),
       api.documentSuggestions(documentId),
+      api.documentComments(documentId),
     ]);
     setDoc(document);
     setContent(document.content);
     setDirty(false);
     setSuggestions(list.items);
+    setComments(threads.items);
   }, [documentId]);
 
   useEffect(() => {
@@ -288,6 +300,52 @@ export function EditorScreen() {
     });
   }
 
+  // the canvas grows with its text — the page scrolls, the textarea never
+  // does (which also keeps the highlight mirror below in lockstep)
+  useEffect(() => {
+    const area = canvasRef.current;
+    if (area === null) return;
+    area.style.height = 'auto';
+    area.style.height = `${area.scrollHeight}px`;
+  }, [content, previewing]);
+
+  // T-112: the Comment button (toolbar, or the bubble floating at the
+  // selection) captures the canvas selection as the thread's advisory anchor
+  // (no selection = a document-level comment) and opens the Comments tab
+  function startComment(range?: { from: number; to: number }) {
+    const area = canvasRef.current;
+    const picked =
+      range ??
+      (area !== null && area.selectionStart !== area.selectionEnd
+        ? { from: area.selectionStart, to: area.selectionEnd }
+        : null);
+    const selected = picked === null ? '' : content.slice(picked.from, picked.to).trim();
+    setDraftAnchor(selected === '' ? null : selected);
+    setSelection(null);
+    setPanelTab('comments');
+  }
+
+  // T-112: a panel thread finds its span on the canvas — selected, scrolled
+  // to (via its highlight mark) and flashed. Advisory, so a drifted quote
+  // simply selects nothing.
+  function locateThread(root: SandboxComment) {
+    if (root.anchor === null) return;
+    const area = canvasRef.current;
+    if (area !== null) {
+      const at = area.value.indexOf(root.anchor);
+      if (at !== -1) {
+        area.focus({ preventScroll: true });
+        area.setSelectionRange(at, at + root.anchor.length);
+      }
+    }
+    // closed threads paint no mark — the selection alone marks the spot
+    document
+      .querySelector(`mark[data-thread="${root.id}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlashThread(root.id);
+    window.setTimeout(() => setFlashThread((cur) => (cur === root.id ? null : cur)), 1400);
+  }
+
   const wrapWith = (mark: string) => (text: string, from: number, to: number) => ({
     text: `${text.slice(0, from)}${mark}${text.slice(from, to)}${mark}${text.slice(to)}`,
     from: from + mark.length,
@@ -320,6 +378,26 @@ export function EditorScreen() {
   const pendingSuggestions = suggestions.filter(
     (sg, at) => sg.signal === undefined && (resolvedAt === -1 || at < resolvedAt),
   );
+  const openThreads = comments.filter(
+    (c) => c.parentCommentId === null && c.status === 'open',
+  ).length;
+
+  // T-112: in-text highlights for open anchored threads — first occurrence,
+  // overlaps skipped; advisory, so a drifted anchor simply paints nothing
+  // (the same degrade rule as locate). Rendered on a mirror layer behind the
+  // transparent-backed textarea, which never scrolls internally (it auto-
+  // grows), so the two stay in lockstep.
+  const anchorRanges: Array<{ from: number; to: number; threadId: string }> = [];
+  for (const c of comments) {
+    if (c.parentCommentId !== null || c.status !== 'open' || c.anchor === null) continue;
+    const at = content.indexOf(c.anchor);
+    if (at === -1) continue;
+    const to = at + c.anchor.length;
+    if (!anchorRanges.some((r) => at < r.to && to > r.from)) {
+      anchorRanges.push({ from: at, to, threadId: c.id });
+    }
+  }
+  anchorRanges.sort((a, b) => a.from - b.from);
 
   return (
     <>
@@ -378,6 +456,13 @@ export function EditorScreen() {
             <button title="Quote" onClick={() => applyFormat(prefixLines('> '))}>
               ❝ Quote
             </button>
+            <span className="rule" />
+            <button
+              title="Comment on the selection — or the document, when nothing is selected"
+              onClick={() => startComment()}
+            >
+              💬 Comment
+            </button>
             <span style={{ marginLeft: 'auto' }} />
             <button
               className={previewing ? undefined : 'active'}
@@ -405,27 +490,81 @@ export function EditorScreen() {
                 )}
               </div>
             ) : (
-              <textarea
-                ref={canvasRef}
-                value={content}
-                onChange={(e) => {
-                  setContent(e.target.value);
-                  setDirty(true);
-                }}
-                onBlur={(e) => void save(e.currentTarget.value)}
-                placeholder="Write here — manual editing has no ceremony: no Suggestion, no Signal."
-                style={{
-                  width: '100%',
-                  minHeight: 260,
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'vertical',
-                  font: 'inherit',
-                  lineHeight: 'inherit',
-                  color: 'inherit',
-                  background: 'transparent',
-                }}
-              />
+              <div className="canvas-stack">
+                {/* highlights behind the text: the open threads' anchors */}
+                {anchorRanges.length > 0 && (
+                  <div className="canvas-mirror" aria-hidden>
+                    {anchorRanges.map((range, at) => (
+                      <span key={range.from}>
+                        {content.slice(at === 0 ? 0 : anchorRanges[at - 1]!.to, range.from)}
+                        <mark
+                          data-thread={range.threadId}
+                          className={flashThread === range.threadId ? 'flash' : undefined}
+                        >
+                          {content.slice(range.from, range.to)}
+                        </mark>
+                      </span>
+                    ))}
+                    {content.slice(anchorRanges[anchorRanges.length - 1]!.to)}
+                  </div>
+                )}
+                <textarea
+                  ref={canvasRef}
+                  value={content}
+                  onChange={(e) => {
+                    setContent(e.target.value);
+                    setDirty(true);
+                  }}
+                  onSelect={(e) => {
+                    const area = e.currentTarget;
+                    setSelection(
+                      area.selectionStart === area.selectionEnd
+                        ? null
+                        : { from: area.selectionStart, to: area.selectionEnd },
+                    );
+                  }}
+                  onClick={(e) => {
+                    // a plain click inside a highlight focuses its thread
+                    const area = e.currentTarget;
+                    if (area.selectionStart !== area.selectionEnd) return;
+                    const caret = area.selectionStart;
+                    const hit = anchorRanges.find((r) => caret >= r.from && caret <= r.to);
+                    if (hit === undefined) return;
+                    setPanelTab('comments');
+                    setFocusedThread({ id: hit.threadId, at: Date.now() });
+                  }}
+                  onBlur={(e) => void save(e.currentTarget.value)}
+                  placeholder="Write here — manual editing has no ceremony: no Suggestion, no Signal."
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    minHeight: 260,
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    overflow: 'hidden',
+                    font: 'inherit',
+                    lineHeight: 'inherit',
+                    color: 'inherit',
+                    background: 'transparent',
+                  }}
+                />
+                {/* the comment bubble floats at the end of the selection */}
+                {selection !== null && (
+                  <div className="canvas-mirror caret">
+                    {content.slice(0, selection.to)}
+                    <span style={{ position: 'relative' }}>
+                      <button
+                        className="sel-comment"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => startComment(selection)}
+                      >
+                        💬 Comment
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
 
             {pendingSuggestions.map((suggestion, at) => (
@@ -501,7 +640,20 @@ export function EditorScreen() {
             document itself, resolved in their callouts */}
         <div className="suggest-panel">
           <div className="panel-tabs">
-            <a className="active">Chat</a>
+            <a
+              className={panelTab === 'chat' ? 'active' : undefined}
+              onClick={() => setPanelTab('chat')}
+            >
+              Chat
+            </a>
+            {/* T-112: working-draft comment threads live beside the chat */}
+            <a
+              className={panelTab === 'comments' ? 'active' : undefined}
+              onClick={() => setPanelTab('comments')}
+            >
+              Comments
+              {openThreads > 0 && ` (${openThreads})`}
+            </a>
             {pendingSuggestions.length > 0 && (
               <a style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
                 {pendingSuggestions.length} pending in the document
@@ -509,40 +661,56 @@ export function EditorScreen() {
             )}
           </div>
 
-          {/* just the request and the reply — the run stays fully audited
-              server-side, readable on the work item (T-096) */}
-          {chatLog.map((entry) => (
-            <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
-              <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
-              <div className="bubble" style={{ fontSize: 12.5 }}>
-                <Markdown>{entry.text}</Markdown>
-              </div>
-            </div>
-          ))}
-          {pending && (
-            <div className="msg agent" style={{ maxWidth: '100%' }}>
-              <div className="who">Infora agent</div>
-              <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-                Working…
-              </div>
-            </div>
-          )}
-          <div style={{ marginTop: 8 }}>
-            <ChatComposer
-              ref={composerRef}
-              placeholder="Ask for a draft into this document"
-              pending={pending}
-              onSend={(request) => void runAgainst(request)}
-              onCancel={cancelRun}
-              fontSize={12.5}
-              sources={
-                <ComposerSources
-                  projectId={participant.projectId}
-                  onInsert={(snippet) => composerRef.current?.insert(snippet)}
-                />
-              }
+          {panelTab === 'comments' ? (
+            <CommentsPanel
+              documentId={doc.id}
+              projectId={participant.projectId}
+              meParticipantId={participant.participantId}
+              comments={comments}
+              onChanged={() => void load()}
+              draftAnchor={draftAnchor}
+              onClearDraftAnchor={() => setDraftAnchor(null)}
+              onLocate={locateThread}
+              focused={focusedThread}
             />
-          </div>
+          ) : (
+            <>
+              {/* just the request and the reply — the run stays fully audited
+                  server-side, readable on the work item (T-096) */}
+              {chatLog.map((entry) => (
+                <div key={entry.id} className={`msg ${entry.who}`} style={{ maxWidth: '100%' }}>
+                  <div className="who">{entry.who === 'user' ? 'You' : 'Infora agent'}</div>
+                  <div className="bubble" style={{ fontSize: 12.5 }}>
+                    <Markdown>{entry.text}</Markdown>
+                  </div>
+                </div>
+              ))}
+              {pending && (
+                <div className="msg agent" style={{ maxWidth: '100%' }}>
+                  <div className="who">Infora agent</div>
+                  <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                    Working…
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <ChatComposer
+                  ref={composerRef}
+                  placeholder="Ask for a draft into this document"
+                  pending={pending}
+                  onSend={(request) => void runAgainst(request)}
+                  onCancel={cancelRun}
+                  fontSize={12.5}
+                  sources={
+                    <ComposerSources
+                      projectId={participant.projectId}
+                      onInsert={(snippet) => composerRef.current?.insert(snippet)}
+                    />
+                  }
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

@@ -169,6 +169,38 @@ type SandboxDocument = { id: Id; projectId: Id; organisationId: Id;
                          title: string; content: string; updatedAt: string };
 ```
 
+### Sandbox comments (T-112, owner-ruled 2026-07-18)
+
+```
+GET    /sandbox-documents/:id/comments             → { items: SandboxComment[] }
+       // roots and replies flat; the surface assembles threads via
+       // parentCommentId; same scope as the document — the org-private
+       // sandbox, so the wall needs no new rule
+POST   /sandbox-documents/:id/comments             body: { body, anchor?, parentCommentId?, mentions? } → SandboxComment
+PATCH  /sandbox-comments/:id                       body: { body, mentions? }  → SandboxComment
+       // author-only — mutable like the sandbox (distinct from the
+       // append-only DRR Comment, Slice A)
+DELETE /sandbox-comments/:id                       → 204
+       // author-only; deleting a root deletes its thread
+POST   /sandbox-comments/:id/status                body: { status: 'open' | 'closed' } → SandboxComment
+       // root only; any entitled participant, not just the author —
+       // "suggest an edit" is prose in a comment, and the colleague who
+       // makes the manual edit closes the thread
+GET    /projects/:projectId/participants           → { items: ProjectParticipant[] }
+       // the @-mention picker: the requester's organisation's participants
+       // on the project — org-scoped by construction, like the sandbox list;
+       // mention delivery (notifications) is parked on the tracker
+
+type SandboxComment = { id: Id; sandboxDocumentId: Id; parentCommentId: Id | null;
+                        author: { participantId: Id; name: string };
+                        body: string; anchor: string | null;   // anchor advisory, never blocking
+                        status: 'open' | 'closed';
+                        closedBy: { participantId: Id; name: string } | null;
+                        closedAt: string | null; mentions: Id[];
+                        createdAt: string; updatedAt: string };
+type ProjectParticipant = { participantId: Id; userId: Id; name: string };
+```
+
 ### Suggestion resolution — the Signal (M4)
 
 ```

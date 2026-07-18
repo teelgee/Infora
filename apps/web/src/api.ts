@@ -3,11 +3,14 @@
 import type {
   ApiError,
   CreateConversationResponse,
+  CreateSandboxCommentBody,
   GetConversationResponse,
   GetHistoryResponse,
   GetLibraryResponse,
   GetVersionResponse,
   GetWorkItemResponse,
+  ListParticipantsResponse,
+  ListSandboxCommentsResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
   ListWorkItemsResponse,
@@ -16,6 +19,7 @@ import type {
   Resolution,
   ResolveSuggestionResponse,
   Run,
+  SandboxComment,
   SandboxDocument,
 } from '@infora/contracts';
 
@@ -69,6 +73,28 @@ export const api = {
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
   documentSuggestions: (id: string) =>
     request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),
+  // T-112 — sandbox comments: working-draft threads, mutable like the sandbox
+  participants: (projectId: string) =>
+    request<ListParticipantsResponse>(`/projects/${projectId}/participants`),
+  documentComments: (id: string) =>
+    request<ListSandboxCommentsResponse>(`/sandbox-documents/${id}/comments`),
+  createComment: (documentId: string, body: CreateSandboxCommentBody) =>
+    request<SandboxComment>(`/sandbox-documents/${documentId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchComment: (commentId: string, body: string, mentions?: string[]) =>
+    request<SandboxComment>(`/sandbox-comments/${commentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ body, ...(mentions !== undefined && { mentions }) }),
+    }),
+  deleteComment: (commentId: string) =>
+    request<void>(`/sandbox-comments/${commentId}`, { method: 'DELETE' }),
+  setCommentStatus: (commentId: string, status: 'open' | 'closed') =>
+    request<SandboxComment>(`/sandbox-comments/${commentId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
   patchSandboxDocument: (id: string, content: string) =>
     request<SandboxDocument>(`/sandbox-documents/${id}`, {
       method: 'PATCH',

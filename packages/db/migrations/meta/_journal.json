@@ -50,6 +50,13 @@
       "when": 1783629933171,
       "tag": "0006_user-preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784353077306,
+      "tag": "0007_sandbox-comments",
+      "breakpoints": true
     }
   ]
 }

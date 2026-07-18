@@ -105,6 +105,16 @@ export const resourceHomes = {
       .limit(1);
     return row ?? null;
   },
+  sandboxComment: async (db, id): Promise<ResourceHome> => {
+    // a comment lives where its document lives — the org-private sandbox
+    const [row] = await db
+      .select({ projectId: s.sandboxDocuments.projectId, organisationId: s.sandboxDocuments.organisationId })
+      .from(s.sandboxComments)
+      .innerJoin(s.sandboxDocuments, eq(s.sandboxComments.sandboxDocumentId, s.sandboxDocuments.id))
+      .where(eq(s.sandboxComments.id, id))
+      .limit(1);
+    return row ?? null;
+  },
   version: async (db, id): Promise<ResourceHome> => {
     const [row] = await db
       .select({ projectId: s.containers.projectId })

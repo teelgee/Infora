@@ -607,3 +607,88 @@ nav a.sub.empty:hover { color: var(--muted); }
 .create-card.disabled { cursor: help; }
 .create-card.disabled:hover { border-color: var(--hairline); }
 .create-card.disabled .glyph, .create-card.disabled .name { color: var(--muted); }
+
+/* Sandbox comments (T-112) — Word-style working-draft threads in the
+   Editor's Comments tab. Vars only, so the dark remap carries them. */
+.comment-thread {
+  background: var(--panel); border: 1px solid var(--hairline);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px;
+}
+.comment-thread.closed { background: var(--tint); }
+.comment-thread.closed .comment-body { color: var(--ink-soft); }
+.comment-anchor {
+  font-family: var(--sans); text-align: left; cursor: pointer;
+  display: block; width: 100%; font-size: 11.5px; color: var(--ink-soft);
+  background: var(--accent-soft); border: none;
+  border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+  padding: 4px 9px; margin-bottom: 9px; line-height: 1.5;
+}
+.comment { margin-bottom: 8px; }
+.comment.reply { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--hairline-soft); }
+.comment-head { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--ink); }
+.comment-head .when { font-size: 11px; color: var(--muted); }
+.comment-tools { margin-left: auto; display: flex; gap: 2px; }
+.comment-tools button {
+  border: none; background: none; cursor: pointer; color: var(--muted);
+  font-size: 11.5px; padding: 1px 5px; border-radius: var(--radius-sm);
+}
+.comment-tools button:hover { color: var(--ink); background: var(--tint-2); }
+.comment-body { font-size: 12.5px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; margin-top: 2px; }
+.comment-resolved { font-size: 11.5px; color: var(--muted); font-style: italic; margin: 6px 0 2px; }
+.comment-actions { display: flex; gap: 6px; margin-top: 8px; }
+.comment-box {
+  width: 100%; min-height: 56px; resize: vertical;
+  font: inherit; font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm); padding: 8px 10px; outline: none;
+}
+.comment-box:focus { border-color: var(--accent); }
+.mention { color: var(--accent-ink); font-weight: 600; }
+.mention-pop {
+  position: absolute; left: 8px; top: 100%; z-index: 30; min-width: 180px;
+  background: var(--panel); border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  padding: 4px; display: flex; flex-direction: column;
+}
+.mention-pop button {
+  font-family: var(--sans); text-align: left; cursor: pointer; border: none;
+  background: none; font-size: 12.5px; color: var(--ink);
+  padding: 6px 9px; border-radius: var(--radius-sm);
+}
+.mention-pop button:hover { background: var(--accent-soft); color: var(--accent-ink); }
+.comment-closed-toggle {
+  border: none; background: none; cursor: pointer; font-family: var(--sans);
+  font-size: 12px; font-weight: 600; color: var(--muted); padding: 4px 0;
+}
+.comment-closed-toggle:hover { color: var(--ink); }
+
+/* The canvas stack (T-112): the auto-growing textarea over a transparent
+   mirror that paints open threads' anchor highlights, plus a caret layer
+   floating the comment bubble at the selection. The textarea never scrolls
+   internally, so the layers stay aligned by construction. */
+.canvas-stack { position: relative; }
+.canvas-stack textarea { position: relative; z-index: 1; }
+.canvas-mirror {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  white-space: pre-wrap; overflow-wrap: break-word;
+  font: inherit; line-height: inherit; color: transparent;
+}
+.canvas-mirror.caret { z-index: 2; }
+.canvas-mirror mark {
+  color: transparent; background: var(--amber-soft);
+  border-bottom: 2px solid var(--amber); border-radius: 2px;
+}
+.sel-comment {
+  position: absolute; top: -34px; left: -8px; z-index: 3; pointer-events: auto;
+  font-family: var(--sans); font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--hairline); border-radius: 999px;
+  padding: 4px 11px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.14);
+}
+.sel-comment:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+/* Two-way comment linking (T-112): the flash that answers a jump in either
+   direction, and the pointer on threads that can navigate. */
+.canvas-mirror mark.flash { background: var(--accent-soft); border-bottom-color: var(--accent); }
+.comment-thread.anchored { cursor: pointer; }
+.comment-thread.flash { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }

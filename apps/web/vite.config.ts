@@ -14,6 +14,7 @@ const apiPrefixes = [
   '/runs',
   '/work-items',
   '/sandbox-documents',
+  '/sandbox-comments',
   '/suggestions',
   '/versions',
 ];

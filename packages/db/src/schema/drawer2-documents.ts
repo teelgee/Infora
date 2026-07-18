@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
   vector,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { organisations, participants, projects } from './drawer1-parties.js';
 
@@ -94,3 +95,36 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
     .references(() => participants.id),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const sandboxCommentStatus = pgEnum('sandbox_comment_status', ['open', 'closed']);
+
+// Working-draft comment threads on a sandbox document (T-112, owner-ruled
+// 2026-07-18). Mutable like the sandbox it annotates — distinct from the
+// append-only DRR Comment (drawer 5). The anchor is a quoted span against
+// the mutable head: advisory, never blocking (the Suggestion pattern).
+// status is meaningful on thread roots only (parent_comment_id null).
+export const sandboxComments = pgTable(
+  'sandbox_comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
+    parentCommentId: uuid('parent_comment_id').references((): AnyPgColumn => sandboxComments.id, {
+      onDelete: 'cascade',
+    }),
+    authorParticipantId: uuid('author_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    body: text('body').notNull(),
+    anchor: text('anchor'),
+    status: sandboxCommentStatus('status').notNull().default('open'),
+    closedByParticipantId: uuid('closed_by_participant_id').references(() => participants.id),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    mentions: uuid('mentions').array().notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sandbox_comments_document_idx').on(t.sandboxDocumentId)],
+);
+

@@ -8,6 +8,7 @@ import {
   createRetrieveLeaf,
 } from '@infora/orchestration';
 import { authRoutes } from './auth';
+import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
@@ -49,6 +50,9 @@ export function buildApp(deps: AppDeps) {
   // Sandbox documents (M4) — organisation-private inside the project
   // (ADR-0018): create/list/open (T-051), suggestions read + manual PATCH (T-082)
   app.route('/', sandboxRoutes(deps));
+
+  // Sandbox comments (T-112) — working-draft threads, scope riding the document's
+  app.route('/', commentRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

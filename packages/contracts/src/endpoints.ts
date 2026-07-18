@@ -112,6 +112,66 @@ export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody
 export const patchSandboxDocumentBody = z.object({ content: z.string() });
 export type PatchSandboxDocumentBody = z.infer<typeof patchSandboxDocumentBody>;
 
+// ── Sandbox comments (T-112, owner-ruled 2026-07-18) ───────────────────────
+//
+// GET    /sandbox-documents/:id/comments
+//        every thread on the document, roots and replies flat (the surface
+//        assembles threads via parentCommentId); same scope as the document —
+//        the org-private sandbox, so the wall needs no new rule here
+// POST   /sandbox-documents/:id/comments
+//        a root comment (with an optional advisory quoted-span anchor) or a
+//        reply (parentCommentId set); mentions name project participants
+// PATCH  /sandbox-comments/:id
+//        author-only body/mention edit — mutable like the sandbox (distinct
+//        from the append-only DRR Comment, Slice A)
+// DELETE /sandbox-comments/:id
+//        author-only; deleting a root deletes its thread (204)
+// POST   /sandbox-comments/:id/status
+//        close/reopen the thread (root only) — any entitled participant, not
+//        just the author: "suggest an edit" is prose in a comment, and the
+//        colleague who makes the manual edit closes it
+// GET    /projects/:projectId/participants
+//        the @-mention picker: the requester's organisation's participants on
+//        the project — org-scoped by construction, like the sandbox list
+//        (mentioning someone who cannot see the document is useless anyway);
+//        mention *delivery* is parked on the tracker, mentions render only
+
+export type SandboxComment = {
+  id: Id;
+  sandboxDocumentId: Id;
+  parentCommentId: Id | null;
+  author: { participantId: Id; name: string };
+  body: string;
+  anchor: string | null; // quoted span against the mutable head — advisory, never blocking
+  status: 'open' | 'closed';
+  closedBy: { participantId: Id; name: string } | null;
+  closedAt: string | null;
+  mentions: Id[]; // participant ids referenced in the body
+  createdAt: string;
+  updatedAt: string;
+};
+export type ListSandboxCommentsResponse = { items: SandboxComment[] };
+
+export const createSandboxCommentBody = z.object({
+  body: z.string().min(1),
+  anchor: z.string().min(1).optional(),
+  parentCommentId: id.optional(),
+  mentions: z.array(id).optional(),
+});
+export type CreateSandboxCommentBody = z.infer<typeof createSandboxCommentBody>;
+
+export const patchSandboxCommentBody = z.object({
+  body: z.string().min(1),
+  mentions: z.array(id).optional(),
+});
+export type PatchSandboxCommentBody = z.infer<typeof patchSandboxCommentBody>;
+
+export const setSandboxCommentStatusBody = z.object({ status: z.enum(['open', 'closed']) });
+export type SetSandboxCommentStatusBody = z.infer<typeof setSandboxCommentStatusBody>;
+
+export type ProjectParticipant = { participantId: Id; userId: Id; name: string };
+export type ListParticipantsResponse = { items: ProjectParticipant[] };
+
 // ── Suggestion resolution — the Signal (M4) ────────────────────────────────
 //
 // POST /suggestions/:suggestionId/resolution
