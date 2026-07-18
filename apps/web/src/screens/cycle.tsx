@@ -6,10 +6,12 @@
 // owner may close-rejected. Review happens against the frozen version; the
 // full in-PDF anchored viewer is the noted follow-up (anchors here are
 // quote/page fields; the PDF rendition downloads beside each round).
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type {
   AcceptanceCode,
+  CommentAnchor,
+  GetVersionResponse,
   MeResponse,
   PlanRow,
   Rendition,
@@ -21,6 +23,10 @@ import type {
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { statusBadge } from './shared';
+
+// pdf.js is heavy and only the cycle page renders it — split it into its own
+// chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
+const ReviewPdf = lazy(() => import('../pdf-review').then((m) => ({ default: m.ReviewPdf })));
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -197,7 +203,10 @@ function RoundCard(props: {
   const [commentBody, setCommentBody] = useState('');
   const [commentCode, setCommentCode] = useState('');
   const [verdict, setVerdict] = useState(round.deliverableCode?.id ?? '');
+  const [draftAnchor, setDraftAnchor] = useState<CommentAnchor | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
   const roundState = statusBadge(round.state);
+  const pdf = renditions.find((r) => r.kind === 'pdf') ?? null;
 
   return (
     <>
@@ -225,6 +234,44 @@ function RoundCard(props: {
             ))}
           </div>
 
+          {/* The review surface itself: the frozen version's PDF, anchors
+              painted from the stored fields. This round paints only its own
+              version's rendition, so anchors never migrate forward. */}
+          {pdf ? (
+            <div
+              className="review-viewer"
+              style={{
+                background: 'var(--panel)',
+                border: '1px solid var(--hairline)',
+                borderRadius: 8,
+                padding: 12,
+                maxHeight: 560,
+                overflow: 'auto',
+              }}
+            >
+              {props.canComment && (
+                <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
+                  Select text on the page to quote it, or click to drop a point — then write the comment below.
+                </div>
+              )}
+              <Suspense
+                fallback={<div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading the review PDF…</div>}
+              >
+                <ReviewPdf
+                  renditionId={pdf.id}
+                  comments={round.comments}
+                  interactive={props.canComment}
+                  draft={draftAnchor}
+                  onDraft={setDraftAnchor}
+                  hoveredCommentId={hovered}
+                  onHoverComment={setHovered}
+                />
+              </Suspense>
+            </div>
+          ) : (
+            <TextFallback versionId={round.versionId} />
+          )}
+
           {round.comments.length === 0 && (
             <span style={{ color: 'var(--muted)' }}>
               {round.state === 'open'
@@ -233,47 +280,59 @@ function RoundCard(props: {
             </span>
           )}
           {round.comments.map((comment) => (
-            <CommentRow key={comment.id} comment={comment} canRespond={props.canRespond} act={props.act} />
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              canRespond={props.canRespond}
+              act={props.act}
+              hovered={hovered === comment.id}
+              onHover={setHovered}
+            />
           ))}
 
           {props.canComment && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <textarea
-                placeholder="Add a review comment…"
-                value={commentBody}
-                onChange={(e) => setCommentBody(e.target.value)}
-                style={{ ...field, flex: 1, minHeight: 54 }}
-              />
-              <select value={commentCode} onChange={(e) => setCommentCode(e.target.value)} style={field}>
-                <option value="">no code</option>
-                {codes
-                  .filter((c) => c.level !== 'deliverable')
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.description}
-                    </option>
-                  ))}
-              </select>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={!commentBody.trim()}
-                onClick={() =>
-                  void props
-                    .act(() =>
-                      api.addReviewComment(round.id, {
-                        body: commentBody.trim(),
-                        ...(commentCode && { acceptanceCodeId: commentCode }),
-                      }),
-                    )
-                    .then(() => {
-                      setCommentBody('');
-                      setCommentCode('');
-                    })
-                }
-              >
-                Comment
-              </Button>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <AnchorChip anchor={draftAnchor} onClear={() => setDraftAnchor(null)} />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <textarea
+                  placeholder="Add a review comment…"
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  style={{ ...field, flex: 1, minHeight: 54 }}
+                />
+                <select value={commentCode} onChange={(e) => setCommentCode(e.target.value)} style={field}>
+                  <option value="">no code</option>
+                  {codes
+                    .filter((c) => c.level !== 'deliverable')
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} — {c.description}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!commentBody.trim()}
+                  onClick={() =>
+                    void props
+                      .act(() =>
+                        api.addReviewComment(round.id, {
+                          body: commentBody.trim(),
+                          ...(commentCode && { acceptanceCodeId: commentCode }),
+                          ...(draftAnchor && { anchor: draftAnchor }),
+                        }),
+                      )
+                      .then(() => {
+                        setCommentBody('');
+                        setCommentCode('');
+                        setDraftAnchor(null);
+                      })
+                  }
+                >
+                  Comment
+                </Button>
+              </div>
             </div>
           )}
 
@@ -320,14 +379,27 @@ function CommentRow(props: {
   comment: ReviewComment;
   canRespond: boolean;
   act: (action: () => Promise<unknown>) => Promise<void>;
+  hovered: boolean;
+  onHover: (id: string | null) => void;
 }) {
-  const { comment } = props;
+  const { comment, hovered, onHover } = props;
   const [responding, setResponding] = useState(false);
   const [body, setBody] = useState('');
   const [reason, setReason] = useState('addressed in the next revision');
 
   return (
-    <div style={{ borderLeft: '2px solid var(--hairline)', paddingLeft: 10, display: 'grid', gap: 4 }}>
+    <div
+      onMouseEnter={() => onHover(comment.id)}
+      onMouseLeave={() => onHover(null)}
+      style={{
+        borderLeft: `2px solid ${hovered ? 'var(--accent, #c89600)' : 'var(--hairline)'}`,
+        background: hovered ? 'var(--panel)' : 'transparent',
+        borderRadius: hovered ? 4 : 0,
+        paddingLeft: 10,
+        display: 'grid',
+        gap: 4,
+      }}
+    >
       <div>
         <b>{comment.author.name}</b>{' '}
         {comment.acceptanceCode && <Badge tone="slate">{comment.acceptanceCode.code}</Badge>}{' '}
@@ -378,6 +450,63 @@ function CommentRow(props: {
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// The pending anchor beside the comment form: what the reviewer selected or
+// dropped, and a way to drop it (an unanchored comment is still valid).
+function AnchorChip(props: { anchor: CommentAnchor | null; onClear: () => void }) {
+  const { anchor } = props;
+  if (!anchor) {
+    return (
+      <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+        No anchor — the comment will attach to the round, not a passage.
+      </span>
+    );
+  }
+  const label = anchor.quote
+    ? `“${anchor.quote.length > 80 ? `${anchor.quote.slice(0, 80)}…` : anchor.quote}” — p.${anchor.page}`
+    : anchor.point
+      ? `Dropped point · p.${anchor.page}`
+      : `Anchored · p.${anchor.page}`;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+      <Badge tone="amber">anchored</Badge>
+      <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>{label}</span>
+      <Button size="sm" variant="quiet" onClick={props.onClear}>
+        Clear anchor
+      </Button>
+    </span>
+  );
+}
+
+// The honest fallback for a version with no PDF rendition (uploaded natives,
+// pre-converter — ADR-0034): read the frozen text, anchor overlays wait on
+// the render. Downloads still sit beside the round.
+function TextFallback(props: { versionId: string }) {
+  const [version, setVersion] = useState<GetVersionResponse | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.version(props.versionId).then(
+      (v) => live && setVersion(v),
+      () => live && setFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [props.versionId]);
+  return (
+    <div style={{ background: 'var(--panel)', border: '1px solid var(--hairline)', borderRadius: 8, padding: 12 }}>
+      <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
+        No PDF rendition for this version — shown as text until the office→PDF converter lands (ADR-0034). In-PDF
+        anchoring resumes once the rendition exists.
+      </div>
+      {failed && <div style={{ color: 'var(--muted)', fontSize: 13 }}>The version text could not be read.</div>}
+      {version && (
+        <pre style={{ whiteSpace: 'pre-wrap', font: 'inherit', fontSize: 13, margin: 0 }}>{version.content}</pre>
       )}
     </div>
   );

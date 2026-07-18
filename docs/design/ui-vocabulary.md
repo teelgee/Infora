@@ -64,7 +64,11 @@
 |------|------------|
 | **Plan table** | The Review page's table (T-118/T-119): a member's own TIDP rows with "+ Plan a deliverable"; the owner's consolidated MIDP with confirm-proposed-reviewer. Rows open the cycle page. |
 | **Cycle page** | The deliverable's DRR made a screen (T-127): rounds newest-first with comments, codes, responses, transmittal downloads; the actions each role holds at each phase. |
-| **Round card** | One round on the cycle page: state badge, verdict badge, rendition downloads, the comment list, and the phase's forms (comment/code while open; verdict + "Close & issue" for the lead reviewer; "Record the response" for authors while issued). |
+| **Round card** | One round on the cycle page: state badge, verdict badge, rendition downloads, the review viewer, the comment list, and the phase's forms (comment/code while open; verdict + "Close & issue" for the lead reviewer; "Record the response" for authors while issued). |
+| **Review viewer** | The in-PDF review surface on the round card (`ReviewPdf`, T-130): the frozen version's PDF rendition rendered by pdf.js (local worker, no CDN). A reviewer anchors a comment by selecting text (a quote + quads) or dropping a point; comments paint as overlays from their stored anchors. Read-only on issued rounds. |
+| **Anchor highlight / dropped-point pin** | An overlay on the review viewer painted from a comment's stored anchor (T-130): a translucent highlight over the quoted quads, or a teardrop pin at a dropped point. Hovering it and its **comment row** highlight each other. |
+| **Anchor chip** | The pending-anchor indicator beside the comment composer (T-130): the selected quote or dropped point the next comment will carry, with **Clear anchor**. Absent it, the comment attaches to the round, not a passage. |
+| **Text fallback** | The round card's read-as-text block for a version with no PDF rendition (uploaded natives pre-converter, ADR-0034/T-130): the frozen text, honest that in-PDF anchoring resumes once the rendition exists. |
 | **Checked out** | The Editor's amber badge while an internal round is open on the frozen head (T-125): saving and promotion pause until issue hands the pen back. |
 | **Freeze / Promote buttons** | The Editor topbar's two crossings (T-125/T-120): ❄ Freeze snapshots into the org-private P-series; ⇧ Promote is the near-empty hand-off into the waiting container. |
 
