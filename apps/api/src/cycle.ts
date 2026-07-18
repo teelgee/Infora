@@ -33,6 +33,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
+import { generateRenditions } from './renditions';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 
@@ -444,6 +445,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         roundNumber,
       } satisfies PromotionResult;
     });
+    // the record's renditions, generated beside the version (T-121, ADR-0034)
+    await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
 
     return c.json(result, 201);
   });

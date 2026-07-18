@@ -477,3 +477,47 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     expect(workItem!.status).toBe('rejected');
   });
 });
+
+describe('renditions ride the promotion (T-121, ADR-0034)', () => {
+  it('an authored promotion stores a real PDF and docx; the bytes stream back scoped', async () => {
+    const [version] = await db
+      .select()
+      .from(s.versions)
+      .where(and(eq(s.versions.containerId, containerId), eq(s.versions.isCurrent, true)));
+    const list = await app.request(`/versions/${version!.id}/renditions`, {
+      headers: { cookie: ownerCookie },
+    });
+    expect(list.status).toBe(200);
+    const { items } = (await list.json()) as { items: Array<{ id: string; kind: string; format: string }> };
+    const kinds = items.map((i) => `${i.kind}/${i.format}`).sort();
+    expect(kinds).toEqual(['native/docx', 'pdf/pdf']);
+
+    const pdf = items.find((i) => i.kind === 'pdf')!;
+    const file = await app.request(`/renditions/${pdf.id}/file`, { headers: { cookie: ownerCookie } });
+    expect(file.status).toBe(200);
+    expect(file.headers.get('content-type')).toBe('application/pdf');
+    const bytes = Buffer.from(await file.arrayBuffer());
+    expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
+
+    const docx = items.find((i) => i.kind === 'native')!;
+    const docxFile = await app.request(`/renditions/${docx.id}/file`, { headers: { cookie: colleagueCookie } });
+    expect(docxFile.status).toBe(200);
+    const docxBytes = Buffer.from(await docxFile.arrayBuffer());
+    expect(docxBytes.readUInt32LE(0)).toBe(0x04034b50); // a real zip — a real docx
+
+    // renditions are records: the append-only trigger holds (T-114)
+    const [row] = await db.select().from(s.renditions).where(eq(s.renditions.id, pdf.id));
+    await db
+      .update(s.renditions)
+      .set({ contentRef: 'blob:tampered' })
+      .where(eq(s.renditions.id, row!.id))
+      .then(
+        () => {
+          throw new Error('tamper should have been rejected');
+        },
+        (error: unknown) => {
+          expect(String((error as Error).cause ?? error)).toMatch(/append-only/);
+        },
+      );
+  });
+});

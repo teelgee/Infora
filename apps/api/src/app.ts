@@ -15,6 +15,7 @@ import { cycleRoutes } from './cycle';
 import { containerRoutes, planRoutes } from './plan';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
+import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
 import { suggestionRoutes } from './suggestions';
@@ -67,6 +68,9 @@ export function buildApp(deps: AppDeps) {
 
   // Promotion + the review cycle (Slice A, ADR-0002/0005–0014/0032) — T-120+
   app.route('/', cycleRoutes({ db: deps.db, router: deps.router }));
+
+  // Renditions: the record's stored exports (Slice A, ADR-0004/0034) — T-121
+  app.route('/', renditionRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));
