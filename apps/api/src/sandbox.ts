@@ -96,7 +96,12 @@ export function toSandboxDocument(row: typeof s.sandboxDocuments.$inferSelect): 
     projectId: row.projectId,
     organisationId: row.organisationId,
     title: row.title,
+    origin: row.origin,
+    kind: row.kind,
+    format: row.format,
     content: row.content,
+    containerId: row.containerId,
+    headLocked: row.headLocked,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

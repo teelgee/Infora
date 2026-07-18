@@ -260,7 +260,204 @@ POST  /me/password            body: { currentPassword, newPassword }    → 204 
 
 Copilot adds no endpoints: the API plugin (ADR-0031) calls the same contracts with `surface: 'copilot'`, identity mapped from Entra SSO via `User.external_identity`.
 
-## 4. Error envelope
+## 4. Slice A — document management (T-116, 2026-07-18)
+
+The review-cycle slice's contracts, written against ADR-0032/0033/0034 and the rebuilt Drawers 1/2/5. Implemented ticket by ticket (T-117–T-128); until a ticket lands its endpoints 501.
+
+### Roster & administration (ADR-0033, T-117)
+
+```
+GET    /projects/:projectId/participants  → { items: RosterEntry[] }
+       // WIDENED (ADR-0033, supersedes the T-112 org-scoped note): the project
+       // roster is visible to every Participant — the wall hides work, never
+       // presence. Removed entries stay listed for attribution; pickers
+       // filter to live ones.
+GET    /organisation/users                → { items: OrgUser[] }
+       // org admin only: the requester's own organisation's users (the enrol
+       // picker); self-org by construction
+POST   /projects/:projectId/participants  body: { userId } → RosterEntry
+       // org admin enrols their own organisation's user (ADR-0015's level two)
+DELETE /projects/:projectId/participants/:participantId → RosterEntry
+       // org admin, own org only: closes the interval (removed_at) — the row
+       // survives, live grants auto-revoke from that moment
+POST   /projects/:projectId/memberships   body: { organisationId } → Membership
+       // owner grants a seat (state active); a member proposes one (state
+       // proposed — confers nothing, ADR-0019)
+POST   /memberships/:membershipId/confirmation → Membership   // owner confirms
+
+type RosterEntry = { participantId: Id; userId: Id; name: string;
+                     organisationId: Id; organisationName: string;
+                     membershipRole: 'owner' | 'member'; removedAt: string | null };
+type OrgUser = { userId: Id; name: string; email: string; orgRole: 'admin' | 'member' };
+type Membership = { id: Id; organisationId: Id; organisationName: string;
+                    projectId: Id; role: 'owner' | 'member';
+                    state: 'proposed' | 'active'; createdAt: string };
+```
+
+### The deliverable plan (ADR-0008/0033, T-118/T-119)
+
+```
+GET   /projects/:projectId/plan   → { items: PlanRow[] }
+      // access-decided, no parameter: a member reads its own organisation's
+      // rows (the TIDP); the owner reads every organisation's (the MIDP
+      // consolidation). At-a-glance facts are derived by query, never stored
+      // twice (the 2026-07-18 metadata ruling).
+POST  /projects/:projectId/plan   body: { documentReference, title, metadata? } → PlanRow
+      // a producing-organisation act (ADR-0033): creates the planned
+      // container on the requester's organisation's plan AND its
+      // document_production work item (status 'planned' — event-driven from
+      // here, never hand-set)
+PATCH /containers/:containerId    body: { metadata } → PlanRow
+      // producing organisation only; the coded reference is immutable once
+      // a version exists
+
+type PlanRow = { containerId: Id; documentReference: string;
+                 producingOrganisationId: Id; producingOrganisationName: string;
+                 metadata: Record<string, unknown>;
+                 state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+                 workItem: { id: Id; title: string; status: string } | null;   // null = owner-added reference material
+                 currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
+                 deliverableCode: { code: string; description: string } | null; // the latest round's verdict — derived
+                 authors: AppointmentGrant[]; reviewers: ReviewerGrant[] };
+```
+
+### Appointments (ADR-0017/0033, T-118/T-119)
+
+```
+POST /containers/:containerId/authors    body: { participantId, isLead? } → AppointmentGrant
+     // the producing side writes its own set (lead author amends, ADR-0017);
+     // authors must belong to organisations sharing the deliverable's sandbox
+POST /containers/:containerId/reviewers  body: { participantId, isLead? } → ReviewerGrant
+     // the producing organisation PROPOSES (unconfirmed — confers no access);
+     // an owner-made grant is auto-confirmed
+POST /authors/:grantId/revocation        → AppointmentGrant     // closes the interval
+POST /reviewers/:grantId/revocation      → ReviewerGrant
+POST /reviewers/:grantId/confirmation    → ReviewerGrant
+     // owner only — and exactly where ADR-0015 bites: confirming a reviewer
+     // whose organisation lacks the deliverable share forces share-first,
+     // or decline
+
+type AppointmentGrant = { id: Id; containerId: Id; participantId: Id; name: string;
+                          isLead: boolean; grantedAt: string; revokedAt: string | null };
+type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null };  // null = proposed
+```
+
+### Acceptance codes (ADR-0003, T-116)
+
+```
+GET /projects/:projectId/acceptance-codes → { items: AcceptanceCode[] }
+    // the project's copied scheme; scheme editing (retire-and-replace) is an
+    // owner curation surface, post-slice
+
+type AcceptanceCode = { id: Id; code: string; description: string;
+                        level: 'comment' | 'deliverable' | 'both';
+                        isAccepting: boolean; sortOrder: number;
+                        retiredAt: string | null };
+```
+
+### Promotion & the freeze (ADR-0002/0032, T-120/T-125)
+
+```
+POST /sandbox-documents/:id/promotion  → PromotionResult
+     // the near-empty hand-off (ADR-0008 — "no wizard" is the acceptance
+     // test): snapshots the head (or the freeze series' QA-accepted frozen
+     // version — ADR-0032's two legal sources, never a drifted head) into
+     // the LINKED plan container (container_id required). First promotion
+     // launches the project cycle: round 1 opens, lock to the reviewers.
+     // On an active cycle it is the transmittal back: allowed only from the
+     // respond phase; round N+1 opens, the lock returns to the reviewers.
+POST /sandbox-documents/:id/freeze     → { versionId; versionReference; containerId }
+     // T-125: snapshot into the document's sandbox-scope freeze container
+     // (auto-created at first freeze); org-private by construction; the
+     // head locks while a sandbox-scope round is open
+
+type PromotionResult = { versionId: Id; versionReference: string;
+                         cycleId: Id; roundId: Id; roundNumber: number };
+```
+
+### The review cycle (ADR-0005–0014/0032, T-123/T-124/T-126)
+
+```
+GET /containers/:containerId/cycle → ReviewCycle | null
+    // the active (or latest closed) cycle with its rounds; ADR-0014 phasing
+    // applied server-side — the OPEN round's comments are omitted for the
+    // authoring side; issued rounds are permanently visible to all entitled
+POST /rounds/:roundId/comments             body: { body, anchor?, acceptanceCodeId? } → ReviewComment
+    // reviewing side, while the round is open; comments are live and
+    // cross-organisation within the review group (ADR-0007)
+PATCH /review-comments/:commentId          body: { body?, acceptanceCodeId?, anchor? } → ReviewComment
+    // while the round is open only: the author edits their own, the lead
+    // reviewer moderates any (ADR-0007); frozen at issue by the DB itself
+POST /rounds/:roundId/deliverable-code     body: { acceptanceCodeId } → Round
+    // lead reviewer: the authoritative per-round verdict, suggested from
+    // the comment codes (ADR-0003), set while the round is open
+POST /rounds/:roundId/issue                body: { recipients?, purposeCode?, dueAt? } → { transmittalId: Id; cycle: ReviewCycle }
+    // lead reviewer closes and issues: transmittal recorded, snapshot
+    // frozen, the round revealed to the authoring side, the lock flipped —
+    // or, when the round's deliverable code is accepting, the cycle closes
+    // accepted: the work item closes, the version auto-admits to the
+    // library and starts grounding (ADR-0003/0011/0013)
+POST /review-comments/:commentId/response  body: { body, nextVersionId?, nextVersionAnchor?, noChangeReason? } → ReviewResponse
+    // authoring side, during the respond phase; exactly one of the link or
+    // the reason (ADR-0004); one response per comment
+POST /cycles/:cycleId/close-rejected       → ReviewCycle
+    // lead author or project owner — the explicit audited stop (ADR-0032):
+    // container → rejected (stays in the library, never grounds), work
+    // item → rejected
+
+type ReviewCycle = { id: Id; containerId: Id;
+                     state: 'active' | 'accepted' | 'closed_rejected';
+                     editLockHolder: 'authoring' | 'reviewing';
+                     launchedAt: string; closedAt: string | null;
+                     rounds: Round[] };
+type Round = { id: Id; number: number; versionId: Id; versionReference: string;
+               state: 'open' | 'issued' | 'responded';
+               reviewPeriodTarget: string | null;                 // guides, never gates (ADR-0005)
+               deliverableCode: AcceptanceCode | null;
+               comments: ReviewComment[]; transmittals: Transmittal[] };
+type ReviewComment = { id: Id; roundId: Id; versionId: Id;
+                       author: { participantId: Id; name: string };
+                       body: string; acceptanceCode: { id: Id; code: string } | null;
+                       anchor: CommentAnchor | null; createdAt: string;
+                       response: ReviewResponse | null };
+type CommentAnchor = { page?: number; quote?: string;             // rendition-agnostic structured
+                       rects?: Array<{ x: number; y: number; w: number; h: number }>;
+                       point?: { x: number; y: number } };        // fields, never a sidecar (ADR-0006)
+type ReviewResponse = { id: Id; commentId: Id;
+                        author: { participantId: Id; name: string };
+                        body: string; nextVersionId: Id | null;
+                        nextVersionAnchor: CommentAnchor | null;
+                        noChangeReason: string | null; createdAt: string };
+type Transmittal = { id: Id; roundId: Id; direction: 'issue' | 'return';
+                     sender: { participantId: Id; name: string };
+                     recipients: Id[]; purposeCode: string | null;
+                     issuedAt: string; dueAt: string | null };
+```
+
+### Renditions, upload & ambient history (ADR-0034, T-121/T-122/T-128)
+
+```
+GET  /versions/:versionId/renditions → { items: Rendition[] }
+GET  /renditions/:renditionId/file   → the bytes (content-type per format)
+POST /projects/:projectId/sandbox-uploads   multipart: { file } → SandboxDocument
+     // origin 'uploaded': the native file is canonical (docx/xlsx/pptx)
+POST /sandbox-documents/:id/conversion      → SandboxDocument
+     // "open in editor": uploaded → authored, in place, deliberate; the
+     // original file lands in the ambient history; fidelity is honest
+GET  /sandbox-documents/:id/history  → { items: SandboxDocumentVersion[] }
+POST /sandbox-documents/:id/restore  body: { historyVersionId } → SandboxDocument
+     // restore copies a snapshot back into the head — never rewrites history
+
+type Rendition = { id: Id; versionId: Id; kind: 'native' | 'pdf';
+                   format: 'docx' | 'xlsx' | 'pptx' | 'pdf'; createdAt: string };
+type SandboxDocumentVersion = { id: Id; sandboxDocumentId: Id;
+                                createdBy: { participantId: Id; name: string };
+                                createdAt: string };   // content fetched by restore/preview, not listed
+```
+
+*Type extensions (same date):* `WorkItem` gains `containerId: Id | null` (the ADR-0032 addendum join — null for reference material and future non-document types) and its `status` vocabulary becomes the event-driven set `planned | drafting | in_review | accepted | rejected` when T-127 lands. `SandboxDocument` gains `origin: 'authored' | 'uploaded'`, `kind: 'text' | 'slides'`, `format: 'infora_text' | 'docx' | 'xlsx' | 'pptx'`, `containerId: Id | null` (the missing link, ADR-0032) and `headLocked: boolean`.
+
+## 5. Error envelope
 
 ```ts
 type ApiError = { error: 'not_found' | 'conflict' | 'invalid' | 'unauthenticated'; detail?: string };
@@ -268,6 +465,6 @@ type ApiError = { error: 'not_found' | 'conflict' | 'invalid' | 'unauthenticated
 
 `not_found` covers both nonexistence and denial (principle 4). There is no `forbidden` on cross-wall reads — that would leak existence.
 
-## What this first cut deliberately omits
+## What this cut deliberately omits
 
-Promotion and the review cycle endpoints (post-skeleton slice — the DRR/Comment tables exist but only the owner's read touches them here, via the work-item/run read); attached sources; workflow launch beyond the single chat/draft path; pagination and webhooks; streaming (additive later). Each arrives with its slice, matching the data model's drawers.
+~~Promotion and the review cycle endpoints~~ *(arrived 2026-07-18 with Slice A, §4 above)*. Still omitted: attached sources; workflow launch beyond the single chat/draft path; acceptance-scheme editing (retire-and-replace is an owner curation surface, post-slice); notification delivery (the parked mention/transmittal channel — tracker); pagination and webhooks; streaming (additive later). Each arrives with its slice, matching the data model's drawers.

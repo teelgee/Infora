@@ -76,6 +76,9 @@ export type WorkItem = {
   type: string;
   title: string;
   status: string;
+  // the deliverable's record half (ADR-0032 addendum, T-116): null for
+  // owner-added reference material and future non-document types
+  containerId: Id | null;
   assigneeParticipantId: Id | null;
 };
 export type ListWorkItemsResponse = { items: WorkItem[] };
@@ -99,7 +102,15 @@ export type SandboxDocument = {
   projectId: Id;
   organisationId: Id;
   title: string;
+  // canonical format follows origin (ADR-0034, T-116)
+  origin: 'authored' | 'uploaded';
+  kind: 'text' | 'slides';
+  format: 'infora_text' | 'docx' | 'xlsx' | 'pptx';
   content: string;
+  // the intended plan row this draft is producing (ADR-0032's missing link)
+  containerId: Id | null;
+  // the freeze's check-out lock (ADR-0032)
+  headLocked: boolean;
   updatedAt: string;
 };
 
@@ -286,3 +297,244 @@ export const changePasswordBody = z.object({
   newPassword: z.string().min(8),
 });
 export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
+
+// ── Slice A — document management (T-116, 2026-07-18; ADR-0032/0033/0034) ──
+// Contracts §4. Implemented ticket by ticket (T-117–T-128); an endpoint 501s
+// until its ticket lands.
+
+// Roster & administration (ADR-0033, T-117).
+// GET /projects/:projectId/participants is WIDENED to the project roster —
+// the wall hides work, never presence; removed entries stay for attribution.
+export type RosterEntry = {
+  participantId: Id;
+  userId: Id;
+  name: string;
+  organisationId: Id;
+  organisationName: string;
+  membershipRole: 'owner' | 'member';
+  removedAt: string | null;
+};
+export type ListRosterResponse = { items: RosterEntry[] };
+
+export type OrgUser = { userId: Id; name: string; email: string; orgRole: 'admin' | 'member' };
+export type ListOrgUsersResponse = { items: OrgUser[] };
+
+export const enrolParticipantBody = z.object({ userId: id });
+export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;
+
+export type MembershipRecord = {
+  id: Id;
+  organisationId: Id;
+  organisationName: string;
+  projectId: Id;
+  role: 'owner' | 'member';
+  state: 'proposed' | 'active';
+  createdAt: string;
+};
+export const addMembershipBody = z.object({ organisationId: id });
+export type AddMembershipBody = z.infer<typeof addMembershipBody>;
+
+// The deliverable plan (ADR-0008/0033, T-118/T-119). GET /projects/:id/plan
+// is access-decided with no parameter: a member reads its own organisation's
+// rows (the TIDP), the owner reads all (the MIDP consolidation).
+export type AppointmentGrant = {
+  id: Id;
+  containerId: Id;
+  participantId: Id;
+  name: string;
+  isLead: boolean;
+  grantedAt: string;
+  revokedAt: string | null;
+};
+export type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null }; // null = proposed, no access
+
+export type PlanRow = {
+  containerId: Id;
+  documentReference: string;
+  producingOrganisationId: Id;
+  producingOrganisationName: string;
+  metadata: Record<string, unknown>;
+  state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  workItem: { id: Id; title: string; status: string } | null; // null = owner-added reference material
+  currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
+  deliverableCode: { code: string; description: string } | null; // latest round verdict — derived
+  authors: AppointmentGrant[];
+  reviewers: ReviewerGrant[];
+};
+export type GetPlanResponse = { items: PlanRow[] };
+
+export const createPlanRowBody = z.object({
+  documentReference: z.string().min(1),
+  title: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type CreatePlanRowBody = z.infer<typeof createPlanRowBody>;
+
+export const patchContainerBody = z.object({
+  metadata: z.record(z.string(), z.unknown()),
+});
+export type PatchContainerBody = z.infer<typeof patchContainerBody>;
+
+export const grantAppointmentBody = z.object({
+  participantId: id,
+  isLead: z.boolean().optional(),
+});
+export type GrantAppointmentBody = z.infer<typeof grantAppointmentBody>;
+
+// Acceptance codes (ADR-0003): the project's copied scheme.
+export type AcceptanceCode = {
+  id: Id;
+  code: string;
+  description: string;
+  level: 'comment' | 'deliverable' | 'both';
+  isAccepting: boolean;
+  sortOrder: number;
+  retiredAt: string | null;
+};
+export type ListAcceptanceCodesResponse = { items: AcceptanceCode[] };
+
+// Promotion & the freeze (ADR-0002/0032, T-120/T-125): the near-empty
+// hand-off — "no wizard" is the acceptance test. Two legal sources: the live
+// head snapshot, or the freeze series' QA-accepted frozen version.
+export type PromotionResult = {
+  versionId: Id;
+  versionReference: string;
+  cycleId: Id;
+  roundId: Id;
+  roundNumber: number;
+};
+export type FreezeResult = { versionId: Id; versionReference: string; containerId: Id };
+
+// The review cycle (ADR-0005–0014/0032, T-123/T-124/T-126). The cycle read
+// applies ADR-0014 phasing server-side: the open round's comments are
+// omitted for the authoring side; issued rounds are permanently visible.
+export type CommentAnchor = {
+  page?: number;
+  quote?: string;
+  rects?: Array<{ x: number; y: number; w: number; h: number }>;
+  point?: { x: number; y: number };
+}; // rendition-agnostic structured fields, never a sidecar (ADR-0006)
+
+export type ReviewResponseRecord = {
+  id: Id;
+  commentId: Id;
+  author: { participantId: Id; name: string };
+  body: string;
+  nextVersionId: Id | null;
+  nextVersionAnchor: CommentAnchor | null;
+  noChangeReason: string | null;
+  createdAt: string;
+};
+
+export type ReviewComment = {
+  id: Id;
+  roundId: Id;
+  versionId: Id;
+  author: { participantId: Id; name: string };
+  body: string;
+  acceptanceCode: { id: Id; code: string } | null;
+  anchor: CommentAnchor | null;
+  createdAt: string;
+  response: ReviewResponseRecord | null;
+};
+
+export type TransmittalRecord = {
+  id: Id;
+  roundId: Id;
+  direction: 'issue' | 'return';
+  sender: { participantId: Id; name: string };
+  recipients: Id[];
+  purposeCode: string | null;
+  issuedAt: string;
+  dueAt: string | null;
+};
+
+export type Round = {
+  id: Id;
+  number: number;
+  versionId: Id;
+  versionReference: string;
+  state: 'open' | 'issued' | 'responded';
+  reviewPeriodTarget: string | null; // guides, never gates (ADR-0005)
+  deliverableCode: AcceptanceCode | null;
+  comments: ReviewComment[];
+  transmittals: TransmittalRecord[];
+};
+
+export type ReviewCycle = {
+  id: Id;
+  containerId: Id;
+  state: 'active' | 'accepted' | 'closed_rejected';
+  editLockHolder: 'authoring' | 'reviewing';
+  launchedAt: string;
+  closedAt: string | null;
+  rounds: Round[];
+};
+export type GetCycleResponse = ReviewCycle | null;
+
+const commentAnchorSchema = z.object({
+  page: z.number().int().min(1).optional(),
+  quote: z.string().min(1).optional(),
+  rects: z
+    .array(z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }))
+    .optional(),
+  point: z.object({ x: z.number(), y: z.number() }).optional(),
+});
+
+export const createReviewCommentBody = z.object({
+  body: z.string().min(1),
+  anchor: commentAnchorSchema.optional(),
+  acceptanceCodeId: id.optional(),
+});
+export type CreateReviewCommentBody = z.infer<typeof createReviewCommentBody>;
+
+export const patchReviewCommentBody = z.object({
+  body: z.string().min(1).optional(),
+  acceptanceCodeId: id.nullable().optional(),
+  anchor: commentAnchorSchema.nullable().optional(),
+});
+export type PatchReviewCommentBody = z.infer<typeof patchReviewCommentBody>;
+
+export const setDeliverableCodeBody = z.object({ acceptanceCodeId: id });
+export type SetDeliverableCodeBody = z.infer<typeof setDeliverableCodeBody>;
+
+export const issueRoundBody = z.object({
+  recipients: z.array(id).optional(),
+  purposeCode: z.string().min(1).optional(),
+  dueAt: z.iso.datetime().optional(),
+});
+export type IssueRoundBody = z.infer<typeof issueRoundBody>;
+export type IssueRoundResponse = { transmittalId: Id; cycle: ReviewCycle };
+
+export const createReviewResponseBody = z
+  .object({
+    body: z.string().min(1),
+    nextVersionId: id.optional(),
+    nextVersionAnchor: commentAnchorSchema.optional(),
+    noChangeReason: z.string().min(1).optional(),
+  })
+  .refine((b) => (b.nextVersionId ? !b.noChangeReason : !!b.noChangeReason), {
+    message: 'exactly one of nextVersionId or noChangeReason', // ADR-0004
+  });
+export type CreateReviewResponseBody = z.infer<typeof createReviewResponseBody>;
+
+// Renditions, upload & ambient history (ADR-0034, T-121/T-122/T-128).
+export type Rendition = {
+  id: Id;
+  versionId: Id;
+  kind: 'native' | 'pdf';
+  format: 'docx' | 'xlsx' | 'pptx' | 'pdf';
+  createdAt: string;
+};
+export type ListRenditionsResponse = { items: Rendition[] };
+
+export type SandboxDocumentVersion = {
+  id: Id;
+  sandboxDocumentId: Id;
+  createdBy: { participantId: Id; name: string };
+  createdAt: string;
+}; // content fetched by restore/preview, not listed
+export type ListSandboxHistoryResponse = { items: SandboxDocumentVersion[] };
+
+export const restoreSandboxVersionBody = z.object({ historyVersionId: id });
+export type RestoreSandboxVersionBody = z.infer<typeof restoreSandboxVersionBody>;

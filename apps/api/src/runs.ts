@@ -181,6 +181,7 @@ function toWorkItem(row: typeof s.workItems.$inferSelect): WorkItem {
     type: row.type,
     title: row.title,
     status: row.status,
+    containerId: row.containerId,
     assigneeParticipantId: row.assigneeParticipantId,
   };
 }
