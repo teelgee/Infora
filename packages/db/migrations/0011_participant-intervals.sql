@@ -1,0 +1,2 @@
+DROP INDEX "participants_user_project_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "participants_user_project_live_unique" ON "participants" USING btree ("user_id","project_id") WHERE "participants"."removed_at" IS NULL;

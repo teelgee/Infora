@@ -58,6 +58,13 @@
 | **Workflow** | The engine's term for the codified step sequence a tool — or the review cycle — runs (`packages/workflows`, ADR-0026/0027). Never a navigation destination; say "tool" on the surfaces. |
 | **Builder** | The build-a-tool entry inside Tools (Slice F); a built workflow surfaces as your own tool, org-visible in the MVP (scoping ruling on the tracker). |
 
+## Settings
+
+| Term | What it is |
+|------|------------|
+| **Administration panel** | The org-admin-only card on settings (T-117, ADR-0033): staff your organisation's seat on a project — enrol colleagues from the org's own users, remove them (the interval closes; attribution stands). Membership propose/confirm joins the owner surfaces at T-119. |
+| **Roster** | The project-visible list of every Participant (name, organisation, project role) — what reviewer/author/mention pickers select from. The wall hides work, never presence. |
+
 ## Screens
 
 The routable pages: **workspace landing**, the workspace **section pages** (Ask/Editor/Personal sandbox/Tools/Your knowledge), **project home**, **Ask**, **Editor** (and its **entry screen**), **Documents** (the project library), **Sandbox**, **Review**, **Tools** (was Workflows, T-109), **History** (your prompted turns, T-108), the **audit screen** (work item), **settings**.

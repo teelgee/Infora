@@ -7,7 +7,7 @@
 // than erroring.
 import type { Context, MiddlewareHandler } from 'hono';
 import { getSignedCookie } from 'hono/cookie';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ApiError } from '@infora/contracts';
 import { resolveAccess } from '@infora/governance';
@@ -52,7 +52,15 @@ async function resolveSlice(db: Db, user: UserRow, projectId: string): Promise<E
   const [participant] = await db
     .select()
     .from(s.participants)
-    .where(and(eq(s.participants.userId, user.id), eq(s.participants.projectId, projectId)))
+    // the LIVE interval only — closed intervals are history (ADR-0033, T-117);
+    // the predicate re-checks removedAt as defense in depth
+    .where(
+      and(
+        eq(s.participants.userId, user.id),
+        eq(s.participants.projectId, projectId),
+        isNull(s.participants.removedAt),
+      ),
+    )
     .limit(1);
   return resolveAccess({
     user: { id: user.id, organisationId: user.organisationId },

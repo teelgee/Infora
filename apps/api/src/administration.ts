@@ -1,0 +1,306 @@
+// T-117 — access administration + the roster (ADR-0033, contracts §4).
+// The two levels exercised as endpoints: the owner opens an organisation's
+// seat (Membership, propose-then-confirm per ADR-0019); each organisation's
+// org admin staffs it (Participant intervals). The roster is project-visible
+// to every Participant — the wall hides work, never presence.
+import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { addMembershipBody, enrolParticipantBody } from '@infora/contracts';
+import type {
+  ApiError,
+  ListOrgUsersResponse,
+  ListRosterResponse,
+  MembershipRecord,
+  RosterEntry,
+} from '@infora/contracts';
+import { schema as s } from '@infora/db';
+import type { Db } from '@infora/db';
+import { projectScope } from './requester';
+import type { AppEnv, UserRow } from './requester';
+
+const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
+const isUuid = (value: string) => z.uuid().safeParse(value).success;
+
+/**
+ * The org-admin gate for staffing a project (ADR-0033): the requester is
+ * their organisation's admin AND that organisation holds an ACTIVE seat on
+ * the project. Deliberately not Participant-based — an admin staffs the seat
+ * whether or not they work the project themselves. Deny is the usual 404.
+ */
+async function adminSeat(db: Db, user: UserRow, projectId: string) {
+  if (user.orgRole !== 'admin' || !isUuid(projectId)) return null;
+  const [membership] = await db
+    .select()
+    .from(s.memberships)
+    .where(
+      and(
+        eq(s.memberships.organisationId, user.organisationId),
+        eq(s.memberships.projectId, projectId),
+        eq(s.memberships.state, 'active'),
+      ),
+    )
+    .limit(1);
+  return membership ?? null;
+}
+
+async function rosterEntry(db: Db, participantId: string): Promise<RosterEntry> {
+  const [row] = await db
+    .select({
+      participantId: s.participants.id,
+      userId: s.users.id,
+      name: s.users.name,
+      organisationId: s.organisations.id,
+      organisationName: s.organisations.name,
+      membershipRole: s.memberships.role,
+      removedAt: s.participants.removedAt,
+    })
+    .from(s.participants)
+    .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+    .innerJoin(s.organisations, eq(s.users.organisationId, s.organisations.id))
+    .innerJoin(
+      s.memberships,
+      and(
+        eq(s.memberships.organisationId, s.users.organisationId),
+        eq(s.memberships.projectId, s.participants.projectId),
+      ),
+    )
+    .where(eq(s.participants.id, participantId))
+    .limit(1);
+  return { ...row!, removedAt: row!.removedAt?.toISOString() ?? null };
+}
+
+function toMembership(
+  row: typeof s.memberships.$inferSelect,
+  organisationName: string,
+): MembershipRecord {
+  return {
+    id: row.id,
+    organisationId: row.organisationId,
+    organisationName,
+    projectId: row.projectId,
+    role: row.role,
+    state: row.state,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function administrationRoutes(deps: { db: Db }) {
+  const app = new Hono<AppEnv>();
+  const project = projectScope(deps);
+
+  // The project roster — WIDENED from the T-112 org-scoped picker (ADR-0033):
+  // every Participant sees every Participant's name, organisation and project
+  // role. Removed entries stay listed for attribution; pickers filter live.
+  app.get('/projects/:projectId/participants', project, async (c) => {
+    const slice = c.get('slice');
+    const rows = await deps.db
+      .select({
+        participantId: s.participants.id,
+        userId: s.users.id,
+        name: s.users.name,
+        organisationId: s.organisations.id,
+        organisationName: s.organisations.name,
+        membershipRole: s.memberships.role,
+        removedAt: s.participants.removedAt,
+      })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .innerJoin(s.organisations, eq(s.users.organisationId, s.organisations.id))
+      .innerJoin(
+        s.memberships,
+        and(
+          eq(s.memberships.organisationId, s.users.organisationId),
+          eq(s.memberships.projectId, s.participants.projectId),
+        ),
+      )
+      .where(eq(s.participants.projectId, slice.projectId))
+      .orderBy(asc(s.users.name));
+    const items = rows.map((r) => ({ ...r, removedAt: r.removedAt?.toISOString() ?? null }));
+    return c.json({ items } satisfies ListRosterResponse);
+  });
+
+  // The enrol picker: the requester's OWN organisation's users; org admin only.
+  app.get('/organisation/users', async (c) => {
+    const user = c.get('user');
+    if (user.orgRole !== 'admin') return notFound(c);
+    const rows = await deps.db
+      .select({
+        userId: s.users.id,
+        name: s.users.name,
+        email: s.users.email,
+        orgRole: s.users.orgRole,
+      })
+      .from(s.users)
+      .where(eq(s.users.organisationId, user.organisationId))
+      .orderBy(asc(s.users.name));
+    return c.json({ items: rows } satisfies ListOrgUsersResponse);
+  });
+
+  // Org admin enrols their own organisation's user (ADR-0015 level two).
+  app.post('/projects/:projectId/participants', async (c) => {
+    const user = c.get('user');
+    const projectId = c.req.param('projectId');
+    const seat = await adminSeat(deps.db, user, projectId);
+    if (!seat) return notFound(c);
+    const body = enrolParticipantBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    // the target must be the admin's own organisation's user — the ceiling binds
+    const [target] = await deps.db
+      .select()
+      .from(s.users)
+      .where(and(eq(s.users.id, body.data.userId), eq(s.users.organisationId, user.organisationId)))
+      .limit(1);
+    if (!target) return notFound(c);
+    const [live] = await deps.db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .where(
+        and(
+          eq(s.participants.userId, target.id),
+          eq(s.participants.projectId, projectId),
+          isNull(s.participants.removedAt),
+        ),
+      )
+      .limit(1);
+    if (live) return c.json({ error: 'conflict' } satisfies ApiError, 409);
+    // the enrolling admin's own live participant row, when they have one —
+    // seeded/first users carry null (contracts §4)
+    const [adminParticipant] = await deps.db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .where(
+        and(
+          eq(s.participants.userId, user.id),
+          eq(s.participants.projectId, projectId),
+          isNull(s.participants.removedAt),
+        ),
+      )
+      .limit(1);
+    const [created] = await deps.db
+      .insert(s.participants)
+      .values({
+        userId: target.id,
+        projectId,
+        addedByParticipantId: adminParticipant?.id ?? null,
+      })
+      .returning();
+    return c.json(await rosterEntry(deps.db, created!.id), 201);
+  });
+
+  // Org admin removes their own organisation's participant: the interval
+  // closes (the row survives — attribution stands) and live appointment
+  // grants auto-revoke from that moment (ADR-0033).
+  app.delete('/projects/:projectId/participants/:participantId', async (c) => {
+    const user = c.get('user');
+    const projectId = c.req.param('projectId');
+    const participantId = c.req.param('participantId');
+    const seat = await adminSeat(deps.db, user, projectId);
+    if (!seat || !isUuid(participantId)) return notFound(c);
+    const [row] = await deps.db
+      .select({ id: s.participants.id, userId: s.participants.userId })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(
+        and(
+          eq(s.participants.id, participantId),
+          eq(s.participants.projectId, projectId),
+          eq(s.users.organisationId, user.organisationId),
+          isNull(s.participants.removedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) return notFound(c);
+    await deps.db
+      .update(s.participants)
+      .set({ removedAt: sql`now()` })
+      .where(eq(s.participants.id, row.id));
+    await deps.db
+      .update(s.deliverableAuthors)
+      .set({ revokedAt: sql`now()` })
+      .where(and(eq(s.deliverableAuthors.participantId, row.id), isNull(s.deliverableAuthors.revokedAt)));
+    await deps.db
+      .update(s.deliverableReviewers)
+      .set({ revokedAt: sql`now()` })
+      .where(
+        and(eq(s.deliverableReviewers.participantId, row.id), isNull(s.deliverableReviewers.revokedAt)),
+      );
+    return c.json(await rosterEntry(deps.db, row.id));
+  });
+
+  // The owner grants a seat (state active); a member proposes one (state
+  // proposed — confers nothing until confirmed, ADR-0019).
+  app.post('/projects/:projectId/memberships', project, async (c) => {
+    const slice = c.get('slice');
+    const body = addMembershipBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    const [organisation] = await deps.db
+      .select()
+      .from(s.organisations)
+      .where(eq(s.organisations.id, body.data.organisationId))
+      .limit(1);
+    if (!organisation) return notFound(c);
+    const [existing] = await deps.db
+      .select({ id: s.memberships.id })
+      .from(s.memberships)
+      .where(
+        and(
+          eq(s.memberships.organisationId, organisation.id),
+          eq(s.memberships.projectId, slice.projectId),
+        ),
+      )
+      .limit(1);
+    if (existing) return c.json({ error: 'conflict' } satisfies ApiError, 409);
+    const [created] = await deps.db
+      .insert(s.memberships)
+      .values({
+        organisationId: organisation.id,
+        projectId: slice.projectId,
+        role: 'member',
+        state: slice.membershipRole === 'owner' ? 'active' : 'proposed',
+        addedByParticipantId: slice.participantId,
+      })
+      .returning();
+    return c.json(toMembership(created!, organisation.name), 201);
+  });
+
+  // The owner confirms a proposed seat (ADR-0019 as data).
+  app.post('/memberships/:membershipId/confirmation', async (c) => {
+    const user = c.get('user');
+    const membershipId = c.req.param('membershipId');
+    if (!isUuid(membershipId)) return notFound(c);
+    const [row] = await deps.db
+      .select()
+      .from(s.memberships)
+      .where(eq(s.memberships.id, membershipId))
+      .limit(1);
+    if (!row) return notFound(c);
+    // only the project owner's organisation confirms
+    const [ownerMembership] = await deps.db
+      .select({ id: s.memberships.id })
+      .from(s.memberships)
+      .where(
+        and(
+          eq(s.memberships.projectId, row.projectId),
+          eq(s.memberships.organisationId, user.organisationId),
+          eq(s.memberships.role, 'owner'),
+        ),
+      )
+      .limit(1);
+    if (!ownerMembership) return notFound(c);
+    const [updated] = await deps.db
+      .update(s.memberships)
+      .set({ state: 'active' })
+      .where(eq(s.memberships.id, row.id))
+      .returning();
+    const [organisation] = await deps.db
+      .select()
+      .from(s.organisations)
+      .where(eq(s.organisations.id, row.organisationId))
+      .limit(1);
+    return c.json(toMembership(updated!, organisation!.name));
+  });
+
+  return app;
+}

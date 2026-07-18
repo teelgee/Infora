@@ -180,7 +180,10 @@ export type PatchSandboxCommentBody = z.infer<typeof patchSandboxCommentBody>;
 export const setSandboxCommentStatusBody = z.object({ status: z.enum(['open', 'closed']) });
 export type SetSandboxCommentStatusBody = z.infer<typeof setSandboxCommentStatusBody>;
 
+/** @deprecated superseded by RosterEntry (ADR-0033, T-117): the participants
+ * read is the project roster now; kept for the transition. */
 export type ProjectParticipant = { participantId: Id; userId: Id; name: string };
+/** @deprecated superseded by ListRosterResponse (ADR-0033, T-117). */
 export type ListParticipantsResponse = { items: ProjectParticipant[] };
 
 // ── Suggestion resolution — the Signal (M4) ────────────────────────────────
@@ -267,6 +270,7 @@ export type MeResponse = {
   email: string; // the requester's own sign-in identity (T-092, 2026-07-09)
   organisationId: Id;
   organisationName: string;
+  orgRole: 'admin' | 'member'; // the requester's own administration role (ADR-0033, T-117) — a self fact
   preferences: UserPreferences; // personal settings (T-092, 2026-07-09)
   participants: Array<{
     projectId: Id;

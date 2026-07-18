@@ -5,7 +5,7 @@
 // resolution on every other endpoint is T-023.
 import { Hono } from 'hono';
 import { deleteCookie, setSignedCookie } from 'hono/cookie';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { changePasswordBody, createSessionBody, patchMeBody } from '@infora/contracts';
 import type { ApiError, MeResponse, UserPreferences } from '@infora/contracts';
@@ -130,7 +130,7 @@ async function readMe(db: Db, user: UserRow): Promise<MeResponse> {
         eq(s.memberships.organisationId, user.organisationId),
       ),
     )
-    .where(eq(s.participants.userId, user.id));
+    .where(and(eq(s.participants.userId, user.id), isNull(s.participants.removedAt)));
 
   return {
     userId: user.id,
@@ -138,6 +138,7 @@ async function readMe(db: Db, user: UserRow): Promise<MeResponse> {
     email: user.email,
     organisationId: user.organisationId,
     organisationName: organisation?.name ?? '',
+    orgRole: user.orgRole,
     preferences: user.preferences as UserPreferences,
     participants,
   };

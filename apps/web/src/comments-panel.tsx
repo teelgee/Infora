@@ -6,7 +6,7 @@
 // they render as highlights only.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import type { ProjectParticipant, SandboxComment } from '@infora/contracts';
+import type { RosterEntry, SandboxComment } from '@infora/contracts';
 import { Button } from '@infora/ui';
 import { api } from './api';
 
@@ -29,7 +29,7 @@ function mentionToken(value: string, caret: number): { start: number; query: str
 }
 
 /** Body text → participant ids whose @Name appears in it. */
-function mentionsIn(body: string, participants: ProjectParticipant[]): string[] {
+function mentionsIn(body: string, participants: RosterEntry[]): string[] {
   return participants.filter((p) => body.includes(`@${p.name}`)).map((p) => p.participantId);
 }
 
@@ -53,7 +53,7 @@ function withMentions(body: string, names: string[]): ReactNode {
 function MentionBox(props: {
   value: string;
   onChange: (value: string) => void;
-  participants: ProjectParticipant[];
+  participants: RosterEntry[];
   placeholder: string;
   autoFocus?: boolean;
   onSubmit: () => void;
@@ -74,7 +74,7 @@ function MentionBox(props: {
     setToken(mentionToken(area.value, area.selectionStart));
   }
 
-  function pick(participant: ProjectParticipant) {
+  function pick(participant: RosterEntry) {
     const area = areaRef.current;
     if (area === null || token === null) return;
     const caret = area.selectionStart;
@@ -124,7 +124,7 @@ function MentionBox(props: {
 }
 
 export function CommentsPanel(props: Props) {
-  const [participants, setParticipants] = useState<ProjectParticipant[]>([]);
+  const [participants, setParticipants] = useState<RosterEntry[]>([]);
   const [draft, setDraft] = useState('');
   const [composing, setComposing] = useState(false);
   const [replyFor, setReplyFor] = useState<string | null>(null);
@@ -138,7 +138,9 @@ export function CommentsPanel(props: Props) {
   commentsRef.current = props.comments;
 
   useEffect(() => {
-    void api.participants(props.projectId).then((res) => setParticipants(res.items));
+    void api.participants(props.projectId).then((res) =>
+      setParticipants(res.items.filter((p) => p.removedAt === null)),
+    );
   }, [props.projectId]);
 
   // canvas → panel: a click on a highlight centres and flashes its thread

@@ -9,7 +9,8 @@ import type {
   GetLibraryResponse,
   GetVersionResponse,
   GetWorkItemResponse,
-  ListParticipantsResponse,
+  ListOrgUsersResponse,
+  ListRosterResponse,
   ListSandboxCommentsResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
@@ -18,6 +19,7 @@ import type {
   PatchMeBody,
   Resolution,
   ResolveSuggestionResponse,
+  RosterEntry,
   Run,
   SandboxComment,
   SandboxDocument,
@@ -75,7 +77,18 @@ export const api = {
     request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),
   // T-112 — sandbox comments: working-draft threads, mutable like the sandbox
   participants: (projectId: string) =>
-    request<ListParticipantsResponse>(`/projects/${projectId}/participants`),
+    request<ListRosterResponse>(`/projects/${projectId}/participants`),
+  // T-117 — access administration (ADR-0033): org admins staff their seat
+  orgUsers: () => request<ListOrgUsersResponse>('/organisation/users'),
+  enrolParticipant: (projectId: string, userId: string) =>
+    request<RosterEntry>(`/projects/${projectId}/participants`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
+  removeParticipant: (projectId: string, participantId: string) =>
+    request<RosterEntry>(`/projects/${projectId}/participants/${participantId}`, {
+      method: 'DELETE',
+    }),
   documentComments: (id: string) =>
     request<ListSandboxCommentsResponse>(`/sandbox-documents/${id}/comments`),
   createComment: (documentId: string, body: CreateSandboxCommentBody) =>

@@ -7,6 +7,7 @@ import {
   createGroundCheckLeaf,
   createRetrieveLeaf,
 } from '@infora/orchestration';
+import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
@@ -53,6 +54,9 @@ export function buildApp(deps: AppDeps) {
 
   // Sandbox comments (T-112) — working-draft threads, scope riding the document's
   app.route('/', commentRoutes(deps));
+
+  // Access administration + the roster (Slice A, ADR-0033) — T-117
+  app.route('/', administrationRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

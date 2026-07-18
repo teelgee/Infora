@@ -78,6 +78,13 @@
       "when": 1784375923837,
       "tag": "0010_review-drawer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784377682315,
+      "tag": "0011_participant-intervals",
+      "breakpoints": true
     }
   ]
 }

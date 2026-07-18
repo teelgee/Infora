@@ -1,10 +1,14 @@
 // Personal settings (T-092, from the 2026-07-09 QA review): the user chip
 // opens this page — profile facts, an editable display name, a saved theme,
 // the skeleton password change (useful as the break-glass path even after
-// Entra SSO lands), and sign out (T-111). Every write here is self-scoped.
-import { useState } from 'react';
+// Entra SSO lands), and sign out (T-111). Every write here is self-scoped —
+// except the Administration panel (T-117, ADR-0033), shown to org admins
+// only: enrolling and removing the organisation's OWN people on its
+// projects, always inside the owner-granted ceiling.
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { OrgUser, RosterEntry } from '@infora/contracts';
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { useSession } from '../session';
@@ -58,15 +62,7 @@ export function SettingsScreen() {
     window.location.assign('/');
   }
 
-  const field = {
-    font: 'inherit',
-    fontSize: 13,
-    border: '1px solid var(--hairline)',
-    borderRadius: 6,
-    padding: '7px 10px',
-    background: 'var(--panel)',
-    color: 'var(--ink)',
-  } as const;
+  const field = fieldStyle;
 
   return (
     <div className="main" style={{ marginLeft: 0 }}>
@@ -178,6 +174,8 @@ export function SettingsScreen() {
           </form>
         </Card>
 
+        {me.orgRole === 'admin' && <AdministrationPanel />}
+
         <SectionLabel>Session</SectionLabel>
         <Card>
           <div style={{ padding: 18, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
@@ -191,5 +189,96 @@ export function SettingsScreen() {
         </Card>
       </div>
     </div>
+  );
+}
+
+const fieldStyle = {
+  font: 'inherit',
+  fontSize: 13,
+  border: '1px solid var(--hairline)',
+  borderRadius: 6,
+  padding: '7px 10px',
+  background: 'var(--panel)',
+  color: 'var(--ink)',
+} as const;
+
+// T-117 (ADR-0033) — the Administration panel: an org admin staffs their
+// organisation's seat on each project — enrol from the org's own users,
+// remove (the interval closes; the roster keeps the row for attribution).
+// Membership propose/confirm arrives with the owner surfaces (T-119).
+function AdministrationPanel() {
+  const { me } = useSession();
+  const [projectId, setProjectId] = useState(me.participants[0]?.projectId ?? '');
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [pickedUser, setPickedUser] = useState('');
+
+  useEffect(() => {
+    void api.orgUsers().then((res) => setOrgUsers(res.items));
+  }, []);
+  useEffect(() => {
+    if (projectId) void api.participants(projectId).then((res) => setRoster(res.items));
+  }, [projectId]);
+
+  const ownLive = roster.filter((r) => r.organisationId === me.organisationId && r.removedAt === null);
+  const enrollable = orgUsers.filter((u) => !ownLive.some((r) => r.userId === u.userId));
+
+  async function enrol() {
+    if (!pickedUser || !projectId) return;
+    await api.enrolParticipant(projectId, pickedUser);
+    setPickedUser('');
+    setRoster((await api.participants(projectId)).items);
+  }
+
+  async function remove(participantId: string) {
+    await api.removeParticipant(projectId, participantId);
+    setRoster((await api.participants(projectId)).items);
+  }
+
+  return (
+    <>
+      <SectionLabel>Administration</SectionLabel>
+      <Card>
+        <div style={{ padding: 18, display: 'grid', gap: 12, fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ color: 'var(--muted)' }}>Project</span>
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={fieldStyle}>
+              {me.participants.map((p) => (
+                <option key={p.projectId} value={p.projectId}>
+                  {p.projectName}
+                </option>
+              ))}
+            </select>
+            <span style={{ color: 'var(--muted)' }}>
+              your organisation's people on this project — the owner opens the seat, you staff it
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {ownLive.map((r) => (
+              <div key={r.participantId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ flex: 1 }}>{r.name}</span>
+                <Button size="sm" variant="quiet" onClick={() => void remove(r.participantId)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+            {ownLive.length === 0 && <span style={{ color: 'var(--muted)' }}>No one enrolled yet.</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select value={pickedUser} onChange={(e) => setPickedUser(e.target.value)} style={fieldStyle}>
+              <option value="">Add a colleague…</option>
+              {enrollable.map((u) => (
+                <option key={u.userId} value={u.userId}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </select>
+            <Button size="sm" variant="primary" onClick={() => void enrol()} disabled={!pickedUser}>
+              Enrol
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </>
   );
 }

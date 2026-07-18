@@ -70,7 +70,13 @@ export const participants = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     removedAt: timestamp('removed_at', { withTimezone: true }),
   },
-  (t) => [uniqueIndex('participants_user_project_unique').on(t.userId, t.projectId)],
+  (t) => [
+    // one LIVE row per (user, project); closed intervals remain as history,
+    // so re-enrolment after removal is a new interval (ADR-0033, T-117)
+    uniqueIndex('participants_user_project_live_unique')
+      .on(t.userId, t.projectId)
+      .where(sql`${t.removedAt} IS NULL`),
+  ],
 );
 
 export const memberships = pgTable(

@@ -12,7 +12,6 @@ import {
 } from '@infora/contracts';
 import type {
   ApiError,
-  ListParticipantsResponse,
   ListSandboxCommentsResponse,
   SandboxComment,
 } from '@infora/contracts';
@@ -29,24 +28,8 @@ export function commentRoutes(deps: { db: Db }) {
   const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
   const commentScope = resourceScope(deps, 'id', resourceHomes.sandboxComment);
 
-  // The @-mention picker: the requester's organisation's participants on the
-  // project — org-scoped by construction, like the sandbox list (mentioning
-  // someone who cannot see the document is useless anyway).
-  app.get('/projects/:projectId/participants', project, async (c) => {
-    const slice = c.get('slice');
-    const rows = await deps.db
-      .select({ participantId: s.participants.id, userId: s.users.id, name: s.users.name })
-      .from(s.participants)
-      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-      .where(
-        and(
-          eq(s.participants.projectId, slice.projectId),
-          eq(s.users.organisationId, slice.organisationId),
-        ),
-      )
-      .orderBy(asc(s.users.name));
-    return c.json({ items: rows } satisfies ListParticipantsResponse);
-  });
+  // (The @-mention picker moved to administration.ts at T-117: the project
+  // roster, widened per ADR-0033.)
 
   app.get('/sandbox-documents/:id/comments', documentScope, async (c) => {
     const rows = await deps.db

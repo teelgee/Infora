@@ -3,7 +3,7 @@
 // sandbox; author-only edits; the wall rides the document's scope.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type {
-  ListParticipantsResponse,
+  ListRosterResponse,
   ListSandboxCommentsResponse,
   SandboxComment,
   SandboxDocument,
@@ -216,7 +216,7 @@ describe('sandbox comments (T-112)', () => {
     expect(list.items.some((i) => i.id === root.id || i.id === reply.id)).toBe(false);
   });
 
-  it('mentions name entitled same-org participants only; the picker is org-scoped', async () => {
+  it('mentions name document-entitled participants only; the roster is project-visible (ADR-0033, T-117)', async () => {
     const good = await comment(alice, { body: '@alfie please review', mentions: [alfieParticipantId] });
     expect(good.status).toBe(201);
     expect(((await good.json()) as SandboxComment).mentions).toEqual([alfieParticipantId]);
@@ -225,12 +225,14 @@ describe('sandbox comments (T-112)', () => {
     const bad = await comment(alice, { body: '@bella?', mentions: [bellaParticipantId] });
     expect(bad.status).toBe(400);
 
+    // the roster is project-visible — the wall hides work, never presence
+    // (ADR-0033 widened the T-112 org-scoped picker); mentioning someone who
+    // cannot see the document still 400s above, which is the real gate
     const picker = (await (
       await app.request(`/projects/${projectId}/participants`, { headers: { cookie: alice } })
-    ).json()) as ListParticipantsResponse;
+    ).json()) as ListRosterResponse;
     const names = picker.items.map((i) => i.name);
-    expect(names).toEqual(expect.arrayContaining(['t112-alice', 't112-alfie']));
-    expect(names).not.toContain('t112-bella');
+    expect(names).toEqual(expect.arrayContaining(['t112-alice', 't112-alfie', 't112-bella']));
   });
 
   it('the wall rides the document: the other org’s participant sees nothing', async () => {

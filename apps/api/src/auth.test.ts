@@ -95,6 +95,7 @@ describe('GET /me (T-021)', () => {
       email,
       organisationId,
       organisationName: 't021 org',
+      orgRole: 'member',
       preferences: {},
       participants: [
         {

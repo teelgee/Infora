@@ -250,6 +250,9 @@ GET  /me                      → { userId, name, organisationId, organisationNa
       // rail render names and role badges; every fact is the requester's own
       // entitlement, so this completes the read rather than widening any scope
       // + email and preferences { theme } added 2026-07-09 (T-092)
+      // + orgRole ('admin' | 'member') added 2026-07-18 (T-117, ADR-0033) — the
+      //   requester's own administration role, a self fact gating only the
+      //   settings Administration panel; never project access
 
 PATCH /me                     body: { name?, preferences?: { theme? } }  → MeResponse
 POST  /me/password            body: { currentPassword, newPassword }    → 204 (401 on wrong current)
