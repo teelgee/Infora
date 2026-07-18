@@ -152,17 +152,54 @@ Sequential spine: **T-001 → T-003/T-009 → migrations → T-020 → T-030 →
 
 ---
 
+## Slice A — Document management: the controlled lifecycle *(ticketed 2026-07-18)*
+
+*Design session closed 2026-07-18 → ADRs 0032 (two-scope role-agnostic cycle), 0033 (per-org plans, appointment grants, administration), 0034 (canonical format, renditions); the data model's Drawers 1/2/3/5 are the table spec. Mockups for the new surfaces (plan builder, DRR table, PDF review) are drawn per-ticket as each surface starts, benchmarked on the ProjectWise friction map (docs/reference) — "no wizard" is the standing acceptance test for promote and freeze. The T-112 participants endpoint widens to the project roster per ADR-0033 (in T-117).*
+
+**Migrations & contracts (the drawer made real):**
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-113 | **Migration: access administration (Drawer 1, ADR-0033)** — `users.org_role`; Membership `state`/`added_by`/`created_at`; Participant `added_by`/`created_at`/`removed_at`; seed names an org admin per organisation; tests: closing a Participant interval revokes nothing retroactively. | — |
+| T-114 | **Migration: the documents drawer rebuilt (Drawer 2, ADR-0032/0034)** — Container `scope`/`producing_organisation_id`/nullable `document_reference`/`sandbox_document_id`/`state += rejected`/`metadata`; **Rendition**; Sandbox document `origin`/`kind`/`format`/`file_ref`/`container_id`/`head_locked`; **Sandbox document version** (ambient); seed containers backfilled (library scope, producing org). | T-113 |
+| T-115 | **Migration: the review drawer (Drawer 5, ADR-0032/0033/0003)** — Review cycle, Round (**one open per cycle as a partial unique index**), Transmittal, Review snapshot, Comment, Response, **Acceptance code** (default scheme copied per project at creation; retire-never-redefine), Deliverable author/reviewer (interval grants, reviewer `confirmed_*`); `work_items.container_id`; append-only triggers on the new record tables; seed: scheme + both sides granted on a seed container. | T-114 |
+| T-116 | **Contracts: Slice A** — contracts.md sections + `packages/contracts` schemas: plan/containers, roster + appointments (propose/confirm), administration (enrol/remove, membership propose/confirm), promote/freeze, cycle/round/transmittal/comment/response/codes, renditions, history-safe reads. | T-115 |
+
+**Administration & the plan (TIDP → MIDP):**
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-117 | **Access administration + the roster** — org-admin enrol/remove of own users on member projects (interval close auto-revokes live grants); owner membership propose→confirm; the roster read project-visible per ADR-0033 (widens T-112's org-scoped picker); admin surface in settings. | T-116 |
+| T-118 | **The deliverable plan (producing-org TIDP)** — plan view per org: create planned rows (empty Containers: coded reference, `metadata`, authoring team, reviewers *proposed* from the roster); a `document_production` Work item auto-created per row (status `planned` — event-driven from here on); plan-builder mockup drawn first. | T-117 |
+| T-119 | **The MIDP consolidation (owner)** — the consolidated schedule across all orgs' plans; reviewer confirmation (share-first enforcement, ADR-0015); per-deliverable sharing entry points; the Documents view gains the derived metadata columns (reference/revision/state/originator/verdict — query, not duplication). | T-118 |
+
+**The trigger path:**
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-120 | **Promote** — from the Editor/Sandbox into the linked waiting container (the button finally enables): near-empty hand-off, head snapshot → immutable Version, cycle launched (sides read from the grant tables), round 1 opened by the transmittal, lock to the reviewers, work item → `in_review`. "No wizard" is the acceptance test. | T-116, T-118 |
+| T-121 | **Renditions** — the generation pipeline per Version: PDF from authored structured text, docx export (house-style config later), uploaded natives passed through as their own native rendition; stored on the dev substrate (blob dir; the infra session owns real storage); pptx as an honest placeholder until the slides editor exists. | T-120 |
+| T-122 | **Upload to the sandbox** — drag-and-drop native files (docx/xlsx/pptx): `origin = uploaded`, file stored, PDF render for viewing; "Open in editor" converts to authored (text import, original preserved in ambient history, fidelity honest — ADR-0034). | T-114, T-121 |
+
+**The round loop:**
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-123 | **The review surface: round, DRR, anchored comments** — the reviewer reads the frozen version's PDF (viewer with text-highlight/point anchors — the big screen; mockup first), writes anchored comments with per-comment codes; live cross-org visibility within the group; the open round hidden from the authoring side (ADR-0014); the DRR table beneath. | T-120, T-121 |
+| T-124 | **Issue & respond** — the lead reviewer closes and issues (transmittal: audit facts, snapshot frozen, closed round revealed, lock flipped); authors write Responses (mandatory next-version link or no-change-with-reason); the lead author promotes vN+1 (transmittal back, round N+1 opens, lock returns). | T-123 |
+| T-125 | **Freeze & the internal cycle** — check-out freeze (sandbox-scope container auto-created, head locked while a round is open, audited early release); the org-private internal cycle on the same machinery and PDF path; a QA-accepted frozen version becomes promotion's second legal source (ADR-0032). *The parked sandbox-scope surface question (frozen native text vs PDF) stays open as a later refinement — this ships on the PDF path unchanged.* | T-124 |
+| T-126 | **Acceptance & close-out** — an `is_accepting` deliverable code closes the cycle and work item, auto-admits to the library (`in_library`, chunk + embed the accepted version — it starts grounding), supersedes the prior; the rejected path (explicit audited close by lead author or owner → container `rejected`, never grounds); owner supersede/withdraw actions. | T-124 |
+| T-127 | **The work-item page & Review view rebuilt** — the review-cycle reflection at last: event-driven status per phase, per-role click-throughs (consultant → the linked draft; reviewer → the open round; owner → the MIDP row); the Review page's promised rounds/lock/due-date columns (T-103) go live. | T-126 |
+| T-128 | **Ambient history & safe lifecycle** — auto-snapshots at save boundaries, browse + restore in the Editor; soft-delete with self-service restore for sandbox documents (the ProjectWise A1/A3 fold-in — recovery is never a helpdesk ticket). | T-114 |
+| T-129 | **Slice A acceptance e2e** — the full journey as one suite: plan (TIDP) → consolidate + confirm reviewers (MIDP) → draft → freeze → internal round → QA-accept → promote → round 1 comments + codes → issue → respond → promote v2 → accept → library + grounding; negatives: the internal cycle invisible across the wall, the open round hidden from authors, a rejected deliverable never grounds, a removed participant's grants close but their comments stand. | T-125, T-126, T-127, T-128 |
+
+---
+
 ## The roadmap after the skeleton (coarse — ticketed when its slice starts)
 
 Ordered by the wedge-first logic of the overview; each slice names its design gate from the [grill tracker](../grill-sessions/grill-questions.md). Nothing here is execution-ready by design.
 
-**Slice A — Document management: the controlled lifecycle** *(design locked, ADRs 0001–0014 — no gate).* The wedge's engine room and the largest slice. Entered in this order when ticketed:
-1. **The review drawer** — before any migration, draw the missing tables into the data model (the drawer-by-drawer rule): Transmittal, review rounds + frozen snapshots, review-group and authoring-team grants on the deliverable plan (ADR-0008/0017), and the per-project acceptance-code scheme (ADR-0003).
-2. **The trigger path** — Promote from the Editor/Sandbox (the button already mocked, disabled, in the editor) into a waiting planned container: the near-empty hand-off (ADR-0008), snapshotting the sandbox head into an immutable Version + PDF rendition (ADR-0002/0004), opening round 1 and handing the DRR edit lock to the review group (ADR-0014).
-3. **The round loop** — the user steps, each a surface action: reviewers comment on the frozen PDF with anchors and per-comment codes (PDF viewer — the biggest unmocked design job, with the DRR table); the lead reviewer **issues** the round (transmittal: audit facts recorded, internal snapshot frozen, closed round revealed to the consultant, lock flipped to the authoring team — ADR-0009/0010/0014); authors respond in the live DRR; the lead author promotes the next version, flipping the lock back. Rounds close by explicit human action, never the clock (ADR-0005).
-4. **Close-out** — deliverable-level acceptance closes the Work item and auto-admits to the library (ADR-0011/0013); supersede/withdraw; owner sharing/curation; the deliverable plan as live MIDP view.
-
-The review-cycle **entry surface** is already mocked ([review.html](../design/mockups/review.html), 2026-07-06 — round state, the edit lock made visible, due dates that guide) and the skeleton ships its rail slot as an empty state (T-050); the DRR table, PDF viewer and plan builder get their mockups when this slice starts.
+**Slice A — Document management: the controlled lifecycle** — ✅ **designed (ADRs 0032/0033/0034, 2026-07-18) and ticketed: T-113–T-129 above.** The review-cycle entry surface was already mocked ([review.html](../design/mockups/review.html)); the DRR table, PDF viewer and plan-builder mockups are drawn per-ticket as each surface starts.
 
 **Slice B — The Word add-in** *(design settled, component 8).* The consultant authoring surface: tracked-changes suggestions with citation + rationale, accept/edit/reject as Signals, central M365 deployment. Needs Slice A's promotion path to be fully useful, but drafting on sandbox documents can land earlier.
 
