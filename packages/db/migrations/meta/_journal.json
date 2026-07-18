@@ -99,6 +99,13 @@
       "when": 1784378567162,
       "tag": "0013_version-currency",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784380651219,
+      "tag": "0014_sandbox-soft-delete",
+      "breakpoints": true
     }
   ]
 }

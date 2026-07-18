@@ -465,6 +465,10 @@ POST /sandbox-documents/:id/conversion      → SandboxDocument
 GET  /sandbox-documents/:id/history  → { items: SandboxDocumentVersion[] }
 POST /sandbox-documents/:id/restore  body: { historyVersionId } → SandboxDocument
      // restore copies a snapshot back into the head — never rewrites history
+DELETE /sandbox-documents/:id        → SandboxDocument   // soft-delete (T-128):
+POST /sandbox-documents/:id/undelete → SandboxDocument   // the recycle bin is
+GET  /projects/:id/sandbox-documents?deleted=1           // self-service — the
+     // ProjectWise A1 fold-in; recovery is never a helpdesk ticket
 
 type Rendition = { id: Id; versionId: Id; kind: 'native' | 'pdf';
                    format: 'docx' | 'xlsx' | 'pptx' | 'pdf'; createdAt: string };

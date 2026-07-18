@@ -176,6 +176,9 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
     .notNull()
     .references(() => participants.id),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // safe lifecycle (T-128, the ProjectWise A1 fold-in): soft-delete with
+  // self-service restore — recovery is never a helpdesk ticket
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 // Ambient version history (ADR-0032, T-114; written from T-128): the

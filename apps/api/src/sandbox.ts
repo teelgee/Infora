@@ -4,11 +4,16 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, desc, eq, sql } from 'drizzle-orm';
-import { createSandboxDocumentBody, patchSandboxDocumentBody } from '@infora/contracts';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import {
+  createSandboxDocumentBody,
+  patchSandboxDocumentBody,
+  restoreSandboxVersionBody,
+} from '@infora/contracts';
 import type {
   ApiError,
   ListSandboxDocumentsResponse,
+  ListSandboxHistoryResponse,
   ListSuggestionsResponse,
   SandboxDocument,
 } from '@infora/contracts';
@@ -49,6 +54,10 @@ export function sandboxRoutes(deps: { db: Db }) {
         and(
           eq(s.sandboxDocuments.projectId, slice.projectId),
           eq(s.sandboxDocuments.organisationId, slice.organisationId),
+          // the recycle bin is its own view (T-128): ?deleted=1
+          c.req.query('deleted') === '1'
+            ? sql`${s.sandboxDocuments.deletedAt} IS NOT NULL`
+            : isNull(s.sandboxDocuments.deletedAt),
         ),
       )
       .orderBy(desc(s.sandboxDocuments.updatedAt));
@@ -93,7 +102,96 @@ export function sandboxRoutes(deps: { db: Db }) {
       .set({ content: body.data.content, updatedAt: sql`now()` })
       .where(eq(s.sandboxDocuments.id, c.req.param('id')))
       .returning();
+    // the ambient history: a snapshot at every save boundary (T-128,
+    // ADR-0032) — a working tool, browsable and restorable, never a record
+    await deps.db.insert(s.sandboxDocumentVersions).values({
+      sandboxDocumentId: row!.id,
+      content: row!.content,
+      createdByParticipantId: c.get('slice').participantId,
+    });
     return c.json(toSandboxDocument(row!));
+  });
+
+  // T-128 — the ambient history, newest first (content stays behind restore)
+  app.get('/sandbox-documents/:id/history', documentScope, async (c) => {
+    const rows = await deps.db
+      .select({
+        id: s.sandboxDocumentVersions.id,
+        sandboxDocumentId: s.sandboxDocumentVersions.sandboxDocumentId,
+        createdAt: s.sandboxDocumentVersions.createdAt,
+        participantId: s.sandboxDocumentVersions.createdByParticipantId,
+        name: s.users.name,
+      })
+      .from(s.sandboxDocumentVersions)
+      .innerJoin(s.participants, eq(s.sandboxDocumentVersions.createdByParticipantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, c.req.param('id')))
+      .orderBy(desc(s.sandboxDocumentVersions.createdAt));
+    const items = rows.map((r) => ({
+      id: r.id,
+      sandboxDocumentId: r.sandboxDocumentId,
+      createdBy: { participantId: r.participantId, name: r.name },
+      createdAt: r.createdAt.toISOString(),
+    }));
+    return c.json({ items } satisfies ListSandboxHistoryResponse);
+  });
+
+  // Restore copies a snapshot back into the head — never rewrites history.
+  app.post('/sandbox-documents/:id/restore', documentScope, async (c) => {
+    const body = restoreSandboxVersionBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    const [locked] = await deps.db
+      .select({ headLocked: s.sandboxDocuments.headLocked })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (locked?.headLocked) {
+      return c.json({ error: 'conflict', detail: 'head_locked' } satisfies ApiError, 409);
+    }
+    const [snapshot] = await deps.db
+      .select()
+      .from(s.sandboxDocumentVersions)
+      .where(
+        and(
+          eq(s.sandboxDocumentVersions.id, body.data.historyVersionId),
+          eq(s.sandboxDocumentVersions.sandboxDocumentId, c.req.param('id')),
+        ),
+      )
+      .limit(1);
+    if (!snapshot) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ content: snapshot.content, updatedAt: sql`now()` })
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .returning();
+    await deps.db.insert(s.sandboxDocumentVersions).values({
+      sandboxDocumentId: row!.id,
+      content: row!.content,
+      createdByParticipantId: c.get('slice').participantId,
+    });
+    return c.json(toSandboxDocument(row!));
+  });
+
+  // T-128 — safe lifecycle (the ProjectWise A1 fold-in): soft-delete with
+  // self-service restore; recovery is never a helpdesk ticket.
+  app.delete('/sandbox-documents/:id', documentScope, async (c) => {
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ deletedAt: sql`now()` })
+      .where(and(eq(s.sandboxDocuments.id, c.req.param('id')), isNull(s.sandboxDocuments.deletedAt)))
+      .returning();
+    if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    return c.json(toSandboxDocument(row));
+  });
+
+  app.post('/sandbox-documents/:id/undelete', documentScope, async (c) => {
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ deletedAt: null })
+      .where(and(eq(s.sandboxDocuments.id, c.req.param('id')), sql`${s.sandboxDocuments.deletedAt} IS NOT NULL`))
+      .returning();
+    if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    return c.json(toSandboxDocument(row));
   });
 
   return app;

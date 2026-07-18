@@ -788,3 +788,70 @@ describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
     expect(((await res.json()) as { detail?: string }).detail).toBe('internal_cycle_active');
   });
 });
+
+describe('ambient history & safe lifecycle (T-128, ADR-0032)', () => {
+  let historyDocId: string;
+
+  it('every save snapshots; restore copies back without rewriting history', async () => {
+    const created = await app.request(`/projects/${projectId}/sandbox-documents`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ title: 't128 note' }),
+    });
+    historyDocId = ((await created.json()) as { id: string }).id;
+    for (const content of ['first cut', 'second cut', 'third cut']) {
+      await app.request(`/sandbox-documents/${historyDocId}`, {
+        method: 'PATCH',
+        headers: asJson(leadAuthorCookie),
+        body: JSON.stringify({ content }),
+      });
+    }
+    const history = (await (
+      await app.request(`/sandbox-documents/${historyDocId}/history`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string; createdBy: { name: string } }> };
+    expect(history.items.length).toBe(3);
+
+    const oldest = history.items.at(-1)!;
+    const restored = await app.request(`/sandbox-documents/${historyDocId}/restore`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ historyVersionId: oldest.id }),
+    });
+    expect(restored.status).toBe(200);
+    expect(((await restored.json()) as { content: string }).content).toBe('first cut');
+
+    // the restore itself is a new snapshot — history only grows
+    const after = (await (
+      await app.request(`/sandbox-documents/${historyDocId}/history`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: unknown[] };
+    expect(after.items.length).toBe(4);
+  });
+
+  it('soft-delete hides, the recycle bin lists, undelete restores — self-service', async () => {
+    const deleted = await app.request(`/sandbox-documents/${historyDocId}`, {
+      method: 'DELETE',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(deleted.status).toBe(200);
+
+    const list = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string }> };
+    expect(list.items.some((d) => d.id === historyDocId)).toBe(false);
+
+    const bin = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents?deleted=1`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string }> };
+    expect(bin.items.some((d) => d.id === historyDocId)).toBe(true);
+
+    const undeleted = await app.request(`/sandbox-documents/${historyDocId}/undelete`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(undeleted.status).toBe(200);
+    const back = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string }> };
+    expect(back.items.some((d) => d.id === historyDocId)).toBe(true);
+  });
+});
