@@ -3,6 +3,7 @@
 // withdrawn containers, non-library containers, other projects and foreign
 // embedding models are all excluded by the SQL pre-filter — proven by giving
 // each excluded row content the query would otherwise match exactly.
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntitledSlice } from '@infora/governance';
 import { createDb, schema as s } from '@infora/db';
@@ -21,10 +22,17 @@ async function addDocument(options: {
   state?: 'live' | 'withdrawn';
   versions: Array<{ current: boolean; content: string; modelId?: string }>;
 }) {
+  // the producing organisation is the test project's owner (ADR-0033, T-114)
+  const [proj] = await db
+    .select({ ownerOrganisationId: s.projects.ownerOrganisationId })
+    .from(s.projects)
+    .where(eq(s.projects.id, options.projectId))
+    .limit(1);
   const [container] = await db
     .insert(s.containers)
     .values({
       projectId: options.projectId,
+      producingOrganisationId: proj!.ownerOrganisationId,
       documentReference: options.reference,
       inLibrary: options.inLibrary ?? true,
       state: options.state ?? 'live',

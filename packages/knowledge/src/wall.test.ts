@@ -62,7 +62,7 @@ beforeAll(async () => {
   // one library document with a superseded v1 and a live v2, both indexed
   const [container] = await db
     .insert(s.containers)
-    .values({ projectId, documentReference: `T33-LIB-GIR-${stamp}`, inLibrary: true })
+    .values({ projectId, producingOrganisationId: orgA!.id, documentReference: `T33-LIB-GIR-${stamp}`, inLibrary: true })
     .returning();
   const versions = [
     { ref: 'v1', current: false, content: 'alpha superseded: no exceedances recorded.' },

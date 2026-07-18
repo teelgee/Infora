@@ -221,7 +221,9 @@ export type GetVersionResponse = {
   documentReference: string;
   versionReference: string;
   content: string;
-  containerState: 'live' | 'superseded' | 'withdrawn';
+  // rejected: the cycle closed-rejected and the deliverable stands as a
+  // record, never grounding (ADR-0032/0013, T-114)
+  containerState: 'live' | 'superseded' | 'withdrawn' | 'rejected';
   isCurrent: boolean;
 };
 

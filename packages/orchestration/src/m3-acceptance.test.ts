@@ -99,7 +99,7 @@ beforeAll(async () => {
   // version of the same container exists and must never be cited
   const [container] = await db
     .insert(s.containers)
-    .values({ projectId, documentReference: `T47-GEO-GIR-${stamp}`, inLibrary: true })
+    .values({ projectId, producingOrganisationId: org!.id, documentReference: `T47-GEO-GIR-${stamp}`, inLibrary: true })
     .returning();
   for (const v of [
     { ref: 'v1', current: false, content: 'Superseded: no exceedances were recorded.' },

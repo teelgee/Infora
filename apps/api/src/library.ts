@@ -6,7 +6,7 @@
 // are omitted here for the skeleton per the contract.
 import { Hono } from 'hono';
 import { and, asc, eq } from 'drizzle-orm';
-import type { GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
+import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resourceHomes, resourceScope } from './requester';
@@ -29,13 +29,20 @@ export function libraryRoutes(deps: { db: Db }) {
       .where(
         and(
           eq(s.containers.projectId, slice.projectId),
+          // freeze-series (sandbox-scope) containers are org-private working
+          // machinery, never library rows (ADR-0032, T-114)
+          eq(s.containers.scope, 'library'),
           eq(s.containers.inLibrary, true),
           eq(s.containers.state, 'live'),
           eq(s.versions.isCurrent, true),
         ),
       )
       .orderBy(asc(s.containers.documentReference));
-    const items = rows.map((row): LibraryItem => ({ ...row, state: 'live' }));
+    const items = rows.map(
+      // a library-scope container always carries a coded reference — null is
+      // sandbox-scope only (ADR-0032)
+      (row): LibraryItem => ({ ...row, documentReference: row.documentReference!, state: 'live' }),
+    );
     return c.json({ items } satisfies GetLibraryResponse);
   });
 
@@ -55,9 +62,12 @@ export function libraryRoutes(deps: { db: Db }) {
       })
       .from(s.versions)
       .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
-      .where(eq(s.versions.id, c.req.param('versionId')))
+      // library-scope only: a freeze-series version is org-private (ADR-0032)
+      // and gets its own org-scoped read with Slice A's internal cycle (T-125)
+      .where(and(eq(s.versions.id, c.req.param('versionId')), eq(s.containers.scope, 'library')))
       .limit(1);
-    return c.json(row! satisfies GetVersionResponse);
+    if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    return c.json({ ...row, documentReference: row.documentReference! } satisfies GetVersionResponse);
   });
 
   return app;

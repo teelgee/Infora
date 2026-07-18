@@ -224,13 +224,15 @@ GET /projects/:projectId/library
 
 GET /versions/:versionId
   →  { versionId; documentReference; versionReference; content;
-       containerState: 'live' | 'superseded' | 'withdrawn'; isCurrent }
+       containerState: 'live' | 'superseded' | 'withdrawn' | 'rejected'; isCurrent }
       // added 2026-07-09 (T-094): a citation chip opens the version it names.
       // scoped like the library (the version's project, through the wall);
       // superseded/withdrawn stay readable here — the immutable record's
       // citations must resolve — with state carried for the surface to badge.
       // grounding untouched: retrieval's pre-filters admit none of this
 ```
+
+*2026-07-18 (T-114, mechanical completion):* `containerState` gains `'rejected'` (ADR-0032/0013 — a closed-rejected deliverable stands as a record, never grounding). Both library reads are now explicitly scoped to **library-scope** containers: a freeze-series (sandbox-scope) container is org-private working machinery (ADR-0032), so its versions 404 here by construction and get their own org-scoped reads with Slice A's internal cycle (T-125).
 
 ### Auth & session (M1, M6)
 

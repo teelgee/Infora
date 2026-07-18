@@ -62,7 +62,7 @@ beforeAll(async () => {
 
   const [container] = await db
     .insert(s.containers)
-    .values({ projectId, documentReference: `T045-${Date.now()}`, inLibrary: true })
+    .values({ projectId, producingOrganisationId: org!.id, documentReference: `T045-${Date.now()}`, inLibrary: true })
     .returning();
   const [version] = await db
     .insert(s.versions)

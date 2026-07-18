@@ -111,7 +111,7 @@ beforeAll(async () => {
   documentReference = `T46-GEO-GIR-${stamp}`;
   const [container] = await db
     .insert(s.containers)
-    .values({ projectId, documentReference, inLibrary: true })
+    .values({ projectId, producingOrganisationId: orgOwner!.id, documentReference, inLibrary: true })
     .returning();
   const content = 'The ground investigation recorded contamination exceedances at three pits.';
   const [version] = await db
