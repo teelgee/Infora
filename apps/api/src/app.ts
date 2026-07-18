@@ -19,6 +19,7 @@ import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
 import { suggestionRoutes } from './suggestions';
+import { uploadRoutes } from './upload';
 
 export type { AppDeps } from './requester';
 
@@ -71,6 +72,9 @@ export function buildApp(deps: AppDeps) {
 
   // Renditions: the record's stored exports (Slice A, ADR-0004/0034) — T-121
   app.route('/', renditionRoutes(deps));
+
+  // Upload + open-in-editor conversion (Slice A, ADR-0034) — T-122
+  app.route('/', uploadRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

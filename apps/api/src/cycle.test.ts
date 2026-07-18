@@ -521,3 +521,54 @@ describe('renditions ride the promotion (T-121, ADR-0034)', () => {
       );
   });
 });
+
+describe('upload & conversion (T-122, ADR-0034)', () => {
+  it('a docx uploads native-canonical, converts in place, and the original survives', async () => {
+    // build a real docx via the T-121 generator, upload it as a file
+    const { textToDocx } = await import('./renditions.js');
+    const docxBytes = textToDocx('Uploaded paragraph one.\nAnd paragraph two.');
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(docxBytes)], 'Drainage Strategy.docx'));
+    const res = await app.request(`/projects/${projectId}/sandbox-uploads`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(201);
+    const doc = (await res.json()) as { id: string; origin: string; format: string; title: string };
+    expect(doc.origin).toBe('uploaded');
+    expect(doc.format).toBe('docx');
+    expect(doc.title).toBe('Drainage Strategy');
+
+    const converted = await app.request(`/sandbox-documents/${doc.id}/conversion`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(converted.status).toBe(200);
+    const authored = (await converted.json()) as { origin: string; format: string; content: string };
+    expect(authored.origin).toBe('authored');
+    expect(authored.format).toBe('infora_text');
+    expect(authored.content).toContain('Uploaded paragraph one.');
+    expect(authored.content).toContain('And paragraph two.');
+
+    // converting twice is refused; the original file ref survives on the row
+    const again = await app.request(`/sandbox-documents/${doc.id}/conversion`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(again.status).toBe(400);
+    const [row] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, doc.id));
+    expect(row!.fileRef).not.toBeNull();
+  });
+
+  it('unsupported formats are refused honestly', async () => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(Buffer.from('csv,data'))], 'table.csv'));
+    const res = await app.request(`/projects/${projectId}/sandbox-uploads`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(400);
+  });
+});
