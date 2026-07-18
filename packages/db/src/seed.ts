@@ -13,7 +13,7 @@ const { db, pool } = createDb();
 await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,
     responses, review_comments, review_snapshots, transmittals, rounds, review_cycles,
-    deliverable_authors, deliverable_reviewers, acceptance_codes,
+    deliverable_authors, deliverable_reviewers, deliverable_shares, acceptance_codes,
     sandbox_document_versions, sandbox_documents, renditions,
     versions, containers, work_items,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
@@ -264,6 +264,14 @@ for (const doc of library) {
       isCurrent: v.current,
     });
   }
+  // the owner shares the reference library with the consultant organisation
+  // (ADR-0016 as data, T-119) — visibility is producer | owner | live share,
+  // so without this row Calder & Hale would ground on nothing
+  await db.insert(s.deliverableShares).values({
+    containerId: container!.id,
+    organisationId: calderHale!.id,
+    grantedByParticipantId: ownerParticipant!.id,
+  });
 }
 
 const counts = await db.execute(sql`

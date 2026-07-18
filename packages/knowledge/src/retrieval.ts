@@ -4,11 +4,10 @@
 // is_current, and the pinned embedding model (ADR-0024) — never a post-filter
 // over fetched rows.
 //
-// Slice note: per-deliverable visibility facts (author / owner-shared,
-// ADR-0016) have no Drawer 2 columns yet — they land with the review drawer.
-// Until then the entitled slice for a resolved participant is the project's
-// live library; the rule itself is fixed and tested in @infora/governance
-// (canReadDeliverable) and joins this query when its columns exist.
+// Per-deliverable visibility joined 2026-07-18 (T-119, ADR-0016 as data):
+// a container grounds for the requester only when their organisation is the
+// producer, the project owner, or holds a live share — the same rule
+// canReadDeliverable fixes, applied as a SQL pre-filter, never a post-filter.
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import type { AssembledItem } from '@infora/contracts';
 import type { EntitledSlice } from '@infora/governance';
@@ -60,7 +59,23 @@ function liveLibraryFilter(slice: EntitledSlice, modelId: string) {
     eq(s.containers.state, 'live'),
     eq(s.versions.isCurrent, true),
     eq(s.versionChunks.embeddingModelId, modelId),
+    deliverableVisible(slice),
   );
+}
+
+// producer | owner | live share (ADR-0016, T-119) — the canReadDeliverable
+// rule as an in-query predicate
+function deliverableVisible(slice: EntitledSlice) {
+  return sql`(
+    ${s.containers.producingOrganisationId} = ${slice.organisationId}
+    or exists (select 1 from projects p
+                where p.id = ${s.containers.projectId}
+                  and p.owner_organisation_id = ${slice.organisationId})
+    or exists (select 1 from deliverable_shares ds
+                where ds.container_id = ${s.containers.id}
+                  and ds.organisation_id = ${slice.organisationId}
+                  and ds.revoked_at is null)
+  )`;
 }
 
 const chunkColumns = {

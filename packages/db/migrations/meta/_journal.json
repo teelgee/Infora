@@ -85,6 +85,13 @@
       "when": 1784377682315,
       "tag": "0011_participant-intervals",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784378507162,
+      "tag": "0012_deliverable-shares",
+      "breakpoints": true
     }
   ]
 }

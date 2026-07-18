@@ -5,12 +5,29 @@
 // shows and what grounding admits cannot drift apart; superseded/withdrawn
 // are omitted here for the skeleton per the contract.
 import { Hono } from 'hono';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import type { EntitledSlice } from '@infora/governance';
 import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
+
+// producer | owner | live share (ADR-0016 as data, T-119) — canReadDeliverable
+// as an in-query predicate; the same rule retrieval grounds by
+function deliverableVisible(slice: EntitledSlice): SQL {
+  return sql`(
+    ${s.containers.producingOrganisationId} = ${slice.organisationId}
+    or exists (select 1 from projects p
+                where p.id = ${s.containers.projectId}
+                  and p.owner_organisation_id = ${slice.organisationId})
+    or exists (select 1 from deliverable_shares ds
+                where ds.container_id = ${s.containers.id}
+                  and ds.organisation_id = ${slice.organisationId}
+                  and ds.revoked_at is null)
+  )`;
+}
 
 export function libraryRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -35,6 +52,7 @@ export function libraryRoutes(deps: { db: Db }) {
           eq(s.containers.inLibrary, true),
           eq(s.containers.state, 'live'),
           eq(s.versions.isCurrent, true),
+          deliverableVisible(slice),
         ),
       )
       .orderBy(asc(s.containers.documentReference));
@@ -51,6 +69,7 @@ export function libraryRoutes(deps: { db: Db }) {
   // record's citations must resolve) with their state carried to badge;
   // grounding is untouched — retrieval's pre-filters admit none of this.
   app.get('/versions/:versionId', resourceScope(deps, 'versionId', resourceHomes.version), async (c) => {
+    const slice = c.get('slice');
     const [row] = await deps.db
       .select({
         versionId: s.versions.id,
@@ -63,8 +82,15 @@ export function libraryRoutes(deps: { db: Db }) {
       .from(s.versions)
       .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
       // library-scope only: a freeze-series version is org-private (ADR-0032)
-      // and gets its own org-scoped read with Slice A's internal cycle (T-125)
-      .where(and(eq(s.versions.id, c.req.param('versionId')), eq(s.containers.scope, 'library')))
+      // and gets its own org-scoped read with Slice A's internal cycle (T-125);
+      // per-deliverable visibility applies here exactly as on the list (T-119)
+      .where(
+        and(
+          eq(s.versions.id, c.req.param('versionId')),
+          eq(s.containers.scope, 'library'),
+          deliverableVisible(slice),
+        ),
+      )
       .limit(1);
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
     return c.json({ ...row, documentReference: row.documentReference! } satisfies GetVersionResponse);

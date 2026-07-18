@@ -127,6 +127,10 @@ Relationship: Container ─< Review cycle (at most one active cycle per containe
 Fields: `id`, `container_id` → Container, `participant_id` → Participant, `is_lead` (bool — exactly one live lead per container), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable). Written by the producing side (the lead author amends their own set, ADR-0017); authors must belong to organisations sharing the deliverable's sandbox (ADR-0019).
 Relationship: Container ─< Deliverable author.
 
+**Deliverable share** *(added 2026-07-18, T-119 — ADR-0016 made storable)* — the owner's organisation-level grant that opens a deliverable across the wall; the only thing that ever does. **Append-only interval rows** (revocation closes, nothing deleted); visibility everywhere is producer | owner | live share, applied as SQL pre-filters in the library reads and the grounding query alike — so what a surface shows and what the AI grounds on cannot drift apart.
+Fields: `id`, `container_id` → Container, `organisation_id` → Organisation (must hold an active seat), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable).
+Relationship: Container ─< Deliverable share.
+
 **Deliverable reviewer** — a review-group appointment on a deliverable (ADR-0017/0033), same interval shape, plus propose-then-confirm: the producing organisation may propose reviewers on its plan ("if known"), conferring **no access until the owner confirms** — and confirmation is where ADR-0015's invariant bites (a reviewer whose organisation lacks the deliverable share forces the owner to share first, or decline).
 Fields: `id`, `container_id` → Container, `participant_id` → Participant (any roster Participant — the roster is project-visible, ADR-0033), `is_lead` (bool), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable), `confirmed_by_participant_id` → Participant (nullable — null = proposed, no access), `confirmed_at` (nullable).
 Relationship: Container ─< Deliverable reviewer.

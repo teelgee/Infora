@@ -364,6 +364,8 @@ export type PlanRow = {
   deliverableCode: { code: string; description: string } | null; // latest round verdict — derived
   authors: AppointmentGrant[];
   reviewers: ReviewerGrant[];
+  // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers
+  sharedWith: Array<{ organisationId: Id; organisationName: string }>;
 };
 export type GetPlanResponse = { items: PlanRow[] };
 
@@ -384,6 +386,19 @@ export const grantAppointmentBody = z.object({
   isLead: z.boolean().optional(),
 });
 export type GrantAppointmentBody = z.infer<typeof grantAppointmentBody>;
+
+// Deliverable shares (ADR-0016 as data, T-119): the owner's grant is the only
+// thing that opens a deliverable across the wall; interval rows, org-level.
+export type DeliverableShare = {
+  id: Id;
+  containerId: Id;
+  organisationId: Id;
+  organisationName: string;
+  grantedAt: string;
+  revokedAt: string | null;
+};
+export const shareDeliverableBody = z.object({ organisationId: id });
+export type ShareDeliverableBody = z.infer<typeof shareDeliverableBody>;
 
 // Acceptance codes (ADR-0003): the project's copied scheme.
 export type AcceptanceCode = {

@@ -16,7 +16,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { participants, projects } from './drawer1-parties.js';
+import { organisations, participants, projects } from './drawer1-parties.js';
 import { containers, versions } from './drawer2-documents.js';
 
 // ── Acceptance codes (ADR-0003 made storable, 2026-07-18) ──────────────────
@@ -264,5 +264,34 @@ export const deliverableReviewers = pgTable(
     uniqueIndex('deliverable_reviewers_one_live_lead')
       .on(t.containerId)
       .where(sql`${t.isLead} = true AND ${t.revokedAt} IS NULL`),
+  ],
+);
+
+// Owner-granted, organisation-level shares per deliverable (ADR-0016 made
+// storable, T-119): the only thing that opens a deliverable across the wall.
+// Interval rows like the appointment grants — revocation closes, nothing is
+// deleted, and visibility is producer | owner | live-share, applied as SQL
+// pre-filters wherever the library is read or grounded.
+export const deliverableShares = pgTable(
+  'deliverable_shares',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    grantedByParticipantId: uuid('granted_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('deliverable_shares_container_idx').on(t.containerId),
+    uniqueIndex('deliverable_shares_live_unique')
+      .on(t.containerId, t.organisationId)
+      .where(sql`${t.revokedAt} IS NULL`),
   ],
 );

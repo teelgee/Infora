@@ -113,6 +113,13 @@ beforeAll(async () => {
     .insert(s.containers)
     .values({ projectId, producingOrganisationId: orgOwner!.id, documentReference, inLibrary: true })
     .returning();
+  // visibility is producer | owner | live share (T-119): the consultant's
+  // organisation grounds on this document through the owner's share
+  await db.insert(s.deliverableShares).values({
+    containerId: container!.id,
+    organisationId: orgMember!.id,
+    grantedByParticipantId: rachel.participantId!,
+  });
   const content = 'The ground investigation recorded contamination exceedances at three pits.';
   const [version] = await db
     .insert(s.versions)

@@ -198,6 +198,49 @@ describe('appointments (ADR-0017/0033)', () => {
     expect(((await confirmed.json()) as ReviewerGrant).confirmedAt).not.toBeNull();
   });
 
+  it('confirmation demands the share first (ADR-0015 bites): 409 share_required, then flows', async () => {
+    // propose a reviewer from the OTHER member org — they cannot see the deliverable
+    const roster = (await (
+      await app.request(`/projects/${projectId}/participants`, { headers: { cookie: consultCookie } })
+    ).json()) as { items: Array<{ participantId: string; name: string }> };
+    const omar = roster.items.find((i) => i.name === 't118-omar')!;
+    const proposed = await app.request(`/containers/${rowId}/reviewers`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ participantId: omar.participantId }),
+    });
+    expect(proposed.status).toBe(201);
+    const grant = (await proposed.json()) as ReviewerGrant;
+
+    const blocked = await app.request(`/reviewers/${grant.id}/confirmation`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(blocked.status).toBe(409);
+    expect(((await blocked.json()) as { detail?: string }).detail).toBe('share_required');
+
+    // the owner shares the deliverable with omar's organisation, then confirms
+    const share = await app.request(`/containers/${rowId}/shares`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ organisationId: otherOrg }),
+    });
+    expect(share.status).toBe(201);
+    const confirmed = await app.request(`/reviewers/${grant.id}/confirmation`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(confirmed.status).toBe(200);
+
+    // sharing is owner-only; a member's attempt is silent 404
+    const sneakyShare = await app.request(`/containers/${rowId}/shares`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ organisationId: otherOrg }),
+    });
+    expect(sneakyShare.status).toBe(404);
+  });
+
   it('an owner-made reviewer grant is auto-confirmed; revocation closes the interval', async () => {
     const res = await app.request(`/containers/${rowId}/reviewers`, {
       method: 'POST',

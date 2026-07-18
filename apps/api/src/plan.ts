@@ -12,10 +12,12 @@ import {
   createPlanRowBody,
   grantAppointmentBody,
   patchContainerBody,
+  shareDeliverableBody,
 } from '@infora/contracts';
 import type {
   ApiError,
   AppointmentGrant,
+  DeliverableShare,
   GetPlanResponse,
   PlanRow,
   ReviewerGrant,
@@ -107,6 +109,12 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
     .innerJoin(s.users, eq(s.participants.userId, s.users.id))
     .where(inArray(s.deliverableAuthors.containerId, ids))
     .orderBy(asc(s.deliverableAuthors.grantedAt));
+  const shareRows = await db
+    .select({ share: s.deliverableShares, organisationName: s.organisations.name })
+    .from(s.deliverableShares)
+    .innerJoin(s.organisations, eq(s.deliverableShares.organisationId, s.organisations.id))
+    .where(and(inArray(s.deliverableShares.containerId, ids), isNull(s.deliverableShares.revokedAt)));
+
   const reviewerRows = await db
     .select({ grant: s.deliverableReviewers, name: s.users.name })
     .from(s.deliverableReviewers)
@@ -153,6 +161,9 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
       deliverableCode: verdictByContainer.get(container.id) ?? null,
       authors: authorRows.filter((r) => r.grant.containerId === container.id).map(toAuthor),
       reviewers: reviewerRows.filter((r) => r.grant.containerId === container.id).map(toReviewer),
+      sharedWith: shareRows
+        .filter((r) => r.share.containerId === container.id)
+        .map((r) => ({ organisationId: r.share.organisationId, organisationName: r.organisationName })),
     };
   });
 }
@@ -349,11 +360,9 @@ export function containerRoutes(deps: { db: Db }) {
     return c.json(await grantRead(deps.db, 'reviewers', grant.id));
   });
 
-  // T-119 — the owner confirms a proposed reviewer. ADR-0015 bites here:
-  // in the skeleton every planned deliverable is readable by its producing
-  // and owner organisations; per-deliverable *shares* to third organisations
-  // arrive with the owner curation surface, where confirming a third-org
-  // reviewer will demand the share first.
+  // T-119 — the owner confirms a proposed reviewer, and ADR-0015 bites here:
+  // a reviewer whose organisation cannot see the deliverable (not producer,
+  // not owner, no live share) forces share-first — 409 share_required.
   app.post('/reviewers/:grantId/confirmation', async (c) => {
     const grantId = c.req.param('grantId');
     if (!isUuid(grantId)) return notFound(c);
@@ -365,6 +374,26 @@ export function containerRoutes(deps: { db: Db }) {
     if (!grant || grant.revokedAt || grant.confirmedAt) return notFound(c);
     const scopedCtx = await scoped(c, grant.containerId);
     if (!scopedCtx || scopedCtx.slice.membershipRole !== 'owner') return notFound(c);
+    const { container } = scopedCtx;
+    const [reviewerUser] = await deps.db
+      .select({ organisationId: s.users.organisationId })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.participants.id, grant.participantId))
+      .limit(1);
+    const reviewerOrg = reviewerUser!.organisationId;
+    const [project] = await deps.db
+      .select({ ownerOrganisationId: s.projects.ownerOrganisationId })
+      .from(s.projects)
+      .where(eq(s.projects.id, container.projectId))
+      .limit(1);
+    const canSee =
+      reviewerOrg === container.producingOrganisationId ||
+      reviewerOrg === project!.ownerOrganisationId ||
+      (await liveShare(deps.db, container.id, reviewerOrg)) !== null;
+    if (!canSee) {
+      return c.json({ error: 'conflict', detail: 'share_required' } satisfies ApiError, 409);
+    }
     await deps.db
       .update(s.deliverableReviewers)
       .set({ confirmedByParticipantId: scopedCtx.slice.participantId, confirmedAt: sql`now()` })
@@ -372,7 +401,90 @@ export function containerRoutes(deps: { db: Db }) {
     return c.json(await grantRead(deps.db, 'reviewers', grant.id));
   });
 
+  // The owner's share is the only thing that opens a deliverable across the
+  // wall (ADR-0016); shared organisations must hold an active seat.
+  app.post('/containers/:containerId/shares', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx || scopedCtx.slice.membershipRole !== 'owner') return notFound(c);
+    const body = shareDeliverableBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    const [membership] = await deps.db
+      .select({ id: s.memberships.id })
+      .from(s.memberships)
+      .where(
+        and(
+          eq(s.memberships.organisationId, body.data.organisationId),
+          eq(s.memberships.projectId, scopedCtx.container.projectId),
+          eq(s.memberships.state, 'active'),
+        ),
+      )
+      .limit(1);
+    if (!membership) return notFound(c);
+    if (await liveShare(deps.db, scopedCtx.container.id, body.data.organisationId)) {
+      return conflict(c);
+    }
+    const [share] = await deps.db
+      .insert(s.deliverableShares)
+      .values({
+        containerId: scopedCtx.container.id,
+        organisationId: body.data.organisationId,
+        grantedByParticipantId: scopedCtx.slice.participantId,
+      })
+      .returning();
+    return c.json(await shareRead(deps.db, share!.id), 201);
+  });
+
+  app.post('/shares/:shareId/revocation', async (c) => {
+    const shareId = c.req.param('shareId');
+    if (!isUuid(shareId)) return notFound(c);
+    const [share] = await deps.db
+      .select()
+      .from(s.deliverableShares)
+      .where(eq(s.deliverableShares.id, shareId))
+      .limit(1);
+    if (!share || share.revokedAt) return notFound(c);
+    const scopedCtx = await scoped(c, share.containerId);
+    if (!scopedCtx || scopedCtx.slice.membershipRole !== 'owner') return notFound(c);
+    await deps.db
+      .update(s.deliverableShares)
+      .set({ revokedAt: sql`now()` })
+      .where(eq(s.deliverableShares.id, share.id));
+    return c.json(await shareRead(deps.db, share.id));
+  });
+
   return app;
+}
+
+async function liveShare(db: Db, containerId: string, organisationId: string) {
+  const [row] = await db
+    .select({ id: s.deliverableShares.id })
+    .from(s.deliverableShares)
+    .where(
+      and(
+        eq(s.deliverableShares.containerId, containerId),
+        eq(s.deliverableShares.organisationId, organisationId),
+        isNull(s.deliverableShares.revokedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+async function shareRead(db: Db, shareId: string): Promise<DeliverableShare> {
+  const [row] = await db
+    .select({ share: s.deliverableShares, organisationName: s.organisations.name })
+    .from(s.deliverableShares)
+    .innerJoin(s.organisations, eq(s.deliverableShares.organisationId, s.organisations.id))
+    .where(eq(s.deliverableShares.id, shareId))
+    .limit(1);
+  return {
+    id: row!.share.id,
+    containerId: row!.share.containerId,
+    organisationId: row!.share.organisationId,
+    organisationName: row!.organisationName,
+    grantedAt: row!.share.grantedAt.toISOString(),
+    revokedAt: row!.share.revokedAt?.toISOString() ?? null,
+  };
 }
 
 async function liveParticipant(db: Db, participantId: string, projectId: string) {

@@ -345,6 +345,21 @@ type AppointmentGrant = { id: Id; containerId: Id; participantId: Id; name: stri
 type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null };  // null = proposed
 ```
 
+### Deliverable shares (ADR-0016 as data, T-119)
+
+```
+POST /containers/:containerId/shares   body: { organisationId } → DeliverableShare
+     // owner only; the shared organisation must hold an active seat; the
+     // only thing that opens a deliverable across the wall (ADR-0016)
+POST /shares/:shareId/revocation       → DeliverableShare      // owner; interval closes
+
+type DeliverableShare = { id: Id; containerId: Id; organisationId: Id;
+                          organisationName: string; grantedAt: string;
+                          revokedAt: string | null };
+```
+
+Visibility is **producer | owner | live share**, applied as one SQL predicate in the library list, the version read and the grounding query (so surfaces and retrieval cannot drift). Confirming a reviewer whose organisation lacks visibility returns `409 { detail: 'share_required' }` — ADR-0015's share-first, as an error the surface can act on. `PlanRow` gains `sharedWith` (live shares; `[]` for non-owner readers). The seed shares the reference library with the consultant organisation, preserving the walking-skeleton journey on the now-real wall.
+
 ### Acceptance codes (ADR-0003, T-116)
 
 ```
