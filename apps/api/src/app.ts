@@ -11,6 +11,7 @@ import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
+import { cycleRoutes } from './cycle';
 import { containerRoutes, planRoutes } from './plan';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
@@ -63,6 +64,9 @@ export function buildApp(deps: AppDeps) {
   // (Slice A, ADR-0008/0017/0033) — T-118/T-119
   app.route('/', planRoutes(deps));
   app.route('/', containerRoutes(deps));
+
+  // Promotion + the review cycle (Slice A, ADR-0002/0005–0014/0032) — T-120+
+  app.route('/', cycleRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

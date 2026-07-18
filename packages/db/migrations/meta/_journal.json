@@ -92,6 +92,13 @@
       "when": 1784378507162,
       "tag": "0012_deliverable-shares",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784378567162,
+      "tag": "0013_version-currency",
+      "breakpoints": true
     }
   ]
 }
