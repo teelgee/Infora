@@ -8,7 +8,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import type { MeResponse, Run, SandboxComment, SandboxDocument, Suggestion } from '@infora/contracts';
+import type {
+  MeResponse,
+  ReviewComment,
+  ReviewCycle,
+  Round,
+  Run,
+  SandboxComment,
+  SandboxDocument,
+  Suggestion,
+} from '@infora/contracts';
 import {
   Badge,
   Button,
@@ -165,7 +174,9 @@ export function EditorScreen() {
   const [dirty, setDirty] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [comments, setComments] = useState<SandboxComment[]>([]); // T-112
-  const [panelTab, setPanelTab] = useState<'chat' | 'comments'>('chat');
+  const [cycle, setCycle] = useState<ReviewCycle | null>(null); // T-132: the review to answer
+  const [panelTab, setPanelTab] = useState<'chat' | 'comments' | 'review'>('chat');
+  const reviewDefaulted = useRef(false);
   const [draftAnchor, setDraftAnchor] = useState<string | null>(null); // captured canvas selection
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
   // two-way linking (T-112): a canvas click on a highlight focuses its thread
@@ -197,11 +208,30 @@ export function EditorScreen() {
     setDirty(false);
     setSuggestions(list.items);
     setComments(threads.items);
+    // T-132: if this draft's container is in review, pull the cycle so an
+    // issued round's comments can be answered here, beside the canvas
+    const cyc = document.containerId
+      ? await api.cycle(document.containerId).catch(() => null)
+      : null;
+    setCycle(cyc);
   }, [documentId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // T-132: when an issued round is waiting on this draft, the review leads —
+  // the agent pane steps aside to it (once; the author can tab back to Chat)
+  useEffect(() => {
+    const issued =
+      cycle && cycle.state === 'active'
+        ? [...cycle.rounds].reverse().find((r) => r.state === 'issued')
+        : undefined;
+    if (issued && issued.comments.length > 0 && !reviewDefaulted.current) {
+      setPanelTab('review');
+      reviewDefaulted.current = true;
+    }
+  }, [cycle]);
 
   // takes the value rather than reading state: the blur that triggers a save
   // can fire before React re-renders, and the closure's `content` would be
@@ -382,6 +412,17 @@ export function EditorScreen() {
     (c) => c.parentCommentId === null && c.status === 'open',
   ).length;
 
+  // T-132: the issued round this draft must answer (latest issued while the
+  // cycle is active). Its comments are the reviewer's record (Drawer 5) —
+  // distinct from the working-draft threads above (Drawer 2).
+  const reviewRound =
+    cycle && cycle.state === 'active'
+      ? ([...cycle.rounds].reverse().find((r) => r.state === 'issued') ?? null)
+      : null;
+  const reviewComments = reviewRound?.comments ?? [];
+  const unansweredReview = reviewComments.filter((c) => c.response === null).length;
+  const inReview = reviewComments.length > 0;
+
   // T-112: in-text highlights for open anchored threads — first occurrence,
   // overlaps skipped; advisory, so a drifted anchor simply paints nothing
   // (the same degrade rule as locate). Rendered on a mirror layer behind the
@@ -474,6 +515,15 @@ export function EditorScreen() {
       </div>
 
       <div className="editor-layout">
+        {/* T-132: in review-response mode the version under review sits
+            read-only beside the editable canvas — the author edits toward
+            vN+1 with the reviewed vN in view */}
+        {inReview && reviewRound && (
+          <ReferencePane
+            versionId={reviewRound.versionId}
+            versionReference={reviewRound.versionReference}
+          />
+        )}
         <div className="canvas">
           {/* T-096 — the formatting toolbar: markdown-honest word-processor
               controls; mousedown is swallowed so the selection (and the
@@ -683,9 +733,19 @@ export function EditorScreen() {
         </div>
 
         {/* T-098: the panel is the chat — proposals live inline in the
-            document itself, resolved in their callouts */}
+            document itself, resolved in their callouts. T-132: while an
+            issued round is with this draft, the review leads and the agent
+            steps aside to a tab. */}
         <div className="suggest-panel">
           <div className="panel-tabs">
+            {inReview && (
+              <a
+                className={panelTab === 'review' ? 'active' : undefined}
+                onClick={() => setPanelTab('review')}
+              >
+                Review{unansweredReview > 0 && ` (${unansweredReview})`}
+              </a>
+            )}
             <a
               className={panelTab === 'chat' ? 'active' : undefined}
               onClick={() => setPanelTab('chat')}
@@ -707,7 +767,9 @@ export function EditorScreen() {
             )}
           </div>
 
-          {panelTab === 'comments' ? (
+          {panelTab === 'review' && reviewRound ? (
+            <ReviewResponsePanel round={reviewRound} onResponded={() => void load()} />
+          ) : panelTab === 'comments' ? (
             <CommentsPanel
               documentId={doc.id}
               projectId={participant.projectId}
@@ -762,3 +824,144 @@ export function EditorScreen() {
     </>
   );
 }
+
+// T-132 — the version under review, read-only, beside the editable canvas:
+// the author edits toward vN+1 with the reviewed vN in view.
+function ReferencePane(props: { versionId: string; versionReference: string }) {
+  const [content, setContent] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.version(props.versionId).then(
+      (v) => live && setContent(v.content),
+      () => live && setFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, [props.versionId]);
+  return (
+    <div className="review-ref">
+      <div className="ref-head">Version under review · {props.versionReference} · read-only</div>
+      {failed && <p style={{ color: 'var(--muted)' }}>The reviewed version could not be read.</p>}
+      {content !== null && <Markdown>{content}</Markdown>}
+    </div>
+  );
+}
+
+// T-132 — address the review here: the issued round's comments (Drawer 5, the
+// reviewer's record — not the working-draft threads of Drawer 2) each get a
+// response, then the author edits the canvas and re-promotes (⇧ Promote) to
+// send vN+1 back. The T-124 author loop made a first-class editing surface.
+function ReviewResponsePanel(props: { round: Round; onResponded: () => void }) {
+  const { round } = props;
+  const unanswered = round.comments.filter((c) => c.response === null).length;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div>
+        <b>Round {round.number} — respond to the review</b>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>
+          {unanswered > 0
+            ? `${unanswered} comment${unanswered === 1 ? '' : 's'} still to answer. Address each, edit the draft, then ⇧ Promote to send v${round.number + 1} back.`
+            : `Every comment is answered — edit the draft as needed, then ⇧ Promote to send v${round.number + 1} back.`}
+        </p>
+      </div>
+      {round.comments.map((comment) => (
+        <ReviewCommentResponse key={comment.id} comment={comment} onResponded={props.onResponded} />
+      ))}
+    </div>
+  );
+}
+
+function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () => void }) {
+  const { comment } = props;
+  const [responding, setResponding] = useState(false);
+  const [body, setBody] = useState('');
+  const [reason, setReason] = useState('addressed in the next revision');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function record() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.respondToComment(comment.id, body.trim(), reason.trim());
+      props.onResponded();
+    } catch (e) {
+      setError(e instanceof RequestError ? (e.body?.detail ?? e.body?.error ?? 'failed') : 'failed');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="review-thread">
+      <div style={{ fontSize: 12.5 }}>
+        <b>{comment.author.name}</b>{' '}
+        {comment.acceptanceCode && <Badge tone="slate">{comment.acceptanceCode.code}</Badge>}{' '}
+        <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+          {new Date(comment.createdAt).toLocaleDateString()}
+        </span>
+      </div>
+      {comment.anchor?.quote && (
+        <div style={{ color: 'var(--muted)', fontSize: 11.5, fontStyle: 'italic' }}>
+          “{comment.anchor.quote}”{comment.anchor.page !== undefined && ` — p.${comment.anchor.page}`}
+        </div>
+      )}
+      <div style={{ fontSize: 12.5 }}>{comment.body}</div>
+      {comment.response ? (
+        <div className="review-response">
+          <b>Your response</b> · {comment.response.body}
+          {comment.response.noChangeReason && (
+            <span style={{ color: 'var(--muted)' }}> — {comment.response.noChangeReason}</span>
+          )}
+        </div>
+      ) : responding ? (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <textarea
+            autoFocus
+            placeholder="How is the comment addressed?"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            style={{ ...refField, minHeight: 44 }}
+          />
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. expanded in v2 §3"
+            style={refField}
+          />
+          {error && <Badge tone="red">{error}</Badge>}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={busy || !body.trim() || !reason.trim()}
+              onClick={() => void record()}
+            >
+              Record the response
+            </Button>
+            <Button size="sm" variant="quiet" onClick={() => setResponding(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button size="sm" variant="quiet" onClick={() => setResponding(true)}>
+            Respond
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const refField = {
+  font: 'inherit',
+  fontSize: 12.5,
+  border: '1px solid var(--hairline)',
+  borderRadius: 6,
+  padding: '6px 8px',
+  background: 'var(--panel)',
+  color: 'var(--ink)',
+} as const;

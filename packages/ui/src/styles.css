@@ -371,6 +371,11 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 /* ---------- Editor (canvas + suggestion panel) ---------- */
 .editor-layout { display: flex; height: calc(100vh - 53px); }
 .canvas { flex: 1; min-width: 0; overflow: auto; background: var(--panel); padding: 42px 52px 60px; }
+/* T-132: the read-only version-under-review pane, beside the editable canvas */
+.review-ref { flex: 1; min-width: 0; overflow: auto; background: var(--paper); border-right: 1px solid var(--hairline); padding: 42px 40px 60px; }
+.review-ref .ref-head { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 14px; }
+.review-thread { border: 1px solid var(--hairline); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; }
+.review-response { background: var(--panel); border-radius: 6px; padding: 6px 10px; font-size: 12.5px; }
 .suggest-panel {
   width: 348px; min-width: 310px; border-left: 1px solid var(--hairline);
   background: var(--paper); overflow: auto; padding: 18px;

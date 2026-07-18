@@ -49,6 +49,8 @@
 | **Callout** (or **proposed block**) | A suggestion in the document: **tag line**, **cited prose** (`CitedProse` — claims with their inline sources), **withheld notice**, **action row** (Accept / Edit / Refine / Reject), **refine dialog** (T-091/T-096). |
 | **Refine stack** | Stacked proposals in one callout area: the newest is **current** (green), older ones **stale** (red) (T-091). |
 | **Source modal** | The overlay opening a cited version (`SourceModal`, T-094) — still used on the rail drill-down and in the Editor; Ask uses the source panel (T-105). |
+| **Review-response mode** | The Editor's layout when the draft's container has an *issued* round to answer (T-132): a read-only **reference pane** (the version under review, `ReferencePane`) sits left of the editable canvas, and the right panel's **Review tab** (`ReviewResponsePanel`) leads — the AI agent steps aside to the Chat tab (a mode, not a deletion). The author records a response per review comment (Drawer 5 — distinct from the working-draft Comments tab, Drawer 2), edits, and re-promotes. |
+| **Reference pane** | The read-only left column in review-response mode (`ReferencePane`, T-132): the frozen version under review, shown beside the editable canvas. |
 
 ## Tools
 
