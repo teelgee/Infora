@@ -63,29 +63,57 @@ export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
   };
 }
 
-// Per-deliverable visibility (ADR-0016): default-deny, decided per
-// deliverable, per organisation. Drawer 2 does not yet store authorship or
-// owner-share facts (they land with the review drawer, per the
-// drawer-by-drawer rule), so the skeleton's library wiring (T-031) supplies
-// them explicitly; the rule itself is fixed here.
+// Per-deliverable visibility (ADR-0016, extended by ADR-0035): default-deny,
+// decided per deliverable, per organisation, then — on the share branch only —
+// gated by the receiving organisation's acknowledgement and narrowed by any
+// per-participant grants. Drawer 2 does not store these facts directly; the
+// caller (retrieval T-031/T-119, the API surfaces) supplies them; the rule is
+// fixed here.
 export type DeliverableVisibilityFacts = {
   projectOwnerOrganisationId: Id;
   authorOrganisationId: Id | null;
   /** organisations the owner has deliberately shared this deliverable with */
   sharedWithOrganisationIds: readonly Id[];
+  /**
+   * ADR-0035 §4 — organisations that have acknowledged the transmittal for the
+   * deliverable's current version. ORGANISATION grain: presence clears the gate
+   * for every entitled Participant of the organisation, by whichever Participant
+   * fired it. Producer and owner never appear here and never need to (§2).
+   */
+  acknowledgedOrganisationIds: readonly Id[];
+  /**
+   * ADR-0035 §3 — the intra-organisation narrowing for the requester's
+   * organisation, if any per-participant grant is present. PARTICIPANT grain.
+   * `null` = no narrowing (the whole-organisation default: every entitled
+   * Participant sees it); a set = visible only to these Participants.
+   */
+  narrowedToParticipantIds: readonly Id[] | null;
 };
 
 /**
- * An organisation may read a deliverable only if it is the owner, the
- * author, or an organisation the owner has shared it with (ADR-0016).
+ * An organisation may read a deliverable if it is the owner or the author,
+ * with no gate (ADR-0035 §2); or if the owner has shared it AND the receiving
+ * organisation has acknowledged the transmittal for the current version AND the
+ * Participant is within any narrowing present (ADR-0035 §3–§4). The
+ * acknowledgement (organisation grain) and the narrowing (participant grain)
+ * are an order-independent conjunction; the acknowledgement never gates the
+ * producer or owner branch.
  */
 export function canReadDeliverable(
   slice: EntitledSlice,
   deliverable: DeliverableVisibilityFacts,
 ): boolean {
-  return (
-    slice.organisationId === deliverable.projectOwnerOrganisationId ||
-    slice.organisationId === deliverable.authorOrganisationId ||
-    deliverable.sharedWithOrganisationIds.includes(slice.organisationId)
+  // producer and owner see it with no transmittal and no gate (§2)
+  if (slice.organisationId === deliverable.projectOwnerOrganisationId) return true;
+  if (slice.organisationId === deliverable.authorOrganisationId) return true;
+
+  // the share branch: entitlement is the owner share, then the two conditions
+  if (!deliverable.sharedWithOrganisationIds.includes(slice.organisationId)) return false;
+  const organisationAcknowledged = deliverable.acknowledgedOrganisationIds.includes(
+    slice.organisationId,
   );
+  const withinNarrowing =
+    deliverable.narrowedToParticipantIds === null ||
+    deliverable.narrowedToParticipantIds.includes(slice.participantId);
+  return organisationAcknowledged && withinNarrowing;
 }

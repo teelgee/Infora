@@ -404,6 +404,87 @@ export type DeliverableShare = {
 export const shareDeliverableBody = z.object({ organisationId: id });
 export type ShareDeliverableBody = z.infer<typeof shareDeliverableBody>;
 
+// ── Non-review transmittal, the acknowledgement gate, intra-org narrowing ──
+// (ADR-0035, T-137). The write half of the gate the retrieval pre-filter and
+// canReadDeliverable enforce. No parameter widens a requester's scope: the
+// requester is resolved, the container/project are the only inputs.
+
+// The owner issues a promoted library deliverable to organisations (§1–§2) —
+// a first-class audited event that sets each receiving org's ceiling (the
+// share) and, on issue, fires each org's standing routing rules (§3).
+export const issueTransmittalBody = z.object({
+  organisationIds: z.array(id).min(1),
+  purposeCode: z.string().min(1).optional(),
+});
+export type IssueTransmittalBody = z.infer<typeof issueTransmittalBody>;
+export type NonReviewTransmittal = {
+  id: Id;
+  containerId: Id;
+  versionId: Id;
+  recipientOrganisationIds: Id[];
+  purposeCode: string | null;
+  issuedAt: string;
+};
+
+// The organisation-level acknowledgement (§4). No body — mode-aware server-side
+// (controller vs open), fired on the requester's organisation's behalf for the
+// deliverable's current version; the first firing clears the org gate.
+export type Acknowledgement = {
+  id: Id;
+  containerId: Id;
+  versionId: Id;
+  organisationId: Id;
+  acknowledgedBy: { participantId: Id; name: string };
+  acknowledgedAt: string;
+};
+
+// Intra-organisation narrowing (§3): the receiving org's admin (or controller)
+// narrows a shared deliverable to named Participants. Absent = whole-org.
+export const grantParticipantBody = z.object({ participantId: id });
+export type GrantParticipantBody = z.infer<typeof grantParticipantBody>;
+export type ParticipantGrant = {
+  id: Id;
+  containerId: Id;
+  organisationId: Id;
+  participantId: Id;
+  name: string;
+  grantedAt: string;
+  revokedAt: string | null;
+};
+
+// The standing routing rule (§3, MVP): a code pattern → a Participant, so a
+// transmitted deliverable whose reference matches grants automatically.
+export const createGrantRuleBody = z.object({
+  codePattern: z.string().min(1),
+  participantId: id,
+});
+export type CreateGrantRuleBody = z.infer<typeof createGrantRuleBody>;
+export type GrantRule = {
+  id: Id;
+  projectId: Id;
+  organisationId: Id;
+  codePattern: string;
+  participantId: Id;
+  name: string;
+  createdAt: string;
+  revokedAt: string | null;
+};
+export type ListGrantRulesResponse = { items: GrantRule[] };
+
+// The per-(organisation, project) acknowledgement-mode setting (§4): the org
+// admin chooses controller or open, and nominates the controller Participant.
+export const setAckModeBody = z.object({
+  mode: z.enum(['controller', 'open']),
+  controllerParticipantId: id.nullable().optional(),
+});
+export type SetAckModeBody = z.infer<typeof setAckModeBody>;
+export type AcknowledgementModeSetting = {
+  organisationId: Id;
+  projectId: Id;
+  mode: 'controller' | 'open';
+  controllerParticipantId: Id | null;
+};
+
 // Acceptance codes (ADR-0003): the project's copied scheme.
 export type AcceptanceCode = {
   id: Id;

@@ -131,9 +131,19 @@ describe('canReadDeliverable — per-deliverable visibility (ADR-0016)', () => {
     projectOwnerOrganisationId: ownerOrg,
     authorOrganisationId: null,
     sharedWithOrganisationIds: [] as const,
+    acknowledgedOrganisationIds: [] as const,
+    narrowedToParticipantIds: null,
   };
 
-  it('the owner organisation sees the whole library', () => {
+  // a share the receiving org has acknowledged, no narrowing (the whole-org
+  // default) — the ADR-0035 baseline that grounds
+  const acknowledgedShare = {
+    ...unshared,
+    sharedWithOrganisationIds: [memberOrg],
+    acknowledgedOrganisationIds: [memberOrg],
+  };
+
+  it('the owner organisation sees the whole library, ungated (§2)', () => {
     expect(canReadDeliverable(ownerSlice, unshared)).toBe(true);
   });
 
@@ -141,18 +151,81 @@ describe('canReadDeliverable — per-deliverable visibility (ADR-0016)', () => {
     expect(canReadDeliverable(memberSlice, unshared)).toBe(false);
   });
 
-  it('an authoring organisation always sees its own deliverables', () => {
+  it('an authoring organisation always sees its own deliverables, ungated (§2)', () => {
     expect(
       canReadDeliverable(memberSlice, { ...unshared, authorOrganisationId: memberOrg }),
     ).toBe(true);
   });
 
-  it('an owner share opens exactly the named organisation', () => {
+  it('an acknowledged owner share opens exactly the named organisation', () => {
+    expect(canReadDeliverable(memberSlice, acknowledgedShare)).toBe(true);
+    expect(
+      canReadDeliverable(memberSlice, {
+        ...acknowledgedShare,
+        sharedWithOrganisationIds: [strangerOrg],
+        acknowledgedOrganisationIds: [strangerOrg],
+      }),
+    ).toBe(false);
+  });
+
+  // ── ADR-0035: the acknowledgement gate (§4) ──────────────────────────────
+  it('a share withholds visibility until the receiving org acknowledges (§4)', () => {
+    // shared but not acknowledged — the gate is closed
     expect(
       canReadDeliverable(memberSlice, { ...unshared, sharedWithOrganisationIds: [memberOrg] }),
-    ).toBe(true);
+    ).toBe(false);
+    // acknowledged — the gate opens
+    expect(canReadDeliverable(memberSlice, acknowledgedShare)).toBe(true);
+  });
+
+  it('the acknowledgement never gates the producer or owner branch (§2)', () => {
+    // owner and author see it even with no acknowledgement present
+    expect(canReadDeliverable(ownerSlice, unshared)).toBe(true);
     expect(
-      canReadDeliverable(memberSlice, { ...unshared, sharedWithOrganisationIds: [strangerOrg] }),
+      canReadDeliverable(memberSlice, { ...unshared, authorOrganisationId: memberOrg }),
+    ).toBe(true);
+  });
+
+  // ── ADR-0035: intra-organisation narrowing (§3) ──────────────────────────
+  it('no narrowing = whole-org default: every entitled participant sees it (§3)', () => {
+    expect(canReadDeliverable(memberSlice, acknowledgedShare)).toBe(true);
+  });
+
+  it('a narrowing restricts to the granted participants only (§3)', () => {
+    // granted
+    expect(
+      canReadDeliverable(memberSlice, {
+        ...acknowledgedShare,
+        narrowedToParticipantIds: ['participant-consultant'],
+      }),
+    ).toBe(true);
+    // not granted — same org, same acknowledgement, but outside the narrowing
+    expect(
+      canReadDeliverable(memberSlice, {
+        ...acknowledgedShare,
+        narrowedToParticipantIds: ['participant-someone-else'],
+      }),
+    ).toBe(false);
+  });
+
+  // ── ADR-0035: the conjunction is independent (§4) ────────────────────────
+  it('within the narrowing but the org has not acknowledged: nothing (§4)', () => {
+    expect(
+      canReadDeliverable(memberSlice, {
+        ...unshared,
+        sharedWithOrganisationIds: [memberOrg],
+        acknowledgedOrganisationIds: [],
+        narrowedToParticipantIds: ['participant-consultant'],
+      }),
+    ).toBe(false);
+  });
+
+  it('acknowledged but the participant is outside the narrowing: nothing (§4)', () => {
+    expect(
+      canReadDeliverable(memberSlice, {
+        ...acknowledgedShare,
+        narrowedToParticipantIds: ['participant-someone-else'],
+      }),
     ).toBe(false);
   });
 });

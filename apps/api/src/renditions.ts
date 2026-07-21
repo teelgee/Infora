@@ -262,7 +262,40 @@ export function renditionRoutes(deps: { db: Db }) {
         ),
       )
       .limit(1);
-    return share ? row : null;
+    if (!share) return null;
+    // ADR-0035 §4/§5: a shared organisation may download the rendition only
+    // once it has acknowledged the deliverable's CURRENT version (organisation
+    // grain — the same gate as the version read, so a superseded rendition
+    // resolves whenever the org is currently entitled) and if the Participant is
+    // within any narrowing present (participant grain).
+    const [ack] = await deps.db
+      .select({ id: s.deliverableAcknowledgements.id })
+      .from(s.deliverableAcknowledgements)
+      .innerJoin(s.versions, eq(s.versions.id, s.deliverableAcknowledgements.versionId))
+      .where(
+        and(
+          eq(s.deliverableAcknowledgements.containerId, container.id),
+          eq(s.deliverableAcknowledgements.organisationId, slice.organisationId),
+          eq(s.versions.containerId, container.id),
+          eq(s.versions.isCurrent, true),
+        ),
+      )
+      .limit(1);
+    if (!ack) return null;
+    const grants = await deps.db
+      .select({ participantId: s.deliverableParticipantGrants.participantId })
+      .from(s.deliverableParticipantGrants)
+      .where(
+        and(
+          eq(s.deliverableParticipantGrants.containerId, container.id),
+          eq(s.deliverableParticipantGrants.organisationId, slice.organisationId),
+          isNull(s.deliverableParticipantGrants.revokedAt),
+        ),
+      );
+    if (grants.length > 0 && !grants.some((g) => g.participantId === slice.participantId)) {
+      return null;
+    }
+    return row;
   }
 
   app.get('/versions/:versionId/renditions', async (c) => {

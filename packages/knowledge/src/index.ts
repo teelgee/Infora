@@ -2,3 +2,4 @@
 export { createAssembler, TOKEN_LIMIT } from './gateway';
 export type { GatewayDeps } from './gateway';
 export { estimateTokens } from './merge';
+export { deliverableVisibleSql } from './visibility';

@@ -143,3 +143,243 @@ describe('the wall through the gateway (T-033)', () => {
     expect([requestShape, requesterShape, queryShape, itemShape]).toEqual([true, true, true, true]);
   });
 });
+
+// T-136 — the ADR-0035 acknowledgement gate and intra-organisation narrowing,
+// through the same one gateway. Every retrieval — baseline and the retrieval
+// sub-agent's (ADR-0028 §4) — routes through assemble(), so gating it here is
+// the gate holding for the agent path by construction, not only for direct
+// reads.
+describe('the acknowledgement gate and intra-org narrowing (T-136, ADR-0035)', () => {
+  let owner: AssemblyRequest['requester']; // owner-org participant — ungated (§2)
+  let paul: AssemblyRequest['requester']; // receiving-org participant
+  let quinn: AssemblyRequest['requester']; // receiving-org participant, a colleague
+  let gateProjectId: string;
+  let ownerOrgId: string;
+  let recvOrgId: string;
+  let paulParticipantId: string;
+  let quinnParticipantId: string;
+
+  // a library deliverable produced by the owner org, optionally shared with the
+  // receiving org, optionally acknowledged (by Paul, on the org's behalf),
+  // optionally narrowed to named participants — returns its live version id
+  async function makeDeliverable(opts: {
+    ref: string;
+    producingOrganisationId: string;
+    shareWithRecv?: boolean;
+    acknowledged?: boolean;
+    narrowedTo?: string[]; // participant ids granted
+  }): Promise<string> {
+    const [container] = await db
+      .insert(s.containers)
+      .values({
+        projectId: gateProjectId,
+        producingOrganisationId: opts.producingOrganisationId,
+        documentReference: opts.ref,
+        inLibrary: true,
+      })
+      .returning();
+    const content = `gamma deliverable ${opts.ref}`;
+    const [version] = await db
+      .insert(s.versions)
+      .values({ containerId: container!.id, versionReference: 'v1', content, isCurrent: true })
+      .returning();
+    await db.insert(s.versionChunks).values({
+      versionId: version!.id,
+      chunkIndex: 0,
+      content,
+      embedding: fakeVector(content),
+      embeddingModelId: FAKE_EMBED_MODEL,
+      embeddingModelVersion: 'fake-1',
+    });
+    if (opts.shareWithRecv) {
+      await db.insert(s.deliverableShares).values({
+        containerId: container!.id,
+        organisationId: recvOrgId,
+        grantedByParticipantId: paulParticipantId,
+      });
+    }
+    if (opts.acknowledged) {
+      await db.insert(s.deliverableAcknowledgements).values({
+        containerId: container!.id,
+        versionId: version!.id,
+        organisationId: recvOrgId,
+        acknowledgedByParticipantId: paulParticipantId,
+      });
+    }
+    for (const participantId of opts.narrowedTo ?? []) {
+      await db.insert(s.deliverableParticipantGrants).values({
+        containerId: container!.id,
+        organisationId: recvOrgId,
+        participantId,
+        grantedByParticipantId: paulParticipantId,
+      });
+    }
+    return version!.id;
+  }
+
+  const gammaQuery = (requester: AssemblyRequest['requester']): AssemblyRequest => ({
+    request: { text: 'gamma deliverable question', mode: 'baseline' },
+    environment: { kind: 'project', projectId: gateProjectId },
+    requester,
+  });
+
+  // does this requester retrieve the given deliverable version through the gateway?
+  async function canRetrieve(
+    requester: AssemblyRequest['requester'],
+    versionId: string,
+  ): Promise<boolean> {
+    const { items } = await assemble(gammaQuery(requester));
+    return items.some((i) => 'versionId' in i.source && i.source.versionId === versionId);
+  }
+
+  beforeAll(async () => {
+    const stamp = Date.now();
+    const [ownerOrg] = await db.insert(s.organisations).values({ name: 't136 owner' }).returning();
+    const [recvOrg] = await db.insert(s.organisations).values({ name: 't136 recv' }).returning();
+    ownerOrgId = ownerOrg!.id;
+    recvOrgId = recvOrg!.id;
+
+    const [project] = await db
+      .insert(s.projects)
+      .values({ name: 't136 project', ownerOrganisationId: ownerOrgId })
+      .returning();
+    gateProjectId = project!.id;
+    await db.insert(s.memberships).values([
+      { organisationId: ownerOrgId, projectId: gateProjectId, role: 'owner' },
+      { organisationId: recvOrgId, projectId: gateProjectId, role: 'member' },
+    ]);
+
+    const [olivia] = await db
+      .insert(s.users)
+      .values({ name: 't136 olivia', email: `t136-olivia-${stamp}@test.local`, organisationId: ownerOrgId })
+      .returning();
+    const [oliviaP] = await db
+      .insert(s.participants)
+      .values({ userId: olivia!.id, projectId: gateProjectId })
+      .returning();
+    owner = { organisationId: ownerOrgId, participantId: oliviaP!.id };
+
+    const [paulUser] = await db
+      .insert(s.users)
+      .values({ name: 't136 paul', email: `t136-paul-${stamp}@test.local`, organisationId: recvOrgId })
+      .returning();
+    const [quinnUser] = await db
+      .insert(s.users)
+      .values({ name: 't136 quinn', email: `t136-quinn-${stamp}@test.local`, organisationId: recvOrgId })
+      .returning();
+    const [paulP] = await db
+      .insert(s.participants)
+      .values({ userId: paulUser!.id, projectId: gateProjectId })
+      .returning();
+    const [quinnP] = await db
+      .insert(s.participants)
+      .values({ userId: quinnUser!.id, projectId: gateProjectId })
+      .returning();
+    paulParticipantId = paulP!.id;
+    quinnParticipantId = quinnP!.id;
+    paul = { organisationId: recvOrgId, participantId: paulParticipantId };
+    quinn = { organisationId: recvOrgId, participantId: quinnParticipantId };
+  });
+
+  it('(b) the gate withholds from ALL entitled participants until the org acknowledges once', async () => {
+    // shared but unacknowledged — withheld from the whole receiving org
+    const before = await makeDeliverable({
+      ref: `T136-NOACK-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: false,
+    });
+    expect(await canRetrieve(paul, before)).toBe(false);
+    expect(await canRetrieve(quinn, before)).toBe(false);
+
+    // acknowledged once (by Paul, on the org's behalf) — opens for the whole org
+    const after = await makeDeliverable({
+      ref: `T136-ACKED-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: true,
+    });
+    expect(await canRetrieve(paul, after)).toBe(true);
+    expect(await canRetrieve(quinn, after)).toBe(true);
+  });
+
+  it('(d) whole-org default: no narrowing present means every entitled participant sees it', async () => {
+    const v = await makeDeliverable({
+      ref: `T136-OPEN-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: true,
+    });
+    expect(await canRetrieve(paul, v)).toBe(true);
+    expect(await canRetrieve(quinn, v)).toBe(true);
+  });
+
+  it('(a) intra-org narrowing: the same query returns it to the granted, nothing to the ungranted', async () => {
+    const v = await makeDeliverable({
+      ref: `T136-NARROW-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: true,
+      narrowedTo: [paulParticipantId],
+    });
+    expect(await canRetrieve(paul, v)).toBe(true);
+    expect(await canRetrieve(quinn, v)).toBe(false);
+  });
+
+  it('(e) the owner and authoring org see it with no share and no acknowledgement gate', async () => {
+    // shared to recv but NOT acknowledged: recv sees nothing, yet the owner org
+    // retrieves it ungated (§2)
+    const ownerView = await makeDeliverable({
+      ref: `T136-OWNER-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: false,
+    });
+    expect(await canRetrieve(owner, ownerView)).toBe(true);
+    expect(await canRetrieve(paul, ownerView)).toBe(false);
+
+    // produced by the receiving org (the author): its own participants see it
+    // with no share and no acknowledgement
+    const authored = await makeDeliverable({
+      ref: `T136-AUTHORED-${Date.now()}`,
+      producingOrganisationId: recvOrgId,
+    });
+    expect(await canRetrieve(paul, authored)).toBe(true);
+    expect(await canRetrieve(quinn, authored)).toBe(true);
+  });
+
+  it('(f) the conjunction is independent: within-narrowing-but-unacked and acked-but-outside both see nothing', async () => {
+    // within the narrowing (granted to Paul) but the org has not acknowledged
+    const grantNoAck = await makeDeliverable({
+      ref: `T136-GRANT-NOACK-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: false,
+      narrowedTo: [paulParticipantId],
+    });
+    expect(await canRetrieve(paul, grantNoAck)).toBe(false);
+
+    // acknowledged, but Paul is outside the narrowing (granted to Quinn only)
+    const ackedOutside = await makeDeliverable({
+      ref: `T136-ACK-OUTSIDE-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: true,
+      narrowedTo: [quinnParticipantId],
+    });
+    expect(await canRetrieve(paul, ackedOutside)).toBe(false);
+    expect(await canRetrieve(quinn, ackedOutside)).toBe(true);
+  });
+
+  it('(c) the gate holds through the agent retrieval path — assemble() is the sub-agent’s only route (ADR-0028 §4)', async () => {
+    // there is no second path: the retrieval sub-agent calls the same gateway,
+    // so an unacknowledged deliverable is invisible to the agent by construction
+    const v = await makeDeliverable({
+      ref: `T136-AGENT-${Date.now()}`,
+      producingOrganisationId: ownerOrgId,
+      shareWithRecv: true,
+      acknowledged: false,
+    });
+    expect(await canRetrieve(paul, v)).toBe(false);
+  });
+});

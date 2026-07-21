@@ -119,21 +119,36 @@ export const rounds = pgTable(
   ],
 );
 
-// ── Transmittals & snapshots (append-only records, ADR-0009/0010) ──────────
+// ── Transmittals & snapshots (append-only records, ADR-0009/0010/0035) ──────
 export const transmittalDirection = pgEnum('transmittal_direction', ['issue', 'return']);
+// ADR-0035 §1: a transmittal has two kinds of one event. A review transmittal
+// issues a version into its round, flips the DRR edit lock and freezes a
+// snapshot; a non_review transmittal issues a promoted library deliverable to
+// an organisation and carries NONE of that — no round, no edit lock, no
+// snapshot. The CHECK in the migration binds round_id/direction to the review
+// kind and container_id/version_id to non_review, so no edit-lock path can
+// ever attach to a non_review row.
+export const transmittalKind = pgEnum('transmittal_kind', ['review', 'non_review']);
 
 export const transmittals = pgTable('transmittals', {
   id: uuid('id').primaryKey().defaultRandom(),
-  roundId: uuid('round_id')
-    .notNull()
-    .references(() => rounds.id),
+  kind: transmittalKind('kind').notNull().default('review'),
+  // review kind only — null for non_review (the CHECK enforces the pairing)
+  roundId: uuid('round_id').references(() => rounds.id),
   // issue: the closed round to the authoring side, revealing it and handing
   // over the pen; return: the next version back, opening the next round
-  direction: transmittalDirection('direction').notNull(),
+  direction: transmittalDirection('direction'),
+  // non_review kind only — the deliverable and version issued to organisations
+  // (the review kind reaches its version and recipients through the round)
+  containerId: uuid('container_id').references(() => containers.id),
+  versionId: uuid('version_id').references(() => versions.id),
   senderParticipantId: uuid('sender_participant_id')
     .notNull()
     .references(() => participants.id),
+  // review recipients are named participants; non_review recipients are the
+  // receiving organisations whose ceiling the issue sets (ADR-0035 §2)
   recipients: uuid('recipients').array().notNull().default([]),
+  recipientOrganisationIds: uuid('recipient_organisation_ids').array().notNull().default([]),
   purposeCode: text('purpose_code'),
   issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
   dueAt: timestamp('due_at', { withTimezone: true }),
@@ -293,5 +308,115 @@ export const deliverableShares = pgTable(
     uniqueIndex('deliverable_shares_live_unique')
       .on(t.containerId, t.organisationId)
       .where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
+// ── The acknowledgement gate (ADR-0035 §4) ─────────────────────────────────
+// A non-review transmittal is acknowledged once ON THE RECEIVING
+// ORGANISATION'S BEHALF before the deliverable becomes visible or groundable
+// to anyone in it. ORGANISATION grain: one row clears the gate for every
+// entitled Participant of that organisation. PER VERSION (owner-ruled
+// 2026-07-20): a newly promoted version re-triggers the gate, so the row keys
+// on (container, version, organisation). Append-only — a receipt is never
+// un-received; there is no revoked_at.
+export const deliverableAcknowledgements = pgTable(
+  'deliverable_acknowledgements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => versions.id),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    // who fired it, on the organisation's behalf (the audit fact — organisation
+    // grain in effect, not per person, ADR-0035 §4)
+    acknowledgedByParticipantId: uuid('acknowledged_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('deliverable_acknowledgements_container_idx').on(t.containerId),
+    // one acknowledgement per (version, organisation) — organisation grain
+    uniqueIndex('deliverable_acknowledgements_version_org_unique').on(
+      t.versionId,
+      t.organisationId,
+    ),
+  ],
+);
+
+// ── Intra-organisation narrowing (ADR-0035 §3) ─────────────────────────────
+// Under the organisation-level ceiling a non-review transmittal sets, deliverable
+// visibility MAY narrow to named Participants of the receiving organisation.
+// PARTICIPANT grain, CONTAINER-scoped (the deliverable, not the version — the
+// narrowing is keyed on the coded reference). Absent for a (container,
+// organisation) = whole-organisation default: every entitled Participant sees
+// it. Interval rows like the shares — revocation closes, nothing is deleted.
+// Never widens the org ceiling (ADR-0015): a grant only narrows within a share.
+export const deliverableParticipantGrants = pgTable(
+  'deliverable_participant_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    // the receiving organisation the narrowing sits within — the grant is the
+    // receiving organisation's own business (its org admin / controller, §3)
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    grantedByParticipantId: uuid('granted_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('deliverable_participant_grants_container_org_idx').on(t.containerId, t.organisationId),
+    uniqueIndex('deliverable_participant_grants_live_unique')
+      .on(t.containerId, t.participantId)
+      .where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
+// ── Standing routing rule (ADR-0035 §3, MVP — owner-ruled 2026-07-20) ───────
+// Rule-driven granting is what dissolves the document controller rather than
+// relocating the act: a discipline or team is mapped to a code pattern, and
+// when a matching deliverable is transmitted to this organisation the right
+// Participants are granted automatically (fired at transmittal-issue). The
+// receiving organisation's own rule; code_pattern is a SQL LIKE pattern
+// matched against the container's document_reference. Interval rows.
+export const deliverableGrantRules = pgTable(
+  'deliverable_grant_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // the receiving organisation whose standing rule this is
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    // a SQL LIKE pattern against container.document_reference (e.g. 'WA-GEO-%')
+    codePattern: text('code_pattern').notNull(),
+    // the Participant to grant when a transmitted deliverable's code matches
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    createdByParticipantId: uuid('created_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('deliverable_grant_rules_project_org_idx').on(t.projectId, t.organisationId),
   ],
 );

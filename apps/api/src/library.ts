@@ -5,29 +5,17 @@
 // shows and what grounding admits cannot drift apart; superseded/withdrawn
 // are omitted here for the skeleton per the contract.
 import { Hono } from 'hono';
-import { and, asc, eq, sql } from 'drizzle-orm';
-import type { SQL } from 'drizzle-orm';
-import type { EntitledSlice } from '@infora/governance';
+import { and, asc, eq } from 'drizzle-orm';
 import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
+import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
-// producer | owner | live share (ADR-0016 as data, T-119) — canReadDeliverable
-// as an in-query predicate; the same rule retrieval grounds by
-function deliverableVisible(slice: EntitledSlice): SQL {
-  return sql`(
-    ${s.containers.producingOrganisationId} = ${slice.organisationId}
-    or exists (select 1 from projects p
-                where p.id = ${s.containers.projectId}
-                  and p.owner_organisation_id = ${slice.organisationId})
-    or exists (select 1 from deliverable_shares ds
-                where ds.container_id = ${s.containers.id}
-                  and ds.organisation_id = ${slice.organisationId}
-                  and ds.revoked_at is null)
-  )`;
-}
+// Deliverable visibility (producer | owner | acknowledged+narrowed share) is
+// the one SQL pre-filter shared with retrieval (ADR-0016 + ADR-0035 §5), so the
+// list and grounding never drift; see @infora/knowledge deliverableVisibleSql.
 
 export function libraryRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();

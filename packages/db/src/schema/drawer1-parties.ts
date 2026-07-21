@@ -10,6 +10,14 @@ export const membershipState = pgEnum('membership_state', ['proposed', 'active']
 // an org admin manages the organisation's own users and enrols/removes them
 // on projects the org is a member of — never a project-level power (ADR-0033)
 export const orgRole = pgEnum('org_role', ['admin', 'member']);
+// who may fire the organisation-level acknowledgement of a non-review
+// transmittal (ADR-0035 §4). controller: only the nominated document
+// controller may acknowledge, then defines the intra-org narrowing (the ISO
+// 19650 receipt-then-distribute pattern). open: any entitled Participant may,
+// the first firing clearing the org gate. Default controller (owner-ruled
+// 2026-07-20); the org admin is the fallback acknowledger so a controller-mode
+// organisation with no controller yet nominated is never locked out.
+export const acknowledgementMode = pgEnum('acknowledgement_mode', ['controller', 'open']);
 
 export const organisations = pgTable('organisations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -93,6 +101,14 @@ export const memberships = pgTable(
     // proposed confers nothing; only the owner's confirmation activates the
     // seat (ADR-0019 as data, ADR-0033)
     state: membershipState('state').notNull().default('active'),
+    // how this organisation acknowledges non-review transmittals (ADR-0035 §4).
+    // Naturally per (organisation, project) — the Membership row's grain.
+    ackMode: acknowledgementMode('ack_mode').notNull().default('controller'),
+    // the nominated document controller in controller mode (null = none yet;
+    // the org admin is then the fallback acknowledger, never a lock-out)
+    ackControllerParticipantId: uuid('ack_controller_participant_id').references(
+      (): AnyPgColumn => participants.id,
+    ),
     addedByParticipantId: uuid('added_by_participant_id').references(() => participants.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

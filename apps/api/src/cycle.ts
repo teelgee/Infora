@@ -218,11 +218,14 @@ export async function readCycle(
             };
           });
     const transmittals: TransmittalRecord[] = transmittalRows
+      // review transmittals only — a non_review transmittal (ADR-0035 §1) has a
+      // null round_id and never belongs to a cycle, so this filter excludes it
+      // and round_id/direction are non-null on what remains
       .filter((r) => r.transmittal.roundId === round.id)
       .map(({ transmittal, senderName }) => ({
         id: transmittal.id,
-        roundId: transmittal.roundId,
-        direction: transmittal.direction,
+        roundId: transmittal.roundId!,
+        direction: transmittal.direction!,
         sender: { participantId: transmittal.senderParticipantId, name: senderName },
         recipients: transmittal.recipients,
         purposeCode: transmittal.purposeCode,

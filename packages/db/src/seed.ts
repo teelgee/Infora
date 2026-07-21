@@ -256,13 +256,18 @@ for (const doc of library) {
       state: doc.state ?? 'live',
     })
     .returning();
+  let liveVersionId: string | undefined;
   for (const v of doc.versions) {
-    await db.insert(s.versions).values({
-      containerId: container!.id,
-      versionReference: v.ref,
-      content: v.content,
-      isCurrent: v.current,
-    });
+    const [version] = await db
+      .insert(s.versions)
+      .values({
+        containerId: container!.id,
+        versionReference: v.ref,
+        content: v.content,
+        isCurrent: v.current,
+      })
+      .returning();
+    if (v.current) liveVersionId = version!.id;
   }
   // the owner shares the reference library with the consultant organisation
   // (ADR-0016 as data, T-119) — visibility is producer | owner | live share,
@@ -272,6 +277,18 @@ for (const doc of library) {
     organisationId: calderHale!.id,
     grantedByParticipantId: ownerParticipant!.id,
   });
+  // ADR-0035 §4: a shared deliverable now also needs the receiving org's
+  // acknowledgement of the transmittal before it is visible or grounds. Eleanor
+  // Price (Calder & Hale's org admin) accepts receipt on the org's behalf for
+  // the live version, so the demo grounds exactly as before the gate landed.
+  if (liveVersionId) {
+    await db.insert(s.deliverableAcknowledgements).values({
+      containerId: container!.id,
+      versionId: liveVersionId,
+      organisationId: calderHale!.id,
+      acknowledgedByParticipantId: consultant!.id,
+    });
+  }
 }
 
 const counts = await db.execute(sql`

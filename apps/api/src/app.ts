@@ -19,6 +19,7 @@ import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
 import { suggestionRoutes } from './suggestions';
+import { transmittalRoutes } from './transmittal';
 import { uploadRoutes } from './upload';
 
 export type { AppDeps } from './requester';
@@ -81,6 +82,10 @@ export function buildApp(deps: AppDeps) {
 
   // Library (M2 read path) — T-086
   app.route('/', libraryRoutes(deps));
+
+  // Non-review transmittal, the acknowledgement gate, intra-org narrowing +
+  // the standing routing rule (ADR-0035) — T-137
+  app.route('/', transmittalRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

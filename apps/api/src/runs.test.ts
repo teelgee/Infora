@@ -113,8 +113,9 @@ beforeAll(async () => {
     .insert(s.containers)
     .values({ projectId, producingOrganisationId: orgOwner!.id, documentReference, inLibrary: true })
     .returning();
-  // visibility is producer | owner | live share (T-119): the consultant's
-  // organisation grounds on this document through the owner's share
+  // visibility is producer | owner | acknowledged share (T-119, ADR-0035): the
+  // consultant's organisation grounds on this document through the owner's
+  // share, once it has acknowledged the transmittal for the current version
   await db.insert(s.deliverableShares).values({
     containerId: container!.id,
     organisationId: orgMember!.id,
@@ -133,6 +134,15 @@ beforeAll(async () => {
     embedding: fakeVector(content),
     embeddingModelId: FAKE_EMBED_MODEL,
     embeddingModelVersion: 'fake-1',
+  });
+  // ADR-0035 §4: without the receiving organisation's acknowledgement the
+  // shared deliverable neither grounds nor is visible — the consultant accepts
+  // receipt on the org's behalf for the current version
+  await db.insert(s.deliverableAcknowledgements).values({
+    containerId: container!.id,
+    versionId,
+    organisationId: orgMember!.id,
+    acknowledgedByParticipantId: eleanor.participantId!,
   });
 
   [owner, consultant] = await Promise.all([
