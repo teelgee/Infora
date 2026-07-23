@@ -1,0 +1,2 @@
+ALTER TABLE "conversations" ADD COLUMN "sandbox_document_id" uuid;--> statement-breakpoint
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_sandbox_document_id_sandbox_documents_id_fk" FOREIGN KEY ("sandbox_document_id") REFERENCES "public"."sandbox_documents"("id") ON DELETE no action ON UPDATE no action;

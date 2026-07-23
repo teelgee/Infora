@@ -13,7 +13,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { participants, projects } from './drawer1-parties.js';
-import { containers } from './drawer2-documents.js';
+import { containers, sandboxDocuments } from './drawer2-documents.js';
 
 export const surface = pgEnum('surface', ['web', 'word_addin', 'copilot']);
 export const runState = pgEnum('run_state', ['running', 'completed', 'failed']);
@@ -43,6 +43,12 @@ export const conversations = pgTable('conversations', {
     .notNull()
     .references(() => projects.id),
   workItemId: uuid('work_item_id').references(() => workItems.id),
+  // a document-bound conversation is the multiplayer thread (ADR-0039, T-150):
+  // its prompts and responses are visible to the document's sandbox participant
+  // scope, not just the creator's organisation. Null = an ad-hoc conversation,
+  // org-private (T-104). Run internals stay producing-org-private either way;
+  // informing resolves per-invoker (requesterParticipantId on each run).
+  sandboxDocumentId: uuid('sandbox_document_id').references(() => sandboxDocuments.id),
   surface: surface('surface').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

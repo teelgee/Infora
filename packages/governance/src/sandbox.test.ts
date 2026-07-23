@@ -2,7 +2,7 @@
 // a cross-org shared sandbox: Org B and Org C both admitted, plus a stranger
 // org, plus a named-participant grant for the team/named-user rungs.
 import { describe, expect, it } from 'vitest';
-import { canAccessSandbox } from './sandbox';
+import { canAccessSandbox, canSeeConversation } from './sandbox';
 import type { SandboxScopeGrant } from './sandbox';
 import type { EntitledSlice } from './access';
 
@@ -81,5 +81,19 @@ describe('canAccessSandbox (ADR-0036)', () => {
 
   it('an empty grant set admits no one', () => {
     expect(canAccessSandbox(sliceB, [])).toBe(false);
+  });
+});
+
+describe('canSeeConversation — the multiplayer thread (T-150, ADR-0039)', () => {
+  it('a document-bound thread is visible to everyone in the document sandbox scope', () => {
+    const grants = [orgGrant(orgB), orgGrant(orgC)];
+    expect(canSeeConversation(sliceB, { kind: 'multiplayer', sandboxGrants: grants })).toBe(true);
+    expect(canSeeConversation(sliceC, { kind: 'multiplayer', sandboxGrants: grants })).toBe(true);
+    expect(canSeeConversation(sliceStranger, { kind: 'multiplayer', sandboxGrants: grants })).toBe(false);
+  });
+
+  it('an ad-hoc thread stays org-private (T-104) — not the sandbox scope', () => {
+    expect(canSeeConversation(sliceB, { kind: 'ad_hoc', organisationId: orgB })).toBe(true);
+    expect(canSeeConversation(sliceC, { kind: 'ad_hoc', organisationId: orgB })).toBe(false);
   });
 });

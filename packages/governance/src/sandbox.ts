@@ -54,3 +54,20 @@ export function canAccessSandbox(
   }
   return false;
 }
+
+// The multiplayer thread's visibility (ADR-0039, T-150). A document-bound
+// conversation is a shared thread visible to the document's sandbox participant
+// scope; an ad-hoc conversation is org-private (T-104). Run internals stay
+// producing-organisation-private in both cases, and the informing channel is
+// resolved per-invoker (the run's requester), never pooled by the thread — a
+// shared thread shares outputs, never one organisation's private steer.
+export type ConversationVisibility =
+  | { kind: 'multiplayer'; sandboxGrants: readonly SandboxScopeGrant[] }
+  | { kind: 'ad_hoc'; organisationId: string };
+
+export function canSeeConversation(slice: EntitledSlice, visibility: ConversationVisibility): boolean {
+  if (visibility.kind === 'multiplayer') {
+    return canAccessSandbox(slice, visibility.sandboxGrants);
+  }
+  return slice.organisationId === visibility.organisationId;
+}
