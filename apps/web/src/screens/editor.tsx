@@ -46,6 +46,7 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
+import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
 
@@ -205,6 +206,7 @@ export function EditorScreen() {
   const [previewing, setPreviewing] = useState(false); // canvas: write / preview (T-096)
   const canvasRef = useRef<HTMLTextAreaElement | null>(null);
   const conversationRef = useRef<string | null>(null);
+  const [convId, setConvId] = useState<string | null>(null); // the shared multiplayer thread (T-160)
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const nextId = useRef(0);
@@ -276,9 +278,14 @@ export function EditorScreen() {
     setPending(true);
     abortRef.current = new AbortController();
     try {
-      conversationRef.current ??= (
-        await api.createConversation(participant.projectId)
-      ).conversationId;
+      // the editor conversation is a document-bound multiplayer thread (T-160):
+      // its prompts and responses are visible to the document's sandbox scope
+      if (conversationRef.current === null) {
+        conversationRef.current = (
+          await api.createConversation(participant.projectId, undefined, documentId)
+        ).conversationId;
+        setConvId(conversationRef.current);
+      }
       const run = await api.createRun(conversationRef.current, request, documentId, abortRef.current.signal);
       setChatLog((log) => [
         ...log,
@@ -822,6 +829,7 @@ export function EditorScreen() {
                   </div>
                 </div>
               )}
+              <WorkingSet conversationId={convId} />
               <div style={{ marginTop: 8 }}>
                 <ChatComposer
                   ref={composerRef}
