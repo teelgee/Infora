@@ -1,6 +1,7 @@
 // Drawer 3 — work & execution, the heart of the skeleton (ADR-0028).
 // Runs and Steps are append-only, immutable once finished (trigger, T-008).
 import {
+  index,
   integer,
   jsonb,
   numeric,
@@ -45,6 +46,32 @@ export const conversations = pgTable('conversations', {
   surface: surface('surface').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Attached sources (ADR-0022 refined, T-149): one or several documents/data a
+// user pins as direct input to an agent session — a sandbox file, an uploaded
+// PDF, or a web search. Scoped to the Conversation and persisting across its
+// turns as a working set (an interval: pin adds, unpin closes removed_at), never
+// joining a corpus, never grounding, never emitting a citation. `ref` is a free
+// reference by kind: a sandbox_document id, an uploaded file ref, or a URL/query.
+export const attachedSourceKind = pgEnum('attached_source_kind', ['sandbox', 'upload', 'web']);
+export const attachedSources = pgTable(
+  'attached_sources',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    kind: attachedSourceKind('kind').notNull(),
+    ref: text('ref').notNull(),
+    label: text('label'),
+    pinnedByParticipantId: uuid('pinned_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    pinnedAt: timestamp('pinned_at', { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (t) => [index('attached_sources_conversation_idx').on(t.conversationId)],
+);
 
 export const runs = pgTable('runs', {
   id: uuid('id').primaryKey().defaultRandom(),
