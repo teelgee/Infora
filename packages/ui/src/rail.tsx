@@ -1,15 +1,18 @@
-// T-049 — the left rail per the mockups: wordmark, workspace zone, project
-// switcher, the seven-item nav, and the user chip pinned to the foot.
-// T-099: the switcher is a real menu (workspace ⇄ member projects) and nav
-// items can drill down a layer — the Harvey pattern the owner named.
-import { useEffect, useRef, useState } from 'react';
-import type { MouseEvent, ReactNode } from 'react';
+// The left rail: wordmark, workspace zone, project switcher, the nav, and
+// the user chip pinned to the foot. T-099: the switcher is a real menu
+// (workspace ⇄ member projects) and nav items can drill down a layer — the
+// Harvey pattern the owner named. Resize + collapse (design-rules.md §B
+// NavRail) are new behavior, owned here rather than by call sites, so every
+// screen gets them for free.
+import { useEffect, useState } from 'react';
+import type { MouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 
 export type RailNavChild = { label: string; active?: boolean; onClick: () => void };
 
 export type RailNavItem = {
   label: string;
-  glyph: string;
+  glyph: ReactNode; // a Lucide icon element (design-rules.md §F.7 — always Lucide, 2px stroke, currentColor)
   href: string;
   active?: boolean;
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void; // routers preventDefault here
@@ -19,20 +22,73 @@ export type RailNavItem = {
   children?: RailNavChild[];
 };
 
+const WIDTH_KEY = 'infora.rail.width';
+const COLLAPSED_KEY = 'infora.rail.collapsed';
+const WIDTH_MIN = 160;
+const WIDTH_MAX = 420;
+const WIDTH_DEFAULT = 216;
+
+function readStoredWidth(): number {
+  if (typeof localStorage === 'undefined') return WIDTH_DEFAULT;
+  const saved = Number(localStorage.getItem(WIDTH_KEY));
+  return saved >= WIDTH_MIN && saved <= WIDTH_MAX ? saved : WIDTH_DEFAULT;
+}
+
+function readStoredCollapsed(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(COLLAPSED_KEY) === '1';
+}
+
 export function Rail(props: { children: ReactNode }) {
+  const [width, setWidth] = useState(readStoredWidth);
+  const [collapsed, setCollapsed] = useState(readStoredCollapsed);
+
+  useEffect(() => {
+    localStorage.setItem(WIDTH_KEY, String(width));
+  }, [width]);
+  useEffect(() => {
+    localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+  }, [collapsed]);
+
+  const onGripPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = width;
+    const onMove = (moveEvent: PointerEvent) => {
+      setWidth(Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, startWidth + (moveEvent.clientX - startX))));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   return (
-    <aside className="rail">
-      <div className="wordmark">
+    <aside className={collapsed ? 'rail collapsed' : 'rail'} style={collapsed ? undefined : { width }}>
+      <button
+        type="button"
+        className="rail-collapse-toggle"
+        onClick={() => setCollapsed((c) => !c)}
+        title={collapsed ? 'Expand' : 'Collapse'}
+      >
+        {collapsed ? '»' : '«'}
+      </button>
+      <div className="wordmark" title="Infora">
         In<span>fora</span>
       </div>
       {props.children}
+      {!collapsed && (
+        <div className="rail-resize-grip" onPointerDown={onGripPointerDown} title="Drag to resize" />
+      )}
     </aside>
   );
 }
 
 export function WorkspaceZone(props: { organisation: string; action?: ReactNode }) {
   return (
-    <div className="ws-zone">
+    <div className="ws-zone" title={props.organisation}>
       <b>{props.organisation}</b> {props.action}
     </div>
   );
@@ -46,46 +102,30 @@ export function ProjectSwitcher(props: {
   onClick?: () => void; // simple-click fallback when no items are given
   items?: SwitcherItem[]; // the menu: this workspace + the member projects (T-099)
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: globalThis.MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', close);
-    return () => window.removeEventListener('mousedown', close);
-  }, [open]);
-
-  return (
-    <div ref={rootRef} style={{ position: 'relative' }}>
-      <div
-        className="project-switcher"
-        onClick={props.items !== undefined ? () => setOpen((o) => !o) : props.onClick}
-      >
-        <div className="kicker">{props.kicker ?? 'Project'}</div>
-        <div className="name">{props.name}</div>
-        <div className="chev">▾</div>
-      </div>
-      {open && props.items !== undefined && (
-        <div className="switcher-menu">
-          {props.items.map((item) => (
-            <a
-              key={`${item.kicker}:${item.label}`}
-              className={item.current ? 'current' : undefined}
-              onClick={() => {
-                setOpen(false);
-                if (!item.current) item.onSelect();
-              }}
-            >
-              <span className="kicker">{item.kicker}</span>
-              {item.label}
-            </a>
-          ))}
-        </div>
-      )}
+  const trigger = (onClick: (() => void) | undefined) => (
+    <div className="project-switcher" onClick={onClick} title={props.name}>
+      <div className="kicker">{props.kicker ?? 'Project'}</div>
+      <div className="name">{props.name}</div>
+      <div className="chev">▾</div>
     </div>
+  );
+
+  if (props.items === undefined) return trigger(props.onClick);
+
+  const items = props.items;
+  return (
+    <DropdownMenu trigger={(toggle) => trigger(toggle)}>
+      {items.map((item) => (
+        <DropdownMenuItem
+          key={`${item.kicker}:${item.label}`}
+          active={item.current}
+          onClick={() => !item.current && item.onSelect()}
+        >
+          <span className="kicker">{item.kicker}</span>
+          {item.label}
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenu>
   );
 }
 
@@ -94,8 +134,8 @@ export function RailNav(props: { items: RailNavItem[] }) {
     <nav>
       {props.items.map((item) => (
         <div key={item.label}>
-          <a href={item.href} className={item.active ? 'active' : undefined} onClick={item.onClick}>
-            <span className="glyph">{item.glyph}</span> {item.label}
+          <a href={item.href} className={item.active ? 'active' : undefined} onClick={item.onClick} title={item.label}>
+            <span className="glyph">{item.glyph}</span> <span className="label">{item.label}</span>
             {item.onToggle !== undefined && (
               <span
                 className="drill"
@@ -144,7 +184,7 @@ export function UserChip(props: {
       className="user-chip"
       onClick={props.onClick}
       style={props.onClick !== undefined ? { cursor: 'pointer' } : undefined}
-      title={props.onClick !== undefined ? 'Personal settings' : undefined}
+      title={props.onClick !== undefined ? `${props.name} — personal settings` : props.name}
     >
       <div className="avatar">{props.initials}</div>
       <div className="who">

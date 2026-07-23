@@ -1,6 +1,7 @@
 // @infora/model — model-agnostic router + provider adapters
 export * from './types.js';
-export { Router } from './router.js';
+export * from './tiers.js';
+export { Router, securityForTier, type DeploymentSecurity } from './router.js';
 export { AnthropicChatAdapter, DEFAULT_CHAT_MODEL } from './anthropic-chat.js';
 export {
   VoyageEmbeddingAdapter,

@@ -1,4 +1,5 @@
-// The Editor surface (T-082) per docs/design/mockups/editor.html: the
+// The Editor surface (T-082) per docs/design/mockups-legacy/editor.html
+// (historical build reference — superseded by design-tokens.json/design-rules.md): the
 // document canvas with manual editing via PATCH (no Suggestion, no Signal,
 // no ceremony), pending Suggestions rendered as proposed blocks with their
 // citations, and the right panel's Chat and Suggestions tabs — Chat reuses
@@ -19,14 +20,26 @@ import type {
   Suggestion,
 } from '@infora/contracts';
 import {
+  Archive,
+  Check,
+  FileText,
+  LayoutTemplate,
+  MessageSquare,
+  PenLine,
+  Presentation,
+  RefreshCw,
+  Snowflake,
+  ArrowUpFromLine,
+} from 'lucide-react';
+import {
   Badge,
   Button,
-  Card,
   ChatComposer,
   CitedProse,
   Markdown,
   NumBadge,
   SectionLabel,
+  Table,
   WithheldNotice,
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
@@ -78,7 +91,7 @@ function EditorEntry() {
       <SectionLabel>Create from new</SectionLabel>
       <div className="create-grid">
         <button className="create-card" onClick={() => setNaming((open_) => !open_)}>
-          <div className="glyph">📄</div>
+          <div className="glyph"><FileText size={20} strokeWidth={2} /></div>
           <div className="name">Word document</div>
           <div className="note">A prose deliverable — drafts here, renders to Word at promotion</div>
         </button>
@@ -86,7 +99,7 @@ function EditorEntry() {
           className="create-card disabled"
           title="Arrives with the organisation-knowledge store — your firm's house style and templates"
         >
-          <div className="glyph">▤</div>
+          <div className="glyph"><LayoutTemplate size={20} strokeWidth={2} /></div>
           <div className="name">From a template</div>
           <div className="note">Your organisation&apos;s templates — arrives with Your knowledge</div>
         </button>
@@ -94,14 +107,14 @@ function EditorEntry() {
           className="create-card disabled"
           title="A slide-shaped document type — arrives with the canonical-format decision (grill tracker)"
         >
-          <div className="glyph">▦</div>
+          <div className="glyph"><Presentation size={20} strokeWidth={2} /></div>
           <div className="name">PowerPoint</div>
           <div className="note">Slide deck — arrives with the presentation document type</div>
         </button>
       </div>
       {naming && (
         <form onSubmit={(e) => void create(e)} className="command" style={{ marginTop: 10 }}>
-          <span className="glyph">📄</span>
+          <span className="glyph"><FileText size={15} strokeWidth={2} /></span>
           <input
             autoFocus
             value={title}
@@ -110,7 +123,7 @@ function EditorEntry() {
               if (e.key === 'Escape') setNaming(false);
             }}
             placeholder="Name the document"
-            style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', color: 'var(--ink)', background: 'transparent' }}
+            style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', color: 'var(--text-primary)', background: 'transparent' }}
           />
           <Button size="sm" variant="primary" type="submit" disabled={title.trim() === ''}>
             Create ↵
@@ -119,22 +132,22 @@ function EditorEntry() {
       )}
 
       <SectionLabel>Sandboxes</SectionLabel>
-      <Card className="tree">
+      <Table>
         <table>
           <tbody>
             <tr>
               <td colSpan={3} style={{ fontWeight: 600 }}>
-                <span className="ficon">▧</span>
+                <span className="ficon"><Archive size={14} strokeWidth={2} /></span>
                 {me.organisationName} — private project sandbox
               </td>
             </tr>
             {(docs ?? []).map((doc) => (
               <tr key={doc.id} onClick={() => open(doc.id)} style={{ cursor: 'pointer' }}>
                 <td className="indent">
-                  <span className="ficon">📄</span>
+                  <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
                   {doc.title}
                 </td>
-                <td style={{ color: 'var(--muted)', fontSize: 12 }}>
+                <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                   {new Date(doc.updatedAt).toLocaleString()}
                 </td>
                 <td style={{ textAlign: 'right' }}>
@@ -146,19 +159,19 @@ function EditorEntry() {
             ))}
             {docs !== null && docs.length === 0 && (
               <tr>
-                <td colSpan={3} className="indent" style={{ color: 'var(--muted)' }}>
+                <td colSpan={3} className="indent" style={{ color: 'var(--text-muted)' }}>
                   Nothing here yet — create a document to start drafting.
                 </td>
               </tr>
             )}
             <tr>
-              <td colSpan={3} style={{ color: 'var(--muted)', fontSize: 12, fontStyle: 'italic' }}>
+              <td colSpan={3} style={{ color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                 Shared and personal sandboxes — and folders — arrive with the sandbox drawer.
               </td>
             </tr>
           </tbody>
         </table>
-      </Card>
+      </Table>
     </div>
   );
 }
@@ -453,13 +466,14 @@ export function EditorScreen() {
             title="Open the sandbox"
             onClick={() => void navigate(`/projects/${participant.projectId}/sandbox`)}
           >
-            ▧ {me.organisationName} — project sandbox
+            <Archive size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+            {me.organisationName} — project sandbox
           </a>{' '}
           / <b>{doc.title}</b>
         </span>
         <div className="right">
           {doc.headLocked && (
-            <Badge tone="amber">Checked out — an internal round is open on the frozen head</Badge>
+            <Badge tone="warning">Checked out — an internal round is open on the frozen head</Badge>
           )}
           {!doc.headLocked && doc.origin === 'authored' && (
             <span title="Freeze the head into the document's org-private P-series (ADR-0032)">
@@ -476,7 +490,8 @@ export function EditorScreen() {
                   .catch(() => window.alert('Freeze refused — a round may already be open.'))
               }
             >
-              ❄ Freeze
+              <Snowflake size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Freeze
             </Button>
             </span>
           )}
@@ -500,7 +515,8 @@ export function EditorScreen() {
                   })
               }
             >
-              ⇧ Promote
+              <ArrowUpFromLine size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Promote
             </Button>
             </span>
           )}
@@ -509,7 +525,7 @@ export function EditorScreen() {
               Save
             </Button>
           ) : (
-            !doc.headLocked && <Badge tone="grey">No document controls</Badge>
+            !doc.headLocked && <Badge tone="neutral">No document controls</Badge>
           )}
         </div>
       </div>
@@ -557,7 +573,8 @@ export function EditorScreen() {
               title="Comment on the selection — or the document, when nothing is selected"
               onClick={() => startComment()}
             >
-              💬 Comment
+              <MessageSquare size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Comment
             </button>
             <span style={{ marginLeft: 'auto' }} />
             <button
@@ -580,7 +597,7 @@ export function EditorScreen() {
             {previewing ? (
               <div style={{ minHeight: 260 }}>
                 {content.trim() === '' ? (
-                  <p style={{ color: 'var(--muted)' }}>Nothing to preview yet.</p>
+                  <p style={{ color: 'var(--text-muted)' }}>Nothing to preview yet.</p>
                 ) : (
                   <Markdown>{content}</Markdown>
                 )}
@@ -655,7 +672,8 @@ export function EditorScreen() {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => startComment(selection)}
                       >
-                        💬 Comment
+                        <MessageSquare size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                        Comment
                       </button>
                     </span>
                   </div>
@@ -683,10 +701,12 @@ export function EditorScreen() {
                   )}
                 <div className="proposed-actions">
                   <Button size="sm" variant="primary" onClick={() => void resolve(suggestion, 'accepted')}>
-                    ✓ Accept
+                    <Check size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                    Accept
                   </Button>
                   <Button size="sm" onClick={() => void resolve(suggestion, 'edited')}>
-                    ✎ Edit
+                    <PenLine size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                    Edit
                   </Button>
                   <Button
                     size="sm"
@@ -696,7 +716,8 @@ export function EditorScreen() {
                     }}
                     disabled={pending}
                   >
-                    ↻ Refine
+                    <RefreshCw size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                    Refine
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => void resolve(suggestion, 'rejected')}>
                     Reject
@@ -717,7 +738,7 @@ export function EditorScreen() {
                         if (e.key === 'Escape') setRefining(null);
                       }}
                       placeholder="How should this proposal change?"
-                      style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', fontSize: 12.5, background: 'transparent', color: 'var(--ink)' }}
+                      style={{ flex: 1, border: 'none', outline: 'none', font: 'inherit', fontSize: 12.5, background: 'transparent', color: 'var(--text-primary)' }}
                     />
                     <Button size="sm" variant="primary" type="submit" disabled={pending}>
                       Refine ↵
@@ -761,7 +782,7 @@ export function EditorScreen() {
               {openThreads > 0 && ` (${openThreads})`}
             </a>
             {pendingSuggestions.length > 0 && (
-              <a style={{ marginLeft: 'auto', color: 'var(--muted)' }}>
+              <a style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
                 {pendingSuggestions.length} pending in the document
               </a>
             )}
@@ -796,7 +817,7 @@ export function EditorScreen() {
               {pending && (
                 <div className="msg agent" style={{ maxWidth: '100%' }}>
                   <div className="who">Infora agent</div>
-                  <div className="bubble" style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                  <div className="bubble" style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                     Working…
                   </div>
                 </div>
@@ -843,7 +864,7 @@ function ReferencePane(props: { versionId: string; versionReference: string }) {
   return (
     <div className="review-ref">
       <div className="ref-head">Version under review · {props.versionReference} · read-only</div>
-      {failed && <p style={{ color: 'var(--muted)' }}>The reviewed version could not be read.</p>}
+      {failed && <p style={{ color: 'var(--text-muted)' }}>The reviewed version could not be read.</p>}
       {content !== null && <Markdown>{content}</Markdown>}
     </div>
   );
@@ -860,7 +881,7 @@ function ReviewResponsePanel(props: { round: Round; onResponded: () => void }) {
     <div style={{ display: 'grid', gap: 12 }}>
       <div>
         <b>Round {round.number} — respond to the review</b>
-        <p style={{ color: 'var(--muted)', fontSize: 12, marginTop: 4 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
           {unanswered > 0
             ? `${unanswered} comment${unanswered === 1 ? '' : 's'} still to answer. Address each, edit the draft, then ⇧ Promote to send v${round.number + 1} back.`
             : `Every comment is answered — edit the draft as needed, then ⇧ Promote to send v${round.number + 1} back.`}
@@ -897,13 +918,13 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
     <div className="review-thread">
       <div style={{ fontSize: 12.5 }}>
         <b>{comment.author.name}</b>{' '}
-        {comment.acceptanceCode && <Badge tone="slate">{comment.acceptanceCode.code}</Badge>}{' '}
-        <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+        {comment.acceptanceCode && <Badge tone="info">{comment.acceptanceCode.code}</Badge>}{' '}
+        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
           {new Date(comment.createdAt).toLocaleDateString()}
         </span>
       </div>
       {comment.anchor?.quote && (
-        <div style={{ color: 'var(--muted)', fontSize: 11.5, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 11.5, fontStyle: 'italic' }}>
           “{comment.anchor.quote}”{comment.anchor.page !== undefined && ` — p.${comment.anchor.page}`}
         </div>
       )}
@@ -912,7 +933,7 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
         <div className="review-response">
           <b>Your response</b> · {comment.response.body}
           {comment.response.noChangeReason && (
-            <span style={{ color: 'var(--muted)' }}> — {comment.response.noChangeReason}</span>
+            <span style={{ color: 'var(--text-muted)' }}> — {comment.response.noChangeReason}</span>
           )}
         </div>
       ) : responding ? (
@@ -930,7 +951,7 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
             placeholder="e.g. expanded in v2 §3"
             style={refField}
           />
-          {error && <Badge tone="red">{error}</Badge>}
+          {error && <Badge tone="danger">{error}</Badge>}
           <div style={{ display: 'flex', gap: 6 }}>
             <Button
               size="sm"
@@ -959,9 +980,9 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
 const refField = {
   font: 'inherit',
   fontSize: 12.5,
-  border: '1px solid var(--hairline)',
-  borderRadius: 6,
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--control-sm)',
   padding: '6px 8px',
-  background: 'var(--panel)',
-  color: 'var(--ink)',
+  background: 'var(--surface-pane)',
+  color: 'var(--text-primary)',
 } as const;

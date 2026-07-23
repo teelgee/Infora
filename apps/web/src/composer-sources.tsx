@@ -9,26 +9,43 @@
 // the Router seam, ADR-0028 §9).
 import { useEffect, useState } from 'react';
 import type { LibraryItem } from '@infora/contracts';
+import { Chip, DropdownMenu, DropdownMenuItem } from '@infora/ui';
 import { api } from './api';
 
 export function ComposerSources(props: { projectId: string; onInsert: (snippet: string) => void }) {
-  const [picking, setPicking] = useState(false);
+  const [wantsItems, setWantsItems] = useState(false);
   const [items, setItems] = useState<LibraryItem[] | null>(null);
 
   useEffect(() => {
-    if (!picking || items !== null) return;
+    if (!wantsItems || items !== null) return;
     void api.library(props.projectId).then((res) => setItems(res.items));
-  }, [picking, items, props.projectId]);
+  }, [wantsItems, items, props.projectId]);
 
   return (
     <>
-      <button
-        className="src-chip"
-        title="Name a library document — retrieval honours its reference"
-        onClick={() => setPicking((open) => !open)}
+      <DropdownMenu
+        placement="top"
+        trigger={(toggle) => (
+          <Chip
+            onClick={() => {
+              setWantsItems(true);
+              toggle();
+            }}
+            title="Name a library document — retrieval honours its reference"
+          >
+            ▤ From the library
+          </Chip>
+        )}
       >
-        ▤ From the library
-      </button>
+        {(items ?? []).map((item) => (
+          <DropdownMenuItem key={item.containerId} onClick={() => props.onInsert(`per ${item.documentReference}`)}>
+            <span className="mono">{item.documentReference}</span>
+          </DropdownMenuItem>
+        ))}
+        {items !== null && items.length === 0 && (
+          <DropdownMenuItem>No live documents in this project&apos;s library.</DropdownMenuItem>
+        )}
+      </DropdownMenu>
       <Placeholder glyph="＋" label="Attach a file" waitsOn="attached sources arrive post-skeleton" />
       <Placeholder glyph="≡" label="Prompts" waitsOn="standard prompts — to be developed" />
       <Placeholder
@@ -47,33 +64,14 @@ export function ComposerSources(props: { projectId: string; onInsert: (snippet: 
         label="Model"
         waitsOn="model choice — multi-model routing behind the Router seam (ADR-0028 §9)"
       />
-
-      {picking && (
-        <div className="src-picker">
-          {(items ?? []).map((item) => (
-            <a
-              key={item.containerId}
-              onClick={() => {
-                props.onInsert(`per ${item.documentReference}`);
-                setPicking(false);
-              }}
-            >
-              <span className="mono">{item.documentReference}</span>
-            </a>
-          ))}
-          {items !== null && items.length === 0 && (
-            <a className="empty">No live documents in this project&apos;s library.</a>
-          )}
-        </div>
-      )}
     </>
   );
 }
 
 function Placeholder(props: { glyph: string; label: string; waitsOn: string }) {
   return (
-    <button className="src-chip disabled" title={props.waitsOn} type="button">
+    <Chip disabled title={props.waitsOn}>
       {props.glyph} {props.label}
-    </button>
+    </Chip>
   );
 }

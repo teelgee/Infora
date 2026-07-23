@@ -23,7 +23,8 @@ pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 Seeded dev logins (password `wrenfield-dev`): `rachel.bowen@trentmoor.example`
 (owner), `eleanor.price@calderhale.example` (consultant),
 `marcus.webb@calderhale.example` (no-Participant wall subject) and
-`priya.nair@halvern.example` (third-org wall subject).
+`priya.nair@halvern.example` (third-org wall subject). Full table:
+[docs/reference/dev-logins.md](docs/reference/dev-logins.md).
 
 `pnpm run check` mirrors CI exactly. The dependency rules between workspace
 packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on

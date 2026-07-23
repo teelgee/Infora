@@ -1,4 +1,5 @@
-// The project shell (T-050) per docs/design/mockups/project-home.html: the
+// The project shell (T-050) per docs/design/mockups-legacy/project-home.html
+// (historical build reference — superseded by design-tokens.json/design-rules.md): the
 // rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools ·
 // History — component 8's set plus the T-108 History log; Workflows renamed
 // Tools, owner-ruled 2026-07-13/T-109: a tool is the packaged capability you
@@ -9,15 +10,16 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
+import { Archive, BookOpen, ClipboardCheck, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,
-  Card,
   CommandBar,
   ProjectSwitcher,
   Rail,
   RailNav,
   RailSpacer,
   SectionLabel,
+  Table,
   UserChip,
   WorkspaceZone,
 } from '@infora/ui';
@@ -30,15 +32,18 @@ import { greeting, initialsOf, statusBadge } from './shared';
 type Participation = MeResponse['participants'][number];
 type ShellContext = { participant: Participation };
 
+const ICON_SIZE = 15;
+const ICON_STROKE = 2;
+
 const NAV = [
-  { label: 'Home', glyph: '⌂', path: '' },
-  { label: 'Ask', glyph: '✦', path: 'ask' },
-  { label: 'Editor', glyph: '✎', path: 'editor' },
-  { label: 'Documents', glyph: '▤', path: 'documents' },
-  { label: 'Review', glyph: '✓', path: 'review' },
-  { label: 'Sandbox', glyph: '▧', path: 'sandbox' },
-  { label: 'Tools', glyph: '⚒', path: 'tools' }, // Workflows renamed (T-109)
-  { label: 'History', glyph: '↺', path: 'history' }, // your prompted turns (T-108)
+  { label: 'Home', glyph: <Home size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: '' },
+  { label: 'Ask', glyph: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'ask' },
+  { label: 'Editor', glyph: <PenLine size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'editor' },
+  { label: 'Documents', glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'documents' },
+  { label: 'Review', glyph: <ClipboardCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'review' },
+  { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },
+  { label: 'Tools', glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'tools' }, // Workflows renamed (T-109)
+  { label: 'History', glyph: <HistoryIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'history' }, // your prompted turns (T-108)
 ];
 
 export function ProjectShell() {
@@ -168,10 +173,11 @@ export function ProjectShell() {
       <div className="main">
         <div className="topbar">
           <span className="crumb">
-            <b>{participant.projectName}</b> · Owner: {participant.ownerOrganisationName}
+            <b className="project-chip">{participant.projectName}</b> · Owner:{' '}
+            {participant.ownerOrganisationName}
           </span>
           <div className="right">
-            <Badge tone={role === 'Owner' ? 'slate' : 'green'}>{role}</Badge>
+            <Badge tone={role === 'Owner' ? 'info' : 'success'}>{role}</Badge>
           </div>
         </div>
         <Outlet context={{ participant } satisfies ShellContext} />
@@ -211,7 +217,7 @@ export function ProjectHome() {
       </div>
 
       <SectionLabel>Your work items</SectionLabel>
-      <Card>
+      <Table>
         <table>
           <thead>
             <tr>
@@ -245,14 +251,14 @@ export function ProjectHome() {
             })}
             {items !== null && items.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ color: 'var(--muted)' }}>
+                <td colSpan={4} style={{ color: 'var(--text-muted)' }}>
                   No work items yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </Card>
+      </Table>
     </div>
   );
 }

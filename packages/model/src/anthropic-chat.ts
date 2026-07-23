@@ -1,8 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatAdapter, ChatRequest, ChatResult } from './types.js';
+import type { RouteAttributes } from './tiers.js';
 
 export const DEFAULT_CHAT_MODEL = 'claude-opus-4-8';
 const DEFAULT_MAX_TOKENS = 16000;
+// The public API is US-region and not, in itself, a UK-region ZDR contract —
+// so this default endpoint's honest attributes conform to no tier and the
+// router refuses it (ADR-0037 §3). A real deployment supplies a conforming
+// endpoint and its declared attributes; the vendor is procurement's call
+// (ADR-0037 open item 3), the enforcement is not.
+const DEFAULT_ENDPOINT = 'https://api.anthropic.com';
 
 // The structural slice of the Anthropic client the adapter uses — lets tests
 // substitute a stub without mocking the whole SDK.
@@ -23,13 +30,30 @@ export interface AnthropicLike {
 }
 
 export class AnthropicChatAdapter implements ChatAdapter {
+  readonly attributes?: RouteAttributes;
+  readonly endpoint: string;
+
   constructor(
     private readonly client: AnthropicLike,
     readonly modelId: string = DEFAULT_CHAT_MODEL,
-  ) {}
+    options: { attributes?: RouteAttributes; endpoint?: string } = {},
+  ) {
+    this.attributes = options.attributes;
+    this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
+  }
 
-  static fromEnv(modelId?: string): AnthropicChatAdapter {
-    return new AnthropicChatAdapter(new Anthropic(), modelId);
+  // fromEnv attaches the deployment's declared egress attributes (ADR-0037
+  // §3); an endpoint with no attributes is treated as non-conforming, closing
+  // the fromEnv()-picks-up-any-URL gap. The vendor/URL is deployment config.
+  static fromEnv(options: {
+    modelId?: string;
+    attributes?: RouteAttributes;
+    endpoint?: string;
+  } = {}): AnthropicChatAdapter {
+    return new AnthropicChatAdapter(new Anthropic(), options.modelId, {
+      ...(options.attributes !== undefined && { attributes: options.attributes }),
+      ...(options.endpoint !== undefined && { endpoint: options.endpoint }),
+    });
   }
 
   async chat(request: ChatRequest): Promise<ChatResult> {

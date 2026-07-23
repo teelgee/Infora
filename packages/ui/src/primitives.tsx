@@ -1,9 +1,19 @@
-// T-049 — base components. Each is a thin, stateless wrapper emitting the
-// mockups' exact class vocabulary (styles.css is the visual spec); behaviour
-// arrives via props from the surface, never inside the kit.
+// Base components. Each is a thin, stateless wrapper emitting a fixed class
+// vocabulary (styles.css is the visual spec); behaviour arrives via props
+// from the surface, never inside the kit.
 import type { ReactNode } from 'react';
-import { badgeTone } from './tokens';
-import type { BadgeTone } from './tokens';
+
+// The five-variant closed set from design-tokens.json's component.badge.status
+// (design-rules.md §A/§F.6) — not a token value itself, so it lives here next
+// to the component that consumes it rather than in the generated tokens.ts.
+export const badgeTone = {
+  success: 'b-success',
+  warning: 'b-warning',
+  danger: 'b-danger',
+  info: 'b-info',
+  neutral: 'b-neutral',
+} as const;
+export type BadgeTone = keyof typeof badgeTone;
 
 export function Badge(props: { tone: BadgeTone; dot?: boolean; children: ReactNode }) {
   return (
@@ -14,8 +24,22 @@ export function Badge(props: { tone: BadgeTone; dot?: boolean; children: ReactNo
   );
 }
 
-export function Chip(props: { children: ReactNode }) {
-  return <span className="chip">{props.children}</span>;
+/** Attach-context tokens beside a composer or ask-bar (design-rules.md §B) —
+ * never for navigation or primary actions. Interactive: a `disabled` chip
+ * still shows its `title` (e.g. "waits on X") via `cursor: help`, it just
+ * can't be clicked. */
+export function Chip(props: { children: ReactNode; onClick?: () => void; title?: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={props.disabled ? 'chip disabled' : 'chip'}
+      onClick={props.onClick}
+      title={props.title}
+      disabled={props.disabled}
+    >
+      {props.children}
+    </button>
+  );
 }
 
 /** A source — the inline pill after the claim it backs (named "source" per the
@@ -55,11 +79,15 @@ export function Button(props: {
   );
 }
 
+/** Card-shaped content only (nested-card elevation) — for tabular data use
+ * `Table` instead; the two are no longer the same visual role. */
 export function Card(props: { className?: string; children: ReactNode }) {
   return <div className={props.className ? `card ${props.className}` : 'card'}>{props.children}</div>;
 }
 
-/** The ✦ command bar — presentation only; the surface owns the input. */
+/** The ✦ command bar — presentation only; the surface owns the input.
+ * Renders the askBar visual treatment (see `ChatComposer` for the real
+ * controlled-input version of the same look). */
 export function CommandBar(props: { hint?: string; onClick?: () => void; children: ReactNode }) {
   return (
     <div className="command" style={{ marginTop: 0 }} onClick={props.onClick}>

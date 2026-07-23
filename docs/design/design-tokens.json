@@ -1,0 +1,366 @@
+{
+  "$schema": "infora-design-tokens/v1",
+  "meta": {
+    "name": "Infora Design Tokens",
+    "version": "1.0.0",
+    "source": "Workspace Redesign.dc.html (turns 4,5,6,7,8,9) — the approved direction replacing the T-049 'Legora-clean' mockups",
+    "companion": "design-rules.md — read together; every token below is referenced there by name"
+  },
+
+  "primitive": {
+    "color": {
+      "neutral": {
+        "0":   "#ffffff",
+        "50":  "#faf9f7",
+        "100": "#f2f1ed",
+        "150": "#efeeeb",
+        "200": "#ececea",
+        "300": "#e0ded8",
+        "400": "#c7c5be",
+        "500": "#78766f",
+        "600": "#57564f",
+        "900": "#1c1b18"
+      },
+      "neutralDark": {
+        "0":   "#100f0c",
+        "50":  "#1c1b17",
+        "100": "#25241f",
+        "200": "#302e28",
+        "300": "#3a3830",
+        "400": "#4a473e",
+        "500": "#8a8578",
+        "600": "#b8b3a6",
+        "700": "#d8d4c9",
+        "900": "#ece9e1"
+      },
+      "green": { "500": "#2f9e52", "600": "#1a7a3a", "tint": "#e8f5ea" },
+      "greenDark": { "500": "#3f9b5f", "600": "#7dd69a", "tint": "#1e3324" },
+      "red":   { "500": "#b23b34", "tint": "#fbeceb" },
+      "redDark": { "500": "#e08b83", "tint": "#3a2320" },
+      "amber": { "500": "#c4901f", "600": "#8a5a12", "tint": "#f8efdd" },
+      "slate": { "500": "#274a6d", "tint": "#e9eff6" },
+      "focusRing": "#cfcac0",
+      "focusRingDark": "#4a473e"
+    },
+    "font": {
+      "family": {
+        "serif": "'Iowan Old Style', 'Source Serif Pro', Georgia, 'Times New Roman', serif",
+        "sans": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        "mono": "'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace"
+      },
+      "size": {
+        "50": "10.5px",
+        "100": "11.5px",
+        "200": "12.5px",
+        "300": "13px",
+        "400": "15.5px",
+        "500": "18px",
+        "600": "24px",
+        "700": "29px"
+      },
+      "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 },
+      "lineHeight": { "tight": 1.3, "snug": 1.55, "normal": 1.65, "relaxed": 1.75 }
+    },
+    "space": {
+      "0": "0px", "1": "4px", "2": "8px", "3": "12px", "4": "16px",
+      "5": "20px", "6": "24px", "8": "32px", "10": "40px", "12": "48px", "16": "64px"
+    },
+    "radius": {
+      "none": "0px", "xs": "4px", "sm": "8px", "md": "12px", "lg": "16px",
+      "full": "999px", "circle": "50%"
+    },
+    "shadow": {
+      "level1": "none",
+      "level2": "0 10px 26px rgba(20,20,20,.12)",
+      "level2Dark": "0 10px 26px rgba(0,0,0,.4)",
+      "level3": "0 10px 28px rgba(20,20,20,.09)",
+      "level3Dark": "0 10px 28px rgba(0,0,0,.3)",
+      "level4": "0 4px 8px rgba(0,0,0,.08), 0 24px 60px -12px rgba(0,0,0,.35)",
+      "focusRingShadow": "0 0 0 3px var(--focus-ring)"
+    },
+    "border": { "hairline": "1px solid", "none": "none" },
+    "zIndex": { "base": 0, "pane": 1, "popout": 10, "sticky": 5, "modal": 40, "toast": 50 },
+    "motion": {
+      "durationFast": "100ms",
+      "durationBase": "150ms",
+      "durationSlow": "300ms",
+      "easingStandard": "ease",
+      "shimmerDuration": "1.4s"
+    }
+  },
+
+  "semantic": {
+    "color": {
+      "surface.frame":      { "light": "#dedad0", "dark": "{primitive.color.neutralDark.0}", "note": "final — the app-shell/page background behind every pane" },
+      "surface.pane":       { "light": "{primitive.color.neutral.0}",  "dark": "{primitive.color.neutralDark.50}" },
+      "surface.sunken":     { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}", "note": "nested cards, chip fills, composer fill, hover fill" },
+      "surface.hover":      { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}" },
+      "surface.active":     { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
+      "surface.rowHover":   { "light": "{primitive.color.neutral.50}",  "dark": "{primitive.color.neutralDark.100}" },
+
+      "border.default":    { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
+      "border.subtle":     { "light": "{primitive.color.neutral.100}", "dark": "{primitive.color.neutralDark.200}" },
+
+      "text.primary":   { "light": "{primitive.color.neutral.900}", "dark": "{primitive.color.neutralDark.900}" },
+      "text.secondary": { "light": "{primitive.color.neutral.600}", "dark": "{primitive.color.neutralDark.700}" },
+      "text.muted":     { "light": "{primitive.color.neutral.500}", "dark": "{primitive.color.neutralDark.500}" },
+      "text.faint":     { "light": "{primitive.color.neutral.400}", "dark": "{primitive.color.neutralDark.400}" },
+      "text.onAccent":  { "light": "{primitive.color.neutral.0}",   "dark": "#17171a" },
+
+      "action.primary.bg":       { "light": "{primitive.color.neutral.900}", "dark": "{primitive.color.neutralDark.900}" },
+      "action.primary.text":     { "light": "{primitive.color.neutral.0}",   "dark": "#17171a" },
+      "action.primary.bg.active":{ "light": "#000000", "dark": "{primitive.color.neutralDark.900}" },
+      "action.secondary.bg":     { "light": "{primitive.color.neutral.0}",   "dark": "{primitive.color.neutralDark.50}" },
+      "action.secondary.border": { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.300}" },
+      "action.secondary.text":   { "light": "{primitive.color.neutral.600}", "dark": "{primitive.color.neutralDark.700}" },
+      "action.disabled.opacity": 0.35,
+
+      "focus.ring": { "light": "{primitive.color.focusRing}", "dark": "{primitive.color.focusRingDark}" },
+
+      "feedback.success.text": { "light": "{primitive.color.green.600}", "dark": "{primitive.color.greenDark.600}" },
+      "feedback.success.dot":  { "light": "{primitive.color.green.500}", "dark": "{primitive.color.greenDark.500}" },
+      "feedback.success.tint": { "light": "{primitive.color.green.tint}","dark": "{primitive.color.greenDark.tint}" },
+      "feedback.danger.text":  { "light": "{primitive.color.red.500}",   "dark": "{primitive.color.redDark.500}" },
+      "feedback.danger.tint":  { "light": "{primitive.color.red.tint}",  "dark": "{primitive.color.redDark.tint}" },
+      "feedback.warning.text": { "light": "{primitive.color.amber.600}" },
+      "feedback.warning.dot":  { "light": "{primitive.color.amber.500}" },
+      "feedback.warning.tint": { "light": "{primitive.color.amber.tint}" },
+      "feedback.neutral.dot":  { "light": "{primitive.color.neutral.400}" },
+      "feedback.info.text":    { "light": "{primitive.color.slate.500}" },
+      "feedback.info.tint":    { "light": "{primitive.color.slate.tint}" },
+
+      "trackedChange.insert.text":   { "light": "{primitive.color.green.600}", "dark": "{primitive.color.greenDark.600}" },
+      "trackedChange.insert.bg":     { "light": "{primitive.color.green.tint}","dark": "{primitive.color.greenDark.tint}" },
+      "trackedChange.insert.border": { "light": "{primitive.color.green.500}", "dark": "{primitive.color.greenDark.500}" },
+      "trackedChange.delete.text":   { "light": "{primitive.color.red.500}",  "dark": "{primitive.color.redDark.500}" },
+      "trackedChange.delete.bg":     { "light": "{primitive.color.red.tint}", "dark": "{primitive.color.redDark.tint}" }
+    },
+    "space": {
+      "gap.tight": "{primitive.space.1}",
+      "gap.default": "{primitive.space.2}",
+      "gap.loose": "{primitive.space.3}",
+      "pane.gap": "{primitive.space.2}",
+      "pane.padding": "{primitive.space.3}",
+      "card.padding": "{primitive.space.4}",
+      "nestedCard.padding": "{primitive.space.3}",
+      "section.gap": "{primitive.space.6}",
+      "page.padding": "{primitive.space.6}"
+    },
+    "radius": {
+      "control.sm": "{primitive.radius.sm}",
+      "control.md": "{primitive.radius.md}",
+      "pane": "{primitive.radius.lg}",
+      "nestedCard": "{primitive.radius.md}",
+      "chip": "{primitive.radius.full}",
+      "avatar": "{primitive.radius.circle}",
+      "frame": "{primitive.radius.lg}"
+    },
+    "elevation": {
+      "level1.flat":     { "shadow": "{primitive.shadow.level1}", "usage": "the app frame/page background; hairline tables; never gets a shadow" },
+      "level2.pane":     { "shadow": "{primitive.shadow.level2}", "shadowDark": "{primitive.shadow.level2Dark}", "usage": "the 3 primary panes: nav, canvas, chat/panel" },
+      "level3.popout":   { "shadow": "{primitive.shadow.level3}", "shadowDark": "{primitive.shadow.level3Dark}", "usage": "nested cards inside a pane: suggestion callouts, ask-bar, project rows, chat bubbles, composer" },
+      "level4.overlay":  { "shadow": "{primitive.shadow.level4}", "usage": "dropdowns, menus, modals — floats above every pane, positioned outside pane bounds" }
+    },
+    "type": {
+      "display.lg": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.700}", "weight": "{primitive.font.weight.medium}", "lineHeight": "{primitive.font.lineHeight.tight}" },
+      "display.sm": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.600}", "weight": "{primitive.font.weight.medium}", "lineHeight": "{primitive.font.lineHeight.tight}" },
+      "wordmark":   { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.regular}" },
+      "heading.md": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.semibold}" },
+      "body.prose": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.400}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.relaxed}" },
+      "body.dense": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.300}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.snug}" },
+      "ui.default": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.200}", "weight": "{primitive.font.weight.medium}" },
+      "ui.label":   { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.100}", "weight": "{primitive.font.weight.medium}" },
+      "ui.micro":   { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.50}",  "weight": "{primitive.font.weight.bold}", "letterSpacing": ".6px", "transform": "uppercase" },
+      "mono.code":  { "family": "{primitive.font.family.mono}",  "size": "{primitive.font.size.300}" }
+    },
+    "motion": {
+      "hover": "{primitive.motion.durationBase} {primitive.motion.easingStandard}",
+      "press": "{primitive.motion.durationFast} {primitive.motion.easingStandard}",
+      "panelToggle": "{primitive.motion.durationSlow} {primitive.motion.easingStandard}",
+      "shimmer": "{primitive.motion.shimmerDuration} linear infinite"
+    }
+  },
+
+  "component": {
+    "navRail": {
+      "note": "flush with the app frame — elevation 1, not a card (design-rules.md §A/§B, turns 10a/11a supersede 4a/5a's nav-as-card treatment). No divider — turn 10b's hairline was considered and rejected.",
+      "width.default": "216px",
+      "width.collapsed": "64px",
+      "background": "{semantic.color.surface.frame}",
+      "padding": "{semantic.space.pane.padding} {primitive.space.2}",
+      "radius": "{primitive.radius.none}",
+      "shadow": "{primitive.shadow.level1}",
+      "item.padding": "7px 10px",
+      "item.radius": "{semantic.radius.control.sm}",
+      "item.gap": "{semantic.space.gap.default}",
+      "item.text": "{semantic.type.ui.default}",
+      "item.color.default": "{semantic.color.text.secondary}",
+      "item.color.hover.bg": "{semantic.color.surface.hover}",
+      "item.color.active.bg": "{semantic.color.surface.active}",
+      "item.color.active.text": "{semantic.color.text.primary}",
+      "icon.size": "15px",
+      "icon.set": "lucide",
+      "resizable": true,
+      "resize.min": "160px",
+      "resize.max": "420px"
+    },
+    "pane": {
+      "background": "{semantic.color.surface.pane}",
+      "radius": "{semantic.radius.pane}",
+      "shadow": "{semantic.elevation.level2.pane}",
+      "header.padding": "12px 20px",
+      "header.borderBottom": "{semantic.color.border.default}",
+      "resizable": true,
+      "resize.min": "240px",
+      "resize.max": "420px"
+    },
+    "resizeGrip": {
+      "width": "12px",
+      "hover.background": "#e2e0d9",
+      "icon": "6-dot grip, 4x18px",
+      "cursor": "col-resize"
+    },
+    "appFrame": {
+      "background.light": "#dedad0",
+      "background.dark": "{primitive.color.neutralDark.0}",
+      "radius": "{primitive.radius.md}",
+      "padding": "{primitive.space.3}",
+      "shadow": "none",
+      "note": "never shadowed — see design-rules.md 'elevation levels'"
+    },
+    "button.primary": {
+      "background.default": "{semantic.color.action.primary.bg}",
+      "background.hover": "#000000",
+      "background.active": "#000000",
+      "transform.active": "scale(.97)",
+      "shadow.active": "inset 0 1px 3px rgba(0,0,0,.3)",
+      "background.disabled": "{semantic.color.action.primary.bg}",
+      "opacity.disabled": "{semantic.color.action.disabled.opacity}",
+      "text": "{semantic.color.action.primary.text}",
+      "radius": "{semantic.radius.control.sm}",
+      "padding": "8px 16px",
+      "focus.shadow": "0 0 0 3px {semantic.color.focus.ring}, 0 0 0 5px {semantic.color.action.primary.bg}",
+      "type": "{semantic.type.ui.default}",
+      "weight": "{primitive.font.weight.bold}"
+    },
+    "button.secondary": {
+      "background.default": "{semantic.color.action.secondary.bg}",
+      "background.hover": "{semantic.color.surface.hover}",
+      "background.active": "{semantic.color.surface.active}",
+      "border": "{semantic.color.action.secondary.border}",
+      "text": "{semantic.color.action.secondary.text}",
+      "radius": "{semantic.radius.control.sm}",
+      "padding": "7px 15px",
+      "opacity.disabled": 0.4,
+      "focus.shadow": "0 0 0 3px {semantic.color.surface.active}"
+    },
+    "chip": {
+      "background": "transparent",
+      "border": "1px solid rgba(20,20,20,.09)",
+      "border.hover": "rgba(20,20,20,.16)",
+      "background.hover": "{semantic.color.surface.hover}",
+      "radius": "{semantic.radius.chip}",
+      "padding": "4px 10px",
+      "type": "{semantic.type.ui.label}"
+    },
+    "sourceChip": {
+      "note": "added during the apps/web migration — no dedicated mockup exists; §E only said 'keep as its own component, recolor to monochrome + feedback.info for the authority variant'. Two variants: lib (in-library source, monochrome) and auth (external authority source, feedback.info).",
+      "radius": "{semantic.radius.chip}",
+      "padding": "2px 8px",
+      "gap": "4px",
+      "type": "{semantic.type.ui.label}",
+      "lib.background": "{semantic.color.surface.sunken}",
+      "lib.border": "{semantic.color.border.default}",
+      "lib.text": "{semantic.color.text.secondary}",
+      "auth.background": "{semantic.color.feedback.info.tint}",
+      "auth.border": "{semantic.color.feedback.info.text}",
+      "auth.text": "{semantic.color.feedback.info.text}"
+    },
+    "badge.status": {
+      "dot.size": "6px",
+      "radius": "{semantic.radius.chip}",
+      "gap": "5px",
+      "type": "{semantic.type.ui.label}",
+      "variants": ["success", "warning", "danger", "info", "neutral"]
+    },
+    "suggestionCallout": {
+      "background": "{semantic.color.surface.sunken}",
+      "radius": "{semantic.radius.nestedCard}",
+      "padding": "14px 16px",
+      "shadow": "{semantic.elevation.level3.popout}",
+      "badge.icon": "20px circle, {semantic.color.action.primary.bg} bg",
+      "actions.gap": "{semantic.space.gap.default}"
+    },
+    "askBar": {
+      "background": "{semantic.color.surface.sunken}",
+      "radius": "{primitive.radius.md}",
+      "padding": "12px 16px",
+      "shadow": "{semantic.elevation.level3.popout}",
+      "send.button.size": "30px",
+      "send.button.radius": "{semantic.radius.control.md}"
+    },
+    "table": {
+      "header.type": "{semantic.type.ui.micro}",
+      "header.color": "{semantic.color.text.muted}",
+      "header.borderBottom": "{semantic.color.border.default}",
+      "row.borderBottom": "{semantic.color.border.subtle}",
+      "row.hover.background": "{semantic.color.surface.rowHover}",
+      "row.shadow": "none",
+      "cell.padding": "10px 8px",
+      "cell.indent.folder": "24px",
+      "icon.color": "{semantic.color.text.muted}",
+      "icon.size": "14px"
+    },
+    "projectCard": {
+      "background": "{semantic.color.surface.sunken}",
+      "radius": "{semantic.radius.nestedCard}",
+      "padding": "12px 16px",
+      "shadow": "{semantic.elevation.level3.popout}",
+      "badge.circle.size": "24px",
+      "title.type": "{semantic.type.heading.md}"
+    },
+    "dropdownMenu": {
+      "background": "{semantic.color.surface.pane}",
+      "radius": "{primitive.radius.md}",
+      "shadow": "{semantic.elevation.level4.overlay}",
+      "padding": "6px",
+      "item.padding": "8px 10px",
+      "item.radius": "{semantic.radius.control.sm}",
+      "item.hover.background": "{semantic.color.surface.hover}",
+      "item.active.background": "{semantic.color.surface.hover}",
+      "zIndex": "{primitive.zIndex.modal}"
+    },
+    "skeleton": {
+      "background": "linear-gradient(90deg, {primitive.color.neutral.150} 25%, #f7f6f3 37%, {primitive.color.neutral.150} 63%)",
+      "backgroundSize": "600px 100%",
+      "animation": "{semantic.motion.shimmer}",
+      "radius": "{primitive.radius.xs}"
+    },
+    "collapseToggle": {
+      "size": "22px",
+      "radius": "{semantic.radius.control.sm}",
+      "color.default": "{semantic.color.text.muted}",
+      "color.hover": "{semantic.color.text.primary}",
+      "background.hover": "{semantic.color.surface.hover}"
+    },
+    "trackedChange.insertion": {
+      "background": "{semantic.color.trackedChange.insert.bg}",
+      "color": "{semantic.color.trackedChange.insert.text}",
+      "borderBottom": "1.5px solid {semantic.color.trackedChange.insert.border}"
+    },
+    "trackedChange.deletion": {
+      "background": "{semantic.color.trackedChange.delete.bg}",
+      "color": "{semantic.color.trackedChange.delete.text}",
+      "textDecoration": "line-through"
+    }
+  },
+
+  "iconography": {
+    "set": "Lucide",
+    "size.nav": "15px",
+    "size.inline": "14px",
+    "size.control": "12-14px",
+    "strokeWidth": 2,
+    "color": "currentColor"
+  }
+}

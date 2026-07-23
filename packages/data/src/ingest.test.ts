@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { createDb, schema as s } from '@infora/db';
-import { Router } from '@infora/model';
+import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 import { ingestVersions } from './ingest';
 
@@ -13,6 +13,7 @@ const { db, pool } = createDb();
 
 const fakeChat: ChatAdapter = {
   modelId: 'fake-chat',
+  attributes: SELF_HOSTED_UK,
   chat: () => Promise.reject(new Error('ingestion never chats')),
 };
 
@@ -20,6 +21,7 @@ function fakeEmbeddings(dimensions: number, version = 'fake-1'): EmbeddingAdapte
   return {
     modelId: 'fake-embed',
     dimensions,
+    attributes: SELF_HOSTED_UK,
     embed: (texts) =>
       Promise.resolve({
         embeddings: texts.map((_, at) => {

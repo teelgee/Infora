@@ -213,12 +213,12 @@ export function ReviewPdf({
   return (
     <div className="review-pdf" onMouseUp={handleMouseUp}>
       {error && (
-        <div style={{ padding: 12, color: 'var(--muted)', fontSize: 13 }}>
+        <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>
           The PDF rendition could not be rendered ({error}). Use the download beside the round.
         </div>
       )}
       {!rendered && !error && (
-        <div style={{ padding: 12, color: 'var(--muted)', fontSize: 13 }}>Rendering the review PDF…</div>
+        <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>Rendering the review PDF…</div>
       )}
       {rendered?.boxes.map((box, i) => (
         <div
@@ -232,8 +232,8 @@ export function ReviewPdf({
             width: box.width,
             height: box.height,
             margin: '0 auto 12px',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
-            background: '#fff',
+            boxShadow: 'var(--level2-pane)',
+            background: 'var(--surface-pane)',
           }}
         >
           <canvas
@@ -284,12 +284,20 @@ function Overlay(props: {
   onHover?: (id: string | null) => void;
 }) {
   const { anchor, box, draft, active, interactive, commentId, onHover } = props;
+  // Translucent overlays painted over the PDF canvas can't reference a CSS
+  // custom property + opacity directly — these rgba() values are derived
+  // from the primitive palette (green.500/slate.500/amber.500 in
+  // design-tokens.json), not arbitrary: draft mirrors feedback.success
+  // (in-progress), active/hover mirrors feedback.info (the one you're
+  // pointing at, same mapping as editor.tsx's canvas-mirror mark.flash),
+  // default mirrors feedback.warning (there's an anchor here) — same as
+  // editor.tsx's canvas-mirror mark for an open thread.
   const fill = draft
-    ? 'rgba(60,180,100,0.28)'
+    ? 'rgba(47,158,82,0.28)'
     : active
-      ? 'rgba(255,168,0,0.5)'
-      : 'rgba(255,196,0,0.28)';
-  const border = draft ? '1px dashed rgba(40,150,80,0.9)' : '1px solid rgba(200,150,0,0.55)';
+      ? 'rgba(39,74,109,0.45)'
+      : 'rgba(196,144,31,0.28)';
+  const border = draft ? '1px dashed rgba(47,158,82,0.9)' : '1px solid rgba(196,144,31,0.55)';
   const pointerEvents = !draft && !interactive ? 'auto' : 'none';
   const hover = onHover
     ? { onMouseEnter: () => onHover(commentId), onMouseLeave: () => onHover(null) }

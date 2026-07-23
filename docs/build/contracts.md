@@ -481,6 +481,8 @@ type SandboxDocumentVersion = { id: Id; sandboxDocumentId: Id;
 
 *Type extensions (same date):* `WorkItem` gains `containerId: Id | null` (the ADR-0032 addendum join — null for reference material and future non-document types) and its `status` vocabulary becomes the event-driven set `planned | drafting | in_review | accepted | rejected` when T-127 lands. `SandboxDocument` gains `origin: 'authored' | 'uploaded'`, `kind: 'text' | 'slides'`, `format: 'infora_text' | 'docx' | 'xlsx' | 'pptx'`, `containerId: Id | null` (the missing link, ADR-0032) and `headLocked: boolean`.
 
+*Router security seam + egress audit (2026-07-22, ADR-0037, T-139–T-144).* The `@infora/model` Router gained a policy layer without changing its callers. Adapters optionally declare `attributes: RouteAttributes` (`region`/`retention`/`jurisdiction`/`eligibility`) and an `endpoint`; a `DeploymentSecurity = { policy: TierPolicy; defaultClassification }` (built by `securityForTier(tier, classification)`) is passed at Router construction. Every `chat`/`embed` call now selects a tier-conforming route (`selectRoute`, constraint-then-optimise) and **fails closed** with a `SecurityPolicyError` when none conforms — an undeclared endpoint reads as `UNATTRIBUTED` and conforms to nothing. `ChatRequest` gains optional `classification` (the elevation seam; v1 resolves the deployment default on the Router). `ChatResult`/`EmbedResult` gain `egress: EgressFacts`, threaded through `GroundedDraftResult` → `draft-leaf` → `StepAudit` into new `steps.egress_{endpoint,region,retention,classification}` columns (migration `0016`) and `Step.egress`. Structural non-bypass is enforced by an ESLint rule + a repo-walking guard test (provider SDKs live only in `packages/model`).
+
 ## 5. Error envelope
 
 ```ts

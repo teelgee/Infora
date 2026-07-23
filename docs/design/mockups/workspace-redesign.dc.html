@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics="">
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body{margin:0;background:#cbc4b3;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .dv-turn{padding:40px 44px 60px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+  .dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1c1b18;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 14px/1.2 -apple-system,sans-serif;color:#1c1b18}
+  .dv-sub{font-size:12.5px;color:#8a867c;margin:0 0 24px}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:10px}
+  .dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 8px;background:rgba(0,0,0,.08);color:#1c1b18;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;flex-direction:column;gap:2px;font:400 11px/1.3 -apple-system,sans-serif;color:#5c584f}
+  .dv-olabel b{font-size:12.5px;color:#1c1b18}
+  .dv-card{background:#fff;border:1px solid #d8d3c7;border-radius:10px;box-shadow:0 8px 28px rgba(28,27,24,.14);overflow:hidden}
+  .dv-next{margin:26px 0 0;font:12px/1.6 -apple-system,sans-serif;color:#6b675e;max-width:760px}
+  @keyframes shimmer{0%{background-position:-300px 0}100%{background-position:300px 0}}
+  .skeleton{background:linear-gradient(90deg,#efeeeb 25%,#f7f6f3 37%,#efeeeb 63%);background-size:600px 100%;animation:shimmer 1.4s linear infinite}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t9">
+<div class="dv-thd"><a class="dv-tid" href="#t9">9</a><span class="dv-tname">Sandbox — folder tree, table over cards</span></div>
+<p class="dv-sub">Table/list wins for the sandbox: it's a working folder of active documents where last-edited time and file type need to be scannable, and it stays consistent with 6a's library table. Cards (Harvey's Vault-style) suit a small set of top-level containers instead — which 5a's project grid already covers. So: cards for "which project," table for "which file."</p>
+<div class="dv-opts">
+<div class="dv-opt" id="9a">
+<div class="dv-olabel"><a class="dv-oid" href="#9a">9a</a><b>Sandbox, hairline tree</b>folders indent, file-type icons, no per-row shadow — same table language as 6a.</div>
+
+<div style="background:#dedad0;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:10px;height:800px">
+
+  <div style="width:216px;min-width:216px;background:#fff;border-radius:12px;box-shadow:0 10px 26px rgba(20,20,20,.12);display:flex;flex-direction:column;padding:14px 10px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#1c1b18"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#1c1b18">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">A414 Trentmoor Bypass</span>
+      <span style="margin-left:auto;color:#78766f;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Library</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Review</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 10px 26px rgba(20,20,20,.12);overflow:auto;box-sizing:border-box">
+    <div style="padding:22px 30px 30px">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#57564f;background:#efeeeb;border-radius:999px;padding:4px 12px;margin-bottom:16px">A414 Trentmoor Bypass — project sandbox</span>
+      <div style="display:flex;align-items:baseline;gap:12px;margin:12px 0 4px">
+        <h1 style="font-family:'Iowan Old Style',Georgia,serif;font-size:24px;font-weight:500;margin:0;color:#1c1b18">Sandbox</h1>
+        <span style="margin-left:auto;font-size:12px;font-weight:700;color:#fff;background:#1c1b18;border-radius:8px;padding:7px 14px;cursor:pointer">+ New</span>
+      </div>
+      <p style="color:#57564f;margin:0 0 18px;font-size:13px">Trentmoor Council — private project sandbox · no document controls, ambient version history only</p>
+
+      <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#57564f;margin-bottom:10px">
+        <span style="cursor:pointer">Sandbox</span><span style="color:#c7c5be">/</span>
+        <span style="color:#1c1b18;font-weight:600;cursor:pointer">Consultation</span>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Name</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Origin</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Updated</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#57564f">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              Drop-in event materials
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">—</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">6 Jul 2026</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">3 files</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 24px;border-bottom:1px solid #f2f1ed;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Statement of Community Consultation
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#57564f"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Authored</span></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">40 min ago</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">18 KB</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 24px;border-bottom:1px solid #f2f1ed;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Consultation Response Log.xlsx
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#57564f"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>Uploaded</span></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">2 hours ago</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">64 KB</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;color:#57564f">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              Traffic Management
+            </td>
+            <td style="padding:10px 8px;color:#78766f">—</td>
+            <td style="padding:10px 8px;color:#78766f">yesterday</td>
+            <td style="padding:10px 8px;color:#78766f">5 files</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "add drag-and-drop upload affordance to the empty state" · "show the folder expanded/collapsed toggle" · "start the design guide doc — this is the last open question"</p>
+</section>
+<section class="dv-turn" id="t8">
+<div class="dv-thd"><a class="dv-tid" href="#t8">8</a><span class="dv-tname">Components — states, loading, and the 4th elevation level</span></div>
+<p class="dv-sub">Hover/active/disabled/focus for the two button kinds and a nav item; a loading skeleton for canvas content; and a dropdown menu shown as elevation level 4 — it floats above panes (level 2) and popouts (level 3) with the strongest shadow and sits outside any pane's bounds.</p>
+<div class="dv-opts">
+<div class="dv-opt" id="8a">
+<div class="dv-olabel"><a class="dv-oid" href="#8a">8a</a><b>States + loading + modal elevation</b></div>
+
+<div style="background:#dedad0;border-radius:16px;padding:24px;width:900px;box-sizing:border-box">
+<div style="background:#fff;border-radius:12px;box-shadow:0 10px 26px rgba(20,20,20,.12);padding:28px 32px;display:flex;flex-direction:column;gap:26px">
+
+  <div>
+    <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin-bottom:10px">Primary button — default · hover · active · disabled · focus</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span style="font-size:12px;font-weight:700;color:#fff;background:#1c1b18;border-radius:8px;padding:8px 16px;cursor:pointer">Promote</span>
+      <span style="font-size:12px;font-weight:700;color:#fff;background:#000;border-radius:8px;padding:8px 16px;cursor:pointer">Promote</span>
+      <span style="font-size:12px;font-weight:700;color:#fff;background:#000;border-radius:8px;padding:8px 16px;cursor:pointer;transform:scale(.97);box-shadow:inset 0 1px 3px rgba(0,0,0,.3)">Promote</span>
+      <span style="font-size:12px;font-weight:700;color:#fff;background:#1c1b18;opacity:.35;border-radius:8px;padding:8px 16px;cursor:not-allowed">Promote</span>
+      <span style="font-size:12px;font-weight:700;color:#fff;background:#1c1b18;border-radius:8px;padding:8px 16px;cursor:pointer;box-shadow:0 0 0 3px #cfcac0,0 0 0 5px #1c1b18">Promote</span>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px;font-size:10.5px;color:#78766f">
+      <span style="width:96px">Default</span><span style="width:96px">Hover</span><span style="width:96px">Active</span><span style="width:96px">Disabled</span><span>Focus</span>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin-bottom:10px">Secondary button — same states</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border:1px solid #ececea;border-radius:8px;padding:7px 15px;cursor:pointer">Edit</span>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18;background:#efeeeb;border:1px solid #ececea;border-radius:8px;padding:7px 15px;cursor:pointer">Edit</span>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18;background:#e5e3de;border:1px solid #ececea;border-radius:8px;padding:7px 15px;cursor:pointer">Edit</span>
+      <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border:1px solid #ececea;border-radius:8px;padding:7px 15px;cursor:not-allowed;opacity:.4">Edit</span>
+      <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border:1px solid #ececea;border-radius:8px;padding:7px 15px;cursor:pointer;box-shadow:0 0 0 3px #e3e1db">Edit</span>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin-bottom:10px">Nav item — default · hover · active(selected) · focus</div>
+    <div style="display:flex;gap:8px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px">Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;color:#1c1b18;font-weight:600;font-size:12.5px;background:#f2f1ee">Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px">Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px;box-shadow:0 0 0 2px #cfcac0">Editor</a>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin-bottom:10px">Loading — canvas content while a run is in flight</div>
+    <div style="border:1px solid #ececea;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:9px">
+      <div class="skeleton" style="height:12px;width:40%;border-radius:4px"></div>
+      <div class="skeleton" style="height:10px;width:92%;border-radius:4px"></div>
+      <div class="skeleton" style="height:10px;width:86%;border-radius:4px"></div>
+      <div class="skeleton" style="height:10px;width:60%;border-radius:4px"></div>
+    </div>
+  </div>
+
+  <div style="position:relative;margin-bottom:110px">
+    <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin-bottom:10px">Elevation 4 — dropdown/modal, above every pane</div>
+    <div style="display:inline-flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">Trentmoor Council</span>
+      <span style="color:#78766f;font-size:10px">▾</span>
+    </div>
+    <div style="position:absolute;top:calc(100% + 6px);left:0;width:260px;background:#fff;border-radius:12px;box-shadow:0 4px 8px rgba(0,0,0,.08),0 24px 60px -12px rgba(0,0,0,.35);padding:6px;z-index:10">
+      <div style="padding:8px 10px;border-radius:8px;background:#efeeeb;font-size:12.5px;font-weight:600;color:#1c1b18">Trentmoor Council <span style="color:#78766f;font-weight:400">— current</span></div>
+      <div style="padding:8px 10px;border-radius:8px;font-size:12.5px;color:#57564f">A414 Trentmoor Bypass</div>
+      <div style="padding:8px 10px;border-radius:8px;font-size:12.5px;color:#57564f">Calderhale Grid Reinforcement</div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "apply these focus rings across 4a/4b/5a for real" · "add an error/toast state too" · "start the design guide doc — this closes out the open questions"</p>
+</section>
+<section class="dv-turn" id="t7">
+<div class="dv-thd"><a class="dv-tid" href="#t7">7</a><span class="dv-tname">Dark mode — remap of 4a</span></div>
+<p class="dv-sub">Same tokens, same structure, remapped: warm near-black surfaces instead of white, cream ink instead of black, status/tracked-change hues desaturated slightly so they don't glare on dark. Nav-active and buttons invert to a light chip instead of a dark one.</p>
+<div class="dv-opts">
+<div class="dv-opt" id="7a">
+<div class="dv-olabel"><a class="dv-oid" href="#7a">7a</a><b>Editor, dark</b>same content as 4a/4b, dark remap.</div>
+
+<div style="background:#100f0c;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:10px;height:800px">
+
+  <div style="width:216px;min-width:216px;background:#1c1b17;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.4);display:flex;flex-direction:column;padding:14px 10px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#ece9e1"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#ece9e1">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#8a8578;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#2a2822;color:#ece9e1">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#25241f;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#ece9e1;color:#17171a;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#ece9e1">Trentmoor Council</span>
+      <span style="margin-left:auto;color:#8a8578;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#b8b3a6;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#b8b3a6;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#2a2822;color:#ece9e1;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#b8b3a6;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#b8b3a6;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Tools</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#b8b3a6;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Your knowledge</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#25241f;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#ece9e1;color:#17171a;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#ece9e1">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;background:#1c1b17;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.4);display:flex;flex-direction:column;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid #302e28">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#b8b3a6;background:#25241f;border-radius:999px;padding:4px 12px">▧ Project sandbox</span>
+      <span style="font-size:12px;color:#4d4a41">/</span>
+      <b style="font-size:12.5px;color:#ece9e1">Statement of Community Consultation</b>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;border-radius:12px;padding:8px 16px;background:#ece9e1;color:#17171a;cursor:pointer">⇧ Promote</span>
+    </div>
+    <div style="flex:1;overflow:auto;padding:24px 36px 32px">
+      <div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15.5px;line-height:1.75;color:#d8d4c9">
+        <h2 style="font-size:18px;font-weight:600;margin:0 0 14px;color:#ece9e1">4. Consultation Approach</h2>
+        <p style="margin:0 0 14px">The scheme's consultation strategy follows the staged approach set out in the Section 47 statement, beginning with a non-statutory phase to establish the affected community and landowner list.</p>
+        <p style="margin:0 0 14px">Feedback from the first drop-in session <span style="background:#302e28;border-radius:4px;padding:0 2px">indicated concern over construction traffic routing through Calder Lane</span>, addressed in the revised access strategy below.</p>
+
+        <div style="background:#232219;border-radius:12px;padding:14px 16px;margin:14px 0;box-shadow:0 10px 28px rgba(0,0,0,.3)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:20px;height:20px;border-radius:50%;background:#ece9e1;color:#17171a;display:flex;align-items:center;justify-content:center;font-size:11px">✓</div>
+            <span style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:13px;color:#ece9e1;font-weight:600">Suggestion ready · pending your decision</span>
+          </div>
+          <p style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.7;margin:0 0 12px;color:#d8d4c9">
+            A revised construction traffic management plan will route HGV movements via the A414 slip road rather than Calder Lane during the peak consultation-response period.
+          </p>
+          <div style="display:flex;gap:8px">
+            <span style="font-size:12px;font-weight:700;color:#17171a;background:#ece9e1;border-radius:12px;padding:7px 15px;cursor:pointer">✓ Accept</span>
+            <span style="font-size:12px;font-weight:600;color:#d8d4c9;background:#1c1b17;border:1px solid #34322b;border-radius:12px;padding:7px 15px;cursor:pointer">✎ Edit</span>
+            <span style="font-size:12px;font-weight:600;color:#d8d4c9;background:#1c1b17;border:1px solid #34322b;border-radius:12px;padding:7px 15px;cursor:pointer">Reject</span>
+          </div>
+        </div>
+
+        <p style="margin:0">A night-working restriction on the Calder Lane frontage <span style="background:#3a2320;color:#e08b83;text-decoration:line-through;padding:0 1px;border-radius:2px">may need to be considered</span><span style="background:#1e3324;color:#7dd69a;border-bottom:1.5px solid #3f9b5f;padding:0 1px;margin-left:3px">remains available</span> as a fallback, subject to the noise assessment in Appendix C.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="width:308px;min-width:308px;background:#1c1b17;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.4);display:flex;flex-direction:column;padding:14px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <span style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#8a8578;font-weight:700">This run</span>
+      <span title="Collapse panel" style="margin-left:auto;width:20px;height:20px;border-radius:8px;color:#8a8578;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#2a2822;color:#ece9e1">»</span>
+    </div>
+    <div style="display:flex;flex-direction:column;margin-bottom:18px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#ece9e1;color:#17171a;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#34322b;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#ece9e1;font-weight:600;padding-top:1px">Retrieved sources</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#ece9e1;color:#17171a;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#34322b;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#ece9e1;font-weight:600;padding-top:1px">Ground-checked claims</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="width:22px;height:22px;border-radius:50%;background:#2a2822;color:#ece9e1;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">3</div>
+        <div style="font-size:12.5px;color:#b8b3a6;font-weight:600;padding-top:1px">Suggestion drafted</div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;border-top:1px solid #302e28;padding-top:14px">
+      <div style="background:#25241f;border-radius:16px;padding:10px 13px;font-size:12.5px;color:#ece9e1;max-width:92%;align-self:flex-end;box-shadow:0 8px 22px rgba(0,0,0,.3)">Draft a mitigation for the Calder Lane traffic feedback</div>
+      <div style="font-size:12.5px;color:#b8b3a6;line-height:1.55">Done — 1 suggestion on the document, grounded on the Traffic Management Plan v2.</div>
+    </div>
+
+    <div style="background:#25241f;border-radius:16px;padding:12px 14px 10px;margin-top:14px;box-shadow:0 10px 28px rgba(0,0,0,.3)">
+      <div style="font-size:12.5px;color:#8a8578">Ask for a draft into this document</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#b8b3a6">
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid #3a3830;border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#2a2822;border-color:#4a473e">📎 Files</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid #3a3830;border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#2a2822;border-color:#4a473e">▤ Sources</span>
+        <span style="margin-left:auto;width:24px;height:24px;border-radius:8px;background:#ece9e1;color:#17171a;display:flex;align-items:center;justify-content:center;font-size:11px">→</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "dark-remap 5a and the library table too" · "make the dark accent slightly warmer/cooler" · "start the design guide doc, both modes settled"</p>
+</section>
+<section class="dv-turn" id="t6">
+<div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Tables / library view — dense, tabular surfaces</span></div>
+<p class="dv-sub">For review before finalizing: dense data stays hairline/flat (no per-row shadow, no card-in-card nesting) — shadows are reserved for the three main panes (nav, canvas, chat/panel). Status uses small colored dots, the one place besides tracked-changes we're reintroducing accent hues.</p>
+<div class="dv-opts">
+<div class="dv-opt" id="6a">
+<div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a><b>Library, hairline rows in a card</b>folder + document rows, status dots (green=current, amber=in review, grey=superseded), no row-level shadows.</div>
+
+<div style="background:#dedad0;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:10px;height:800px">
+
+  <div style="width:216px;min-width:216px;background:#fff;border-radius:12px;box-shadow:0 10px 26px rgba(20,20,20,.12);display:flex;flex-direction:column;padding:14px 10px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#1c1b18"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#1c1b18">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">A414 Trentmoor Bypass</span>
+      <span style="margin-left:auto;color:#78766f;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Library</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Review</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 10px 26px rgba(20,20,20,.12);overflow:auto;box-sizing:border-box">
+    <div style="padding:22px 30px 30px">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#57564f;background:#efeeeb;border-radius:999px;padding:4px 12px;margin-bottom:16px">A414 Trentmoor Bypass — project library</span>
+      <h1 style="font-family:'Iowan Old Style',Georgia,serif;font-size:24px;font-weight:500;margin:12px 0 4px;color:#1c1b18">Library</h1>
+      <p style="color:#57564f;margin:0 0 18px;font-size:13px">34 deliverables · shared with 2 organisations</p>
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px;border:1px solid #ececea;border-radius:8px;padding:7px 12px;font-size:12.5px;color:#78766f;flex:1;max-width:280px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          Search the library
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#57564f;border:1px solid #ececea;border-radius:8px;padding:7px 12px;cursor:pointer">Filters</span>
+        <span style="margin-left:auto;font-size:12px;color:#78766f">Flat view</span>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Name</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Status</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Reference</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Version</th>
+            <th style="text-align:left;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700;padding:9px 8px;border-bottom:1px solid #ececea">Last modified</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#57564f">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+              Consultation
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f"></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">Folder</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">6 Jul 2026</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Statement of Community Consultation
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#1a7a3a"><span style="width:6px;height:6px;border-radius:50%;background:#2f9e52"></span>Current</span></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f;font-family:'SF Mono',Menlo,monospace;font-size:12px">SCC-014</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">v2</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">40 min ago</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Traffic Management Plan
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#8a5a12"><span style="width:6px;height:6px;border-radius:50%;background:#c4901f"></span>In review</span></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f;font-family:'SF Mono',Menlo,monospace;font-size:12px">TMP-007</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">v2</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">yesterday</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Outline Design Report
+            </td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#1a7a3a"><span style="width:6px;height:6px;border-radius:50%;background:#2f9e52"></span>Current</span></td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f;font-family:'SF Mono',Menlo,monospace;font-size:12px">ODR-002</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">v3</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #f2f1ed;color:#78766f">2 days ago</td>
+          </tr>
+          <tr style="cursor:pointer;transition:background .1s" style-hover="background:#faf9f7">
+            <td style="padding:10px 8px;font-weight:600;color:#1c1b18">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;color:#78766f"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+              Draft Consultation Statement v1
+            </td>
+            <td style="padding:10px 8px"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#78766f"><span style="width:6px;height:6px;border-radius:50%;background:#c7c5be"></span>Superseded</span></td>
+            <td style="padding:10px 8px;color:#78766f;font-family:'SF Mono',Menlo,monospace;font-size:12px">SCC-014</td>
+            <td style="padding:10px 8px;color:#78766f">v1</td>
+            <td style="padding:10px 8px;color:#78766f">3 weeks ago</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "wrap the table in the nested-card treatment instead, for comparison" · "add row-select + bulk actions" · "start the design guide doc, tables settled as hairline"</p>
+</section>
+<section class="dv-turn" id="t5">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Workspace landing, in <a class="dv-oid" href="#4a">4a</a>'s layered language</span></div>
+<p class="dv-sub">Same nav card + navy accent + nested rounded-layer system as 4a, applied to the landing: the ask-bar and each project become their own nested white "sub-card" inside the main content layer, and project progress reuses 4a's circular step-badge motif instead of a progress bar.</p>
+<div class="dv-opts">
+<div class="dv-opt" id="5a">
+<div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a><b>Workspace landing, layered</b>nav card, greeting + nested ask-bar, projects as nested rounded cards with navy step-badges for progress — now staged with 3a's soft floating-shadow treatment instead of the flat inset frame.</div>
+
+<div style="background:#dedad0;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:10px;height:800px">
+
+  <!-- LEFT NAV, same card as 4a -->
+  <div style="width:216px;min-width:216px;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 14px 28px -8px rgba(0,0,0,.35),0 30px 50px -12px rgba(0,0,0,.28);display:flex;flex-direction:column;padding:14px 10px;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#1c1b18"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#1c1b18">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">Trentmoor Council</span>
+      <span style="margin-left:auto;color:#78766f;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Tools</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Your knowledge</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <!-- MAIN, one rounded content layer -->
+  <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 14px 28px -8px rgba(0,0,0,.35),0 30px 50px -12px rgba(0,0,0,.28);overflow:auto;box-sizing:border-box">
+    <div style="padding:22px 30px 30px">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#57564f;background:#efeeeb;border-radius:999px;padding:4px 12px;margin-bottom:16px">Trentmoor Council — workspace</span>
+      <h1 style="font-family:'Iowan Old Style',Georgia,serif;font-size:29px;font-weight:500;margin:0;color:#1c1b18">Good afternoon, Rachel</h1>
+      <p style="color:#57564f;margin-top:6px;font-size:13.5px">Three active projects, one awaiting your response.</p>
+
+      <!-- nested ask-bar sub-card -->
+      <div style="background:#f0efeb;border-radius:12px;padding:12px 16px;margin-top:16px;display:flex;align-items:center;gap:10px;cursor:text;box-shadow:0 10px 28px rgba(20,20,20,.09)">
+        <span style="color:#1c1b18;font-size:15px">✦</span>
+        <span style="color:#57564f;font-size:13.5px">Ask across your firm's own knowledge</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#57564f;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s;margin-left:auto" style-hover="background:#e5e4e0;border-color:rgba(20,20,20,.16)">📎 Files</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#57564f;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#e5e4e0;border-color:rgba(20,20,20,.16)">▤ Library</span>
+        <span style="width:30px;height:30px;border-radius:12px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">→</span>
+      </div>
+
+      <div style="font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:#78766f;font-weight:700;margin:28px 0 12px">Your projects</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+
+        <div style="background:#f0efeb;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 8px 22px rgba(20,20,20,.07)">
+          <div style="width:24px;height:24px;border-radius:50%;background:#1c1b18;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">7</div>
+          <div style="flex:1">
+            <div style="font-family:'Iowan Old Style',Georgia,serif;font-size:16px;color:#1c1b18">A414 Trentmoor Bypass</div>
+            <div style="font-size:12px;color:#57564f;margin-top:2px">Owner · 7 of 11 deliverables drafted</div>
+          </div>
+          <span style="font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 12px;background:#ececea;color:#1c1b18">Owner</span>
+        </div>
+
+        <div style="background:#f0efeb;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 8px 22px rgba(20,20,20,.07)">
+          <div style="width:24px;height:24px;border-radius:50%;background:#e0ded8;color:#57564f;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">3</div>
+          <div style="flex:1">
+            <div style="font-family:'Iowan Old Style',Georgia,serif;font-size:16px;color:#1c1b18">Calderhale Grid Reinforcement</div>
+            <div style="font-size:12px;color:#57564f;margin-top:2px">Member · Calderhale Energy owns · 3 of 10 drafted</div>
+          </div>
+          <span style="font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 12px;background:#ebeae6;color:#57564f">Member</span>
+        </div>
+
+        <div style="background:#f0efeb;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 8px 22px rgba(20,20,20,.07)">
+          <div style="width:24px;height:24px;border-radius:50%;background:#1c1b18;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">9</div>
+          <div style="flex:1">
+            <div style="font-family:'Iowan Old Style',Georgia,serif;font-size:16px;color:#1c1b18">Halvern Water Treatment Upgrade</div>
+            <div style="font-size:12px;color:#57564f;margin-top:2px">Member · Halvern Water owns · 9 of 10 drafted</div>
+          </div>
+          <span style="font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 12px;background:#ebeae6;color:#57564f">Member</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "add 4a's step-tracker instead of the numbered circles" · "make the project cards clickable-feeling with a hover lift" · "start the design guide doc now, rooted in 4a + 5a"</p>
+</section>
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Layered rounded-rectangle accents (Emma-style), nav + canvas + chat</span></div>
+<p class="dv-sub">A different accent language than turns 2-3: instead of hairlines/flat, every functional unit is its own soft rounded-rectangle "layer" nested inside the next (page frame → card → sub-card → input), one deep-navy accent for anything active/primary, and circular step-badges connected by a vertical line for progress/status — the pattern from the Emma reference.</p>
+<div class="dv-opts">
+<div class="dv-opt" id="4a">
+<div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a><b>Nav · canvas · chat, layered</b>left nav as its own rounded card, the canvas as a white rounded layer holding a nested suggestion card, right pane with a navy step-tracker above the chat thread.</div>
+
+<div style="background:#dedad0;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:0;height:800px">
+
+  <div style="{{ navPaneStyle }}">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#1c1b18"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#1c1b18">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">Trentmoor Council</span>
+      <span style="margin-left:auto;color:#78766f;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Tools</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Your knowledge</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <div onMouseDown="{{ onNavGripDown }}" title="Drag to resize" style="width:12px;flex:none;cursor:col-resize;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background .1s" style-hover="background:#e2e0d9">
+    <svg width="4" height="18" viewBox="0 0 4 18" fill="none"><circle cx="1" cy="2" r="1" fill="#c7c5be"></circle><circle cx="1" cy="9" r="1" fill="#c7c5be"></circle><circle cx="1" cy="16" r="1" fill="#c7c5be"></circle><circle cx="3" cy="2" r="1" fill="#c7c5be"></circle><circle cx="3" cy="9" r="1" fill="#c7c5be"></circle><circle cx="3" cy="16" r="1" fill="#c7c5be"></circle></svg>
+  </div>
+
+  <!-- CANVAS, its own rounded layer -->
+  <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(20,20,20,.08);display:flex;flex-direction:column;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid #ebeae6">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#57564f;background:#efeeeb;border-radius:999px;padding:4px 12px">▧ Project sandbox</span>
+      <span style="font-size:12px;color:#c7c5be">/</span>
+      <b style="font-size:12.5px;color:#1c1b18">Statement of Community Consultation</b>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;border-radius:12px;padding:8px 16px;background:#1c1b18;color:#fff;cursor:pointer">⇧ Promote</span>
+    </div>
+    <div style="flex:1;overflow:auto;padding:24px 36px 32px">
+      <div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15.5px;line-height:1.75;color:#2c2b28">
+        <h2 style="font-size:18px;font-weight:600;margin:0 0 14px">4. Consultation Approach</h2>
+        <p style="margin:0 0 14px">The scheme's consultation strategy follows the staged approach set out in the Section 47 statement, beginning with a non-statutory phase to establish the affected community and landowner list.</p>
+        <p style="margin:0 0 14px">Feedback from the first drop-in session <span style="background:#ececea;border-radius:4px;padding:0 2px">indicated concern over construction traffic routing through Calder Lane</span>, addressed in the revised access strategy below.</p>
+
+        <!-- nested rounded sub-card, Emma-style layering -->
+        <div style="background:#f0efeb;border-radius:12px;padding:14px 16px;margin:14px 0;box-shadow:0 10px 28px rgba(20,20,20,.09)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:20px;height:20px;border-radius:50%;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">✓</div>
+            <span style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1c1b18;font-weight:600">Suggestion ready · pending your decision</span>
+          </div>
+          <p style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.7;margin:0 0 12px;color:#2c2b28">
+            A revised construction traffic management plan will route HGV movements via the A414 slip road rather than Calder Lane during the peak consultation-response period.
+          </p>
+          <div style="display:flex;gap:8px">
+            <span style="font-size:12px;font-weight:700;color:#fff;background:#1c1b18;border-radius:12px;padding:7px 15px;cursor:pointer">✓ Accept</span>
+            <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border-radius:12px;padding:7px 15px;cursor:pointer">✎ Edit</span>
+            <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border-radius:12px;padding:7px 15px;cursor:pointer">Reject</span>
+          </div>
+        </div>
+
+        <p style="margin:0">A night-working restriction on the Calder Lane frontage <span style="background:#fbeceb;color:#b23b34;text-decoration:line-through;padding:0 1px;border-radius:2px">may need to be considered</span><span style="background:#e8f5ea;color:#1a7a3a;border-bottom:1.5px solid #2f9e52;padding:0 1px;margin-left:3px">remains available</span> as a fallback, subject to the noise assessment in Appendix C.</p>
+      </div>
+    </div>
+  </div>
+
+  <div onMouseDown="{{ onChatGripDown }}" title="Drag to resize" style="width:12px;flex:none;cursor:col-resize;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background .1s" style-hover="background:#e2e0d9">
+    <svg width="4" height="18" viewBox="0 0 4 18" fill="none"><circle cx="1" cy="2" r="1" fill="#c7c5be"></circle><circle cx="1" cy="9" r="1" fill="#c7c5be"></circle><circle cx="1" cy="16" r="1" fill="#c7c5be"></circle><circle cx="3" cy="2" r="1" fill="#c7c5be"></circle><circle cx="3" cy="9" r="1" fill="#c7c5be"></circle><circle cx="3" cy="16" r="1" fill="#c7c5be"></circle></svg>
+  </div>
+
+  <!-- RIGHT: chat pane, its own rounded layer, with a navy step-tracker -->
+  <div style="{{ chatPaneStyle }}">
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <span style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700">This run</span>
+      <span title="Collapse panel" style="margin-left:auto;width:20px;height:20px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">»</span>
+    </div>
+    <div style="display:flex;flex-direction:column;margin-bottom:18px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1c1b18;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#e0ded8;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#1c1b18;font-weight:600;padding-top:1px">Retrieved sources</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1c1b18;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#e0ded8;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#1c1b18;font-weight:600;padding-top:1px">Ground-checked claims</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="width:22px;height:22px;border-radius:50%;background:#ececea;color:#1c1b18;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">3</div>
+        <div style="font-size:12.5px;color:#57564f;font-weight:600;padding-top:1px">Suggestion drafted</div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;border-top:1px solid #ebeae6;padding-top:14px">
+      <div style="background:#efeeeb;border-radius:16px;padding:10px 13px;font-size:12.5px;color:#1c1b18;max-width:92%;align-self:flex-end;box-shadow:0 8px 22px rgba(20,20,20,.08)">Draft a mitigation for the Calder Lane traffic feedback</div>
+      <div style="font-size:12.5px;color:#57564f;line-height:1.55">Done — 1 suggestion on the document, grounded on the Traffic Management Plan v2.</div>
+    </div>
+
+    <div style="background:#efeeeb;border-radius:16px;padding:12px 14px 10px;margin-top:14px;box-shadow:0 10px 28px rgba(20,20,20,.09)">
+      <div style="font-size:12.5px;color:#78766f">Ask for a draft into this document</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#57564f">
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#efeeeb;border-color:rgba(20,20,20,.16)">📎 Files</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#efeeeb;border-color:rgba(20,20,20,.16)">▤ Sources</span>
+        <span style="margin-left:auto;width:24px;height:24px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">→</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<div class="dv-opt" id="4b">
+<div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a><b>Nav · canvas · chat, layered — stronger shadow</b>same as 4a, staged with a sharper, higher-contrast shadow: a near-white flat card, a crisp close shadow plus a diffuse ambient one, on a darker page.</div>
+
+<div style="background:#dedad0;border-radius:16px;padding:14px;width:1280px;box-sizing:border-box">
+<div style="display:flex;gap:0;height:800px">
+
+  <div style="{{ navPaneStyleB }}">
+    <div style="display:flex;align-items:center;gap:8px;padding:2px 2px 18px 6px">
+      <div style="width:18px;height:18px;border-radius:4px;background:#1c1b18"></div>
+      <span style="font-family:'Iowan Old Style',Georgia,serif;font-size:18px;color:#1c1b18">Infora</span>
+      <span title="Collapse sidebar" style="margin-left:auto;width:22px;height:22px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">«</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 10px;margin-bottom:10px;cursor:pointer">
+      <div style="width:20px;height:20px;border-radius:8px;background:#1c1b18;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">TC</div>
+      <span style="font-size:12.5px;font-weight:600;color:#1c1b18">Trentmoor Council</span>
+      <span style="margin-left:auto;color:#78766f;font-size:10px">▾</span>
+    </div>
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 3l1.9 5.8a2 2 0 0 0 1.288 1.287L21 12l-5.8 1.9a2 2 0 0 0-1.287 1.288L12 21l-1.9-5.8a2 2 0 0 0-1.288-1.287L3 12l5.8-1.9a2 2 0 0 0 1.287-1.288Z"></path></svg>Ask</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:#ececea;color:#1c1b18;font-weight:700;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>Editor</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>Sandbox</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z"></path></svg>Tools</a>
+      <a style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;color:#57564f;font-weight:600;font-size:12.5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>Your knowledge</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:8px;background:#efeeeb;border-radius:8px;padding:7px 8px">
+      <div style="width:22px;height:22px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700">RB</div>
+      <span style="font-size:12px;font-weight:600;color:#1c1b18">Rachel Bowen</span>
+    </div>
+  </div>
+
+  <div onMouseDown="{{ onNavGripDownB }}" title="Drag to resize" style="width:12px;flex:none;cursor:col-resize;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background .1s" style-hover="background:#e2e0d9">
+    <svg width="4" height="18" viewBox="0 0 4 18" fill="none"><circle cx="1" cy="2" r="1" fill="#c7c5be"></circle><circle cx="1" cy="9" r="1" fill="#c7c5be"></circle><circle cx="1" cy="16" r="1" fill="#c7c5be"></circle><circle cx="3" cy="2" r="1" fill="#c7c5be"></circle><circle cx="3" cy="9" r="1" fill="#c7c5be"></circle><circle cx="3" cy="16" r="1" fill="#c7c5be"></circle></svg>
+  </div>
+
+  <div style="flex:1;min-width:0;background:#fff;border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 14px 28px -8px rgba(0,0,0,.35),0 30px 50px -12px rgba(0,0,0,.28);display:flex;flex-direction:column;box-sizing:border-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-bottom:1px solid #ebeae6">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#57564f;background:#efeeeb;border-radius:999px;padding:4px 12px">▧ Project sandbox</span>
+      <span style="font-size:12px;color:#c7c5be">/</span>
+      <b style="font-size:12.5px;color:#1c1b18">Statement of Community Consultation</b>
+      <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;border-radius:12px;padding:8px 16px;background:#1c1b18;color:#fff;cursor:pointer">⇧ Promote</span>
+    </div>
+    <div style="flex:1;overflow:auto;padding:24px 36px 32px">
+      <div style="max-width:560px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15.5px;line-height:1.75;color:#2c2b28">
+        <h2 style="font-size:18px;font-weight:600;margin:0 0 14px">4. Consultation Approach</h2>
+        <p style="margin:0 0 14px">The scheme's consultation strategy follows the staged approach set out in the Section 47 statement, beginning with a non-statutory phase to establish the affected community and landowner list.</p>
+        <p style="margin:0 0 14px">Feedback from the first drop-in session <span style="background:#ececea;border-radius:4px;padding:0 2px">indicated concern over construction traffic routing through Calder Lane</span>, addressed in the revised access strategy below.</p>
+
+        <div style="background:#f0efeb;border-radius:12px;padding:14px 16px;margin:14px 0;box-shadow:0 10px 28px rgba(20,20,20,.09)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:20px;height:20px;border-radius:50%;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">✓</div>
+            <span style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1c1b18;font-weight:600">Suggestion ready · pending your decision</span>
+          </div>
+          <p style="font-family:-apple-system,BlinkMacSystemFont,'Inter','Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.7;margin:0 0 12px;color:#2c2b28">
+            A revised construction traffic management plan will route HGV movements via the A414 slip road rather than Calder Lane during the peak consultation-response period.
+          </p>
+          <div style="display:flex;gap:8px">
+            <span style="font-size:12px;font-weight:700;color:#fff;background:#1c1b18;border-radius:12px;padding:7px 15px;cursor:pointer">✓ Accept</span>
+            <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border-radius:12px;padding:7px 15px;cursor:pointer">✎ Edit</span>
+            <span style="font-size:12px;font-weight:600;color:#57564f;background:#fff;border-radius:12px;padding:7px 15px;cursor:pointer">Reject</span>
+          </div>
+        </div>
+
+        <p style="margin:0">A night-working restriction on the Calder Lane frontage <span style="background:#fbeceb;color:#b23b34;text-decoration:line-through;padding:0 1px;border-radius:2px">may need to be considered</span><span style="background:#e8f5ea;color:#1a7a3a;border-bottom:1.5px solid #2f9e52;padding:0 1px;margin-left:3px">remains available</span> as a fallback, subject to the noise assessment in Appendix C.</p>
+      </div>
+    </div>
+  </div>
+
+  <div onMouseDown="{{ onChatGripDownB }}" title="Drag to resize" style="width:12px;flex:none;cursor:col-resize;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:background .1s" style-hover="background:#e2e0d9">
+    <svg width="4" height="18" viewBox="0 0 4 18" fill="none"><circle cx="1" cy="2" r="1" fill="#c7c5be"></circle><circle cx="1" cy="9" r="1" fill="#c7c5be"></circle><circle cx="1" cy="16" r="1" fill="#c7c5be"></circle><circle cx="3" cy="2" r="1" fill="#c7c5be"></circle><circle cx="3" cy="9" r="1" fill="#c7c5be"></circle><circle cx="3" cy="16" r="1" fill="#c7c5be"></circle></svg>
+  </div>
+
+  <div style="{{ chatPaneStyleB }}">
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <span style="font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#78766f;font-weight:700">This run</span>
+      <span title="Collapse panel" style="margin-left:auto;width:20px;height:20px;border-radius:8px;color:#78766f;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;transition:background .15s,color .15s" style-hover="background:#efeeeb;color:#1c1b18">»</span>
+    </div>
+    <div style="display:flex;flex-direction:column;margin-bottom:18px">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1c1b18;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#e0ded8;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#1c1b18;font-weight:600;padding-top:1px">Retrieved sources</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <div style="width:22px;height:22px;border-radius:50%;background:#1c1b18;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+          <div style="width:2px;flex:1;background:#e0ded8;min-height:18px"></div>
+        </div>
+        <div style="font-size:12.5px;color:#1c1b18;font-weight:600;padding-top:1px">Ground-checked claims</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="width:22px;height:22px;border-radius:50%;background:#ececea;color:#1c1b18;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">3</div>
+        <div style="font-size:12.5px;color:#57564f;font-weight:600;padding-top:1px">Suggestion drafted</div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;border-top:1px solid #ebeae6;padding-top:14px">
+      <div style="background:#efeeeb;border-radius:16px;padding:10px 13px;font-size:12.5px;color:#1c1b18;max-width:92%;align-self:flex-end;box-shadow:0 8px 22px rgba(20,20,20,.08)">Draft a mitigation for the Calder Lane traffic feedback</div>
+      <div style="font-size:12.5px;color:#57564f;line-height:1.55">Done — 1 suggestion on the document, grounded on the Traffic Management Plan v2.</div>
+    </div>
+
+    <div style="background:#efeeeb;border-radius:16px;padding:12px 14px 10px;margin-top:14px;box-shadow:0 10px 28px rgba(20,20,20,.09)">
+      <div style="font-size:12.5px;color:#78766f">Ask for a draft into this document</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:10px;font-size:11px;color:#57564f">
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#efeeeb;border-color:rgba(20,20,20,.16)">📎 Files</span>
+        <span style="display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(20,20,20,.09);border-radius:999px;padding:4px 10px;cursor:pointer;transition:background .15s,border-color .15s" style-hover="background:#efeeeb;border-color:rgba(20,20,20,.16)">▤ Sources</span>
+        <span style="margin-left:auto;width:24px;height:24px;border-radius:8px;background:#1c1b18;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px">→</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "carry 4b's stronger shadow into 5a and the editor too" · "push the shadow even further / add a subtle inner highlight" · "start the design guide doc now, rooted in 4b"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+
+class Component extends DCLogic {
+  state = { navW: 216, chatW: 308, navWB: 216, chatWB: 308 };
+
+  dragWidth(getStart, setW, invert) {
+    return (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = getStart();
+      const onMove = (ev) => {
+        const dx = invert ? startX - ev.clientX : ev.clientX - startX;
+        setW(Math.min(420, Math.max(160, startW + dx)));
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+  }
+
+  renderVals() {
+    const pane = (w, extra) => Object.assign(
+      { width: w + 'px', minWidth: w + 'px', background: '#fff', borderRadius: '10px', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' },
+      extra,
+    );
+    return {
+      navPaneStyle: pane(this.state.navW, { padding: '14px 10px', boxShadow: '0 1px 3px rgba(20,20,20,.08)' }),
+      chatPaneStyle: pane(this.state.chatW, { padding: '14px', boxShadow: '0 1px 3px rgba(20,20,20,.08)' }),
+      navPaneStyleB: pane(this.state.navWB, { padding: '14px 10px', boxShadow: '0 1px 2px rgba(0,0,0,.10),0 14px 28px -8px rgba(0,0,0,.35),0 30px 50px -12px rgba(0,0,0,.28)' }),
+      chatPaneStyleB: pane(this.state.chatWB, { padding: '14px', boxShadow: '0 1px 2px rgba(0,0,0,.10),0 14px 28px -8px rgba(0,0,0,.35),0 30px 50px -12px rgba(0,0,0,.28)' }),
+      onNavGripDown: this.dragWidth(() => this.state.navW, (w) => this.setState({ navW: w }), false),
+      onChatGripDown: this.dragWidth(() => this.state.chatW, (w) => this.setState({ chatW: w }), true),
+      onNavGripDownB: this.dragWidth(() => this.state.navWB, (w) => this.setState({ navWB: w }), false),
+      onChatGripDownB: this.dragWidth(() => this.state.chatWB, (w) => this.setState({ chatWB: w }), true),
+    };
+  }
+}</script>
+</body>
+</html>

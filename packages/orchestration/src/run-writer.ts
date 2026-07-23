@@ -82,6 +82,7 @@ export async function openStep(
 export type StepAudit = {
   model?: { id: string; version: string };
   usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  egress?: Step['egress']; // the model call's egress facts (ADR-0037 §6)
   sourceSet?: Step['sourceSet'];
   railOutcomes?: Step['railOutcomes'];
   childRunId?: Id;
@@ -108,6 +109,10 @@ export async function finishStep(
       tokensPrompt: audit.usage?.tokensPrompt ?? null,
       tokensCompletion: audit.usage?.tokensCompletion ?? null,
       cost: audit.usage ? String(audit.usage.cost) : null,
+      egressEndpoint: audit.egress?.endpoint ?? null,
+      egressRegion: audit.egress?.region ?? null,
+      egressRetention: audit.egress?.retention ?? null,
+      egressClassification: audit.egress?.classification ?? null,
       sourceSet: audit.sourceSet ?? [],
       railOutcomes: audit.railOutcomes ?? [],
       childRunId: audit.childRunId ?? null,

@@ -83,18 +83,18 @@ export function SettingsScreen() {
 
         <SectionLabel>Profile</SectionLabel>
         <Card>
-          <div style={{ padding: 18, display: 'grid', gap: 10, fontSize: 13 }}>
+          <div style={{ padding: 16, display: 'grid', gap: 10, fontSize: 13 }}>
             <div>
-              <span style={{ color: 'var(--muted)' }}>Email · </span>
+              <span style={{ color: 'var(--text-muted)' }}>Email · </span>
               {/* identity, not a setting — sign-in moves to Entra SSO in production */}
               <span>{me.email}</span>
             </div>
             <div>
-              <span style={{ color: 'var(--muted)' }}>Organisation · </span>
+              <span style={{ color: 'var(--text-muted)' }}>Organisation · </span>
               <span>{me.organisationName}</span>
             </div>
             <form onSubmit={saveName} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label htmlFor="display-name" style={{ color: 'var(--muted)' }}>
+              <label htmlFor="display-name" style={{ color: 'var(--text-muted)' }}>
                 Display name
               </label>
               <input
@@ -109,15 +109,15 @@ export function SettingsScreen() {
               <Button size="sm" variant="primary" type="submit">
                 Save
               </Button>
-              {nameState === 'saved' && <Badge tone="green">Saved</Badge>}
+              {nameState === 'saved' && <Badge tone="success">Saved</Badge>}
             </form>
           </div>
         </Card>
 
         <SectionLabel>Appearance</SectionLabel>
         <Card>
-          <div style={{ padding: 18, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
-            <span style={{ color: 'var(--muted)' }}>Theme</span>
+          <div style={{ padding: 16, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-muted)' }}>Theme</span>
             <Button
               size="sm"
               variant={theme === 'light' ? 'primary' : 'quiet'}
@@ -132,14 +132,14 @@ export function SettingsScreen() {
             >
               ☾ Dark
             </Button>
-            <span style={{ color: 'var(--muted)' }}>saved to your profile — follows you between devices</span>
+            <span style={{ color: 'var(--text-muted)' }}>saved to your profile — follows you between devices</span>
           </div>
         </Card>
 
         <SectionLabel>Password</SectionLabel>
         <Card>
-          <form onSubmit={changePassword} style={{ padding: 18, display: 'grid', gap: 10, maxWidth: 420 }}>
-            <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--muted)' }}>
+          <form onSubmit={changePassword} style={{ padding: 16, display: 'grid', gap: 10, maxWidth: 420 }}>
+            <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--text-muted)' }}>
               Current password
               <input
                 type="password"
@@ -151,7 +151,7 @@ export function SettingsScreen() {
                 style={field}
               />
             </label>
-            <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--muted)' }}>
+            <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--text-muted)' }}>
               New password (min 8 characters)
               <input
                 type="password"
@@ -167,9 +167,9 @@ export function SettingsScreen() {
               <Button size="sm" variant="primary" type="submit">
                 Change password
               </Button>
-              {passwordState === 'saved' && <Badge tone="green">Changed</Badge>}
-              {passwordState === 'wrong' && <Badge tone="red">Current password incorrect</Badge>}
-              {passwordState === 'short' && <Badge tone="red">New password too short</Badge>}
+              {passwordState === 'saved' && <Badge tone="success">Changed</Badge>}
+              {passwordState === 'wrong' && <Badge tone="danger">Current password incorrect</Badge>}
+              {passwordState === 'short' && <Badge tone="danger">New password too short</Badge>}
             </div>
           </form>
         </Card>
@@ -178,11 +178,11 @@ export function SettingsScreen() {
 
         <SectionLabel>Session</SectionLabel>
         <Card>
-          <div style={{ padding: 18, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+          <div style={{ padding: 16, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
             <Button size="sm" variant="danger" onClick={() => void signOut()}>
               Sign out
             </Button>
-            <span style={{ color: 'var(--muted)' }}>
+            <span style={{ color: 'var(--text-muted)' }}>
               Ends this session on this device — you land back at the login screen.
             </span>
           </div>
@@ -195,11 +195,11 @@ export function SettingsScreen() {
 const fieldStyle = {
   font: 'inherit',
   fontSize: 13,
-  border: '1px solid var(--hairline)',
-  borderRadius: 6,
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--control-sm)',
   padding: '7px 10px',
-  background: 'var(--panel)',
-  color: 'var(--ink)',
+  background: 'var(--surface-pane)',
+  color: 'var(--text-primary)',
 } as const;
 
 // T-117 (ADR-0033) — the Administration panel: an org admin staffs their
@@ -239,9 +239,9 @@ function AdministrationPanel() {
     <>
       <SectionLabel>Administration</SectionLabel>
       <Card>
-        <div style={{ padding: 18, display: 'grid', gap: 12, fontSize: 13 }}>
+        <div style={{ padding: 16, display: 'grid', gap: 12, fontSize: 13 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ color: 'var(--muted)' }}>Project</span>
+            <span style={{ color: 'var(--text-muted)' }}>Project</span>
             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={fieldStyle}>
               {me.participants.map((p) => (
                 <option key={p.projectId} value={p.projectId}>
@@ -249,7 +249,7 @@ function AdministrationPanel() {
                 </option>
               ))}
             </select>
-            <span style={{ color: 'var(--muted)' }}>
+            <span style={{ color: 'var(--text-muted)' }}>
               your organisation's people on this project — the owner opens the seat, you staff it
             </span>
           </div>
@@ -262,7 +262,7 @@ function AdministrationPanel() {
                 </Button>
               </div>
             ))}
-            {ownLive.length === 0 && <span style={{ color: 'var(--muted)' }}>No one enrolled yet.</span>}
+            {ownLive.length === 0 && <span style={{ color: 'var(--text-muted)' }}>No one enrolled yet.</span>}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <select value={pickedUser} onChange={(e) => setPickedUser(e.target.value)} style={fieldStyle}>

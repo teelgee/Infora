@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { GetWorkItemResponse, MeResponse, ReviewCycle, SandboxDocument } from '@infora/contracts';
-import { Badge, Button, Card, SectionLabel } from '@infora/ui';
+import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { statusBadge } from './shared';
 
@@ -51,7 +51,7 @@ export function WorkItemScreen() {
         {assignedToMe && (
           <>
             {' '}
-            · <Badge tone="slate">Assigned to you</Badge>
+            · <Badge tone="info">Assigned to you</Badge>
           </>
         )}
       </p>
@@ -78,7 +78,7 @@ export function WorkItemScreen() {
       </div>
 
       <SectionLabel>Review cycle</SectionLabel>
-      <Card>
+      <Table>
         <table>
           <thead>
             <tr>
@@ -101,7 +101,7 @@ export function WorkItemScreen() {
                       <Badge tone={roundState.tone}>{roundState.label}</Badge>
                     </td>
                     <td>{round.deliverableCode?.code ?? '—'}</td>
-                    <td style={{ color: 'var(--muted)' }}>
+                    <td style={{ color: 'var(--text-muted)' }}>
                       {round.comments.length > 0
                         ? `${round.comments.length} on the record`
                         : round.state === 'open'
@@ -113,7 +113,7 @@ export function WorkItemScreen() {
               })}
             {!cycle && (
               <tr>
-                <td colSpan={5} style={{ color: 'var(--muted)' }}>
+                <td colSpan={5} style={{ color: 'var(--text-muted)' }}>
                   Not yet promoted — production is upstream in the sandbox; the cycle launches when
                   the lead author promotes the first version.
                 </td>
@@ -121,9 +121,9 @@ export function WorkItemScreen() {
             )}
           </tbody>
         </table>
-      </Card>
+      </Table>
       {cycle && (
-        <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
           The pen is with {cycle.editLockHolder === 'reviewing' ? 'the review group' : 'the authoring team'} ·
           the full decision-and-response register is on the review page.
         </p>

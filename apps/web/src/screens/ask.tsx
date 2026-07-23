@@ -102,7 +102,7 @@ export function AskScreen() {
             <b>Ask</b> · Conversation bound to {participant.projectName}
           </span>
           <div className="right">
-            <Badge tone="green">Grounded &amp; cited</Badge>
+            <Badge tone="success">Grounded &amp; cited</Badge>
           </div>
         </div>
 
@@ -120,7 +120,7 @@ export function AskScreen() {
                 </div>
               ) : message.kind === 'note' ? (
                 <div key={message.id} className="msg agent" style={{ maxWidth: '100%' }}>
-                  <div className="bubble" style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+                  <div className="bubble" style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>
                     {message.text}
                   </div>
                 </div>
@@ -137,7 +137,7 @@ export function AskScreen() {
             {pending && (
               <div className="msg agent" style={{ maxWidth: '100%' }}>
                 <div className="who">Infora agent</div>
-                <div className="bubble" style={{ color: 'var(--muted)' }}>Working…</div>
+                <div className="bubble" style={{ color: 'var(--text-muted)' }}>Working…</div>
               </div>
             )}
             {failed && (
@@ -218,7 +218,7 @@ function AgentMessage(props: {
       )}
       {openWorld > 0 && (
         <div style={{ margin: '6px 0 2px' }}>
-          <Badge tone="grey">
+          <Badge tone="neutral">
             includes model knowledge — {openWorld} uncited claim{openWorld === 1 ? '' : 's'}
           </Badge>
         </div>

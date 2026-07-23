@@ -106,7 +106,7 @@ export const ChatComposer = forwardRef<
           resize: 'none',
           font: 'inherit',
           lineHeight: 1.5,
-          color: 'var(--ink)',
+          color: 'var(--text-primary)',
           background: 'transparent',
           ...(props.fontSize !== undefined && { fontSize: props.fontSize }),
         }}

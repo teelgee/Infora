@@ -20,6 +20,7 @@ import type {
   Round,
   SandboxDocument,
 } from '@infora/contracts';
+import { Download } from 'lucide-react';
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { statusBadge } from './shared';
@@ -80,14 +81,14 @@ export function CycleScreen() {
   if (loadError) {
     return (
       <div className="content">
-        <p style={{ color: 'var(--muted)' }}>Could not load the deliverable ({loadError}).</p>
+        <p style={{ color: 'var(--text-muted)' }}>Could not load the deliverable ({loadError}).</p>
       </div>
     );
   }
   if (row === null) {
     return (
       <div className="content">
-        <p style={{ color: 'var(--muted)' }}>
+        <p style={{ color: 'var(--text-muted)' }}>
           {loaded ? 'This deliverable is not on a plan you can see.' : 'Loading the deliverable…'}
         </p>
       </div>
@@ -114,7 +115,7 @@ export function CycleScreen() {
 
   return (
     <div className="content">
-      <h1 className="page" style={{ fontFamily: 'var(--mono, monospace)' }}>
+      <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
         {row.documentReference}
       </h1>
       <p className="page-sub">
@@ -129,13 +130,13 @@ export function CycleScreen() {
         {row.deliverableCode && (
           <>
             {' '}
-            · verdict <Badge tone="slate">{row.deliverableCode.code}</Badge>
+            · verdict <Badge tone="info">{row.deliverableCode.code}</Badge>
           </>
         )}
       </p>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {notice && <Badge tone="red">{notice}</Badge>}
+        {notice && <Badge tone="danger">{notice}</Badge>}
         {draft && myAuthor && (
           <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
             Open the draft in the Editor
@@ -155,7 +156,7 @@ export function CycleScreen() {
 
       {!cycle && (
         <Card>
-          <div style={{ padding: 18, color: 'var(--muted)', fontSize: 13 }}>
+          <div style={{ padding: 18, color: 'var(--text-muted)', fontSize: 13 }}>
             Not yet promoted — the review cycle launches when the lead author promotes the first
             version from the sandbox draft.
           </div>
@@ -204,76 +205,65 @@ function RoundCard(props: {
       <SectionLabel>
         Round {round.number} · {round.versionReference}
       </SectionLabel>
-      <Card>
-        <div style={{ padding: 16, display: 'grid', gap: 12, fontSize: 13 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Badge tone={roundState.tone}>{roundState.label}</Badge>
-            {round.deliverableCode && (
-              <Badge tone={round.deliverableCode.isAccepting ? 'green' : 'amber'}>
-                {round.deliverableCode.code} — {round.deliverableCode.description}
-              </Badge>
+      <div style={{ display: 'grid', gap: 12, fontSize: 13, marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Badge tone={roundState.tone}>{roundState.label}</Badge>
+          {round.deliverableCode && (
+            <Badge tone={round.deliverableCode.isAccepting ? 'success' : 'warning'}>
+              {round.deliverableCode.code} — {round.deliverableCode.description}
+            </Badge>
+          )}
+          <span style={{ flex: 1 }} />
+          {renditions.map((r) => (
+            <a
+              key={r.id}
+              href={`/renditions/${r.id}/file`}
+              style={{ fontSize: 12, color: 'var(--text-muted)' }}
+            >
+              <Download size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              {r.kind === 'pdf' ? 'PDF (review rendition)' : `native .${r.format}`}
+            </a>
+          ))}
+        </div>
+
+        {/* T-131/tool-separation (design-rules.md §A) — the frozen version's
+            PDF and the DRR are two independent Pane cards, not one card split
+            by a border: the reviewer's tool is never visually merged with the
+            document it's reviewing. The list↔region hover spans the split;
+            the columns stack when the content area is too narrow for both. */}
+        <div className="round-tray" style={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 640px', minWidth: 0 }}>
+            {pdf ? (
+              <div className="review-viewer">
+                {props.canComment && (
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
+                    Select text on the page to quote it, or click to drop a point — then write the comment
+                    alongside.
+                  </div>
+                )}
+                <Suspense
+                  fallback={<div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading the review PDF…</div>}
+                >
+                  <ReviewPdf
+                    renditionId={pdf.id}
+                    comments={round.comments}
+                    interactive={props.canComment}
+                    draft={draftAnchor}
+                    onDraft={setDraftAnchor}
+                    hoveredCommentId={hovered}
+                    onHoverComment={setHovered}
+                  />
+                </Suspense>
+              </div>
+            ) : (
+              <TextFallback versionId={round.versionId} />
             )}
-            <span style={{ flex: 1 }} />
-            {renditions.map((r) => (
-              <a
-                key={r.id}
-                href={`/renditions/${r.id}/file`}
-                style={{ fontSize: 12, color: 'var(--muted)' }}
-              >
-                ⬇ {r.kind === 'pdf' ? 'PDF (review rendition)' : `native .${r.format}`}
-              </a>
-            ))}
           </div>
 
-          {/* T-131 — the review reads side by side: the frozen version's
-              PDF on the left (anchors painted from the stored fields — this
-              round paints only its own version's rendition, so anchors never
-              migrate forward), the DRR on the right. The list↔region hover
-              spans the split; the columns stack when the content area is too
-              narrow to hold both. */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 640px', minWidth: 0 }}>
-              {pdf ? (
-                <div
-                  className="review-viewer"
-                  style={{
-                    background: 'var(--panel)',
-                    border: '1px solid var(--hairline)',
-                    borderRadius: 8,
-                    padding: 12,
-                    maxHeight: 620,
-                    overflow: 'auto',
-                  }}
-                >
-                  {props.canComment && (
-                    <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
-                      Select text on the page to quote it, or click to drop a point — then write the comment
-                      alongside.
-                    </div>
-                  )}
-                  <Suspense
-                    fallback={<div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading the review PDF…</div>}
-                  >
-                    <ReviewPdf
-                      renditionId={pdf.id}
-                      comments={round.comments}
-                      interactive={props.canComment}
-                      draft={draftAnchor}
-                      onDraft={setDraftAnchor}
-                      hoveredCommentId={hovered}
-                      onHoverComment={setHovered}
-                    />
-                  </Suspense>
-                </div>
-              ) : (
-                <TextFallback versionId={round.versionId} />
-              )}
-            </div>
-
-            <div
-              className="review-drr"
-              style={{
-                flex: '1 1 320px',
+          <div
+            className="review-drr"
+            style={{
+              flex: '1 1 320px',
                 minWidth: 280,
                 maxHeight: 620,
                 display: 'flex',
@@ -292,7 +282,7 @@ function RoundCard(props: {
                 }}
               >
                 {round.comments.length === 0 && (
-                  <span style={{ color: 'var(--muted)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>
                     {round.state === 'open'
                       ? 'No comments yet — the round is open to the review group.'
                       : 'No comments were recorded in this round.'}
@@ -311,7 +301,7 @@ function RoundCard(props: {
               </div>
 
               {props.canComment && (
-                <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
+                <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
                   <AnchorChip anchor={draftAnchor} onClear={() => setDraftAnchor(null)} />
                   <textarea
                     placeholder="Add a review comment…"
@@ -365,11 +355,11 @@ function RoundCard(props: {
                   style={{
                     display: 'grid',
                     gap: 8,
-                    borderTop: '1px solid var(--hairline)',
+                    borderTop: '1px solid var(--border-default)',
                     paddingTop: 12,
                   }}
                 >
-                  <span style={{ color: 'var(--muted)' }}>Deliverable verdict</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Deliverable verdict</span>
                   <select value={verdict} onChange={(e) => setVerdict(e.target.value)} style={field}>
                     <option value="">choose a code…</option>
                     {codes
@@ -409,7 +399,6 @@ function RoundCard(props: {
             </div>
           </div>
         </div>
-      </Card>
     </>
   );
 }
@@ -431,9 +420,9 @@ function CommentRow(props: {
       onMouseEnter={() => onHover(comment.id)}
       onMouseLeave={() => onHover(null)}
       style={{
-        borderLeft: `2px solid ${hovered ? 'var(--accent, #c89600)' : 'var(--hairline)'}`,
-        background: hovered ? 'var(--panel)' : 'transparent',
-        borderRadius: hovered ? 4 : 0,
+        borderLeft: `2px solid ${hovered ? 'var(--action-primary-bg)' : 'var(--border-default)'}`,
+        background: hovered ? 'var(--surface-hover)' : 'transparent',
+        borderRadius: hovered ? 'var(--control-sm)' : 0,
         paddingLeft: 10,
         display: 'grid',
         gap: 4,
@@ -441,22 +430,22 @@ function CommentRow(props: {
     >
       <div>
         <b>{comment.author.name}</b>{' '}
-        {comment.acceptanceCode && <Badge tone="slate">{comment.acceptanceCode.code}</Badge>}{' '}
-        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+        {comment.acceptanceCode && <Badge tone="info">{comment.acceptanceCode.code}</Badge>}{' '}
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
           {new Date(comment.createdAt).toLocaleString()}
         </span>
       </div>
       {comment.anchor?.quote && (
-        <div style={{ color: 'var(--muted)', fontSize: 12, fontStyle: 'italic' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
           “{comment.anchor.quote}”{comment.anchor.page !== undefined && ` — p.${comment.anchor.page}`}
         </div>
       )}
       <div>{comment.body}</div>
       {comment.response && (
-        <div style={{ background: 'var(--panel)', borderRadius: 6, padding: '6px 10px' }}>
+        <div style={{ background: 'var(--surface-sunken)', borderRadius: 'var(--primitive-radius-xs)', padding: '6px 10px' }}>
           <b>Response</b> · {comment.response.body}
           {comment.response.noChangeReason && (
-            <span style={{ color: 'var(--muted)' }}> — {comment.response.noChangeReason}</span>
+            <span style={{ color: 'var(--text-muted)' }}> — {comment.response.noChangeReason}</span>
           )}
         </div>
       )}
@@ -500,7 +489,7 @@ function AnchorChip(props: { anchor: CommentAnchor | null; onClear: () => void }
   const { anchor } = props;
   if (!anchor) {
     return (
-      <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
         No anchor — the comment will attach to the round, not a passage.
       </span>
     );
@@ -512,8 +501,8 @@ function AnchorChip(props: { anchor: CommentAnchor | null; onClear: () => void }
       : `Anchored · p.${anchor.page}`;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-      <Badge tone="amber">anchored</Badge>
-      <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>{label}</span>
+      <Badge tone="warning">anchored</Badge>
+      <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{label}</span>
       <Button size="sm" variant="quiet" onClick={props.onClear}>
         Clear anchor
       </Button>
@@ -538,12 +527,12 @@ function TextFallback(props: { versionId: string }) {
     };
   }, [props.versionId]);
   return (
-    <div style={{ background: 'var(--panel)', border: '1px solid var(--hairline)', borderRadius: 8, padding: 12 }}>
-      <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>
+    <div className="review-viewer">
+      <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
         No PDF rendition for this version — shown as text until the office→PDF converter lands (ADR-0034). In-PDF
         anchoring resumes once the rendition exists.
       </div>
-      {failed && <div style={{ color: 'var(--muted)', fontSize: 13 }}>The version text could not be read.</div>}
+      {failed && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>The version text could not be read.</div>}
       {version && (
         <pre style={{ whiteSpace: 'pre-wrap', font: 'inherit', fontSize: 13, margin: 0 }}>{version.content}</pre>
       )}
@@ -554,9 +543,9 @@ function TextFallback(props: { versionId: string }) {
 const field = {
   font: 'inherit',
   fontSize: 13,
-  border: '1px solid var(--hairline)',
-  borderRadius: 6,
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--control-sm)',
   padding: '7px 10px',
-  background: 'var(--panel)',
-  color: 'var(--ink)',
+  background: 'var(--surface-sunken)',
+  color: 'var(--text-primary)',
 } as const;

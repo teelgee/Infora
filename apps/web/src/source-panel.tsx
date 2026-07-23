@@ -29,10 +29,10 @@ export function SourcePanel(props: { versionId: string; onClose: () => void }) {
     version === null
       ? null
       : version.containerState === 'withdrawn'
-        ? { tone: 'red' as const, label: 'Withdrawn' }
+        ? { tone: 'danger' as const, label: 'Withdrawn' }
         : version.containerState === 'superseded' || !version.isCurrent
-          ? { tone: 'grey' as const, label: 'Superseded' }
-          : { tone: 'green' as const, label: 'Live' };
+          ? { tone: 'neutral' as const, label: 'Superseded' }
+          : { tone: 'success' as const, label: 'Live' };
 
   return (
     <div className="source-panel">

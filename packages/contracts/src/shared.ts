@@ -23,6 +23,15 @@ export type Step = {
   endedAt: string | null;
   model?: { id: string; version: string }; // the Router's choice
   usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  // the egress facts the model call used (ADR-0037 §6): endpoint, processing
+  // region, retention posture and data classification — the per-call evidence
+  // a security review requires. Absent on steps that made no model call.
+  egress?: {
+    endpoint: string;
+    region: string;
+    retention: string;
+    classification: string;
+  };
   sourceSet: Array<{ versionId: Id } | { authorityRef: string }>; // defensibility field 1 (ADR-0028 §7)
   railOutcomes: Array<{
     rail: string;

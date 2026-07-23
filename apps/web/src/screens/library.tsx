@@ -1,4 +1,5 @@
-// The Documents tab (T-086) per docs/design/mockups/library.html, flat in the
+// The Documents tab (T-086) per docs/design/mockups-legacy/library.html
+// (historical build reference — superseded by design-tokens.json/design-rules.md), flat in the
 // skeleton: one row per live container — the ruled list unit (2026-07-06);
 // folders, per-deliverable sharing badges and the container view with version
 // history arrive with the document-management slice. The list is the API's
@@ -6,7 +7,8 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import type { LibraryItem, MeResponse } from '@infora/contracts';
-import { Badge, Card, SectionLabel } from '@infora/ui';
+import { FileText } from 'lucide-react';
+import { Badge, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -28,7 +30,7 @@ export function LibraryScreen() {
       </p>
 
       <SectionLabel>Live deliverables</SectionLabel>
-      <Card className="tree">
+      <Table>
         <table>
           <thead>
             <tr>
@@ -40,24 +42,24 @@ export function LibraryScreen() {
             {(items ?? []).map((item) => (
               <tr key={item.containerId}>
                 <td>
-                  <span className="ficon">📄</span>
+                  <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
                   <span className="mono">{item.documentReference}</span>
                 </td>
                 <td>
-                  <Badge tone="green">Live</Badge>
+                  <Badge tone="success">Live</Badge>
                 </td>
               </tr>
             ))}
             {items !== null && items.length === 0 && (
               <tr>
-                <td colSpan={2} style={{ color: 'var(--muted)' }}>
+                <td colSpan={2} style={{ color: 'var(--text-muted)' }}>
                   No live deliverables in this project&apos;s library.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </Card>
+      </Table>
     </div>
   );
 }

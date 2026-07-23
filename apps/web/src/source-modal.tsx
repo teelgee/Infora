@@ -27,10 +27,10 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
     version === null
       ? null
       : version.containerState === 'withdrawn'
-        ? { tone: 'red' as const, label: 'Withdrawn' }
+        ? { tone: 'danger' as const, label: 'Withdrawn' }
         : version.containerState === 'superseded' || !version.isCurrent
-          ? { tone: 'grey' as const, label: 'Superseded' }
-          : { tone: 'green' as const, label: 'Live' };
+          ? { tone: 'neutral' as const, label: 'Superseded' }
+          : { tone: 'success' as const, label: 'Live' };
 
   return (
     <div
@@ -49,9 +49,10 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--hairline)',
-          borderRadius: 'var(--radius)',
+          background: 'var(--surface-pane)',
+          border: 'none',
+          borderRadius: 'var(--primitive-radius-md)',
+          boxShadow: 'var(--level4-overlay)',
           maxWidth: 680,
           width: '100%',
           maxHeight: '80vh',
@@ -65,7 +66,7 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
             alignItems: 'center',
             gap: 10,
             padding: '14px 18px',
-            borderBottom: '1px solid var(--hairline)',
+            borderBottom: '1px solid var(--border-default)',
           }}
         >
           <span className="mono" style={{ fontSize: 13 }}>
@@ -74,7 +75,7 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
           {state !== null && <Badge tone={state.tone}>{state.label}</Badge>}
           <span
             onClick={props.onClose}
-            style={{ marginLeft: 'auto', cursor: 'pointer', color: 'var(--muted)', fontSize: 16 }}
+            style={{ marginLeft: 'auto', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }}
             title="Close"
           >
             ✕
@@ -87,7 +88,7 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
             fontSize: 13.5,
             lineHeight: 1.65,
             whiteSpace: 'pre-wrap',
-            color: 'var(--ink-soft)',
+            color: 'var(--text-secondary)',
           }}
         >
           {version?.content}

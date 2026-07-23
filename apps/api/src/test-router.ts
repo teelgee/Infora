@@ -3,7 +3,7 @@
 // maps text to a basis vector by keyword, and its 'fake-embed' model id keeps
 // test chunks disjoint from any real voyage-ingested rows via the pinned-
 // model pre-filter (T-031).
-import { Router } from '@infora/model';
+import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 
 export const FAKE_EMBED_DIMENSIONS = 1024;
@@ -21,6 +21,7 @@ export function fakeRouter(
 ): Router {
   const chat: ChatAdapter = {
     modelId: 'fake-chat',
+    attributes: SELF_HOSTED_UK,
     chat: () =>
       Promise.resolve({
         text: reply,
@@ -31,6 +32,7 @@ export function fakeRouter(
   const embeddings: EmbeddingAdapter = {
     modelId: FAKE_EMBED_MODEL,
     dimensions: FAKE_EMBED_DIMENSIONS,
+    attributes: SELF_HOSTED_UK,
     embed: (texts) =>
       Promise.resolve({
         embeddings: texts.map(fakeVector),

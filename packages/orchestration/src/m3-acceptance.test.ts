@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { asc, eq } from 'drizzle-orm';
 import { createDb, schema as s } from '@infora/db';
 import { createAssembler } from '@infora/knowledge';
-import { Router } from '@infora/model';
+import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 import { runChain } from './chain';
 import type { ChainLeaves } from './chain';
@@ -26,6 +26,7 @@ const DRAFT_REPLY =
   'Remediation will cost approximately £2m.';
 const chat: ChatAdapter = {
   modelId: 'fake-chat',
+  attributes: SELF_HOSTED_UK,
   chat: () =>
     Promise.resolve({
       text: DRAFT_REPLY,
@@ -36,6 +37,7 @@ const chat: ChatAdapter = {
 const embeddings: EmbeddingAdapter = {
   modelId: 'fake-embed',
   dimensions: 1024,
+  attributes: SELF_HOSTED_UK,
   embed: (texts) =>
     Promise.resolve({
       embeddings: texts.map(() => {

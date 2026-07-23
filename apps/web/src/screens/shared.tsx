@@ -18,11 +18,11 @@ export function greeting(): string {
 export function statusBadge(status: string): { tone: BadgeTone; label: string } {
   const label = status.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase());
   const tone: BadgeTone = status.includes('review')
-    ? 'slate'
+    ? 'info'
     : status.includes('respond')
-      ? 'amber'
+      ? 'warning'
       : status === 'in_production'
-        ? 'green'
-        : 'grey';
+        ? 'success'
+        : 'neutral';
   return { tone, label };
 }

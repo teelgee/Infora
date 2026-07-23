@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { AssembledInput } from '@infora/contracts';
-import { Router } from '@infora/model';
+import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, ChatRequest, EmbeddingAdapter } from '@infora/model';
 import { groundedDraft, parseClaims } from './grounded-draft';
 
 const embeddings: EmbeddingAdapter = {
   modelId: 'unused',
   dimensions: 1,
+  attributes: SELF_HOSTED_UK,
   embed: () => Promise.reject(new Error('drafting never embeds')),
 };
 
 function routerReplying(text: string, capture?: (req: ChatRequest) => void): Router {
   const chat: ChatAdapter = {
     modelId: 'fake-chat',
+    attributes: SELF_HOSTED_UK,
     chat: (req) => {
       capture?.(req);
       return Promise.resolve({

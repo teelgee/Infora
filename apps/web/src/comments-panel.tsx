@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { RosterEntry, SandboxComment } from '@infora/contracts';
+import { Check, MessageSquare, PenLine, Reply, RotateCcw, X } from 'lucide-react';
 import { Button } from '@infora/ui';
 import { api } from './api';
 
@@ -233,10 +234,10 @@ export function CommentsPanel(props: Props) {
                   setEditText(comment.body);
                 }}
               >
-                ✎
+                <PenLine size={12} strokeWidth={2} />
               </button>
               <button title={isRoot ? 'Delete the thread' : 'Delete'} onClick={() => void remove(comment.id)}>
-                ✕
+                <X size={12} strokeWidth={2} />
               </button>
             </span>
           )}
@@ -334,15 +335,18 @@ export function CommentsPanel(props: Props) {
             {root.status === 'open' ? (
               <>
                 <Button size="sm" variant="quiet" onClick={() => setReplyFor(root.id)}>
-                  ↩ Reply
+                  <Reply size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                  Reply
                 </Button>
                 <Button size="sm" variant="quiet" onClick={() => void setStatus(root.id, 'closed')}>
-                  ✓ Close
+                  <Check size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                  Close
                 </Button>
               </>
             ) : (
               <Button size="sm" variant="quiet" onClick={() => void setStatus(root.id, 'open')}>
-                ↺ Reopen
+                <RotateCcw size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                Reopen
               </Button>
             )}
           </div>
@@ -393,15 +397,16 @@ export function CommentsPanel(props: Props) {
       ) : (
         <div style={{ marginBottom: 10 }}>
           <Button size="sm" onClick={() => setComposing(true)}>
-            💬 New comment
+            <MessageSquare size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+            New comment
           </Button>
         </div>
       )}
 
       {open.map(renderThread)}
       {open.length === 0 && !composing && (
-        <p style={{ color: 'var(--muted)', fontSize: 12.5 }}>
-          No open comments. Select text on the canvas and press 💬 Comment, or start one here —
+        <p style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>
+          No open comments. Select text on the canvas and press Comment, or start one here —
           any project colleague can reply and close.
         </p>
       )}

@@ -1,11 +1,13 @@
-// The Sandbox surface (T-051) per docs/design/mockups/sandbox.html: list,
+// The Sandbox surface (T-051) per docs/design/mockups-legacy/sandbox.html
+// (historical build reference — superseded by design-tokens.json/design-rules.md): list,
 // create, open — flat in the skeleton (folders, the shared-sandbox switcher
 // and attach-to-generation are post-skeleton). No document controls by
 // design; the AI never grounds on anything here (ADR-0011).
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, SandboxDocument } from '@infora/contracts';
-import { Badge, Button, Card, SectionLabel } from '@infora/ui';
+import { FileText } from 'lucide-react';
+import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 
@@ -40,7 +42,7 @@ export function SandboxScreen() {
           <Button size="sm" onClick={() => void create()}>
             ＋ New document
           </Button>
-          <Badge tone="grey">No document controls</Badge>
+          <Badge tone="neutral">No document controls</Badge>
         </span>
       </div>
       <p className="page-sub">
@@ -49,7 +51,7 @@ export function SandboxScreen() {
       </p>
 
       <SectionLabel>{me.organisationName} — private project sandbox</SectionLabel>
-      <Card className="tree">
+      <Table>
         <table>
           <thead>
             <tr>
@@ -62,7 +64,7 @@ export function SandboxScreen() {
             {(docs ?? []).map((doc) => (
               <tr key={doc.id}>
                 <td>
-                  <span className="ficon">📄</span>
+                  <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
                   {doc.title}
                 </td>
                 <td>{new Date(doc.updatedAt).toLocaleString()}</td>
@@ -81,14 +83,14 @@ export function SandboxScreen() {
             ))}
             {docs !== null && docs.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ color: 'var(--muted)' }}>
+                <td colSpan={3} style={{ color: 'var(--text-muted)' }}>
                   Nothing here yet — create a document or accept a draft from Ask.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </Card>
+      </Table>
     </div>
   );
 }

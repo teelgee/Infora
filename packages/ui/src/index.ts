@@ -1,9 +1,11 @@
-// @infora/ui — shared React kit + design tokens (T-049). Components emit the
-// mockups' class vocabulary; apps import './styles.css' once for the chrome.
-export { badgeTone, color, font, radius } from './tokens';
-export type { BadgeTone } from './tokens';
+// @infora/ui — shared React kit + design tokens. Components emit a fixed
+// class vocabulary styled from docs/design/design-tokens.json (via
+// tokens.generated.css); apps import './styles.css' once for the chrome.
+export { designTokens } from './tokens';
+export type { DesignTokenName } from './tokens';
 export {
   Badge,
+  badgeTone,
   Button,
   Card,
   Chip,
@@ -14,8 +16,13 @@ export {
   SourceChip,
   WithheldNotice,
 } from './primitives';
+export type { BadgeTone } from './primitives';
 export { ProjectSwitcher, Rail, RailNav, RailSpacer, UserChip, WorkspaceZone } from './rail';
 export type { RailNavItem } from './rail';
+export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
+export { Table } from './table';
+export { Skeleton } from './skeleton';
+export { ProjectCard } from './project-card';
 export { NumBadge, SuggestionCard } from './suggestion-card';
 export { RunTrace } from './run-trace';
 export { Markdown } from './markdown';

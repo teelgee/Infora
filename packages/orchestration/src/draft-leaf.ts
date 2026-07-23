@@ -15,7 +15,11 @@ export function createDraftLeaf(
     const result = await groundedDraft(router, input, { ...options, mode: input.mode });
     return {
       output: { claims: result.claims },
-      audit: { model: result.model, usage: result.usage },
+      audit: {
+        model: result.model,
+        usage: result.usage,
+        ...(result.egress !== undefined && { egress: result.egress }),
+      },
     };
   };
 }

@@ -83,6 +83,13 @@ export const steps = pgTable('steps', {
   tokensPrompt: integer('tokens_prompt'),
   tokensCompletion: integer('tokens_completion'),
   cost: numeric('cost'),
+  // the egress facts the model call used (ADR-0037 §6): the guarantee is
+  // provable per call, not merely asserted. Null on steps that made no model
+  // call (retrieve/cite in v1).
+  egressEndpoint: text('egress_endpoint'),
+  egressRegion: text('egress_region'),
+  egressRetention: text('egress_retention'),
+  egressClassification: text('egress_classification'),
   // the two defensibility fields (ADR-0028 §7)
   sourceSet: jsonb('source_set').notNull().default([]),
   railOutcomes: jsonb('rail_outcomes').notNull().default([]),

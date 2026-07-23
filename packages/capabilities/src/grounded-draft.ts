@@ -5,7 +5,7 @@
 // LLM-with-verifier pattern, ADR-0027 §2). The capability knows nothing of
 // runs or steps — orchestration adapts it into the chain.
 import type { AssembledInput, Id } from '@infora/contracts';
-import type { ModelIdentity, Router } from '@infora/model';
+import type { EgressFacts, ModelIdentity, Router } from '@infora/model';
 
 export type SourceRef = { versionId: Id } | { authorityRef: string };
 export type DraftedClaim = { text: string; sourceRef?: SourceRef };
@@ -14,6 +14,7 @@ export type GroundedDraftResult = {
   claims: DraftedClaim[];
   model: ModelIdentity;
   usage: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  egress?: EgressFacts; // the router's egress facts for this call (ADR-0037 §6)
 };
 
 export type GroundedDraftOptions = {
@@ -83,6 +84,7 @@ export async function groundedDraft(
   return {
     claims: parseClaims(result.text, sourceByMarker),
     model: result.model,
+    ...(result.egress !== undefined && { egress: result.egress }),
     usage: {
       tokensPrompt: result.usage.tokensPrompt,
       tokensCompletion: result.usage.tokensCompletion,

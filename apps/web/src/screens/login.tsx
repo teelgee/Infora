@@ -75,7 +75,7 @@ const fieldStyle: React.CSSProperties = {
   font: 'inherit',
   fontWeight: 400,
   padding: '9px 12px',
-  border: '1px solid var(--hairline)',
-  borderRadius: 6,
-  background: 'var(--paper)',
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--control-sm)',
+  background: 'var(--surface-pane)',
 };

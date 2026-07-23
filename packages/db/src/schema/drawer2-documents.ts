@@ -145,6 +145,74 @@ export const documentOrigin = pgEnum('document_origin', ['authored', 'uploaded']
 export const documentKind = pgEnum('document_kind', ['text', 'slides']);
 export const documentFormat = pgEnum('document_format', ['infora_text', 'docx', 'xlsx', 'pptx']);
 
+// ── Sandboxes (ADR-0036, T-145) — the participant-scoped working area ────────
+// A project holds an unlimited number of sandboxes, each scoped on a ladder
+// from broad to narrow: multi-org ⊃ single-org ⊃ team ⊃ named-user. Narrower is
+// a strict subset of broader; separation is by provisioning a narrower sandbox,
+// never by walling a shared one (participant-private). The single-org sandbox
+// is the default home for a producing org's TIDP deliverables.
+export const sandboxScope = pgEnum('sandbox_scope', [
+  'multi_org',
+  'single_org',
+  'team',
+  'named_user',
+]);
+// a scope grant admits either a whole organisation (multi_org/single_org) or a
+// named participant (team/named_user)
+export const sandboxGranteeType = pgEnum('sandbox_grantee_type', ['organisation', 'participant']);
+
+export const sandboxes = pgTable('sandboxes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id),
+  name: text('name').notNull(),
+  scope: sandboxScope('scope').notNull(),
+  // the organisation that provisions and owns the sandbox — for a cross-org
+  // (multi_org) sandbox this is the owner-approved provisioner (ADR-0018/0019)
+  owningOrganisationId: uuid('owning_organisation_id')
+    .notNull()
+    .references(() => organisations.id),
+  createdByParticipantId: uuid('created_by_participant_id')
+    .notNull()
+    .references(() => participants.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The live, revocable participant scope, as append-only intervals (ADR-0036):
+// add widens, close (removed_at) revokes — colocated with access so a revoke
+// takes effect in the same transaction as the read (ADR-0024), while the
+// revoked party's authored work stays attributed. Exactly one of
+// organisation_id / participant_id is set, matched to grantee_type (CHECK in
+// the migration).
+export const sandboxScopeGrants = pgTable(
+  'sandbox_scope_grants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxId: uuid('sandbox_id')
+      .notNull()
+      .references(() => sandboxes.id, { onDelete: 'cascade' }),
+    granteeType: sandboxGranteeType('grantee_type').notNull(),
+    organisationId: uuid('organisation_id').references(() => organisations.id),
+    participantId: uuid('participant_id').references(() => participants.id),
+    grantedByParticipantId: uuid('granted_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('sandbox_scope_grants_sandbox_idx').on(t.sandboxId),
+    // one live grant per (sandbox, organisation) and per (sandbox, participant)
+    uniqueIndex('sandbox_scope_grants_live_org_unique')
+      .on(t.sandboxId, t.organisationId)
+      .where(sql`${t.removedAt} IS NULL AND ${t.organisationId} IS NOT NULL`),
+    uniqueIndex('sandbox_scope_grants_live_participant_unique')
+      .on(t.sandboxId, t.participantId)
+      .where(sql`${t.removedAt} IS NULL AND ${t.participantId} IS NOT NULL`),
+  ],
+);
+
 // Deliberately mutable — the uncontrolled working area (draft-location
 // decision, 2026-07-04). The one non-append-only content table by design.
 export const sandboxDocuments = pgTable('sandbox_documents', {
@@ -153,10 +221,15 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
     .notNull()
     .references(() => projects.id),
   // whose sandbox it sits in — one implicit private project sandbox per
-  // organisation in the skeleton; the full sandbox model is a later drawer
+  // organisation in the skeleton; retained while the sandbox_id path (ADR-0036,
+  // T-145) is wired through the API (T-153)
   organisationId: uuid('organisation_id')
     .notNull()
     .references(() => organisations.id),
+  // the real sandbox this document lives in (ADR-0036, T-145) — nullable while
+  // the create path still keys off organisationId; backfilled to each org's
+  // single-org sandbox, made NOT NULL when the API is wired (T-153)
+  sandboxId: uuid('sandbox_id').references(() => sandboxes.id),
   title: text('title').notNull(),
   origin: documentOrigin('origin').notNull().default('authored'),
   kind: documentKind('kind').notNull().default('text'),

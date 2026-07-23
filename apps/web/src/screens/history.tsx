@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { HistoryEntry, MeResponse } from '@infora/contracts';
-import { Badge, Card, SectionLabel } from '@infora/ui';
+import { Badge, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -38,7 +38,7 @@ export function HistoryScreen() {
       </p>
 
       <SectionLabel>Your turns</SectionLabel>
-      <Card>
+      <Table>
         <table>
           <thead>
             <tr>
@@ -64,25 +64,25 @@ export function HistoryScreen() {
                   )}
                 </td>
                 <td>
-                  <Badge tone={entry.state === 'failed' ? 'red' : entry.state === 'running' ? 'grey' : 'green'}>
+                  <Badge tone={entry.state === 'failed' ? 'danger' : entry.state === 'running' ? 'neutral' : 'success'}>
                     {entry.state}
                   </Badge>
                 </td>
-                <td style={{ color: 'var(--muted)', fontSize: 12 }}>
+                <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                   {new Date(entry.startedAt).toLocaleString()}
                 </td>
               </tr>
             ))}
             {items !== null && items.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ color: 'var(--muted)' }}>
+                <td colSpan={4} style={{ color: 'var(--text-muted)' }}>
                   Nothing yet — your Ask conversations and document turns will log here.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </Card>
+      </Table>
     </div>
   );
 }

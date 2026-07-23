@@ -100,7 +100,7 @@ export function ReviewScreen() {
             <Button size="sm" variant="quiet" onClick={() => setAdding(false)}>
               Cancel
             </Button>
-            {error && <Badge tone="red">{error}</Badge>}
+            {error && <Badge tone="danger">{error}</Badge>}
           </form>
         </Card>
       )}
@@ -152,7 +152,7 @@ export function ReviewScreen() {
                       <div style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {proposed.map((g) => (
                           <span key={g.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                            <Badge tone="amber">proposed: {g.name}</Badge>
+                            <Badge tone="warning">proposed: {g.name}</Badge>
                             {isOwner && (
                               <span onClick={(e) => e.stopPropagation()}>
                                 <Button size="sm" variant="quiet" onClick={() => void confirmReviewer(g)}>

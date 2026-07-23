@@ -1,6 +1,6 @@
 # ADR-0019 - Sub-invites and sharing by location: membership is flat and owner-approved; work in progress is shared through shared sandboxes while the record is shared only by the owner; cross-organisation authoring happens in a shared sandbox
 
-**Status:** Accepted. Refines ADR-0016 and ADR-0017. Refined by ADR-0033 (2026-07-18): the propose-then-confirm admission below is carried as a Membership `state` (`proposed` | `active`) with added-by and timestamps, and each admitted organisation's org admin staffs its seat by enrolling its own users as Participants.
+**Status:** Accepted. Refines ADR-0016 and ADR-0017. Refined by ADR-0033 (2026-07-18): the propose-then-confirm admission below is carried as a Membership `state` (`proposed` | `active`) with added-by and timestamps, and each admitted organisation's org admin staffs its seat by enrolling its own users as Participants. Refined by ADR-0036 (2026-07-21): the sandbox participant-scope model — unlimited sandboxes on a broad-to-narrow ladder, live/revocable access, self-serve within one's own organisation with cross-organisation shared sandboxes owner-gated (create or propose-then-confirm).
 
 **Context:** We had to decide whether a member can bring another organisation onto a project, the contractor-and-sub-consultant case, and how a member shares its own work. The answer turns on where the work sits: in a sandbox or in the library.
 

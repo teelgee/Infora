@@ -7,22 +7,27 @@ import type { Step } from '@infora/contracts';
 import {
   Badge,
   Button,
+  Chip,
   CommandBar,
+  DropdownMenu,
   MadeCard,
   OutChip,
+  ProjectCard,
   ProjectSwitcher,
   Rail,
   RailNav,
   RunTrace,
+  Skeleton,
   SourceChip,
   SuggestionCard,
+  Table,
   UserChip,
 } from './index';
 
 describe('primitives (T-049)', () => {
   it('badges carry their tone class and dot', () => {
-    const html = renderToStaticMarkup(<Badge tone="green">Grounded &amp; cited</Badge>);
-    expect(html).toContain('badge b-green');
+    const html = renderToStaticMarkup(<Badge tone="success">Grounded &amp; cited</Badge>);
+    expect(html).toContain('badge b-success');
     expect(html).toContain('class="dot"');
   });
 
@@ -126,5 +131,63 @@ describe('suggestion card + run trace (T-049)', () => {
     expect(html).toContain('Drafted — claude-opus-4-8');
     expect(html).toContain('1 claim withheld');
     expect(html).toContain('2.5s');
+  });
+});
+
+describe('new components (design-rules.md §B)', () => {
+  it('table scopes the component.table token set around a plain <table>', () => {
+    const html = renderToStaticMarkup(
+      <Table>
+        <table>
+          <tbody>
+            <tr>
+              <td>row</td>
+            </tr>
+          </tbody>
+        </table>
+      </Table>,
+    );
+    expect(html).toContain('class="table"');
+    expect(html).toContain('<table>');
+  });
+
+  it('skeleton renders a shimmering placeholder at the given size', () => {
+    const html = renderToStaticMarkup(<Skeleton width={120} height={16} />);
+    expect(html).toContain('class="skeleton"');
+    expect(html).toContain('width:120px');
+    expect(html).toContain('height:16px');
+  });
+
+  it('project card renders title/subtitle/action, as a link when href is given', () => {
+    const asDiv = renderToStaticMarkup(<ProjectCard title="Wrenfield 400kV" subtitle="Owner: Calder & Hale" />);
+    expect(asDiv).toContain('class="project-card"');
+    expect(asDiv).toContain('Wrenfield 400kV');
+    expect(asDiv).toMatch(/^<div/);
+
+    const asLink = renderToStaticMarkup(<ProjectCard title="Wrenfield 400kV" href="/projects/1" />);
+    expect(asLink).toMatch(/^<a /);
+    expect(asLink).toContain('href="/projects/1"');
+  });
+
+  it('chip is a real button, disabled chips still carry their title', () => {
+    const html = renderToStaticMarkup(
+      <Chip disabled title="waits on the search provider">
+        ◍ Web search
+      </Chip>,
+    );
+    expect(html).toContain('class="chip disabled"');
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('title="waits on the search provider"');
+  });
+
+  it('dropdown menu renders its trigger; the menu itself is closed until toggled', () => {
+    const html = renderToStaticMarkup(
+      <DropdownMenu trigger={(toggle) => <button onClick={toggle}>Open</button>}>
+        <span>item</span>
+      </DropdownMenu>,
+    );
+    expect(html).toContain('Open');
+    expect(html).not.toContain('dropdown-menu');
+    expect(html).not.toContain('item');
   });
 });
