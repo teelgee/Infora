@@ -213,6 +213,30 @@ export const sandboxScopeGrants = pgTable(
   ],
 );
 
+// SharePoint-shaped folders inside a sandbox (ADR-0036 drawer, T-146): create,
+// nest (parent_folder_id), and move a document or folder by re-parenting. A
+// folder organises the view only — it is never an access object; scope stays
+// the sandbox's (a document's access is its sandbox's grant set, ADR-0036),
+// so nest/move never change who can see a document, only where it sits.
+export const sandboxFolders = pgTable(
+  'sandbox_folders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxId: uuid('sandbox_id')
+      .notNull()
+      .references(() => sandboxes.id, { onDelete: 'cascade' }),
+    parentFolderId: uuid('parent_folder_id').references((): AnyPgColumn => sandboxFolders.id, {
+      onDelete: 'cascade',
+    }),
+    name: text('name').notNull(),
+    createdByParticipantId: uuid('created_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sandbox_folders_sandbox_idx').on(t.sandboxId)],
+);
+
 // Deliberately mutable — the uncontrolled working area (draft-location
 // decision, 2026-07-04). The one non-append-only content table by design.
 export const sandboxDocuments = pgTable('sandbox_documents', {
@@ -230,6 +254,9 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
   // the create path still keys off organisationId; backfilled to each org's
   // single-org sandbox, made NOT NULL when the API is wired (T-153)
   sandboxId: uuid('sandbox_id').references(() => sandboxes.id),
+  // where the document sits in the sandbox's folder tree (ADR-0036, T-146);
+  // null = the sandbox root. A view fact only, never an access fact.
+  folderId: uuid('folder_id').references(() => sandboxFolders.id),
   title: text('title').notNull(),
   origin: documentOrigin('origin').notNull().default('authored'),
   kind: documentKind('kind').notNull().default('text'),

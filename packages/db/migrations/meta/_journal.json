@@ -127,6 +127,13 @@
       "when": 1784837833278,
       "tag": "0017_sandbox-participant-scope",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784838022206,
+      "tag": "0018_sandbox-folders",
+      "breakpoints": true
     }
   ]
 }
