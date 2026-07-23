@@ -367,3 +367,69 @@ export const sandboxComments = pgTable(
   (t) => [index('sandbox_comments_document_idx').on(t.sandboxDocumentId)],
 );
 
+// ── The naming scheme (ADR-0008 homed, T-148, Beat 1) ───────────────────────
+// Owner-defined and project-wide, but not fixed. The definition is an ordered
+// list of fields with allowed values; the code-builder (T-152) composes a
+// compliant reference and auto-increments a serial within the producing org's
+// own allocation, with cross-organisation uniqueness carried on the originator
+// field. One scheme per project.
+export const projectNamingSchemes = pgTable(
+  'project_naming_schemes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    separator: text('separator').notNull().default('-'),
+    // ordered fields: [{ key, label, allowedValues?, isOriginator?, isSerial?, width? }]
+    fields: jsonb('fields').notNull().default([]),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('project_naming_schemes_project_unique').on(t.projectId)],
+);
+
+// Per-(project, organisation, series) serial allocation — the auto-increment the
+// code-builder draws on. The series key is the composed prefix (every field but
+// the serial), so serials never collide within an organisation's own allocation
+// and cross-org distinctness rides the originator field.
+export const namingSerials = pgTable(
+  'naming_serials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    seriesKey: text('series_key').notNull(),
+    nextSerial: integer('next_serial').notNull().default(1),
+  },
+  (t) => [uniqueIndex('naming_serials_unique').on(t.projectId, t.organisationId, t.seriesKey)],
+);
+
+// A producer's proposed addition to the project-wide scheme — negotiation lives
+// at the scheme level, not per code (Beat 1). The owner folds it in or declines.
+export const namingProposalStatus = pgEnum('naming_proposal_status', [
+  'pending',
+  'accepted',
+  'declined',
+]);
+export const namingSchemeProposals = pgTable('naming_scheme_proposals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id),
+  proposingOrganisationId: uuid('proposing_organisation_id')
+    .notNull()
+    .references(() => organisations.id),
+  proposedByParticipantId: uuid('proposed_by_participant_id')
+    .notNull()
+    .references(() => participants.id),
+  body: text('body').notNull(),
+  status: namingProposalStatus('status').notNull().default('pending'),
+  resolvedByParticipantId: uuid('resolved_by_participant_id').references(() => participants.id),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+

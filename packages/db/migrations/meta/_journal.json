@@ -141,6 +141,13 @@
       "when": 1784838111957,
       "tag": "0019_binding-event-metadata-split",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784838273103,
+      "tag": "0020_naming-scheme-code-builder",
+      "breakpoints": true
     }
   ]
 }
