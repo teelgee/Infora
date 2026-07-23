@@ -33,6 +33,9 @@ export const resolutionSchema = z.enum([
 export const createConversationBody = z.object({
   surface: surfaceSchema,
   workItemId: id.optional(),
+  // a document-bound conversation is the multiplayer thread (ADR-0039, T-154):
+  // visible to the document's sandbox participant scope, not just the org
+  sandboxDocumentId: id.optional(),
 });
 export type CreateConversationBody = z.infer<typeof createConversationBody>;
 export type CreateConversationResponse = { conversationId: Id }; // bound to the project environment for life (ADR-0025/0031)
@@ -642,3 +645,123 @@ export type ListSandboxHistoryResponse = { items: SandboxDocumentVersion[] };
 
 export const restoreSandboxVersionBody = z.object({ historyVersionId: id });
 export type RestoreSandboxVersionBody = z.infer<typeof restoreSandboxVersionBody>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Slice A2 — producing-side surfaces (ADR-0036/0038/0039; refined 0022/0032). T-151.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Sandboxes & the participant scope (ADR-0036, T-153)
+export type SandboxScope = 'multi_org' | 'single_org' | 'team' | 'named_user';
+export type Sandbox = {
+  id: Id;
+  projectId: Id;
+  name: string;
+  scope: SandboxScope;
+  owningOrganisationId: Id;
+};
+export type SandboxScopeGrantView = {
+  id: Id;
+  granteeType: 'organisation' | 'participant';
+  organisationId: Id | null;
+  participantId: Id | null;
+};
+export type ListSandboxesResponse = { items: Sandbox[] };
+export type GetSandboxResponse = Sandbox & { grants: SandboxScopeGrantView[] };
+
+export const createSandboxBody = z.object({
+  name: z.string().min(1),
+  scope: z.enum(['multi_org', 'single_org', 'team', 'named_user']),
+});
+export type CreateSandboxBody = z.infer<typeof createSandboxBody>;
+
+// widen the scope: add an organisation (multi/single-org) or a participant
+// (team/named-user). Self-serve within own org; cross-org is owner-gated in the
+// API (ADR-0018/0036). Exactly one of the two ids.
+export const grantSandboxScopeBody = z
+  .object({ organisationId: id.optional(), participantId: id.optional() })
+  .refine(
+    (b) => Boolean(b.organisationId) !== Boolean(b.participantId),
+    'exactly one of organisationId or participantId',
+  );
+export type GrantSandboxScopeBody = z.infer<typeof grantSandboxScopeBody>;
+
+// Folders (ADR-0036 drawer, T-153) — a view object, never an access object
+export type SandboxFolder = { id: Id; sandboxId: Id; parentFolderId: Id | null; name: string };
+export type ListFoldersResponse = { items: SandboxFolder[] };
+export const createFolderBody = z.object({ name: z.string().min(1), parentFolderId: id.optional() });
+export type CreateFolderBody = z.infer<typeof createFolderBody>;
+export const moveFolderBody = z.object({ parentFolderId: id.nullable() });
+export type MoveFolderBody = z.infer<typeof moveFolderBody>;
+export const moveDocumentBody = z.object({ folderId: id.nullable() });
+export type MoveDocumentBody = z.infer<typeof moveDocumentBody>;
+
+// Bind (ADR-0038, T-153) — the one-way transition; the API records a binding_event
+export const bindDocumentBody = z.object({ containerId: id });
+export type BindDocumentBody = z.infer<typeof bindDocumentBody>;
+
+// Naming scheme + code-builder (ADR-0008 homed, T-152)
+export type NamingSchemeField = {
+  key: string;
+  label: string;
+  allowedValues?: string[];
+  isOriginator?: boolean;
+  isSerial?: boolean;
+  width?: number;
+};
+export type NamingScheme = { projectId: Id; separator: string; fields: NamingSchemeField[] };
+export type GetNamingSchemeResponse = NamingScheme | null;
+export const namingSchemeFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  allowedValues: z.array(z.string()).optional(),
+  isOriginator: z.boolean().optional(),
+  isSerial: z.boolean().optional(),
+  width: z.number().int().positive().optional(),
+});
+export const upsertNamingSchemeBody = z.object({
+  separator: z.string().min(1).default('-'),
+  fields: z.array(namingSchemeFieldSchema),
+});
+export type UpsertNamingSchemeBody = z.infer<typeof upsertNamingSchemeBody>;
+
+// generate a compliant reference: caller supplies the non-serial field values;
+// the API composes and allocates the next serial for the producing org
+export const generateReferenceBody = z.object({ values: z.record(z.string(), z.string()) });
+export type GenerateReferenceBody = z.infer<typeof generateReferenceBody>;
+export type GenerateReferenceResponse = { reference: string; serial: number };
+
+export type NamingProposal = {
+  id: Id;
+  proposingOrganisationId: Id;
+  body: string;
+  status: 'pending' | 'accepted' | 'declined';
+};
+export type ListNamingProposalsResponse = { items: NamingProposal[] };
+export const proposeNamingAdditionBody = z.object({ body: z.string().min(1) });
+export type ProposeNamingAdditionBody = z.infer<typeof proposeNamingAdditionBody>;
+export const resolveNamingProposalBody = z.object({ status: z.enum(['accepted', 'declined']) });
+export type ResolveNamingProposalBody = z.infer<typeof resolveNamingProposalBody>;
+
+// Plan authoring (ADR-0008/0033, T-152) — update a planned container (a TIDP
+// row). createPlanRowBody already exists above (Slice A); this adds edit.
+export const updatePlanRowBody = z.object({
+  documentReference: z.string().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type UpdatePlanRowBody = z.infer<typeof updatePlanRowBody>;
+
+// Attached-source working set (ADR-0022 refined, T-154)
+export type AttachedSource = {
+  id: Id;
+  conversationId: Id;
+  kind: 'sandbox' | 'upload' | 'web';
+  ref: string;
+  label: string | null;
+};
+export type ListAttachedSourcesResponse = { items: AttachedSource[] };
+export const pinAttachedSourceBody = z.object({
+  kind: z.enum(['sandbox', 'upload', 'web']),
+  ref: z.string().min(1),
+  label: z.string().optional(),
+});
+export type PinAttachedSourceBody = z.infer<typeof pinAttachedSourceBody>;
