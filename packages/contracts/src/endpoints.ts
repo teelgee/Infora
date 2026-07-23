@@ -771,3 +771,14 @@ export const pinAttachedSourceBody = z.object({
   label: z.string().optional(),
 });
 export type PinAttachedSourceBody = z.infer<typeof pinAttachedSourceBody>;
+
+// Deliverables shared to the requester's organisation whose current version it
+// has not yet acknowledged (ADR-0035 §4) — the receiving org's inbox, since the
+// gate withholds the deliverable itself until acknowledged. T-161.
+export type PendingTransmittal = {
+  containerId: Id;
+  documentReference: string;
+  versionId: Id;
+  versionReference: string;
+};
+export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };

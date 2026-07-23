@@ -48,6 +48,9 @@ import type {
   SandboxFolder,
   ListAttachedSourcesResponse,
   AttachedSource,
+  NonReviewTransmittal,
+  Acknowledgement,
+  ListPendingTransmittalsResponse,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -269,6 +272,16 @@ export const api = {
     }),
   unpinAttachedSource: (sourceId: string) =>
     request<{ ok: true }>(`/attached-sources/${sourceId}/unpin`, { method: 'POST' }),
+  // T-161 — non-review transmittal + the acknowledgement gate (ADR-0035)
+  issueTransmittal: (containerId: string, organisationIds: string[], purposeCode?: string) =>
+    request<NonReviewTransmittal>(`/containers/${containerId}/transmittals`, {
+      method: 'POST',
+      body: JSON.stringify({ organisationIds, ...(purposeCode !== undefined && { purposeCode }) }),
+    }),
+  acknowledgeDeliverable: (containerId: string) =>
+    request<Acknowledgement>(`/containers/${containerId}/acknowledgement`, { method: 'POST' }),
+  pendingTransmittals: (projectId: string) =>
+    request<ListPendingTransmittalsResponse>(`/projects/${projectId}/pending-transmittals`),
   resolveSuggestion: (suggestionId: string, resolution: Resolution, editedContent?: string) =>
     request<ResolveSuggestionResponse>(`/suggestions/${suggestionId}/resolution`, {
       method: 'POST',

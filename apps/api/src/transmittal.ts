@@ -7,7 +7,7 @@
 // the usual 404, and no parameter widens a requester's scope.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createGrantRuleBody,
@@ -21,6 +21,7 @@ import type {
   ApiError,
   GrantRule,
   ListGrantRulesResponse,
+  ListPendingTransmittalsResponse,
   NonReviewTransmittal,
   ParticipantGrant,
 } from '@infora/contracts';
@@ -429,6 +430,62 @@ export function transmittalRoutes(deps: { db: Db }) {
       mode: updated!.ackMode,
       controllerParticipantId: updated!.ackControllerParticipantId,
     } satisfies AcknowledgementModeSetting);
+  });
+
+  // ── The receiving org's inbox (T-161): deliverables shared to my org whose
+  // current version I have not yet acknowledged (ADR-0035 §4). The gate withholds
+  // the deliverable itself, so this read is what surfaces the pending receipt.
+  app.get('/projects/:projectId/pending-transmittals', async (c) => {
+    const slice = await resolveSlice(deps.db, c.get('user'), c.req.param('projectId') ?? '');
+    if (!slice) return notFound(c);
+    const rows = await deps.db
+      .select({
+        containerId: s.containers.id,
+        documentReference: s.containers.documentReference,
+        versionId: s.versions.id,
+        versionReference: s.versions.versionReference,
+      })
+      .from(s.containers)
+      .innerJoin(
+        s.versions,
+        and(eq(s.versions.containerId, s.containers.id), eq(s.versions.isCurrent, true)),
+      )
+      .innerJoin(
+        s.deliverableShares,
+        and(
+          eq(s.deliverableShares.containerId, s.containers.id),
+          eq(s.deliverableShares.organisationId, slice.organisationId),
+          isNull(s.deliverableShares.revokedAt),
+        ),
+      )
+      .where(
+        and(
+          eq(s.containers.projectId, slice.projectId),
+          eq(s.containers.scope, 'library'),
+          eq(s.containers.state, 'live'),
+          ne(s.containers.producingOrganisationId, slice.organisationId),
+          notExists(
+            deps.db
+              .select({ x: sql`1` })
+              .from(s.deliverableAcknowledgements)
+              .where(
+                and(
+                  eq(s.deliverableAcknowledgements.containerId, s.containers.id),
+                  eq(s.deliverableAcknowledgements.versionId, s.versions.id),
+                  eq(s.deliverableAcknowledgements.organisationId, slice.organisationId),
+                ),
+              ),
+          ),
+        ),
+      );
+    return c.json({
+      items: rows.map((r) => ({
+        containerId: r.containerId,
+        documentReference: r.documentReference ?? '',
+        versionId: r.versionId,
+        versionReference: r.versionReference,
+      })),
+    } satisfies ListPendingTransmittalsResponse);
   });
 
   return app;
