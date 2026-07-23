@@ -19,6 +19,7 @@ import type { AppDeps, AppEnv } from './requester';
 import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
 import { sandboxRoutes } from './sandbox';
+import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
 import { transmittalRoutes } from './transmittal';
 import { uploadRoutes } from './upload';
@@ -57,6 +58,9 @@ export function buildApp(deps: AppDeps) {
   // Sandbox documents (M4) — organisation-private inside the project
   // (ADR-0018): create/list/open (T-051), suggestions read + manual PATCH (T-082)
   app.route('/', sandboxRoutes(deps));
+
+  // Sandboxes, participant scope, folders, bind (Slice A2, ADR-0036/0038) — T-153
+  app.route('/', sandboxRoutes2(deps));
 
   // Sandbox comments (T-112) — working-draft threads, scope riding the document's
   app.route('/', commentRoutes(deps));
