@@ -8,6 +8,8 @@ import { EditorScreen } from './screens/editor';
 import { HistoryScreen } from './screens/history';
 import { LibraryScreen } from './screens/library';
 import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
+import { PlanScreen } from './screens/plan';
+import { SchemaScreen } from './screens/schema';
 import { CycleScreen } from './screens/cycle';
 import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
@@ -27,6 +29,8 @@ const router = createBrowserRouter([
       { path: 'ask', element: <AskScreen /> },
       { path: 'editor', element: <EditorScreen /> },
       { path: 'editor/:documentId', element: <EditorScreen /> },
+      { path: 'plan', element: <PlanScreen /> },
+      { path: 'plan/scheme', element: <SchemaScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
       { path: 'review', element: <ReviewScreen /> },
       { path: 'review/:containerId', element: <CycleScreen /> },

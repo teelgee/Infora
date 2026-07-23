@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
-import { Archive, BookOpen, ClipboardCheck, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,
   CommandBar,
@@ -39,6 +39,7 @@ const NAV = [
   { label: 'Home', glyph: <Home size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: '' },
   { label: 'Ask', glyph: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'ask' },
   { label: 'Editor', glyph: <PenLine size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'editor' },
+  { label: 'Plan', glyph: <ClipboardList size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'plan' }, // TIDP/MIDP (T-155)
   { label: 'Documents', glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'documents' },
   { label: 'Review', glyph: <ClipboardCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'review' },
   { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },

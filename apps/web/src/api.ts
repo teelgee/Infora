@@ -36,6 +36,18 @@ import type {
   Run,
   SandboxComment,
   SandboxDocument,
+  GetNamingSchemeResponse,
+  UpsertNamingSchemeBody,
+  GenerateReferenceResponse,
+  ListNamingProposalsResponse,
+  ListSandboxesResponse,
+  Sandbox,
+  GetSandboxResponse,
+  SandboxScopeGrantView,
+  ListFoldersResponse,
+  SandboxFolder,
+  ListAttachedSourcesResponse,
+  AttachedSource,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -170,11 +182,89 @@ export const api = {
   conversation: (conversationId: string) =>
     request<GetConversationResponse>(`/conversations/${conversationId}`),
   history: (projectId: string) => request<GetHistoryResponse>(`/projects/${projectId}/history`),
-  createConversation: (projectId: string, workItemId?: string) =>
+  createConversation: (projectId: string, workItemId?: string, sandboxDocumentId?: string) =>
     request<CreateConversationResponse>(`/projects/${projectId}/conversations`, {
       method: 'POST',
-      body: JSON.stringify({ surface: 'web', ...(workItemId !== undefined && { workItemId }) }),
+      body: JSON.stringify({
+        surface: 'web',
+        ...(workItemId !== undefined && { workItemId }),
+        ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
+      }),
     }),
+
+  // ── Slice A2 (T-152/153/154) ──────────────────────────────────────────────
+  namingScheme: (projectId: string) =>
+    request<GetNamingSchemeResponse>(`/projects/${projectId}/naming-scheme`),
+  putNamingScheme: (projectId: string, body: UpsertNamingSchemeBody) =>
+    request<{ ok: true }>(`/projects/${projectId}/naming-scheme`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  generateReference: (projectId: string, values: Record<string, string>) =>
+    request<GenerateReferenceResponse>(`/projects/${projectId}/naming-scheme/references`, {
+      method: 'POST',
+      body: JSON.stringify({ values }),
+    }),
+  namingProposals: (projectId: string) =>
+    request<ListNamingProposalsResponse>(`/projects/${projectId}/naming-scheme/proposals`),
+  proposeNaming: (projectId: string, body: string) =>
+    request<{ id: string }>(`/projects/${projectId}/naming-scheme/proposals`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  resolveNamingProposal: (proposalId: string, status: 'accepted' | 'declined') =>
+    request<{ ok: true }>(`/naming-proposals/${proposalId}/resolution`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
+  sandboxes: (projectId: string) =>
+    request<ListSandboxesResponse>(`/projects/${projectId}/sandboxes`),
+  createSandbox: (projectId: string, name: string, scope: Sandbox['scope']) =>
+    request<Sandbox>(`/projects/${projectId}/sandboxes`, {
+      method: 'POST',
+      body: JSON.stringify({ name, scope }),
+    }),
+  sandbox: (sandboxId: string) => request<GetSandboxResponse>(`/sandboxes/${sandboxId}`),
+  grantSandboxScope: (sandboxId: string, body: { organisationId?: string; participantId?: string }) =>
+    request<SandboxScopeGrantView>(`/sandboxes/${sandboxId}/scope-grants`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  revokeSandboxScope: (grantId: string) =>
+    request<{ ok: true }>(`/sandbox-scope-grants/${grantId}/revocation`, { method: 'POST' }),
+  folders: (sandboxId: string) => request<ListFoldersResponse>(`/sandboxes/${sandboxId}/folders`),
+  createFolder: (sandboxId: string, name: string, parentFolderId?: string) =>
+    request<SandboxFolder>(`/sandboxes/${sandboxId}/folders`, {
+      method: 'POST',
+      body: JSON.stringify({ name, ...(parentFolderId !== undefined && { parentFolderId }) }),
+    }),
+  moveFolder: (folderId: string, parentFolderId: string | null) =>
+    request<{ ok: true }>(`/folders/${folderId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ parentFolderId }),
+    }),
+  moveDocument: (documentId: string, folderId: string | null) =>
+    request<{ ok: true }>(`/sandbox-documents/${documentId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ folderId }),
+    }),
+  bindDocument: (documentId: string, containerId: string) =>
+    request<{ ok: true; containerId: string }>(`/sandbox-documents/${documentId}/binding`, {
+      method: 'POST',
+      body: JSON.stringify({ containerId }),
+    }),
+  attachedSources: (conversationId: string) =>
+    request<ListAttachedSourcesResponse>(`/conversations/${conversationId}/attached-sources`),
+  pinAttachedSource: (
+    conversationId: string,
+    body: { kind: AttachedSource['kind']; ref: string; label?: string },
+  ) =>
+    request<AttachedSource>(`/conversations/${conversationId}/attached-sources`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  unpinAttachedSource: (sourceId: string) =>
+    request<{ ok: true }>(`/attached-sources/${sourceId}/unpin`, { method: 'POST' }),
   resolveSuggestion: (suggestionId: string, resolution: Resolution, editedContent?: string) =>
     request<ResolveSuggestionResponse>(`/suggestions/${suggestionId}/resolution`, {
       method: 'POST',
