@@ -1,0 +1,151 @@
+// T-152 acceptance, against the live dev database: the owner defines the
+// project-wide scheme; a producer self-generates compliant references with a
+// per-org serial; propose-then-fold; the wall (a member cannot edit the scheme
+// or resolve a proposal). ADR-0008 homed.
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { GenerateReferenceResponse, GetNamingSchemeResponse } from '@infora/contracts';
+import { createDb, hashPassword, schema as s } from '@infora/db';
+import { buildApp } from './app';
+import { composeReference } from './naming';
+import { fakeRouter } from './test-router';
+
+const { db, pool } = createDb();
+const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
+
+const stamp = Date.now();
+const password = 'pw-t152';
+let projectId: string;
+let ownerCookie: string;
+let consultCookie: string;
+let otherCookie: string;
+
+async function makeUser(name: string, organisationId: string) {
+  const [user] = await db
+    .insert(s.users)
+    .values({ name, email: `${name}-${stamp}@test.local`, organisationId })
+    .returning();
+  await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
+  await db.insert(s.participants).values({ userId: user!.id, projectId });
+  return user!;
+}
+async function session(email: string): Promise<string> {
+  const res = await app.request('/auth/session', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return res.headers.get('set-cookie')!.split(';')[0]!;
+}
+const asJson = (cookie: string) => ({ cookie, 'content-type': 'application/json' });
+
+const scheme = {
+  separator: '-',
+  fields: [
+    { key: 'project', label: 'Project', allowedValues: ['WA'] },
+    { key: 'originator', label: 'Originator', isOriginator: true, allowedValues: ['BB', 'CC'] },
+    { key: 'discipline', label: 'Discipline', allowedValues: ['GEO', 'ENV'] },
+    { key: 'serial', label: 'Serial', isSerial: true, width: 3 },
+  ],
+};
+
+beforeAll(async () => {
+  const [oA] = await db.insert(s.organisations).values({ name: 't152 owner' }).returning();
+  const [oB] = await db.insert(s.organisations).values({ name: 't152 consult B' }).returning();
+  const [oC] = await db.insert(s.organisations).values({ name: 't152 consult C' }).returning();
+  const [project] = await db
+    .insert(s.projects)
+    .values({ name: 't152 project', ownerOrganisationId: oA!.id })
+    .returning();
+  projectId = project!.id;
+  await db.insert(s.memberships).values([
+    { organisationId: oA!.id, projectId, role: 'owner' },
+    { organisationId: oB!.id, projectId, role: 'member' },
+    { organisationId: oC!.id, projectId, role: 'member' },
+  ]);
+  ownerCookie = await session((await makeUser('t152-oona', oA!.id)).email);
+  consultCookie = await session((await makeUser('t152-bree', oB!.id)).email);
+  otherCookie = await session((await makeUser('t152-cara', oC!.id)).email);
+});
+
+afterAll(async () => {
+  await pool.end();
+});
+
+const genReference = (cookie: string, values: Record<string, string>) =>
+  app.request(`/projects/${projectId}/naming-scheme/references`, {
+    method: 'POST',
+    headers: asJson(cookie),
+    body: JSON.stringify({ values }),
+  });
+
+describe('composeReference (pure)', () => {
+  it('composes with a zero-padded serial and reports the series key', () => {
+    const out = composeReference(scheme, { project: 'WA', originator: 'BB', discipline: 'GEO' }, 4);
+    expect(out.reference).toBe('WA-BB-GEO-004');
+    expect(out.seriesKey).toBe('WA-BB-GEO');
+  });
+  it('rejects a value outside the allowed set', () => {
+    expect(() => composeReference(scheme, { project: 'WA', originator: 'ZZ', discipline: 'GEO' }, 1)).toThrow();
+  });
+});
+
+describe('the naming scheme + code-builder API (T-152, ADR-0008)', () => {
+  it('lets the owner define the scheme; a member cannot', async () => {
+    const denied = await app.request(`/projects/${projectId}/naming-scheme`, {
+      method: 'PUT',
+      headers: asJson(consultCookie),
+      body: JSON.stringify(scheme),
+    });
+    expect(denied.status).toBe(404); // the wall: deny reads as nonexistence
+
+    const ok = await app.request(`/projects/${projectId}/naming-scheme`, {
+      method: 'PUT',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify(scheme),
+    });
+    expect(ok.status).toBe(200);
+    const read = await app.request(`/projects/${projectId}/naming-scheme`, { headers: asJson(consultCookie) });
+    const body = (await read.json()) as GetNamingSchemeResponse;
+    expect(body?.fields.length).toBe(4);
+  });
+
+  it('self-generates references with a per-organisation serial; cross-org distinct on originator', async () => {
+    const b1 = (await (await genReference(consultCookie, { project: 'WA', originator: 'BB', discipline: 'GEO' })).json()) as GenerateReferenceResponse;
+    const b2 = (await (await genReference(consultCookie, { project: 'WA', originator: 'BB', discipline: 'GEO' })).json()) as GenerateReferenceResponse;
+    const c1 = (await (await genReference(otherCookie, { project: 'WA', originator: 'CC', discipline: 'GEO' })).json()) as GenerateReferenceResponse;
+    expect(b1.reference).toBe('WA-BB-GEO-001');
+    expect(b2.reference).toBe('WA-BB-GEO-002'); // same org increments
+    expect(c1.reference).toBe('WA-CC-GEO-001'); // other org's allocation is independent, still 001
+  });
+
+  it('rejects generating with a disallowed field value', async () => {
+    const res = await genReference(consultCookie, { project: 'WA', originator: 'ZZ', discipline: 'GEO' });
+    expect(res.status).toBe(400);
+  });
+
+  it('records a producer proposal the owner folds in; a member cannot resolve', async () => {
+    const proposed = await app.request(`/projects/${projectId}/naming-scheme/proposals`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ body: 'Add discipline DRN (drainage)' }),
+    });
+    const { id } = (await proposed.json()) as { id: string };
+
+    const memberResolve = await app.request(`/naming-proposals/${id}/resolution`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ status: 'accepted' }),
+    });
+    expect(memberResolve.status).toBe(404); // only the owner resolves
+
+    const ownerResolve = await app.request(`/naming-proposals/${id}/resolution`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ status: 'accepted' }),
+    });
+    expect(ownerResolve.status).toBe(200);
+    const list = await app.request(`/projects/${projectId}/naming-scheme/proposals`, { headers: asJson(ownerCookie) });
+    const { items } = (await list.json()) as { items: Array<{ id: string; status: string }> };
+    expect(items.find((p) => p.id === id)?.status).toBe('accepted');
+  });
+});

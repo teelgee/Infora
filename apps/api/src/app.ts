@@ -12,6 +12,7 @@ import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
+import { namingRoutes } from './naming';
 import { containerRoutes, planRoutes } from './plan';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
@@ -67,6 +68,9 @@ export function buildApp(deps: AppDeps) {
   // (Slice A, ADR-0008/0017/0033) — T-118/T-119
   app.route('/', planRoutes(deps));
   app.route('/', containerRoutes(deps));
+
+  // Naming scheme + code-builder (Slice A2, ADR-0008 homed) — T-152
+  app.route('/', namingRoutes(deps));
 
   // Promotion + the review cycle (Slice A, ADR-0002/0005–0014/0032) — T-120+
   app.route('/', cycleRoutes({ db: deps.db, router: deps.router }));
