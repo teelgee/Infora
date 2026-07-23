@@ -134,6 +134,13 @@
       "when": 1784838022206,
       "tag": "0018_sandbox-folders",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1784838111957,
+      "tag": "0019_binding-event-metadata-split",
+      "breakpoints": true
     }
   ]
 }

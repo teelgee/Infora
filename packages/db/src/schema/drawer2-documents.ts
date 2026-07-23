@@ -272,6 +272,13 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
   // the freeze's check-out lock: set while a sandbox-scope round is open,
   // released by transmittal-back or audited early release (ADR-0032)
   headLocked: boolean('head_locked').notNull().default(false),
+  // authoring metadata (ADR-0038, T-147): revision / suitability attributes,
+  // document classification, relationships — accrues in the sandbox and carries
+  // on promotion. Identity metadata (code, discipline) is plan-owned on the
+  // container and read-only here; on an unbound document all metadata is
+  // authoring metadata, freely editable, until a binding transition locks
+  // identity onto the container.
+  authoringMetadata: jsonb('authoring_metadata').notNull().default({}),
   createdByParticipantId: uuid('created_by_participant_id')
     .notNull()
     .references(() => participants.id),
@@ -301,6 +308,31 @@ export const sandboxDocumentVersions = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('sandbox_document_versions_document_idx').on(t.sandboxDocumentId)],
+);
+
+// Binding as a first-class event (ADR-0038, T-147): the audited, one-way
+// transition where a sandbox working document joins a planned container and
+// wears its coded reference and plan-owned identity. Append-only — the record
+// of who bound which document to which container, and when. Binding does not
+// snapshot; promotion (a Version) is the later, separate event. The one-way
+// lock (container_id, once set, cannot change or clear) is enforced by a
+// trigger on sandbox_documents.
+export const bindingEvents = pgTable(
+  'binding_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    boundByParticipantId: uuid('bound_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    boundAt: timestamp('bound_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('binding_events_document_idx').on(t.sandboxDocumentId)],
 );
 
 export const sandboxCommentStatus = pgEnum('sandbox_comment_status', ['open', 'closed']);
