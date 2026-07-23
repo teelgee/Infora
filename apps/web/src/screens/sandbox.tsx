@@ -57,9 +57,9 @@ export function SandboxScreen() {
     if (selected) loadSandbox(selected);
   }, [selected, loadSandbox]);
 
-  // documents in the selected sandbox
-  const inSandbox = useMemo(
-    () => docs.filter((d) => (selected ? d.sandboxId === selected : false)),
+  // documents shown: filtered to the selected sandbox, else all the org's docs
+  const shown = useMemo(
+    () => (selected ? docs.filter((d) => d.sandboxId === selected) : docs),
     [docs, selected],
   );
   const unboundPlan = useMemo(
@@ -91,10 +91,9 @@ export function SandboxScreen() {
   }
 
   async function newDocument() {
-    if (!selected) return;
     const title = window.prompt('Document title');
     if (!title?.trim()) return;
-    await api.createSandboxDocument(projectId, title.trim(), selected);
+    await api.createSandboxDocument(projectId, title.trim(), selected ?? undefined);
     await loadDocs();
   }
 
@@ -145,6 +144,7 @@ export function SandboxScreen() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 className="page">Sandbox</h1>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+          <Button size="sm" onClick={() => void newDocument()}>＋ New document</Button>
           <Button size="sm" variant="quiet" onClick={() => void createSandbox()}>＋ Sandbox</Button>
           <Badge tone="neutral">No document controls</Badge>
         </span>
@@ -195,19 +195,24 @@ export function SandboxScreen() {
               </span>
             )}
           </div>
+        </>
+      )}
 
-          <Table>
-            <table>
-              <thead>
-                <tr>
-                  <th>Document</th>
-                  <th>Folder</th>
-                  <th>Binding</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inSandbox.map((doc) => (
+      <SectionLabel>
+        {selected ? 'Documents in this sandbox' : `${me.organisationName} — all documents`}
+      </SectionLabel>
+      <Table>
+        <table>
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Folder</th>
+              <th>Binding</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+                {shown.map((doc) => (
                   <tr key={doc.id}>
                     <td>
                       <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
@@ -223,7 +228,7 @@ export function SandboxScreen() {
                       )}
                     </td>
                     <td style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/editor/${doc.id}`)}>Open</Button>
+                      <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/editor/${doc.id}`)}>Open in Editor</Button>
                       {!doc.containerId && (
                         <Button size="sm" variant="quiet" onClick={() => void bind(doc)}>
                           <Link2 size={13} strokeWidth={2} /> Bind
@@ -238,18 +243,16 @@ export function SandboxScreen() {
                     </td>
                   </tr>
                 ))}
-                {inSandbox.length === 0 && (
+                {shown.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ color: 'var(--text-muted)' }}>
-                      No documents in this sandbox yet.
+                      {selected ? 'No documents in this sandbox yet.' : 'Nothing here yet — create a document or accept a draft from Ask.'}
                     </td>
                   </tr>
                 )}
-              </tbody>
-            </table>
-          </Table>
-        </>
-      )}
+          </tbody>
+        </table>
+      </Table>
     </div>
   );
 }

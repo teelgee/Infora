@@ -39,7 +39,7 @@ export class ApiSession {
   }
 
   /** Raw response, for status-code assertions (deny-as-404 and friends). */
-  raw(method: 'get' | 'post' | 'patch', path: string, data?: unknown) {
+  raw(method: 'get' | 'post' | 'patch' | 'put', path: string, data?: unknown) {
     return this.context[method](path, data === undefined ? undefined : { data });
   }
 

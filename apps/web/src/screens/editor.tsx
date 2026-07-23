@@ -577,6 +577,7 @@ export function EditorScreen() {
             </button>
             <span className="rule" />
             <button
+              aria-label="Comment on the selection"
               title="Comment on the selection — or the document, when nothing is selected"
               onClick={() => startComment()}
             >
@@ -676,6 +677,7 @@ export function EditorScreen() {
                     <span style={{ position: 'relative' }}>
                       <button
                         className="sel-comment"
+                        aria-label="Comment on the selection"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => startComment(selection)}
                       >
