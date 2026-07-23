@@ -92,10 +92,14 @@ export const api = {
   version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
-  createSandboxDocument: (projectId: string, title: string) =>
+  createSandboxDocument: (projectId: string, title: string, sandboxId?: string, folderId?: string) =>
     request<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({
+        title,
+        ...(sandboxId !== undefined && { sandboxId }),
+        ...(folderId !== undefined && { folderId }),
+      }),
     }),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
   documentSuggestions: (id: string) =>

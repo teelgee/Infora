@@ -1,12 +1,19 @@
-// The Sandbox surface (T-051) per docs/design/mockups-legacy/sandbox.html
-// (historical build reference — superseded by design-tokens.json/design-rules.md): list,
-// create, open — flat in the skeleton (folders, the shared-sandbox switcher
-// and attach-to-generation are post-skeleton). No document controls by
-// design; the AI never grounds on anything here (ADR-0011).
-import { useCallback, useEffect, useState } from 'react';
+// T-157 / T-158 — the sandbox drawer (ADR-0036/0038). A file-explorer surface:
+// sandboxes with their participant scope, folders (create/nest), documents with
+// a bound/unbound badge, and per-document actions from the folder view — open,
+// bind (to a planned container), freeze / start internal review, promote. No
+// document controls; the AI never grounds on anything here (ADR-0011).
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import type { MeResponse, SandboxDocument } from '@infora/contracts';
-import { FileText } from 'lucide-react';
+import type {
+  MeResponse,
+  PlanRow,
+  Sandbox,
+  SandboxDocument,
+  SandboxFolder,
+  SandboxScopeGrantView,
+} from '@infora/contracts';
+import { FileText, FolderPlus, Link2, Lock, Send } from 'lucide-react';
 import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
@@ -16,81 +23,233 @@ type ShellContext = { participant: MeResponse['participants'][number] };
 export function SandboxScreen() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
+  const projectId = participant.projectId;
+  const isOwner = participant.membershipRole === 'owner';
   const navigate = useNavigate();
-  const [docs, setDocs] = useState<SandboxDocument[] | null>(null);
 
-  const load = useCallback(
-    () => api.sandboxDocuments(participant.projectId).then((res) => setDocs(res.items)),
-    [participant.projectId],
+  const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [grants, setGrants] = useState<SandboxScopeGrantView[]>([]);
+  const [folders, setFolders] = useState<SandboxFolder[]>([]);
+  const [docs, setDocs] = useState<SandboxDocument[]>([]);
+  const [plan, setPlan] = useState<PlanRow[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+
+  const loadSandboxes = useCallback(
+    () => api.sandboxes(projectId).then((r) => setSandboxes(r.items)),
+    [projectId],
+  );
+  const loadDocs = useCallback(
+    () => api.sandboxDocuments(projectId).then((r) => setDocs(r.items)),
+    [projectId],
   );
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadSandboxes();
+    void loadDocs();
+    void api.plan(projectId).then((r) => setPlan(r.items));
+  }, [loadSandboxes, loadDocs, projectId]);
 
-  async function create() {
-    const title = window.prompt('Document title');
-    if (title === null || title.trim() === '') return;
-    await api.createSandboxDocument(participant.projectId, title.trim());
-    await load();
+  const loadSandbox = useCallback((id: string) => {
+    void api.sandbox(id).then((s) => setGrants(s.grants));
+    void api.folders(id).then((r) => setFolders(r.items));
+  }, []);
+  useEffect(() => {
+    if (selected) loadSandbox(selected);
+  }, [selected, loadSandbox]);
+
+  // documents in the selected sandbox
+  const inSandbox = useMemo(
+    () => docs.filter((d) => (selected ? d.sandboxId === selected : false)),
+    [docs, selected],
+  );
+  const unboundPlan = useMemo(
+    () => plan.filter((p) => p.workItem && p.currentVersion === null),
+    [plan],
+  );
+
+  async function createSandbox() {
+    const name = window.prompt('Sandbox name');
+    if (!name?.trim()) return;
+    const scope = (window.prompt('Scope: single_org / team / named_user / multi_org', 'single_org') ??
+      '') as Sandbox['scope'];
+    if (!['single_org', 'team', 'named_user', 'multi_org'].includes(scope)) return;
+    try {
+      const sb = await api.createSandbox(projectId, name.trim(), scope);
+      await loadSandboxes();
+      setSelected(sb.id);
+    } catch {
+      setNote('Could not create that sandbox (a multi-org sandbox is owner-only).');
+    }
   }
+
+  async function addFolder() {
+    if (!selected) return;
+    const name = window.prompt('Folder name');
+    if (!name?.trim()) return;
+    await api.createFolder(selected, name.trim());
+    loadSandbox(selected);
+  }
+
+  async function newDocument() {
+    if (!selected) return;
+    const title = window.prompt('Document title');
+    if (!title?.trim()) return;
+    await api.createSandboxDocument(projectId, title.trim(), selected);
+    await loadDocs();
+  }
+
+  async function bind(doc: SandboxDocument) {
+    if (unboundPlan.length === 0) {
+      setNote('No unbound plan rows to bind to — add one on the Plan page first.');
+      return;
+    }
+    const choices = unboundPlan.map((p, i) => `${i + 1}. ${p.documentReference} — ${p.workItem?.title}`).join('\n');
+    const pick = window.prompt(`Bind "${doc.title}" to which deliverable?\n${choices}`, '1');
+    const idx = Number(pick) - 1;
+    const target = unboundPlan[idx];
+    if (!target) return;
+    try {
+      await api.bindDocument(doc.id, target.containerId);
+      await loadDocs();
+      setNote(`Bound to ${target.documentReference}.`);
+    } catch {
+      setNote('Bind failed — a document binds once, to its own organisation’s plan row.');
+    }
+  }
+
+  async function freeze(doc: SandboxDocument) {
+    try {
+      await api.freezeDocument(doc.id);
+      await loadDocs();
+      setNote('Frozen for internal review — the head is locked while the round is open.');
+    } catch {
+      setNote('Freeze failed.');
+    }
+  }
+
+  async function promote(doc: SandboxDocument) {
+    try {
+      await api.promoteDocument(doc.id);
+      await loadDocs();
+      setNote('Promoted into the container — the project review cycle is open.');
+    } catch {
+      setNote('Promote failed — the document must be bound to a plan row first.');
+    }
+  }
+
+  const folderName = (id: string | null) =>
+    id === null ? 'Sandbox root' : folders.find((f) => f.id === id)?.name ?? 'Folder';
 
   return (
     <div className="content">
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 className="page">Sandbox</h1>
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Button size="sm" onClick={() => void create()}>
-            ＋ New document
-          </Button>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+          <Button size="sm" variant="quiet" onClick={() => void createSandbox()}>＋ Sandbox</Button>
           <Badge tone="neutral">No document controls</Badge>
         </span>
       </div>
       <p className="page-sub">
-        Work in progress, no versioning ceremony, no locking; the AI never grounds on anything
-        here.
+        Work in progress across your sandboxes. Separation is by a narrower sandbox, never a wall
+        inside a shared one; the AI never grounds on anything here.
       </p>
+      {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
 
-      <SectionLabel>{me.organisationName} — private project sandbox</SectionLabel>
-      <Table>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Modified</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(docs ?? []).map((doc) => (
-              <tr key={doc.id}>
-                <td>
-                  <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
-                  {doc.title}
-                </td>
-                <td>{new Date(doc.updatedAt).toLocaleString()}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <Button
-                    size="sm"
-                    variant="quiet"
-                    onClick={() =>
-                      void navigate(`/projects/${participant.projectId}/editor/${doc.id}`)
-                    }
-                  >
-                    Open in Editor
-                  </Button>
-                </td>
-              </tr>
+      <SectionLabel>Sandboxes</SectionLabel>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {sandboxes.map((sb) => (
+          <Button
+            key={sb.id}
+            size="sm"
+            variant={selected === sb.id ? 'primary' : 'quiet'}
+            onClick={() => setSelected(sb.id)}
+          >
+            {sb.name} · {sb.scope.replace('_', '-')}
+          </Button>
+        ))}
+        {sandboxes.length === 0 && (
+          <span style={{ color: 'var(--text-muted)' }}>
+            {me.organisationName} has no sandboxes yet — create one to start.
+          </span>
+        )}
+      </div>
+
+      {selected && (
+        <>
+          <SectionLabel>
+            Participant scope{' '}
+            <Button size="sm" variant="quiet" onClick={() => void newDocument()}>＋ Document</Button>{' '}
+            <Button size="sm" variant="quiet" onClick={() => void addFolder()}>
+              <FolderPlus size={13} strokeWidth={2} /> Folder
+            </Button>
+          </SectionLabel>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {grants.map((g) => (
+              <Badge key={g.id} tone="neutral">
+                {g.granteeType === 'organisation' ? 'org' : 'user'}:{(g.organisationId ?? g.participantId ?? '').slice(0, 8)}
+              </Badge>
             ))}
-            {docs !== null && docs.length === 0 && (
-              <tr>
-                <td colSpan={3} style={{ color: 'var(--text-muted)' }}>
-                  Nothing here yet — create a document or accept a draft from Ask.
-                </td>
-              </tr>
+            {isOwner && (
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                (owner adds another organisation to open cross-org collaboration)
+              </span>
             )}
-          </tbody>
-        </table>
-      </Table>
+          </div>
+
+          <Table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Folder</th>
+                  <th>Binding</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inSandbox.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>
+                      <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
+                      {doc.title}
+                      {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6 }} />}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{folderName(doc.folderId)}</td>
+                    <td>
+                      {doc.containerId ? (
+                        <Badge tone="success">Bound</Badge>
+                      ) : (
+                        <Badge tone="neutral">Unbound</Badge>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/editor/${doc.id}`)}>Open</Button>
+                      {!doc.containerId && (
+                        <Button size="sm" variant="quiet" onClick={() => void bind(doc)}>
+                          <Link2 size={13} strokeWidth={2} /> Bind
+                        </Button>
+                      )}
+                      <Button size="sm" variant="quiet" onClick={() => void freeze(doc)}>Freeze</Button>
+                      {doc.containerId && (
+                        <Button size="sm" variant="quiet" onClick={() => void promote(doc)}>
+                          <Send size={13} strokeWidth={2} /> Promote
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {inSandbox.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ color: 'var(--text-muted)' }}>
+                      No documents in this sandbox yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Table>
+        </>
+      )}
     </div>
   );
 }

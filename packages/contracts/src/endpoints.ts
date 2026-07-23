@@ -112,6 +112,9 @@ export type SandboxDocument = {
   content: string;
   // the intended plan row this draft is producing (ADR-0032's missing link)
   containerId: Id | null;
+  // the sandbox and folder it lives in (ADR-0036, T-157); null while unwired
+  sandboxId: Id | null;
+  folderId: Id | null;
   // the freeze's check-out lock (ADR-0032)
   headLocked: boolean;
   updatedAt: string;
@@ -124,6 +127,9 @@ export const createSandboxDocumentBody = z.object({
   title: z.string().min(1),
   // the intended plan row (ADR-0032's link), own-org library containers only
   containerId: id.optional(),
+  // the sandbox (and optional folder) to create it in (ADR-0036, T-157)
+  sandboxId: id.optional(),
+  folderId: id.optional(),
 });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 

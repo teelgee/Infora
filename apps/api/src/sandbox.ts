@@ -17,6 +17,7 @@ import type {
   ListSuggestionsResponse,
   SandboxDocument,
 } from '@infora/contracts';
+import { canAccessSandbox } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { readDocumentSuggestions } from '@infora/orchestration';
@@ -50,6 +51,28 @@ export function sandboxRoutes(deps: { db: Db }) {
         return c.json({ error: 'not_found' } satisfies ApiError, 404);
       }
     }
+    // if a sandbox is named, the requester must be admitted to it (ADR-0036)
+    if (body.data.sandboxId) {
+      const [sandbox] = await deps.db
+        .select()
+        .from(s.sandboxes)
+        .where(eq(s.sandboxes.id, body.data.sandboxId))
+        .limit(1);
+      const grants = sandbox
+        ? await deps.db
+            .select()
+            .from(s.sandboxScopeGrants)
+            .where(
+              and(
+                eq(s.sandboxScopeGrants.sandboxId, sandbox.id),
+                isNull(s.sandboxScopeGrants.removedAt),
+              ),
+            )
+        : [];
+      if (!sandbox || sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) {
+        return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      }
+    }
     const [row] = await deps.db
       .insert(s.sandboxDocuments)
       .values({
@@ -57,6 +80,8 @@ export function sandboxRoutes(deps: { db: Db }) {
         organisationId: slice.organisationId,
         title: body.data.title,
         containerId: body.data.containerId ?? null,
+        sandboxId: body.data.sandboxId ?? null,
+        folderId: body.data.folderId ?? null,
         createdByParticipantId: slice.participantId,
       })
       .returning();
@@ -226,6 +251,8 @@ export function toSandboxDocument(row: typeof s.sandboxDocuments.$inferSelect): 
     format: row.format,
     content: row.content,
     containerId: row.containerId,
+    sandboxId: row.sandboxId,
+    folderId: row.folderId,
     headLocked: row.headLocked,
     updatedAt: row.updatedAt.toISOString(),
   };
