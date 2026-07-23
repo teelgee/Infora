@@ -18,6 +18,7 @@ import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
+import { attachedSourceRoutes } from './attached';
 import { sandboxRoutes } from './sandbox';
 import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
@@ -61,6 +62,9 @@ export function buildApp(deps: AppDeps) {
 
   // Sandboxes, participant scope, folders, bind (Slice A2, ADR-0036/0038) — T-153
   app.route('/', sandboxRoutes2(deps));
+
+  // Attached-source working set on a conversation (Slice A2, ADR-0022) — T-154
+  app.route('/', attachedSourceRoutes(deps));
 
   // Sandbox comments (T-112) — working-draft threads, scope riding the document's
   app.route('/', commentRoutes(deps));

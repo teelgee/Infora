@@ -34,10 +34,21 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
       if (home?.projectId !== slice.projectId) return c.json(notFound, 404); // principle 4
     }
 
+    // a document-bound conversation is the multiplayer thread (ADR-0039); the
+    // targeted document must be visible to the requester (org-private in the
+    // skeleton) — another org's sandbox document "does not exist"
+    if (body.data.sandboxDocumentId !== undefined) {
+      const home = await resourceHomes.sandboxDocument(deps.db, body.data.sandboxDocumentId);
+      if (home?.projectId !== slice.projectId || home.organisationId !== slice.organisationId) {
+        return c.json(notFound, 404);
+      }
+    }
+
     const conversation = await createConversation(deps.db, {
       projectId: slice.projectId,
       surface: body.data.surface,
       workItemId: body.data.workItemId ?? null,
+      sandboxDocumentId: body.data.sandboxDocumentId ?? null,
     });
     return c.json({ conversationId: conversation.id }, 201);
   });

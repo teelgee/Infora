@@ -16,7 +16,13 @@ export type StepRow = typeof s.steps.$inferSelect;
 
 export async function createConversation(
   db: Db,
-  values: { projectId: Id; surface: Surface; workItemId?: Id | null },
+  values: {
+    projectId: Id;
+    surface: Surface;
+    workItemId?: Id | null;
+    // a document-bound conversation is the multiplayer thread (ADR-0039, T-154)
+    sandboxDocumentId?: Id | null;
+  },
 ): Promise<ConversationRow> {
   const [row] = await db
     .insert(s.conversations)
@@ -24,6 +30,7 @@ export async function createConversation(
       projectId: values.projectId,
       surface: values.surface,
       workItemId: values.workItemId ?? null,
+      sandboxDocumentId: values.sandboxDocumentId ?? null,
     })
     .returning();
   return row!;
