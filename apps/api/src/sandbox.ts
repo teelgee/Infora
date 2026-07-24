@@ -4,7 +4,7 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   createSandboxDocumentBody,
   patchSandboxDocumentBody,
@@ -14,6 +14,7 @@ import {
 import type {
   ApiError,
   ListSandboxDocumentsResponse,
+  ListPresenceResponse,
   ListSandboxHistoryResponse,
   ListSuggestionsResponse,
   SandboxDocument,
@@ -186,6 +187,49 @@ export function sandboxRoutes(deps: { db: Db }) {
       .returning();
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
     return c.json(toSandboxDocument(row));
+  });
+
+  // T-175 — document presence (ADR-0039 real-time, first cut). Heartbeat marks
+  // the requester present on the document; the read returns others seen in the
+  // last 30s, self excluded. Scoped by documentScope (the requester can see the
+  // document); a full sandbox-scope, cross-org presence is a later refinement.
+  app.post('/sandbox-documents/:id/presence', documentScope, async (c) => {
+    const slice = c.get('slice');
+    await deps.db
+      .insert(s.documentPresence)
+      .values({ sandboxDocumentId: c.req.param('id'), participantId: slice.participantId })
+      .onConflictDoUpdate({
+        target: [s.documentPresence.sandboxDocumentId, s.documentPresence.participantId],
+        set: { lastSeenAt: sql`now()` },
+      });
+    return c.json({ ok: true });
+  });
+
+  app.get('/sandbox-documents/:id/presence', documentScope, async (c) => {
+    const slice = c.get('slice');
+    const rows = await deps.db
+      .select({ participantId: s.documentPresence.participantId, name: s.users.name })
+      .from(s.documentPresence)
+      .innerJoin(s.participants, eq(s.documentPresence.participantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(
+        and(
+          eq(s.documentPresence.sandboxDocumentId, c.req.param('id')),
+          ne(s.documentPresence.participantId, slice.participantId),
+          sql`${s.documentPresence.lastSeenAt} > now() - interval '30 seconds'`,
+        ),
+      );
+    const items = rows.map((r) => ({
+      participantId: r.participantId,
+      name: r.name,
+      initials: r.name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0]!.toUpperCase())
+        .join(''),
+    }));
+    return c.json({ items } satisfies ListPresenceResponse);
   });
 
   app.patch('/sandbox-documents/:id', documentScope, async (c) => {

@@ -210,6 +210,29 @@ describe('bind — the one-way transition (T-153, ADR-0038)', () => {
   });
 });
 
+describe('document presence (T-175, ADR-0039)', () => {
+  it('heartbeats and reports another present participant, self excluded', async () => {
+    const [doc] = await db
+      .insert(s.sandboxDocuments)
+      .values({ projectId, organisationId: orgB, sandboxId: bSandbox, title: 'presence', createdByParticipantId: bParticipant })
+      .returning();
+    // a second Calder & Hale participant, present on the same document
+    const [user2] = await db
+      .insert(s.users)
+      .values({ name: 'Cleo Bevan', email: `cleo-${stamp}@test.local`, organisationId: orgB })
+      .returning();
+    const [p2] = await db.insert(s.participants).values({ userId: user2!.id, projectId }).returning();
+    await db.insert(s.documentPresence).values({ sandboxDocumentId: doc!.id, participantId: p2!.id });
+
+    const beat = await app.request(`/sandbox-documents/${doc!.id}/presence`, { method: 'POST', headers: asJson(bCookie) });
+    expect(beat.status).toBe(200);
+    const read = await app.request(`/sandbox-documents/${doc!.id}/presence`, { headers: asJson(bCookie) });
+    const { items } = (await read.json()) as { items: Array<{ participantId: string; name: string; initials: string }> };
+    expect(items.map((i) => i.participantId)).toEqual([p2!.id]); // the other person, not self
+    expect(items[0]!.initials).toBe('CB');
+  });
+});
+
 describe('authoring metadata (T-166, ADR-0038)', () => {
   it('sets and reads back a document’s authoring metadata', async () => {
     const [doc] = await db

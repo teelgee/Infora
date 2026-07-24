@@ -46,6 +46,7 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
+import { Presence } from '../presence';
 import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
@@ -479,6 +480,7 @@ export function EditorScreen() {
           / <b>{doc.title}</b>
         </span>
         <div className="right">
+          {documentId !== undefined && <Presence documentId={documentId} />}
           {doc.headLocked && (
             <Badge tone="warning">Checked out — an internal round is open on the frozen head</Badge>
           )}

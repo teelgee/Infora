@@ -51,6 +51,7 @@ import type {
   NonReviewTransmittal,
   Acknowledgement,
   ListPendingTransmittalsResponse,
+  ListPresenceResponse,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -276,6 +277,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ containerId }),
     }),
+  // T-175 — document presence (ADR-0039 real-time, first cut)
+  documentPresence: (documentId: string) =>
+    request<ListPresenceResponse>(`/sandbox-documents/${documentId}/presence`),
+  heartbeatPresence: (documentId: string) =>
+    request<{ ok: true }>(`/sandbox-documents/${documentId}/presence`, { method: 'POST' }),
   attachedSources: (conversationId: string) =>
     request<ListAttachedSourcesResponse>(`/conversations/${conversationId}/attached-sources`),
   pinAttachedSource: (

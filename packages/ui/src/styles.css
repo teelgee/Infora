@@ -999,3 +999,14 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   display: flex; flex-direction: column;
 }
 .drawer-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-5); overflow-y: auto; }
+
+/* document presence avatar stack (T-175) */
+.presence-stack { display: inline-flex; align-items: center; }
+.presence-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; margin-left: -6px;
+  background: var(--surface-sunken); color: var(--text-secondary);
+  border: 2px solid var(--surface-pane); font-size: 10px; font-weight: 600;
+}
+.presence-avatar:first-child { margin-left: 0; }
+.presence-more { background: var(--text-muted); color: var(--surface-pane); }

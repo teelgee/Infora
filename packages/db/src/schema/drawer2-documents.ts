@@ -369,6 +369,26 @@ export const sandboxComments = pgTable(
   (t) => [index('sandbox_comments_document_idx').on(t.sandboxDocumentId)],
 );
 
+// Document presence (ADR-0039 real-time, first cut — T-175): who is currently
+// viewing/editing a document. A heartbeat upserts last_seen; a reader treats
+// anyone seen within a short window as "present". This is the concrete first
+// step of the deferred real-time half (a full CRDT sync engine remains later);
+// presence follows the document's access (participant-private to its sandbox).
+export const documentPresence = pgTable(
+  'document_presence',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('document_presence_doc_participant_unique').on(t.sandboxDocumentId, t.participantId)],
+);
+
 // ── The naming scheme (ADR-0008 homed, T-148, Beat 1) ───────────────────────
 // Owner-defined and project-wide, but not fixed. The definition is an ordered
 // list of fields with allowed values; the code-builder (T-152) composes a

@@ -783,6 +783,12 @@ export const pinAttachedSourceBody = z.object({
 });
 export type PinAttachedSourceBody = z.infer<typeof pinAttachedSourceBody>;
 
+// Document presence (ADR-0039 real-time, first cut — T-175): who is present on a
+// document now. A heartbeat marks the requester present; the read returns others
+// seen within the window, self excluded.
+export type PresenceEntry = { participantId: Id; name: string; initials: string };
+export type ListPresenceResponse = { items: PresenceEntry[] };
+
 // Deliverables shared to the requester's organisation whose current version it
 // has not yet acknowledged (ADR-0035 §4) — the receiving org's inbox, since the
 // gate withholds the deliverable itself until acknowledged. T-161.
