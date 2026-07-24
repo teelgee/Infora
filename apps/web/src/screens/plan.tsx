@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
+import { Badge, Button, Drawer, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
@@ -148,17 +148,95 @@ const AUTHORING_FIELDS = [
   { key: 'classification', label: 'Classification' },
 ];
 
+function DetailRow(props: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
+      <span style={{ color: 'var(--text-muted)', minWidth: 96 }}>{props.label}</span>
+      <span style={{ flex: 1 }}>{props.children}</span>
+    </div>
+  );
+}
+
+function DeliverableDetail(props: { row: PlanRow; projectId: string; onClose: () => void }) {
+  const { row } = props;
+  const navigate = useNavigate();
+  const authors = row.authors.filter((a) => a.revokedAt === null);
+  const reviewers = row.reviewers.filter((r) => r.revokedAt === null);
+  const st = row.workItem
+    ? statusBadge(row.workItem.status)
+    : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
+  return (
+    <Drawer
+      open
+      onClose={props.onClose}
+      title={row.documentReference ?? 'Deliverable'}
+      footer={
+        row.workItem && (
+          <Button variant="primary" onClick={() => navigate(`/projects/${props.projectId}/work-items/${row.workItem!.id}`)}>
+            Open work item
+          </Button>
+        )
+      }
+    >
+      <div style={{ display: 'grid', gap: 6 }}>
+        <DetailRow label="Title">{row.workItem?.title ?? 'Reference material'}</DetailRow>
+        <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
+        <DetailRow label="Discipline">{String(row.metadata['discipline'] ?? '—')}</DetailRow>
+        <DetailRow label="Status">
+          <Badge tone={st.tone}>{st.label}</Badge>
+        </DetailRow>
+        <DetailRow label="Revision">{row.currentVersion?.versionReference ?? '—'}</DetailRow>
+        <DetailRow label="Issued">
+          {row.currentVersion ? new Date(row.currentVersion.createdAt).toLocaleDateString() : '—'}
+        </DetailRow>
+      </div>
+
+      <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+        <span className="field-label">Authoring team</span>
+        {authors.length === 0 && <span className="field-hint">None appointed.</span>}
+        {authors.map((a) => (
+          <DetailRow key={a.id} label={a.isLead ? 'Lead author' : 'Author'}>
+            {a.name}
+          </DetailRow>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+        <span className="field-label">Review group</span>
+        {reviewers.length === 0 && <span className="field-hint">None appointed.</span>}
+        {reviewers.map((r) => (
+          <DetailRow key={r.id} label={r.isLead ? 'Lead reviewer' : 'Reviewer'}>
+            {r.name}
+            {r.confirmedAt === null && <span className="field-hint"> · proposed</span>}
+          </DetailRow>
+        ))}
+      </div>
+
+      {row.sharedWith.length > 0 && (
+        <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+          <span className="field-label">Shared with</span>
+          {row.sharedWith.map((sh) => (
+            <DetailRow key={sh.organisationId} label="Organisation">
+              {sh.organisationName}
+            </DetailRow>
+          ))}
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
 export function PlanScreen() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
   const isOwner = participant.membershipRole === 'owner';
-  const navigate = useNavigate();
 
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [creating, setCreating] = useState(false);
   const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
+  const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
   const [query, setQuery] = useState('');
 
   const load = useCallback(() => void api.plan(projectId).then((res) => setRows(res.items)), [projectId]);
@@ -213,6 +291,9 @@ export function PlanScreen() {
           }}
         />
       )}
+      {detailRow && (
+        <DeliverableDetail row={detailRow} projectId={projectId} onClose={() => setDetailRow(null)} />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
         <h1 className="page">{isOwner ? 'Project schedule' : 'Deliverable plan'}</h1>
@@ -260,8 +341,8 @@ export function PlanScreen() {
             {filtered.map((r) => (
               <tr
                 key={r.containerId}
-                onClick={() => r.workItem && navigate(`/projects/${projectId}/work-items/${r.workItem.id}`)}
-                style={{ cursor: r.workItem ? 'pointer' : 'default' }}
+                onClick={() => setDetailRow(r)}
+                style={{ cursor: 'pointer' }}
               >
                 <td>
                   <span className="ficon">

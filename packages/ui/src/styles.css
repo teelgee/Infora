@@ -986,3 +986,16 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 }
 .linklike:hover { text-decoration: underline; }
 .combobox-option.active { background: var(--surface-hover); }
+
+/* Drawer — a right-docked slide-over (elevation 4, T-173) */
+.drawer-backdrop {
+  position: fixed; inset: 0; z-index: var(--primitive-z-index-modal);
+  background: color-mix(in srgb, var(--text-primary) 24%, transparent);
+  display: flex; justify-content: flex-end;
+}
+.drawer {
+  background: var(--surface-pane); box-shadow: var(--primitive-shadow-level4);
+  width: 440px; max-width: 92vw; height: 100%;
+  display: flex; flex-direction: column;
+}
+.drawer-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-5); overflow-y: auto; }
