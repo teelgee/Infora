@@ -978,3 +978,10 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 .combobox-option-label { font-family: var(--primitive-font-family-mono); }
 .combobox-sub { color: var(--text-muted); font-size: 11.5px; }
 .combobox-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }
+
+/* a table-cell link styled as a link, not a button (T-165) */
+.linklike {
+  border: none; background: transparent; padding: 0; cursor: pointer;
+  color: var(--text-primary); font: inherit; display: inline-flex; align-items: center;
+}
+.linklike:hover { text-decoration: underline; }
