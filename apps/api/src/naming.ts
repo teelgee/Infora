@@ -5,7 +5,7 @@
 // and the owner folds them in. Plan-row create/patch already live in plan.ts.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   generateReferenceBody,

@@ -6,7 +6,7 @@
 // window.prompt.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button, Field, Modal, TextInput } from '@infora/ui';
+import { Button, Modal, TextInput } from '@infora/ui';
 
 type Pair = { key: string; label: string; value: string; custom: boolean };
 

@@ -2,7 +2,7 @@
 // cross-org reference distinctness on the originator field; the propose-then-
 // fold row shape. Requires the dev database.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { createDb } from './client.js';
 import * as s from './schema/index.js';
 

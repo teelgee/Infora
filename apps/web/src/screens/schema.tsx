@@ -4,7 +4,7 @@
 // it needs a new value, proposes an addition the owner folds in.
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import type { MeResponse, NamingProposal, NamingScheme, NamingSchemeField } from '@infora/contracts';
+import type { MeResponse, NamingProposal, NamingSchemeField } from '@infora/contracts';
 import { Badge, Button, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 

@@ -4,7 +4,7 @@
 // move, and the one-way bind. ADR-0036/0038.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { GetSandboxResponse, Sandbox, SandboxFolder } from '@infora/contracts';
+import type { Sandbox, SandboxFolder } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';

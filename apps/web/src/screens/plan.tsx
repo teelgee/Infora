@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
+import { Badge, Button, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
