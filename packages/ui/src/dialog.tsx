@@ -1,10 +1,14 @@
 // Modal — the elevation-4 overlay every in-app dialog uses (design-rules.md §A,
-// §F.8): floats above the panes, portalled to <body> so no pane's overflow
-// clips it, closes on Escape or backdrop click, and traps initial focus. This
-// is the primitive that retires every `window.prompt()`/`confirm()` in the app.
+// §D, §F.8): floats above the panes, portalled to <body> so no pane's overflow
+// clips it, closes on Escape or backdrop click, traps Tab focus within itself
+// while open, and restores focus to the trigger on close. The primitive that
+// retires every `window.prompt()`/`confirm()` in the app.
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function Modal(props: {
   open: boolean;
@@ -15,18 +19,39 @@ export function Modal(props: {
   size?: 'sm' | 'md' | 'lg';
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!props.open) return;
+    // remember what had focus so we can restore it when the dialog closes
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
+      if (e.key === 'Escape') {
+        props.onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      // trap Tab within the dialog
+      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
+      if (!nodes || nodes.length === 0) return;
+      const first = nodes[0]!;
+      const last = nodes[nodes.length - 1]!;
+      const active = document.activeElement;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
-    // focus the first field so keyboard users land inside the dialog
-    dialogRef.current
-      ?.querySelector<HTMLElement>('input, select, textarea, [data-autofocus]')
-      ?.focus();
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      restoreRef.current?.focus?.();
+    };
   }, [props.open, props.onClose]);
 
   if (!props.open) return null;

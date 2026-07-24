@@ -289,6 +289,16 @@ Ordered by the wedge-first logic of the overview; each slice names its design ga
 - **T-166 — Metadata editors (library + sandbox).** A metadata detail panel: container identity (read-only) + authoring metadata (editable, container PATCH); sandbox-document authoring metadata editable via an extended sandbox PATCH — grouped fields, real controls (file/metadata separation, B4 auto-surfaced attributes).
 - **T-167 — Replace remaining prompts + emoji-icons; verify.** Convert the other prompt sites (sandbox create, folder, scope grant, working-set pin, transmit, acknowledge) to modals/forms; swap emoji glyphs for Lucide; update the e2e; full verification.
 
+**Slice A2.2 — Hardening & follow-through** — ✅ **ticketed and built 2026-07-24 (T-168–T-175).** Closes the gaps flagged after A2.1: accessibility of the new primitives, lint hygiene, dark mode, the deferred deviations, and the two bigger deferred items (the elevated tier, real-time presence).
+- **T-168 — Primitive accessibility (design-rules §D).** `Combobox` gets keyboard navigation (↑/↓/Enter/Escape) and `aria` roles; `Modal` gets a real focus-trap and focus-restore on close.
+- **T-169 — Lint clean.** Run `pnpm check` (deps + lint + typecheck + tests) and clear anything it flags on the Slice A2/A2.1 code.
+- **T-170 — Dark-mode pass.** Render the new modals/forms/register/sandbox in dark and fix any token gaps (design-rules §G item 1).
+- **T-171 — `sandbox_documents.sandbox_id` → NOT NULL.** Backfill any nulls, make the create paths always set it, tighten the column.
+- **T-172 — Humanise status labels.** A shared work-item-status label map (`in_production` → "In production") used by the register, sandbox and work-item surfaces.
+- **T-173 — Register row detail panel.** A slide-over showing a deliverable's dates, reviewers and authoring team beside its metadata.
+- **T-174 — The elevated (super-user) tier (T-133 realised).** A server-side gate for destructive lifecycle actions (close-reject, supersede, withdraw), surfaced only to elevated participants; reconciled with the org admin (ADR-0033) and ADR-0016's owner/member collapse.
+- **T-175 — Real-time multiplayer presence (first cut).** A presence layer — who is viewing/editing a document — as the first concrete step of ADR-0039's deferred real-time half (heartbeat + read; live avatars in the editor), short of a full CRDT sync engine.
+
 **Slice B — The Word add-in** *(design settled, component 8).* The consultant authoring surface: tracked-changes suggestions with citation + rationale, accept/edit/reject as Signals, central M365 deployment. Needs Slice A's promotion path to be fully useful, but drafting on sandbox documents can land earlier.
 
 **Slice C — Governance depth** *(part open: threshold tuning, retention/export — bucket A).* Rails as scoped records with the ADR-0030 intersection engine, grounding-threshold calibration, withheld-output UX, audit retention/export, user-UI-action audit sense.

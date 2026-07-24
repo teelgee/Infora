@@ -2,7 +2,7 @@
 // select, and a searchable Combobox (the bind picker). All emit the class
 // vocabulary in styles.css; none carry business logic. These replace the
 // phantom `.input` class the surfaces referenced and the `window.prompt` flows.
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
 export function Field(props: {
@@ -94,7 +94,8 @@ export function SelectInput(props: {
 
 // A searchable single-select — the bind picker (choose a TIDP row from the
 // accessible set) and any other "pick one from many" that a plain <select>
-// makes unwieldy.
+// makes unwieldy. Fully keyboard-operable (design-rules §D): ↑/↓ move the active
+// option, Enter selects it, Escape closes; ARIA combobox/listbox roles.
 export function Combobox(props: {
   value: string | null;
   onChange: (v: string) => void;
@@ -104,6 +105,7 @@ export function Combobox(props: {
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return props.options;
@@ -113,35 +115,66 @@ export function Combobox(props: {
   }, [query, props.options]);
   const selected = props.options.find((o) => o.value === props.value);
 
+  const choose = (value: string) => {
+    props.onChange(value);
+    setOpen(false);
+    setQuery('');
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setOpen(true);
+      setActive((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      const pick = filtered[active];
+      if (open && pick) {
+        e.preventDefault();
+        choose(pick.value);
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="combobox">
       <div className="field-input combobox-control">
         <Search size={13} strokeWidth={2} className="combobox-icon" />
         <input
           className="combobox-input"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="combobox-list"
+          aria-activedescendant={open && filtered[active] ? `cbo-${filtered[active]!.value}` : undefined}
           value={open ? query : (selected?.label ?? '')}
           placeholder={props.placeholder}
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+          onKeyDown={onKeyDown}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
+            setActive(0);
           }}
         />
       </div>
       {open && (
-        <div className="combobox-list">
-          {filtered.map((o) => (
+        <div className="combobox-list" id="combobox-list" role="listbox">
+          {filtered.map((o, i) => (
             <button
               key={o.value}
+              id={`cbo-${o.value}`}
               type="button"
-              className="combobox-option"
+              role="option"
+              aria-selected={i === active}
+              className={`combobox-option${i === active ? ' active' : ''}`}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                props.onChange(o.value);
-                setOpen(false);
-                setQuery('');
-              }}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(o.value)}
             >
               <span className="combobox-option-label">{o.label}</span>
               {o.sub !== undefined && <span className="combobox-sub">{o.sub}</span>}

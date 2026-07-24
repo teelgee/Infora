@@ -247,6 +247,7 @@ describe('modal + form controls (T-163)', () => {
     );
     expect(html).toContain('class="combobox"');
     expect(html).toContain('combobox-input');
-    expect(html).not.toContain('combobox-list'); // closed until focus
+    expect(html).toContain('role="combobox"');
+    expect(html).not.toContain('role="listbox"'); // the list is closed until focus
   });
 });
