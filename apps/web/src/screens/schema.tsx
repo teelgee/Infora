@@ -94,11 +94,11 @@ export function SchemaScreen() {
           <tbody>
             {fields.map((f, i) => (
               <tr key={i}>
-                <td><input className="input mono" value={f.key} disabled={!isOwner} onChange={(e) => setField(i, { key: e.target.value })} /></td>
-                <td><input className="input" value={f.label} disabled={!isOwner} onChange={(e) => setField(i, { label: e.target.value })} /></td>
+                <td><input className="field-input mono" value={f.key} disabled={!isOwner} onChange={(e) => setField(i, { key: e.target.value })} /></td>
+                <td><input className="field-input" value={f.label} disabled={!isOwner} onChange={(e) => setField(i, { label: e.target.value })} /></td>
                 <td>
                   <input
-                    className="input"
+                    className="field-input"
                     value={(f.allowedValues ?? []).join(', ')}
                     disabled={!isOwner}
                     onChange={(e) => setField(i, { allowedValues: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
@@ -117,7 +117,7 @@ export function SchemaScreen() {
           <Button variant="quiet" onClick={() => setFields((fs) => [...fs, emptyField()])}>Add field</Button>
           <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             Separator
-            <input className="input mono" value={separator} onChange={(e) => setSeparator(e.target.value)} style={{ width: 40 }} />
+            <input className="field-input mono" value={separator} onChange={(e) => setSeparator(e.target.value)} style={{ width: 40 }} />
           </label>
           <Button onClick={() => void save()}>Save scheme</Button>
           {saved && <Badge tone="success">Saved</Badge>}
@@ -163,7 +163,7 @@ export function SchemaScreen() {
       <SectionLabel>Scheme additions</SectionLabel>
       {!isOwner && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <input className="input" placeholder="Propose an addition (e.g. discipline DRN)" value={proposalText} onChange={(e) => setProposalText(e.target.value)} style={{ minWidth: 320 }} />
+          <input className="field-input" placeholder="Propose an addition (e.g. discipline DRN)" value={proposalText} onChange={(e) => setProposalText(e.target.value)} style={{ minWidth: 320 }} />
           <Button onClick={() => void propose()}>Propose</Button>
         </div>
       )}
