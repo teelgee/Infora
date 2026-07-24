@@ -209,3 +209,20 @@ describe('bind — the one-way transition (T-153, ADR-0038)', () => {
     expect(wrong.status).toBe(400);
   });
 });
+
+describe('authoring metadata (T-166, ADR-0038)', () => {
+  it('sets and reads back a document’s authoring metadata', async () => {
+    const [doc] = await db
+      .insert(s.sandboxDocuments)
+      .values({ projectId, organisationId: orgB, sandboxId: bSandbox, title: 'meta', createdByParticipantId: bParticipant })
+      .returning();
+    const res = await app.request(`/sandbox-documents/${doc!.id}/metadata`, {
+      method: 'PATCH',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ authoringMetadata: { revision: 'P01', suitability: 'S2' } }),
+    });
+    expect(res.status).toBe(200);
+    const read = (await res.json()) as { authoringMetadata: Record<string, unknown> };
+    expect(read.authoringMetadata).toEqual({ revision: 'P01', suitability: 'S2' });
+  });
+});

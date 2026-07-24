@@ -8,6 +8,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import {
   createSandboxDocumentBody,
   patchSandboxDocumentBody,
+  patchSandboxMetadataBody,
   restoreSandboxVersionBody,
 } from '@infora/contracts';
 import type {
@@ -125,6 +126,22 @@ export function sandboxRoutes(deps: { db: Db }) {
   });
 
   // T-082: manual editing — no Suggestion, no Signal, no ceremony, by design
+  // T-166 — authoring-metadata edit (ADR-0038): metadata-only, no ambient
+  // content version; allowed even while the head is checked out (it isn't content)
+  app.patch('/sandbox-documents/:id/metadata', documentScope, async (c) => {
+    const body = patchSandboxMetadataBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: 'invalid', detail: 'authoringMetadata required' } satisfies ApiError, 400);
+    }
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ authoringMetadata: body.data.authoringMetadata, updatedAt: sql`now()` })
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .returning();
+    if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    return c.json(toSandboxDocument(row));
+  });
+
   app.patch('/sandbox-documents/:id', documentScope, async (c) => {
     const body = patchSandboxDocumentBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) {
@@ -253,6 +270,7 @@ export function toSandboxDocument(row: typeof s.sandboxDocuments.$inferSelect): 
     containerId: row.containerId,
     sandboxId: row.sandboxId,
     folderId: row.folderId,
+    authoringMetadata: (row.authoringMetadata ?? {}) as Record<string, unknown>,
     headLocked: row.headLocked,
     updatedAt: row.updatedAt.toISOString(),
   };

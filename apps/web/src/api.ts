@@ -191,6 +191,17 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ content }),
     }),
+  // T-166 — metadata editors (ADR-0038)
+  setSandboxMetadata: (id: string, authoringMetadata: Record<string, unknown>) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}/metadata`, {
+      method: 'PATCH',
+      body: JSON.stringify({ authoringMetadata }),
+    }),
+  setContainerMetadata: (containerId: string, metadata: Record<string, unknown>) =>
+    request<{ ok: true }>(`/containers/${containerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ metadata }),
+    }),
   conversation: (conversationId: string) =>
     request<GetConversationResponse>(`/conversations/${conversationId}`),
   history: (projectId: string) => request<GetHistoryResponse>(`/projects/${projectId}/history`),

@@ -17,7 +17,7 @@ import type {
   SandboxFolder,
   SandboxScopeGrantView,
 } from '@infora/contracts';
-import { FilePlus2, FileText, FolderPlus, Link2, Lock, Plus, Send, Users, X } from 'lucide-react';
+import { FileCog, FilePlus2, FileText, FolderPlus, Link2, Lock, Plus, Send, Users, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -30,9 +30,16 @@ import {
   TextInput,
 } from '@infora/ui';
 import { api } from '../api';
+import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
+
+const AUTHORING_FIELDS = [
+  { key: 'revision', label: 'Revision' },
+  { key: 'suitability', label: 'Suitability' },
+  { key: 'classification', label: 'Classification' },
+];
 
 const scopeLabel: Record<Sandbox['scope'], string> = {
   single_org: 'Single organisation',
@@ -293,6 +300,7 @@ export function SandboxScreen() {
   // modal state
   const [modal, setModal] = useState<'sandbox' | 'doc' | 'folder' | 'access' | null>(null);
   const [bindDoc, setBindDoc] = useState<SandboxDocument | null>(null);
+  const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
   const loadDocs = useCallback(() => api.sandboxDocuments(projectId).then((r) => setDocs(r.items)), [projectId]);
@@ -405,6 +413,32 @@ export function SandboxScreen() {
           }}
         />
       )}
+      {metaDoc && (
+        <MetadataModal
+          title={`Metadata — ${metaDoc.title}`}
+          editable
+          identity={[
+            { label: 'Title', value: metaDoc.title },
+            {
+              label: 'Deliverable',
+              value: metaDoc.containerId ? (
+                <span className="mono">{planByContainer.get(metaDoc.containerId)?.documentReference ?? 'bound'}</span>
+              ) : (
+                'Unbound'
+              ),
+            },
+            { label: 'Origin', value: metaDoc.origin },
+          ]}
+          metadata={metaDoc.authoringMetadata}
+          suggestedFields={AUTHORING_FIELDS}
+          onClose={() => setMetaDoc(null)}
+          onSave={async (authoring) => {
+            await api.setSandboxMetadata(metaDoc.id, authoring);
+            await loadDocs();
+            setMetaDoc(null);
+          }}
+        />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 className="page">Sandbox</h1>
@@ -507,6 +541,9 @@ export function SandboxScreen() {
                     <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
                       <Button size="sm" variant="quiet" onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}>
                         Open in Editor
+                      </Button>
+                      <Button size="sm" variant="quiet" onClick={() => setMetaDoc(doc)}>
+                        <FileCog size={13} strokeWidth={2} /> Metadata
                       </Button>
                       {!doc.containerId && (
                         <Button size="sm" variant="quiet" onClick={() => setBindDoc(doc)}>

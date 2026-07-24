@@ -9,9 +9,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
-import { FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
+import { MetadataModal } from '../metadata-modal';
+import { useMe } from '../session';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -137,7 +139,15 @@ function NewDeliverableModal(props: {
   );
 }
 
+const IDENTITY_KEYS = new Set(['discipline']);
+const AUTHORING_FIELDS = [
+  { key: 'revision', label: 'Revision' },
+  { key: 'suitability', label: 'Suitability' },
+  { key: 'classification', label: 'Classification' },
+];
+
 export function PlanScreen() {
+  const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
   const isOwner = participant.membershipRole === 'owner';
@@ -146,6 +156,7 @@ export function PlanScreen() {
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [creating, setCreating] = useState(false);
+  const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
   const [query, setQuery] = useState('');
 
   const load = useCallback(() => void api.plan(projectId).then((res) => setRows(res.items)), [projectId]);
@@ -172,6 +183,30 @@ export function PlanScreen() {
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
+            load();
+          }}
+        />
+      )}
+      {metaRow && (
+        <MetadataModal
+          title={`Metadata — ${metaRow.documentReference ?? 'deliverable'}`}
+          editable={metaRow.producingOrganisationId === me.organisationId}
+          identity={[
+            { label: 'Reference', value: <span className="mono">{metaRow.documentReference}</span> },
+            { label: 'Producer', value: metaRow.producingOrganisationName },
+            { label: 'Discipline', value: String(metaRow.metadata['discipline'] ?? '—') },
+            { label: 'State', value: metaRow.state },
+          ]}
+          metadata={Object.fromEntries(
+            Object.entries(metaRow.metadata).filter(([k]) => !IDENTITY_KEYS.has(k)),
+          )}
+          suggestedFields={AUTHORING_FIELDS}
+          onClose={() => setMetaRow(null)}
+          onSave={async (authoring) => {
+            const merged: Record<string, unknown> = { ...authoring };
+            if (metaRow.metadata['discipline'] !== undefined) merged['discipline'] = metaRow.metadata['discipline'];
+            await api.setContainerMetadata(metaRow.containerId, merged);
+            setMetaRow(null);
             load();
           }}
         />
@@ -216,6 +251,7 @@ export function PlanScreen() {
               <th>Status</th>
               <th>Revision</th>
               <th>Verdict</th>
+              <th style={{ textAlign: 'right' }}></th>
             </tr>
           </thead>
           <tbody>
@@ -238,11 +274,16 @@ export function PlanScreen() {
                 </td>
                 <td className="mono">{r.currentVersion?.versionReference ?? '—'}</td>
                 <td>{r.deliverableCode ? `${r.deliverableCode.code} · ${r.deliverableCode.description}` : '—'}</td>
+                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                  <Button size="sm" variant="quiet" onClick={() => setMetaRow(r)}>
+                    <FileCog size={13} strokeWidth={2} /> Metadata
+                  </Button>
+                </td>
               </tr>
             ))}
             {rows !== null && filtered.length === 0 && (
               <tr>
-                <td colSpan={isOwner ? 6 : 5} style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={isOwner ? 7 : 6} style={{ color: 'var(--text-muted)' }}>
                   {rows.length === 0 ? 'No deliverables planned yet — add the first one.' : 'No matches.'}
                 </td>
               </tr>

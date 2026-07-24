@@ -115,6 +115,8 @@ export type SandboxDocument = {
   // the sandbox and folder it lives in (ADR-0036, T-157); null while unwired
   sandboxId: Id | null;
   folderId: Id | null;
+  // authoring metadata that accrues in the sandbox (ADR-0038, T-166)
+  authoringMetadata: Record<string, unknown>;
   // the freeze's check-out lock (ADR-0032)
   headLocked: boolean;
   updatedAt: string;
@@ -134,6 +136,13 @@ export const createSandboxDocumentBody = z.object({
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
 export const patchSandboxDocumentBody = z.object({ content: z.string() });
+// authoring metadata (ADR-0038, T-166): document-specific fields that accrue in
+// the sandbox — revision, suitability, classification, relationships. A
+// metadata-only edit, distinct from a content save (no ambient version).
+export const patchSandboxMetadataBody = z.object({
+  authoringMetadata: z.record(z.string(), z.unknown()),
+});
+export type PatchSandboxMetadataBody = z.infer<typeof patchSandboxMetadataBody>;
 export type PatchSandboxDocumentBody = z.infer<typeof patchSandboxDocumentBody>;
 
 // ── Sandbox comments (T-112, owner-ruled 2026-07-18) ───────────────────────
