@@ -8,19 +8,24 @@ import {
   Badge,
   Button,
   Chip,
+  Combobox,
   CommandBar,
   DropdownMenu,
+  Field,
   MadeCard,
+  Modal,
   OutChip,
   ProjectCard,
   ProjectSwitcher,
   Rail,
   RailNav,
   RunTrace,
+  SelectInput,
   Skeleton,
   SourceChip,
   SuggestionCard,
   Table,
+  TextInput,
   UserChip,
 } from './index';
 
@@ -189,5 +194,59 @@ describe('new components (design-rules.md §B)', () => {
     expect(html).toContain('Open');
     expect(html).not.toContain('dropdown-menu');
     expect(html).not.toContain('item');
+  });
+});
+
+describe('modal + form controls (T-163)', () => {
+  it('a closed modal renders nothing; the field vocabulary is stable', () => {
+    expect(
+      renderToStaticMarkup(
+        <Modal open={false} onClose={() => {}} title="X">
+          body
+        </Modal>,
+      ),
+    ).toBe('');
+  });
+
+  it('Field wraps a labelled control with hint/error slots', () => {
+    const html = renderToStaticMarkup(
+      <Field label="Reference" hint="scheme-compliant">
+        <TextInput value="WA-BB-GEO-004" onChange={() => {}} mono />
+      </Field>,
+    );
+    expect(html).toContain('class="field"');
+    expect(html).toContain('field-label');
+    expect(html).toContain('field-input mono');
+    expect(html).toContain('field-hint');
+  });
+
+  it('SelectInput renders a styled native select with its options', () => {
+    const html = renderToStaticMarkup(
+      <SelectInput
+        value="GEO"
+        onChange={() => {}}
+        options={[
+          { value: 'GEO', label: 'Geotechnical' },
+          { value: 'ENV', label: 'Environmental' },
+        ]}
+      />,
+    );
+    expect(html).toContain('field-select');
+    expect(html).toContain('Geotechnical');
+    expect(html).toContain('field-select-chev');
+  });
+
+  it('Combobox renders a searchable control (list closed until focus)', () => {
+    const html = renderToStaticMarkup(
+      <Combobox
+        value={null}
+        onChange={() => {}}
+        options={[{ value: 'c1', label: 'WA-BB-GEO-004', sub: 'Geotech report' }]}
+        placeholder="Search deliverables"
+      />,
+    );
+    expect(html).toContain('class="combobox"');
+    expect(html).toContain('combobox-input');
+    expect(html).not.toContain('combobox-list'); // closed until focus
   });
 });

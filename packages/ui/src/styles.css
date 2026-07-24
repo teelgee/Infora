@@ -898,3 +898,83 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   font-weight: var(--heading-md-weight); color: var(--text-primary);
 }
 .project-card .subtitle { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+/* ── Modal (elevation 4 overlay) + form controls (T-163) ─────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: var(--primitive-z-index-modal);
+  background: color-mix(in srgb, var(--text-primary) 32%, transparent);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 64px 16px; overflow-y: auto;
+}
+.modal {
+  background: var(--surface-pane); border-radius: var(--primitive-radius-lg);
+  box-shadow: var(--primitive-shadow-level4); width: 100%; max-width: 520px;
+  display: flex; flex-direction: column;
+}
+.modal-sm { max-width: 400px; }
+.modal-lg { max-width: 760px; }
+.modal-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: var(--primitive-space-5) var(--primitive-space-6);
+  border-bottom: 1px solid var(--border-default);
+}
+.modal-head h2 {
+  font-family: var(--primitive-font-family-sans); font-size: 15px; font-weight: 600;
+  color: var(--text-primary); margin: 0; flex: 1;
+}
+.modal-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; background: transparent;
+  color: var(--text-muted); border-radius: var(--primitive-radius-sm); cursor: pointer;
+}
+.modal-x:hover { background: var(--surface-hover); color: var(--text-primary); }
+.modal-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-4); }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: var(--primitive-space-4) var(--primitive-space-6);
+  border-top: 1px solid var(--border-default);
+}
+
+.field { display: grid; gap: 4px; }
+.field-label {
+  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  letter-spacing: .01em;
+}
+.field-input {
+  font: inherit; font-size: var(--body-dense-size, 12.5px);
+  color: var(--text-primary); background: var(--surface-pane);
+  border: 1px solid var(--border-default); border-radius: var(--primitive-radius-sm);
+  padding: 7px 10px; width: 100%; outline: none;
+}
+.field-input:focus { box-shadow: var(--primitive-shadow-focus-ring-shadow, 0 0 0 3px var(--focus-ring)); border-color: var(--text-muted); }
+.field-input:disabled { background: var(--surface-sunken); color: var(--text-muted); cursor: not-allowed; }
+.field-textarea { resize: vertical; min-height: 64px; }
+.field-hint { font-size: 11px; color: var(--text-muted); }
+.field-error { font-size: 11px; color: var(--danger-text, var(--feedback-danger-text)); }
+.field-select-wrap { position: relative; }
+.field-select { appearance: none; padding-right: 28px; cursor: pointer; }
+.field-select-chev {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); pointer-events: none;
+}
+
+.combobox { position: relative; }
+.combobox-control { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+.combobox-icon { color: var(--text-muted); flex-shrink: 0; }
+.combobox-input { flex: 1; border: none; outline: none; background: transparent; font: inherit; font-size: 12.5px; color: var(--text-primary); padding: 7px 0; }
+.combobox-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  z-index: var(--primitive-z-index-modal);
+  background: var(--surface-pane); border-radius: var(--primitive-radius-md);
+  box-shadow: var(--primitive-shadow-level4); padding: 4px; max-height: 260px; overflow-y: auto;
+}
+.combobox-option {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  width: 100%; text-align: left; border: none; background: transparent; cursor: pointer;
+  padding: 7px 9px; border-radius: var(--primitive-radius-sm); font: inherit; font-size: 12.5px;
+  color: var(--text-primary);
+}
+.combobox-option:hover { background: var(--surface-hover); }
+.combobox-option-label { font-family: var(--primitive-font-family-mono); }
+.combobox-sub { color: var(--text-muted); font-size: 11.5px; }
+.combobox-empty { padding: 10px; color: var(--text-muted); font-size: 12px; }

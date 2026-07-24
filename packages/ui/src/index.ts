@@ -20,6 +20,8 @@ export type { BadgeTone } from './primitives';
 export { ProjectSwitcher, Rail, RailNav, RailSpacer, UserChip, WorkspaceZone } from './rail';
 export type { RailNavItem } from './rail';
 export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
+export { Modal } from './dialog';
+export { Field, TextInput, TextArea, SelectInput, Combobox } from './form';
 export { Table } from './table';
 export { Skeleton } from './skeleton';
 export { ProjectCard } from './project-card';

@@ -304,6 +304,9 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../contracts
+      lucide-react:
+        specifier: ^0.475.0
+        version: 0.475.0(react@19.2.7)
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.17)(react@19.2.7)
