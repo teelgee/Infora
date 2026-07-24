@@ -15,7 +15,10 @@ const emptyField = (): NamingSchemeField => ({ key: '', label: '' });
 export function SchemaScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
-  const isOwner = participant.membershipRole === 'owner';
+  // classes of user (T-176): the owner super-user edits the scheme; a guest
+  // super-user proposes additions; everyone else views
+  const canEdit = participant.membershipRole === 'owner' && participant.elevated;
+  const canPropose = participant.membershipRole === 'member' && participant.elevated;
 
   const [separator, setSeparator] = useState('-');
   const [fields, setFields] = useState<NamingSchemeField[]>([]);
@@ -73,10 +76,20 @@ export function SchemaScreen() {
 
   return (
     <div className="content">
-      <h1 className="page">Coding scheme</h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <h1 className="page">Coding scheme</h1>
+        <Badge tone={canEdit ? 'success' : canPropose ? 'info' : 'neutral'}>
+          {canEdit ? 'You can edit' : canPropose ? 'You can propose' : 'View only'}
+        </Badge>
+      </div>
       <p className="page-sub">
-        Owner-defined and project-wide, but not fixed — a producer proposes an addition and the
-        owner folds it in. <Link to={`/projects/${projectId}/plan`}>← Back to the plan</Link>
+        Owner-defined and project-wide, but not fixed —{' '}
+        {canEdit
+          ? 'edit the fields and save.'
+          : canPropose
+            ? 'propose an addition below and the owner folds it in.'
+            : 'the owner super-user maintains it.'}{' '}
+        <Link to={`/projects/${projectId}/plan`}>← Back to the plan</Link>
       </p>
 
       <SectionLabel>Fields</SectionLabel>
@@ -94,25 +107,25 @@ export function SchemaScreen() {
           <tbody>
             {fields.map((f, i) => (
               <tr key={i}>
-                <td><input className="field-input mono" value={f.key} disabled={!isOwner} onChange={(e) => setField(i, { key: e.target.value })} /></td>
-                <td><input className="field-input" value={f.label} disabled={!isOwner} onChange={(e) => setField(i, { label: e.target.value })} /></td>
+                <td><input className="field-input mono" value={f.key} disabled={!canEdit} onChange={(e) => setField(i, { key: e.target.value })} /></td>
+                <td><input className="field-input" value={f.label} disabled={!canEdit} onChange={(e) => setField(i, { label: e.target.value })} /></td>
                 <td>
                   <input
                     className="field-input"
                     value={(f.allowedValues ?? []).join(', ')}
-                    disabled={!isOwner}
+                    disabled={!canEdit}
                     onChange={(e) => setField(i, { allowedValues: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
                   />
                 </td>
-                <td><input type="checkbox" checked={!!f.isOriginator} disabled={!isOwner} onChange={(e) => setField(i, { isOriginator: e.target.checked })} /></td>
-                <td><input type="checkbox" checked={!!f.isSerial} disabled={!isOwner} onChange={(e) => setField(i, { isSerial: e.target.checked, width: e.target.checked ? (f.width ?? 3) : undefined })} /></td>
+                <td><input type="checkbox" checked={!!f.isOriginator} disabled={!canEdit} onChange={(e) => setField(i, { isOriginator: e.target.checked })} /></td>
+                <td><input type="checkbox" checked={!!f.isSerial} disabled={!canEdit} onChange={(e) => setField(i, { isSerial: e.target.checked, width: e.target.checked ? (f.width ?? 3) : undefined })} /></td>
               </tr>
             ))}
           </tbody>
         </table>
       </Table>
 
-      {isOwner && (
+      {canEdit && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <Button variant="quiet" onClick={() => setFields((fs) => [...fs, emptyField()])}>Add field</Button>
           <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -161,7 +174,7 @@ export function SchemaScreen() {
       )}
 
       <SectionLabel>Scheme additions</SectionLabel>
-      {!isOwner && (
+      {canPropose && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <input className="field-input" placeholder="Propose an addition (e.g. discipline DRN)" value={proposalText} onChange={(e) => setProposalText(e.target.value)} style={{ minWidth: 320 }} />
           <Button onClick={() => void propose()}>Propose</Button>
@@ -170,14 +183,14 @@ export function SchemaScreen() {
       <Table>
         <table>
           <thead>
-            <tr><th>Proposal</th><th>Status</th>{isOwner && <th></th>}</tr>
+            <tr><th>Proposal</th><th>Status</th>{canEdit && <th></th>}</tr>
           </thead>
           <tbody>
             {proposals.map((p) => (
               <tr key={p.id}>
                 <td>{p.body}</td>
                 <td><Badge tone={p.status === 'accepted' ? 'success' : p.status === 'declined' ? 'danger' : 'neutral'}>{p.status}</Badge></td>
-                {isOwner && (
+                {canEdit && (
                   <td>
                     {p.status === 'pending' && (
                       <span style={{ display: 'flex', gap: 6 }}>
@@ -190,7 +203,7 @@ export function SchemaScreen() {
               </tr>
             ))}
             {proposals.length === 0 && (
-              <tr><td colSpan={isOwner ? 3 : 2} style={{ color: 'var(--text-muted)' }}>No proposals.</td></tr>
+              <tr><td colSpan={canEdit ? 3 : 2} style={{ color: 'var(--text-muted)' }}>No proposals.</td></tr>
             )}
           </tbody>
         </table>

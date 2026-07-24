@@ -7,7 +7,7 @@
 // register pattern and the ProjectWise friction map (B1 no-wizard, B4 attributes
 // surfaced without manual column config).
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Drawer, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
@@ -37,7 +37,6 @@ function NewDeliverableModal(props: {
   const [values, setValues] = useState<Record<string, string>>({});
   const [manualRef, setManualRef] = useState('');
   const [title, setTitle] = useState('');
-  const [discipline, setDiscipline] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -57,8 +56,11 @@ function NewDeliverableModal(props: {
         setBusy(false);
         return;
       }
+      // discipline is taken from the scheme's discipline field (its dropdown),
+      // not a separate free-text box (owner feedback 2026-07-24, T-178)
       const metadata: Record<string, string> = {};
-      if (discipline.trim()) metadata['discipline'] = discipline.trim();
+      const disc = scheme ? values['discipline'] : undefined;
+      if (disc) metadata['discipline'] = disc;
       await api.createPlanRow(props.projectId, reference, title.trim(), metadata);
       props.onCreated();
     } catch {
@@ -131,10 +133,6 @@ function NewDeliverableModal(props: {
           <TextInput value={manualRef} onChange={setManualRef} placeholder="WA-BB-GEO-004" mono />
         </Field>
       )}
-
-      <Field label="Discipline (optional)">
-        <TextInput value={discipline} onChange={setDiscipline} placeholder="e.g. Geotechnical" />
-      </Field>
 
       {error !== null && <div className="field-error">{error}</div>}
     </Modal>
@@ -231,6 +229,8 @@ export function PlanScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
   const isOwner = participant.membershipRole === 'owner';
+  const isSuper = participant.elevated; // owner-super or guest-super may edit the plan (T-176)
+  const navigate = useNavigate();
 
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
@@ -270,7 +270,7 @@ export function PlanScreen() {
       {metaRow && (
         <MetadataModal
           title={`Metadata — ${metaRow.documentReference ?? 'deliverable'}`}
-          editable={metaRow.producingOrganisationId === me.organisationId}
+          editable={isSuper && metaRow.producingOrganisationId === me.organisationId}
           identity={[
             { label: 'Reference', value: <span className="mono">{metaRow.documentReference}</span> },
             { label: 'Producer', value: metaRow.producingOrganisationName },
@@ -302,10 +302,7 @@ export function PlanScreen() {
       <p className="page-sub">
         {isOwner
           ? 'Every organisation’s planned deliverables, consolidated. Each row is a container; status is event-driven.'
-          : 'Your organisation’s planned deliverables. Add a deliverable to reserve a coded container; draft it in the sandbox, then bind and promote.'}{' '}
-        <Link to={`/projects/${projectId}/plan/scheme`}>
-          <SlidersHorizontal size={12} strokeWidth={2} style={{ verticalAlign: -2 }} /> Coding scheme
-        </Link>
+          : 'Your organisation’s planned deliverables. Add a deliverable to reserve a coded container; draft it in the sandbox, then bind and promote.'}
       </p>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0' }}>
@@ -319,9 +316,14 @@ export function PlanScreen() {
           />
         </div>
         <span style={{ marginLeft: 'auto' }} />
-        <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-          <Plus size={14} strokeWidth={2} /> New deliverable
+        <Button variant="quiet" size="sm" onClick={() => navigate(`/projects/${projectId}/plan/scheme`)}>
+          <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
         </Button>
+        {isSuper && (
+          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+            <Plus size={14} strokeWidth={2} /> New deliverable
+          </Button>
+        )}
       </div>
 
       <Table>
