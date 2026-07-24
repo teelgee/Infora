@@ -24,6 +24,7 @@ import type {
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
@@ -31,6 +32,8 @@ import type { AppEnv } from './requester';
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
+const forbidden = (c: Context, detail: string) =>
+  c.json({ error: 'forbidden', detail } satisfies ApiError, 403);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
 // Postgres 23505 anywhere in the error chain — drizzle wraps the driver error
@@ -196,6 +199,9 @@ export function planRoutes(deps: { db: Db }) {
   // work item, status 'planned' — the "not yet produced" MIDP row (ADR-0008).
   app.post('/projects/:projectId/plan', project, async (c) => {
     const slice = c.get('slice');
+    // editing the TIDP is a super-user capability (T-176): a guest super-user
+    // edits its own org's plan, the owner super-user any of its own rows
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
     const body = createPlanRowBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     try {
@@ -249,6 +255,8 @@ export function containerRoutes(deps: { db: Db }) {
     const { container, slice } = scopedCtx;
     // metadata is a producing-organisation act — even the owner edits only its own rows
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    // editing plan metadata is a super-user capability (T-176)
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
     const body = patchContainerBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     const [updated] = await deps.db

@@ -67,6 +67,34 @@ export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
   };
 }
 
+// ── Classes of user (T-176) ─────────────────────────────────────────────────
+// The producing-side capability class, derived from (membershipRole × elevated)
+// — no new stored role, so ADR-0016's owner/member collapse is untouched. Three
+// classes: owner super-user (full control incl. the project-wide scheme), guest
+// super-user (edits its own org's TIDP; proposes scheme additions), and ordinary
+// participant (drafts/reviews; edits neither the plan nor the scheme).
+export type UserClass = 'owner_super' | 'guest_super' | 'ordinary';
+
+export function userClass(slice: Pick<EntitledSlice, 'membershipRole' | 'elevated'>): UserClass {
+  if (!slice.elevated) return 'ordinary';
+  return slice.membershipRole === 'owner' ? 'owner_super' : 'guest_super';
+}
+
+/** Edit the plan (create/patch own-org TIDP rows) — any super-user. */
+export function canEditPlan(slice: Pick<EntitledSlice, 'elevated'>): boolean {
+  return slice.elevated;
+}
+
+/** Edit the project-wide coding scheme — the owner super-user only. */
+export function canEditScheme(slice: Pick<EntitledSlice, 'membershipRole' | 'elevated'>): boolean {
+  return slice.membershipRole === 'owner' && slice.elevated;
+}
+
+/** Propose a coding-scheme addition — the guest super-user (owner edits directly). */
+export function canProposeScheme(slice: Pick<EntitledSlice, 'membershipRole' | 'elevated'>): boolean {
+  return slice.membershipRole === 'member' && slice.elevated;
+}
+
 // Per-deliverable visibility (ADR-0016, extended by ADR-0035): default-deny,
 // decided per deliverable, per organisation, then — on the share branch only —
 // gated by the receiving organisation's acknowledgement and narrowed by any

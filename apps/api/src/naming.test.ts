@@ -19,13 +19,13 @@ let ownerCookie: string;
 let consultCookie: string;
 let otherCookie: string;
 
-async function makeUser(name: string, organisationId: string) {
+async function makeUser(name: string, organisationId: string, elevated = false) {
   const [user] = await db
     .insert(s.users)
     .values({ name, email: `${name}-${stamp}@test.local`, organisationId })
     .returning();
   await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
-  await db.insert(s.participants).values({ userId: user!.id, projectId });
+  await db.insert(s.participants).values({ userId: user!.id, projectId, elevated });
   return user!;
 }
 async function session(email: string): Promise<string> {
@@ -62,8 +62,8 @@ beforeAll(async () => {
     { organisationId: oB!.id, projectId, role: 'member' },
     { organisationId: oC!.id, projectId, role: 'member' },
   ]);
-  ownerCookie = await session((await makeUser('t152-oona', oA!.id)).email);
-  consultCookie = await session((await makeUser('t152-bree', oB!.id)).email);
+  ownerCookie = await session((await makeUser('t152-oona', oA!.id, true)).email); // owner super-user
+  consultCookie = await session((await makeUser('t152-bree', oB!.id, true)).email); // guest super-user
   otherCookie = await session((await makeUser('t152-cara', oC!.id)).email);
 });
 

@@ -21,6 +21,7 @@ import type {
   NamingProposal,
   NamingSchemeField,
 } from '@infora/contracts';
+import { canEditScheme, canProposeScheme } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
@@ -73,10 +74,10 @@ export function namingRoutes(deps: { db: Db }) {
     return c.json(body);
   });
 
-  // the owner defines/updates the project-wide scheme
+  // the owner super-user defines/updates the project-wide scheme (T-176)
   app.put('/projects/:projectId/naming-scheme', project, async (c) => {
     const slice = c.get('slice');
-    if (slice.membershipRole !== 'owner') return notFound(c);
+    if (!canEditScheme(slice)) return notFound(c);
     const parsed = upsertNamingSchemeBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     await deps.db
@@ -147,6 +148,8 @@ export function namingRoutes(deps: { db: Db }) {
 
   app.post('/projects/:projectId/naming-scheme/proposals', project, async (c) => {
     const slice = c.get('slice');
+    // a guest super-user proposes scheme additions (the owner edits directly, T-176)
+    if (!canProposeScheme(slice)) return notFound(c);
     const parsed = proposeNamingAdditionBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     const [row] = await deps.db

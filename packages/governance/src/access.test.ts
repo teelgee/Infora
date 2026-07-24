@@ -3,7 +3,14 @@
 // wall-test subjects — a member-org user with no Participant, and a third
 // organisation with no Membership at all.
 import { describe, expect, it } from 'vitest';
-import { canReadDeliverable, resolveAccess } from './access';
+import {
+  canEditPlan,
+  canEditScheme,
+  canProposeScheme,
+  canReadDeliverable,
+  resolveAccess,
+  userClass,
+} from './access';
 import type { AccessFacts, EntitledSlice } from './access';
 
 const ownerOrg = 'org-owner';
@@ -230,5 +237,35 @@ describe('canReadDeliverable — per-deliverable visibility (ADR-0016)', () => {
         narrowedToParticipantIds: ['participant-someone-else'],
       }),
     ).toBe(false);
+  });
+});
+
+describe('classes of user — the super-user capability matrix (T-176)', () => {
+  const cls = (membershipRole: 'owner' | 'member', elevated: boolean) => ({ membershipRole, elevated });
+  const ownerSuper = cls('owner', true);
+  const guestSuper = cls('member', true);
+  const ownerOrdinary = cls('owner', false);
+  const guestOrdinary = cls('member', false);
+
+  it('derives the class from (membershipRole × elevated)', () => {
+    expect(userClass(ownerSuper)).toBe('owner_super');
+    expect(userClass(guestSuper)).toBe('guest_super');
+    expect(userClass(ownerOrdinary)).toBe('ordinary');
+    expect(userClass(guestOrdinary)).toBe('ordinary');
+  });
+
+  it('editing the plan (TIDP) needs any super-user', () => {
+    expect(canEditPlan(ownerSuper)).toBe(true);
+    expect(canEditPlan(guestSuper)).toBe(true);
+    expect(canEditPlan(guestOrdinary)).toBe(false);
+    expect(canEditPlan(ownerOrdinary)).toBe(false);
+  });
+
+  it('editing the scheme is the owner super-user only; guests propose', () => {
+    expect(canEditScheme(ownerSuper)).toBe(true);
+    expect(canEditScheme(guestSuper)).toBe(false); // a guest cannot edit
+    expect(canProposeScheme(guestSuper)).toBe(true);
+    expect(canProposeScheme(ownerSuper)).toBe(false); // the owner edits directly
+    expect(canProposeScheme(guestOrdinary)).toBe(false);
   });
 });

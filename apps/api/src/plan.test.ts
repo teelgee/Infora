@@ -23,7 +23,7 @@ let ownerParticipantId: string;
 let consultParticipantId: string;
 let consultColleagueParticipantId: string;
 
-async function makeUser(name: string, organisationId: string) {
+async function makeUser(name: string, organisationId: string, elevated = false) {
   const [user] = await db
     .insert(s.users)
     .values({ name, email: `${name}-${stamp}@test.local`, organisationId })
@@ -31,7 +31,7 @@ async function makeUser(name: string, organisationId: string) {
   await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
   const [participant] = await db
     .insert(s.participants)
-    .values({ userId: user!.id, projectId })
+    .values({ userId: user!.id, projectId, elevated })
     .returning();
   return { user: user!, participant: participant! };
 }
@@ -64,8 +64,8 @@ beforeAll(async () => {
     { organisationId: consultOrg, projectId, role: 'member' },
     { organisationId: otherOrg, projectId, role: 'member' },
   ]);
-  const owner = await makeUser('t118-oona', ownerOrg);
-  const consult = await makeUser('t118-carl', consultOrg);
+  const owner = await makeUser('t118-oona', ownerOrg, true); // owner super-user
+  const consult = await makeUser('t118-carl', consultOrg, true); // guest super-user: edits its TIDP
   const colleague = await makeUser('t118-cleo', consultOrg);
   const other = await makeUser('t118-omar', otherOrg);
   ownerParticipantId = owner.participant.id;
