@@ -300,6 +300,8 @@ export type MeResponse = {
     projectName: string;
     ownerOrganisationName: string;
     membershipRole: 'owner' | 'member';
+    // the elevated (super-user) capability on this project (T-174) — a self fact
+    elevated: boolean;
   }>;
 };
 

@@ -18,7 +18,7 @@ export type AccessFacts = {
   /** the requesting user's organisation's Membership on the project, if any */
   membership: { organisationId: Id; projectId: Id; role: MembershipRole; state: MembershipState } | null;
   /** the requesting user's Participant on the project, if any */
-  participant: { id: Id; userId: Id; projectId: Id; removedAt: Date | null } | null;
+  participant: { id: Id; userId: Id; projectId: Id; removedAt: Date | null; elevated?: boolean } | null;
 };
 
 // What resolution admits: the scope every read is derived from. Nothing wider
@@ -28,6 +28,9 @@ export type EntitledSlice = {
   participantId: Id;
   projectId: Id;
   membershipRole: MembershipRole;
+  // the elevated (super-user) capability holds destructive lifecycle actions
+  // (T-174) — never granted implicitly by role; a per-participant capability
+  elevated: boolean;
 };
 
 /**
@@ -60,6 +63,7 @@ export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
     participantId: participant.id,
     projectId: project.id,
     membershipRole: membership.role,
+    elevated: participant.elevated ?? false,
   };
 }
 

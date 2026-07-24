@@ -147,11 +147,15 @@ export function CycleScreen() {
             Promote the next version
           </Button>
         )}
-        {/* "Close as rejected" once sat here for the lead author or owner.
-            Abandoning a deliverable (→ container `rejected`, never grounds —
-            ADR-0032/T-126) is a governance-level, destructive act, not a
-            routine project-role power, so it moves to the admin/super-user
-            tier (T-133). The API path stands until that tier lands. */}
+        {/* Close-as-rejected is a governance-level, destructive act (→ container
+            `rejected`, never grounds — ADR-0032/T-126), held by the elevated
+            (super-user) tier, not a routine project-role power (T-174/T-133). It
+            surfaces only to elevated participants. */}
+        {cycle?.state === 'active' && me.elevated && (
+          <Button size="sm" variant="danger" onClick={() => void act(() => api.closeRejected(cycle.id))}>
+            Close as rejected
+          </Button>
+        )}
       </div>
 
       {!cycle && (

@@ -119,6 +119,7 @@ async function readMe(db: Db, user: UserRow): Promise<MeResponse> {
       projectName: s.projects.name,
       ownerOrganisationName: owner.name,
       membershipRole: s.memberships.role,
+      elevated: s.participants.elevated,
     })
     .from(s.participants)
     .innerJoin(s.projects, eq(s.participants.projectId, s.projects.id))

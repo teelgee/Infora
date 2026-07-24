@@ -1,0 +1,1 @@
+ALTER TABLE "participants" ADD COLUMN "elevated" boolean DEFAULT false NOT NULL;

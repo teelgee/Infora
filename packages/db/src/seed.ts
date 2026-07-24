@@ -67,13 +67,16 @@ await db.insert(s.memberships).values([
   { organisationId: calderHale!.id, projectId: project!.id, role: 'member' },
 ]);
 
+// the owner's participant and the consultant lead author both hold the elevated
+// (super-user) capability (T-174): the owner by default, the lead author because
+// she may decline-and-close a rejected deliverable (ADR-0032)
 const [ownerParticipant] = await db
   .insert(s.participants)
-  .values({ userId: rachel!.id, projectId: project!.id })
+  .values({ userId: rachel!.id, projectId: project!.id, elevated: true })
   .returning();
 const [consultant] = await db
   .insert(s.participants)
-  .values({ userId: eleanor!.id, projectId: project!.id })
+  .values({ userId: eleanor!.id, projectId: project!.id, elevated: true })
   .returning();
 
 // ── Drawer 5: the project's acceptance-code scheme (T-115, ADR-0003) ────────

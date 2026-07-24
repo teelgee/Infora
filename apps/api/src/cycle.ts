@@ -871,9 +871,10 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       .limit(1);
     const slice = await resolveSlice(deps.db, c.get('user'), container!.projectId);
     if (!slice || !(await canSeeContainer(deps.db, slice, container!))) return notFound(c);
-    const author = await isLiveAuthor(deps.db, container!.id, slice.participantId);
-    const mayClose = (author?.isLead ?? false) || slice.membershipRole === 'owner';
-    if (!mayClose) return forbidden(c, 'lead_author_or_owner');
+    // close-as-rejected is a destructive lifecycle action held by the elevated
+    // (super-user) tier, not a routine project-role power (T-174/T-133). ADR-0032's
+    // "lead author or owner may close" is satisfied by granting them elevation.
+    if (!slice.elevated) return forbidden(c, 'elevated_required');
     await deps.db.transaction(async (tx) => {
       await tx
         .update(s.reviewCycles)

@@ -26,7 +26,7 @@ let leadAuthorParticipantId: string;
 let colleagueParticipantId: string;
 let ownerParticipantId: string;
 
-async function makeUser(name: string, organisationId: string) {
+async function makeUser(name: string, organisationId: string, elevated = false) {
   const [user] = await db
     .insert(s.users)
     .values({ name, email: `${name}-${stamp}@test.local`, organisationId })
@@ -34,7 +34,7 @@ async function makeUser(name: string, organisationId: string) {
   await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
   const [participant] = await db
     .insert(s.participants)
-    .values({ userId: user!.id, projectId })
+    .values({ userId: user!.id, projectId, elevated })
     .returning();
   return { user: user!, participant: participant! };
 }
@@ -71,7 +71,7 @@ beforeAll(async () => {
     { projectId, code: 'C', description: 'Revise and resubmit', isAccepting: false, sortOrder: 2 },
   ]);
 
-  const lead = await makeUser('t120-lena', consultOrg);
+  const lead = await makeUser('t120-lena', consultOrg, true); // elevated: may close-reject (T-174)
   const colleague = await makeUser('t120-cole', consultOrg);
   const owner = await makeUser('t120-opal', ownerOrg);
   leadAuthorParticipantId = lead.participant.id;

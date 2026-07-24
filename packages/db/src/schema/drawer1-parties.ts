@@ -1,6 +1,6 @@
 // Drawer 1 — parties & access (data-model.md; ADR-0015–0018, ADR-0033).
 // Every other table is scoped by these.
-import { jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -75,6 +75,14 @@ export const participants = pgTable(
       .references(() => projects.id),
     // the enrolling org admin; null for seeded/first users (ADR-0033)
     addedByParticipantId: uuid('added_by_participant_id').references((): AnyPgColumn => participants.id),
+    // the elevated (super-user) capability (T-174, T-133 realised): holds the
+    // destructive lifecycle actions — close-as-rejected, and owner supersede/
+    // withdraw when those land — so they never sit on the general surface for
+    // ordinary users. A per-participant governance capability, orthogonal to the
+    // owner/member collapse (ADR-0016) and to the org admin's enrolment power
+    // (ADR-0033). Granted deliberately; the lead author who may decline-and-close
+    // (ADR-0032) is granted it.
+    elevated: boolean('elevated').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     removedAt: timestamp('removed_at', { withTimezone: true }),
   },

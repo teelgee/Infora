@@ -104,6 +104,7 @@ describe('GET /me (T-021)', () => {
           projectName: 't021 project',
           ownerOrganisationName: 't021 org',
           membershipRole: 'owner',
+          elevated: false,
         },
       ],
     });

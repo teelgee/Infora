@@ -169,6 +169,13 @@
       "when": 1784909131883,
       "tag": "0023_sandbox-id-not-null",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784909953985,
+      "tag": "0024_participant-elevated",
+      "breakpoints": true
     }
   ]
 }

@@ -25,6 +25,7 @@ describe('resolveAccess — the two-level predicate (ADR-0015)', () => {
       participantId: 'participant-consultant',
       projectId,
       membershipRole: 'member',
+      elevated: false,
     });
   });
 
@@ -119,12 +120,14 @@ describe('canReadDeliverable — per-deliverable visibility (ADR-0016)', () => {
     participantId: 'participant-owner',
     projectId,
     membershipRole: 'owner',
+    elevated: false,
   };
   const memberSlice: EntitledSlice = {
     organisationId: memberOrg,
     participantId: 'participant-consultant',
     projectId,
     membershipRole: 'member',
+    elevated: false,
   };
 
   const unshared = {

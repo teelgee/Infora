@@ -15,18 +15,21 @@ const sliceB: EntitledSlice = {
   participantId: 'participant-b1',
   projectId: 'project-1',
   membershipRole: 'member',
+  elevated: false,
 };
 const sliceC: EntitledSlice = {
   organisationId: orgC,
   participantId: 'participant-c1',
   projectId: 'project-1',
   membershipRole: 'member',
+  elevated: false,
 };
 const sliceStranger: EntitledSlice = {
   organisationId: orgStranger,
   participantId: 'participant-x',
   projectId: 'project-1',
   membershipRole: 'member',
+  elevated: false,
 };
 
 const orgGrant = (organisationId: string, removedAt: Date | null = null): SandboxScopeGrant => ({
