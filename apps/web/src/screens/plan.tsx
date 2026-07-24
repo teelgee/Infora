@@ -11,13 +11,15 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
+import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
+import { statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
-const stateTone = (state: PlanRow['state']) =>
+const stateTone = (state: PlanRow['state']): BadgeTone =>
   state === 'live' ? 'success' : state === 'rejected' ? 'danger' : 'neutral';
 
 function previewReference(scheme: NamingScheme, values: Record<string, string>): string {
@@ -270,7 +272,12 @@ export function PlanScreen() {
                 <td>{r.workItem?.title ?? <span style={{ color: 'var(--text-muted)' }}>Reference material</span>}</td>
                 {isOwner && <td style={{ color: 'var(--text-muted)' }}>{r.producingOrganisationName}</td>}
                 <td>
-                  <Badge tone={stateTone(r.state)}>{r.workItem?.status ?? r.state}</Badge>
+                  {(() => {
+                    const st = r.workItem
+                      ? statusBadge(r.workItem.status)
+                      : { tone: stateTone(r.state), label: r.state.replace(/^./, (ch) => ch.toUpperCase()) };
+                    return <Badge tone={st.tone}>{st.label}</Badge>;
+                  })()}
                 </td>
                 <td className="mono">{r.currentVersion?.versionReference ?? '—'}</td>
                 <td>{r.deliverableCode ? `${r.deliverableCode.code} · ${r.deliverableCode.description}` : '—'}</td>
