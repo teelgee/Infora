@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingProposal, NamingScheme, NamingSchemeField } from '@infora/contracts';
-import { Badge, Button, SectionLabel, Table } from '@infora/ui';
+import { Badge, Button, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -20,7 +20,8 @@ export function SchemaScreen() {
   const [separator, setSeparator] = useState('-');
   const [fields, setFields] = useState<NamingSchemeField[]>([]);
   const [proposals, setProposals] = useState<NamingProposal[]>([]);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previewValues, setPreviewValues] = useState<Record<string, string>>({});
+  const [previewSerial, setPreviewSerial] = useState<string | null>(null);
   const [proposalText, setProposalText] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -41,18 +42,17 @@ export function SchemaScreen() {
     setTimeout(() => setSaved(false), 1500);
   }
 
-  async function buildPreview() {
-    const values: Record<string, string> = {};
-    for (const f of fields.filter((x) => !x.isSerial)) {
-      const v = window.prompt(`${f.label || f.key}${f.allowedValues?.length ? ` (${f.allowedValues.join(' / ')})` : ''}`, f.allowedValues?.[0] ?? '');
-      if (v === null) return;
-      values[f.key] = v;
-    }
+  const composedPreview = fields
+    .map((f) => (f.isSerial ? '#'.repeat(f.width ?? 3) : previewValues[f.key] || `‹${f.label || f.key}›`))
+    .join(separator);
+
+  async function allocatePreview() {
+    setPreviewSerial(null);
     try {
-      const out = await api.generateReference(projectId, values);
-      setPreview(out.reference);
+      const out = await api.generateReference(projectId, previewValues);
+      setPreviewSerial(out.reference);
     } catch {
-      setPreview('rejected — check values against the scheme');
+      setPreviewSerial('rejected — check values against the scheme');
     }
   }
 
@@ -124,10 +124,41 @@ export function SchemaScreen() {
         </div>
       )}
 
-      <div style={{ marginTop: 16 }}>
-        <Button variant="quiet" onClick={() => void buildPreview()} disabled={fields.length === 0}>Preview a code</Button>
-        {preview && <span className="mono" style={{ marginLeft: 8 }}>{preview}</span>}
-      </div>
+      {fields.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <SectionLabel>Try the code-builder</SectionLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+            {fields
+              .filter((f) => !f.isSerial)
+              .map((f) => (
+                <Field key={f.key} label={f.label || f.key}>
+                  {f.allowedValues && f.allowedValues.length > 0 ? (
+                    <SelectInput
+                      value={previewValues[f.key] ?? ''}
+                      onChange={(v) => setPreviewValues((s) => ({ ...s, [f.key]: v }))}
+                      placeholder="—"
+                      options={f.allowedValues.map((v) => ({ value: v, label: v }))}
+                    />
+                  ) : (
+                    <TextInput
+                      value={previewValues[f.key] ?? ''}
+                      onChange={(v) => setPreviewValues((s) => ({ ...s, [f.key]: v }))}
+                      mono
+                    />
+                  )}
+                </Field>
+              ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+            <span className="field-label">Preview</span>
+            <span className="mono">{composedPreview}</span>
+            <Button size="sm" variant="quiet" onClick={() => void allocatePreview()}>
+              Allocate a serial
+            </Button>
+            {previewSerial && <span className="mono">→ {previewSerial}</span>}
+          </div>
+        </div>
+      )}
 
       <SectionLabel>Scheme additions</SectionLabel>
       {!isOwner && (

@@ -2,21 +2,67 @@
 // acknowledgement inbox (ADR-0035 §4 — the gate withholds the deliverable until
 // its transmittal is acknowledged) and the owner's transmit action. The main
 // list is the API's access-resolved slice: exactly what grounding admits.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import type { LibraryItem, MeResponse, PendingTransmittal } from '@infora/contracts';
+import type { LibraryItem, MeResponse, PendingTransmittal, RosterEntry } from '@infora/contracts';
 import { FileText, Inbox, Send } from 'lucide-react';
-import { Badge, Button, SectionLabel, Table } from '@infora/ui';
+import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
+import { useMe } from '../session';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
+
+function TransmitModal(props: {
+  item: LibraryItem;
+  orgs: Array<{ value: string; label: string }>;
+  onSubmit: (organisationId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [org, setOrg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={`Transmit ${props.item.documentReference}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || org === null}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(org!);
+            }}
+          >
+            Transmit
+          </Button>
+        </>
+      }
+    >
+      <Field
+        label="Issue to organisation"
+        hint="A non-review transmittal — the receiving organisation must acknowledge before it grounds (ADR-0035)"
+      >
+        <Combobox value={org} onChange={setOrg} placeholder="Search organisations" options={props.orgs} />
+      </Field>
+    </Modal>
+  );
+}
 
 export function LibraryScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
   const isOwner = participant.membershipRole === 'owner';
+  const me = useMe();
   const [items, setItems] = useState<LibraryItem[] | null>(null);
   const [pending, setPending] = useState<PendingTransmittal[]>([]);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
+  const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -24,6 +70,20 @@ export function LibraryScreen() {
     void api.pendingTransmittals(projectId).then((res) => setPending(res.items));
   }, [projectId]);
   useEffect(load, [load]);
+  useEffect(() => {
+    if (isOwner) void api.participants(projectId).then((r) => setRoster(r.items));
+  }, [isOwner, projectId]);
+
+  // distinct organisations on the project, excluding the owner's own
+  const otherOrgs = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of roster) {
+      if (r.organisationId !== me.organisationId && !seen.has(r.organisationId)) {
+        seen.set(r.organisationId, r.organisationName);
+      }
+    }
+    return [...seen.entries()].map(([value, label]) => ({ value, label }));
+  }, [roster, me.organisationId]);
 
   async function acknowledge(containerId: string) {
     try {
@@ -35,15 +95,14 @@ export function LibraryScreen() {
     }
   }
 
-  async function transmit(item: LibraryItem) {
-    const org = window.prompt('Transmit to organisation id (the owner issues the share)');
-    if (!org?.trim()) return;
+  async function transmit(item: LibraryItem, organisationId: string) {
     try {
-      await api.issueTransmittal(item.containerId, [org.trim()]);
+      await api.issueTransmittal(item.containerId, [organisationId]);
       setNote('Transmitted — the receiving organisation must acknowledge before it grounds.');
     } catch {
-      setNote('Transmittal failed — check the organisation id and that a current version exists.');
+      setNote('Transmittal failed — check a current version exists and the organisation is a member.');
     }
+    setTransmitItem(null);
   }
 
   return (
@@ -54,6 +113,14 @@ export function LibraryScreen() {
         list and the grounded corpus together.
       </p>
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
+      {transmitItem && (
+        <TransmitModal
+          item={transmitItem}
+          orgs={otherOrgs}
+          onClose={() => setTransmitItem(null)}
+          onSubmit={(orgId) => transmit(transmitItem, orgId)}
+        />
+      )}
 
       {pending.length > 0 && (
         <>
@@ -101,7 +168,7 @@ export function LibraryScreen() {
                 <td><Badge tone="success">Live</Badge></td>
                 {isOwner && (
                   <td style={{ textAlign: 'right' }}>
-                    <Button size="sm" variant="quiet" onClick={() => void transmit(item)}>
+                    <Button size="sm" variant="quiet" onClick={() => setTransmitItem(item)}>
                       <Send size={13} strokeWidth={2} /> Transmit
                     </Button>
                   </td>
