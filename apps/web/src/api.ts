@@ -112,10 +112,15 @@ export const api = {
     request<ListRosterResponse>(`/projects/${projectId}/participants`),
   // T-118/T-119 — the deliverable plan (ADR-0008/0033)
   plan: (projectId: string) => request<GetPlanResponse>(`/projects/${projectId}/plan`),
-  createPlanRow: (projectId: string, documentReference: string, title: string) =>
+  createPlanRow: (
+    projectId: string,
+    documentReference: string,
+    title: string,
+    metadata?: Record<string, unknown>,
+  ) =>
     request<PlanRow>(`/projects/${projectId}/plan`, {
       method: 'POST',
-      body: JSON.stringify({ documentReference, title }),
+      body: JSON.stringify({ documentReference, title, ...(metadata !== undefined && { metadata }) }),
     }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
