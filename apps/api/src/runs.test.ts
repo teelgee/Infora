@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GetHistoryResponse, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { ensureDefaultSandbox } from './sandbox';
 import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
 
 const { db, pool } = createDb();
@@ -91,6 +92,7 @@ beforeAll(async () => {
     .values({
       projectId,
       organisationId: orgMember!.id,
+      sandboxId: await ensureDefaultSandbox(db, projectId, orgMember!.id, eleanor.participantId!),
       title: 't046 draft',
       createdByParticipantId: eleanor.participantId!,
     })
@@ -101,6 +103,7 @@ beforeAll(async () => {
     .values({
       projectId,
       organisationId: orgOwner!.id,
+      sandboxId: await ensureDefaultSandbox(db, projectId, orgOwner!.id, rachel.participantId!),
       title: 't046 owner note',
       createdByParticipantId: rachel.participantId!,
     })

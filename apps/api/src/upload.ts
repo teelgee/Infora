@@ -14,6 +14,7 @@ import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { putBlob, getBlob } from './renditions';
+import { ensureDefaultSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 import { toSandboxDocument } from './sandbox';
@@ -91,11 +92,18 @@ export function uploadRoutes(deps: { db: Db }) {
     if (!format) return invalid(c, 'unsupported_format');
     const bytes = Buffer.from(await file.arrayBuffer());
     const fileRef = putBlob(bytes, format);
+    const sandboxId = await ensureDefaultSandbox(
+      deps.db,
+      slice.projectId,
+      slice.organisationId,
+      slice.participantId,
+    );
     const [doc] = await deps.db
       .insert(s.sandboxDocuments)
       .values({
         projectId: slice.projectId,
         organisationId: slice.organisationId,
+        sandboxId,
         title: file.name.replace(/\.[^.]+$/, ''),
         origin: 'uploaded',
         kind: 'text',

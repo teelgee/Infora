@@ -250,10 +250,12 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
   organisationId: uuid('organisation_id')
     .notNull()
     .references(() => organisations.id),
-  // the real sandbox this document lives in (ADR-0036, T-145) — nullable while
-  // the create path still keys off organisationId; backfilled to each org's
-  // single-org sandbox, made NOT NULL when the API is wired (T-153)
-  sandboxId: uuid('sandbox_id').references(() => sandboxes.id),
+  // the real sandbox this document lives in (ADR-0036) — every document lives in
+  // a sandbox; the create path defaults to the org's single-org sandbox when
+  // none is named (T-171, NOT NULL)
+  sandboxId: uuid('sandbox_id')
+    .notNull()
+    .references(() => sandboxes.id),
   // where the document sits in the sandbox's folder tree (ADR-0036, T-146);
   // null = the sandbox root. A view fact only, never an access fact.
   folderId: uuid('folder_id').references(() => sandboxFolders.id),

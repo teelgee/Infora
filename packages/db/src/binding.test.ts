@@ -55,9 +55,13 @@ beforeAll(async () => {
     .values({ projectId, producingOrganisationId: org!.id, documentReference: `T147-B-${Date.now()}` })
     .returning();
   containerB = b!.id;
+  const [sandbox] = await db
+    .insert(s.sandboxes)
+    .values({ projectId, name: 'sb', scope: 'single_org', owningOrganisationId: organisationId, createdByParticipantId: participantId })
+    .returning();
   const [doc] = await db
     .insert(s.sandboxDocuments)
-    .values({ projectId, organisationId, title: 'unbound draft', createdByParticipantId: participantId })
+    .values({ projectId, organisationId, sandboxId: sandbox!.id, title: 'unbound draft', createdByParticipantId: participantId })
     .returning();
   unboundDoc = doc!.id;
 });

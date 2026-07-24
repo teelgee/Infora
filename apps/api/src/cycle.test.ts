@@ -6,6 +6,7 @@ import type { PromotionResult, ReviewCycle } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from './app';
+import { ensureDefaultSandbox } from './sandbox';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -117,6 +118,7 @@ beforeAll(async () => {
     .values({
       projectId,
       organisationId: consultOrg,
+      sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
       title: 't120 draft',
       content: 'The drafted statement, ready for round one.',
       containerId,
@@ -195,6 +197,7 @@ describe('promotion (T-120)', () => {
       .values({
         projectId,
         organisationId: consultOrg,
+        sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
         title: 't120 ad hoc',
         createdByParticipantId: leadAuthorParticipantId,
       })
@@ -445,6 +448,7 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       .values({
         projectId,
         organisationId: consultOrg,
+        sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
         title: 't120 abandoned draft',
         content: 'never to be',
         containerId: container2!.id,
@@ -583,6 +587,7 @@ describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
       .values({
         projectId,
         organisationId: consultOrg,
+        sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
         title: 't125 management plan',
         content: 'Internal management plan, first cut.',
         createdByParticipantId: leadAuthorParticipantId,
@@ -759,6 +764,7 @@ describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
       .values({
         projectId,
         organisationId: consultOrg,
+        sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
         title: 't125 mid-QA draft',
         content: 'Mid-QA content.',
         containerId: container4!.id,

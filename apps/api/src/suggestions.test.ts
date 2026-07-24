@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import type { ResolveSuggestionResponse, SandboxDocument } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { ensureDefaultSandbox } from './sandbox';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -56,6 +57,7 @@ async function makeSuggestion(documentContent = ''): Promise<{ suggestionId: str
     .values({
       projectId,
       organisationId,
+      sandboxId: await ensureDefaultSandbox(db, projectId, organisationId, participantId),
       title: 't053 doc',
       content: documentContent,
       createdByParticipantId: participantId,

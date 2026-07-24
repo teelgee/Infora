@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { ensureDefaultSandbox } from './sandbox';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -95,7 +96,7 @@ beforeAll(async () => {
   workItemId = workItem!.id;
   const [doc] = await db
     .insert(s.sandboxDocuments)
-    .values({ projectId, organisationId: orgA!.id, title: 't023 doc', createdByParticipantId: aliceP!.id })
+    .values({ projectId, organisationId: orgA!.id, sandboxId: await ensureDefaultSandbox(db, projectId, orgA!.id, aliceP!.id), title: 't023 doc', createdByParticipantId: aliceP!.id })
     .returning();
   sandboxDocumentId = doc!.id;
   const [suggestion] = await db

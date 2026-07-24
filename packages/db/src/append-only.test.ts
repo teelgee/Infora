@@ -98,11 +98,23 @@ describe('strictly insert-only tables', () => {
 
   it('rejects UPDATE and DELETE on signals and comments', async () => {
     const run = await makeRun();
+    const organisationId = (await db.select().from(s.organisations).limit(1))[0]!.id;
+    const [sandbox] = await db
+      .insert(s.sandboxes)
+      .values({
+        projectId: run.environmentKey,
+        name: 'sb',
+        scope: 'single_org',
+        owningOrganisationId: organisationId,
+        createdByParticipantId: participantId,
+      })
+      .returning();
     const [doc] = await db
       .insert(s.sandboxDocuments)
       .values({
         projectId: run.environmentKey,
-        organisationId: (await db.select().from(s.organisations).limit(1))[0]!.id,
+        organisationId,
+        sandboxId: sandbox!.id,
         title: 't008 doc',
         createdByParticipantId: participantId,
       })

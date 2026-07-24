@@ -25,6 +25,46 @@ import { readDocumentSuggestions } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
+// T-171 — a document always lives in a sandbox (sandbox_id NOT NULL). When none
+// is named, it lands in the organisation's default single-org sandbox, created
+// on first use with an organisation scope grant (ADR-0036).
+export async function ensureDefaultSandbox(
+  db: Db,
+  projectId: string,
+  organisationId: string,
+  participantId: string,
+): Promise<string> {
+  const [existing] = await db
+    .select({ id: s.sandboxes.id })
+    .from(s.sandboxes)
+    .where(
+      and(
+        eq(s.sandboxes.projectId, projectId),
+        eq(s.sandboxes.owningOrganisationId, organisationId),
+        eq(s.sandboxes.scope, 'single_org'),
+      ),
+    )
+    .limit(1);
+  if (existing) return existing.id;
+  const [sandbox] = await db
+    .insert(s.sandboxes)
+    .values({
+      projectId,
+      name: 'Sandbox',
+      scope: 'single_org',
+      owningOrganisationId: organisationId,
+      createdByParticipantId: participantId,
+    })
+    .returning();
+  await db.insert(s.sandboxScopeGrants).values({
+    sandboxId: sandbox!.id,
+    granteeType: 'organisation',
+    organisationId,
+    grantedByParticipantId: participantId,
+  });
+  return sandbox!.id;
+}
+
 export function sandboxRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -52,7 +92,10 @@ export function sandboxRoutes(deps: { db: Db }) {
         return c.json({ error: 'not_found' } satisfies ApiError, 404);
       }
     }
-    // if a sandbox is named, the requester must be admitted to it (ADR-0036)
+    // resolve the sandbox: a named one must admit the requester (ADR-0036); if
+    // none is named, the document lands in the organisation's default single-org
+    // sandbox (sandbox_id is NOT NULL — every document lives in a sandbox, T-171)
+    let sandboxId: string;
     if (body.data.sandboxId) {
       const [sandbox] = await deps.db
         .select()
@@ -73,6 +116,9 @@ export function sandboxRoutes(deps: { db: Db }) {
       if (!sandbox || sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) {
         return c.json({ error: 'not_found' } satisfies ApiError, 404);
       }
+      sandboxId = sandbox.id;
+    } else {
+      sandboxId = await ensureDefaultSandbox(deps.db, slice.projectId, slice.organisationId, slice.participantId);
     }
     const [row] = await deps.db
       .insert(s.sandboxDocuments)
@@ -81,7 +127,7 @@ export function sandboxRoutes(deps: { db: Db }) {
         organisationId: slice.organisationId,
         title: body.data.title,
         containerId: body.data.containerId ?? null,
-        sandboxId: body.data.sandboxId ?? null,
+        sandboxId,
         folderId: body.data.folderId ?? null,
         createdByParticipantId: slice.participantId,
       })
