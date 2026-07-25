@@ -13,6 +13,7 @@ import {
   grantAppointmentBody,
   patchContainerBody,
   setDocumentOwnerBody,
+  setPlanTitleBody,
   shareDeliverableBody,
   withdrawContainerBody,
 } from '@infora/contracts';
@@ -310,6 +311,24 @@ export function containerRoutes(deps: { db: Db }) {
       .where(eq(s.containers.id, container.id))
       .returning();
     const [row] = await toPlanRows(deps.db, [updated!]);
+    return c.json(row!);
+  });
+
+  // The planned deliverable's title (a work-item field), amendable by a
+  // producing-org super-user at any time (T-201).
+  app.patch('/containers/:containerId/title', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const body = setPlanTitleBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    await deps.db
+      .update(s.workItems)
+      .set({ title: body.data.title })
+      .where(eq(s.workItems.containerId, container.id));
+    const [row] = await toPlanRows(deps.db, [container]);
     return c.json(row!);
   });
 

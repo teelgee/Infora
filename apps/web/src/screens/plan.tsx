@@ -307,6 +307,7 @@ function DeliverableDetail(props: {
   const [removing, setRemoving] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(props.row.workItem?.title ?? '');
   const authors = row.authors.filter((a) => a.revokedAt === null);
   const reviewers = row.reviewers.filter((r) => r.revokedAt === null);
   const isWithdrawn = row.state === 'withdrawn';
@@ -328,6 +329,15 @@ function DeliverableDetail(props: {
     const fresh = res.items.find((r) => r.containerId === row.containerId);
     if (fresh) apply(fresh);
   };
+  const titleDirty = titleDraft.trim() !== '' && titleDraft.trim() !== (row.workItem?.title ?? '');
+  const saveTitle = () => {
+    if (!titleDirty) return;
+    setBusy(true);
+    void api
+      .setPlanTitle(row.containerId, titleDraft.trim())
+      .then(apply)
+      .finally(() => setBusy(false));
+  };
 
   return (
     <Drawer
@@ -348,7 +358,19 @@ function DeliverableDetail(props: {
         </div>
       )}
       <div style={{ display: 'grid', gap: 6 }}>
-        <DetailRow label="Title">{row.workItem?.title ?? 'Reference material'}</DetailRow>
+        {props.canEdit && row.workItem ? (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <span className="field-label">Title</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <TextInput value={titleDraft} onChange={setTitleDraft} placeholder="Deliverable title" onEnter={saveTitle} />
+              {titleDirty && (
+                <Button size="sm" onClick={saveTitle} disabled={busy}>Save</Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <DetailRow label="Title">{row.workItem?.title ?? 'Reference material'}</DetailRow>
+        )}
         <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
         <DetailRow label="Discipline">{String(row.metadata['discipline'] ?? '—')}</DetailRow>
         <DetailRow label="Status">

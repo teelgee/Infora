@@ -131,6 +131,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ participantId }),
     }),
+  setPlanTitle: (containerId: string, title: string) =>
+    request<PlanRow>(`/containers/${containerId}/title`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
   withdrawDeliverable: (containerId: string, reason: string) =>
     request<PlanRow>(`/containers/${containerId}/withdrawal`, {
       method: 'POST',

@@ -412,6 +412,11 @@ export const patchContainerBody = z.object({
 });
 export type PatchContainerBody = z.infer<typeof patchContainerBody>;
 
+// the planned deliverable's title (a work-item field) — a producing-org
+// super-user act, amendable at any time (T-201)
+export const setPlanTitleBody = z.object({ title: z.string().min(1) });
+export type SetPlanTitleBody = z.infer<typeof setPlanTitleBody>;
+
 export const grantAppointmentBody = z.object({
   participantId: id,
   isLead: z.boolean().optional(),

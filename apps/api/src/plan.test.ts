@@ -18,6 +18,7 @@ let consultOrg: string;
 let otherOrg: string; // a second member org — must never see consultOrg's plan
 let ownerCookie: string;
 let consultCookie: string;
+let colleagueCookie: string;
 let otherCookie: string;
 let ownerParticipantId: string;
 let consultParticipantId: string;
@@ -73,6 +74,7 @@ beforeAll(async () => {
   consultColleagueParticipantId = colleague.participant.id;
   ownerCookie = await session(owner.user.email);
   consultCookie = await session(consult.user.email);
+  colleagueCookie = await session(colleague.user.email);
   otherCookie = await session(other.user.email);
 });
 
@@ -293,6 +295,48 @@ describe('document owner + remove-with-reason (T-189)', () => {
       body: JSON.stringify({ participantId: null }),
     });
     expect(((await cleared.json()) as PlanRow).documentOwner).toBeNull();
+  });
+
+  it('a super-user edits the planned deliverable title; an ordinary member and another org cannot (T-201)', async () => {
+    const created = await app.request(`/projects/${projectId}/plan`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ documentReference: `T201-${stamp}`, title: 'Original title' }),
+    });
+    const containerId = ((await created.json()) as PlanRow).containerId;
+
+    // an ordinary producing-org member cannot rename
+    const byOrdinary = await app.request(`/containers/${containerId}/title`, {
+      method: 'PATCH',
+      headers: asJson(colleagueCookie),
+      body: JSON.stringify({ title: 'Sneaky rename' }),
+    });
+    expect(byOrdinary.status).toBe(403);
+
+    // another org cannot even see the row — silent 404
+    const byOther = await app.request(`/containers/${containerId}/title`, {
+      method: 'PATCH',
+      headers: asJson(otherCookie),
+      body: JSON.stringify({ title: 'Not yours' }),
+    });
+    expect(byOther.status).toBe(404);
+
+    // the producing-org super-user renames it
+    const ok = await app.request(`/containers/${containerId}/title`, {
+      method: 'PATCH',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ title: 'Renamed by super-user' }),
+    });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as PlanRow).workItem?.title).toBe('Renamed by super-user');
+
+    // an empty title is rejected
+    const empty = await app.request(`/containers/${containerId}/title`, {
+      method: 'PATCH',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ title: '' }),
+    });
+    expect(empty.status).toBe(400);
   });
 
   it('removing a planned deliverable keeps the container as withdrawn + reason; restore puts it back', async () => {
