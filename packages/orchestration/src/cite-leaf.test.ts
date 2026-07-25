@@ -54,9 +54,25 @@ beforeAll(async () => {
     .returning();
   adHocConversationId = adHoc!.id;
 
+  const [sandbox] = await db
+    .insert(s.sandboxes)
+    .values({
+      projectId,
+      name: 't045 sandbox',
+      scope: 'single_org',
+      owningOrganisationId: org!.id,
+      createdByParticipantId: participantId,
+    })
+    .returning();
   const [doc] = await db
     .insert(s.sandboxDocuments)
-    .values({ projectId, organisationId: org!.id, title: 't045 draft', createdByParticipantId: participantId })
+    .values({
+      projectId,
+      organisationId: org!.id,
+      sandboxId: sandbox!.id,
+      title: 't045 draft',
+      createdByParticipantId: participantId,
+    })
     .returning();
   sandboxDocumentId = doc!.id;
 

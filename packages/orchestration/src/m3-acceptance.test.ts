@@ -91,9 +91,25 @@ beforeAll(async () => {
     .values({ projectId, surface: 'web', workItemId: workItem!.id })
     .returning();
   conversationId = conversation!.id;
+  const [sandbox] = await db
+    .insert(s.sandboxes)
+    .values({
+      projectId,
+      name: 't047 sandbox',
+      scope: 'single_org',
+      owningOrganisationId: org!.id,
+      createdByParticipantId: participantId,
+    })
+    .returning();
   const [doc] = await db
     .insert(s.sandboxDocuments)
-    .values({ projectId, organisationId: org!.id, title: 't047 draft', createdByParticipantId: participantId })
+    .values({
+      projectId,
+      organisationId: org!.id,
+      sandboxId: sandbox!.id,
+      title: 't047 draft',
+      createdByParticipantId: participantId,
+    })
     .returning();
   sandboxDocumentId = doc!.id;
 
