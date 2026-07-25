@@ -6,15 +6,17 @@
 // window.prompt.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button, Modal, TextInput } from '@infora/ui';
+import { Button, Modal, SelectInput, TextInput } from '@infora/ui';
 
-type Pair = { key: string; label: string; value: string; custom: boolean };
+// a suggested field may be schema-driven: a select with a fixed option set (T-192)
+type SuggestedField = { key: string; label: string; type?: 'text' | 'select'; allowedValues?: string[] };
+type Pair = { key: string; label: string; value: string; custom: boolean; type?: 'text' | 'select'; options?: string[] };
 
 export function MetadataModal(props: {
   title: string;
   identity: Array<{ label: string; value: ReactNode }>;
   metadata: Record<string, unknown>;
-  suggestedFields?: Array<{ key: string; label: string }>;
+  suggestedFields?: SuggestedField[];
   editable: boolean;
   onSave: (metadata: Record<string, string>) => Promise<void>;
   onClose: () => void;
@@ -27,6 +29,8 @@ export function MetadataModal(props: {
       label: f.label,
       value: props.metadata[f.key] === undefined ? '' : String(props.metadata[f.key]),
       custom: false,
+      type: f.type,
+      options: f.allowedValues,
     }));
     const fromCustom = Object.entries(props.metadata)
       .filter(([k]) => !known.has(k))
@@ -103,7 +107,17 @@ export function MetadataModal(props: {
                 </span>
               )}
               <div style={{ flex: 1 }}>
-                <TextInput value={p.value} onChange={(v) => setValue(i, v)} disabled={!props.editable} />
+                {p.type === 'select' && p.options && p.options.length > 0 ? (
+                  <SelectInput
+                    value={p.value}
+                    onChange={(v) => setValue(i, v)}
+                    placeholder="—"
+                    disabled={!props.editable}
+                    options={p.options.map((o) => ({ value: o, label: o }))}
+                  />
+                ) : (
+                  <TextInput value={p.value} onChange={(v) => setValue(i, v)} disabled={!props.editable} />
+                )}
               </div>
               {props.editable && p.custom && (
                 <Button size="sm" variant="quiet" onClick={() => remove(i)}>

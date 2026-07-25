@@ -20,6 +20,15 @@ import { statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
+// live appointment names, lead + proposed marked — for the read-only team display
+const liveNames = (
+  grants: Array<{ name: string; isLead: boolean; revokedAt: string | null; confirmedAt?: string | null }>,
+): string =>
+  grants
+    .filter((g) => g.revokedAt === null)
+    .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}${g.confirmedAt === null ? ' · proposed' : ''}`)
+    .join(', ') || '—';
+
 const stateTone = (state: PlanRow['state']): BadgeTone =>
   state === 'live' ? 'success' : state === 'rejected' ? 'danger' : 'neutral';
 
@@ -510,11 +519,22 @@ export function PlanScreen() {
             { label: 'Producer', value: metaRow.producingOrganisationName },
             { label: 'Discipline', value: String(metaRow.metadata['discipline'] ?? '—') },
             { label: 'State', value: metaRow.state },
+            { label: 'Revision', value: <span className="mono">{metaRow.currentVersion?.versionReference ?? '—'}</span> },
+            { label: 'Author(s)', value: liveNames(metaRow.authors) },
+            { label: 'Reviewer(s)', value: liveNames(metaRow.reviewers) },
+            { label: 'Document owner', value: metaRow.documentOwner?.name ?? '—' },
           ]}
           metadata={Object.fromEntries(
             Object.entries(metaRow.metadata).filter(([k]) => !IDENTITY_KEYS.has(k)),
           )}
-          suggestedFields={AUTHORING_FIELDS}
+          // schema-driven: the deliverable schema's metadata fields render as their
+          // proper controls (selects with options), not raw custom text (T-192)
+          suggestedFields={[
+            ...(scheme?.fields
+              .filter((f) => !isCodeField(f) && !f.role)
+              .map((f) => ({ key: f.key, label: f.label, type: f.type as 'text' | 'select' | undefined, allowedValues: f.allowedValues })) ?? []),
+            ...AUTHORING_FIELDS,
+          ]}
           onClose={() => setMetaRow(null)}
           onSave={async (authoring) => {
             const merged: Record<string, unknown> = { ...authoring };
