@@ -51,7 +51,7 @@ import {
   Table,
   TextInput,
 } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
 
@@ -1455,6 +1455,19 @@ async function release(
   }
 }
 
+// map the promote endpoint's specific reason to actionable guidance — so the
+// producer knows exactly which set-up step is missing (T-190 follow-up)
+const PROMOTE_REASON: Record<string, string> = {
+  unplanned_document: 'Bind the document to a planned deliverable first (Bind).',
+  lead_author_only:
+    'Only the deliverable’s lead author can promote — appoint yourself as lead author on the Plan (open the deliverable).',
+  no_lead_reviewer:
+    'The deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it in Review.',
+  round_not_in_respond_phase: 'The review round isn’t in the respond phase yet.',
+  unanswered_comments: 'Answer every review comment before re-promoting.',
+  internal_cycle_active: 'An internal review cycle is still active — finish or release it first.',
+};
+
 async function promote(
   doc: SandboxDocument,
   reload: () => Promise<unknown>,
@@ -1464,7 +1477,9 @@ async function promote(
     await api.promoteDocument(doc.id);
     await reload();
     setNote('Promoted into the container — the project review cycle is open.');
-  } catch {
-    setNote('Promote failed — the document must be bound, with a confirmed reviewer, first.');
+  } catch (error) {
+    const detail =
+      error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : undefined;
+    setNote(`Promote failed — ${(detail && PROMOTE_REASON[detail]) ?? 'check the deliverable’s set-up on the Plan.'}`);
   }
 }
