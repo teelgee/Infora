@@ -21,6 +21,7 @@ test('a sandbox card shows owner + scope, and clicking it reveals the tree', asy
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const modal = page.getByRole('dialog');
   await modal.getByPlaceholder('e.g. Ecology working area').fill(name);
+  await modal.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
   await modal.getByRole('button', { name: 'Create sandbox' }).click();
   await expect(modal).toBeHidden();
 

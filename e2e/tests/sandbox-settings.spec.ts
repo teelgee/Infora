@@ -25,6 +25,7 @@ test('a super-user configures a sandbox to lock its folder structure', async ({ 
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Config area ${Date.now()}`);
+  await sb.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
   await sb.getByRole('button', { name: 'Create sandbox' }).click();
   await expect(sb).toBeHidden();
 

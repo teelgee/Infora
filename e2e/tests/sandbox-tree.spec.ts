@@ -28,6 +28,7 @@ test('a document nests inside a folder, hides until expanded, and re-files via M
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const sbModal = page.getByRole('dialog');
   await sbModal.getByPlaceholder('e.g. Ecology working area').fill(sandboxName);
+  await sbModal.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
   await sbModal.getByRole('button', { name: 'Create sandbox' }).click();
   await expect(sbModal).toBeHidden();
 

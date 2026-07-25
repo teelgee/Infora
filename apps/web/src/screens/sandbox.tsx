@@ -117,57 +117,193 @@ function TextModal(props: {
 }
 
 // ── Create sandbox ──────────────────────────────────────────────────────────
+// A togglable pick row (organisation or person) for the wizard.
+function PickRow(props: { checked: boolean; onToggle: () => void; label: string; sub?: string }) {
+  return (
+    <label className="pick-row">
+      <input type="checkbox" checked={props.checked} onChange={props.onToggle} />
+      <span className="pick-name">{props.label}</span>
+      {props.sub && <span className="pick-sub">{props.sub}</span>}
+    </label>
+  );
+}
+
+// ── New sandbox: a short wizard — access (private/shared) → organisations (if
+// shared) → people (T-187). Only a super-user reaches it (ADR-0042); the owner-
+// super additionally gets the shared option, since cross-org is the owner's act.
+type CreateSandboxInput = {
+  name: string;
+  scope: Sandbox['scope'];
+  organisationIds?: string[];
+  participantIds?: string[];
+};
 function CreateSandboxModal(props: {
   isOwner: boolean;
-  onSubmit: (name: string, scope: Sandbox['scope']) => Promise<void>;
+  ownOrganisationId: string;
+  roster: RosterEntry[];
+  onSubmit: (body: CreateSandboxInput) => Promise<void>;
   onClose: () => void;
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState('');
-  const [scope, setScope] = useState<Sandbox['scope']>('single_org');
+  const [access, setAccess] = useState<'private' | 'shared'>('private');
+  const [orgIds, setOrgIds] = useState<Set<string>>(new Set());
+  const [mode, setMode] = useState<'everyone' | 'specific'>('everyone');
+  const [personIds, setPersonIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const options = [
-    { value: 'single_org', label: scopeLabel.single_org },
-    { value: 'team', label: scopeLabel.team },
-    { value: 'named_user', label: scopeLabel.named_user },
-    ...(props.isOwner ? [{ value: 'multi_org', label: scopeLabel.multi_org }] : []),
-  ];
+  const isShared = props.isOwner && access === 'shared';
+
+  const toggle = (set: Set<string>, id: string): Set<string> => {
+    const next = new Set(set);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  };
+  const orgs = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of props.roster) {
+      if (r.organisationId !== props.ownOrganisationId && !m.has(r.organisationId)) {
+        m.set(r.organisationId, r.organisationName);
+      }
+    }
+    return [...m.entries()].map(([id, nm]) => ({ id, name: nm }));
+  }, [props.roster, props.ownOrganisationId]);
+  const eligibleOrgs = new Set([props.ownOrganisationId, ...(isShared ? [...orgIds] : [])]);
+  const people = props.roster.filter((r) => eligibleOrgs.has(r.organisationId));
+
+  const totalSteps = isShared ? 3 : 2;
+  const shownStep = step === 3 && !isShared ? 2 : step;
+  const goNext = () => setStep(step === 1 ? (isShared ? 2 : 3) : 3);
+  const goBack = () => setStep(step === 3 ? (isShared ? 2 : 1) : 1);
+  const isLast = step === 3;
+  const nextDisabled =
+    (step === 1 && name.trim() === '') || (step === 2 && orgIds.size === 0);
+  const createDisabled = busy || name.trim() === '' || (mode === 'specific' && personIds.size === 0);
+
+  const submit = async () => {
+    const scope: Sandbox['scope'] = isShared
+      ? 'multi_org'
+      : mode === 'specific'
+        ? 'named_user'
+        : 'single_org';
+    setBusy(true);
+    await props.onSubmit({
+      name: name.trim(),
+      scope,
+      organisationIds: isShared && mode === 'everyone' ? [...orgIds] : [],
+      participantIds: mode === 'specific' ? [...personIds] : [],
+    });
+  };
+
   return (
     <Modal
       open
       onClose={props.onClose}
       title="New sandbox"
-      size="sm"
+      size="md"
       footer={
         <>
           <Button variant="quiet" onClick={props.onClose}>
             Cancel
           </Button>
-          <Button
-            variant="primary"
-            disabled={busy || name.trim() === ''}
-            onClick={async () => {
-              setBusy(true);
-              await props.onSubmit(name.trim(), scope);
-            }}
-          >
-            Create sandbox
-          </Button>
+          {step !== 1 && (
+            <Button variant="quiet" onClick={goBack}>
+              Back
+            </Button>
+          )}
+          {isLast ? (
+            <Button variant="primary" disabled={createDisabled} onClick={submit}>
+              Create sandbox
+            </Button>
+          ) : (
+            <Button variant="primary" disabled={nextDisabled} onClick={goNext}>
+              Next
+            </Button>
+          )}
         </>
       }
     >
-      <Field label="Name">
-        <TextInput value={name} onChange={setName} placeholder="e.g. Ecology working area" autoFocus />
-      </Field>
-      <Field
-        label="Participant scope"
-        hint={
-          scope === 'multi_org'
-            ? 'Shared across organisations — the owner opens cross-org collaboration'
-            : 'Separation is by a narrower sandbox, never a wall inside a shared one'
-        }
-      >
-        <SelectInput value={scope} onChange={(v) => setScope(v as Sandbox['scope'])} options={options} />
-      </Field>
+      <div className="field-hint" style={{ marginTop: 0, marginBottom: 12 }}>
+        Step {shownStep} of {totalSteps}
+      </div>
+
+      {step === 1 && (
+        <>
+          <Field label="Name">
+            <TextInput value={name} onChange={setName} placeholder="e.g. Ecology working area" autoFocus />
+          </Field>
+          <Field
+            label="Access"
+            hint={
+              isShared
+                ? 'Shared across organisations — you choose which, then who'
+                : 'Private to your organisation'
+            }
+          >
+            <SelectInput
+              value={access}
+              onChange={(v) => setAccess(v as 'private' | 'shared')}
+              options={[
+                { value: 'private', label: 'Private — my organisation' },
+                ...(props.isOwner ? [{ value: 'shared', label: 'Shared — across organisations' }] : []),
+              ]}
+            />
+          </Field>
+        </>
+      )}
+
+      {step === 2 && (
+        <Field label="Organisations" hint="Which organisations share this sandbox (yours is always included)">
+          <div className="pick-list">
+            {orgs.length === 0 ? (
+              <div className="field-hint">No other organisations are on this project yet.</div>
+            ) : (
+              orgs.map((o) => (
+                <PickRow
+                  key={o.id}
+                  checked={orgIds.has(o.id)}
+                  onToggle={() => setOrgIds((s) => toggle(s, o.id))}
+                  label={o.name}
+                />
+              ))
+            )}
+          </div>
+        </Field>
+      )}
+
+      {step === 3 && (
+        <>
+          <Field label="Who has access">
+            <SelectInput
+              value={mode}
+              onChange={(v) => setMode(v as 'everyone' | 'specific')}
+              options={[
+                { value: 'everyone', label: isShared ? 'Everyone in the chosen organisations' : 'Everyone in my organisation' },
+                { value: 'specific', label: 'Only specific people' },
+              ]}
+            />
+          </Field>
+          {mode === 'specific' && (
+            <Field label="People" hint="Admit specific participants; you are always included">
+              <div className="pick-list">
+                {people.length === 0 ? (
+                  <div className="field-hint">No people to choose from yet.</div>
+                ) : (
+                  people.map((p) => (
+                    <PickRow
+                      key={p.participantId}
+                      checked={personIds.has(p.participantId)}
+                      onToggle={() => setPersonIds((s) => toggle(s, p.participantId))}
+                      label={p.name}
+                      sub={p.organisationName}
+                    />
+                  ))
+                )}
+              </div>
+            </Field>
+          )}
+        </>
+      )}
     </Modal>
   );
 }
@@ -887,15 +1023,17 @@ export function SandboxScreen() {
       {modal === 'sandbox' && (
         <CreateSandboxModal
           isOwner={isOwner}
+          ownOrganisationId={me.organisationId}
+          roster={roster}
           onClose={() => setModal(null)}
-          onSubmit={async (name, scope) => {
+          onSubmit={async (body) => {
             try {
-              const sb = await api.createSandbox(projectId, name, scope);
+              const sb = await api.createSandbox(projectId, body);
               await loadSandboxes();
               setSelected(sb.id);
               setModal(null);
             } catch {
-              setNote('Could not create that sandbox (a multi-organisation sandbox is owner-only).');
+              setNote('Could not create that sandbox — a shared (cross-organisation) sandbox is the owner’s to make.');
               setModal(null);
             }
           }}

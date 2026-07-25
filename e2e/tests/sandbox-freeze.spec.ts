@@ -24,6 +24,7 @@ test('Freeze checks the document out (locks); Release unlocks it', async ({ page
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Freeze e2e ${Date.now()}`);
+  await sb.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
   await sb.getByRole('button', { name: 'Create sandbox' }).click();
   await expect(sb).toBeHidden();
 

@@ -25,6 +25,7 @@ test('a super-user builds a nested folder structure with the interactive builder
   await page.getByRole('button', { name: 'Sandbox' }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Structure e2e ${Date.now()}`);
+  await sb.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
   await sb.getByRole('button', { name: 'Create sandbox' }).click();
   await expect(sb).toBeHidden();
 

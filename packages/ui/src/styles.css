@@ -352,6 +352,20 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .fb-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
 .fb-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-active); }
 
+/* ---------- Wizard pick list (organisations / people) ---------- */
+.pick-list {
+  display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto;
+  border: 1px solid var(--border-default); border-radius: var(--primitive-radius-md); padding: 6px;
+}
+.pick-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: var(--primitive-radius-sm); cursor: pointer;
+}
+.pick-row:hover { background: var(--surface-hover); }
+.pick-row input { accent-color: var(--text-primary); width: 15px; height: 15px; flex: none; }
+.pick-name { flex: 1; color: var(--text-primary); }
+.pick-sub { color: var(--text-muted); font-size: 12px; }
+
 /* ---------- Badges & chips ---------- */
 .badge {
   display: inline-flex; align-items: center; gap: var(--badge-status-gap);

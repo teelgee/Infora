@@ -250,10 +250,13 @@ export const api = {
     }),
   sandboxes: (projectId: string) =>
     request<ListSandboxesResponse>(`/projects/${projectId}/sandboxes`),
-  createSandbox: (projectId: string, name: string, scope: Sandbox['scope']) =>
+  createSandbox: (
+    projectId: string,
+    body: { name: string; scope: Sandbox['scope']; organisationIds?: string[]; participantIds?: string[] },
+  ) =>
     request<Sandbox>(`/projects/${projectId}/sandboxes`, {
       method: 'POST',
-      body: JSON.stringify({ name, scope }),
+      body: JSON.stringify(body),
     }),
   sandbox: (sandboxId: string) => request<GetSandboxResponse>(`/sandboxes/${sandboxId}`),
   updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean }) =>

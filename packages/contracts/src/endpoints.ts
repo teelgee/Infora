@@ -715,6 +715,10 @@ export type GetSandboxResponse = Sandbox & { grants: SandboxScopeGrantView[] };
 export const createSandboxBody = z.object({
   name: z.string().min(1),
   scope: z.enum(['multi_org', 'single_org', 'team', 'named_user']),
+  // initial access, admitted at creation (T-187): whole organisations (shared)
+  // and/or specific participants (narrowed). The creator is always admitted.
+  organisationIds: z.array(id).optional(),
+  participantIds: z.array(id).optional(),
 });
 export type CreateSandboxBody = z.infer<typeof createSandboxBody>;
 

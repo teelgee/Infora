@@ -137,6 +137,33 @@ describe('sandbox creation + grant-based access (T-153, ADR-0036/T-186)', () => 
     });
     expect(bAddD.status).toBe(404);
   });
+
+  it('the wizard admits organisations and specific participants at creation (T-187)', async () => {
+    // owner-super creates a shared sandbox admitting org C up front
+    const shared = ((await (
+      await app.request(`/projects/${projectId}/sandboxes`, {
+        method: 'POST',
+        headers: asJson(aCookie),
+        body: JSON.stringify({ name: 'wizard shared', scope: 'multi_org', organisationIds: [orgC] }),
+      })
+    ).json()) as Sandbox).id;
+    expect((await app.request(`/sandboxes/${shared}`, { headers: asJson(cCookie) })).status).toBe(200); // C admitted at creation
+
+    // guest-super creates a named-user sandbox admitting a specific person up front
+    const guest = await makeUser('t187-gwen', orgB);
+    const nu = ((await (
+      await app.request(`/projects/${projectId}/sandboxes`, {
+        method: 'POST',
+        headers: asJson(bCookie),
+        body: JSON.stringify({ name: 'wizard named', scope: 'named_user', participantIds: [guest.participant.id] }),
+      })
+    ).json()) as Sandbox).id;
+    const gwenCookie = await session(guest.user.email);
+    expect((await app.request(`/sandboxes/${nu}`, { headers: asJson(gwenCookie) })).status).toBe(200); // admitted at creation
+    // an ungranted org-B member still cannot see it (participant-private)
+    const stranger = await session((await makeUser('t187-stan', orgB)).user.email);
+    expect((await app.request(`/sandboxes/${nu}`, { headers: asJson(stranger) })).status).toBe(404);
+  });
 });
 
 describe('personal sandboxes (T-186)', () => {

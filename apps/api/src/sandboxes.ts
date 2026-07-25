@@ -7,7 +7,7 @@
 // Freeze / launch-review / promote already have endpoints (Slice A, cycle.ts).
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   bindDocumentBody,
@@ -173,6 +173,48 @@ export function sandboxRoutes2(deps: { db: Db }) {
         participantId: slice.participantId,
         grantedByParticipantId: slice.participantId,
       });
+    }
+    // the wizard's initial access (T-187): admit whole organisations (validated to
+    // be on the project; cross-org is already the owner-super's act via the scope
+    // gate) and/or specific participants, at creation. Skips the owning org / the
+    // creator (already granted) and de-dupes.
+    const wantOrgs = [...new Set(parsed.data.organisationIds ?? [])].filter(
+      (o) => o !== slice.organisationId,
+    );
+    if (wantOrgs.length) {
+      const onProject = await deps.db
+        .select({ organisationId: s.memberships.organisationId })
+        .from(s.memberships)
+        .where(and(eq(s.memberships.projectId, slice.projectId), inArray(s.memberships.organisationId, wantOrgs)));
+      const valid = new Set(onProject.map((r) => r.organisationId));
+      for (const organisationId of wantOrgs) {
+        if (!valid.has(organisationId)) continue;
+        await deps.db.insert(s.sandboxScopeGrants).values({
+          sandboxId: sandbox!.id,
+          granteeType: 'organisation',
+          organisationId,
+          grantedByParticipantId: slice.participantId,
+        });
+      }
+    }
+    const wantParticipants = [...new Set(parsed.data.participantIds ?? [])].filter(
+      (p) => p !== slice.participantId,
+    );
+    if (wantParticipants.length) {
+      const onProject = await deps.db
+        .select({ id: s.participants.id })
+        .from(s.participants)
+        .where(and(eq(s.participants.projectId, slice.projectId), inArray(s.participants.id, wantParticipants)));
+      const valid = new Set(onProject.map((r) => r.id));
+      for (const participantId of wantParticipants) {
+        if (!valid.has(participantId)) continue;
+        await deps.db.insert(s.sandboxScopeGrants).values({
+          sandboxId: sandbox!.id,
+          granteeType: 'participant',
+          participantId,
+          grantedByParticipantId: slice.participantId,
+        });
+      }
     }
     return c.json(toSandbox(sandbox!, slice), 201);
   });
