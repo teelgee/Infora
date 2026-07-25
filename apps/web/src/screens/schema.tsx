@@ -8,8 +8,8 @@ import { Fragment, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
-import { Badge, Button, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
-import { Info } from 'lucide-react';
+import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
+import { Info, Plus, X } from 'lucide-react';
 import { api } from '../api';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -83,29 +83,76 @@ function HeaderHint({ label, hintKey }: { label: string; hintKey?: string }) {
 
 const emptyField = (): NamingSchemeField => ({ key: '', label: '', type: 'text' });
 
-// Options are edited one per line as "CODE = Description" (the description is
-// optional). We parse that into the codes (allowedValues) and a code→description
-// map (allowedValueLabels); a bare code with no "=" just carries no description.
-// Commas are still tolerated as separators for quick bare-code entry.
-function parseOptions(text: string): Pick<NamingSchemeField, 'allowedValues' | 'allowedValueLabels'> {
-  const allowedValues: string[] = [];
-  const labels: Record<string, string> = {};
-  for (const raw of text.split(/[\n,]/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const eq = line.indexOf('=');
-    const code = (eq === -1 ? line : line.slice(0, eq)).trim();
-    const desc = eq === -1 ? '' : line.slice(eq + 1).trim();
-    if (!code) continue;
-    allowedValues.push(code);
-    if (desc) labels[code] = desc;
-  }
-  return { allowedValues, allowedValueLabels: Object.keys(labels).length ? labels : undefined };
-}
-function serializeOptions(f: NamingSchemeField): string {
-  return (f.allowedValues ?? [])
-    .map((v) => (f.allowedValueLabels?.[v] ? `${v} = ${f.allowedValueLabels[v]}` : v))
-    .join('\n');
+// A structured editor for a Select field's options — two columns (code +
+// description) with add/remove, in a modal. No free-text parsing: each input is
+// independently controlled, so spaces and mid-edit typing behave normally, and
+// it scales to the long routewide code lists.
+function OptionsEditor(props: {
+  field: NamingSchemeField;
+  onSave: (patch: Pick<NamingSchemeField, 'allowedValues' | 'allowedValueLabels'>) => void;
+  onClose: () => void;
+}) {
+  const [rows, setRows] = useState<{ code: string; desc: string }[]>(() =>
+    (props.field.allowedValues ?? []).map((c) => ({ code: c, desc: props.field.allowedValueLabels?.[c] ?? '' })),
+  );
+  const set = (i: number, patch: Partial<{ code: string; desc: string }>) =>
+    setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const add = () => setRows((rs) => [...rs, { code: '', desc: '' }]);
+  const remove = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
+
+  const save = () => {
+    const allowedValues: string[] = [];
+    const labels: Record<string, string> = {};
+    for (const r of rows) {
+      const code = r.code.trim();
+      if (!code) continue;
+      allowedValues.push(code);
+      const desc = r.desc.trim();
+      if (desc) labels[code] = desc;
+    }
+    props.onSave({ allowedValues, allowedValueLabels: Object.keys(labels).length ? labels : undefined });
+    props.onClose();
+  };
+
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={`Options — ${props.field.label || props.field.key || 'field'}`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button onClick={save}>Done</Button>
+        </>
+      }
+    >
+      <p className="page-sub" style={{ marginTop: 0 }}>
+        The code is stored and used in the reference; the description is shown alongside it in dropdowns.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '52vh', overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 32px', gap: 8 }}>
+          <SectionLabel>Code</SectionLabel>
+          <SectionLabel>Description</SectionLabel>
+          <span />
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 32px', gap: 8, alignItems: 'center' }}>
+            <TextInput value={r.code} onChange={(v) => set(i, { code: v })} placeholder="ECV" mono />
+            <TextInput value={r.desc} onChange={(v) => set(i, { desc: v })} placeholder="Engineering – Civils" />
+            <button className="fb-btn" title="Remove option" onClick={() => remove(i)}>
+              <X size={14} aria-hidden />
+            </button>
+          </div>
+        ))}
+        {rows.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No options yet.</span>}
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Button variant="quiet" size="sm" onClick={add}>
+          <Plus size={14} aria-hidden /> Add option
+        </Button>
+      </div>
+    </Modal>
+  );
 }
 
 const TYPE_OPTIONS: { value: SchemaFieldType; label: string }[] = [
@@ -137,6 +184,7 @@ export function SchemaScreen() {
   const [previewSerial, setPreviewSerial] = useState<string | null>(null);
   const [proposalText, setProposalText] = useState('');
   const [saved, setSaved] = useState(false);
+  const [editingOptions, setEditingOptions] = useState<number | null>(null);
 
   const loadProposals = () => void api.namingProposals(projectId).then((r) => setProposals(r.items));
   useEffect(() => {
@@ -209,15 +257,21 @@ export function SchemaScreen() {
           />
         </td>
         <td>
-          <textarea
-            className="field-input"
-            rows={Math.min(6, Math.max(1, f.allowedValues?.length ?? 1))}
-            placeholder="CODE = Description (one per line)"
-            value={serializeOptions(f)}
-            disabled={!canEdit || f.type !== 'select'}
-            onChange={(e) => setField(i, parseOptions(e.target.value))}
-            style={{ resize: 'vertical', minWidth: 220, fontFamily: 'inherit' }}
-          />
+          {f.type === 'select' ? (
+            canEdit ? (
+              <Button variant="quiet" size="sm" onClick={() => setEditingOptions(i)}>
+                {(f.allowedValues?.length ?? 0) > 0
+                  ? `${f.allowedValues!.length} option${f.allowedValues!.length === 1 ? '' : 's'} · Edit`
+                  : 'Add options'}
+              </Button>
+            ) : (
+              <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                {(f.allowedValues?.length ?? 0)} option{(f.allowedValues?.length ?? 0) === 1 ? '' : 's'}
+              </span>
+            )
+          ) : (
+            <span style={{ color: 'var(--text-faint)' }}>—</span>
+          )}
         </td>
         <td><input type="checkbox" checked={!!f.required} disabled={!canEdit} onChange={(e) => setField(i, { required: e.target.checked })} /></td>
         <td><input type="checkbox" checked={code} disabled={!canEdit} onChange={(e) => setField(i, { inCode: e.target.checked })} /></td>
@@ -395,6 +449,14 @@ export function SchemaScreen() {
           </tbody>
         </table>
       </Table>
+
+      {editingOptions !== null && fields[editingOptions] && (
+        <OptionsEditor
+          field={fields[editingOptions]}
+          onSave={(patch) => setField(editingOptions, patch)}
+          onClose={() => setEditingOptions(null)}
+        />
+      )}
     </div>
   );
 }
