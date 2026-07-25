@@ -39,6 +39,7 @@ export function sessionMiddleware(deps: {
 }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     if (c.req.path === '/auth/session') return next();
+    if (c.req.path === '/health') return next(); // liveness probe (T-219)
     const userId = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
     if (!userId) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
     const [user] = await deps.db.select().from(s.users).where(eq(s.users.id, userId)).limit(1);

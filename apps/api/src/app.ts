@@ -14,6 +14,7 @@ import { commentRoutes } from './comments';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
 import { namingRoutes } from './naming';
+import { healthRoutes, requestObservability } from './observability';
 import { containerRoutes, planRoutes } from './plan';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
@@ -40,6 +41,10 @@ const devOrigins = ['http://localhost:5173', 'http://localhost:5273'];
 
 export function buildApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
+
+  // T-219: outermost — every response gets an X-Request-Id, every request
+  // one JSON log line (method, path, status, duration, requestId)
+  app.use('*', requestObservability());
 
   // T-216: CORS from an explicit allowlist — an unlisted Origin gets no
   // CORS headers at all (hono's cors would still emit allow-credentials, so
@@ -88,6 +93,9 @@ export function buildApp(deps: AppDeps) {
       key: (c) => c.get('user')?.id,
     }),
   );
+
+  // Liveness probe (T-219) — sessionless, DB-pinging
+  app.route('/', healthRoutes(deps));
 
   // Auth & session (M1, M6) — T-021
   app.route('/', authRoutes(deps));

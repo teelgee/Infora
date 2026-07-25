@@ -494,3 +494,27 @@ type ApiError = { error: 'not_found' | 'conflict' | 'invalid' | 'unauthenticated
 ## What this cut deliberately omits
 
 ~~Promotion and the review cycle endpoints~~ *(arrived 2026-07-18 with Slice A, §4 above)*. Still omitted: attached sources; workflow launch beyond the single chat/draft path; acceptance-scheme editing (retire-and-replace is an owner curation surface, post-slice); notification delivery (the parked mention/transmittal channel — tracker); pagination and webhooks; streaming (additive later). Each arrives with its slice, matching the data model's drawers.
+
+## Cross-cutting behaviours (2026-07-25, T-216/T-217/T-219)
+
+```
+GET /health → 200 { ok: true } | 503 { ok: false }   // sessionless liveness
+     // probe: one `select 1` against the database; exempted from the session
+     // middleware the same way POST /auth/session is
+```
+
+- **Request id (T-219).** Every response carries `X-Request-Id` (a per-request
+  `crypto.randomUUID()`), and the API emits one structured JSON log line per
+  request at the boundary — `method`, `path`, `status`, `durationMs`,
+  `requestId` — suppressed under `NODE_ENV=test`.
+- **Rate limits (T-217).** In-memory sliding windows: `POST /auth/session`
+  per IP (default 10/min, `RATE_LIMIT_LOGIN_PER_MINUTE`) and
+  `POST /conversations/:id/runs` per user (default 30/min,
+  `RATE_LIMIT_RUNS_PER_MINUTE` — run creation invokes paid model calls). Over
+  the window answers `429 { error: 'rate_limited' }` in the §5 envelope
+  (`rate_limited` joins the `error` vocabulary). The store is per-process;
+  it becomes shared (Redis) at the infra session.
+- **CORS + security headers (T-216).** Origins outside the explicit allowlist
+  (`ALLOWED_ORIGINS`, defaulting to the local dev/e2e web origins) receive no
+  CORS headers at all; every response carries `X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
