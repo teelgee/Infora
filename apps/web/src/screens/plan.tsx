@@ -219,6 +219,8 @@ function AppointmentEditor(props: {
   roster: RosterEntry[];
   showProposed?: boolean;
   canEdit: boolean;
+  canConfirm?: boolean;
+  onConfirm?: (grantId: string) => Promise<void>;
   onAdd: (participantId: string, isLead: boolean) => Promise<void>;
   onRemove: (grantId: string) => Promise<void>;
 }) {
@@ -240,6 +242,11 @@ function AppointmentEditor(props: {
             {g.name}
             {props.showProposed && g.confirmedAt == null && <span className="field-hint"> · proposed</span>}
           </span>
+          {props.canConfirm && props.onConfirm && g.confirmedAt == null && (
+            <button className="linklike" onClick={() => void props.onConfirm!(g.id)}>
+              Confirm
+            </button>
+          )}
           {props.canEdit && (
             <button className="linklike" onClick={() => void props.onRemove(g.id)}>
               Remove
@@ -290,7 +297,8 @@ function DeliverableDetail(props: {
   row: PlanRow;
   projectId: string;
   roster: RosterEntry[];
-  canEdit: boolean;
+  canEdit: boolean; // producing super-user: authors, owner, metadata, remove
+  isOwnerSuper: boolean; // owner super-user: appoints/confirms reviewers directly
   onChanged: (updated: PlanRow) => void;
   onClose: () => void;
 }) {
@@ -390,12 +398,20 @@ function DeliverableDetail(props: {
         grants={reviewers}
         roster={props.roster}
         showProposed
-        canEdit={props.canEdit}
+        // the producer proposes; the owner appoints directly (auto-confirmed) and
+        // may confirm a proposal — either can set the reviewer up (ADR-0033, T-193)
+        canEdit={props.canEdit || props.isOwnerSuper}
+        canConfirm={props.isOwnerSuper}
+        onConfirm={(gid) => api.confirmReviewer(gid).then(reload)}
         onAdd={(pid, lead) => api.grantReviewer(row.containerId, pid, lead).then(reload)}
         onRemove={(gid) => api.revokeReviewer(gid).then(reload)}
       />
-      {props.canEdit && reviewers.some((r) => r.confirmedAt === null) && (
-        <span className="field-hint">A proposed reviewer takes effect once the owner confirms it in Review.</span>
+      {reviewers.some((r) => r.confirmedAt === null) && (
+        <span className="field-hint">
+          {props.isOwnerSuper
+            ? 'Confirm a proposed reviewer to give it effect, or appoint one directly.'
+            : 'A proposed reviewer takes effect once the owner confirms it (owner, or in Review).'}
+        </span>
       )}
 
       {row.sharedWith.length > 0 && (
@@ -551,6 +567,7 @@ export function PlanScreen() {
           projectId={projectId}
           roster={roster}
           canEdit={isSuper && detailRow.producingOrganisationId === me.organisationId}
+          isOwnerSuper={isSuper && isOwner}
           onChanged={() => load()}
           onClose={() => setDetailRow(null)}
         />
