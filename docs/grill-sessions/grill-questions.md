@@ -53,6 +53,15 @@ The grilling order and what remains open per component. A **locked** component c
 7. **Connectors.** ⬜ Deferred. See [component-7-connectors.md](../architecture/component-7-connectors.md). Open: the integrate-config handover to an incumbent DMS (format, target system); for spatial — which products first (Bentley, Esri, others), read-only reference vs deeper integration, how spatial data enters context and links to documents; timing and priority relative to the wedge.
 8. **Surfaces.** 🟡 In progress. See [component-8-surfaces.md](../architecture/component-8-surfaces.md). **Settled: the Microsoft 365 Copilot integration → ADR-0031** (an MVP addition — external read-only Ask surface, `@Infora` reaches the chat agent through the same API, one project bound per conversation, wall held via the ADR-0029 gateway; new `apps/copilot-agent`). Open (bucket A, mostly post-MVP): workspace home vs project home layout; the owner portfolio view design; mobile scope; the boundary between the document-management interface (component 5) and the generic project surfaces.
 
+### Pre-infra-session rulings (owner, 2026-07-25 — from the enterprise-readiness review)
+
+Four items ruled ahead of the infra/security session (Slice S on the build board carries the mechanical halves):
+
+- **CSRF posture — ruled → ADR-0043 (T-218).** SameSite=Lax + a JSON content-type gate on state-changing requests, an Origin check on the multipart upload path; no token scheme now — the token upgrade is a named infra-session item.
+- **DB-level wall backstop — committed.** Postgres RLS lands as part of the infra/security session's build slice, a second enforcement layer under the `packages/governance` predicates. The wall is the product's core promise; app-layer-only enforcement is not the shipping posture for any external pilot.
+- **Certification targets — named: ISO 27001, Cyber Essentials Plus, SOC 2 Type II.** None is a pilot precondition; they constrain the infra session's provider/hosting choices (inheritable provider certifications, UK residency, audit-log export) so nothing chosen forecloses them.
+- **NFR envelope — strawman drafted at single-friendly-firm scale** (≤25 users, 1–2 projects, ≤1,000 documents): [docs/build/nfr.md](../build/nfr.md). 🟡 To grill: the proposed availability/RPO/RTO/latency numbers, then it becomes an infra-session pre-read alongside the two rulings above.
+
 ### Candidate ADRs still to write
 - **Audit-of-every-action** as a foundational invariant rather than a later feature (governance, component 3). *Discharged for the agent-execution sense by ADR-0028 (append-only, immutable Run/Step). Still open for the user-UI-action and system-action senses owned by component 3.*
 - ~~**Agent as a first-class concept + deployment model**~~ — ✅ **done: folded into ADR-0028** (M1), as planned. The actor/run/orchestration trio is fixed in one ADR.
