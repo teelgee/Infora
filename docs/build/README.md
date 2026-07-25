@@ -13,6 +13,10 @@ No database migration or application code is written until the artefacts below e
 
 ## Artefacts
 
+Status markers, used here and on the ticket board:
+✅ built / closed · 🔨 in build ·
+🟢 / 🟡 / 🔴 doc status (settled / drafted-under-review / open).
+
 | Doc | Purpose | Status |
 |-----|---------|--------|
 | `data-model.md` | The `CONTEXT.md` glossary drawn as stored tables, fields and relationships — scoped to the walking skeleton. The foundation every other build-doc writes against. | 🟢 Draft-location item closed (2026-07-04); final review at first migration |
