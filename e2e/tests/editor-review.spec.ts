@@ -90,7 +90,7 @@ test('the editor enters review-response mode: the version under review, the comm
   await page.goto(`/projects/${projectId}/editor/${documentId}`);
 
   // the version under review sits read-only beside the editable canvas
-  await expect(page.getByText(/Version under review · v1 · read-only/i)).toBeVisible();
+  await expect(page.getByText(/Version under review · P01 · read-only/i)).toBeVisible();
 
   // the review leads in the right panel — the agent has stepped aside to a tab
   await expect(page.getByText('Round 1 — respond to the review')).toBeVisible();

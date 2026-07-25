@@ -45,6 +45,14 @@ const forbidden = (c: Context, detail?: string) =>
   c.json({ error: 'forbidden', ...(detail && { detail }) } satisfies ApiError, 403);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
+// ISO 19650 revision numbering (ADR-0041): P = preliminary/work-in-progress
+// (issued for review, or promoted), C = contractual (accepted/published). Each is
+// its own two-digit series on the container, independent of the sandbox working
+// series (v0.x). The next revision counts the same-prefix references already
+// issued on this container.
+const nextRevision = (existingRefs: readonly string[], prefix: 'P' | 'C'): string =>
+  `${prefix}${String(existingRefs.filter((r) => r.startsWith(prefix)).length + 1).padStart(2, '0')}`;
+
 type ContainerRow = typeof s.containers.$inferSelect;
 
 /** producer | owner | live share — who may see the deliverable and its DRR.
@@ -380,11 +388,27 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // check-out into a formal round on the same locked head.
     if (doc.headLocked && !activeCycle && !hasLead) return conflict(c, 'already_checked_out');
 
-    const versionCount = await deps.db
-      .select({ id: s.versions.id })
-      .from(s.versions)
-      .where(eq(s.versions.containerId, freezeContainer!.id));
-    const versionReference = `P${versionCount.length + 1}`;
+    // the ISO 19650 scheme (ADR-0041): whilst in the sandbox a document runs the
+    // working series v0.x; it earns a P revision only when it is issued into a
+    // formal review cycle (or promoted). So a plain check-out freezes the current
+    // working revision under its v0.x number; a freeze that opens an internal round
+    // issues the next P.
+    const existingRefs = (
+      await deps.db
+        .select({ ref: s.versions.versionReference })
+        .from(s.versions)
+        .where(eq(s.versions.containerId, freezeContainer!.id))
+    ).map((r) => r.ref);
+    let versionReference: string;
+    if (hasLead) {
+      versionReference = nextRevision(existingRefs, 'P');
+    } else {
+      const ambient = await deps.db
+        .select({ id: s.sandboxDocumentVersions.id })
+        .from(s.sandboxDocumentVersions)
+        .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id));
+      versionReference = `v0.${Math.max(1, ambient.length)}`;
+    }
 
     const result = await deps.db.transaction(async (tx) => {
       await tx
@@ -624,11 +648,15 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       }
     }
 
-    const versionCount = await deps.db
-      .select({ id: s.versions.id })
-      .from(s.versions)
-      .where(eq(s.versions.containerId, container.id));
-    const versionReference = `v${versionCount.length + 1}`;
+    // promotion issues a P revision (issued for review, or promoted without
+    // review) — the working v0.x series stays in the sandbox (ADR-0041)
+    const existingRefs = (
+      await deps.db
+        .select({ ref: s.versions.versionReference })
+        .from(s.versions)
+        .where(eq(s.versions.containerId, container.id))
+    ).map((r) => r.ref);
+    const versionReference = nextRevision(existingRefs, 'P');
 
     const result = await deps.db.transaction(async (tx) => {
       // currency moves to the new version (the 0013 carve-out)
@@ -831,6 +859,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       .from(s.deliverableAuthors)
       .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)));
 
+    // the contractual C-revision issued on a client acceptance (set inside the tx)
+    let contractual: { id: string; content: string } | null = null;
     const transmittalId = await deps.db.transaction(async (tx) => {
       const [transmittal] = await tx
         .insert(s.transmittals)
@@ -881,6 +911,36 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
             .update(s.containers)
             .set({ inLibrary: true })
             .where(eq(s.containers.id, container.id));
+          // ISO 19650 (ADR-0041): client acceptance issues the CONTRACTUAL
+          // revision — a new immutable C-version of the accepted content, made
+          // current so the library/plan/retrieval all read the published revision.
+          // (The reviewed P-version keeps its P reference; version_reference is
+          // immutable, T-008/0013, so C is a fresh issue, not a relabel.)
+          const [accepted] = await tx
+            .select({ content: s.versions.content })
+            .from(s.versions)
+            .where(eq(s.versions.id, round.versionId))
+            .limit(1);
+          const refs = (
+            await tx
+              .select({ ref: s.versions.versionReference })
+              .from(s.versions)
+              .where(eq(s.versions.containerId, container.id))
+          ).map((r) => r.ref);
+          await tx
+            .update(s.versions)
+            .set({ isCurrent: false })
+            .where(and(eq(s.versions.containerId, container.id), eq(s.versions.isCurrent, true)));
+          const [cVersion] = await tx
+            .insert(s.versions)
+            .values({
+              containerId: container.id,
+              versionReference: nextRevision(refs, 'C'),
+              content: accepted!.content,
+              isCurrent: true,
+            })
+            .returning();
+          contractual = { id: cVersion!.id, content: accepted!.content };
         }
       } else {
         await tx
@@ -895,6 +955,22 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       return transmittal!.id;
     });
     if (accepting) {
+      // the contractual revision's renditions, generated beside it like a
+      // promotion's (T-121, ADR-0034) — the published record the client owns
+      if (contractual) {
+        const [boundDoc] = await deps.db
+          .select()
+          .from(s.sandboxDocuments)
+          .where(eq(s.sandboxDocuments.containerId, container.id))
+          .limit(1);
+        if (boundDoc) {
+          await generateRenditions(
+            deps.db,
+            { id: (contractual as { id: string }).id, content: (contractual as { content: string }).content },
+            boundDoc,
+          );
+        }
+      }
       // chunk + embed whatever newly grounds — an idempotent sweep (T-012)
       await ingestVersions(deps.db, deps.router);
     }

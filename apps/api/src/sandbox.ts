@@ -4,7 +4,7 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import {
   createSandboxDocumentBody,
   patchSandboxDocumentBody,
@@ -152,7 +152,19 @@ export function sandboxRoutes(deps: { db: Db }) {
         ),
       )
       .orderBy(desc(s.sandboxDocuments.updatedAt));
-    return c.json({ items: rows.map(toSandboxDocument) } satisfies ListSandboxDocumentsResponse);
+    // the working revision per document (ISO 19650 v0.x, ADR-0041): one grouped
+    // count over the ambient history, never a query per row
+    const counts = rows.length
+      ? await deps.db
+          .select({ docId: s.sandboxDocumentVersions.sandboxDocumentId, n: count() })
+          .from(s.sandboxDocumentVersions)
+          .where(inArray(s.sandboxDocumentVersions.sandboxDocumentId, rows.map((r) => r.id)))
+          .groupBy(s.sandboxDocumentVersions.sandboxDocumentId)
+      : [];
+    const countByDoc = new Map(counts.map((r) => [r.docId, Number(r.n)]));
+    return c.json({
+      items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0)),
+    } satisfies ListSandboxDocumentsResponse);
   });
 
   const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
@@ -277,9 +289,12 @@ export function sandboxRoutes(deps: { db: Db }) {
       .innerJoin(s.users, eq(s.participants.userId, s.users.id))
       .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, c.req.param('id')))
       .orderBy(desc(s.sandboxDocumentVersions.createdAt));
-    const items = rows.map((r) => ({
+    // rows are newest-first; the working series counts from the oldest, so v0.1 is
+    // the first snapshot and the newest is v0.{total} (ADR-0041)
+    const items = rows.map((r, i) => ({
       id: r.id,
       sandboxDocumentId: r.sandboxDocumentId,
+      versionReference: `v0.${rows.length - i}`,
       createdBy: { participantId: r.participantId, name: r.name },
       createdAt: r.createdAt.toISOString(),
     }));
@@ -354,7 +369,12 @@ export function sandboxRoutes(deps: { db: Db }) {
   return app;
 }
 
-export function toSandboxDocument(row: typeof s.sandboxDocuments.$inferSelect): SandboxDocument {
+// ambientCount = number of ambient save-snapshots; the working revision is
+// v0.{count} (the initial head is v0.1, ADR-0041). Omitted when not resolved.
+export function toSandboxDocument(
+  row: typeof s.sandboxDocuments.$inferSelect,
+  ambientCount?: number,
+): SandboxDocument {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -369,6 +389,7 @@ export function toSandboxDocument(row: typeof s.sandboxDocuments.$inferSelect): 
     folderId: row.folderId,
     authoringMetadata: (row.authoringMetadata ?? {}) as Record<string, unknown>,
     headLocked: row.headLocked,
+    ...(ambientCount !== undefined && { workingRevision: `v0.${Math.max(1, ambientCount)}` }),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

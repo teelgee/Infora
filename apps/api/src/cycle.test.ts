@@ -159,7 +159,7 @@ describe('promotion (T-120)', () => {
     const res = await promote(leadAuthorCookie);
     expect(res.status).toBe(201);
     const result = (await res.json()) as PromotionResult;
-    expect(result.versionReference).toBe('v1');
+    expect(result.versionReference).toBe('P01'); // issued for review (ADR-0041)
     expect(result.roundNumber).toBe(1);
 
     const [version] = await db.select().from(s.versions).where(eq(s.versions.id, result.versionId));
@@ -361,7 +361,7 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     const res = await promote(leadAuthorCookie);
     expect(res.status).toBe(201);
     const result = (await res.json()) as PromotionResult;
-    expect(result.versionReference).toBe('v2');
+    expect(result.versionReference).toBe('P02');
     expect(result.roundNumber).toBe(2);
 
     const cycle = (await (
@@ -401,13 +401,23 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     const chunks = await db.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, acceptedVersionId));
     expect(chunks.length).toBeGreaterThan(0);
 
+    // ISO 19650 (ADR-0041): acceptance issues the CONTRACTUAL C-revision, now
+    // current, of the accepted content — the reviewed P-versions keep their refs
+    const [current] = await db
+      .select()
+      .from(s.versions)
+      .where(and(eq(s.versions.containerId, containerId), eq(s.versions.isCurrent, true)));
+    expect(current!.versionReference).toBe('C01');
+    const [acceptedRound] = await db.select().from(s.versions).where(eq(s.versions.id, acceptedVersionId));
+    expect(current!.content).toBe(acceptedRound!.content); // same content, new contractual issue
+
     // promoting after acceptance is a NEW revision entering review: a fresh
     // cycle launches (the one-ACTIVE-cycle rule; the accepted record stands)
     const rePromote = await promote(leadAuthorCookie);
     expect(rePromote.status).toBe(201);
     const again = (await rePromote.json()) as PromotionResult;
     expect(again.cycleId).not.toBe(closed.id);
-    expect(again.versionReference).toBe('v3');
+    expect(again.versionReference).toBe('P03'); // a fresh P revision after the C-accepted one
     expect(again.roundNumber).toBe(1);
   });
 
@@ -600,7 +610,7 @@ describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
     });
     expect(res.status).toBe(201);
     const frozen = (await res.json()) as { versionReference: string; containerId: string };
-    expect(frozen.versionReference).toBe('P1');
+    expect(frozen.versionReference).toBe('v0.1'); // a plain check-out freezes the working revision (ADR-0041)
     freezeContainerId = frozen.containerId;
 
     // org-private: the project OWNER cannot see the freeze series (ADR-0032)
@@ -638,7 +648,7 @@ describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
       headers: asJson(leadAuthorCookie),
     });
     expect(res.status).toBe(201);
-    expect(((await res.json()) as { versionReference: string }).versionReference).toBe('P2');
+    expect(((await res.json()) as { versionReference: string }).versionReference).toBe('P01'); // the formal internal round issues the first P
 
     const [doc] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, internalDocId));
     expect(doc!.headLocked).toBe(true); // checked out
@@ -814,8 +824,15 @@ describe('ambient history & safe lifecycle (T-128, ADR-0032)', () => {
     }
     const history = (await (
       await app.request(`/sandbox-documents/${historyDocId}/history`, { headers: { cookie: leadAuthorCookie } })
-    ).json()) as { items: Array<{ id: string; createdBy: { name: string } }> };
+    ).json()) as { items: Array<{ id: string; versionReference: string; createdBy: { name: string } }> };
     expect(history.items.length).toBe(3);
+    // the working series (ADR-0041): newest-first, v0.1 the oldest
+    expect(history.items.map((i) => i.versionReference)).toEqual(['v0.3', 'v0.2', 'v0.1']);
+    // and the document's list row shows the current working revision
+    const listed = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string; workingRevision?: string }> };
+    expect(listed.items.find((d) => d.id === historyDocId)!.workingRevision).toBe('v0.3');
 
     const oldest = history.items.at(-1)!;
     const restored = await app.request(`/sandbox-documents/${historyDocId}/restore`, {

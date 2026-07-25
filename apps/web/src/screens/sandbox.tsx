@@ -802,6 +802,11 @@ export function SandboxScreen() {
               <FileText size={14} strokeWidth={2} />
             </span>
             {doc.title}
+            {doc.workingRevision && (
+              <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
+                {doc.workingRevision}
+              </span>
+            )}
             {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
           </span>
         </td>

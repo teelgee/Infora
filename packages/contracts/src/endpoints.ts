@@ -119,6 +119,9 @@ export type SandboxDocument = {
   authoringMetadata: Record<string, unknown>;
   // the freeze's check-out lock (ADR-0032)
   headLocked: boolean;
+  // the current working revision in the sandbox, ISO 19650 v0.x (ADR-0041);
+  // present on list/read where the ambient count is resolved
+  workingRevision?: string;
   updatedAt: string;
 };
 
@@ -660,6 +663,8 @@ export type ListRenditionsResponse = { items: Rendition[] };
 export type SandboxDocumentVersion = {
   id: Id;
   sandboxDocumentId: Id;
+  // the ISO 19650 working revision, v0.x (ADR-0041) — v0.1 is the oldest snapshot
+  versionReference: string;
   createdBy: { participantId: Id; name: string };
   createdAt: string;
 }; // content fetched by restore/preview, not listed

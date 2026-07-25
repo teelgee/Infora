@@ -125,7 +125,7 @@ test('2 — the draft, the freeze, and the org-private internal QA round', async
 
 test('3 — promotion takes the QA-accepted frozen version and opens round 1 to the reviewers', async () => {
   const result = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
-  expect(result.versionReference).toBe('v1');
+  expect(result.versionReference).toBe('P01'); // issued for review (ADR-0041)
   expect(result.roundNumber).toBe(1);
 
   cycle = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!;
@@ -164,7 +164,7 @@ test('4 — issue, respond, and the transmittal back; then acceptance admits the
     content: 'The ecology chapter, survey methodology expanded.',
   });
   const v2 = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
-  expect(v2.versionReference).toBe('v2');
+  expect(v2.versionReference).toBe('P02');
   expect(v2.roundNumber).toBe(2);
 
   // round 2: the accepting verdict closes the cycle
