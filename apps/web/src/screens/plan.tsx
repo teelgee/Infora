@@ -184,11 +184,10 @@ function NewDeliverableModal(props: {
 }
 
 const IDENTITY_KEYS = new Set(['discipline']);
-const AUTHORING_FIELDS = [
-  { key: 'revision', label: 'Revision' },
-  { key: 'suitability', label: 'Suitability' },
-  { key: 'classification', label: 'Classification' },
-];
+// revision is versioning-derived (ADR-0041) and suitability is a schema-defined
+// deliverable attribute (set via the New-deliverable Details form) — neither is a
+// free-text authoring field (T-191). Only genuine free-form annotations here.
+const AUTHORING_FIELDS = [{ key: 'classification', label: 'Classification' }];
 
 function DetailRow(props: { label: string; children: React.ReactNode }) {
   return (

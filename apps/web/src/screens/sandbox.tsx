@@ -57,11 +57,19 @@ import { useMe } from '../session';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
-const AUTHORING_FIELDS = [
-  { key: 'revision', label: 'Revision' },
-  { key: 'suitability', label: 'Suitability' },
-  { key: 'classification', label: 'Classification' },
-];
+// Free-form authoring annotations only. Revision is system-derived (the review
+// cycle / versioning, ADR-0041) and suitability is a schema-defined deliverable
+// attribute — neither is hand-entered here; both are shown read-only (T-191).
+const AUTHORING_FIELDS = [{ key: 'classification', label: 'Classification' }];
+
+// live appointment names, lead marked — for the read-only team display
+const liveNames = (
+  grants: Array<{ name: string; isLead: boolean; revokedAt: string | null; confirmedAt?: string | null }>,
+): string =>
+  grants
+    .filter((g) => g.revokedAt === null)
+    .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}${g.confirmedAt === null ? ' · proposed' : ''}`)
+    .join(', ') || '—';
 
 const scopeLabel: Record<Sandbox['scope'], string> = {
   single_org: 'Single organisation',
@@ -1155,32 +1163,53 @@ export function SandboxScreen() {
           }}
         />
       )}
-      {metaDoc && (
-        <MetadataModal
-          title={`Metadata — ${metaDoc.title}`}
-          editable
-          identity={[
-            { label: 'Title', value: metaDoc.title },
-            {
-              label: 'Deliverable',
-              value: metaDoc.containerId ? (
-                <span className="mono">{planByContainer.get(metaDoc.containerId)?.documentReference ?? 'bound'}</span>
-              ) : (
-                'Unbound'
-              ),
-            },
-            { label: 'Origin', value: metaDoc.origin },
-          ]}
-          metadata={metaDoc.authoringMetadata}
-          suggestedFields={AUTHORING_FIELDS}
-          onClose={() => setMetaDoc(null)}
-          onSave={async (authoring) => {
-            await api.setSandboxMetadata(metaDoc.id, authoring);
-            await loadDocs();
-            setMetaDoc(null);
-          }}
-        />
-      )}
+      {metaDoc &&
+        (() => {
+          const boundRow = metaDoc.containerId ? planByContainer.get(metaDoc.containerId) : undefined;
+          const issued = boundRow?.currentVersion?.versionReference;
+          return (
+            <MetadataModal
+              title={`Metadata — ${metaDoc.title}`}
+              editable
+              identity={[
+                { label: 'Title', value: metaDoc.title },
+                {
+                  label: 'Deliverable',
+                  value: boundRow ? (
+                    <span className="mono">{boundRow.documentReference}</span>
+                  ) : (
+                    'Unbound'
+                  ),
+                },
+                { label: 'Origin', value: metaDoc.origin },
+                {
+                  label: 'Revision',
+                  value: (
+                    <span className="mono">
+                      {metaDoc.workingRevision ?? '—'}
+                      {issued ? ` · issued ${issued}` : ''}
+                    </span>
+                  ),
+                },
+                ...(boundRow
+                  ? [
+                      { label: 'Author(s)', value: liveNames(boundRow.authors) },
+                      { label: 'Reviewer(s)', value: liveNames(boundRow.reviewers) },
+                      { label: 'Document owner', value: boundRow.documentOwner?.name ?? '—' },
+                    ]
+                  : []),
+              ]}
+              metadata={metaDoc.authoringMetadata}
+              suggestedFields={AUTHORING_FIELDS}
+              onClose={() => setMetaDoc(null)}
+              onSave={async (authoring) => {
+                await api.setSandboxMetadata(metaDoc.id, authoring);
+                await loadDocs();
+                setMetaDoc(null);
+              }}
+            />
+          );
+        })()}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 className="page">Sandbox</h1>
