@@ -1,0 +1,1 @@
+ALTER TABLE "sandboxes" ADD COLUMN "allow_member_folder_create" boolean DEFAULT true NOT NULL;

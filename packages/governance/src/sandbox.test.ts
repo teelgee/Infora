@@ -2,7 +2,7 @@
 // a cross-org shared sandbox: Org B and Org C both admitted, plus a stranger
 // org, plus a named-participant grant for the team/named-user rungs.
 import { describe, expect, it } from 'vitest';
-import { canAccessSandbox, canSeeConversation } from './sandbox';
+import { canAccessSandbox, canConfigureSandbox, canSeeConversation } from './sandbox';
 import type { SandboxScopeGrant } from './sandbox';
 import type { EntitledSlice } from './access';
 
@@ -84,6 +84,28 @@ describe('canAccessSandbox (ADR-0036)', () => {
 
   it('an empty grant set admits no one', () => {
     expect(canAccessSandbox(sliceB, [])).toBe(false);
+  });
+});
+
+describe('canConfigureSandbox — the super-user settings act (T-181, ADR-0040)', () => {
+  const owned = { owningOrganisationId: orgB };
+  const superB = { ...sliceB, elevated: true }; // guest super-user of Org B
+  const ownerSuperC = { ...sliceC, membershipRole: 'owner' as const, elevated: true };
+
+  it('an ordinary participant never configures — not even of its own org’s sandbox', () => {
+    expect(canConfigureSandbox(sliceB, owned)).toBe(false);
+  });
+
+  it('a guest super-user configures a sandbox its own organisation owns', () => {
+    expect(canConfigureSandbox(superB, owned)).toBe(true);
+  });
+
+  it('a guest super-user cannot configure another org’s sandbox', () => {
+    expect(canConfigureSandbox({ ...sliceC, elevated: true }, owned)).toBe(false);
+  });
+
+  it('the owner super-user configures any sandbox (the owner-super override)', () => {
+    expect(canConfigureSandbox(ownerSuperC, owned)).toBe(true);
   });
 });
 

@@ -16,6 +16,7 @@ import {
   grantSandboxScopeBody,
   moveDocumentBody,
   moveFolderBody,
+  updateSandboxSettingsBody,
 } from '@infora/contracts';
 import type {
   ApiError,
@@ -26,7 +27,12 @@ import type {
   SandboxFolder,
   SandboxScopeGrantView,
 } from '@infora/contracts';
-import { canAccessSandbox, type EntitledSlice, type SandboxScopeGrant } from '@infora/governance';
+import {
+  canAccessSandbox,
+  canConfigureSandbox,
+  type EntitledSlice,
+  type SandboxScopeGrant,
+} from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
@@ -35,6 +41,8 @@ import type { AppEnv, UserRow } from './requester';
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
 const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
+const forbidden = (c: Context, detail?: string) =>
+  c.json({ error: 'forbidden', ...(detail && { detail }) } satisfies ApiError, 403);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
 async function liveGrants(db: Db, sandboxId: string): Promise<SandboxScopeGrant[]> {
@@ -74,12 +82,14 @@ const toView = (r: typeof s.sandboxScopeGrants.$inferSelect): SandboxScopeGrantV
   organisationId: r.organisationId,
   participantId: r.participantId,
 });
-const toSandbox = (r: typeof s.sandboxes.$inferSelect): Sandbox => ({
+const toSandbox = (r: typeof s.sandboxes.$inferSelect, slice: EntitledSlice): Sandbox => ({
   id: r.id,
   projectId: r.projectId,
   name: r.name,
   scope: r.scope,
   owningOrganisationId: r.owningOrganisationId,
+  allowMemberFolderCreate: r.allowMemberFolderCreate,
+  canConfigure: canConfigureSandbox(slice, r),
 });
 
 export function sandboxRoutes2(deps: { db: Db }) {
@@ -119,7 +129,7 @@ export function sandboxRoutes2(deps: { db: Db }) {
         grantedByParticipantId: slice.participantId,
       });
     }
-    return c.json(toSandbox(sandbox!), 201);
+    return c.json(toSandbox(sandbox!, slice), 201);
   });
 
   // list the sandboxes the requester can access (grant-based)
@@ -131,7 +141,7 @@ export function sandboxRoutes2(deps: { db: Db }) {
       .where(eq(s.sandboxes.projectId, slice.projectId));
     const items: Sandbox[] = [];
     for (const r of rows) {
-      if (canAccessSandbox(slice, await liveGrants(deps.db, r.id))) items.push(toSandbox(r));
+      if (canAccessSandbox(slice, await liveGrants(deps.db, r.id))) items.push(toSandbox(r, slice));
     }
     return c.json({ items } satisfies ListSandboxesResponse);
   });
@@ -143,8 +153,28 @@ export function sandboxRoutes2(deps: { db: Db }) {
       .select()
       .from(s.sandboxScopeGrants)
       .where(and(eq(s.sandboxScopeGrants.sandboxId, ctx.sandbox.id), isNull(s.sandboxScopeGrants.removedAt)));
-    const body: GetSandboxResponse = { ...toSandbox(ctx.sandbox), grants: grants.map(toView) };
+    const body: GetSandboxResponse = { ...toSandbox(ctx.sandbox, ctx.slice), grants: grants.map(toView) };
     return c.json(body);
+  });
+
+  // configure a sandbox's settings (ADR-0040, T-181) — a super-user act: the
+  // owning org's super-user, or the project owner-super (canConfigureSandbox)
+  app.patch('/sandboxes/:sandboxId/settings', async (c) => {
+    const ctx = await resolveSandbox(deps.db, c.get('user'), c.req.param('sandboxId'));
+    if (!ctx) return notFound(c);
+    if (!canConfigureSandbox(ctx.slice, ctx.sandbox)) return forbidden(c, 'super_user_only');
+    const parsed = updateSandboxSettingsBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const [updated] = await deps.db
+      .update(s.sandboxes)
+      .set({
+        ...(parsed.data.allowMemberFolderCreate !== undefined && {
+          allowMemberFolderCreate: parsed.data.allowMemberFolderCreate,
+        }),
+      })
+      .where(eq(s.sandboxes.id, ctx.sandbox.id))
+      .returning();
+    return c.json(toSandbox(updated!, ctx.slice));
   });
 
   // widen the scope. A cross-organisation grant (an org other than the owning
@@ -220,6 +250,12 @@ export function sandboxRoutes2(deps: { db: Db }) {
   app.post('/sandboxes/:sandboxId/folders', async (c) => {
     const ctx = await resolveSandbox(deps.db, c.get('user'), c.req.param('sandboxId'));
     if (!ctx) return notFound(c);
+    // the per-sandbox setting: when member folder creation is off, only a
+    // super-user of the sandbox may add folders — ordinary members work within
+    // the structure the super-user laid out (ADR-0040, T-181)
+    if (!ctx.sandbox.allowMemberFolderCreate && !canConfigureSandbox(ctx.slice, ctx.sandbox)) {
+      return forbidden(c, 'member_folder_create_disabled');
+    }
     const parsed = createFolderBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     // a parent folder, if given, must belong to this sandbox

@@ -165,6 +165,73 @@ describe('folders + document move (T-153, ADR-0036)', () => {
   });
 });
 
+describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', () => {
+  let superCookie: string; // an elevated (super-user) participant in org B
+
+  it('an ordinary member cannot configure; a super-user of the owning org can', async () => {
+    // a guest super-user of org B — elevated participant
+    const [user] = await db
+      .insert(s.users)
+      .values({ name: 't181-bea', email: `t181-bea-${stamp}@test.local`, organisationId: orgB })
+      .returning();
+    await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
+    await db.insert(s.participants).values({ userId: user!.id, projectId, elevated: true });
+    superCookie = await session(user!.email);
+
+    // an ordinary member is refused (403); the setting stays default (on)
+    const denied = await app.request(`/sandboxes/${bSandbox}/settings`, {
+      method: 'PATCH',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ allowMemberFolderCreate: false }),
+    });
+    expect(denied.status).toBe(403);
+
+    // the super-user turns member folder creation off
+    const ok = await app.request(`/sandboxes/${bSandbox}/settings`, {
+      method: 'PATCH',
+      headers: asJson(superCookie),
+      body: JSON.stringify({ allowMemberFolderCreate: false }),
+    });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { allowMemberFolderCreate: boolean }).allowMemberFolderCreate).toBe(false);
+  });
+
+  it('with the toggle off, an ordinary member cannot create a folder but a super-user can', async () => {
+    const member = await app.request(`/sandboxes/${bSandbox}/folders`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ name: 'Members cannot add this' }),
+    });
+    expect(member.status).toBe(403);
+    expect(((await member.json()) as { detail?: string }).detail).toBe('member_folder_create_disabled');
+
+    const superFolder = await app.request(`/sandboxes/${bSandbox}/folders`, {
+      method: 'POST',
+      headers: asJson(superCookie),
+      body: JSON.stringify({ name: 'Super-user structure' }),
+    });
+    expect(superFolder.status).toBe(201);
+  });
+
+  it('canConfigure is a self fact on the read: true for the super-user, false for the member', async () => {
+    const asSuper = (await (await app.request(`/sandboxes/${bSandbox}`, { headers: asJson(superCookie) })).json()) as {
+      canConfigure: boolean;
+    };
+    const asMember = (await (await app.request(`/sandboxes/${bSandbox}`, { headers: asJson(bCookie) })).json()) as {
+      canConfigure: boolean;
+    };
+    expect(asSuper.canConfigure).toBe(true);
+    expect(asMember.canConfigure).toBe(false);
+
+    // restore the default so later shared-state tests are unaffected
+    await app.request(`/sandboxes/${bSandbox}/settings`, {
+      method: 'PATCH',
+      headers: asJson(superCookie),
+      body: JSON.stringify({ allowMemberFolderCreate: true }),
+    });
+  });
+});
+
 describe('bind — the one-way transition (T-153, ADR-0038)', () => {
   it('binds an own document to an own plan row; re-bind conflicts; wrong-org container invalid', async () => {
     const [container] = await db

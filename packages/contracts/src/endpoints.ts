@@ -680,7 +680,19 @@ export type Sandbox = {
   name: string;
   scope: SandboxScope;
   owningOrganisationId: Id;
+  // per-sandbox settings (ADR-0040, T-181); more settings accrue here
+  allowMemberFolderCreate: boolean;
+  // whether the requester may configure this sandbox's settings (a super-user of
+  // the owning org, or the owner-super) — a self fact, decided server-side
+  canConfigure: boolean;
 };
+
+// Update a sandbox's settings (ADR-0040, T-181) — a super-user act. Every field
+// optional; only what is present changes.
+export const updateSandboxSettingsBody = z.object({
+  allowMemberFolderCreate: z.boolean().optional(),
+});
+export type UpdateSandboxSettingsBody = z.infer<typeof updateSandboxSettingsBody>;
 export type SandboxScopeGrantView = {
   id: Id;
   granteeType: 'organisation' | 'participant';

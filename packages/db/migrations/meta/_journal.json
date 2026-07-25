@@ -190,6 +190,13 @@
       "when": 1784959101272,
       "tag": "0026_sandbox-checkout-events",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784959688961,
+      "tag": "0027_sandbox-settings",
+      "breakpoints": true
     }
   ]
 }

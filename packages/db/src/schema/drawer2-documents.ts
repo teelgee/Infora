@@ -176,6 +176,11 @@ export const sandboxes = pgTable('sandboxes', {
   createdByParticipantId: uuid('created_by_participant_id')
     .notNull()
     .references(() => participants.id),
+  // per-sandbox setting (ADR-0040, T-181): may an ordinary participant create
+  // folders, or must they work within the structure a super-user laid out? On by
+  // default (the current self-serve behaviour); a super-user of the owning org (or
+  // the owner-super) turns it off. The seed of a per-sandbox settings surface.
+  allowMemberFolderCreate: boolean('allow_member_folder_create').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

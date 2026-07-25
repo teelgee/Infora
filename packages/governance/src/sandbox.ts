@@ -55,6 +55,22 @@ export function canAccessSandbox(
   return false;
 }
 
+// T-181 — who may configure a sandbox's settings (ADR-0040). A super-user act,
+// split along the wall exactly like sandbox provisioning (ADR-0036 §5): the
+// project owner super-user may configure any sandbox (the owner-super override),
+// and a guest super-user may configure a sandbox its own organisation owns. An
+// ordinary participant never configures — settings are a super-user surface. The
+// setting itself (e.g. allow_member_folder_create) then governs the ordinary
+// participant's reach within the sandbox.
+export function canConfigureSandbox(
+  slice: Pick<EntitledSlice, 'organisationId' | 'membershipRole' | 'elevated'>,
+  sandbox: { owningOrganisationId: string },
+): boolean {
+  if (!slice.elevated) return false; // configuration is a super-user act
+  if (slice.membershipRole === 'owner') return true; // owner-super override
+  return slice.organisationId === sandbox.owningOrganisationId; // guest-super, own sandbox
+}
+
 // The multiplayer thread's visibility (ADR-0039, T-150). A document-bound
 // conversation is a shared thread visible to the document's sandbox participant
 // scope; an ad-hoc conversation is org-private (T-104). Run internals stay

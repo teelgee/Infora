@@ -33,6 +33,7 @@ import {
   LockOpen,
   Plus,
   Send,
+  Settings,
   Users,
   X,
 } from 'lucide-react';
@@ -206,6 +207,55 @@ function MoveModal(props: {
           value={choice}
           onChange={setChoice}
           options={[{ value: '__root__', label: 'Sandbox root' }, ...props.destinations]}
+        />
+      </Field>
+    </Modal>
+  );
+}
+
+// ── Settings: the super-user's per-sandbox configuration (ADR-0040) ──────────
+function SettingsModal(props: {
+  sandbox: Sandbox;
+  onSave: (body: { allowMemberFolderCreate: boolean }) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [allow, setAllow] = useState(props.sandbox.allowMemberFolderCreate);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={`Settings — ${props.sandbox.name}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || allow === props.sandbox.allowMemberFolderCreate}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSave({ allowMemberFolderCreate: allow });
+            }}
+          >
+            Save settings
+          </Button>
+        </>
+      }
+    >
+      <Field
+        label="Folder creation"
+        hint="When members work within the structure, only a super-user of this sandbox may add or nest folders."
+      >
+        <SelectInput
+          value={allow ? 'anyone' : 'super'}
+          onChange={(v) => setAllow(v === 'anyone')}
+          options={[
+            { value: 'anyone', label: 'Anyone in the sandbox may create folders' },
+            { value: 'super', label: 'Members work within the existing structure' },
+          ]}
         />
       </Field>
     </Modal>
@@ -416,7 +466,7 @@ export function SandboxScreen() {
   const [dropTarget, setDropTarget] = useState<string | 'root' | null>(null);
 
   // modal state
-  const [modal, setModal] = useState<'sandbox' | 'doc' | 'folder' | 'access' | null>(null);
+  const [modal, setModal] = useState<'sandbox' | 'doc' | 'folder' | 'access' | 'settings' | null>(null);
   const [bindDoc, setBindDoc] = useState<SandboxDocument | null>(null);
   const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
@@ -747,6 +797,22 @@ export function SandboxScreen() {
           }}
         />
       )}
+      {modal === 'settings' && selectedSandbox && (
+        <SettingsModal
+          sandbox={selectedSandbox}
+          onClose={() => setModal(null)}
+          onSave={async (body) => {
+            try {
+              await api.updateSandboxSettings(selectedSandbox.id, body);
+              await loadSandboxes(); // the setting rides on the sandbox list row
+              setNote('Settings saved.');
+            } catch {
+              setNote('Settings refused — only a super-user of this sandbox may configure it.');
+            }
+            setModal(null);
+          }}
+        />
+      )}
       {moveItem && (
         <MoveModal
           itemName={moveItem.name}
@@ -857,9 +923,21 @@ export function SandboxScreen() {
           <Button size="sm" variant="quiet" onClick={() => setModal('access')}>
             <Users size={13} strokeWidth={2} /> Manage access
           </Button>
-          <Button size="sm" variant="quiet" onClick={() => setModal('folder')}>
-            <FolderPlus size={13} strokeWidth={2} /> New folder
-          </Button>
+          {(selectedSandbox.allowMemberFolderCreate || selectedSandbox.canConfigure) && (
+            <Button size="sm" variant="quiet" onClick={() => setModal('folder')}>
+              <FolderPlus size={13} strokeWidth={2} /> New folder
+            </Button>
+          )}
+          {selectedSandbox.canConfigure && (
+            <Button size="sm" variant="quiet" onClick={() => setModal('settings')}>
+              <Settings size={13} strokeWidth={2} /> Settings
+            </Button>
+          )}
+          {!selectedSandbox.allowMemberFolderCreate && (
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+              Locked structure — folders are set by a super-user
+            </span>
+          )}
         </div>
       )}
 

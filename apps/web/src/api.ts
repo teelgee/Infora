@@ -254,6 +254,11 @@ export const api = {
       body: JSON.stringify({ name, scope }),
     }),
   sandbox: (sandboxId: string) => request<GetSandboxResponse>(`/sandboxes/${sandboxId}`),
+  updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean }) =>
+    request<Sandbox>(`/sandboxes/${sandboxId}/settings`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   grantSandboxScope: (sandboxId: string, body: { organisationId?: string; participantId?: string }) =>
     request<SandboxScopeGrantView>(`/sandboxes/${sandboxId}/scope-grants`, {
       method: 'POST',
