@@ -125,7 +125,7 @@ export function CycleScreen() {
       <p className="page-sub">
         {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
         <Badge tone={status.tone}>{status.label}</Badge>
-        {cycle && (
+        {cycle && cycle.state === 'active' && (
           <>
             {' '}
             · pen with <b>{cycle.editLockHolder === 'reviewing' ? 'the review group' : 'the authoring team'}</b>
@@ -275,6 +275,7 @@ function RoundCard(props: {
   const [commentCode, setCommentCode] = useState('');
   const [verdict, setVerdict] = useState(round.deliverableCode?.id ?? '');
   const [issuing, setIssuing] = useState(false);
+  const [issueBusy, setIssueBusy] = useState(false);
   const [draftAnchor, setDraftAnchor] = useState<CommentAnchor | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const roundState = statusBadge(round.state);
@@ -477,18 +478,29 @@ function RoundCard(props: {
               title="Close & issue the round"
               footer={
                 <>
-                  <Button variant="quiet" onClick={() => setIssuing(false)}>Cancel</Button>
+                  <Button variant="quiet" disabled={issueBusy} onClick={() => setIssuing(false)}>
+                    Cancel
+                  </Button>
                   <Button
                     variant="primary"
+                    disabled={issueBusy}
                     onClick={async () => {
+                      setIssueBusy(true);
                       await props.act(async () => {
                         if (verdict !== round.deliverableCode?.id) await api.setDeliverableCode(round.id, verdict);
                         await api.issueRound(round.id);
                       });
+                      setIssueBusy(false);
                       setIssuing(false);
                     }}
                   >
-                    {accepting ? 'Accept & publish' : 'Issue for revision'}
+                    {issueBusy
+                      ? accepting
+                        ? 'Publishing…'
+                        : 'Issuing…'
+                      : accepting
+                        ? 'Accept & publish'
+                        : 'Issue for revision'}
                   </Button>
                 </>
               }

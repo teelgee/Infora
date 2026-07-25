@@ -985,6 +985,9 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   background: var(--surface-pane); border-radius: var(--primitive-radius-lg);
   box-shadow: var(--primitive-shadow-level4); width: 100%; max-width: 520px;
   display: flex; flex-direction: column;
+  /* never taller than the viewport: header + footer stay pinned, the body
+     scrolls, so the card's controls are always reachable */
+  max-height: calc(100vh - 128px);
 }
 .modal-sm { max-width: 400px; }
 .modal-lg { max-width: 760px; }
@@ -1003,7 +1006,7 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   color: var(--text-muted); border-radius: var(--primitive-radius-sm); cursor: pointer;
 }
 .modal-x:hover { background: var(--surface-hover); color: var(--text-primary); }
-.modal-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-4); }
+.modal-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-4); overflow-y: auto; }
 .modal-foot {
   display: flex; justify-content: flex-end; gap: 8px;
   padding: var(--primitive-space-4) var(--primitive-space-6);
