@@ -29,16 +29,54 @@ const COLUMN_HINTS: Record<string, string> = {
     'The one code segment that carries cross-organisation uniqueness — the producing party’s code. Only one field should be the originator.',
 };
 
-// A header cell carrying a hover explainer: the label plus a small info icon, with
-// the tooltip on the whole cell so hovering anywhere over it explains the column.
+// A header cell carrying a hover explainer: the label plus a small info icon.
+// The explainer is a JS-positioned fixed popover (not a native `title`, which is
+// slow and gets clipped by the table's scroll container) so the detail actually
+// shows on hover.
 function HeaderHint({ label, hintKey }: { label: string; hintKey?: string }) {
   const hint = COLUMN_HINTS[hintKey ?? label];
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  if (!hint) return <th>{label}</th>;
   return (
-    <th title={hint} style={hint ? { cursor: 'help' } : undefined}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+    <th style={{ cursor: 'help', overflow: 'visible' }}>
+      <span
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        onMouseEnter={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setPos({ x: Math.min(r.left, window.innerWidth - 340), y: r.bottom + 6 });
+        }}
+        onMouseLeave={() => setPos(null)}
+      >
         {label}
-        {hint && <Info size={13} aria-hidden style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+        <Info size={13} aria-hidden style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       </span>
+      {pos && (
+        <div
+          role="tooltip"
+          style={{
+            position: 'fixed',
+            left: pos.x,
+            top: pos.y,
+            zIndex: 1000,
+            maxWidth: 320,
+            padding: '8px 10px',
+            fontSize: 12,
+            fontWeight: 400,
+            lineHeight: 1.45,
+            textTransform: 'none',
+            letterSpacing: 'normal',
+            whiteSpace: 'normal',
+            color: 'var(--text-primary)',
+            background: 'var(--surface-pane)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 6,
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.18)',
+            pointerEvents: 'none',
+          }}
+        >
+          {hint}
+        </div>
+      )}
     </th>
   );
 }
