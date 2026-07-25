@@ -181,8 +181,17 @@ export const sandboxes = pgTable('sandboxes', {
   // default (the current self-serve behaviour); a super-user of the owning org (or
   // the owner-super) turns it off. The seed of a per-sandbox settings surface.
   allowMemberFolderCreate: boolean('allow_member_folder_create').notNull().default(true),
+  // the auto-provisioned personal workspace every participant has in a project
+  // (ADR-0036 refinement, T-186): named_user scope, granted only to its owner,
+  // server-created (never through the super-user-gated create path). One per
+  // participant, enforced below.
+  isPersonal: boolean('is_personal').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex('sandboxes_personal_unique')
+    .on(t.createdByParticipantId)
+    .where(sql`${t.isPersonal}`),
+]);
 
 // The live, revocable participant scope, as append-only intervals (ADR-0036):
 // add widens, close (removed_at) revokes — colocated with access so a revoke

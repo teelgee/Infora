@@ -2,7 +2,7 @@
 // a cross-org shared sandbox: Org B and Org C both admitted, plus a stranger
 // org, plus a named-participant grant for the team/named-user rungs.
 import { describe, expect, it } from 'vitest';
-import { canAccessSandbox, canConfigureSandbox, canSeeConversation } from './sandbox';
+import { canAccessSandbox, canConfigureSandbox, canCreateSandbox, canSeeConversation } from './sandbox';
 import type { SandboxScopeGrant } from './sandbox';
 import type { EntitledSlice } from './access';
 
@@ -106,6 +106,29 @@ describe('canConfigureSandbox — the super-user settings act (T-181, ADR-0040)'
 
   it('the owner super-user configures any sandbox (the owner-super override)', () => {
     expect(canConfigureSandbox(ownerSuperC, owned)).toBe(true);
+  });
+});
+
+describe('canCreateSandbox — provisioning is a super-user act (T-186)', () => {
+  const ordinary = sliceB;
+  const guestSuper = { ...sliceB, elevated: true };
+  const ownerSuper = { ...sliceB, membershipRole: 'owner' as const, elevated: true };
+
+  it('an ordinary member cannot create any sandbox', () => {
+    expect(canCreateSandbox(ordinary, 'single_org')).toBe(false);
+    expect(canCreateSandbox(ordinary, 'multi_org')).toBe(false);
+  });
+
+  it('a guest super-user creates private sandboxes but not a shared (cross-org) one', () => {
+    expect(canCreateSandbox(guestSuper, 'single_org')).toBe(true);
+    expect(canCreateSandbox(guestSuper, 'team')).toBe(true);
+    expect(canCreateSandbox(guestSuper, 'named_user')).toBe(true);
+    expect(canCreateSandbox(guestSuper, 'multi_org')).toBe(false); // cross-org is the owner's act
+  });
+
+  it('the owner super-user creates any scope, including shared', () => {
+    expect(canCreateSandbox(ownerSuper, 'multi_org')).toBe(true);
+    expect(canCreateSandbox(ownerSuper, 'single_org')).toBe(true);
   });
 });
 

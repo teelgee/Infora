@@ -32,6 +32,7 @@ import type {
 import {
   canAccessSandbox,
   canConfigureSandbox,
+  canCreateSandbox,
   type EntitledSlice,
   type SandboxScopeGrant,
 } from '@infora/governance';
@@ -78,6 +79,45 @@ async function resolveSandbox(
   return { slice, sandbox };
 }
 
+// Every participant has a personal sandbox in the project (ADR-0036 refinement,
+// T-186): server-provisioned, named_user scope, granted only to its owner.
+// Idempotent — the partial unique index (created_by, is_personal) makes a
+// concurrent double-create a no-op we swallow.
+async function ensurePersonalSandbox(db: Db, slice: EntitledSlice): Promise<void> {
+  const [existing] = await db
+    .select({ id: s.sandboxes.id })
+    .from(s.sandboxes)
+    .where(
+      and(
+        eq(s.sandboxes.createdByParticipantId, slice.participantId),
+        eq(s.sandboxes.isPersonal, true),
+      ),
+    )
+    .limit(1);
+  if (existing) return;
+  try {
+    const [sandbox] = await db
+      .insert(s.sandboxes)
+      .values({
+        projectId: slice.projectId,
+        name: 'Personal workspace',
+        scope: 'named_user',
+        owningOrganisationId: slice.organisationId,
+        createdByParticipantId: slice.participantId,
+        isPersonal: true,
+      })
+      .returning();
+    await db.insert(s.sandboxScopeGrants).values({
+      sandboxId: sandbox!.id,
+      granteeType: 'participant',
+      participantId: slice.participantId,
+      grantedByParticipantId: slice.participantId,
+    });
+  } catch {
+    // a concurrent request won the unique race — the personal sandbox now exists
+  }
+}
+
 const toView = (r: typeof s.sandboxScopeGrants.$inferSelect): SandboxScopeGrantView => ({
   id: r.id,
   granteeType: r.granteeType,
@@ -92,18 +132,21 @@ const toSandbox = (r: typeof s.sandboxes.$inferSelect, slice: EntitledSlice): Sa
   owningOrganisationId: r.owningOrganisationId,
   allowMemberFolderCreate: r.allowMemberFolderCreate,
   canConfigure: canConfigureSandbox(slice, r),
+  isPersonal: r.isPersonal,
 });
 
 export function sandboxRoutes2(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
-  // create a sandbox — self-serve within own org; multi_org is owner-gated
+  // create a sandbox — a super-user act (ADR-0036 refinement, T-186): an ordinary
+  // participant works in their personal sandbox and any they are admitted to;
+  // a shared (cross-org) sandbox stays the owner-super's act (ADR-0018)
   app.post('/projects/:projectId/sandboxes', project, async (c) => {
     const slice = c.get('slice');
     const parsed = createSandboxBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    if (parsed.data.scope === 'multi_org' && slice.membershipRole !== 'owner') return notFound(c);
+    if (!canCreateSandbox(slice, parsed.data.scope)) return forbidden(c, 'super_user_only');
     const [sandbox] = await deps.db
       .insert(s.sandboxes)
       .values({
@@ -137,6 +180,7 @@ export function sandboxRoutes2(deps: { db: Db }) {
   // list the sandboxes the requester can access (grant-based)
   app.get('/projects/:projectId/sandboxes', project, async (c) => {
     const slice = c.get('slice');
+    await ensurePersonalSandbox(deps.db, slice); // every participant has one (T-186)
     const rows = await deps.db
       .select()
       .from(s.sandboxes)

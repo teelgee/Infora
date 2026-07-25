@@ -71,6 +71,22 @@ export function canConfigureSandbox(
   return slice.organisationId === sandbox.owningOrganisationId; // guest-super, own sandbox
 }
 
+// T-186 — who may create a sandbox (ADR-0036 refinement). Provisioning is a
+// super-user act: an ordinary participant never creates one (they work in their
+// personal sandbox and any they are admitted to, creating folders per ADR-0040).
+// A shared (cross-organisation) sandbox opens cross-org visibility, which stays
+// the owner's act (ADR-0018), so only the owner super-user creates one; a guest
+// super-user creates private (own-organisation) sandboxes. Personal sandboxes are
+// server-provisioned and never pass through this gate.
+export function canCreateSandbox(
+  slice: Pick<EntitledSlice, 'membershipRole' | 'elevated'>,
+  scope: 'multi_org' | 'single_org' | 'team' | 'named_user',
+): boolean {
+  if (!slice.elevated) return false; // creation is a super-user act
+  if (scope === 'multi_org') return slice.membershipRole === 'owner'; // cross-org = owner-super
+  return true; // private family (single-org / team / named-user): any super-user
+}
+
 // The multiplayer thread's visibility (ADR-0039, T-150). A document-bound
 // conversation is a shared thread visible to the document's sandbox participant
 // scope; an ad-hoc conversation is org-private (T-104). Run internals stay

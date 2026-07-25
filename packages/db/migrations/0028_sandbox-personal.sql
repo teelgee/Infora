@@ -1,0 +1,2 @@
+ALTER TABLE "sandboxes" ADD COLUMN "is_personal" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "sandboxes_personal_unique" ON "sandboxes" USING btree ("created_by_participant_id") WHERE "sandboxes"."is_personal";

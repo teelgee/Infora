@@ -36,6 +36,7 @@ import {
   Plus,
   Send,
   Settings,
+  User,
   Users,
   X,
 } from 'lucide-react';
@@ -1049,9 +1050,13 @@ export function SandboxScreen() {
           <Button size="sm" variant="primary" onClick={() => setModal('doc')}>
             <FilePlus2 size={14} strokeWidth={2} /> New document
           </Button>
-          <Button size="sm" variant="quiet" onClick={() => setModal('sandbox')}>
-            <Plus size={14} strokeWidth={2} /> Sandbox
-          </Button>
+          {/* creating a sandbox is a super-user act (T-186); an ordinary member
+              works in their personal sandbox and any they are admitted to */}
+          {participant.elevated && (
+            <Button size="sm" variant="quiet" onClick={() => setModal('sandbox')}>
+              <Plus size={14} strokeWidth={2} /> Sandbox
+            </Button>
+          )}
         </span>
       </div>
       <p className="page-sub">
@@ -1074,7 +1079,9 @@ export function SandboxScreen() {
         </div>
       ) : (
         <div className="sandbox-cards">
-          {sandboxes.map((sb) => {
+          {[...sandboxes]
+            .sort((a, b) => Number(b.isPersonal) - Number(a.isPersonal) || a.name.localeCompare(b.name))
+            .map((sb) => {
             const isShared = sb.scope === 'multi_org';
             const others = (sb.organisationIdsInScope ?? [])
               .filter((id) => id !== sb.owningOrganisationId)
@@ -1095,7 +1102,14 @@ export function SandboxScreen() {
                   {orgName(sb.owningOrganisationId)}
                 </span>
                 <span className="sandbox-card-meta">
-                  {isShared ? (
+                  {sb.isPersonal ? (
+                    <>
+                      <span className="ficon">
+                        <User size={13} strokeWidth={2} />
+                      </span>
+                      Personal
+                    </>
+                  ) : isShared ? (
                     <>
                       <span className="ficon">
                         <Users size={13} strokeWidth={2} />

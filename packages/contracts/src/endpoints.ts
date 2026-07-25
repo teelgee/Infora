@@ -693,6 +693,8 @@ export type Sandbox = {
   // the organisations admitted by a live org-grant (ADR-0036) — for the sandbox
   // card's owner/shared display; present on the list read (T-184)
   organisationIdsInScope?: Id[];
+  // the auto-provisioned personal workspace every participant has (T-186)
+  isPersonal: boolean;
 };
 
 // Update a sandbox's settings (ADR-0040, T-181) — a super-user act. Every field

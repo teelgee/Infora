@@ -25,13 +25,13 @@ let cCookie: string;
 let dCookie: string;
 let bParticipant: string;
 
-async function makeUser(name: string, organisationId: string) {
+async function makeUser(name: string, organisationId: string, elevated = false) {
   const [user] = await db
     .insert(s.users)
     .values({ name, email: `${name}-${stamp}@test.local`, organisationId })
     .returning();
   await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
-  const [p] = await db.insert(s.participants).values({ userId: user!.id, projectId }).returning();
+  const [p] = await db.insert(s.participants).values({ userId: user!.id, projectId, elevated }).returning();
   return { user: user!, participant: p! };
 }
 async function session(email: string): Promise<string> {
@@ -64,8 +64,10 @@ beforeAll(async () => {
     { organisationId: orgC, projectId, role: 'member' },
     { organisationId: orgD, projectId, role: 'member' },
   ]);
-  aCookie = await session((await makeUser('t153-anna', orgA)).user.email);
-  const bUser = await makeUser('t153-bram', orgB);
+  // anna is the owner super-user; bram a guest super-user (creation is a
+  // super-user act, T-186); clio and dave are ordinary members
+  aCookie = await session((await makeUser('t153-anna', orgA, true)).user.email);
+  const bUser = await makeUser('t153-bram', orgB, true);
   bParticipant = bUser.participant.id;
   bCookie = await session(bUser.user.email);
   cCookie = await session((await makeUser('t153-clio', orgC)).user.email);
@@ -85,8 +87,8 @@ const createSandbox = (cookie: string, scope: string, name = 'sb') =>
 
 let bSandbox: string;
 
-describe('sandbox creation + grant-based access (T-153, ADR-0036)', () => {
-  it('a member self-serves a single-org sandbox and can see it; an ungranted member cannot', async () => {
+describe('sandbox creation + grant-based access (T-153, ADR-0036/T-186)', () => {
+  it('a super-user creates a single-org sandbox and can see it; an ungranted member cannot', async () => {
     const res = await createSandbox(bCookie, 'single_org', 'B private');
     expect(res.status).toBe(201);
     bSandbox = ((await res.json()) as Sandbox).id;
@@ -97,8 +99,13 @@ describe('sandbox creation + grant-based access (T-153, ADR-0036)', () => {
     expect(dGet.status).toBe(404); // not in the grants — separation by a narrower sandbox
   });
 
-  it('multi_org is owner-gated: a member is denied, the owner allowed', async () => {
-    expect((await createSandbox(bCookie, 'multi_org', 'shared')).status).toBe(404);
+  it('an ordinary member cannot create a sandbox at all (creation is a super-user act, T-186)', async () => {
+    const res = await createSandbox(dCookie, 'single_org', 'D tries');
+    expect(res.status).toBe(403);
+  });
+
+  it('a shared (multi_org) sandbox is the owner-super’s act: a guest super-user is denied, the owner-super allowed', async () => {
+    expect((await createSandbox(bCookie, 'multi_org', 'shared')).status).toBe(403); // guest-super cannot open cross-org
     const owned = await createSandbox(aCookie, 'multi_org', 'A shared');
     expect(owned.status).toBe(201);
   });
@@ -129,6 +136,24 @@ describe('sandbox creation + grant-based access (T-153, ADR-0036)', () => {
       body: JSON.stringify({ organisationId: orgD }),
     });
     expect(bAddD.status).toBe(404);
+  });
+});
+
+describe('personal sandboxes (T-186)', () => {
+  it('every participant has an auto-provisioned personal sandbox, created idempotently', async () => {
+    const read = async () =>
+      (await (
+        await app.request(`/projects/${projectId}/sandboxes`, { headers: asJson(dCookie) })
+      ).json()) as { items: Array<{ isPersonal: boolean; name: string }> };
+    const first = await read();
+    const personal = first.items.filter((i) => i.isPersonal);
+    expect(personal.length).toBe(1);
+    expect(personal[0]!.name).toBe('Personal workspace');
+    // an ordinary member sees only their personal sandbox (no others granted)
+    expect(first.items.length).toBe(1);
+    // idempotent: listing again does not provision a second
+    const second = await read();
+    expect(second.items.filter((i) => i.isPersonal).length).toBe(1);
   });
 });
 
@@ -175,21 +200,17 @@ describe('folders + document move (T-153, ADR-0036)', () => {
 
 describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', () => {
   let superCookie: string; // an elevated (super-user) participant in org B
+  let ordCookie: string; // an ordinary (non-elevated) member in org B
 
   it('an ordinary member cannot configure; a super-user of the owning org can', async () => {
-    // a guest super-user of org B — elevated participant
-    const [user] = await db
-      .insert(s.users)
-      .values({ name: 't181-bea', email: `t181-bea-${stamp}@test.local`, organisationId: orgB })
-      .returning();
-    await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword(password) });
-    await db.insert(s.participants).values({ userId: user!.id, projectId, elevated: true });
-    superCookie = await session(user!.email);
+    // a guest super-user of org B (elevated) and an ordinary org-B member
+    superCookie = await session((await makeUser('t181-bea', orgB, true)).user.email);
+    ordCookie = await session((await makeUser('t181-cid', orgB)).user.email);
 
     // an ordinary member is refused (403); the setting stays default (on)
     const denied = await app.request(`/sandboxes/${bSandbox}/settings`, {
       method: 'PATCH',
-      headers: asJson(bCookie),
+      headers: asJson(ordCookie),
       body: JSON.stringify({ allowMemberFolderCreate: false }),
     });
     expect(denied.status).toBe(403);
@@ -207,7 +228,7 @@ describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', 
   it('with the toggle off, an ordinary member cannot create a folder but a super-user can', async () => {
     const member = await app.request(`/sandboxes/${bSandbox}/folders`, {
       method: 'POST',
-      headers: asJson(bCookie),
+      headers: asJson(ordCookie),
       body: JSON.stringify({ name: 'Members cannot add this' }),
     });
     expect(member.status).toBe(403);
@@ -225,7 +246,7 @@ describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', 
     const asSuper = (await (await app.request(`/sandboxes/${bSandbox}`, { headers: asJson(superCookie) })).json()) as {
       canConfigure: boolean;
     };
-    const asMember = (await (await app.request(`/sandboxes/${bSandbox}`, { headers: asJson(bCookie) })).json()) as {
+    const asMember = (await (await app.request(`/sandboxes/${bSandbox}`, { headers: asJson(ordCookie) })).json()) as {
       canConfigure: boolean;
     };
     expect(asSuper.canConfigure).toBe(true);
@@ -249,7 +270,7 @@ describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', 
     // an ordinary member is refused — laying out structure is a super-user act
     const denied = await app.request(`/sandboxes/${bSandbox}/folder-structure`, {
       method: 'POST',
-      headers: asJson(bCookie),
+      headers: asJson(ordCookie),
       body: JSON.stringify(structure),
     });
     expect(denied.status).toBe(403);
