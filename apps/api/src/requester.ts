@@ -25,6 +25,8 @@ export type AppDeps = {
   router: Router;
   /** CORS allowlist (T-216); defaults to the local dev/e2e web origins. */
   allowedOrigins?: string[];
+  /** Throttle overrides (T-217); defaults: login 10/min/IP, runs 30/min/user. */
+  rateLimits?: { loginPerMinute?: number; runsPerMinute?: number };
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);

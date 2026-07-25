@@ -15,6 +15,7 @@ import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
 import { namingRoutes } from './naming';
 import { containerRoutes, planRoutes } from './plan';
+import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
 import { renditionRoutes } from './renditions';
@@ -62,8 +63,31 @@ export function buildApp(deps: AppDeps) {
     c.header('Referrer-Policy', 'no-referrer');
   });
 
+  // T-217: login guesses are throttled per IP before any credential check
+  app.use(
+    '/auth/session',
+    rateLimit({
+      limit: deps.rateLimits?.loginPerMinute ?? 10,
+      windowMs: 60_000,
+      methods: ['POST'],
+      key: clientIp,
+    }),
+  );
+
   // T-023: identity resolved from the session on every request but login
   app.use('*', sessionMiddleware(deps));
+
+  // T-217: run creation invokes paid model calls — throttled per user (the
+  // session middleware has resolved the requester by here)
+  app.use(
+    '/conversations/:conversationId/runs',
+    rateLimit({
+      limit: deps.rateLimits?.runsPerMinute ?? 30,
+      windowMs: 60_000,
+      methods: ['POST'],
+      key: (c) => c.get('user')?.id,
+    }),
+  );
 
   // Auth & session (M1, M6) — T-021
   app.route('/', authRoutes(deps));

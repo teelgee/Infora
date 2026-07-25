@@ -17,7 +17,14 @@ const router = fakeRouter();
 const { chunks } = await ingestVersions(db, router);
 console.log(`e2e substrate: ${chunks} chunks indexed under the fake embedding model`);
 
-const app = buildApp({ db, sessionSecret: 'e2e-secret', router });
+// the harness logs in per test from one IP, far past the production login
+// default — the substrate raises the throttles rather than shaping the suites
+const app = buildApp({
+  db,
+  sessionSecret: 'e2e-secret',
+  router,
+  rateLimits: { loginPerMinute: 1000, runsPerMinute: 1000 },
+});
 
 serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {
   console.log(`@infora/api (e2e substrate, fake providers) listening on :${info.port}`);

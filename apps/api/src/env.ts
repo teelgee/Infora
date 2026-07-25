@@ -9,6 +9,9 @@ const schema = z.object({
   // dev/e2e web origins only — in dev the web app rides the vite proxy
   // (same-origin), so the default stays strict.
   ALLOWED_ORIGINS: z.string().optional(),
+  // request throttles (T-217); unset means the in-code defaults
+  RATE_LIMIT_LOGIN_PER_MINUTE: z.coerce.number().int().positive().optional(),
+  RATE_LIMIT_RUNS_PER_MINUTE: z.coerce.number().int().positive().optional(),
   // the chain's providers (T-046): Anthropic drafts, Voyage embeds queries
   ANTHROPIC_API_KEY: z.string().min(1),
   VOYAGE_API_KEY: z.string().min(1),

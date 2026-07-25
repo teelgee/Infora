@@ -33,6 +33,15 @@ const app = buildApp({
   sessionSecret: env.SESSION_SECRET,
   router,
   ...(allowedOrigins !== undefined && { allowedOrigins }),
+  // T-217: throttle overrides; unset vars fall through to the in-code defaults
+  rateLimits: {
+    ...(env.RATE_LIMIT_LOGIN_PER_MINUTE !== undefined && {
+      loginPerMinute: env.RATE_LIMIT_LOGIN_PER_MINUTE,
+    }),
+    ...(env.RATE_LIMIT_RUNS_PER_MINUTE !== undefined && {
+      runsPerMinute: env.RATE_LIMIT_RUNS_PER_MINUTE,
+    }),
+  },
 });
 
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
