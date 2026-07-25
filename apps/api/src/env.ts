@@ -2,8 +2,9 @@ import { z } from 'zod';
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
-  // skeleton-auth scaffolding (T-021); replaced at the infra/security session
-  SESSION_SECRET: z.string().min(1).default('dev-only-session-secret'),
+  // session-cookie signing key (T-021, hardened T-206): required, no default —
+  // the API refuses to boot without one. Generate with `openssl rand -hex 32`.
+  SESSION_SECRET: z.string().min(1),
   // the chain's providers (T-046): Anthropic drafts, Voyage embeds queries
   ANTHROPIC_API_KEY: z.string().min(1),
   VOYAGE_API_KEY: z.string().min(1),

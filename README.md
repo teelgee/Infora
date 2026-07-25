@@ -13,6 +13,7 @@ corepack enable                          # activates pnpm from package.json
 pnpm install
 docker compose up -d --wait              # Postgres 17 + pgvector on :5432
 cp .env.example .env                     # defaults match the compose file
+echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env  # required — the API refuses to boot without it
 pnpm --filter @infora/db run migrate     # apply the five-drawer schema
 pnpm --filter @infora/db run seed        # the walking-skeleton seed data
 pnpm run check                           # dep rules + lint + typecheck + tests
