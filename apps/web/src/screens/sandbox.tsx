@@ -48,7 +48,6 @@ import {
   SectionLabel,
   SelectInput,
   Table,
-  TextArea,
   TextInput,
 } from '@infora/ui';
 import { api } from '../api';
@@ -265,61 +264,105 @@ function SettingsModal(props: {
   );
 }
 
-// ── Create folder structure: a super-user lays out a whole nested tree at once ─
-type OutlineNode = { name: string; children: OutlineNode[] };
+// ── Create folder structure: an interactive tree builder ─────────────────────
+// A super-user lays out a nested tree without managing whitespace: type a name,
+// press Enter for the next folder at the same level, or click the subfolder
+// button to nest one inside. The API takes the nested node spec (name + children).
+type BuilderNode = { id: string; name: string; children: BuilderNode[] };
+type StructureNode = { name: string; children: StructureNode[] };
 
-// parse an indented outline (2 spaces / a tab per level) into a nested tree
-function parseOutline(text: string): OutlineNode[] {
-  const roots: OutlineNode[] = [];
-  const stack: { depth: number; node: OutlineNode }[] = [];
-  for (const raw of text.split('\n')) {
-    if (raw.trim() === '') continue;
-    const lead = (raw.match(/^[\t ]*/)?.[0] ?? '').replace(/\t/g, '  ');
-    const depth = Math.floor(lead.length / 2);
-    const node: OutlineNode = { name: raw.trim(), children: [] };
-    while (stack.length && stack[stack.length - 1]!.depth >= depth) stack.pop();
-    if (stack.length === 0) roots.push(node);
-    else stack[stack.length - 1]!.node.children.push(node);
-    stack.push({ depth, node });
-  }
-  return roots;
-}
-function countNodes(nodes: OutlineNode[]): number {
-  return nodes.reduce((n, x) => n + 1 + countNodes(x.children), 0);
-}
-function OutlinePreview({ nodes, depth = 0 }: { nodes: OutlineNode[]; depth?: number }) {
-  return (
-    <>
-      {nodes.map((n, i) => (
-        <div key={`${depth}-${i}-${n.name}`}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: depth * 18, padding: '2px 0' }}>
-            <span className="ficon" style={{ color: 'var(--text-muted)' }}>
-              <Folder size={14} strokeWidth={2} />
-            </span>
-            <span>{n.name}</span>
-          </div>
-          {n.children.length > 0 && <OutlinePreview nodes={n.children} depth={depth + 1} />}
-        </div>
-      ))}
-    </>
+const blankNode = (): BuilderNode => ({ id: crypto.randomUUID(), name: '', children: [] });
+
+const renameNode = (nodes: BuilderNode[], id: string, name: string): BuilderNode[] =>
+  nodes.map((n) => (n.id === id ? { ...n, name } : { ...n, children: renameNode(n.children, id, name) }));
+const removeNode = (nodes: BuilderNode[], id: string): BuilderNode[] =>
+  nodes.filter((n) => n.id !== id).map((n) => ({ ...n, children: removeNode(n.children, id) }));
+const addChild = (nodes: BuilderNode[], parentId: string, child: BuilderNode): BuilderNode[] =>
+  nodes.map((n) =>
+    n.id === parentId
+      ? { ...n, children: [...n.children, child] }
+      : { ...n, children: addChild(n.children, parentId, child) },
   );
-}
+const addSiblingAfter = (nodes: BuilderNode[], afterId: string, sib: BuilderNode): BuilderNode[] => {
+  const out: BuilderNode[] = [];
+  for (const n of nodes) {
+    out.push({ ...n, children: addSiblingAfter(n.children, afterId, sib) });
+    if (n.id === afterId) out.push(sib);
+  }
+  return out;
+};
+const countBuilder = (nodes: BuilderNode[]): number =>
+  nodes.reduce((n, x) => n + 1 + countBuilder(x.children), 0);
+const anyBlank = (nodes: BuilderNode[]): boolean =>
+  nodes.some((n) => n.name.trim() === '' || anyBlank(n.children));
+const toStructure = (nodes: BuilderNode[]): StructureNode[] =>
+  nodes.map((n) => ({ name: n.name.trim(), children: toStructure(n.children) }));
 
 function FolderStructureModal(props: {
   intoName: string | null;
-  onSubmit: (nodes: OutlineNode[]) => Promise<void>;
+  onSubmit: (nodes: StructureNode[]) => Promise<void>;
   onClose: () => void;
 }) {
-  const [text, setText] = useState('');
+  const [nodes, setNodes] = useState<BuilderNode[]>([blankNode()]);
+  const [focusId, setFocusId] = useState<string | null>(nodes[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
-  const nodes = useMemo(() => parseOutline(text), [text]);
-  const count = countNodes(nodes);
+
+  const total = countBuilder(nodes);
+  const blank = anyBlank(nodes);
+
+  const addChildOf = (parentId: string) => {
+    const child = blankNode();
+    setNodes((n) => addChild(n, parentId, child));
+    setFocusId(child.id);
+  };
+  const addSiblingOf = (siblingId: string) => {
+    const sib = blankNode();
+    setNodes((n) => addSiblingAfter(n, siblingId, sib));
+    setFocusId(sib.id);
+  };
+  const addRoot = () => {
+    const root = blankNode();
+    setNodes((n) => [...n, root]);
+    setFocusId(root.id);
+  };
+
+  const rows = (list: BuilderNode[], depth: number): ReactNode[] =>
+    list.flatMap((node) => [
+      <div key={node.id} className="fb-row" style={{ paddingLeft: depth * 22 }}>
+        <span className="ficon">
+          <Folder size={15} strokeWidth={2} />
+        </span>
+        <span style={{ flex: 1 }}>
+          <TextInput
+            value={node.name}
+            onChange={(v) => setNodes((n) => renameNode(n, node.id, v))}
+            placeholder="Folder name"
+            autoFocus={node.id === focusId}
+            onEnter={() => addSiblingOf(node.id)}
+          />
+        </span>
+        <button type="button" className="fb-btn" title="Add a subfolder inside" aria-label={`Add a subfolder inside ${node.name || 'this folder'}`} onClick={() => addChildOf(node.id)}>
+          <FolderPlus size={14} strokeWidth={2} />
+        </button>
+        <button
+          type="button"
+          className="fb-btn"
+          title="Remove this folder"
+          aria-label={`Remove ${node.name || 'this folder'}`}
+          onClick={() => setNodes((n) => (countBuilder(removeNode(n, node.id)) === 0 ? [blankNode()] : removeNode(n, node.id)))}
+        >
+          <X size={14} strokeWidth={2} />
+        </button>
+      </div>,
+      ...rows(node.children, depth + 1),
+    ]);
+
   return (
     <Modal
       open
       onClose={props.onClose}
       title="Create folder structure"
-      size="lg"
+      size="md"
       footer={
         <>
           <Button variant="quiet" onClick={props.onClose}>
@@ -327,47 +370,33 @@ function FolderStructureModal(props: {
           </Button>
           <Button
             variant="primary"
-            disabled={busy || count === 0 || count > 200}
+            disabled={busy || total === 0 || blank || total > 200}
             onClick={async () => {
               setBusy(true);
-              await props.onSubmit(nodes);
+              await props.onSubmit(toStructure(nodes));
             }}
           >
-            {count > 0 ? `Create ${count} folder${count === 1 ? '' : 's'}` : 'Create folders'}
+            {total > 0 ? `Create ${total} folder${total === 1 ? '' : 's'}` : 'Create folders'}
           </Button>
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Field
-          label="Outline"
-          hint={
-            props.intoName
-              ? `Indent with two spaces (or a tab) per level. Created inside ${props.intoName}.`
-              : 'Indent with two spaces (or a tab) per level. Created at the sandbox root.'
-          }
-        >
-          <TextArea
-            value={text}
-            onChange={setText}
-            rows={12}
-            placeholder={'01 Environmental\n  Ecology\n  Noise & vibration\n02 Engineering\n  Civil\n  Electrical'}
-          />
-        </Field>
-        <Field label="Preview">
-          {count === 0 ? (
-            <div className="field-hint">Type an outline to preview the structure.</div>
-          ) : (
-            <div style={{ maxHeight: 320, overflow: 'auto' }}>
-              <OutlinePreview nodes={nodes} />
-              {count > 200 && (
-                <div className="field-hint" style={{ color: 'var(--feedback-danger-text)' }}>
-                  That is {count} folders — keep a structure under 200.
-                </div>
-              )}
-            </div>
-          )}
-        </Field>
+      <p className="field-hint" style={{ marginTop: 0 }}>
+        Press Enter for the next folder at the same level, or use the{' '}
+        <FolderPlus size={12} strokeWidth={2} style={{ verticalAlign: -2 }} /> button to nest one inside.{' '}
+        {props.intoName ? `Created inside ${props.intoName}.` : 'Created at the sandbox root.'}
+      </p>
+      <div className="folder-builder">{rows(nodes, 0)}</div>
+      <div style={{ marginTop: 8 }}>
+        <Button size="sm" variant="quiet" onClick={addRoot}>
+          <Plus size={13} strokeWidth={2} /> Add folder
+        </Button>
+        {blank && <span className="field-hint" style={{ marginLeft: 8 }}>Name every folder, or remove it.</span>}
+        {total > 200 && (
+          <span className="field-hint" style={{ marginLeft: 8, color: 'var(--feedback-danger-text)' }}>
+            Keep the structure under 200 folders.
+          </span>
+        )}
       </div>
     </Modal>
   );
