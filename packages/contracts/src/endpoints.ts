@@ -690,6 +690,9 @@ export type Sandbox = {
   // whether the requester may configure this sandbox's settings (a super-user of
   // the owning org, or the owner-super) — a self fact, decided server-side
   canConfigure: boolean;
+  // the organisations admitted by a live org-grant (ADR-0036) — for the sandbox
+  // card's owner/shared display; present on the list read (T-184)
+  organisationIdsInScope?: Id[];
 };
 
 // Update a sandbox's settings (ADR-0040, T-181) — a super-user act. Every field

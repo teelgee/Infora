@@ -114,6 +114,14 @@ describe('sandbox creation + grant-based access (T-153, ADR-0036)', () => {
     const cGet = await app.request(`/sandboxes/${owned}`, { headers: asJson(cCookie) });
     expect(cGet.status).toBe(200); // C now admitted
 
+    // the list read carries the org-grant scope for the sandbox card (T-184):
+    // both the owning org and the shared-in org appear
+    const list = (await (
+      await app.request(`/projects/${projectId}/sandboxes`, { headers: asJson(aCookie) })
+    ).json()) as { items: Array<{ id: string; organisationIdsInScope?: string[] }> };
+    const card = list.items.find((i) => i.id === owned)!;
+    expect(new Set(card.organisationIdsInScope)).toEqual(new Set([orgA, orgC]));
+
     // B, neither the owning org nor the owner, cannot add D
     const bAddD = await app.request(`/sandboxes/${owned}/scope-grants`, {
       method: 'POST',

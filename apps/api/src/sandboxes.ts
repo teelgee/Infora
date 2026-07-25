@@ -143,7 +143,14 @@ export function sandboxRoutes2(deps: { db: Db }) {
       .where(eq(s.sandboxes.projectId, slice.projectId));
     const items: Sandbox[] = [];
     for (const r of rows) {
-      if (canAccessSandbox(slice, await liveGrants(deps.db, r.id))) items.push(toSandbox(r, slice));
+      const grants = await liveGrants(deps.db, r.id);
+      if (!canAccessSandbox(slice, grants)) continue;
+      // the organisations admitted by a live org-grant — for the card's
+      // owner/shared display (ADR-0036); participant-grant rungs add none
+      const organisationIdsInScope = grants
+        .filter((g) => g.granteeType === 'organisation' && g.organisationId)
+        .map((g) => g.organisationId!);
+      items.push({ ...toSandbox(r, slice), organisationIdsInScope });
     }
     return c.json({ items } satisfies ListSandboxesResponse);
   });

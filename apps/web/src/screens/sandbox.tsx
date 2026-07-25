@@ -19,6 +19,7 @@ import type {
   SandboxScopeGrantView,
 } from '@infora/contracts';
 import {
+  Building2,
   ChevronDown,
   ChevronRight,
   FileCog,
@@ -610,6 +611,12 @@ export function SandboxScreen() {
   const planByContainer = useMemo(() => new Map(plan.map((p) => [p.containerId, p])), [plan]);
   const selectedSandbox = sandboxes.find((s) => s.id === selected) ?? null;
   const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
+  const orgNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of roster) if (!m.has(r.organisationId)) m.set(r.organisationId, r.organisationName);
+    return m;
+  }, [roster]);
+  const orgName = (id: string) => orgNameById.get(id) ?? 'Organisation';
 
   // children indexes for the tree
   const foldersByParent = useMemo(() => {
@@ -1032,23 +1039,57 @@ export function SandboxScreen() {
       )}
 
       <SectionLabel>Sandboxes</SectionLabel>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        {sandboxes.map((sb) => (
-          <Button
-            key={sb.id}
-            size="sm"
-            variant={selected === sb.id ? 'primary' : 'quiet'}
-            onClick={() => setSelected(selected === sb.id ? null : sb.id)}
-          >
-            {sb.name} · {scopeLabel[sb.scope]}
-          </Button>
-        ))}
-        {sandboxes.length === 0 && (
-          <span style={{ color: 'var(--text-muted)' }}>
-            {me.organisationName} has no sandboxes yet — create one to start.
-          </span>
-        )}
-      </div>
+      {sandboxes.length === 0 ? (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 12 }}>
+          {me.organisationName} has no sandboxes yet — create one to start.
+        </div>
+      ) : (
+        <div className="sandbox-cards">
+          {sandboxes.map((sb) => {
+            const isShared = sb.scope === 'multi_org';
+            const others = (sb.organisationIdsInScope ?? [])
+              .filter((id) => id !== sb.owningOrganisationId)
+              .map(orgName);
+            return (
+              <button
+                key={sb.id}
+                type="button"
+                className={`sandbox-card${selected === sb.id ? ' selected' : ''}`}
+                aria-pressed={selected === sb.id}
+                onClick={() => setSelected(selected === sb.id ? null : sb.id)}
+              >
+                <span className="sandbox-card-name">{sb.name}</span>
+                <span className="sandbox-card-meta">
+                  <span className="ficon">
+                    <Building2 size={13} strokeWidth={2} />
+                  </span>
+                  {orgName(sb.owningOrganisationId)}
+                </span>
+                <span className="sandbox-card-meta">
+                  {isShared ? (
+                    <>
+                      <span className="ficon">
+                        <Users size={13} strokeWidth={2} />
+                      </span>
+                      Shared
+                    </>
+                  ) : (
+                    <>
+                      <span className="ficon">
+                        <Lock size={13} strokeWidth={2} />
+                      </span>
+                      {scopeLabel[sb.scope]}
+                    </>
+                  )}
+                </span>
+                {isShared && others.length > 0 && (
+                  <span className="sandbox-card-shared">with {others.join(', ')}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {selectedSandbox && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
