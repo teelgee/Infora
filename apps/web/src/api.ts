@@ -31,6 +31,7 @@ import type {
   PlanRow,
   Resolution,
   ResolveSuggestionResponse,
+  AppointmentGrant,
   ReviewerGrant,
   RosterEntry,
   Run,
@@ -137,6 +138,20 @@ export const api = {
     }),
   restoreDeliverable: (containerId: string) =>
     request<PlanRow>(`/containers/${containerId}/restoration`, { method: 'POST' }),
+  grantAuthor: (containerId: string, participantId: string, isLead: boolean) =>
+    request<AppointmentGrant>(`/containers/${containerId}/authors`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, isLead }),
+    }),
+  revokeAuthor: (grantId: string) =>
+    request<AppointmentGrant>(`/authors/${grantId}/revocation`, { method: 'POST' }),
+  grantReviewer: (containerId: string, participantId: string, isLead: boolean) =>
+    request<ReviewerGrant>(`/containers/${containerId}/reviewers`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId, isLead }),
+    }),
+  revokeReviewer: (grantId: string) =>
+    request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
   // T-120–T-126 — promotion, the freeze and the round loop (ADR-0032)

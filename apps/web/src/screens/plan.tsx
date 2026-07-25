@@ -8,7 +8,7 @@
 // surfaced without manual column config).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import type { MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
+import type { AppointmentGrant, MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
 import { isCodeField } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
@@ -199,6 +199,85 @@ function DetailRow(props: { label: string; children: React.ReactNode }) {
   );
 }
 
+// Appoint / propose a team on a deliverable (T-190). Authors: the producing org
+// appoints its own. Reviewers: the producing org proposes (the owner confirms in
+// Review); the owner may appoint directly. One live lead per side.
+type Grant = AppointmentGrant & { confirmedAt?: string | null };
+function AppointmentEditor(props: {
+  title: string;
+  leadLabel: string;
+  memberLabel: string;
+  grants: Grant[];
+  roster: RosterEntry[];
+  showProposed?: boolean;
+  canEdit: boolean;
+  onAdd: (participantId: string, isLead: boolean) => Promise<void>;
+  onRemove: (grantId: string) => Promise<void>;
+}) {
+  const [pid, setPid] = useState<string | null>(null);
+  const [lead, setLead] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const live = props.grants.filter((g) => g.revokedAt === null);
+  const appointed = new Set(live.map((g) => g.participantId));
+  const candidates = props.roster.filter((r) => !appointed.has(r.participantId));
+  return (
+    <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+      <span className="field-label">{props.title}</span>
+      {live.length === 0 && <span className="field-hint">None appointed.</span>}
+      {live.map((g) => (
+        <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+          <span style={{ color: 'var(--text-muted)', minWidth: 96 }}>{g.isLead ? props.leadLabel : props.memberLabel}</span>
+          <span style={{ flex: 1 }}>
+            {g.name}
+            {props.showProposed && g.confirmedAt == null && <span className="field-hint"> · proposed</span>}
+          </span>
+          {props.canEdit && (
+            <button className="linklike" onClick={() => void props.onRemove(g.id)}>
+              Remove
+            </button>
+          )}
+        </div>
+      ))}
+      {props.canEdit && (
+        <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
+          <Combobox
+            value={pid}
+            onChange={setPid}
+            placeholder={`Add ${props.memberLabel.toLowerCase()}`}
+            options={candidates.map((r) => ({ value: r.participantId, label: r.name, sub: r.organisationName }))}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+              <input type="checkbox" checked={lead} onChange={(e) => setLead(e.target.checked)} /> Lead
+            </label>
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={busy || pid === null}
+              onClick={async () => {
+                setBusy(true);
+                setErr(null);
+                try {
+                  await props.onAdd(pid!, lead);
+                  setPid(null);
+                  setLead(false);
+                } catch {
+                  setErr('Could not add — there may already be a lead.');
+                }
+                setBusy(false);
+              }}
+            >
+              Add
+            </Button>
+            {err && <span className="field-hint" style={{ color: 'var(--feedback-danger-text)' }}>{err}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeliverableDetail(props: {
   row: PlanRow;
   projectId: string;
@@ -226,6 +305,12 @@ function DeliverableDetail(props: {
   const apply = (updated: PlanRow) => {
     setRow(updated);
     props.onChanged(updated);
+  };
+  // appointments return the grant, not the row — re-fetch the row to reflect them
+  const reload = async () => {
+    const res = await api.plan(props.projectId);
+    const fresh = res.items.find((r) => r.containerId === row.containerId);
+    if (fresh) apply(fresh);
   };
 
   return (
@@ -279,26 +364,31 @@ function DeliverableDetail(props: {
         )}
       </div>
 
-      <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
-        <span className="field-label">Authoring team</span>
-        {authors.length === 0 && <span className="field-hint">None appointed.</span>}
-        {authors.map((a) => (
-          <DetailRow key={a.id} label={a.isLead ? 'Lead author' : 'Author'}>
-            {a.name}
-          </DetailRow>
-        ))}
-      </div>
+      <AppointmentEditor
+        title="Authoring team"
+        leadLabel="Lead author"
+        memberLabel="Author"
+        grants={authors}
+        roster={props.roster.filter((p) => p.organisationId === row.producingOrganisationId)}
+        canEdit={props.canEdit}
+        onAdd={(pid, lead) => api.grantAuthor(row.containerId, pid, lead).then(reload)}
+        onRemove={(gid) => api.revokeAuthor(gid).then(reload)}
+      />
 
-      <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
-        <span className="field-label">Review group</span>
-        {reviewers.length === 0 && <span className="field-hint">None appointed.</span>}
-        {reviewers.map((r) => (
-          <DetailRow key={r.id} label={r.isLead ? 'Lead reviewer' : 'Reviewer'}>
-            {r.name}
-            {r.confirmedAt === null && <span className="field-hint"> · proposed</span>}
-          </DetailRow>
-        ))}
-      </div>
+      <AppointmentEditor
+        title="Review group"
+        leadLabel="Lead reviewer"
+        memberLabel="Reviewer"
+        grants={reviewers}
+        roster={props.roster}
+        showProposed
+        canEdit={props.canEdit}
+        onAdd={(pid, lead) => api.grantReviewer(row.containerId, pid, lead).then(reload)}
+        onRemove={(gid) => api.revokeReviewer(gid).then(reload)}
+      />
+      {props.canEdit && reviewers.some((r) => r.confirmedAt === null) && (
+        <span className="field-hint">A proposed reviewer takes effect once the owner confirms it in Review.</span>
+      )}
 
       {row.sharedWith.length > 0 && (
         <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
