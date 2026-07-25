@@ -7,10 +7,26 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button, Modal, SelectInput, TextInput } from '@infora/ui';
+import { optionLabel } from '@infora/contracts';
 
-// a suggested field may be schema-driven: a select with a fixed option set (T-192)
-type SuggestedField = { key: string; label: string; type?: 'text' | 'select'; allowedValues?: string[] };
-type Pair = { key: string; label: string; value: string; custom: boolean; type?: 'text' | 'select'; options?: string[] };
+// a suggested field may be schema-driven: a select with a fixed option set (T-192),
+// each option optionally carrying a human description (code → label, T-197)
+type SuggestedField = {
+  key: string;
+  label: string;
+  type?: 'text' | 'select';
+  allowedValues?: string[];
+  allowedValueLabels?: Record<string, string>;
+};
+type Pair = {
+  key: string;
+  label: string;
+  value: string;
+  custom: boolean;
+  type?: 'text' | 'select';
+  options?: string[];
+  optionLabels?: Record<string, string>;
+};
 
 export function MetadataModal(props: {
   title: string;
@@ -31,6 +47,7 @@ export function MetadataModal(props: {
       custom: false,
       type: f.type,
       options: f.allowedValues,
+      optionLabels: f.allowedValueLabels,
     }));
     const fromCustom = Object.entries(props.metadata)
       .filter(([k]) => !known.has(k))
@@ -113,7 +130,7 @@ export function MetadataModal(props: {
                     onChange={(v) => setValue(i, v)}
                     placeholder="—"
                     disabled={!props.editable}
-                    options={p.options.map((o) => ({ value: o, label: o }))}
+                    options={p.options.map((o) => ({ value: o, label: optionLabel(o, p.optionLabels) }))}
                   />
                 ) : (
                   <TextInput value={p.value} onChange={(v) => setValue(i, v)} disabled={!props.editable} />

@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
-import { defaultDeliverableSchema, isCodeField } from '@infora/contracts';
+import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
 import { Badge, Button, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { Info } from 'lucide-react';
 import { api } from '../api';
@@ -44,6 +44,31 @@ function HeaderHint({ label, hintKey }: { label: string; hintKey?: string }) {
 }
 
 const emptyField = (): NamingSchemeField => ({ key: '', label: '', type: 'text' });
+
+// Options are edited one per line as "CODE = Description" (the description is
+// optional). We parse that into the codes (allowedValues) and a code→description
+// map (allowedValueLabels); a bare code with no "=" just carries no description.
+// Commas are still tolerated as separators for quick bare-code entry.
+function parseOptions(text: string): Pick<NamingSchemeField, 'allowedValues' | 'allowedValueLabels'> {
+  const allowedValues: string[] = [];
+  const labels: Record<string, string> = {};
+  for (const raw of text.split(/[\n,]/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const eq = line.indexOf('=');
+    const code = (eq === -1 ? line : line.slice(0, eq)).trim();
+    const desc = eq === -1 ? '' : line.slice(eq + 1).trim();
+    if (!code) continue;
+    allowedValues.push(code);
+    if (desc) labels[code] = desc;
+  }
+  return { allowedValues, allowedValueLabels: Object.keys(labels).length ? labels : undefined };
+}
+function serializeOptions(f: NamingSchemeField): string {
+  return (f.allowedValues ?? [])
+    .map((v) => (f.allowedValueLabels?.[v] ? `${v} = ${f.allowedValueLabels[v]}` : v))
+    .join('\n');
+}
 
 const TYPE_OPTIONS: { value: SchemaFieldType; label: string }[] = [
   { value: 'text', label: 'Text' },
@@ -179,11 +204,14 @@ export function SchemaScreen() {
                     />
                   </td>
                   <td>
-                    <input
+                    <textarea
                       className="field-input"
-                      value={(f.allowedValues ?? []).join(', ')}
+                      rows={Math.min(6, Math.max(1, f.allowedValues?.length ?? 1))}
+                      placeholder="CODE = Description (one per line)"
+                      value={serializeOptions(f)}
                       disabled={!canEdit || f.type !== 'select'}
-                      onChange={(e) => setField(i, { allowedValues: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                      onChange={(e) => setField(i, parseOptions(e.target.value))}
+                      style={{ resize: 'vertical', minWidth: 220, fontFamily: 'inherit' }}
                     />
                   </td>
                   <td><input type="checkbox" checked={!!f.required} disabled={!canEdit} onChange={(e) => setField(i, { required: e.target.checked })} /></td>
@@ -247,7 +275,7 @@ export function SchemaScreen() {
                       value={previewValues[f.key] ?? ''}
                       onChange={(v) => setPreviewValues((s) => ({ ...s, [f.key]: v }))}
                       placeholder="—"
-                      options={f.allowedValues.map((v) => ({ value: v, label: v }))}
+                      options={f.allowedValues.map((v) => ({ value: v, label: optionLabel(v, f.allowedValueLabels) }))}
                     />
                   ) : (
                     <TextInput value={previewValues[f.key] ?? ''} onChange={(v) => setPreviewValues((s) => ({ ...s, [f.key]: v }))} mono />

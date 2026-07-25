@@ -111,6 +111,9 @@ describe('the deliverable schema default (T-188)', () => {
     expect(body).not.toBeNull();
     expect(body!.fields.some((f) => f.role === 'document_owner')).toBe(true);
     expect(body!.fields.some((f) => f.role === 'lead_reviewer')).toBe(true);
+    // the codes carry human descriptions (T-197)
+    const disc = body!.fields.find((f) => f.key === 'discipline');
+    expect(disc?.allowedValueLabels?.['ECV']).toBe('Engineering – Civils');
     // and a producer can generate a reference straight off the default
     const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', zone: 'Z1', elr: 'OXD', type: 'DRG', discipline: 'ECV' });
     expect(gen.status).toBe(200);

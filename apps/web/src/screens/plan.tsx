@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { AppointmentGrant, MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
-import { isCodeField } from '@infora/contracts';
+import { isCodeField, optionLabel } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
@@ -132,7 +132,7 @@ function NewDeliverableModal(props: {
                     value={values[f.key] ?? ''}
                     onChange={(v) => setValue(f.key, v)}
                     placeholder="—"
-                    options={f.allowedValues.map((v) => ({ value: v, label: v }))}
+                    options={f.allowedValues.map((v) => ({ value: v, label: optionLabel(v, f.allowedValueLabels) }))}
                   />
                 ) : (
                   <TextInput value={values[f.key] ?? ''} onChange={(v) => setValue(f.key, v)} mono />
@@ -168,7 +168,7 @@ function NewDeliverableModal(props: {
                     value={metaValues[f.key] ?? ''}
                     onChange={(v) => setMeta(f.key, v)}
                     placeholder="—"
-                    options={f.allowedValues.map((v) => ({ value: v, label: v }))}
+                    options={f.allowedValues.map((v) => ({ value: v, label: optionLabel(v, f.allowedValueLabels) }))}
                   />
                 ) : f.type === 'date' ? (
                   <input
@@ -548,7 +548,13 @@ export function PlanScreen() {
           suggestedFields={[
             ...(scheme?.fields
               .filter((f) => !isCodeField(f) && !f.role)
-              .map((f) => ({ key: f.key, label: f.label, type: f.type as 'text' | 'select' | undefined, allowedValues: f.allowedValues })) ?? []),
+              .map((f) => ({
+                key: f.key,
+                label: f.label,
+                type: f.type as 'text' | 'select' | undefined,
+                allowedValues: f.allowedValues,
+                allowedValueLabels: f.allowedValueLabels,
+              })) ?? []),
             ...AUTHORING_FIELDS,
           ]}
           onClose={() => setMetaRow(null)}

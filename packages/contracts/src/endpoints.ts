@@ -786,7 +786,8 @@ export type NamingSchemeField = {
   key: string;
   label: string;
   type?: SchemaFieldType; // default 'text'
-  allowedValues?: string[]; // select options
+  allowedValues?: string[]; // select options (the codes)
+  allowedValueLabels?: Record<string, string>; // code -> human description (e.g. ECV -> Engineering – Civils)
   required?: boolean;
   inCode?: boolean; // participates in the coded reference (order matters)
   role?: SchemaFieldRole; // an appointment role slot
@@ -807,11 +808,20 @@ export function isCodeField(f: NamingSchemeField): boolean {
   );
 }
 
+// A select option's display label: the code, plus its human description when the
+// scheme carries one — so a dropdown reads "ECV — Engineering – Civils" while the
+// stored value and the composed reference stay the bare code.
+export function optionLabel(value: string, labels?: Record<string, string>): string {
+  const desc = labels?.[value];
+  return desc ? `${value} — ${desc}` : value;
+}
+
 export const namingSchemeFieldSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
   type: z.enum(['text', 'select', 'date', 'person', 'people', 'serial']).optional(),
   allowedValues: z.array(z.string()).optional(),
+  allowedValueLabels: z.record(z.string(), z.string()).optional(),
   required: z.boolean().optional(),
   inCode: z.boolean().optional(),
   role: z.enum(['author', 'document_owner', 'reviewer', 'lead_reviewer']).optional(),
@@ -834,11 +844,18 @@ export type UpsertNamingSchemeBody = z.infer<typeof upsertNamingSchemeBody>;
 // numbering schema (133735-MWJ-Z0-XXX-PAN-PDC-000001). Example reference:
 // 133735-MWJ-Z1-OXD-DRG-ECV-100001.
 export function defaultDeliverableSchema(): { separator: string; fields: NamingSchemeField[] } {
+  // Each select field pairs its codes with the routewide descriptions, so a
+  // dropdown reads "ECV — Engineering – Civils". opts() keeps codes and labels
+  // in lock-step and preserves order.
+  const opts = (entries: Array<[string, string]>) => ({
+    allowedValues: entries.map(([code]) => code),
+    allowedValueLabels: Object.fromEntries(entries),
+  });
   return {
     separator: '-',
     fields: [
       // Segment 1 — Project (fixed EWR project number)
-      { key: 'project', label: 'Project', type: 'select', inCode: true, required: true, allowedValues: ['133735'] },
+      { key: 'project', label: 'Project', type: 'select', inCode: true, required: true, ...opts([['133735', 'EWR DCO Technical Partner']]) },
       // Segment 2 — Originator (technical partner / appointed party)
       {
         key: 'originator',
@@ -847,7 +864,10 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         inCode: true,
         isOriginator: true,
         required: true,
-        allowedValues: ['MWJ', 'EWR'],
+        ...opts([
+          ['MWJ', 'Mott MacDonald & WSP JV (Technical Partner)'],
+          ['EWR', 'East West Rail Corporate'],
+        ]),
       },
       // Segment 3 — Zone / Volume (function): Z0–Z5 plus station codes
       {
@@ -856,13 +876,37 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         type: 'select',
         inCode: true,
         required: true,
-        allowedValues: [
-          'Z0', 'Z1', 'OXF', 'OXP', 'BIT', 'WIS', 'BLY', 'MKC',
-          'Z2', 'FEN', 'BWB', 'WOB', 'APG', 'RID', 'LID', 'MLB', 'SWR', 'KMH',
-          'Z3', 'BSJ', 'BDM',
-          'Z4', 'TFD', 'CAE',
-          'Z5', 'CMS', 'CBG', 'CGE', 'CMB',
-        ],
+        ...opts([
+          ['Z0', 'Route (project) wide'],
+          ['Z1', 'Oxford to Bletchley incl. Milton Keynes'],
+          ['OXF', 'Oxford Station'],
+          ['OXP', 'Oxford Parkway Station'],
+          ['BIT', 'Bicester Village Station'],
+          ['WIS', 'Winslow Station (provisional)'],
+          ['BLY', 'Bletchley Station'],
+          ['MKC', 'Milton Keynes Station'],
+          ['Z2', 'Bletchley to Bedford'],
+          ['FEN', 'Fenny Stratford Station'],
+          ['BWB', 'Bow Brickhill Station'],
+          ['WOB', 'Woburn Sands Station'],
+          ['APG', 'Aspley Guise Station'],
+          ['RID', 'Ridgmont Station'],
+          ['LID', 'Lidlington Station'],
+          ['MLB', 'Millbrook Station'],
+          ['SWR', 'Stewartby Station'],
+          ['KMH', 'Kempston Hardwick Station'],
+          ['Z3', 'Bedford'],
+          ['BSJ', 'Bedford St Johns Station'],
+          ['BDM', 'Bedford Station'],
+          ['Z4', 'Bedford to River Rhee Viaduct'],
+          ['TFD', 'Tempsford Station (provisional)'],
+          ['CAE', 'Cambourne Station (provisional)'],
+          ['Z5', 'River Rhee Viaduct to Cambridge'],
+          ['CMS', 'Cambridge South Station (provisional)'],
+          ['CBG', 'Cambridge Station'],
+          ['CGE', 'Cambridge East Station'],
+          ['CMB', 'Cambridge North Station'],
+        ]),
       },
       // Segment 4 — ELR / Spatial (Network Rail engineering line references)
       {
@@ -871,7 +915,19 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         type: 'select',
         inCode: true,
         required: true,
-        allowedValues: ['DCL', 'OXD', 'BFO', 'BBM', 'SPC1', 'BRV', 'SBR', 'BGK', 'CCH', 'LEC1', 'XXX'],
+        ...opts([
+          ['DCL', 'Oxford Stn to Oxford North Jcn'],
+          ['OXD', 'Oxford North Jcn to Bletchley Flyover'],
+          ['BFO', 'Bletchley Flyover to Summit Jcn'],
+          ['BBM', 'Summit Jcn to Bedford St Johns'],
+          ['SPC1', 'Bedford St Johns to Bedford Station'],
+          ['BRV', 'Bedford Station to River Rhee Viaduct'],
+          ['SBR', 'Hauxton Jcn to Shepreth Branch Jcn'],
+          ['BGK', 'Shepreth Branch Jcn to Cambridge Station'],
+          ['CCH', 'Coldham Lane Jcn to Haughley Jcn'],
+          ['LEC1', 'London Euston to Crewe Line'],
+          ['XXX', 'Multiple ELRs / remote assets'],
+        ]),
       },
       // Segment 5 — Type / Form (document type)
       {
@@ -880,14 +936,29 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         type: 'select',
         inCode: true,
         required: true,
-        allowedValues: [
-          'AGN', 'AIR', 'APP', 'ASS', 'BEP', 'BOQ', 'BRF', 'CAL', 'CDA', 'CES', 'CHK', 'CHR', 'CIA', 'CMA',
-          'CMF', 'CMG', 'CNT', 'COA', 'COR', 'COT', 'CPP', 'CPQ', 'CRE', 'CRF', 'DDR', 'DES', 'DRG', 'DRN',
-          'EMP', 'EST', 'EWN', 'FRM', 'GDN', 'HSF', 'IDC', 'IDR', 'IMG', 'INS', 'LAZ', 'LET', 'LOG', 'MAN',
-          'MDA', 'MEM', 'MIN', 'MOA', 'MOC', 'MOD', 'NCR', 'NOT', 'OST', 'PAF', 'PAN', 'PCI', 'PDD', 'PDR',
-          'PER', 'PHO', 'PLN', 'PMP', 'POD', 'POL', 'PPL', 'PRO', 'PRS', 'RCD', 'REG', 'REM', 'REP', 'RFI',
-          'SCH', 'SDB', 'SKE', 'SPE', 'SSC', 'SSF', 'STM', 'STQ', 'STR', 'SVY', 'TIF', 'TQN', 'TRN', 'VID', 'ZIP',
-        ],
+        ...opts([
+          ['AGN', 'Agenda'], ['AIR', 'Approval & Issue Record'], ['APP', 'Application'], ['ASS', 'Assessment'],
+          ['BEP', 'BIM Execution Plan'], ['BOQ', 'Bill of Quantity'], ['BRF', 'Briefing Note'], ['CAL', 'Calculation'],
+          ['CDA', 'Commercial Invoice'], ['CES', 'Commercial Estate'], ['CHK', 'Checklist'], ['CHR', 'Change Request'],
+          ['CIA', 'Record of Authorities'], ['CMA', 'Acceptance'], ['CMF', 'Financial'], ['CMG', 'General'],
+          ['CNT', 'Consents & Approval'], ['COA', 'Communication and Correspondence'], ['COR', 'Purchase Order'],
+          ['COT', 'Notification and Notices'], ['CPP', 'Construction Phase Plan'], ['CPQ', 'Pre-Qualification Questionnaire'],
+          ['CRE', 'Requirements'], ['CRF', 'Certificates'], ['DDR', 'Design Development Review'], ['DES', 'Derogation'],
+          ['DRG', 'Drawing'], ['DRN', 'Document Review Notice'], ['EMP', 'Environmental Management Plan'], ['EST', 'Estimate'],
+          ['EWN', 'Early Warning Notice'], ['FRM', 'Form'], ['GDN', 'Guidance Note'], ['HSF', 'Health & Safety File'],
+          ['IDC', 'Interdisciplinary Design Check'], ['IDR', 'Interdisciplinary Design Review'], ['IMG', 'Image'],
+          ['INS', 'Instruction'], ['LAZ', 'LiDAR File'], ['LET', 'Letter / Correspondence'], ['LOG', 'Log'], ['MAN', 'Manual'],
+          ['MDA', 'Materials Data'], ['MEM', 'Memo'], ['MIN', 'Minutes'], ['MOA', 'Model (2D)'], ['MOC', 'Model (Coordination)'],
+          ['MOD', 'Model (3D)'], ['NCR', 'Non-Conformance'], ['NOT', 'Notice / Notification'], ['OST', 'Ordnance Survey Tile'],
+          ['PAF', 'Product Acceptance Form'], ['PAN', 'Project Advice Note'], ['PCI', 'PCIP'], ['PDD', 'Project Definition Document'],
+          ['PDR', 'Preliminary Design Review'], ['PER', 'Permit'], ['PHO', 'Photograph'], ['PLN', 'Plan'], ['PMP', 'Process'],
+          ['POD', 'Point Cloud File'], ['POL', 'Policy'], ['PPL', 'Proposal'], ['PRO', 'Procedure'], ['PRS', 'Presentation'],
+          ['RCD', 'Record'], ['REG', 'Register'], ['REM', 'Remit'], ['REP', 'Report'], ['RFI', 'Request for Information'],
+          ['SCH', 'Risk Assessment'], ['SDB', 'Schedule'], ['SKE', 'Sketch'], ['SPE', 'Specification'], ['SSC', 'Safety Case'],
+          ['SSF', 'Signal Sighting Form'], ['STM', 'Statement'], ['STQ', 'Site Technical Query'], ['STR', 'Strategy'],
+          ['SVY', 'Survey'], ['TIF', 'Task Information Form'], ['TQN', 'Technical Query'], ['TRN', 'Transmittal'],
+          ['VID', 'Video'], ['ZIP', 'Zip Files'],
+        ]),
       },
       // Segment 6 — Role / Discipline (Network Rail discipline codes)
       {
@@ -896,12 +967,23 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         type: 'select',
         inCode: true,
         required: true,
-        allowedValues: [
-          'CCA', 'CES', 'COM', 'CPO', 'CSE', 'DEL', 'EAR', 'ECV', 'EDP', 'EDR', 'EDS', 'EEN', 'EFR', 'EGE',
-          'EHF', 'EHW', 'EME', 'EMF', 'EMG', 'EMN', 'EOH', 'EPT', 'ERS', 'ESC', 'ESE', 'ESG', 'ESS', 'EST',
-          'ESU', 'ETL', 'ETR', 'ETT', 'ETU', 'EUT', 'HEN', 'HSE', 'LEP', 'MPM', 'OPP', 'PDC', 'PPC', 'PPL',
-          'PPR', 'PRK', 'QAS',
-        ],
+        ...opts([
+          ['CCA', 'Contract Administration'], ['CES', 'Estimating'], ['COM', 'Commercial'], ['CPO', 'Procurement'],
+          ['CSE', 'Consents and Stakeholder Engagement'], ['DEL', 'Delivery and Construction'], ['EAR', 'Engineering – Architecture'],
+          ['ECV', 'Engineering – Civils'], ['EDP', 'Engineering – Depots'], ['EDR', 'Engineering – Drainage'],
+          ['EDS', 'Engineering – Distribution'], ['EEN', 'Engineering – Environmental'], ['EFR', 'Engineering – Fire Systems'],
+          ['EGE', 'Engineering – Geotechnical'], ['EHF', 'Engineering – Human Factors'], ['EHW', 'Engineering – Highways'],
+          ['EME', 'Engineering – Mechanical & Electrical'], ['EMF', 'Engineering – Multi Functional'], ['EMG', 'Engineering Management'],
+          ['EMN', 'Engineering – Maintenance'], ['EOH', 'Engineering – Overhead Contact Systems'], ['EPT', 'Engineering – Plant'],
+          ['ERS', 'Engineering – Rivers and Scour'], ['ESC', 'Engineering – SCADA'], ['ESE', 'Engineering – Systems Engineering & Integration'],
+          ['ESG', 'Engineering – Signalling'], ['ESS', 'Engineering – System Safety'], ['EST', 'Engineering – Structures'],
+          ['ESU', 'Engineering – Surveying'], ['ETL', 'Engineering – Telecoms'], ['ETR', 'Engineering – Track'],
+          ['ETT', 'Engineering – Traffic and Transport'], ['ETU', 'Engineering – Tunnelling'], ['EUT', 'Engineering – Utilities'],
+          ['HEN', 'Landscape Architect'], ['HSE', 'Health, Safety and Wellbeing'], ['LEP', 'Land and Property'],
+          ['MPM', 'Project Management'], ['OPP', 'Operations'], ['PDC', 'Document and Information Management'],
+          ['PPC', 'Programme Controls'], ['PPL', 'Planning and Scheduling'], ['PPR', 'Programme Reporting'],
+          ['PRK', 'Risk and Value'], ['QAS', 'Quality Assurance'],
+        ]),
       },
       // Segment 7 — Sequence number (six-digit serial, allocated by the CDE)
       { key: 'serial', label: 'Sequence number', type: 'serial', inCode: true, isSerial: true, width: 6 },
@@ -911,10 +993,45 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
         label: 'Suitability code',
         type: 'select',
         inCode: false,
-        allowedValues: ['S0', 'S1', 'S2', 'S3', 'S4', 'S6', 'S7', 'A1', 'B1', 'CR'],
+        ...opts([
+          ['S0', 'Work in progress'],
+          ['S1', 'Suitable for coordination'],
+          ['S2', 'Suitable for information'],
+          ['S3', 'Suitable for review & comment'],
+          ['S4', 'Suitable for stage approval'],
+          ['S6', 'Suitable for PIM authorisation'],
+          ['S7', 'Suitable for AIM authorisation'],
+          ['A1', 'Authorised & accepted'],
+          ['B1', 'Partially authorised'],
+          ['CR', 'As-constructed record'],
+        ]),
       },
-      { key: 'security', label: 'Security classification', type: 'select', inCode: false, allowedValues: ['OFFICIAL', 'OFFICIAL-SENSITIVE'] },
-      { key: 'nativeFormat', label: 'Native format', type: 'select', inCode: false, allowedValues: ['DOCX', 'XLSX', 'PPTX', 'DGN', 'DWG', 'PDF', 'IFC', 'RVT'] },
+      {
+        key: 'security',
+        label: 'Security classification',
+        type: 'select',
+        inCode: false,
+        ...opts([
+          ['OFFICIAL', 'Official'],
+          ['OFFICIAL-SENSITIVE', 'Official – Sensitive'],
+        ]),
+      },
+      {
+        key: 'nativeFormat',
+        label: 'Native format',
+        type: 'select',
+        inCode: false,
+        ...opts([
+          ['DOCX', 'Microsoft Word'],
+          ['XLSX', 'Microsoft Excel'],
+          ['PPTX', 'Microsoft PowerPoint'],
+          ['DGN', 'MicroStation'],
+          ['DWG', 'AutoCAD'],
+          ['PDF', 'PDF'],
+          ['IFC', 'IFC (openBIM)'],
+          ['RVT', 'Revit'],
+        ]),
+      },
       // Appointment role slots (Prepared / Checked / Approved by, plus owner)
       { key: 'authors', label: 'Author(s)', type: 'people', role: 'author' },
       { key: 'documentOwner', label: 'Document owner', type: 'person', role: 'document_owner' },
