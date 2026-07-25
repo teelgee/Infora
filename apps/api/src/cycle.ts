@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   createReviewCommentBody,
   createReviewResponseBody,
+  closeRejectedBody,
   issueRoundBody,
   patchReviewCommentBody,
   releaseCheckoutBody,
@@ -262,6 +263,7 @@ export async function readCycle(
     editLockHolder: cycle.editLockHolder,
     launchedAt: cycle.launchedAt.toISOString(),
     closedAt: cycle.closedAt?.toISOString() ?? null,
+    closedReason: cycle.closedReason ?? null,
     rounds,
   };
 }
@@ -1042,10 +1044,18 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // (super-user) tier, not a routine project-role power (T-174/T-133). ADR-0032's
     // "lead author or owner may close" is satisfied by granting them elevation.
     if (!slice.elevated) return forbidden(c, 'elevated_required');
+    // a mandatory, audited reason for the permanent stop (T-194)
+    const body = closeRejectedBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid', detail: 'reason_required' } satisfies ApiError, 400);
     await deps.db.transaction(async (tx) => {
       await tx
         .update(s.reviewCycles)
-        .set({ state: 'closed_rejected', closedByParticipantId: slice.participantId, closedAt: sql`now()` })
+        .set({
+          state: 'closed_rejected',
+          closedByParticipantId: slice.participantId,
+          closedAt: sql`now()`,
+          closedReason: body.data.reason,
+        })
         .where(eq(s.reviewCycles.id, cycle.id));
       // the deliverable stands as a record and never grounds (ADR-0013/0032)
       await tx.update(s.containers).set({ state: 'rejected' }).where(eq(s.containers.id, container!.id));

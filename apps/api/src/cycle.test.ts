@@ -476,14 +476,24 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     const sneaky = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
       method: 'POST',
       headers: asJson(colleagueCookie),
+      body: JSON.stringify({ reason: 'x' }),
     });
     expect(sneaky.status).toBe(403);
-    const closed = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
+    // the reason is mandatory (T-194) — a reasonless close is refused
+    const noReason = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
       method: 'POST',
       headers: asJson(leadAuthorCookie),
     });
+    expect(noReason.status).toBe(400);
+    const closed = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ reason: 'Superseded — not to be resubmitted' }),
+    });
     expect(closed.status).toBe(200);
-    expect(((await closed.json()) as ReviewCycle).state).toBe('closed_rejected');
+    const closedBody = (await closed.json()) as ReviewCycle;
+    expect(closedBody.state).toBe('closed_rejected');
+    expect(closedBody.closedReason).toBe('Superseded — not to be resubmitted');
 
     const [container] = await db.select().from(s.containers).where(eq(s.containers.id, container2!.id));
     expect(container!.state).toBe('rejected');

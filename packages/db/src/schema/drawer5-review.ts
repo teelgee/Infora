@@ -78,6 +78,9 @@ export const reviewCycles = pgTable(
     launchedAt: timestamp('launched_at', { withTimezone: true }).notNull().defaultNow(),
     closedByParticipantId: uuid('closed_by_participant_id').references(() => participants.id),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    // the audited reason a cycle was closed as rejected (T-194) — a mandatory
+    // free-text explanation captured at the destructive stop (ADR-0032)
+    closedReason: text('closed_reason'),
   },
   (t) => [
     // the one-in-flight rule (ADR-0002): at most one active cycle per container

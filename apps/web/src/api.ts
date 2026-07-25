@@ -187,8 +187,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body, noChangeReason }),
     }),
-  closeRejected: (cycleId: string) =>
-    request<ReviewCycle>(`/cycles/${cycleId}/close-rejected`, { method: 'POST' }),
+  closeRejected: (cycleId: string, reason: string) =>
+    request<ReviewCycle>(`/cycles/${cycleId}/close-rejected`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
   renditions: (versionId: string) =>
     request<ListRenditionsResponse>(`/versions/${versionId}/renditions`),
   // T-117 — access administration (ADR-0033): org admins staff their seat

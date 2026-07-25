@@ -209,7 +209,9 @@ test('5 — the rejected pathway: an abandoned deliverable stands as a record an
   await eleanor.post(`/sandbox-documents/${doc.id}/promotion`, {});
 
   const active = (await eleanor.get<ReviewCycle | null>(`/containers/${abandoned.containerId}/cycle`))!;
-  const closed = await eleanor.post<ReviewCycle>(`/cycles/${active.id}/close-rejected`, {});
+  const closed = await eleanor.post<ReviewCycle>(`/cycles/${active.id}/close-rejected`, {
+    reason: 'Abandoned — not to be resubmitted',
+  });
   expect(closed.state).toBe('closed_rejected');
 
   // rejected: on the plan as a record, never in the grounded library

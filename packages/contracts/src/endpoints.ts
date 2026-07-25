@@ -604,9 +604,16 @@ export type ReviewCycle = {
   editLockHolder: 'authoring' | 'reviewing';
   launchedAt: string;
   closedAt: string | null;
+  // the audited reason a cycle was closed as rejected (T-194)
+  closedReason: string | null;
   rounds: Round[];
 };
 export type GetCycleResponse = ReviewCycle | null;
+
+// Closing a cycle as rejected is a permanent, audited stop (ADR-0032) — it
+// requires an explicit free-text reason (T-194).
+export const closeRejectedBody = z.object({ reason: z.string().min(1) });
+export type CloseRejectedBody = z.infer<typeof closeRejectedBody>;
 
 const commentAnchorSchema = z.object({
   page: z.number().int().min(1).optional(),

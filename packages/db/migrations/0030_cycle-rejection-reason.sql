@@ -1,0 +1,1 @@
+ALTER TABLE "review_cycles" ADD COLUMN "closed_reason" text;

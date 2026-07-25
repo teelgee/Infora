@@ -21,7 +21,7 @@ import type {
   SandboxDocument,
 } from '@infora/contracts';
 import { Download } from 'lucide-react';
-import { Badge, Button, Card, SectionLabel } from '@infora/ui';
+import { Badge, Button, Card, Field, Modal, SectionLabel, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { statusBadge } from './shared';
 
@@ -46,6 +46,10 @@ export function CycleScreen() {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // the multi-step close-as-rejected flow (T-194): confirm → reason → confirm
+  const [rejectStep, setRejectStep] = useState<'confirm' | 'reason' | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectBusy, setRejectBusy] = useState(false);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -135,6 +139,13 @@ export function CycleScreen() {
         )}
       </p>
 
+      {cycle?.state === 'closed_rejected' && (
+        <div className="banner" style={{ marginBottom: 8 }}>
+          Closed as rejected{cycle.closedReason ? ` — ${cycle.closedReason}` : ''}. The deliverable
+          stays as a record and never grounds.
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {notice && <Badge tone="danger">{notice}</Badge>}
         {draft && myAuthor && (
@@ -152,11 +163,75 @@ export function CycleScreen() {
             (super-user) tier, not a routine project-role power (T-174/T-133). It
             surfaces only to elevated participants. */}
         {cycle?.state === 'active' && me.elevated && (
-          <Button size="sm" variant="danger" onClick={() => void act(() => api.closeRejected(cycle.id))}>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setRejectReason('');
+              setRejectStep('confirm');
+            }}
+          >
             Close as rejected
           </Button>
         )}
       </div>
+
+      {/* the destructive stop is deliberately multi-step (T-194): confirm →
+          reason → confirm, so it can't be triggered in one careless click */}
+      {rejectStep && cycle && (
+        <Modal
+          open
+          onClose={() => setRejectStep(null)}
+          title="Close as rejected"
+          size="sm"
+          footer={
+            rejectStep === 'confirm' ? (
+              <>
+                <Button variant="quiet" onClick={() => setRejectStep(null)}>
+                  Cancel
+                </Button>
+                <Button variant="danger" onClick={() => setRejectStep('reason')}>
+                  Continue
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="quiet" onClick={() => setRejectStep('confirm')}>
+                  Back
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={rejectBusy || rejectReason.trim() === ''}
+                  onClick={async () => {
+                    setRejectBusy(true);
+                    await act(() => api.closeRejected(cycle.id, rejectReason.trim()));
+                    setRejectBusy(false);
+                    setRejectStep(null);
+                  }}
+                >
+                  Close as rejected
+                </Button>
+              </>
+            )
+          }
+        >
+          {rejectStep === 'confirm' ? (
+            <p style={{ fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+              This permanently closes the review cycle as <b>rejected</b>. The deliverable stays as a
+              record, is badged rejected, and never grounds — it cannot be reopened. Continue?
+            </p>
+          ) : (
+            <Field label="Reason for rejection" hint="Recorded on the audit trail — say why it was rejected.">
+              <TextArea
+                value={rejectReason}
+                onChange={setRejectReason}
+                rows={3}
+                placeholder="e.g. Superseded by a re-scoped deliverable; not to be resubmitted."
+              />
+            </Field>
+          )}
+        </Modal>
+      )}
 
       {!cycle && (
         <Card>

@@ -90,6 +90,7 @@ beforeAll(async () => {
     participantId: participant!.id,
     projectId: project!.id,
     membershipRole: 'owner',
+    elevated: false,
   };
 
   liveAlphaVersionId = (
