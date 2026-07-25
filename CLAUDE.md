@@ -33,18 +33,13 @@ reading one directly dumps tens of thousands of tokens for near-zero
 comprehension. **Never `Read`, `cat`, or otherwise load a `.tldr` file's raw
 contents.**
 
-When a task seems to need a diagram's contents:
+When a task needs a diagram's contents, render it locally and `Read` the PNG
+(the Read tool renders images visually):
 
-1. Ask the user first — confirm the diagram is actually needed before spending
-   anything on it.
-2. On confirmation, render it to a **PNG** and `Read` that image (the Read tool
-   renders PNGs visually), rather than reading the raw JSON or asking the user
-   to export it by hand.
+```bash
+node scripts/tldr-to-png.mjs docs/architecture/diagrams/<name>.tldr  # or --all
+```
 
-The `.tldr` files stay the editable source of truth; the PNG is a throwaway
-view for interpretation only.
-
-> A repo converter that renders `.tldr` → PNG locally (parsing the JSON, no
-> tldraw or network, rasterising with the Chromium already installed under
-> `e2e/`) is a planned follow-up — not yet built. Until it exists, ask the user
-> how they want a specific diagram rendered.
+No tldraw, no network — it parses the JSON and rasterises with the Chromium
+under `e2e/` (T-214). Outputs are gitignored. The `.tldr` files stay the
+editable source of truth; the PNG is a throwaway view for interpretation only.

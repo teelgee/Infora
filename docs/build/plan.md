@@ -26,6 +26,8 @@ The design layer defers real identity/security to the infra/security session (co
 
 ## Slice S — Enterprise hardening & docs hygiene *(ticketed 2026-07-25)*
 
+> **Status: 🔨 T-206–T-214 and T-216–T-219 ✅ built 2026-07-25** (three parallel agent runs, one verified commit per ticket; `pnpm audit --prod` now clean and gating CI; e2e 43/43 green). Open: **T-215** (doc reconciliations — needs the owner read-through). **Deviations:** T-207 — `react-router-dom` v8 doesn't exist, the package consolidated into `react-router@8`; imports rewritten, React bumped to 19.2.8 for the peer range. T-217 — the e2e substrate raises the rate limits (the harness logs in ~40× from one IP); production defaults unchanged. T-218 — filed as **ADR-0044**: 0043 was taken the same day by the WOPI-host ADR (Slice A3). The design-gated rulings (CSRF, RLS backstop, cert targets, NFR strawman → [nfr.md](nfr.md)) are recorded in the grill tracker's pre-infra-session block.
+
 The first hardening pass and the docs catch-up, batched: small, mostly independent tickets closing known gaps before any external eye lands on the repo.
 
 | # | Ticket | Deps |
@@ -42,7 +44,7 @@ The first hardening pass and the docs catch-up, batched: small, mostly independe
 | T-215 | **Doc reconciliations** — `repo-structure.md` out of provisional; the ADR-0023 / component-doc reconciliation. *Needs an owner read-through.* | — |
 | T-216 | **CORS + security headers** — an explicit origin allowlist and the standard security-header set on the API. | — |
 | T-217 | **Rate limiting** — the auth and model endpoints throttled. | — |
-| T-218 | **CSRF ruling + enforcement (ADR-0043)** — *awaiting the owner ruling*; enforcement lands with it. | — |
+| T-218 | **CSRF ruling + enforcement (ADR-0044)** — ruled 2026-07-25: SameSite=Lax + a JSON content-type gate on bodied writes, an Origin/Sec-Fetch-Site check on the multipart upload path; token upgrade named for the infra session. | — |
 | T-219 | **Minimal observability** — request IDs, structured logs, `/health`. | — |
 
 *The design-gated items from the same review (the NFR one-pager, certification targets, the DB-level wall backstop) go to the grill tracker and the infra/security session, not this board.*
@@ -53,7 +55,22 @@ The first hardening pass and the docs catch-up, batched: small, mostly independe
 
 Ordered by the wedge-first logic of the overview; each slice names its design gate from the [grill tracker](../grill-sessions/grill-questions.md). Nothing here is execution-ready by design.
 
-**Slice B — The Word add-in** *(design settled, component 8).* The consultant authoring surface: tracked-changes suggestions with citation + rationale, accept/edit/reject as Signals, central M365 deployment. Needs Slice A's promotion path to be fully useful, but drafting on sandbox documents can land earlier.
+**Slice A3 — Co-authoring & the editing substrate: Infora as a WOPI host, native Office files co-authored in real Microsoft Office** — 🎯 **designed 2026-07-25 (ADR-0043 + amendments to 0034 / 0036 / 0039 / 0041); P1 ticketed (T-220–T-222 — renumbered 2026-07-25: the drafted T-208–T-210 were already taken by Slice S), P2–P4 coarse until the CSPP / engine track is live.** The sandbox becomes a true SharePoint / iManage-style working area: drop a draft, open it in Word / Excel / PowerPoint, co-author, and have edits sync straight back — files never leaving Infora. The incumbent-validated posture (iManage Work co-authoring; NetDocuments CollabSpaces — both keep files in their own DMS and become WOPI hosts, renting Office co-authoring via Microsoft's CSPP). Infora stays the system of record and the ethical-wall authority; the SharePoint-as-substrate route was considered and rejected (per-org tenancy collides with the cross-org wall — ADR-0043). Grounding is untouched (library-only; the sandbox never grounds).
+
+**External dependency (owner-driven, gates go-live not the build):** the **Microsoft CSPP application** — real-Office co-authoring cannot ship until Microsoft approves. The WOPI host (P2) is built and validated against a self-hosted dev-harness engine (Collabora / OnlyOffice) meanwhile, then pointed at Microsoft Office at approval (P3). P1 has no Microsoft dependency and ships regardless.
+
+*P1 — DMS parity (no Microsoft dependency, ship now):*
+- **T-220 — Contracts + API: sandbox document rename + replace-native-file.** Close the two gaps found this session: a sandbox document has no rename path (the PATCH bodies only carry `content` / `authoringMetadata`), and an uploaded file cannot be replaced. Add rename (`title`) — allowed on an unbound document; a bound document's display name stays the container's (ADR-0038). Add `POST /sandbox-documents/:id/file` (multipart) replacing the canonical native file with a new upload of the same format family — writes a new blob + `file_ref`, bumps the working revision; **refused while `head_locked`** (it rewrites canonical content, like the T-122 conversion) and only for `origin='uploaded'`. Durable prior-blob retention is P2 (noted). | *(Deps: T-122, T-166)*
+- **T-221 — Surface: rename & replace-file actions in the sandbox drawer.** Per-document row/context actions in the folder view (reusing the T-163 `Modal`): **Rename** (text field) and **Replace file…** (file picker, `origin='uploaded'` only), each surfacing the head-lock refusal cleanly; the row shows format + last-updated. No `window.prompt`, semantic tokens only (the standing A2.1 acceptance tests). | *(Deps: T-220, T-163)*
+- **T-222 — P1 acceptance e2e.** Upload a docx → rename it → replace it with a new docx (working revision increments, history shows it) → check out (freeze) → replace is refused while locked → release → replace succeeds. | *(Deps: T-220, T-221)*
+
+*P2 — the WOPI host + embedded co-authoring* **(coarse — ticketed when the engine track starts).** Migration for the WOPI item/lock refs (reusing `head_locked` / `sandbox_checkout_events`) and the `file_ref` pointer extension; the WOPI host endpoints (`CheckFileInfo` / `GetFile` / `PutFile` / lock) with access gated by `sandbox_scope_grants`; `PutFile` → a `v0.x` ambient working revision (ADR-0041); the embedded editor pane in the sandbox drawer; the dev-harness engine (Collabora / OnlyOffice) provisioned as the first real infra dependency (ADR-0037 / the infra session). Acceptance: open → co-edit → save-back → new working version, plus the wall negative (revoke drops editor access in-transaction).
+
+*P3 — CSPP → real Microsoft Office* **(coarse; gated on the CSPP approval).** Swap the P2 dev-harness engine for genuine Microsoft Office for the web behind the same WOPI host; desktop co-authoring is a later CSPP milestone.
+
+*P4 — the Infora agent as an Office Add-in* **(coarse; converges with Slice B below).** The task-pane Add-in that grounds against the **library** from inside Office via `groundedLibrary(slice)` — the draft (read from Office.js) fused with the grounded record, in one surface. Shares its surface with Slice B's Word add-in; design not settled (ADR-0043 open item).
+
+**Slice B — The Word add-in** *(design settled, component 8; converges with Slice A3 P4).* The consultant authoring surface: tracked-changes suggestions with citation + rationale, accept/edit/reject as Signals, central M365 deployment. Needs Slice A's promotion path to be fully useful, but drafting on sandbox documents can land earlier.
 
 **Slice C — Governance depth** *(part open: threshold tuning, retention/export — bucket A).* Rails as scoped records with the ADR-0030 intersection engine, grounding-threshold calibration, withheld-output UX, audit retention/export, user-UI-action audit sense.
 

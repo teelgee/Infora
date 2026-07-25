@@ -25,5 +25,6 @@ Status markers, used here and on the ticket board:
 | `plan.md` | The ticket board: the open slices, the coarse forward roadmap and the skeleton-auth decision. The Phase-5 planning artefact execution works from; when a slice closes (✅) its block moves to `plan-history.md` in the same commit. | 🟢 Live board — split from the history 2026-07-25 |
 | `plan-history.md` | The closed-slice archive: every ✅ slice's full record (the M0–M6 milestones, the Phase 7 QA batch, Slices A–A2.6), moved verbatim from `plan.md` as slices close. Precedent, not a board — don't load it by default. | ✅ Archive — grows one block per closed slice |
 | `repo-structure.md` | The monorepo + package layout and dependency rules. Relocated from the overview; provisional, to reconcile with the component cut. | 🟡 Provisional |
+| `nfr.md` | The pilot's operational envelope: scale assumptions, availability, RPO/RTO, latency, security floor, revisit triggers. Pre-read for the infra/security session. | 🟡 Strawman (2026-07-25) — scale owner-ruled; the numbers to grill |
 
 Scope discipline: the data model is drawn **drawer by drawer, in step with what is being built** — only the entities the walking skeleton touches, never the whole system at once. Deferred components (custom workflows, spatial connectors) get their tables when they are built.
