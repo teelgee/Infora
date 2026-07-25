@@ -1492,6 +1492,9 @@ const PROMOTE_REASON: Record<string, string> = {
     'Only the deliverable’s lead author can promote — appoint yourself as lead author on the Plan (open the deliverable).',
   no_lead_reviewer:
     'The deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it in Review.',
+  no_author: 'The schema requires an author — appoint one on the Plan (open the deliverable) before promoting.',
+  no_document_owner: 'The schema requires a document owner — set one on the Plan (open the deliverable) before promoting.',
+  no_reviewer: 'The schema requires a confirmed reviewer — propose one on the Plan, then the owner confirms it in Review.',
   round_not_in_respond_phase: 'The review round isn’t in the respond phase yet.',
   unanswered_comments: 'Answer every review comment before re-promoting.',
   internal_cycle_active: 'An internal review cycle is still active — finish or release it first.',

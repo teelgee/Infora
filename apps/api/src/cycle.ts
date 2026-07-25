@@ -36,6 +36,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { generateRenditions } from './renditions';
+import { loadSchemeOrDefault } from './naming';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 
@@ -592,6 +593,27 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         ),
       );
     if (!reviewers.some((r) => r.isLead)) return conflict(c, 'no_lead_reviewer');
+
+    // schema-required appointment roles must be filled before promotion (T-198).
+    // The lead reviewer is always mandatory (above); the owner's schema can also
+    // make author / document owner / reviewer required. Opt-in — the default
+    // marks none required, so this adds no gate unless the owner sets one.
+    const scheme = await loadSchemeOrDefault(deps.db, doc.projectId);
+    const requiredRoles = new Set(scheme.fields.filter((f) => f.role && f.required).map((f) => f.role));
+    if (requiredRoles.has('author')) {
+      const [anyAuthor] = await deps.db
+        .select({ id: s.deliverableAuthors.id })
+        .from(s.deliverableAuthors)
+        .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)))
+        .limit(1);
+      if (!anyAuthor) return conflict(c, 'no_author');
+    }
+    if (requiredRoles.has('document_owner') && !container.documentOwnerParticipantId) {
+      return conflict(c, 'no_document_owner');
+    }
+    if (requiredRoles.has('reviewer') && reviewers.length === 0) {
+      return conflict(c, 'no_reviewer');
+    }
 
     const [existingCycle] = await deps.db
       .select()

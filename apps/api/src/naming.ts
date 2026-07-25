@@ -63,7 +63,7 @@ export function composeReference(
 
 // the saved project scheme, or the Infora default when none has been saved yet
 // (T-188) — so a new project has a working, editable scheme from day one
-async function loadSchemeOrDefault(
+export async function loadSchemeOrDefault(
   db: Db,
   projectId: string,
 ): Promise<{ separator: string; fields: NamingSchemeField[] }> {

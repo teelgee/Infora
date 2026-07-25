@@ -4,7 +4,7 @@
 // appointment role slot. A default Infora schema preloads and is fully editable
 // (change fields, add fields). A guest super-user proposes additions; everyone
 // else views. The code-builder previews a compliant reference from the code fields.
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
@@ -20,7 +20,7 @@ const COLUMN_HINTS: Record<string, string> = {
   Label: 'The human name of this attribute, shown on the plan and metadata card.',
   Key: 'The stable machine name used in data and code — lower-case, no spaces. Rename with care.',
   Type: 'How the value is entered: free text, a fixed list of options, a date, a person/people picker, or an auto-allocated serial number.',
-  Options: 'For a Select type only — the comma-separated list of allowed values (e.g. GEO, ENV, CIV).',
+  Options: 'For a Select type only — the allowed values, one per line as "CODE = Description" (e.g. ECV = Engineering – Civils). The code is stored; the description is shown alongside it in dropdowns.',
   Required: 'When ticked, a deliverable cannot be planned without a value for this field.',
   'In code':
     'When ticked, this field forms part of the coded reference (e.g. WA-BB-GEO-000123). The order of the rows sets the order of the segments.',
@@ -155,6 +155,65 @@ export function SchemaScreen() {
       return next;
     });
 
+  // one field row, rendered against its global index so reorder/remove/edit act
+  // on the flat scheme even though the table is grouped into sections (T-198)
+  const fieldRow = (f: NamingSchemeField, i: number) => {
+    const code = isCodeField(f);
+    return (
+      <tr key={i}>
+        <td><input className="field-input" value={f.label} disabled={!canEdit} onChange={(e) => setField(i, { label: e.target.value })} /></td>
+        <td><input className="field-input mono" value={f.key} disabled={!canEdit} onChange={(e) => setField(i, { key: e.target.value })} /></td>
+        <td>
+          <SelectInput
+            value={f.type ?? 'text'}
+            onChange={(v) => setField(i, { type: v as SchemaFieldType, isSerial: v === 'serial' ? true : undefined, width: v === 'serial' ? (f.width ?? 6) : undefined })}
+            options={TYPE_OPTIONS}
+          />
+        </td>
+        <td>
+          <textarea
+            className="field-input"
+            rows={Math.min(6, Math.max(1, f.allowedValues?.length ?? 1))}
+            placeholder="CODE = Description (one per line)"
+            value={serializeOptions(f)}
+            disabled={!canEdit || f.type !== 'select'}
+            onChange={(e) => setField(i, parseOptions(e.target.value))}
+            style={{ resize: 'vertical', minWidth: 220, fontFamily: 'inherit' }}
+          />
+        </td>
+        <td><input type="checkbox" checked={!!f.required} disabled={!canEdit} onChange={(e) => setField(i, { required: e.target.checked })} /></td>
+        <td><input type="checkbox" checked={code} disabled={!canEdit} onChange={(e) => setField(i, { inCode: e.target.checked })} /></td>
+        <td>
+          <SelectInput
+            value={f.role ?? ''}
+            onChange={(v) => setField(i, { role: (v || undefined) as SchemaFieldRole | undefined })}
+            options={ROLE_OPTIONS}
+          />
+        </td>
+        <td><input type="checkbox" checked={!!f.isOriginator} disabled={!canEdit || !code} onChange={(e) => setField(i, { isOriginator: e.target.checked })} /></td>
+        {canEdit && (
+          <td>
+            <span style={{ display: 'inline-flex', gap: 4 }}>
+              <button className="fb-btn" title="Move up" onClick={() => moveField(i, -1)}>↑</button>
+              <button className="fb-btn" title="Move down" onClick={() => moveField(i, 1)}>↓</button>
+              <button className="fb-btn" title="Remove field" onClick={() => removeField(i)}>✕</button>
+            </span>
+          </td>
+        )}
+      </tr>
+    );
+  };
+
+  // three sections so it reads clearly: what forms the document number, what is
+  // described alongside it, and who is appointed (T-198). Category follows the
+  // field's flags, not its position.
+  const sections: { title: string; hint: string; test: (f: NamingSchemeField) => boolean }[] = [
+    { title: 'Coded reference', hint: 'these fields, in order, form the document number', test: (f) => isCodeField(f) },
+    { title: 'Metadata', hint: 'described on the deliverable — never part of the number', test: (f) => !isCodeField(f) && !f.role },
+    { title: 'Roles', hint: 'appointment slots, filled per deliverable on the plan', test: (f) => !!f.role },
+  ];
+  const colCount = canEdit ? 9 : 8;
+
   return (
     <div className="content">
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
@@ -181,7 +240,7 @@ export function SchemaScreen() {
               <HeaderHint label="Label" />
               <HeaderHint label="Key" />
               <HeaderHint label="Type" />
-              <HeaderHint label="Options (comma-sep)" hintKey="Options" />
+              <HeaderHint label="Options (code = description)" hintKey="Options" />
               <HeaderHint label="Required" />
               <HeaderHint label="In code" />
               <HeaderHint label="Role" />
@@ -190,50 +249,19 @@ export function SchemaScreen() {
             </tr>
           </thead>
           <tbody>
-            {fields.map((f, i) => {
-              const code = isCodeField(f);
+            {sections.map((sec) => {
+              const rows = fields.map((f, i) => [f, i] as const).filter(([f]) => sec.test(f));
+              if (rows.length === 0) return null;
               return (
-                <tr key={i}>
-                  <td><input className="field-input" value={f.label} disabled={!canEdit} onChange={(e) => setField(i, { label: e.target.value })} /></td>
-                  <td><input className="field-input mono" value={f.key} disabled={!canEdit} onChange={(e) => setField(i, { key: e.target.value })} /></td>
-                  <td>
-                    <SelectInput
-                      value={f.type ?? 'text'}
-                      onChange={(v) => setField(i, { type: v as SchemaFieldType, isSerial: v === 'serial' ? true : undefined, width: v === 'serial' ? (f.width ?? 6) : undefined })}
-                      options={TYPE_OPTIONS}
-                    />
-                  </td>
-                  <td>
-                    <textarea
-                      className="field-input"
-                      rows={Math.min(6, Math.max(1, f.allowedValues?.length ?? 1))}
-                      placeholder="CODE = Description (one per line)"
-                      value={serializeOptions(f)}
-                      disabled={!canEdit || f.type !== 'select'}
-                      onChange={(e) => setField(i, parseOptions(e.target.value))}
-                      style={{ resize: 'vertical', minWidth: 220, fontFamily: 'inherit' }}
-                    />
-                  </td>
-                  <td><input type="checkbox" checked={!!f.required} disabled={!canEdit} onChange={(e) => setField(i, { required: e.target.checked })} /></td>
-                  <td><input type="checkbox" checked={code} disabled={!canEdit} onChange={(e) => setField(i, { inCode: e.target.checked })} /></td>
-                  <td>
-                    <SelectInput
-                      value={f.role ?? ''}
-                      onChange={(v) => setField(i, { role: (v || undefined) as SchemaFieldRole | undefined })}
-                      options={ROLE_OPTIONS}
-                    />
-                  </td>
-                  <td><input type="checkbox" checked={!!f.isOriginator} disabled={!canEdit || !code} onChange={(e) => setField(i, { isOriginator: e.target.checked })} /></td>
-                  {canEdit && (
-                    <td>
-                      <span style={{ display: 'inline-flex', gap: 4 }}>
-                        <button className="fb-btn" title="Move up" onClick={() => moveField(i, -1)}>↑</button>
-                        <button className="fb-btn" title="Move down" onClick={() => moveField(i, 1)}>↓</button>
-                        <button className="fb-btn" title="Remove field" onClick={() => removeField(i)}>✕</button>
-                      </span>
+                <Fragment key={sec.title}>
+                  <tr>
+                    <td colSpan={colCount} style={{ background: 'var(--surface-muted)', borderTop: '2px solid var(--border-default)' }}>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{sec.title}</span>{' '}
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>— {sec.hint}</span>
                     </td>
-                  )}
-                </tr>
+                  </tr>
+                  {rows.map(([f, i]) => fieldRow(f, i))}
+                </Fragment>
               );
             })}
           </tbody>

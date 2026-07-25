@@ -155,6 +155,25 @@ describe('promotion (T-120)', () => {
     expect(byOwner.status).toBe(404); // not their sandbox — the wall, silent
   });
 
+  it('a schema-required role blocks promotion until it is filled (T-198)', async () => {
+    // the owner's scheme can make an appointment role mandatory; here the
+    // document owner. The container has none, so promotion is refused.
+    await db.insert(s.projectNamingSchemes).values({
+      projectId,
+      separator: '-',
+      fields: [
+        { key: 'project', label: 'Project', inCode: true },
+        { key: 'serial', label: 'Serial', type: 'serial', isSerial: true, width: 3, inCode: true },
+        { key: 'documentOwner', label: 'Document owner', type: 'person', role: 'document_owner', required: true },
+      ],
+    });
+    const blocked = await promote(leadAuthorCookie);
+    expect(blocked.status).toBe(409);
+    expect(((await blocked.json()) as { detail?: string }).detail).toBe('no_document_owner');
+    // clear the requirement so the shared document can promote normally below
+    await db.delete(s.projectNamingSchemes).where(eq(s.projectNamingSchemes.projectId, projectId));
+  });
+
   it('the first promotion snapshots the head, launches the cycle and opens round 1', async () => {
     const res = await promote(leadAuthorCookie);
     expect(res.status).toBe(201);
