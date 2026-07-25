@@ -1,5 +1,7 @@
 # Contracts — the skeleton's typed API (first cut)
 
+**Contents:** [Principles](#principles-from-the-design-layer-restated-as-api-law) · [1. The Context-assembly contract](#1-the-context-assembly-contract-internal--the-adr-0029-gateway) · [2. Shared types](#2-shared-types) · [3. External endpoints, by milestone](#3-external-endpoints-by-milestone) · [4. Slice A](#4-slice-a--document-management-t-116-2026-07-18) · [5. Error envelope](#5-error-envelope) · [What this cut deliberately omits](#what-this-cut-deliberately-omits)
+
 > **Status: first cut, 2026-07-04.** The handful of typed contracts the walking skeleton needs — the seed of `packages/contracts`, written against the [data model](data-model.md), the [walking skeleton](walking-skeleton.md) and ADR-[0028](../adr/0028-orchestration-run-agent-model.md) / [0029](../adr/0029-context-assembly-contract.md) / [0031](../adr/0031-copilot-ask-surface.md). Scoped drawer-by-drawer like the data model: only what M0–M6 call, nothing wider. Types are TypeScript; the wire format is JSON over HTTPS. Review alongside the first `packages/contracts` commit.
 
 ## Principles (from the design layer, restated as API law)
