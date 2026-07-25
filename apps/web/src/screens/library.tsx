@@ -8,7 +8,17 @@ import type { LibraryItem, MeResponse, PendingTransmittal, RosterEntry } from '@
 import { FileText, Inbox, Send } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
+import { SourceModal } from '../source-modal';
 import { useMe } from '../session';
+
+// the coded reference is the primary identifier — prominent monospace, not the
+// muted 12px .mono treatment used for incidental codes
+const refStyle = {
+  fontFamily: 'var(--primitive-font-family-mono)',
+  fontSize: 13,
+  color: 'var(--text-primary)',
+} as const;
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -63,6 +73,7 @@ export function LibraryScreen() {
   const [pending, setPending] = useState<PendingTransmittal[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
+  const [openVersion, setOpenVersion] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -113,6 +124,7 @@ export function LibraryScreen() {
         list and the grounded corpus together.
       </p>
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
+      {openVersion !== null && <SourceModal versionId={openVersion} onClose={() => setOpenVersion(null)} />}
       {transmitItem && (
         <TransmitModal
           item={transmitItem}
@@ -154,30 +166,52 @@ export function LibraryScreen() {
           <thead>
             <tr>
               <th>Reference</th>
-              <th>State</th>
-              {isOwner && <th style={{ textAlign: 'right' }}></th>}
+              <th>Title</th>
+              <th>Revision</th>
+              <th>Suitability</th>
+              <th>Discipline</th>
+              <th>Producer</th>
+              <th>Issued</th>
+              <th style={{ textAlign: 'right' }}></th>
             </tr>
           </thead>
           <tbody>
             {(items ?? []).map((item) => (
-              <tr key={item.containerId}>
+              <tr
+                key={item.containerId}
+                onClick={() => setOpenVersion(item.currentVersionId)}
+                style={{ cursor: 'pointer' }}
+                title="Open the current revision"
+              >
                 <td>
-                  <span className="ficon"><FileText size={14} strokeWidth={2} /></span>
-                  <span className="mono">{item.documentReference}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <FileText size={14} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={refStyle}>{item.documentReference}</span>
+                  </span>
                 </td>
-                <td><Badge tone="success">Live</Badge></td>
-                {isOwner && (
-                  <td style={{ textAlign: 'right' }}>
-                    <Button size="sm" variant="quiet" onClick={() => setTransmitItem(item)}>
-                      <Send size={13} strokeWidth={2} /> Transmit
+                <td>{item.title ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                <td><span className="mono">{item.revision}</span></td>
+                <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                <td>{item.discipline ? <span className="mono">{item.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                <td>{item.producerName}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(item.issuedAt)}</td>
+                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                  <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <Button size="sm" variant="quiet" onClick={() => setOpenVersion(item.currentVersionId)}>
+                      Open
                     </Button>
-                  </td>
-                )}
+                    {isOwner && (
+                      <Button size="sm" variant="quiet" onClick={() => setTransmitItem(item)}>
+                        <Send size={13} strokeWidth={2} /> Transmit
+                      </Button>
+                    )}
+                  </span>
+                </td>
               </tr>
             ))}
             {items !== null && items.length === 0 && (
               <tr>
-                <td colSpan={isOwner ? 3 : 2} style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={8} style={{ color: 'var(--text-muted)' }}>
                   No live deliverables in this project&apos;s library.
                 </td>
               </tr>

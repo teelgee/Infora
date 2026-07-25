@@ -245,6 +245,12 @@ export type LibraryItem = {
   containerId: Id;
   documentReference: string;
   currentVersionId: Id;
+  title: string | null; // the deliverable title (work-item), when planned
+  revision: string; // the current version reference (e.g. C01, P02)
+  suitability: string | null; // ISO suitability code carried on the container metadata
+  discipline: string | null; // discipline code carried on the container metadata
+  producerName: string; // the producing organisation
+  issuedAt: string; // ISO timestamp of the current version
   state: 'live';
 };
 export type GetLibraryResponse = { items: LibraryItem[] };

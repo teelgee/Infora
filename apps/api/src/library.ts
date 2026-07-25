@@ -28,9 +28,16 @@ export function libraryRoutes(deps: { db: Db }) {
         containerId: s.containers.id,
         documentReference: s.containers.documentReference,
         currentVersionId: s.versions.id,
+        revision: s.versions.versionReference,
+        issuedAt: s.versions.createdAt,
+        metadata: s.containers.metadata,
+        producerName: s.organisations.name,
+        title: s.workItems.title,
       })
       .from(s.containers)
       .innerJoin(s.versions, eq(s.versions.containerId, s.containers.id))
+      .innerJoin(s.organisations, eq(s.organisations.id, s.containers.producingOrganisationId))
+      .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
       .where(
         and(
           eq(s.containers.projectId, slice.projectId),
@@ -44,11 +51,24 @@ export function libraryRoutes(deps: { db: Db }) {
         ),
       )
       .orderBy(asc(s.containers.documentReference));
-    const items = rows.map(
-      // a library-scope container always carries a coded reference — null is
-      // sandbox-scope only (ADR-0032)
-      (row): LibraryItem => ({ ...row, documentReference: row.documentReference!, state: 'live' }),
-    );
+    const items = rows.map((row): LibraryItem => {
+      const meta = (row.metadata ?? {}) as Record<string, unknown>;
+      const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+      return {
+        containerId: row.containerId,
+        // a library-scope container always carries a coded reference — null is
+        // sandbox-scope only (ADR-0032)
+        documentReference: row.documentReference!,
+        currentVersionId: row.currentVersionId,
+        title: str(row.title),
+        revision: row.revision,
+        suitability: str(meta['suitability']),
+        discipline: str(meta['discipline']),
+        producerName: row.producerName,
+        issuedAt: row.issuedAt.toISOString(),
+        state: 'live',
+      };
+    });
     return c.json({ items } satisfies GetLibraryResponse);
   });
 

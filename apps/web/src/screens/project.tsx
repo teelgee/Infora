@@ -40,7 +40,7 @@ const NAV = [
   { label: 'Ask', glyph: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'ask' },
   { label: 'Editor', glyph: <PenLine size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'editor' },
   { label: 'Plan', glyph: <ClipboardList size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'plan' }, // TIDP/MIDP (T-155)
-  { label: 'Documents', glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'documents' },
+  { label: 'Project library', glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'documents' },
   { label: 'Review', glyph: <ClipboardCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'review' },
   { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },
   { label: 'Tools', glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'tools' }, // Workflows renamed (T-109)
@@ -104,7 +104,7 @@ export function ProjectShell() {
         })),
       };
     }
-    if (label === 'Documents') {
+    if (label === 'Project library') {
       return {
         onToggle: () => toggle('documents'),
         expanded: expanded.documents,
