@@ -133,6 +133,11 @@ export const api = {
     request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, { method: 'POST' }),
   freezeDocument: (documentId: string) =>
     request<FreezeResult>(`/sandbox-documents/${documentId}/freeze`, { method: 'POST' }),
+  releaseDocument: (documentId: string, reason?: string) =>
+    request<{ ok: true }>(`/sandbox-documents/${documentId}/release`, {
+      method: 'POST',
+      body: JSON.stringify(reason !== undefined ? { reason } : {}),
+    }),
   addReviewComment: (roundId: string, body: CreateReviewCommentBody) =>
     request<ReviewComment>(`/rounds/${roundId}/comments`, {
       method: 'POST',

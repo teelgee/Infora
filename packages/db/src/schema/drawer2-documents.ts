@@ -389,6 +389,32 @@ export const documentPresence = pgTable(
   (t) => [uniqueIndex('document_presence_doc_participant_unique').on(t.sandboxDocumentId, t.participantId)],
 );
 
+// The freeze check-out audit (ADR-0032 addendum, T-180): an append-only trail of
+// who checked a document out (froze it — locked the head) and who released it. The
+// live lock is sandbox_documents.head_locked; this table is its history. A freeze
+// locks the head and appends 'checked_out'; the standalone release path — or a
+// review round's issue / close — unlocks and appends 'released'. One mechanism (the
+// head lock), audited both ways. The lock is on the document, so it holds for any
+// format (authored text or an uploaded docx/pptx/xlsx).
+export const sandboxCheckoutAction = pgEnum('sandbox_checkout_action', ['checked_out', 'released']);
+export const sandboxCheckoutEvents = pgTable(
+  'sandbox_checkout_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
+    action: sandboxCheckoutAction('action').notNull(),
+    byParticipantId: uuid('by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    // why released (optional) — the audited early-release note (ADR-0032)
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sandbox_checkout_events_document_idx').on(t.sandboxDocumentId)],
+);
+
 // ── The naming scheme (ADR-0008 homed, T-148, Beat 1) ───────────────────────
 // Owner-defined and project-wide, but not fixed. The definition is an ordered
 // list of fields with allowed values; the code-builder (T-152) composes a

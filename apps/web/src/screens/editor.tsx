@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Snowflake,
   ArrowUpFromLine,
+  LockOpen,
 } from 'lucide-react';
 import {
   Badge,
@@ -253,7 +254,8 @@ export function EditorScreen() {
   // can fire before React re-renders, and the closure's `content` would be
   // one keystroke stale — a fast type-then-click-away must not lose the edit
   async function save(value: string) {
-    if (documentId === undefined || doc === null || value === doc.content) return;
+    // a checked-out head is read-only — never fire a save that the API would 409
+    if (documentId === undefined || doc === null || doc.headLocked || value === doc.content) return;
     const updated = await api.patchSandboxDocument(documentId, value);
     setDoc(updated);
     setContent(updated.content);
@@ -482,7 +484,28 @@ export function EditorScreen() {
         <div className="right">
           {documentId !== undefined && <Presence documentId={documentId} />}
           {doc.headLocked && (
-            <Badge tone="warning">Checked out — an internal round is open on the frozen head</Badge>
+            <>
+              <Badge tone="warning">Checked out — frozen, read-only</Badge>
+              <span title="Release the check-out — hands the pen back and unlocks the head (ADR-0032)">
+                <Button
+                  size="sm"
+                  variant="quiet"
+                  onClick={() =>
+                    void api
+                      .releaseDocument(doc.id)
+                      .then(() => load())
+                      .catch(() =>
+                        window.alert(
+                          'Release refused — an open review round, or a check-out that isn’t yours to release.',
+                        ),
+                      )
+                  }
+                >
+                  <LockOpen size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                  Release
+                </Button>
+              </span>
+            </>
           )}
           {!doc.headLocked && doc.origin === 'authored' && (
             <span title="Freeze the head into the document's org-private P-series (ADR-0032)">
@@ -634,6 +657,7 @@ export function EditorScreen() {
                 <textarea
                   ref={canvasRef}
                   value={content}
+                  readOnly={doc.headLocked}
                   onChange={(e) => {
                     setContent(e.target.value);
                     setDirty(true);

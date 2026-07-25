@@ -14,6 +14,7 @@ import {
   createReviewResponseBody,
   issueRoundBody,
   patchReviewCommentBody,
+  releaseCheckoutBody,
   setDeliverableCodeBody,
 } from '@infora/contracts';
 import type {
@@ -373,6 +374,11 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .limit(1);
       if (unanswered) return conflict(c, 'unanswered_comments');
     }
+    // a plain check-out already holds the head; a redundant plain re-freeze would
+    // only stack snapshots — release it first (T-180). A freeze that opens an
+    // internal round (hasLead) is still allowed: it upgrades the standalone
+    // check-out into a formal round on the same locked head.
+    if (doc.headLocked && !activeCycle && !hasLead) return conflict(c, 'already_checked_out');
 
     const versionCount = await deps.db
       .select({ id: s.versions.id })
@@ -430,13 +436,92 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           transmittalId: transmittal!.id,
           content: activeCycle && latestRound ? await snapshotState(tx as unknown as Db, latestRound.id) : { comments: [], responses: [] },
         });
-        // the check-out: the head holds still while the round is open
-        await tx.update(s.sandboxDocuments).set({ headLocked: true }).where(eq(s.sandboxDocuments.id, doc.id));
       }
+      // the check-out: every freeze locks the head, whether or not it opened an
+      // internal round — the standalone freeze and the review-round freeze are one
+      // mechanism now (ADR-0032 addendum, T-180). Audited both ways.
+      await tx.update(s.sandboxDocuments).set({ headLocked: true }).where(eq(s.sandboxDocuments.id, doc.id));
+      await tx.insert(s.sandboxCheckoutEvents).values({
+        sandboxDocumentId: doc.id,
+        action: 'checked_out',
+        byParticipantId: slice.participantId,
+      });
       return { versionId: version!.id, versionReference, containerId: freezeContainer!.id };
     });
     await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
     return c.json(result, 201);
+  });
+
+  // T-180 — Release ("check in"): the audited unlock of a standalone check-out
+  // (ADR-0032's "audited early release"). Only valid on a plain check-out — while
+  // an internal round is open, the round's issue / close is the release (one
+  // head-lock mechanism, two triggers). The participant who checked it out, a live
+  // lead reviewer of the freeze series, or an elevated super-user may release.
+  app.post('/sandbox-documents/:id/release', async (c) => {
+    const id = c.req.param('id');
+    if (!isUuid(id)) return notFound(c);
+    const [doc] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, id))
+      .limit(1);
+    if (!doc) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
+    if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
+    if (!doc.headLocked) return conflict(c, 'not_locked');
+
+    const [freezeContainer] = await deps.db
+      .select()
+      .from(s.containers)
+      .where(eq(s.containers.sandboxDocumentId, doc.id))
+      .limit(1);
+    let lead: Awaited<ReturnType<typeof isLiveConfirmedReviewer>> = null;
+    if (freezeContainer) {
+      // an open internal round owns the lock — it releases through the review flow
+      const [activeCycle] = await deps.db
+        .select({ id: s.reviewCycles.id })
+        .from(s.reviewCycles)
+        .where(and(eq(s.reviewCycles.containerId, freezeContainer.id), eq(s.reviewCycles.state, 'active')))
+        .limit(1);
+      if (activeCycle) {
+        const [openRound] = await deps.db
+          .select({ id: s.rounds.id })
+          .from(s.rounds)
+          .where(and(eq(s.rounds.cycleId, activeCycle.id), eq(s.rounds.state, 'open')))
+          .limit(1);
+        if (openRound) return conflict(c, 'round_open');
+      }
+      lead = await isLiveConfirmedReviewer(deps.db, freezeContainer.id, slice.participantId);
+    }
+
+    const parsed = releaseCheckoutBody.safeParse(await c.req.json().catch(() => ({})));
+    const reason = parsed.success ? parsed.data.reason ?? null : null;
+
+    const [lastCheckout] = await deps.db
+      .select({ by: s.sandboxCheckoutEvents.byParticipantId })
+      .from(s.sandboxCheckoutEvents)
+      .where(
+        and(
+          eq(s.sandboxCheckoutEvents.sandboxDocumentId, doc.id),
+          eq(s.sandboxCheckoutEvents.action, 'checked_out'),
+        ),
+      )
+      .orderBy(sql`${s.sandboxCheckoutEvents.createdAt} desc`)
+      .limit(1);
+    const mayRelease =
+      slice.elevated || (lead?.isLead ?? false) || lastCheckout?.by === slice.participantId;
+    if (!mayRelease) return forbidden(c, 'release_not_permitted');
+
+    await deps.db.transaction(async (tx) => {
+      await tx.update(s.sandboxDocuments).set({ headLocked: false }).where(eq(s.sandboxDocuments.id, doc.id));
+      await tx.insert(s.sandboxCheckoutEvents).values({
+        sandboxDocumentId: doc.id,
+        action: 'released',
+        byParticipantId: slice.participantId,
+        reason,
+      });
+    });
+    return c.json({ ok: true });
   });
 
   // T-120 — Promote: the lead author's near-empty hand-off (ADR-0008/0017).
@@ -763,11 +848,17 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .values({ transmittalId: transmittal!.id, content: await snapshotState(tx as unknown as Db, round.id) });
       await tx.update(s.rounds).set({ state: 'issued' }).where(eq(s.rounds.id, round.id));
       if (container.scope === 'sandbox' && container.sandboxDocumentId) {
-        // issue hands the pen back: the check-out lock releases (ADR-0032)
+        // issue hands the pen back: the check-out lock releases (ADR-0032), audited
+        // on the same trail as a standalone release (T-180)
         await tx
           .update(s.sandboxDocuments)
           .set({ headLocked: false })
           .where(eq(s.sandboxDocuments.id, container.sandboxDocumentId));
+        await tx.insert(s.sandboxCheckoutEvents).values({
+          sandboxDocumentId: container.sandboxDocumentId,
+          action: 'released',
+          byParticipantId: slice.participantId,
+        });
       }
       if (accepting) {
         await tx
@@ -891,6 +982,11 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           .update(s.sandboxDocuments)
           .set({ headLocked: false })
           .where(eq(s.sandboxDocuments.id, container!.sandboxDocumentId));
+        await tx.insert(s.sandboxCheckoutEvents).values({
+          sandboxDocumentId: container!.sandboxDocumentId,
+          action: 'released',
+          byParticipantId: slice.participantId,
+        });
       }
     });
     return c.json(await readCycle(deps.db, container!, slice));

@@ -126,6 +126,9 @@ export function uploadRoutes(deps: { db: Db }) {
       .limit(1);
     if (doc!.origin !== 'uploaded') return invalid(c, 'already_authored');
     if (doc!.format !== 'docx') return invalid(c, 'unsupported_conversion');
+    // a checked-out head holds still for every format — conversion rewrites the
+    // canonical content, so it is refused while locked (ADR-0032 addendum, T-180)
+    if (doc!.headLocked) return c.json({ error: 'conflict', detail: 'head_locked' } satisfies ApiError, 409);
     const bytes = doc!.fileRef ? getBlob(doc!.fileRef) : null;
     const text = bytes ? docxToText(bytes) : null;
     if (text === null) return invalid(c, 'unreadable_file');

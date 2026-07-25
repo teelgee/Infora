@@ -30,6 +30,7 @@ import {
   FolderPlus,
   Link2,
   Lock,
+  LockOpen,
   Plus,
   Send,
   Users,
@@ -374,9 +375,15 @@ function DocActions(props: {
           <Link2 size={13} strokeWidth={2} /> Bind
         </Button>
       )}
-      <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)}>
-        Freeze
-      </Button>
+      {doc.headLocked ? (
+        <Button size="sm" variant="quiet" onClick={() => void release(doc, props.reload, props.setNote)}>
+          <LockOpen size={13} strokeWidth={2} /> Release
+        </Button>
+      ) : (
+        <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)}>
+          <Lock size={13} strokeWidth={2} /> Freeze
+        </Button>
+      )}
       {doc.containerId && (
         <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)}>
           <Send size={13} strokeWidth={2} /> Promote
@@ -990,9 +997,23 @@ async function freeze(
   try {
     await api.freezeDocument(doc.id);
     await reload();
-    setNote('Frozen for internal review — the head locks while a round is open.');
+    setNote('Checked out — the head is frozen and locked. Release it to edit again.');
   } catch {
-    setNote('Freeze failed.');
+    setNote('Freeze failed — it may already be checked out.');
+  }
+}
+
+async function release(
+  doc: SandboxDocument,
+  reload: () => Promise<unknown>,
+  setNote: (s: string) => void,
+) {
+  try {
+    await api.releaseDocument(doc.id);
+    await reload();
+    setNote('Released — the document is editable again.');
+  } catch {
+    setNote('Release refused — an open review round, or a check-out that isn’t yours to release.');
   }
 }
 

@@ -325,6 +325,13 @@ export function sandboxRoutes(deps: { db: Db }) {
   // T-128 — safe lifecycle (the ProjectWise A1 fold-in): soft-delete with
   // self-service restore; recovery is never a helpdesk ticket.
   app.delete('/sandbox-documents/:id', documentScope, async (c) => {
+    const [locked] = await deps.db
+      .select({ headLocked: s.sandboxDocuments.headLocked })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    // a checked-out document must be released before it can be removed (T-180)
+    if (locked?.headLocked) return c.json({ error: 'conflict', detail: 'head_locked' } satisfies ApiError, 409);
     const [row] = await deps.db
       .update(s.sandboxDocuments)
       .set({ deletedAt: sql`now()` })

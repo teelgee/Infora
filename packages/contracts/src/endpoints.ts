@@ -529,6 +529,11 @@ export type PromotionResult = {
 };
 export type FreezeResult = { versionId: Id; versionReference: string; containerId: Id };
 
+// Release ("check in") — the audited unlock of a standalone check-out (ADR-0032
+// addendum, T-180). An optional reason records the early-release note.
+export const releaseCheckoutBody = z.object({ reason: z.string().optional() });
+export type ReleaseCheckoutBody = z.infer<typeof releaseCheckoutBody>;
+
 // The review cycle (ADR-0005–0014/0032, T-123/T-124/T-126). The cycle read
 // applies ADR-0014 phasing server-side: the open round's comments are
 // omitted for the authoring side; issued rounds are permanently visible.
