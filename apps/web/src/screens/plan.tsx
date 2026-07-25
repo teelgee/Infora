@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
+import { isCodeField } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Drawer, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
@@ -23,7 +24,9 @@ const stateTone = (state: PlanRow['state']): BadgeTone =>
   state === 'live' ? 'success' : state === 'rejected' ? 'danger' : 'neutral';
 
 function previewReference(scheme: NamingScheme, values: Record<string, string>): string {
+  // only the code fields compose the reference (T-188)
   return scheme.fields
+    .filter(isCodeField)
     .map((f) => (f.isSerial ? '#'.repeat(f.width ?? 3) : values[f.key] || `‹${f.label}›`))
     .join(scheme.separator);
 }
@@ -41,7 +44,8 @@ function NewDeliverableModal(props: {
   const [busy, setBusy] = useState(false);
 
   const scheme = props.scheme;
-  const nonSerial = scheme?.fields.filter((f) => !f.isSerial) ?? [];
+  // the code inputs: the code fields, minus the auto-serial (T-188)
+  const nonSerial = scheme?.fields.filter((f) => isCodeField(f) && !f.isSerial) ?? [];
   const preview = scheme ? previewReference(scheme, values) : manualRef || 'WA-BB-GEO-004';
   const setValue = (key: string, v: string) => setValues((s) => ({ ...s, [key]: v }));
 

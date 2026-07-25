@@ -8,7 +8,9 @@ import type { Context } from 'hono';
 import { desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  defaultDeliverableSchema,
   generateReferenceBody,
+  isCodeField,
   proposeNamingAdditionBody,
   resolveNamingProposalBody,
   upsertNamingSchemeBody,
@@ -41,7 +43,9 @@ export function composeReference(
 ): { reference: string; seriesKey: string } {
   const parts: string[] = [];
   const prefix: string[] = [];
-  for (const f of scheme.fields) {
+  // only the code fields compose the reference (T-188); metadata / role fields are
+  // carried on the deliverable but never in the code
+  for (const f of scheme.fields.filter(isCodeField)) {
     if (f.isSerial) {
       parts.push(String(serial).padStart(f.width ?? 3, '0'));
       continue;
@@ -57,20 +61,31 @@ export function composeReference(
   return { reference: parts.join(scheme.separator), seriesKey: prefix.join(scheme.separator) };
 }
 
+// the saved project scheme, or the Infora default when none has been saved yet
+// (T-188) — so a new project has a working, editable scheme from day one
+async function loadSchemeOrDefault(
+  db: Db,
+  projectId: string,
+): Promise<{ separator: string; fields: NamingSchemeField[] }> {
+  const [row] = await db
+    .select()
+    .from(s.projectNamingSchemes)
+    .where(eq(s.projectNamingSchemes.projectId, projectId))
+    .limit(1);
+  return row
+    ? { separator: row.separator, fields: row.fields as NamingSchemeField[] }
+    : defaultDeliverableSchema();
+}
+
 export function namingRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
   app.get('/projects/:projectId/naming-scheme', project, async (c) => {
     const slice = c.get('slice');
-    const [row] = await deps.db
-      .select()
-      .from(s.projectNamingSchemes)
-      .where(eq(s.projectNamingSchemes.projectId, slice.projectId))
-      .limit(1);
-    const body: GetNamingSchemeResponse = row
-      ? { projectId: row.projectId, separator: row.separator, fields: row.fields as NamingSchemeField[] }
-      : null;
+    // preload the Infora default when the owner has not saved one yet (T-188)
+    const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
+    const body: GetNamingSchemeResponse = { projectId: slice.projectId, ...scheme };
     return c.json(body);
   });
 
@@ -96,13 +111,8 @@ export function namingRoutes(deps: { db: Db }) {
     const slice = c.get('slice');
     const parsed = generateReferenceBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    const [scheme] = await deps.db
-      .select()
-      .from(s.projectNamingSchemes)
-      .where(eq(s.projectNamingSchemes.projectId, slice.projectId))
-      .limit(1);
-    if (!scheme) return invalid(c);
-    const fields = scheme.fields as NamingSchemeField[];
+    const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
+    const fields = scheme.fields;
     let seriesKey: string;
     try {
       seriesKey = composeReference({ separator: scheme.separator, fields }, parsed.data.values, 0).seriesKey;

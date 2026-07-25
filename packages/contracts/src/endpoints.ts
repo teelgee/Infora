@@ -762,21 +762,48 @@ export type CreateFolderStructureResult = { ok: true; created: number };
 export const bindDocumentBody = z.object({ containerId: id });
 export type BindDocumentBody = z.infer<typeof bindDocumentBody>;
 
-// Naming scheme + code-builder (ADR-0008 homed, T-152)
+// The deliverable-plan (TIDP) schema — one unified field list (ADR-0008 homed,
+// T-152; unified T-188). A field can be part of the coded reference (inCode), a
+// metadata attribute, and/or an appointment role slot. The code-builder composes
+// the reference from the code fields in order; the serial auto-increments.
+export type SchemaFieldType = 'text' | 'select' | 'date' | 'person' | 'people' | 'serial';
+// role slots map to the appointment mechanisms: author(s) / reviewer(s)+lead
+// stay in the appointment tables (they drive the review cycle); document owner is
+// a single-person informational appointment (T-188/T-189). All optional, amendable.
+export type SchemaFieldRole = 'author' | 'document_owner' | 'reviewer' | 'lead_reviewer';
 export type NamingSchemeField = {
   key: string;
   label: string;
-  allowedValues?: string[];
-  isOriginator?: boolean;
-  isSerial?: boolean;
+  type?: SchemaFieldType; // default 'text'
+  allowedValues?: string[]; // select options
+  required?: boolean;
+  inCode?: boolean; // participates in the coded reference (order matters)
+  role?: SchemaFieldRole; // an appointment role slot
+  isOriginator?: boolean; // code: carries cross-org uniqueness
+  isSerial?: boolean; // code: the auto-allocated serial
   width?: number;
 };
 export type NamingScheme = { projectId: Id; separator: string; fields: NamingSchemeField[] };
 export type GetNamingSchemeResponse = NamingScheme | null;
+
+// A field composes the coded reference when inCode is set, or — for schemes that
+// predate the flag (T-188) — when it is a plain code-ish field (no role, a
+// text/select/serial type). Roles and date/person fields are metadata, never code.
+export function isCodeField(f: NamingSchemeField): boolean {
+  return (
+    f.inCode ??
+    (!f.role && (f.type === undefined || f.type === 'text' || f.type === 'select' || f.type === 'serial'))
+  );
+}
+
 export const namingSchemeFieldSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
+  type: z.enum(['text', 'select', 'date', 'person', 'people', 'serial']).optional(),
   allowedValues: z.array(z.string()).optional(),
+  required: z.boolean().optional(),
+  inCode: z.boolean().optional(),
+  role: z.enum(['author', 'document_owner', 'reviewer', 'lead_reviewer']).optional(),
   isOriginator: z.boolean().optional(),
   isSerial: z.boolean().optional(),
   width: z.number().int().positive().optional(),
@@ -786,6 +813,51 @@ export const upsertNamingSchemeBody = z.object({
   fields: z.array(namingSchemeFieldSchema),
 });
 export type UpsertNamingSchemeBody = z.infer<typeof upsertNamingSchemeBody>;
+
+// The Infora default deliverable schema (T-188) — an ISO 19650-shaped starting
+// point that preloads for a new project and is fully editable by the owner
+// super-user (change fields, add fields). A seven-segment coded reference, a few
+// metadata attributes, and the four role slots. Not a copy of any one client's
+// scheme — a sensible default to adapt.
+export function defaultDeliverableSchema(): { separator: string; fields: NamingSchemeField[] } {
+  return {
+    separator: '-',
+    fields: [
+      { key: 'project', label: 'Project', type: 'text', inCode: true, required: true },
+      { key: 'originator', label: 'Originator', type: 'text', inCode: true, isOriginator: true, required: true },
+      { key: 'volume', label: 'Volume / Zone', type: 'text', inCode: true },
+      { key: 'location', label: 'Location / Spatial', type: 'text', inCode: true },
+      {
+        key: 'type',
+        label: 'Type',
+        type: 'select',
+        inCode: true,
+        allowedValues: ['DRG', 'REP', 'SPE', 'SCH', 'CAL', 'MOD', 'PLN', 'PRO'],
+      },
+      { key: 'discipline', label: 'Discipline', type: 'select', inCode: true, allowedValues: ['CIV', 'STR', 'GEO', 'ENV', 'PDC'] },
+      { key: 'serial', label: 'Serial', type: 'serial', inCode: true, isSerial: true, width: 6 },
+      {
+        key: 'purpose',
+        label: 'Purpose of issue',
+        type: 'select',
+        inCode: false,
+        allowedValues: ['For information', 'For review', 'For acceptance', 'For construction'],
+      },
+      {
+        key: 'suitability',
+        label: 'Suitability code',
+        type: 'select',
+        inCode: false,
+        allowedValues: ['S0', 'S1', 'S2', 'S3', 'S4', 'A1', 'B1'],
+      },
+      { key: 'nativeFormat', label: 'Native format', type: 'select', inCode: false, allowedValues: ['DOCX', 'XLSX', 'PPTX', 'DWG', 'PDF'] },
+      { key: 'authors', label: 'Author(s)', type: 'people', role: 'author' },
+      { key: 'documentOwner', label: 'Document owner', type: 'person', role: 'document_owner' },
+      { key: 'reviewers', label: 'Reviewer(s)', type: 'people', role: 'reviewer' },
+      { key: 'leadReviewer', label: 'Lead reviewer', type: 'person', role: 'lead_reviewer' },
+    ],
+  };
+}
 
 // generate a compliant reference: caller supplies the non-serial field values;
 // the API composes and allocates the next serial for the producing org

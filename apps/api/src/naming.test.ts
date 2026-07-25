@@ -87,6 +87,35 @@ describe('composeReference (pure)', () => {
   it('rejects a value outside the allowed set', () => {
     expect(() => composeReference(scheme, { project: 'WA', originator: 'ZZ', discipline: 'GEO' }, 1)).toThrow();
   });
+  it('composes from code fields only, ignoring metadata and role fields (T-188)', () => {
+    const mixed = {
+      separator: '-',
+      fields: [
+        { key: 'project', label: 'Project', inCode: true },
+        { key: 'purpose', label: 'Purpose', type: 'select' as const, inCode: false },
+        { key: 'authors', label: 'Authors', type: 'people' as const, role: 'author' as const },
+        { key: 'serial', label: 'Serial', type: 'serial' as const, isSerial: true, width: 3, inCode: true },
+      ],
+    };
+    const out = composeReference(mixed, { project: 'WA', purpose: 'For review', authors: 'x' }, 5);
+    expect(out.reference).toBe('WA-005'); // only the code fields (project + serial)
+    expect(out.seriesKey).toBe('WA');
+  });
+});
+
+describe('the deliverable schema default (T-188)', () => {
+  it('serves the Infora default when the owner has not saved a scheme, carrying the role slots', async () => {
+    // this project has no saved scheme yet (the PUT describe runs after)
+    const res = await app.request(`/projects/${projectId}/naming-scheme`, { headers: asJson(ownerCookie) });
+    const body = (await res.json()) as GetNamingSchemeResponse;
+    expect(body).not.toBeNull();
+    expect(body!.fields.some((f) => f.role === 'document_owner')).toBe(true);
+    expect(body!.fields.some((f) => f.role === 'lead_reviewer')).toBe(true);
+    // and a producer can generate a reference straight off the default
+    const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', volume: 'Z0', location: 'XXX', type: 'REP', discipline: 'GEO' });
+    expect(gen.status).toBe(200);
+    expect(((await gen.json()) as GenerateReferenceResponse).reference).toMatch(/^133735-MWJ-Z0-XXX-REP-GEO-\d{6}$/);
+  });
 });
 
 describe('the naming scheme + code-builder API (T-152, ADR-0008)', () => {
