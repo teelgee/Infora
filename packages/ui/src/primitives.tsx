@@ -64,6 +64,10 @@ export function Button(props: {
   onClick?: () => void;
   type?: 'button' | 'submit';
   disabled?: boolean;
+  // an explicit accessible name — for icon-led buttons that repeat a generic
+  // label (e.g. a per-row "Move") a screen reader needs the row's context
+  'aria-label'?: string;
+  title?: string;
   children: ReactNode;
 }) {
   const classes = ['btn', props.variant, props.size].filter(Boolean).join(' ');
@@ -73,6 +77,8 @@ export function Button(props: {
       onClick={props.onClick}
       type={props.type ?? 'button'}
       disabled={props.disabled}
+      aria-label={props['aria-label']}
+      title={props.title}
     >
       {props.children}
     </button>

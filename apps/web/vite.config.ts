@@ -15,6 +15,11 @@ const apiPrefixes = [
   '/work-items',
   '/sandbox-documents',
   '/sandbox-comments',
+  // the sandbox resource itself, its folder tree, moves and scope grants
+  // (ADR-0036, T-153/T-179) — bare paths, distinct from /sandbox-documents
+  '/sandboxes',
+  '/sandbox-scope-grants',
+  '/folders',
   '/suggestions',
   '/versions',
   // Slice A (T-117–T-128): administration, the plan, the cycle, renditions
