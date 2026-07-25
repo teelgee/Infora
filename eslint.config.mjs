@@ -14,9 +14,13 @@ const providerSdkImports = [
 ];
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', 'docs/**'] },
+  // .claude/** holds agent git worktrees (full repo copies) — never lint them
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', 'docs/**', '.claude/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // pin the root explicitly: a worktree under .claude/ would otherwise make
+  // typescript-eslint see multiple candidate roots and refuse to parse
+  { languageOptions: { parserOptions: { tsconfigRootDir: import.meta.dirname } } },
   {
     files: ['**/*.mjs'],
     languageOptions: { globals: globals.node },
