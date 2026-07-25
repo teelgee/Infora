@@ -9,9 +9,39 @@ import { Link, useOutletContext } from 'react-router-dom';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField } from '@infora/contracts';
 import { Badge, Button, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
+import { Info } from 'lucide-react';
 import { api } from '../api';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
+
+// A short plain-language explainer for each column, shown on hover (T-195). These
+// terms are ISO-19650 shorthand that a first-time owner won't know cold.
+const COLUMN_HINTS: Record<string, string> = {
+  Label: 'The human name of this attribute, shown on the plan and metadata card.',
+  Key: 'The stable machine name used in data and code — lower-case, no spaces. Rename with care.',
+  Type: 'How the value is entered: free text, a fixed list of options, a date, a person/people picker, or an auto-allocated serial number.',
+  Options: 'For a Select type only — the comma-separated list of allowed values (e.g. GEO, ENV, CIV).',
+  Required: 'When ticked, a deliverable cannot be planned without a value for this field.',
+  'In code':
+    'When ticked, this field forms part of the coded reference (e.g. WA-BB-GEO-000123). The order of the rows sets the order of the segments.',
+  Role: 'Marks this field as an appointment slot — author(s), document owner, reviewer(s), or lead reviewer — rather than a plain attribute.',
+  Originator:
+    'The one code segment that carries cross-organisation uniqueness — the producing party’s code. Only one field should be the originator.',
+};
+
+// A header cell carrying a hover explainer: the label plus a small info icon, with
+// the tooltip on the whole cell so hovering anywhere over it explains the column.
+function HeaderHint({ label, hintKey }: { label: string; hintKey?: string }) {
+  const hint = COLUMN_HINTS[hintKey ?? label];
+  return (
+    <th title={hint} style={hint ? { cursor: 'help' } : undefined}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {label}
+        {hint && <Info size={13} aria-hidden style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+      </span>
+    </th>
+  );
+}
 
 const emptyField = (): NamingSchemeField => ({ key: '', label: '', type: 'text' });
 
@@ -123,14 +153,14 @@ export function SchemaScreen() {
         <table>
           <thead>
             <tr>
-              <th>Label</th>
-              <th>Key</th>
-              <th>Type</th>
-              <th>Options (comma-sep)</th>
-              <th>Required</th>
-              <th>In code</th>
-              <th>Role</th>
-              <th>Originator</th>
+              <HeaderHint label="Label" />
+              <HeaderHint label="Key" />
+              <HeaderHint label="Type" />
+              <HeaderHint label="Options (comma-sep)" hintKey="Options" />
+              <HeaderHint label="Required" />
+              <HeaderHint label="In code" />
+              <HeaderHint label="Role" />
+              <HeaderHint label="Originator" />
               {canEdit && <th></th>}
             </tr>
           </thead>
