@@ -1,0 +1,3 @@
+ALTER TABLE "containers" ADD COLUMN "document_owner_participant_id" uuid;--> statement-breakpoint
+ALTER TABLE "containers" ADD COLUMN "withdrawn_reason" text;--> statement-breakpoint
+ALTER TABLE "containers" ADD CONSTRAINT "containers_document_owner_participant_id_participants_id_fk" FOREIGN KEY ("document_owner_participant_id") REFERENCES "public"."participants"("id") ON DELETE no action ON UPDATE no action;

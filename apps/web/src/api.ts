@@ -125,6 +125,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ documentReference, title, ...(metadata !== undefined && { metadata }) }),
     }),
+  setDocumentOwner: (containerId: string, participantId: string | null) =>
+    request<PlanRow>(`/containers/${containerId}/document-owner`, {
+      method: 'PATCH',
+      body: JSON.stringify({ participantId }),
+    }),
+  withdrawDeliverable: (containerId: string, reason: string) =>
+    request<PlanRow>(`/containers/${containerId}/withdrawal`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+  restoreDeliverable: (containerId: string) =>
+    request<PlanRow>(`/containers/${containerId}/restoration`, { method: 'POST' }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
   // T-120–T-126 — promotion, the freeze and the round loop (ADR-0032)

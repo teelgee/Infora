@@ -53,6 +53,15 @@ export const containers = pgTable(
     ),
     inLibrary: boolean('in_library').notNull().default(false),
     state: containerState('state').notNull().default('live'),
+    // the deliverable's document owner (ADR-0042/T-189) — a single named person,
+    // informational and amendable at any time; distinct from the author/reviewer
+    // appointments that drive the review cycle (ADR-0017)
+    documentOwnerParticipantId: uuid('document_owner_participant_id').references(
+      (): AnyPgColumn => participants.id,
+    ),
+    // why a planned deliverable was removed from the plan (T-189): removal keeps
+    // the container as a record (state → withdrawn) with this free-text reason
+    withdrawnReason: text('withdrawn_reason'),
     // plan-authored extras (ADR-0008); the per-project schema is deferred with
     // the naming scheme — at-a-glance columns are derived by query, never
     // duplicated here (2026-07-18 ruling)

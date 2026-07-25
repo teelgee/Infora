@@ -8,10 +8,10 @@
 // surfaced without manual column config).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import type { MeResponse, NamingScheme, PlanRow } from '@infora/contracts';
+import type { MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
 import { isCodeField } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Drawer, Field, Modal, SelectInput, Table, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
@@ -38,6 +38,7 @@ function NewDeliverableModal(props: {
   onCreated: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [metaValues, setMetaValues] = useState<Record<string, string>>({});
   const [manualRef, setManualRef] = useState('');
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +47,11 @@ function NewDeliverableModal(props: {
   const scheme = props.scheme;
   // the code inputs: the code fields, minus the auto-serial (T-188)
   const nonSerial = scheme?.fields.filter((f) => isCodeField(f) && !f.isSerial) ?? [];
+  // schema-driven metadata: fields that are neither code nor role slots (T-189)
+  const metaFields = scheme?.fields.filter((f) => !isCodeField(f) && !f.role) ?? [];
   const preview = scheme ? previewReference(scheme, values) : manualRef || 'WA-BB-GEO-004';
   const setValue = (key: string, v: string) => setValues((s) => ({ ...s, [key]: v }));
+  const setMeta = (key: string, v: string) => setMetaValues((s) => ({ ...s, [key]: v }));
 
   async function create() {
     setBusy(true);
@@ -60,9 +64,10 @@ function NewDeliverableModal(props: {
         setBusy(false);
         return;
       }
-      // discipline is taken from the scheme's discipline field (its dropdown),
-      // not a separate free-text box (owner feedback 2026-07-24, T-178)
       const metadata: Record<string, string> = {};
+      // the schema's metadata fields (T-189)
+      for (const [k, v] of Object.entries(metaValues)) if (v) metadata[k] = v;
+      // discipline is a code field but also surfaced at-a-glance (T-178)
       const disc = scheme ? values['discipline'] : undefined;
       if (disc) metadata['discipline'] = disc;
       await api.createPlanRow(props.projectId, reference, title.trim(), metadata);
@@ -74,7 +79,10 @@ function NewDeliverableModal(props: {
   }
 
   const canCreate =
-    !busy && title.trim() !== '' && (scheme ? nonSerial.every((f) => values[f.key]) : manualRef.trim() !== '');
+    !busy &&
+    title.trim() !== '' &&
+    (scheme ? nonSerial.every((f) => values[f.key]) : manualRef.trim() !== '') &&
+    metaFields.every((f) => !f.required || (metaValues[f.key] ?? '') !== '');
 
   return (
     <Modal
@@ -138,6 +146,38 @@ function NewDeliverableModal(props: {
         </Field>
       )}
 
+      {metaFields.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border-default)', paddingTop: 10 }}>
+          <span className="field-label">Details</span>
+          <div
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 4 }}
+          >
+            {metaFields.map((f) => (
+              <Field key={f.key} label={f.label + (f.required ? ' *' : '')}>
+                {f.type === 'select' && f.allowedValues && f.allowedValues.length > 0 ? (
+                  <SelectInput
+                    value={metaValues[f.key] ?? ''}
+                    onChange={(v) => setMeta(f.key, v)}
+                    placeholder="—"
+                    options={f.allowedValues.map((v) => ({ value: v, label: v }))}
+                  />
+                ) : f.type === 'date' ? (
+                  <input
+                    type="date"
+                    className="field-input"
+                    value={metaValues[f.key] ?? ''}
+                    onChange={(e) => setMeta(f.key, e.target.value)}
+                  />
+                ) : (
+                  <TextInput value={metaValues[f.key] ?? ''} onChange={(v) => setMeta(f.key, v)} />
+                )}
+              </Field>
+            ))}
+          </div>
+          <span className="field-hint">Roles (authors, owner, reviewers) are set on the deliverable after it’s created.</span>
+        </div>
+      )}
+
       {error !== null && <div className="field-error">{error}</div>}
     </Modal>
   );
@@ -159,27 +199,53 @@ function DetailRow(props: { label: string; children: React.ReactNode }) {
   );
 }
 
-function DeliverableDetail(props: { row: PlanRow; projectId: string; onClose: () => void }) {
-  const { row } = props;
+function DeliverableDetail(props: {
+  row: PlanRow;
+  projectId: string;
+  roster: RosterEntry[];
+  canEdit: boolean;
+  onChanged: (updated: PlanRow) => void;
+  onClose: () => void;
+}) {
   const navigate = useNavigate();
+  const [row, setRow] = useState<PlanRow>(props.row);
+  const [removing, setRemoving] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
   const authors = row.authors.filter((a) => a.revokedAt === null);
   const reviewers = row.reviewers.filter((r) => r.revokedAt === null);
-  const st = row.workItem
-    ? statusBadge(row.workItem.status)
-    : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
+  const isWithdrawn = row.state === 'withdrawn';
+  const st = isWithdrawn
+    ? { tone: 'neutral' as const, label: 'Removed from plan' }
+    : row.workItem
+      ? statusBadge(row.workItem.status)
+      : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
+
+  // producing-org participants for the document-owner picker
+  const people = props.roster.filter((r) => r.organisationId === row.producingOrganisationId);
+  const apply = (updated: PlanRow) => {
+    setRow(updated);
+    props.onChanged(updated);
+  };
+
   return (
     <Drawer
       open
       onClose={props.onClose}
       title={row.documentReference ?? 'Deliverable'}
       footer={
-        row.workItem && (
+        row.workItem && !isWithdrawn ? (
           <Button variant="primary" onClick={() => navigate(`/projects/${props.projectId}/work-items/${row.workItem!.id}`)}>
             Open work item
           </Button>
-        )
+        ) : undefined
       }
     >
+      {isWithdrawn && (
+        <div className="banner" style={{ marginBottom: 10 }}>
+          Removed from the plan{row.withdrawnReason ? ` — ${row.withdrawnReason}` : ''}. The container is kept as a record.
+        </div>
+      )}
       <div style={{ display: 'grid', gap: 6 }}>
         <DetailRow label="Title">{row.workItem?.title ?? 'Reference material'}</DetailRow>
         <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
@@ -191,6 +257,26 @@ function DeliverableDetail(props: { row: PlanRow; projectId: string; onClose: ()
         <DetailRow label="Issued">
           {row.currentVersion ? new Date(row.currentVersion.createdAt).toLocaleDateString() : '—'}
         </DetailRow>
+      </div>
+
+      <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+        <span className="field-label">Document owner</span>
+        {props.canEdit ? (
+          <Combobox
+            value={row.documentOwner?.participantId ?? null}
+            onChange={(pid) => {
+              setBusy(true);
+              void api
+                .setDocumentOwner(row.containerId, pid)
+                .then(apply)
+                .finally(() => setBusy(false));
+            }}
+            placeholder="Assign a document owner"
+            options={people.map((p) => ({ value: p.participantId, label: p.name }))}
+          />
+        ) : (
+          <DetailRow label="Owner">{row.documentOwner?.name ?? '—'}</DetailRow>
+        )}
       </div>
 
       <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
@@ -224,6 +310,59 @@ function DeliverableDetail(props: { row: PlanRow; projectId: string; onClose: ()
           ))}
         </div>
       )}
+
+      {props.canEdit && (
+        <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12, marginTop: 4 }}>
+          <span className="field-label">Plan</span>
+          {isWithdrawn ? (
+            <div>
+              <Button
+                variant="quiet"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void api
+                    .restoreDeliverable(row.containerId)
+                    .then(apply)
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Restore to the plan
+              </Button>
+            </div>
+          ) : removing ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Field label="Reason for removal" hint="The container is kept as a record — say why it was removed.">
+                <TextArea value={reason} onChange={setReason} rows={3} placeholder="e.g. Descoped — merged into WA-…-000123" />
+              </Field>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button variant="quiet" onClick={() => { setRemoving(false); setReason(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={busy || reason.trim() === ''}
+                  onClick={() => {
+                    setBusy(true);
+                    void api
+                      .withdrawDeliverable(row.containerId, reason.trim())
+                      .then((r) => { apply(r); setRemoving(false); })
+                      .finally(() => setBusy(false));
+                  }}
+                >
+                  Remove from plan
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <Button variant="quiet" onClick={() => setRemoving(true)}>
+                Remove from plan…
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </Drawer>
   );
 }
@@ -238,6 +377,7 @@ export function PlanScreen() {
 
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [creating, setCreating] = useState(false);
   const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
   const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
@@ -246,6 +386,7 @@ export function PlanScreen() {
   const load = useCallback(() => void api.plan(projectId).then((res) => setRows(res.items)), [projectId]);
   useEffect(load, [load]);
   useEffect(() => void api.namingScheme(projectId).then(setScheme), [projectId]);
+  useEffect(() => void api.participants(projectId).then((r) => setRoster(r.items)), [projectId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -296,7 +437,14 @@ export function PlanScreen() {
         />
       )}
       {detailRow && (
-        <DeliverableDetail row={detailRow} projectId={projectId} onClose={() => setDetailRow(null)} />
+        <DeliverableDetail
+          row={detailRow}
+          projectId={projectId}
+          roster={roster}
+          canEdit={isSuper && detailRow.producingOrganisationId === me.organisationId}
+          onChanged={() => load()}
+          onClose={() => setDetailRow(null)}
+        />
       )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>

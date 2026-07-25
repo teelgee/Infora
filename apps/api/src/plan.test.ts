@@ -259,3 +259,60 @@ describe('appointments (ADR-0017/0033)', () => {
     expect(((await revoked.json()) as ReviewerGrant).revokedAt).not.toBeNull();
   });
 });
+
+describe('document owner + remove-with-reason (T-189)', () => {
+  let cId: string;
+
+  it('a super-user sets and clears the document owner; another org cannot touch the row', async () => {
+    const created = await app.request(`/projects/${projectId}/plan`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ documentReference: `T189-${stamp}`, title: 'Owner test' }),
+    });
+    cId = ((await created.json()) as PlanRow).containerId;
+
+    // the owner org, not the producer, cannot set the owner on another's row
+    const denied = await app.request(`/containers/${cId}/document-owner`, {
+      method: 'PATCH',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ participantId: consultColleagueParticipantId }),
+    });
+    expect(denied.status).toBe(404);
+
+    const set = await app.request(`/containers/${cId}/document-owner`, {
+      method: 'PATCH',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ participantId: consultColleagueParticipantId }),
+    });
+    expect(set.status).toBe(200);
+    expect(((await set.json()) as PlanRow).documentOwner?.participantId).toBe(consultColleagueParticipantId);
+
+    const cleared = await app.request(`/containers/${cId}/document-owner`, {
+      method: 'PATCH',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ participantId: null }),
+    });
+    expect(((await cleared.json()) as PlanRow).documentOwner).toBeNull();
+  });
+
+  it('removing a planned deliverable keeps the container as withdrawn + reason; restore puts it back', async () => {
+    const removed = await app.request(`/containers/${cId}/withdrawal`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+      body: JSON.stringify({ reason: 'Descoped — merged into T189-000123' }),
+    });
+    expect(removed.status).toBe(200);
+    const rBody = (await removed.json()) as PlanRow;
+    expect(rBody.state).toBe('withdrawn');
+    expect(rBody.withdrawnReason).toBe('Descoped — merged into T189-000123');
+    expect(rBody.workItem?.status).toBe('withdrawn');
+
+    const restored = await app.request(`/containers/${cId}/restoration`, {
+      method: 'POST',
+      headers: asJson(consultCookie),
+    });
+    const restBody = (await restored.json()) as PlanRow;
+    expect(restBody.state).toBe('live');
+    expect(restBody.withdrawnReason).toBeNull();
+  });
+});

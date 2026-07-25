@@ -389,6 +389,10 @@ export type PlanRow = {
   workItem: { id: Id; title: string; status: string } | null; // null = owner-added reference material
   currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
   deliverableCode: { code: string; description: string } | null; // latest round verdict — derived
+  // the document owner (single, informational, amendable — T-189); null if unset
+  documentOwner: { participantId: Id; name: string } | null;
+  // why the deliverable was removed from the plan (state = withdrawn), if so
+  withdrawnReason: string | null;
   authors: AppointmentGrant[];
   reviewers: ReviewerGrant[];
   // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers
@@ -884,6 +888,16 @@ export const updatePlanRowBody = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type UpdatePlanRowBody = z.infer<typeof updatePlanRowBody>;
+
+// Set (or clear) the deliverable's document owner (T-189) — a super-user act on
+// the producing org's own row; null clears it.
+export const setDocumentOwnerBody = z.object({ participantId: id.nullable() });
+export type SetDocumentOwnerBody = z.infer<typeof setDocumentOwnerBody>;
+
+// Remove a planned deliverable from the plan (T-189): the container stays as a
+// record (state → withdrawn) with a free-text reason; a super-user act.
+export const withdrawContainerBody = z.object({ reason: z.string().min(1) });
+export type WithdrawContainerBody = z.infer<typeof withdrawContainerBody>;
 
 // Attached-source working set (ADR-0022 refined, T-154)
 export type AttachedSource = {

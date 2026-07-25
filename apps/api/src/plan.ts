@@ -12,7 +12,9 @@ import {
   createPlanRowBody,
   grantAppointmentBody,
   patchContainerBody,
+  setDocumentOwnerBody,
   shareDeliverableBody,
+  withdrawContainerBody,
 } from '@infora/contracts';
 import type {
   ApiError,
@@ -108,6 +110,19 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
     }
   }
 
+  // document-owner names (T-189) — a single participant per container, if set
+  const ownerIds = containers
+    .map((c) => c.documentOwnerParticipantId)
+    .filter((x): x is string => x !== null);
+  const ownerRows = ownerIds.length
+    ? await db
+        .select({ participantId: s.participants.id, name: s.users.name })
+        .from(s.participants)
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.participants.id, ownerIds))
+    : [];
+  const ownerName = new Map(ownerRows.map((r) => [r.participantId, r.name]));
+
   const authorRows = await db
     .select({ grant: s.deliverableAuthors, name: s.users.name })
     .from(s.deliverableAuthors)
@@ -165,6 +180,13 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
           }
         : null,
       deliverableCode: verdictByContainer.get(container.id) ?? null,
+      documentOwner: container.documentOwnerParticipantId
+        ? {
+            participantId: container.documentOwnerParticipantId,
+            name: ownerName.get(container.documentOwnerParticipantId) ?? '',
+          }
+        : null,
+      withdrawnReason: container.withdrawnReason ?? null,
       authors: authorRows.filter((r) => r.grant.containerId === container.id).map(toAuthor),
       reviewers: reviewerRows.filter((r) => r.grant.containerId === container.id).map(toReviewer),
       sharedWith: shareRows
@@ -264,6 +286,72 @@ export function containerRoutes(deps: { db: Db }) {
       .set({ metadata: body.data.metadata })
       .where(eq(s.containers.id, container.id))
       .returning();
+    const [row] = await toPlanRows(deps.db, [updated!]);
+    return c.json(row!);
+  });
+
+  // The document owner — a single named person, informational and amendable at
+  // any time (T-189); null clears it. A producing-org super-user act.
+  app.patch('/containers/:containerId/document-owner', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const body = setDocumentOwnerBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    if (body.data.participantId) {
+      const target = await liveParticipant(deps.db, body.data.participantId, container.projectId);
+      if (!target) return notFound(c);
+    }
+    const [updated] = await deps.db
+      .update(s.containers)
+      .set({ documentOwnerParticipantId: body.data.participantId })
+      .where(eq(s.containers.id, container.id))
+      .returning();
+    const [row] = await toPlanRows(deps.db, [updated!]);
+    return c.json(row!);
+  });
+
+  // Remove a planned deliverable from the plan (T-189): the container stays as a
+  // record (state → withdrawn) with a free-text reason. Reversible — a
+  // restoration puts it back live (recovery is never a helpdesk ticket).
+  app.post('/containers/:containerId/withdrawal', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const body = withdrawContainerBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    const [updated] = await deps.db
+      .update(s.containers)
+      .set({ state: 'withdrawn', withdrawnReason: body.data.reason })
+      .where(eq(s.containers.id, container.id))
+      .returning();
+    await deps.db
+      .update(s.workItems)
+      .set({ status: 'withdrawn' })
+      .where(eq(s.workItems.containerId, container.id));
+    const [row] = await toPlanRows(deps.db, [updated!]);
+    return c.json(row!);
+  });
+
+  app.post('/containers/:containerId/restoration', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const [updated] = await deps.db
+      .update(s.containers)
+      .set({ state: 'live', withdrawnReason: null })
+      .where(eq(s.containers.id, container.id))
+      .returning();
+    await deps.db
+      .update(s.workItems)
+      .set({ status: 'planned' })
+      .where(eq(s.workItems.containerId, container.id));
     const [row] = await toPlanRows(deps.db, [updated!]);
     return c.json(row!);
   });
