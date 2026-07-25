@@ -5,6 +5,10 @@ const schema = z.object({
   // session-cookie signing key (T-021, hardened T-206): required, no default —
   // the API refuses to boot without one. Generate with `openssl rand -hex 32`.
   SESSION_SECRET: z.string().min(1),
+  // CORS allowlist (T-216), comma-separated origins. Unset means the local
+  // dev/e2e web origins only — in dev the web app rides the vite proxy
+  // (same-origin), so the default stays strict.
+  ALLOWED_ORIGINS: z.string().optional(),
   // the chain's providers (T-046): Anthropic drafts, Voyage embeds queries
   ANTHROPIC_API_KEY: z.string().min(1),
   VOYAGE_API_KEY: z.string().min(1),

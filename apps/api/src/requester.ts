@@ -19,7 +19,13 @@ import { sessionCookie } from './auth';
 
 export type UserRow = typeof s.users.$inferSelect;
 export type AppEnv = { Variables: { user: UserRow; slice: EntitledSlice } };
-export type AppDeps = { db: Db; sessionSecret: string; router: Router };
+export type AppDeps = {
+  db: Db;
+  sessionSecret: string;
+  router: Router;
+  /** CORS allowlist (T-216); defaults to the local dev/e2e web origins. */
+  allowedOrigins?: string[];
+};
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;

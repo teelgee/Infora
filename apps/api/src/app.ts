@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import type { ApiError } from '@infora/contracts';
 import { createAssembler } from '@infora/knowledge';
 import {
@@ -30,8 +31,36 @@ export type { AppDeps } from './requester';
 // T-009 registered every contracts.md §3 endpoint (as 501 scaffolding where
 // the milestone hadn't landed); T-023 puts requester resolution in front of
 // each. T-086 replaced the last placeholder — every route is live.
+// The local web origins: vite dev (:5173) and the e2e harness (:5273). In
+// both, the browser talks to the API through the vite proxy — same-origin —
+// so even the default allowlist is belt-and-braces, and anything else needs
+// an explicit ALLOWED_ORIGINS.
+const devOrigins = ['http://localhost:5173', 'http://localhost:5273'];
+
 export function buildApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
+
+  // T-216: CORS from an explicit allowlist — an unlisted Origin gets no
+  // CORS headers at all (hono's cors would still emit allow-credentials, so
+  // it only runs for allowlisted origins) — plus baseline security headers.
+  const allowedOrigins = deps.allowedOrigins ?? devOrigins;
+  const corsMiddleware = cors({
+    origin: (origin) => (allowedOrigins.includes(origin) ? origin : null),
+    credentials: true, // the session cookie is the credential
+  });
+  app.use('*', async (c, next) => {
+    const origin = c.req.header('origin');
+    if (origin !== undefined && allowedOrigins.includes(origin)) return corsMiddleware(c, next);
+    // a preflight from an unlisted origin is answered, but bare — no allows
+    if (c.req.method === 'OPTIONS') return c.body(null, 204);
+    await next();
+  });
+  app.use('*', async (c, next) => {
+    await next();
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Referrer-Policy', 'no-referrer');
+  });
 
   // T-023: identity resolved from the session on every request but login
   app.use('*', sessionMiddleware(deps));

@@ -24,7 +24,16 @@ const router = new Router(
   }),
   security,
 );
-const app = buildApp({ db, sessionSecret: env.SESSION_SECRET, router });
+// T-216: deployments widen CORS only by declaring origins explicitly
+const allowedOrigins = env.ALLOWED_ORIGINS?.split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin !== '');
+const app = buildApp({
+  db,
+  sessionSecret: env.SESSION_SECRET,
+  router,
+  ...(allowedOrigins !== undefined && { allowedOrigins }),
+});
 
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`@infora/api listening on :${info.port}`);
