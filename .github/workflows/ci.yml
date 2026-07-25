@@ -34,6 +34,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # known production vulnerabilities fail the build (T-208)
+      - run: pnpm run check:audit
+
       # a failing dependency-rule check fails the build (plan.md T-002)
       - run: pnpm run check:deps
 
