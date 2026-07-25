@@ -112,9 +112,9 @@ describe('the deliverable schema default (T-188)', () => {
     expect(body!.fields.some((f) => f.role === 'document_owner')).toBe(true);
     expect(body!.fields.some((f) => f.role === 'lead_reviewer')).toBe(true);
     // and a producer can generate a reference straight off the default
-    const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', volume: 'Z0', location: 'XXX', type: 'REP', discipline: 'GEO' });
+    const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', zone: 'Z1', elr: 'OXD', type: 'DRG', discipline: 'ECV' });
     expect(gen.status).toBe(200);
-    expect(((await gen.json()) as GenerateReferenceResponse).reference).toMatch(/^133735-MWJ-Z0-XXX-REP-GEO-\d{6}$/);
+    expect(((await gen.json()) as GenerateReferenceResponse).reference).toMatch(/^133735-MWJ-Z1-OXD-DRG-ECV-\d{6}$/);
   });
 });
 

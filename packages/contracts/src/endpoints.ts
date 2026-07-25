@@ -825,43 +825,97 @@ export const upsertNamingSchemeBody = z.object({
 });
 export type UpsertNamingSchemeBody = z.infer<typeof upsertNamingSchemeBody>;
 
-// The Infora default deliverable schema (T-188) — an ISO 19650-shaped starting
-// point that preloads for a new project and is fully editable by the owner
-// super-user (change fields, add fields). A seven-segment coded reference, a few
-// metadata attributes, and the four role slots. Not a copy of any one client's
-// scheme — a sensible default to adapt.
+// The Infora default deliverable schema — the EWR-MWJV seven-segment document
+// numbering convention (ISO 19650-2, NA.3 field codification), aligned to
+// Network Rail coding: Project · Originator · Zone/Volume · ELR/Spatial ·
+// Type/Form · Role/Discipline · Sequence. Preloads for a new project and is
+// fully editable by the owner super-user (change fields, add fields). The option
+// lists carry the routewide codes; the human descriptions live in the source
+// numbering schema (133735-MWJ-Z0-XXX-PAN-PDC-000001). Example reference:
+// 133735-MWJ-Z1-OXD-DRG-ECV-100001.
 export function defaultDeliverableSchema(): { separator: string; fields: NamingSchemeField[] } {
   return {
     separator: '-',
     fields: [
-      { key: 'project', label: 'Project', type: 'text', inCode: true, required: true },
-      { key: 'originator', label: 'Originator', type: 'text', inCode: true, isOriginator: true, required: true },
-      { key: 'volume', label: 'Volume / Zone', type: 'text', inCode: true },
-      { key: 'location', label: 'Location / Spatial', type: 'text', inCode: true },
+      // Segment 1 — Project (fixed EWR project number)
+      { key: 'project', label: 'Project', type: 'select', inCode: true, required: true, allowedValues: ['133735'] },
+      // Segment 2 — Originator (technical partner / appointed party)
       {
-        key: 'type',
-        label: 'Type',
+        key: 'originator',
+        label: 'Originator',
         type: 'select',
         inCode: true,
-        allowedValues: ['DRG', 'REP', 'SPE', 'SCH', 'CAL', 'MOD', 'PLN', 'PRO'],
+        isOriginator: true,
+        required: true,
+        allowedValues: ['MWJ', 'EWR'],
       },
-      { key: 'discipline', label: 'Discipline', type: 'select', inCode: true, allowedValues: ['CIV', 'STR', 'GEO', 'ENV', 'PDC'] },
-      { key: 'serial', label: 'Serial', type: 'serial', inCode: true, isSerial: true, width: 6 },
+      // Segment 3 — Zone / Volume (function): Z0–Z5 plus station codes
       {
-        key: 'purpose',
-        label: 'Purpose of issue',
+        key: 'zone',
+        label: 'Zone / Volume',
         type: 'select',
-        inCode: false,
-        allowedValues: ['For information', 'For review', 'For acceptance', 'For construction'],
+        inCode: true,
+        required: true,
+        allowedValues: [
+          'Z0', 'Z1', 'OXF', 'OXP', 'BIT', 'WIS', 'BLY', 'MKC',
+          'Z2', 'FEN', 'BWB', 'WOB', 'APG', 'RID', 'LID', 'MLB', 'SWR', 'KMH',
+          'Z3', 'BSJ', 'BDM',
+          'Z4', 'TFD', 'CAE',
+          'Z5', 'CMS', 'CBG', 'CGE', 'CMB',
+        ],
       },
+      // Segment 4 — ELR / Spatial (Network Rail engineering line references)
+      {
+        key: 'elr',
+        label: 'ELR / Spatial',
+        type: 'select',
+        inCode: true,
+        required: true,
+        allowedValues: ['DCL', 'OXD', 'BFO', 'BBM', 'SPC1', 'BRV', 'SBR', 'BGK', 'CCH', 'LEC1', 'XXX'],
+      },
+      // Segment 5 — Type / Form (document type)
+      {
+        key: 'type',
+        label: 'Type / Form',
+        type: 'select',
+        inCode: true,
+        required: true,
+        allowedValues: [
+          'AGN', 'AIR', 'APP', 'ASS', 'BEP', 'BOQ', 'BRF', 'CAL', 'CDA', 'CES', 'CHK', 'CHR', 'CIA', 'CMA',
+          'CMF', 'CMG', 'CNT', 'COA', 'COR', 'COT', 'CPP', 'CPQ', 'CRE', 'CRF', 'DDR', 'DES', 'DRG', 'DRN',
+          'EMP', 'EST', 'EWN', 'FRM', 'GDN', 'HSF', 'IDC', 'IDR', 'IMG', 'INS', 'LAZ', 'LET', 'LOG', 'MAN',
+          'MDA', 'MEM', 'MIN', 'MOA', 'MOC', 'MOD', 'NCR', 'NOT', 'OST', 'PAF', 'PAN', 'PCI', 'PDD', 'PDR',
+          'PER', 'PHO', 'PLN', 'PMP', 'POD', 'POL', 'PPL', 'PRO', 'PRS', 'RCD', 'REG', 'REM', 'REP', 'RFI',
+          'SCH', 'SDB', 'SKE', 'SPE', 'SSC', 'SSF', 'STM', 'STQ', 'STR', 'SVY', 'TIF', 'TQN', 'TRN', 'VID', 'ZIP',
+        ],
+      },
+      // Segment 6 — Role / Discipline (Network Rail discipline codes)
+      {
+        key: 'discipline',
+        label: 'Role / Discipline',
+        type: 'select',
+        inCode: true,
+        required: true,
+        allowedValues: [
+          'CCA', 'CES', 'COM', 'CPO', 'CSE', 'DEL', 'EAR', 'ECV', 'EDP', 'EDR', 'EDS', 'EEN', 'EFR', 'EGE',
+          'EHF', 'EHW', 'EME', 'EMF', 'EMG', 'EMN', 'EOH', 'EPT', 'ERS', 'ESC', 'ESE', 'ESG', 'ESS', 'EST',
+          'ESU', 'ETL', 'ETR', 'ETT', 'ETU', 'EUT', 'HEN', 'HSE', 'LEP', 'MPM', 'OPP', 'PDC', 'PPC', 'PPL',
+          'PPR', 'PRK', 'QAS',
+        ],
+      },
+      // Segment 7 — Sequence number (six-digit serial, allocated by the CDE)
+      { key: 'serial', label: 'Sequence number', type: 'serial', inCode: true, isSerial: true, width: 6 },
+      // Metadata attributes — carried on the deliverable, never in the code
       {
         key: 'suitability',
         label: 'Suitability code',
         type: 'select',
         inCode: false,
-        allowedValues: ['S0', 'S1', 'S2', 'S3', 'S4', 'A1', 'B1'],
+        allowedValues: ['S0', 'S1', 'S2', 'S3', 'S4', 'S6', 'S7', 'A1', 'B1', 'CR'],
       },
-      { key: 'nativeFormat', label: 'Native format', type: 'select', inCode: false, allowedValues: ['DOCX', 'XLSX', 'PPTX', 'DWG', 'PDF'] },
+      { key: 'security', label: 'Security classification', type: 'select', inCode: false, allowedValues: ['OFFICIAL', 'OFFICIAL-SENSITIVE'] },
+      { key: 'nativeFormat', label: 'Native format', type: 'select', inCode: false, allowedValues: ['DOCX', 'XLSX', 'PPTX', 'DGN', 'DWG', 'PDF', 'IFC', 'RVT'] },
+      // Appointment role slots (Prepared / Checked / Approved by, plus owner)
       { key: 'authors', label: 'Author(s)', type: 'people', role: 'author' },
       { key: 'documentOwner', label: 'Document owner', type: 'person', role: 'document_owner' },
       { key: 'reviewers', label: 'Reviewer(s)', type: 'people', role: 'reviewer' },
