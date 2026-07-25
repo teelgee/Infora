@@ -1,5 +1,7 @@
 # Infora — Ubiquitous Language
 
+**Contents:** [Parties](#parties) · [Project, programme and access](#project-programme-and-access) · [Context and knowledge](#context-and-knowledge) · [Work, workflows and tools](#work-workflows-and-tools) · [Governance](#governance) · [System description](#system-description) · [Foundation](#foundation) · [Reserved terms](#reserved-terms-defined-to-avoid-collision-used-only-when-earned) · [Open items](#open-items)
+
 The agreed term set for Infora. One word per concept, one concept per word. Every diagram, document, interface label, and the eventual code should use these terms exactly as defined here. Where a term collides with established industry usage (especially Bentley / ProjectWise), the collision is noted so we use the word deliberately.
 
 Status: agreed. This glossary holds settled language only; open questions live in the [grill tracker](docs/grill-sessions/grill-questions.md), the sole source for open questions across the system.

@@ -1,5 +1,30 @@
 # CLAUDE.md
 
+Infora is an AI-native document production and control platform for
+infrastructure projects — cross-organisation review cycles behind a hard
+ethical wall, with grounded, cited AI drafting.
+
+## Orientation path
+
+1. `README.md` — the first-day setup path and repo layout.
+2. `docs/architecture/infora-overview.md` — the vision and the component cut.
+3. `docs/build/plan.md` — the open ticket board (Phase 6 works from it).
+   `docs/build/plan-history.md` is closed-slice precedent only — don't load it
+   by default.
+
+## Working rules
+
+- `pnpm run check` mirrors CI exactly (dep rules + lint + typecheck + tests).
+- Package dependency rules are enforced by `scripts/dep-rules.mjs` — surfaces
+  depend only on `contracts` + `ui`.
+- Migrations are drawn in `docs/build/data-model.md` before being written.
+- Contract completions get dated notes in `docs/build/contracts.md`.
+- Design gaps go to `docs/grill-sessions/grill-questions.md` as open
+  questions — never resolved inline.
+- `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
+  Cite them, don't re-argue them.
+- One commit per ticket, `T-xxx: summary` style.
+
 ## Diagrams (`.tldr` files) — do not read as text
 
 `docs/architecture/diagrams/*.tldr` are tldraw's native JSON format. Each is
