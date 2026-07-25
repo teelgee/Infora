@@ -274,6 +274,7 @@ function RoundCard(props: {
   const [commentBody, setCommentBody] = useState('');
   const [commentCode, setCommentCode] = useState('');
   const [verdict, setVerdict] = useState(round.deliverableCode?.id ?? '');
+  const [issuing, setIssuing] = useState(false);
   const [draftAnchor, setDraftAnchor] = useState<CommentAnchor | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const roundState = statusBadge(round.state);
@@ -446,38 +447,72 @@ function RoundCard(props: {
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.code} — {c.description}
-                          {c.isAccepting ? ' (accepting)' : ''}
+                          {c.isAccepting ? ' (accepting — publishes to the library)' : ''}
                         </option>
                       ))}
                   </select>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {verdict && verdict !== round.deliverableCode?.id && (
-                      <Button
-                        size="sm"
-                        variant="quiet"
-                        onClick={() => void props.act(() => api.setDeliverableCode(round.id, verdict))}
-                      >
-                        Set verdict
-                      </Button>
-                    )}
                     <span style={{ flex: 1 }} />
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => {
-                        if (window.confirm('Close and issue this round? The snapshot freezes and the pen changes hands.')) {
-                          void props.act(() => api.issueRound(round.id));
-                        }
-                      }}
-                    >
+                    <Button size="sm" variant="primary" disabled={!verdict} onClick={() => setIssuing(true)}>
                       Close &amp; issue the round
                     </Button>
                   </div>
+                  <span className="field-hint">
+                    A verdict is required to close the round. An accepting code (e.g. A1) publishes the deliverable to
+                    the project library — the review is complete; any other code returns it to the authors for revision.
+                  </span>
                 </div>
               )}
             </div>
           </div>
         </div>
+      {issuing &&
+        (() => {
+          const selected = codes.find((c) => c.id === verdict);
+          const accepting = selected?.isAccepting ?? false;
+          return (
+            <Modal
+              open
+              onClose={() => setIssuing(false)}
+              title="Close & issue the round"
+              footer={
+                <>
+                  <Button variant="quiet" onClick={() => setIssuing(false)}>Cancel</Button>
+                  <Button
+                    variant="primary"
+                    onClick={async () => {
+                      await props.act(async () => {
+                        if (verdict !== round.deliverableCode?.id) await api.setDeliverableCode(round.id, verdict);
+                        await api.issueRound(round.id);
+                      });
+                      setIssuing(false);
+                    }}
+                  >
+                    {accepting ? 'Accept & publish' : 'Issue for revision'}
+                  </Button>
+                </>
+              }
+            >
+              <p style={{ marginTop: 0 }}>
+                Verdict:{' '}
+                <Badge tone={accepting ? 'success' : 'warning'}>
+                  {selected?.code} — {selected?.description}
+                </Badge>
+              </p>
+              {accepting ? (
+                <p>
+                  This <strong>accepts the deliverable</strong>: the contractual revision is issued and it enters the{' '}
+                  <strong>project library</strong>. The review is complete — no further edits.
+                </p>
+              ) : (
+                <p>
+                  The snapshot freezes and the pen returns to the authors for another round. This does <strong>not</strong>{' '}
+                  publish to the library.
+                </p>
+              )}
+            </Modal>
+          );
+        })()}
     </>
   );
 }
