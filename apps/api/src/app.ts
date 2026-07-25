@@ -11,6 +11,7 @@ import {
 import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
+import { csrfGuard } from './csrf';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
 import { namingRoutes } from './naming';
@@ -67,6 +68,9 @@ export function buildApp(deps: AppDeps) {
     c.header('X-Frame-Options', 'DENY');
     c.header('Referrer-Policy', 'no-referrer');
   });
+
+  // T-218: the CSRF content-type gate + the upload Origin check (ADR-0044)
+  app.use('*', csrfGuard({ allowedOrigins }));
 
   // T-217: login guesses are throttled per IP before any credential check
   app.use(
