@@ -7,7 +7,7 @@
 // arrive with the document-management slice. This replaces M5's owner audit
 // screen, which was skeleton scaffolding proving the record.
 import { useEffect, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type { GetWorkItemResponse, MeResponse, ReviewCycle, SandboxDocument } from '@infora/contracts';
 import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';

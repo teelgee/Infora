@@ -8,7 +8,7 @@
 // never changing access — ADR-0036). Every action is a real in-app dialog (Modal +
 // form controls), never window.prompt. No AI grounds on anything here (ADR-0011).
 import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router';
 import type {
   MeResponse,
   PlanRow,

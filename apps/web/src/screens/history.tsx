@@ -4,7 +4,7 @@
 // Editor canvas. Self-scoped: only what you prompted, never a colleague's
 // record (the record itself stays producer-private background data, T-104).
 import { useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router';
 import type { HistoryEntry, MeResponse } from '@infora/contracts';
 import { Badge, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';

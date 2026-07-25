@@ -7,7 +7,7 @@
 // projects, always inside the owner-granted ceiling.
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import type { OrgUser, RosterEntry } from '@infora/contracts';
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api, RequestError } from '../api';

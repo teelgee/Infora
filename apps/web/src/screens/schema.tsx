@@ -5,7 +5,7 @@
 // (change fields, add fields). A guest super-user proposes additions; everyone
 // else views. The code-builder previews a compliant reference from the code fields.
 import { Fragment, useEffect, useState } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
 import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';

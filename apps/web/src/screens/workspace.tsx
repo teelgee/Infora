@@ -4,7 +4,7 @@
 // per-project role badges. Every rail item routes (T-093, 2026-07-09 QA
 // review): the workspace surfaces themselves arrive with their slices, so
 // their pages state honestly what is coming and why it isn't here yet.
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { Archive, BookOpen, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,

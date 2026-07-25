@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';

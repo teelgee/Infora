@@ -3,7 +3,7 @@
 // its transmittal is acknowledged) and the owner's transmit action. The main
 // list is the API's access-resolved slice: exactly what grounding admits.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext } from 'react-router';
 import type { LibraryItem, MeResponse, PendingTransmittal, Rendition, RosterEntry } from '@infora/contracts';
 import { Download, FileText, Inbox, Send } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';

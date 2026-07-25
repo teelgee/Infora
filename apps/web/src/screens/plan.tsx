@@ -7,7 +7,7 @@
 // register pattern and the ProjectWise friction map (B1 no-wizard, B4 attributes
 // surfaced without manual column config).
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router';
 import type { AppointmentGrant, MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
 import { isCodeField, optionLabel } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';

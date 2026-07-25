@@ -6,7 +6,7 @@
 // DRR open from each row as the cycle tickets land (T-123+).
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router';
 import type { MeResponse, PlanRow, ReviewerGrant, RosterEntry } from '@infora/contracts';
 import { Badge, Button, Card, SectionLabel } from '@infora/ui';
 import { api } from '../api';

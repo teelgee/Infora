@@ -6,7 +6,7 @@
 // reopens a past conversation via ?conversation= (T-108). v1 returns on
 // completion (streaming is a later, additive change).
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import type { MeResponse, Run } from '@infora/contracts';
 import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';

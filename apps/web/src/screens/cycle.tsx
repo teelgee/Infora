@@ -7,7 +7,7 @@
 // full in-PDF anchored viewer is the noted follow-up (anchors here are
 // quote/page fields; the PDF rendition downloads beside each round).
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   AcceptanceCode,
   CommentAnchor,

@@ -8,7 +8,7 @@
 // (T-091, ruled 2026-07-09); the panel tab is the read-only queue.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   MeResponse,
   ReviewComment,

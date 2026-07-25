@@ -8,7 +8,7 @@
 // Tools ship as empty states (ruled 2026-07-06); Ask/Editor/Documents/
 // Sandbox fill with their tickets.
 import { useEffect, useState } from 'react';
-import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
 import { Archive, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
