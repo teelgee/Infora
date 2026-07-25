@@ -230,6 +230,37 @@ describe('per-sandbox settings + the folder-creation toggle (T-181, ADR-0040)', 
       body: JSON.stringify({ allowMemberFolderCreate: true }),
     });
   });
+
+  it('create-folder-structure: a super-user lays out a nested tree at once; a member cannot (T-182)', async () => {
+    const structure = {
+      nodes: [
+        { name: 'Environmental', children: [{ name: 'Ecology' }, { name: 'Noise' }] },
+        { name: 'Engineering', children: [{ name: 'Civil' }] },
+      ],
+    };
+    // an ordinary member is refused — laying out structure is a super-user act
+    const denied = await app.request(`/sandboxes/${bSandbox}/folder-structure`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify(structure),
+    });
+    expect(denied.status).toBe(403);
+
+    const ok = await app.request(`/sandboxes/${bSandbox}/folder-structure`, {
+      method: 'POST',
+      headers: asJson(superCookie),
+      body: JSON.stringify(structure),
+    });
+    expect(ok.status).toBe(201);
+    expect(((await ok.json()) as { created: number }).created).toBe(5);
+
+    // the nesting is real: Ecology's parent is Environmental, both in this sandbox
+    const all = await db.select().from(s.sandboxFolders).where(eq(s.sandboxFolders.sandboxId, bSandbox));
+    const env = all.find((f) => f.name === 'Environmental')!;
+    const eco = all.find((f) => f.name === 'Ecology')!;
+    expect(eco.parentFolderId).toBe(env.id);
+    expect(env.parentFolderId).toBeNull();
+  });
 });
 
 describe('bind — the one-way transition (T-153, ADR-0038)', () => {

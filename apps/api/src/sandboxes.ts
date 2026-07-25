@@ -12,6 +12,7 @@ import { z } from 'zod';
 import {
   bindDocumentBody,
   createFolderBody,
+  createFolderStructureBody,
   createSandboxBody,
   grantSandboxScopeBody,
   moveDocumentBody,
@@ -20,6 +21,7 @@ import {
 } from '@infora/contracts';
 import type {
   ApiError,
+  CreateFolderStructureResult,
   GetSandboxResponse,
   ListFoldersResponse,
   ListSandboxesResponse,
@@ -283,6 +285,52 @@ export function sandboxRoutes2(deps: { db: Db }) {
       name: folder!.name,
     };
     return c.json(body, 201);
+  });
+
+  // create-folder-structure (ADR-0040, T-182): a super-user lays out a whole
+  // nested tree at once. A super-user act — canConfigureSandbox, the same gate as
+  // settings; laying out the structure for the team is exactly what the toggle
+  // then holds ordinary members within.
+  app.post('/sandboxes/:sandboxId/folder-structure', async (c) => {
+    const ctx = await resolveSandbox(deps.db, c.get('user'), c.req.param('sandboxId'));
+    if (!ctx) return notFound(c);
+    if (!canConfigureSandbox(ctx.slice, ctx.sandbox)) return forbidden(c, 'super_user_only');
+    const parsed = createFolderStructureBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    // guard against an unbounded tree — a builder mistake, not a real structure
+    const total = (function count(nodes: typeof parsed.data.nodes): number {
+      return nodes.reduce((n, node) => n + 1 + (node.children ? count(node.children) : 0), 0);
+    })(parsed.data.nodes);
+    if (total > 200) return invalid(c);
+    // a starting parent, if given, must belong to this sandbox
+    if (parsed.data.parentFolderId) {
+      const [parent] = await deps.db
+        .select({ sandboxId: s.sandboxFolders.sandboxId })
+        .from(s.sandboxFolders)
+        .where(eq(s.sandboxFolders.id, parsed.data.parentFolderId))
+        .limit(1);
+      if (!parent || parent.sandboxId !== ctx.sandbox.id) return invalid(c);
+    }
+    let created = 0;
+    await deps.db.transaction(async (tx) => {
+      const insertTree = async (nodes: typeof parsed.data.nodes, parentId: string | null) => {
+        for (const node of nodes) {
+          const [folder] = await tx
+            .insert(s.sandboxFolders)
+            .values({
+              sandboxId: ctx.sandbox.id,
+              parentFolderId: parentId,
+              name: node.name,
+              createdByParticipantId: ctx.slice.participantId,
+            })
+            .returning({ id: s.sandboxFolders.id });
+          created += 1;
+          if (node.children?.length) await insertTree(node.children, folder!.id);
+        }
+      };
+      await insertTree(parsed.data.nodes, parsed.data.parentFolderId ?? null);
+    });
+    return c.json({ ok: true, created } satisfies CreateFolderStructureResult, 201);
   });
 
   app.post('/folders/:folderId/move', async (c) => {

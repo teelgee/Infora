@@ -28,6 +28,7 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
+  FolderTree,
   Link2,
   Lock,
   LockOpen,
@@ -46,6 +47,7 @@ import {
   SectionLabel,
   SelectInput,
   Table,
+  TextArea,
   TextInput,
 } from '@infora/ui';
 import { api } from '../api';
@@ -262,6 +264,114 @@ function SettingsModal(props: {
   );
 }
 
+// ── Create folder structure: a super-user lays out a whole nested tree at once ─
+type OutlineNode = { name: string; children: OutlineNode[] };
+
+// parse an indented outline (2 spaces / a tab per level) into a nested tree
+function parseOutline(text: string): OutlineNode[] {
+  const roots: OutlineNode[] = [];
+  const stack: { depth: number; node: OutlineNode }[] = [];
+  for (const raw of text.split('\n')) {
+    if (raw.trim() === '') continue;
+    const lead = (raw.match(/^[\t ]*/)?.[0] ?? '').replace(/\t/g, '  ');
+    const depth = Math.floor(lead.length / 2);
+    const node: OutlineNode = { name: raw.trim(), children: [] };
+    while (stack.length && stack[stack.length - 1]!.depth >= depth) stack.pop();
+    if (stack.length === 0) roots.push(node);
+    else stack[stack.length - 1]!.node.children.push(node);
+    stack.push({ depth, node });
+  }
+  return roots;
+}
+function countNodes(nodes: OutlineNode[]): number {
+  return nodes.reduce((n, x) => n + 1 + countNodes(x.children), 0);
+}
+function OutlinePreview({ nodes, depth = 0 }: { nodes: OutlineNode[]; depth?: number }) {
+  return (
+    <>
+      {nodes.map((n, i) => (
+        <div key={`${depth}-${i}-${n.name}`}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: depth * 18, padding: '2px 0' }}>
+            <span className="ficon" style={{ color: 'var(--text-muted)' }}>
+              <Folder size={14} strokeWidth={2} />
+            </span>
+            <span>{n.name}</span>
+          </div>
+          {n.children.length > 0 && <OutlinePreview nodes={n.children} depth={depth + 1} />}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function FolderStructureModal(props: {
+  intoName: string | null;
+  onSubmit: (nodes: OutlineNode[]) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const nodes = useMemo(() => parseOutline(text), [text]);
+  const count = countNodes(nodes);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title="Create folder structure"
+      size="lg"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || count === 0 || count > 200}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(nodes);
+            }}
+          >
+            {count > 0 ? `Create ${count} folder${count === 1 ? '' : 's'}` : 'Create folders'}
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <Field
+          label="Outline"
+          hint={
+            props.intoName
+              ? `Indent with two spaces (or a tab) per level. Created inside ${props.intoName}.`
+              : 'Indent with two spaces (or a tab) per level. Created at the sandbox root.'
+          }
+        >
+          <TextArea
+            value={text}
+            onChange={setText}
+            rows={12}
+            placeholder={'01 Environmental\n  Ecology\n  Noise & vibration\n02 Engineering\n  Civil\n  Electrical'}
+          />
+        </Field>
+        <Field label="Preview">
+          {count === 0 ? (
+            <div className="field-hint">Type an outline to preview the structure.</div>
+          ) : (
+            <div style={{ maxHeight: 320, overflow: 'auto' }}>
+              <OutlinePreview nodes={nodes} />
+              {count > 200 && (
+                <div className="field-hint" style={{ color: 'var(--feedback-danger-text)' }}>
+                  That is {count} folders — keep a structure under 200.
+                </div>
+              )}
+            </div>
+          )}
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Bind: a searchable picker of the accessible unbound deliverables ─────────
 function BindModal(props: {
   document: SandboxDocument;
@@ -466,7 +576,9 @@ export function SandboxScreen() {
   const [dropTarget, setDropTarget] = useState<string | 'root' | null>(null);
 
   // modal state
-  const [modal, setModal] = useState<'sandbox' | 'doc' | 'folder' | 'access' | 'settings' | null>(null);
+  const [modal, setModal] = useState<
+    'sandbox' | 'doc' | 'folder' | 'structure' | 'access' | 'settings' | null
+  >(null);
   const [bindDoc, setBindDoc] = useState<SandboxDocument | null>(null);
   const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
@@ -777,6 +889,22 @@ export function SandboxScreen() {
           }}
         />
       )}
+      {modal === 'structure' && selected && (
+        <FolderStructureModal
+          intoName={currentFolderId ? (crumbs.at(-1)?.name ?? null) : null}
+          onClose={() => setModal(null)}
+          onSubmit={async (nodes) => {
+            try {
+              const r = await api.createFolderStructure(selected, nodes, currentFolderId);
+              loadSandbox(selected);
+              setNote(`Created ${r.created} folder${r.created === 1 ? '' : 's'}.`);
+            } catch {
+              setNote('Could not create that structure — laying out folders is a super-user action.');
+            }
+            setModal(null);
+          }}
+        />
+      )}
       {modal === 'access' && selectedSandbox && (
         <AccessModal
           sandbox={selectedSandbox}
@@ -926,6 +1054,11 @@ export function SandboxScreen() {
           {(selectedSandbox.allowMemberFolderCreate || selectedSandbox.canConfigure) && (
             <Button size="sm" variant="quiet" onClick={() => setModal('folder')}>
               <FolderPlus size={13} strokeWidth={2} /> New folder
+            </Button>
+          )}
+          {selectedSandbox.canConfigure && (
+            <Button size="sm" variant="quiet" onClick={() => setModal('structure')}>
+              <FolderTree size={13} strokeWidth={2} /> Folder structure
             </Button>
           )}
           {selectedSandbox.canConfigure && (

@@ -729,6 +729,21 @@ export type MoveFolderBody = z.infer<typeof moveFolderBody>;
 export const moveDocumentBody = z.object({ folderId: id.nullable() });
 export type MoveDocumentBody = z.infer<typeof moveDocumentBody>;
 
+// Create-folder-structure (ADR-0040, T-182) — a super-user lays out a whole
+// nested tree at once, rather than one folder at a time. A recursive node spec;
+// the structure is created under parentFolderId (or the sandbox root). Reusable
+// folder templates are a deliberate follow-up (build the free-form builder first).
+export type FolderStructureNode = { name: string; children?: FolderStructureNode[] };
+export const folderStructureNode: z.ZodType<FolderStructureNode> = z.lazy(() =>
+  z.object({ name: z.string().min(1), children: z.array(folderStructureNode).optional() }),
+);
+export const createFolderStructureBody = z.object({
+  parentFolderId: id.nullable().optional(),
+  nodes: z.array(folderStructureNode).min(1),
+});
+export type CreateFolderStructureBody = z.infer<typeof createFolderStructureBody>;
+export type CreateFolderStructureResult = { ok: true; created: number };
+
 // Bind (ADR-0038, T-153) — the one-way transition; the API records a binding_event
 export const bindDocumentBody = z.object({ containerId: id });
 export type BindDocumentBody = z.infer<typeof bindDocumentBody>;

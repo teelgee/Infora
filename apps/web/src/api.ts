@@ -46,6 +46,8 @@ import type {
   SandboxScopeGrantView,
   ListFoldersResponse,
   SandboxFolder,
+  FolderStructureNode,
+  CreateFolderStructureResult,
   ListAttachedSourcesResponse,
   AttachedSource,
   NonReviewTransmittal,
@@ -267,6 +269,15 @@ export const api = {
   revokeSandboxScope: (grantId: string) =>
     request<{ ok: true }>(`/sandbox-scope-grants/${grantId}/revocation`, { method: 'POST' }),
   folders: (sandboxId: string) => request<ListFoldersResponse>(`/sandboxes/${sandboxId}/folders`),
+  createFolderStructure: (
+    sandboxId: string,
+    nodes: FolderStructureNode[],
+    parentFolderId?: string | null,
+  ) =>
+    request<CreateFolderStructureResult>(`/sandboxes/${sandboxId}/folder-structure`, {
+      method: 'POST',
+      body: JSON.stringify({ nodes, ...(parentFolderId != null && { parentFolderId }) }),
+    }),
   createFolder: (sandboxId: string, name: string, parentFolderId?: string) =>
     request<SandboxFolder>(`/sandboxes/${sandboxId}/folders`, {
       method: 'POST',
