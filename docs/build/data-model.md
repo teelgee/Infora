@@ -163,6 +163,27 @@ Relationship: Comment ─ Response (one per comment in v1).
 
 ---
 
+## Drawer 6 — The project ontology (drawn 2026-07-26, ADR-0045; no migration yet)
+*The classification vocabulary deliverables classify against, and the typed edges between them — drawn ahead of the Slice O tickets per the data-model-first rule. Colocated relational tables, not a graph store (ADR-0024/0045): the ontology adds semantic pre-filters to the same access+state query the retrieval path already runs (ADR-0022). Metadata and structure only — never a grounded corpus; grounding is unchanged (ADR-0011/0021).*
+
+**Classification facet** — one axis of classification (discipline, system / asset breakdown, work package, document type, phase). **Seeded by copy** at project creation from Infora's default scheme grounded in Uniclass 2015 / ISO 19650 (ADR-0041/0045) — a copy, not a reference, so one project's edits never rewrite another's (the acceptance-code pattern, ADR-0003). Owned by the project-library owner; extended the way the naming scheme is (a producer proposes, the owner folds in — [CONTEXT.md](../../CONTEXT.md)).
+Fields: `id`, `project_id` → Project, `key` (e.g. `discipline`, `system`, `work_package`), `name`, `source` (`uniclass_2015` | `iso_19650` | `custom`), `sort_order`.
+Relationship: Project ─< Classification facet.
+
+**Classification term** — one term within a facet, **hierarchical** (breakdown structures are trees — `parent_term_id` self-reference). **A term ever referenced is immutable: retire and replace, never redefine** — `retired_at` keeps it valid and displayed on old classifications while unavailable for new ones (currency-by-state, ADR-0013, the acceptance-code rule).
+Fields: `id`, `facet_id` → Classification facet, `parent_term_id` → Classification term (nullable — null = top of its facet's tree), `code` (the Uniclass/scheme code, e.g. `Ss_25`), `label`, `sort_order`, `retired_at` (nullable).
+Relationship: Classification facet ─< Classification term; Classification term ─< Classification term (the breakdown tree).
+
+**Container classification** — a container's placement under a term. **Agent-proposed, human-editable** (ADR-0045): rides the plan/authoring metadata, so it is **mutable** like `Container.metadata` — not append-only; a reclassification overwrites. `proposed_by_run_id` records an agent origin (null = human-set), so a surface can badge "suggested, unconfirmed".
+Fields: `id`, `container_id` → Container, `term_id` → Classification term, `proposed_by_run_id` → Run (nullable), `set_by_participant_id` → Participant (nullable — null while an agent proposal is unconfirmed), `updated_at`. Unique per `(container_id, facet_id-of-term)` — one term per facet per container (facet derived through the term).
+Relationship: Container ─< Container classification; Classification term ─< Container classification.
+
+**Document relationship** *(the edge)* — a first-class, directional link between two containers (ADR-0045). **Append-only; currency-by-state** — a stale edge is retired (`retired_at`), never deleted (ADR-0013). **Agent-proposed / human-confirmed:** `confirmed_by_participant_id` null = proposed and **not yet live** (the reviewer propose-then-confirm shape, Drawer 5); only a confirmed, un-retired edge counts. Visibility rides both endpoints' deliverable visibility (producer | owner | live share — Drawer 5), applied as the same SQL pre-filter as the library reads, so a surface and the agent can never see an edge into a container the wall hides.
+Fields: `id`, `project_id` → Project, `from_container_id` → Container, `to_container_id` → Container, `type` (`supersedes` | `references` | `responds_to` | `is_part_of` | `derived_from` — `supersedes` records the link ADR-0013's supersede *state* implies), `proposed_by_run_id` → Run (nullable — an agent origin), `created_by_participant_id` → Participant, `confirmed_by_participant_id` → Participant (nullable — null = proposed, no effect until confirmed), `created_at`, `confirmed_at` (nullable), `retired_at` (nullable).
+Relationship: Container ─< Document relationship (as `from`); Container ─< Document relationship (as `to`).
+
+> **Retrieval note (ADR-0022/0045).** The `Version chunk` grounding query gains classification and edge **pre-filters** in the same statement as the existing access+state pre-filter: a scoped retrieval narrows the candidate set structurally (this facet/term, edge-connected containers) *before* the vector comparison — the 100k-document scoping lever. Purely structural questions (currency, coverage, dependency) are answered from these tables with no vector search at all. No new store; no change to what grounds.
+
 ## What this first cut deliberately omits
 Per drawer-by-drawer discipline, and because these are post-MVP (grill tracker buckets A/B): **programme** and programme context; the **org-context / Knowledge / precedent** stores and the distillation loop (Sessions 4/7); **custom agents** and the builder; the **full sandbox model** (shared/private project sandboxes, the workspace sandbox, folders, the owner's audited override — the skeleton carries only the minimal Sandbox document table in Drawer 2); **attached sources**; the **authority corpus** internals (referenced by Citation, owned by Context); **rails** as scoped records (ADR-0030 — add when governance is built); **programme/portfolio** views. Each returns as its own drawer when its slice is built.
 

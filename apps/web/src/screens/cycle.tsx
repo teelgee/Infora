@@ -371,7 +371,6 @@ function RoundCard(props: {
             style={{
               flex: '1 1 320px',
                 minWidth: 280,
-                maxHeight: 620,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 12,

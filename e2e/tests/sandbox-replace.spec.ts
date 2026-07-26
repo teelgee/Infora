@@ -121,3 +121,22 @@ test('upload → rename → replace (revision increments) → frozen replace ref
 
   await consultant.dispose();
 });
+
+test('the Upload file toolbar button lands a native docx, with Replace available on its row', async ({ page }) => {
+  await loginAs(page, SEEDED.consultant);
+  await page.getByRole('link', { name: /Sandbox/ }).click();
+
+  const name = `T222 uploaded ${Date.now()}`;
+  // the hidden file picker the "Upload file" button opens (accepts Office files)
+  await page
+    .locator('input[type="file"][accept*=".docx"]')
+    .setInputFiles({ name: `${name}.docx`, mimeType: DOCX_MIME, buffer: fakeDocx('ui') });
+  await expect(page.getByText(/Uploaded /)).toBeVisible();
+
+  const row = page.getByRole('row').filter({ hasText: name });
+  await expect(row).toBeVisible();
+  await expect(row.getByText('DOCX')).toBeVisible();
+  // an uploaded document offers Replace file (unlike an authored one)
+  await rowMenuAction(page, row, 'Replace file');
+  await expect(page.getByRole('dialog')).toBeVisible();
+});

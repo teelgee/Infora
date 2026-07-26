@@ -933,13 +933,16 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   gap: var(--pane-gap); background: var(--surface-sunken);
   padding: var(--primitive-space-3); border-radius: var(--pane-radius);
 }
+/* both review panes track the viewport (T-225): grow on tall monitors, stay
+   scrollable (never taller than the window) on short ones. 320px ≈ the topbar,
+   header, round header and margins above the tray. */
 .review-viewer {
   background: var(--pane-background); border-radius: var(--pane-radius); box-shadow: var(--pane-shadow);
-  padding: 12px; max-height: 620px; overflow: auto;
+  padding: 12px; max-height: clamp(420px, calc(100vh - 320px), 1100px); overflow: auto;
 }
 .review-drr {
   background: var(--pane-background); border-radius: var(--pane-radius); box-shadow: var(--pane-shadow);
-  padding: 16px;
+  padding: 16px; max-height: clamp(420px, calc(100vh - 320px), 1100px);
 }
 
 /* ---------- New components (docs/design/design-rules.md §B) ---------- */
