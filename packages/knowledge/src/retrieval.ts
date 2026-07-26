@@ -11,6 +11,7 @@
 // any per-participant narrowing — the same rule canReadDeliverable fixes,
 // applied as a SQL pre-filter (deliverableVisibleSql), never a post-filter.
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import type { AssembledItem } from '@infora/contracts';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
@@ -20,7 +21,18 @@ import { deliverableVisibleSql } from './visibility';
 
 export const GROUNDED_CHUNK_LIMIT = 8;
 
-type RetrievalRequest = { text: string; mode: 'baseline' | 'targeted' };
+// The ontology's semantic pre-filter (T-242, ADR-0045): an optional set of
+// classification term ids narrows retrieval to the containers carrying one of
+// them, *before* the vector comparison — the lever that scopes a 100k-document
+// library structurally rather than searching it all. Applied in the same query
+// as the access+state pre-filter (never a post-filter), so it composes with the
+// wall for free. Multi-facet AND precedence and edge-traversal scoping are
+// deferred to Slice D (retrieval maturity); this is the substrate.
+type RetrievalRequest = {
+  text: string;
+  mode: 'baseline' | 'targeted';
+  classificationTermIds?: string[];
+};
 
 export async function groundedLibrary(
   deps: { db: Db; router: Router },
@@ -31,12 +43,13 @@ export async function groundedLibrary(
 
   // lexical arm: deliverable codes named in the request beat similarity —
   // code is how this domain names documents (ADR-0022)
+  const scope = request.classificationTermIds ?? [];
   const codes = extractReferenceCodes(request.text);
-  const byCode = codes.length > 0 ? await liveChunksByCode(deps.db, slice, modelId, codes) : [];
+  const byCode = codes.length > 0 ? await liveChunksByCode(deps.db, slice, modelId, codes, scope) : [];
 
   // vector arm: query embedded with the same pinned model the index holds
   const { embeddings } = await deps.router.embed([request.text], 'query');
-  const bySimilarity = await nearestLiveChunks(deps.db, slice, modelId, embeddings[0]!);
+  const bySimilarity = await nearestLiveChunks(deps.db, slice, modelId, embeddings[0]!, scope);
 
   const seen = new Set<string>();
   const items: AssembledItem[] = [];
@@ -55,7 +68,9 @@ export async function groundedLibrary(
 
 // The one pre-filter both arms share: the entitled project's live grounded
 // corpus — one live version per container falls out of is_current + state.
-function liveLibraryFilter(slice: EntitledSlice, modelId: string) {
+// An optional classification scope narrows to containers carrying one of the
+// given terms (the ontology's semantic pre-filter, T-242), in the same query.
+function liveLibraryFilter(slice: EntitledSlice, modelId: string, scope: string[] = []) {
   return and(
     eq(s.containers.projectId, slice.projectId),
     eq(s.containers.inLibrary, true),
@@ -63,7 +78,20 @@ function liveLibraryFilter(slice: EntitledSlice, modelId: string) {
     eq(s.versions.isCurrent, true),
     eq(s.versionChunks.embeddingModelId, modelId),
     deliverableVisibleSql(slice),
+    scope.length > 0 ? classificationScopeSql(scope) : undefined,
   );
+}
+
+// A container is in scope if it is classified under any of the given terms —
+// a correlated EXISTS on container_classifications, so it is a pre-filter, not
+// a post-filter, and composes with the wall in one statement.
+function classificationScopeSql(termIds: string[]): SQL {
+  return sql`exists (select 1 from container_classifications cc
+    where cc.container_id = ${s.containers.id}
+      and cc.term_id in (${sql.join(
+        termIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}))`;
 }
 
 const chunkColumns = {
@@ -72,7 +100,13 @@ const chunkColumns = {
   content: s.versionChunks.content,
 };
 
-function liveChunksByCode(db: Db, slice: EntitledSlice, modelId: string, codes: string[]) {
+function liveChunksByCode(
+  db: Db,
+  slice: EntitledSlice,
+  modelId: string,
+  codes: string[],
+  scope: string[] = [],
+) {
   return db
     .select(chunkColumns)
     .from(s.versionChunks)
@@ -80,21 +114,27 @@ function liveChunksByCode(db: Db, slice: EntitledSlice, modelId: string, codes: 
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
     .where(
       and(
-        liveLibraryFilter(slice, modelId),
+        liveLibraryFilter(slice, modelId, scope),
         inArray(sql<string>`upper(${s.containers.documentReference})`, codes),
       ),
     )
     .orderBy(asc(s.containers.documentReference), asc(s.versionChunks.chunkIndex));
 }
 
-function nearestLiveChunks(db: Db, slice: EntitledSlice, modelId: string, query: number[]) {
+function nearestLiveChunks(
+  db: Db,
+  slice: EntitledSlice,
+  modelId: string,
+  query: number[],
+  scope: string[] = [],
+) {
   const distance = cosineDistance(s.versionChunks.embedding, query);
   return db
     .select(chunkColumns)
     .from(s.versionChunks)
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
-    .where(liveLibraryFilter(slice, modelId))
+    .where(liveLibraryFilter(slice, modelId, scope))
     .orderBy(asc(distance), asc(s.versionChunks.id))
     .limit(GROUNDED_CHUNK_LIMIT);
 }
