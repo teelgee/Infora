@@ -313,3 +313,30 @@ Sequential spine: **T-001 → T-003/T-009 → migrations → T-020 → T-030 →
 - **T-203 — Accept feedback + the modal fits the viewport.**
 - **T-204 — The Project library — richer, readable, openable.**
 - **T-205 — Opening a library document shows the real file, not source text.**
+
+---
+
+## Slice S — Enterprise hardening & docs hygiene *(ticketed 2026-07-25)*
+
+> **Status: ✅ built — T-206–T-214 and T-216–T-219 landed 2026-07-25, T-215 closed 2026-07-26; the slice is complete** (three parallel agent runs, one verified commit per ticket; `pnpm audit --prod` now clean and gating CI; e2e 43/43 green). Open: **T-215** (doc reconciliations — needs the owner read-through). **Deviations:** T-207 — `react-router-dom` v8 doesn't exist, the package consolidated into `react-router@8`; imports rewritten, React bumped to 19.2.8 for the peer range. T-217 — the e2e substrate raises the rate limits (the harness logs in ~40× from one IP); production defaults unchanged. T-218 — filed as **ADR-0044**: 0043 was taken the same day by the WOPI-host ADR (Slice A3). The design-gated rulings (CSRF, RLS backstop, cert targets, NFR strawman → [nfr.md](nfr.md)) are recorded in the grill tracker's pre-infra-session block.
+
+The first hardening pass and the docs catch-up, batched: small, mostly independent tickets closing known gaps before any external eye lands on the repo.
+
+| # | Ticket | Deps |
+|---|--------|------|
+| T-206 | **`SESSION_SECRET` required, no default** — the API refuses to boot without an explicit secret; the baked-in dev fallback goes. | — |
+| T-207 | **Dependency upgrades** — `react-router` ≥ 8.3.0, `@hono/node-server` ≥ 2.0.5. | — |
+| T-208 | **`pnpm audit` in CI** — the audit runs on every PR; a failing audit fails the build. | — |
+| T-209 | **Untrack `.DS_Store`** — remove the tracked files, ignore the pattern. | — |
+| T-210 | **plan.md catch-up + board/history split** — T-191–T-205 recorded; every closed slice moves to [plan-history.md](plan-history.md); this slice ticketed. | — |
+| T-211 | **TOCs for the three big docs** — a linked table of contents under the H1 of `CONTEXT.md`, `contracts.md` and this board. | — |
+| T-212 | **CLAUDE.md orientation rewrite** — a real ~40-line orientation file: what Infora is, the reading path, the working rules; the `.tldr` diagrams rule carried over verbatim. | — |
+| T-213 | **Status-marker legend** — the ✅ / 🔨 / 🟢🟡🔴 legend in [docs/build/README.md](README.md); inconsistent marker usage aligned. | — |
+| T-214 | **`.tldr` → PNG converter** — the planned local renderer (parse the JSON, rasterise with the Chromium already under `e2e/`; no tldraw, no network) so a diagram is readable on demand. | — |
+| T-215 | **Doc reconciliations** — done 2026-07-26 (owner delegated the ruling): `repo-structure.md` settled and re-dated with the components↔packages reconciliation drawn (the two deliberate asymmetries recorded — one `governance` package serves components 2+3; document management has no package until Slice B needs to share it); the ADR-0023 / component-doc reconciliation **verified already complete** (done 2026-06-27 — no stale references anywhere); one residual inconsistency found and fixed (`component-6-engine.md` still called the governance-authority ADR pending; it is ADR-0030). | — |
+| T-216 | **CORS + security headers** — an explicit origin allowlist and the standard security-header set on the API. | — |
+| T-217 | **Rate limiting** — the auth and model endpoints throttled. | — |
+| T-218 | **CSRF ruling + enforcement (ADR-0044)** — ruled 2026-07-25: SameSite=Lax + a JSON content-type gate on bodied writes, an Origin/Sec-Fetch-Site check on the multipart upload path; token upgrade named for the infra session. | — |
+| T-219 | **Minimal observability** — request IDs, structured logs, `/health`. | — |
+
+*The design-gated items from the same review (the NFR one-pager, certification targets, the DB-level wall backstop) go to the grill tracker and the infra/security session, not this board.*

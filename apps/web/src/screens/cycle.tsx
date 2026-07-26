@@ -21,7 +21,7 @@ import type {
   SandboxDocument,
 } from '@infora/contracts';
 import { Download, X } from 'lucide-react';
-import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, TextArea } from '@infora/ui';
+import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { formatDateTime, statusBadge } from './shared';
@@ -93,9 +93,15 @@ export function CycleScreen() {
   if (row === null) {
     return (
       <div className="content">
-        <p style={{ color: 'var(--text-muted)' }}>
-          {loaded ? 'This deliverable is not on a plan you can see.' : 'Loading the deliverable…'}
-        </p>
+        {loaded ? (
+          <p style={{ color: 'var(--text-muted)' }}>This deliverable is not on a plan you can see.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={16} width="70%" />
+            <Skeleton height={320} />
+          </div>
+        )}
       </div>
     );
   }

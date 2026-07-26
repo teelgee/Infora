@@ -11,7 +11,7 @@ import { useNavigate, useOutletContext } from 'react-router';
 import type { AppointmentGrant, MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
 import { isCodeField, optionLabel } from '@infora/contracts';
 import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
@@ -646,6 +646,14 @@ export function PlanScreen() {
             </tr>
           </thead>
           <tbody>
+            {rows === null &&
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={`sk-${i}`}>
+                  <td colSpan={isOwner ? 7 : 6}>
+                    <Skeleton height={18} />
+                  </td>
+                </tr>
+              ))}
             {filtered.map((r) => (
               <tr
                 key={r.containerId}

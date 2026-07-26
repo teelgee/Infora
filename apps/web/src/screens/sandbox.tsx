@@ -53,6 +53,7 @@ import {
   Modal,
   SectionLabel,
   SelectInput,
+  Skeleton,
   Table,
   TextInput,
 } from '@infora/ui';
@@ -871,7 +872,15 @@ export function SandboxScreen() {
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
-  const loadDocs = useCallback(() => api.sandboxDocuments(projectId).then((r) => setDocs(r.items)), [projectId]);
+  const [docsLoaded, setDocsLoaded] = useState(false);
+  const loadDocs = useCallback(
+    () =>
+      api.sandboxDocuments(projectId).then((r) => {
+        setDocs(r.items);
+        setDocsLoaded(true);
+      }),
+    [projectId],
+  );
 
   // Upload the native Office file as canonical (T-122). It lands in the org's
   // default sandbox, so we drop to the flat overview (setSelected(null)) where
@@ -1610,6 +1619,14 @@ export function SandboxScreen() {
                 </tr>
               </thead>
               <tbody>
+                {!docsLoaded &&
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <tr key={`sk-${i}`}>
+                      <td colSpan={3}>
+                        <Skeleton height={18} />
+                      </td>
+                    </tr>
+                  ))}
                 {shown.map((doc) => {
                   const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
                   return (
@@ -1661,7 +1678,7 @@ export function SandboxScreen() {
                     </tr>
                   );
                 })}
-                {shown.length === 0 && (
+                {docsLoaded && shown.length === 0 && (
                   <tr>
                     <td colSpan={3} style={{ color: 'var(--text-muted)' }}>
                       Nothing here yet — create a document or accept a draft from Ask.

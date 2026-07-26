@@ -53,7 +53,7 @@ The cut is by **domain capability**; because the component is largely ungrilled,
 ## 5. Custom-workflow builder, deployment and rails inheritance
 
 **Responsibility.** Let an authorised role compose a custom workflow or org-built agent held in org context; deploy it into a project bound to that project's assembly environment and governance envelope; inherit the owner's rails (tighten-only, never loosen); express and validate a tightening at deploy time; govern sharing (org-only now, shareable/sellable later) and pre-deploy validation.
-**Governing ADRs.** Rails inheritance settled in principle (component 3; mirrors ADR-0015); governance-authority ADR pending. Building interface, tightening validation and sharing **open**.
+**Governing ADRs.** Rails inheritance settled — **ADR-0030** (owner-set ceiling, member tighten-only, deploy-time inheritance for org-built agents; mirrors ADR-0015). Building interface, tightening validation and sharing **open**.
 **Terms owned.** Custom workflow, custom (org-built) agent.
 **Depends on.** Org context (component 4) as the home; governance (component 3) for the envelope and rails; access model (component 2); assembly environment (ADR-0025).
 

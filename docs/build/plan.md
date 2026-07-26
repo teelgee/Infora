@@ -1,6 +1,6 @@
 # Build plan — the ticket board (Phase 5)
 
-**Contents:** [How to read a ticket](#how-to-read-a-ticket) · [Skeleton auth](#-one-named-build-time-decision--skeleton-auth) · [Slice S — Enterprise hardening & docs hygiene](#slice-s--enterprise-hardening--docs-hygiene-ticketed-2026-07-25) · [The roadmap after the skeleton](#the-roadmap-after-the-skeleton-coarse--ticketed-when-its-slice-starts)
+**Contents:** [How to read a ticket](#how-to-read-a-ticket) · [Skeleton auth](#-one-named-build-time-decision--skeleton-auth) · [The roadmap after the skeleton](#the-roadmap-after-the-skeleton-coarse--ticketed-when-its-slice-starts)
 
 > **Closed slices live in [plan-history.md](plan-history.md)** — the full verbatim record of every ✅ slice (the walking-skeleton milestones M0–M6, the Phase 7 QA batch, Slices A–A2.6). This board carries only what is open or ahead. **Standing convention: when a slice closes (✅), its block moves to plan-history.md in the same commit.**
 
@@ -21,33 +21,6 @@
 The design layer defers real identity/security to the infra/security session (component 1, open). The skeleton still needs a login. **Decision taken for the skeleton, to be superseded by that session:** email + password session login for the seeded users (`POST /auth/session`, httpOnly cookie), plus Entra ID SSO on the Copilot path (M6, where Microsoft mandates it). No self-serve signup, no password reset, no roles beyond what the data model already carries. This is scaffolding, not the security model; it is listed here so it is a recorded choice, not an accident.
 
 **Production identity is committed as Entra-first (recorded 2026-07-04):** most users will arrive through Microsoft Entra (Azure AD), so production login is Entra ID SSO (OIDC) as the primary path, with the skeleton's password login retained only as a break-glass/dev mechanism to be decided at the infra/security session. The build already enables this: identity is established at one API boundary only (T-021/T-023, contracts principle 3), `User.external_identity` carries the Entra subject from Drawer 1, and T-071 exercises the full Entra → User → Participant mapping. Adding web SSO later is an additive login route, not a rework.
-
----
-
-## Slice S — Enterprise hardening & docs hygiene *(ticketed 2026-07-25)*
-
-> **Status: 🔨 T-206–T-214 and T-216–T-219 ✅ built 2026-07-25** (three parallel agent runs, one verified commit per ticket; `pnpm audit --prod` now clean and gating CI; e2e 43/43 green). Open: **T-215** (doc reconciliations — needs the owner read-through). **Deviations:** T-207 — `react-router-dom` v8 doesn't exist, the package consolidated into `react-router@8`; imports rewritten, React bumped to 19.2.8 for the peer range. T-217 — the e2e substrate raises the rate limits (the harness logs in ~40× from one IP); production defaults unchanged. T-218 — filed as **ADR-0044**: 0043 was taken the same day by the WOPI-host ADR (Slice A3). The design-gated rulings (CSRF, RLS backstop, cert targets, NFR strawman → [nfr.md](nfr.md)) are recorded in the grill tracker's pre-infra-session block.
-
-The first hardening pass and the docs catch-up, batched: small, mostly independent tickets closing known gaps before any external eye lands on the repo.
-
-| # | Ticket | Deps |
-|---|--------|------|
-| T-206 | **`SESSION_SECRET` required, no default** — the API refuses to boot without an explicit secret; the baked-in dev fallback goes. | — |
-| T-207 | **Dependency upgrades** — `react-router` ≥ 8.3.0, `@hono/node-server` ≥ 2.0.5. | — |
-| T-208 | **`pnpm audit` in CI** — the audit runs on every PR; a failing audit fails the build. | — |
-| T-209 | **Untrack `.DS_Store`** — remove the tracked files, ignore the pattern. | — |
-| T-210 | **plan.md catch-up + board/history split** — T-191–T-205 recorded; every closed slice moves to [plan-history.md](plan-history.md); this slice ticketed. | — |
-| T-211 | **TOCs for the three big docs** — a linked table of contents under the H1 of `CONTEXT.md`, `contracts.md` and this board. | — |
-| T-212 | **CLAUDE.md orientation rewrite** — a real ~40-line orientation file: what Infora is, the reading path, the working rules; the `.tldr` diagrams rule carried over verbatim. | — |
-| T-213 | **Status-marker legend** — the ✅ / 🔨 / 🟢🟡🔴 legend in [docs/build/README.md](README.md); inconsistent marker usage aligned. | — |
-| T-214 | **`.tldr` → PNG converter** — the planned local renderer (parse the JSON, rasterise with the Chromium already under `e2e/`; no tldraw, no network) so a diagram is readable on demand. | — |
-| T-215 | **Doc reconciliations** — `repo-structure.md` out of provisional; the ADR-0023 / component-doc reconciliation. *Needs an owner read-through.* | — |
-| T-216 | **CORS + security headers** — an explicit origin allowlist and the standard security-header set on the API. | — |
-| T-217 | **Rate limiting** — the auth and model endpoints throttled. | — |
-| T-218 | **CSRF ruling + enforcement (ADR-0044)** — ruled 2026-07-25: SameSite=Lax + a JSON content-type gate on bodied writes, an Origin/Sec-Fetch-Site check on the multipart upload path; token upgrade named for the infra session. | — |
-| T-219 | **Minimal observability** — request IDs, structured logs, `/health`. | — |
-
-*The design-gated items from the same review (the NFR one-pager, certification targets, the DB-level wall backstop) go to the grill tracker and the infra/security session, not this board.*
 
 ---
 

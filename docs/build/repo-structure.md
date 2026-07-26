@@ -1,6 +1,6 @@
-# Repository structure (provisional)
+# Repository structure
 
-> **Status: provisional / evolving.** This is the current working cut of the code layout, relocated from the overview on 2026-06-27 because it is build-facing implementation detail, not solution narrative. Expect it to shift as the build proceeds and the data model and component cut firm up. Packages are a *finer* grain than the [components](../architecture/infora-overview.md) — in particular the Engine component spans `orchestration`, `capabilities` and `workflows` below; reconcile the two when this is firmed up.
+> **Status: settled (T-215, 2026-07-26).** Relocated from the overview on 2026-06-27 and held provisional while the build validated the cut. Roughly 190 tickets later the layout has held unchanged — every slice landed inside it without forcing a new package — so it is recorded as settled, and the component↔package reconciliation promised at relocation is drawn below. Revisit only when a slice genuinely forces a new package (the Slice H connectors, the Slice B add-in).
 
 A pnpm + Turborepo monorepo, TypeScript throughout. Surfaces are apps; the layers are packages; governance and access policy are cross-cutting packages enforced at the API boundary.
 
@@ -11,22 +11,44 @@ infora/
 │  ├─ web/                # React: the one web app, role-scoped views (was web-consultant;
 │  │                      #   renamed T-110, 2026-07-14 — the owner sees the same app, so the
 │  │                      #   formerly planned web-owner portfolio split is superseded)
-│  ├─ word-addin/         # Office.js task pane, thin client → api (later)
-│  └─ copilot-agent/      # M365 Copilot declarative agent + API plugin → api (ADR-0031)
+│  ├─ word-addin/         # Office.js task pane, thin client → api (later; not yet created)
+│  └─ copilot-agent/      # M365 declarative agent + API plugin → api (ADR-0031; deferred with M6)
 ├─ packages/
-│  ├─ model/              # model-agnostic router + provider adapters
-│  ├─ orchestration/      # planner, sub-agents, tool registry, run state
+│  ├─ model/              # model-agnostic router + provider adapters (the ADR-0037 choke point)
+│  ├─ orchestration/      # planner, chain leaves, run state (ADR-0028)
 │  ├─ data/               # connectors, ingestion, retrieval (pgvector)
-│  ├─ knowledge/          # project + org context stores, signal capture (moat)
+│  ├─ knowledge/          # context assembly gateway (ADR-0029); org/project stores as they land
 │  ├─ capabilities/       # grounded-gen, compliance, tabular, plain-english
 │  ├─ workflows/          # standard + custom workflows composing capabilities
-│  ├─ governance/         # audit log, grounding/NLI, rails, access policy
-│  ├─ db/                 # Postgres + pgvector: schema, migrations, seed
+│  ├─ governance/         # access predicates + wall, grounding/NLI rails
+│  ├─ db/                 # Postgres + pgvector: schema (5 drawers), migrations, seed
 │  ├─ contracts/          # shared types + API schema (single source of truth)
 │  └─ ui/                 # shared React kit + design tokens
+├─ e2e/                   # Playwright browser + API acceptance suites (T-084)
+├─ scripts/               # dep-rules.mjs (enforced in CI), tldr-to-png.mjs
 └─ turbo.json  pnpm-workspace.yaml  tsconfig.base.json
 ```
 
-Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back.
+Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back. The rules are enforced by `scripts/dep-rules.mjs` — a violation fails CI.
+
+## Components ↔ packages (the reconciliation)
+
+The eight [components](../architecture/infora-overview.md) are **design boundaries** (could one team own this behind an interface?); packages are **build boundaries** (what a bundler and the dependency rules see). The grains differ deliberately — a component may span packages and one package may serve two components — so the mapping is recorded rather than assumed:
+
+| Component | Where it lives in the tree |
+|---|---|
+| 1 Foundation | `db` (schema, migrations, seed) · `model` (router + adapters) · `contracts` · the CI substrate (`scripts/dep-rules.mjs`) |
+| 2 Access | `governance` — the access predicates (`access.ts`, `sandbox.ts`), evaluated at the `api` boundary; no code path resolves its own permissions |
+| 3 Governance | `governance` — ground-check and rails; the audit record written by `orchestration`'s run-writer into `db` drawer 3 |
+| 4 Context | `knowledge` (the assembly gateway, ADR-0029) · `data` (ingestion + retrieval over pgvector) |
+| 5 Document management | **no dedicated package, by design** — the lifecycle is `db` drawers 2/5 plus the `api` route modules (plan, cycle, transmittal, renditions, sandbox, naming) |
+| 6 Engine | `orchestration` (the chain + run state) · `capabilities` (the skills) · `workflows` (the recipes) |
+| 7 Connectors *(deferred)* | future home in `data` |
+| 8 Surfaces | `apps/web` · `ui` · the `api` app as the one deployable over the layers; later `word-addin`, `copilot-agent` |
+
+Two asymmetries are deliberate, recorded here so they are never "discovered" as drift:
+
+- **One `governance` package serves two components (2 and 3).** Access and rails are both default-deny policy evaluated at the same API boundary with the same invariant (a subordinate scope narrows, never pierces); splitting them would separate code that must move together.
+- **Document management has no package.** Its logic is the stored shape (drawers 2/5, where the append-only triggers live) plus API routes. It earns a package only when a second surface — the Slice B Word add-in — needs to share that logic; extracting it earlier would be speculative structure.
 
 The `db` schema is not improvised at the keyboard. It is drawn and agreed first in [data-model.md](data-model.md) — the translation of the `CONTEXT.md` glossary into stored tables and relationships — before the first migration is written.
