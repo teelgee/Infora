@@ -308,6 +308,8 @@ export function CycleScreen() {
             />
           );
         })}
+
+      {cycle && <ActivityTrail cycle={cycle} />}
     </div>
   );
 }
@@ -355,6 +357,62 @@ function RoundSummary(props: { round: Round; onExpand: () => void }) {
       <span style={{ flex: 1 }} />
       {issued && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(issued.issuedAt)}</span>}
     </button>
+  );
+}
+
+// The cycle's audit line, flattened from facts already in the payload (T-232):
+// launch, each submission/issue with its actor and verdict, and the terminal
+// accept/reject. Oldest first.
+function ActivityTrail(props: { cycle: ReviewCycle }) {
+  const { cycle } = props;
+  const events: { text: string; when: string; tone?: 'accent' | 'danger' }[] = [
+    { text: 'Review cycle launched', when: cycle.launchedAt },
+  ];
+  for (const round of cycle.rounds) {
+    for (const t of round.transmittals) {
+      events.push({
+        text:
+          t.direction === 'return'
+            ? `Round ${round.number} submitted for review by ${t.sender.name}`
+            : `Round ${round.number} issued by ${t.sender.name}${round.deliverableCode ? ` — verdict ${round.deliverableCode.code}` : ''}`,
+        when: t.issuedAt,
+      });
+    }
+  }
+  if (cycle.closedAt) {
+    events.push(
+      cycle.state === 'accepted'
+        ? { text: 'Accepted & published to the project library', when: cycle.closedAt, tone: 'accent' }
+        : {
+            text: `Closed as rejected${cycle.closedReason ? ` — ${cycle.closedReason}` : ''}`,
+            when: cycle.closedAt,
+            tone: 'danger',
+          },
+    );
+  }
+  events.sort((a, b) => a.when.localeCompare(b.when));
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <SectionLabel>Activity</SectionLabel>
+      <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+        {events.map((e, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: e.tone === 'accent' ? 'var(--accent)' : e.tone === 'danger' ? 'var(--danger)' : 'var(--border-default)',
+              }}
+            />
+            <span style={{ flex: 1 }}>{e.text}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>{formatDateTime(e.when)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
