@@ -33,9 +33,11 @@ import {
   Link2,
   Lock,
   LockOpen,
+  Pencil,
   Plus,
   Send,
   Settings,
+  Upload,
   User,
   Users,
   X,
@@ -71,6 +73,25 @@ const liveNames = (
     .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}${g.confirmedAt === null ? ' · proposed' : ''}`)
     .join(', ') || '—';
 
+// the row's at-a-glance facts (T-220): the canonical format and when it last
+// changed. Uploaded docs carry their native family; authored docs are Infora text.
+const formatLabel: Record<SandboxDocument['format'], string> = {
+  infora_text: 'Infora text',
+  docx: 'DOCX',
+  xlsx: 'XLSX',
+  pptx: 'PPTX',
+};
+// the accept filter for replace — the same family only (ADR-0034), so a docx is
+// replaced by a docx, never silently across formats
+const acceptFor: Record<SandboxDocument['format'], string> = {
+  infora_text: '',
+  docx: '.docx',
+  xlsx: '.xlsx',
+  pptx: '.pptx',
+};
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+
 const scopeLabel: Record<Sandbox['scope'], string> = {
   single_org: 'Single organisation',
   multi_org: 'Shared (multi-organisation)',
@@ -88,10 +109,11 @@ function TextModal(props: {
   placeholder?: string;
   hint?: string;
   cta: string;
+  initialValue?: string;
   onSubmit: (value: string) => Promise<void> | void;
   onClose: () => void;
 }) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(props.initialValue ?? '');
   const [busy, setBusy] = useState(false);
   return (
     <Modal
@@ -606,6 +628,56 @@ function BindModal(props: {
   );
 }
 
+// ── Replace the native file (T-220) — an uploaded document only ──────────────
+// A file picker in the T-163 Modal (never a bare OS dialog): pick a new file of
+// the same format family, which swaps the canonical bytes and bumps the working
+// revision. A checked-out document is refused; the caller surfaces that cleanly.
+function ReplaceFileModal(props: {
+  document: SandboxDocument;
+  onSubmit: (file: File) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const accept = acceptFor[props.document.format];
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={`Replace file — ${props.document.title}`}
+      size="sm"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || file === null}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(file!);
+            }}
+          >
+            Replace file
+          </Button>
+        </>
+      }
+    >
+      <Field
+        label={`New ${formatLabel[props.document.format]} file`}
+        hint="The new file must be the same format — it replaces the canonical file and adds a working revision. The document’s name and links are kept."
+      >
+        <input
+          type="file"
+          accept={accept}
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </Field>
+    </Modal>
+  );
+}
+
 // ── Manage access (scope grants) ────────────────────────────────────────────
 function AccessModal(props: {
   sandbox: Sandbox;
@@ -689,6 +761,8 @@ function DocActions(props: {
   onMetadata: (d: SandboxDocument) => void;
   onBind: (d: SandboxDocument) => void;
   onMove: (d: SandboxDocument) => void;
+  onRename: (d: SandboxDocument) => void;
+  onReplace: (d: SandboxDocument) => void;
   reload: () => Promise<unknown>;
   setNote: (s: string) => void;
 }) {
@@ -705,6 +779,19 @@ function DocActions(props: {
       <Button size="sm" variant="quiet" onClick={() => props.onMetadata(doc)}>
         <FileCog size={13} strokeWidth={2} /> Metadata
       </Button>
+      {/* rename edits the display name — only on an unbound document; a bound
+          one wears the container's plan-owned reference (ADR-0038) */}
+      {!doc.containerId && (
+        <Button size="sm" variant="quiet" onClick={() => props.onRename(doc)} aria-label={`Rename ${doc.title}`}>
+          <Pencil size={13} strokeWidth={2} /> Rename
+        </Button>
+      )}
+      {/* replace swaps the canonical native file — uploaded documents only */}
+      {doc.origin === 'uploaded' && (
+        <Button size="sm" variant="quiet" onClick={() => props.onReplace(doc)} aria-label={`Replace file for ${doc.title}`}>
+          <Upload size={13} strokeWidth={2} /> Replace file
+        </Button>
+      )}
       {!doc.containerId && (
         <Button size="sm" variant="quiet" onClick={() => props.onBind(doc)}>
           <Link2 size={13} strokeWidth={2} /> Bind
@@ -756,6 +843,8 @@ export function SandboxScreen() {
   >(null);
   const [bindDoc, setBindDoc] = useState<SandboxDocument | null>(null);
   const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
+  const [renameDoc, setRenameDoc] = useState<SandboxDocument | null>(null);
+  const [replaceDoc, setReplaceDoc] = useState<SandboxDocument | null>(null);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
@@ -989,6 +1078,9 @@ export function SandboxScreen() {
               </span>
             )}
             {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
+            <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
+              {formatLabel[doc.format]} · {fmtWhen(doc.updatedAt)}
+            </span>
           </span>
         </td>
         <td>
@@ -1012,6 +1104,8 @@ export function SandboxScreen() {
             onMetadata={setMetaDoc}
             onBind={setBindDoc}
             onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: d.title })}
+            onRename={setRenameDoc}
+            onReplace={setReplaceDoc}
             reload={loadDocs}
             setNote={setNote}
           />
@@ -1143,6 +1237,50 @@ export function SandboxScreen() {
           onSubmit={async (folderId) => {
             await performMove(moveItem, folderId);
             setMoveItem(null);
+          }}
+        />
+      )}
+      {renameDoc && (
+        <TextModal
+          title={`Rename “${renameDoc.title}”`}
+          label="Name"
+          cta="Rename"
+          initialValue={renameDoc.title}
+          onClose={() => setRenameDoc(null)}
+          onSubmit={async (title) => {
+            try {
+              await api.renameSandboxDocument(renameDoc.id, title);
+              await loadDocs();
+            } catch {
+              // the only refusal here is a bound document — its name is the
+              // container's plan-owned reference (ADR-0038)
+              setNote('Rename refused — a bound document keeps its deliverable’s reference.');
+            }
+            setRenameDoc(null);
+          }}
+        />
+      )}
+      {replaceDoc && (
+        <ReplaceFileModal
+          document={replaceDoc}
+          onClose={() => setReplaceDoc(null)}
+          onSubmit={async (file) => {
+            try {
+              await api.replaceSandboxFile(replaceDoc.id, file);
+              await loadDocs();
+              setNote('File replaced — a new working revision was recorded.');
+            } catch (error) {
+              const detail =
+                error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : undefined;
+              setNote(
+                detail === 'head_locked'
+                  ? 'Replace refused — the document is checked out. Release it first.'
+                  : detail === 'format_mismatch'
+                    ? `Replace refused — the new file must be a ${formatLabel[replaceDoc.format]} file.`
+                    : 'Replace failed — choose a supported Office file of the same format.',
+              );
+            }
+            setReplaceDoc(null);
           }}
         />
       )}
@@ -1411,6 +1549,9 @@ export function SandboxScreen() {
                         </span>
                         {doc.title}
                         {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
+                        <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
+                          {formatLabel[doc.format]} · {fmtWhen(doc.updatedAt)}
+                        </span>
                       </td>
                       <td>
                         {doc.containerId ? (
@@ -1433,6 +1574,8 @@ export function SandboxScreen() {
                           onMetadata={setMetaDoc}
                           onBind={setBindDoc}
                           onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: d.title })}
+                          onRename={setRenameDoc}
+                          onReplace={setReplaceDoc}
                           reload={loadDocs}
                           setNote={setNote}
                         />

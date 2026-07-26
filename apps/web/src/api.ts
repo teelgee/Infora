@@ -79,6 +79,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+// A multipart POST — the browser sets the multipart/form-data boundary itself,
+// so (unlike request) we never declare a content type (T-122/T-220 uploads).
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, { method: 'POST', credentials: 'same-origin', body: form });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new RequestError(res.status, body);
+  }
+  return (await res.json()) as T;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<void>('/auth/session', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -240,6 +251,17 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ authoringMetadata }),
     }),
+  // T-220 — rename (unbound only) and replace the native file (uploaded only)
+  renameSandboxDocument: (id: string, title: string) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}/title`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
+  replaceSandboxFile: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm<SandboxDocument>(`/sandbox-documents/${id}/file`, form);
+  },
   setContainerMetadata: (containerId: string, metadata: Record<string, unknown>) =>
     request<{ ok: true }>(`/containers/${containerId}`, {
       method: 'PATCH',
