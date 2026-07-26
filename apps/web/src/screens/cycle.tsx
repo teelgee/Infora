@@ -20,7 +20,7 @@ import type {
   Round,
   SandboxDocument,
 } from '@infora/contracts';
-import { Download } from 'lucide-react';
+import { Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
@@ -147,8 +147,16 @@ export function CycleScreen() {
         </div>
       )}
 
+      {notice && (
+        <div className="banner banner--error" style={{ marginBottom: 8 }}>
+          {notice}
+          <button className="modal-x" aria-label="Dismiss" onClick={() => setNotice(null)} style={{ marginLeft: 'auto' }}>
+            <X size={14} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {notice && <Badge tone="danger">{notice}</Badge>}
         {draft && myAuthor && (
           <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
             Open the draft in the Editor

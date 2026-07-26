@@ -59,17 +59,18 @@ classification layer — the wall already hides content, and a shared classifica
 skeleton exposes no IP. Closes the deferred ADR-0008 metadata-schema question. (Original
 fork: owner-curated vs Infora-default-only vs per-org.)
 
-**Fork 3 — build-1 surface.** Ship the ontology as an **internal, agent-facing**
-structure first (it silently powers the Fork-2 checks and retrieval pre-filter), vs a
-user-facing classification/relationship UI now. *Recommendation: agent-facing first,
-UI later.* Stress test: if users never see or correct the classification, do they trust
-the agent's collision/coverage claims enough to act on them — or does the structure need
-a visible surface to be believed?
-
-**Rider on Fork 3 — who writes the edges.** Agent proposes edges on promotion, human
-confirms, vs manual-only, vs agent auto-writes. *Recommendation: agent-proposes /
-human-confirms* (KROMA-style matching reconciles cross-org naming behind the wall).
-Same trust question as Fork 3 — fold together.
+**Fork 3 — build-1 surface (+ rider: who writes the edges). ✅ RULED (owner,
+2026-07-26): agent-facing first, with a thin confirmation surface — not silent, not a
+full classification UI.** The ontology powers the checks and the retrieval pre-filter
+from day one, mostly invisibly; but the minimum surface is non-zero because a chartered
+engineer won't reorganise two teams' work on a classification they can't see or correct.
+So: **classification** is agent-proposed at planning/promotion and shown on the container
+as an editable field the authoring team can fix (rides the plan metadata); **relationship
+edges** are agent-proposed on promotion and **human-confirmed** before going live
+(KROMA-style matching reconciles cross-org naming — org A's "flood study" = org B's
+"FRA"). Nothing structural is auto-written without a person in the loop. A dedicated
+graph-explorer / ontology-management UI is a later slice. (Original fork: agent-facing
+vs user-UI-now; rider: agent-proposes/human-confirms vs manual vs auto-write.)
 
 ## ADR candidate
 

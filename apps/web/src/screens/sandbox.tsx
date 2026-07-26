@@ -768,7 +768,7 @@ function DocActions(props: {
   onRename: (d: SandboxDocument) => void;
   onReplace: (d: SandboxDocument) => void;
   reload: () => Promise<unknown>;
-  setNote: (s: string) => void;
+  setNote: (text: string, tone?: 'success' | 'error') => void;
 }) {
   const navigate = useNavigate();
   const { doc } = props;
@@ -846,7 +846,14 @@ export function SandboxScreen() {
   const [docs, setDocs] = useState<SandboxDocument[]>([]);
   const [plan, setPlan] = useState<PlanRow[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [note, setNote] = useState<string | null>(null);
+  // a toned, dismissible notice (T-228): success auto-dismisses, errors persist
+  const [note, setNoteState] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const setNote = useCallback((text: string, tone: 'success' | 'error' = 'success') => setNoteState({ text, tone }), []);
+  useEffect(() => {
+    if (note?.tone !== 'success') return;
+    const t = setTimeout(() => setNoteState(null), 5000);
+    return () => clearTimeout(t);
+  }, [note]);
 
   // tree navigation state
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -980,7 +987,7 @@ export function SandboxScreen() {
       if (item.type === 'folder') {
         if (item.id === targetFolderId) return;
         if (targetFolderId && descendantsOf(item.id).has(targetFolderId)) {
-          setNote('A folder can’t be moved inside one of its own subfolders.');
+          setNote('A folder can’t be moved inside one of its own subfolders.', 'error');
           return;
         }
         await api.moveFolder(item.id, targetFolderId);
@@ -1159,7 +1166,7 @@ export function SandboxScreen() {
               setSelected(sb.id);
               setModal(null);
             } catch {
-              setNote('Could not create that sandbox — a shared (cross-organisation) sandbox is the owner’s to make.');
+              setNote('Could not create that sandbox — a shared (cross-organisation) sandbox is the owner’s to make.', 'error');
               setModal(null);
             }
           }}
@@ -1205,7 +1212,7 @@ export function SandboxScreen() {
               loadSandbox(selected);
               setNote(`Created ${r.created} folder${r.created === 1 ? '' : 's'}.`);
             } catch {
-              setNote('Could not create that structure — laying out folders is a super-user action.');
+              setNote('Could not create that structure — laying out folders is a super-user action.', 'error');
             }
             setModal(null);
           }}
@@ -1222,7 +1229,7 @@ export function SandboxScreen() {
               await api.grantSandboxScope(selectedSandbox.id, body);
               loadSandbox(selectedSandbox.id);
             } catch {
-              setNote('Grant refused — a cross-organisation grant is the owner’s to make.');
+              setNote('Grant refused — a cross-organisation grant is the owner’s to make.', 'error');
             }
           }}
           onRevoke={async (grantId) => {
@@ -1241,7 +1248,7 @@ export function SandboxScreen() {
               await loadSandboxes(); // the setting rides on the sandbox list row
               setNote('Settings saved.');
             } catch {
-              setNote('Settings refused — only a super-user of this sandbox may configure it.');
+              setNote('Settings refused — only a super-user of this sandbox may configure it.', 'error');
             }
             setModal(null);
           }}
@@ -1278,7 +1285,7 @@ export function SandboxScreen() {
             } catch {
               // the only refusal here is a bound document — its name is the
               // container's plan-owned reference (ADR-0038)
-              setNote('Rename refused — a bound document keeps its deliverable’s reference.');
+              setNote('Rename refused — a bound document keeps its deliverable’s reference.', 'error');
             }
             setRenameDoc(null);
           }}
@@ -1299,6 +1306,7 @@ export function SandboxScreen() {
                 detail === 'format_mismatch'
                   ? `Replace refused — the new file must be a ${formatLabel[replaceDoc.format]} file.`
                   : `Replace refused — ${describeApiError(detail)}`,
+                'error',
               );
             }
             setReplaceDoc(null);
@@ -1316,7 +1324,7 @@ export function SandboxScreen() {
               await loadDocs();
               setNote(`Bound to ${planByContainer.get(containerId)?.documentReference ?? 'the deliverable'}.`);
             } catch {
-              setNote('Bind failed — a document binds once, to its own organisation’s plan row.');
+              setNote('Bind failed — a document binds once, to its own organisation’s plan row.', 'error');
             }
             setBindDoc(null);
           }}
@@ -1390,9 +1398,9 @@ export function SandboxScreen() {
         inside a shared one; the AI never grounds on anything here.
       </p>
       {note !== null && (
-        <div className="banner" style={{ marginBottom: 8 }}>
-          {note}
-          <button className="modal-x" aria-label="Dismiss" onClick={() => setNote(null)} style={{ marginLeft: 'auto' }}>
+        <div className={`banner banner--${note.tone}`} style={{ marginBottom: 8 }}>
+          {note.text}
+          <button className="modal-x" aria-label="Dismiss" onClick={() => setNoteState(null)} style={{ marginLeft: 'auto' }}>
             <X size={14} strokeWidth={2} />
           </button>
         </div>
@@ -1630,41 +1638,41 @@ export function SandboxScreen() {
 async function freeze(
   doc: SandboxDocument,
   reload: () => Promise<unknown>,
-  setNote: (s: string) => void,
+  setNote: (text: string, tone?: 'success' | 'error') => void,
 ) {
   try {
     await api.freezeDocument(doc.id);
     await reload();
     setNote('Checked out — the head is frozen and locked. Release it to edit again.');
   } catch {
-    setNote('Freeze failed — it may already be checked out.');
+    setNote('Freeze failed — it may already be checked out.', 'error');
   }
 }
 
 async function release(
   doc: SandboxDocument,
   reload: () => Promise<unknown>,
-  setNote: (s: string) => void,
+  setNote: (text: string, tone?: 'success' | 'error') => void,
 ) {
   try {
     await api.releaseDocument(doc.id);
     await reload();
     setNote('Released — the document is editable again.');
   } catch {
-    setNote('Release refused — an open review round, or a check-out that isn’t yours to release.');
+    setNote('Release refused — an open review round, or a check-out that isn’t yours to release.', 'error');
   }
 }
 
 async function promote(
   doc: SandboxDocument,
   reload: () => Promise<unknown>,
-  setNote: (s: string) => void,
+  setNote: (text: string, tone?: 'success' | 'error') => void,
 ) {
   try {
     await api.promoteDocument(doc.id);
     await reload();
     setNote('Promoted into the container — the project review cycle is open.');
   } catch (error) {
-    setNote(`Promote failed — ${describeApiError(errorCode(error))}`);
+    setNote(`Promote failed — ${describeApiError(errorCode(error))}`, 'error');
   }
 }

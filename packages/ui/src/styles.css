@@ -517,6 +517,9 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 22px;
 }
+/* toned notices (T-228): success and error read at a glance */
+.banner--success { border-left-color: var(--accent); background: var(--accent-soft); }
+.banner--error { border-left-color: var(--danger); background: var(--danger-soft); }
 
 /* ---------- Workspace zone (rail, above project switcher) ---------- */
 .ws-zone {
