@@ -2,6 +2,11 @@
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
   ApiError,
+  ClassificationSchemeResponse,
+  ContainerClassificationsResponse,
+  ContainerRelationshipsResponse,
+  DocumentRelationship,
+  DocumentRelationshipType,
   CreateConversationResponse,
   CreateReviewCommentBody,
   CreateSandboxCommentBody,
@@ -411,4 +416,27 @@ export const api = {
       }),
       ...(signal !== undefined && { signal }),
     }),
+
+  // T-241/T-243 — the project ontology (ADR-0045): classification vocabulary +
+  // typed relationship edges.
+  classificationScheme: (projectId: string) =>
+    request<ClassificationSchemeResponse>(`/projects/${projectId}/classification-scheme`),
+  containerClassifications: (containerId: string) =>
+    request<ContainerClassificationsResponse>(`/containers/${containerId}/classifications`),
+  setClassification: (containerId: string, facetId: string, termId: string) =>
+    request<void>(`/containers/${containerId}/classifications`, {
+      method: 'PUT',
+      body: JSON.stringify({ facetId, termId }),
+    }),
+  containerRelationships: (containerId: string) =>
+    request<ContainerRelationshipsResponse>(`/containers/${containerId}/relationships`),
+  proposeRelationship: (containerId: string, toContainerId: string, type: DocumentRelationshipType) =>
+    request<DocumentRelationship>(`/containers/${containerId}/relationships`, {
+      method: 'POST',
+      body: JSON.stringify({ toContainerId, type }),
+    }),
+  confirmRelationship: (relationshipId: string) =>
+    request<DocumentRelationship>(`/relationships/${relationshipId}/confirmation`, { method: 'POST' }),
+  retireRelationship: (relationshipId: string) =>
+    request<DocumentRelationship>(`/relationships/${relationshipId}/retirement`, { method: 'POST' }),
 };
