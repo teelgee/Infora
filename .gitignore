@@ -15,3 +15,6 @@ e2e/playwright-report/
 # rendered diagram views (scripts/tldr-to-png.mjs; .tldr files are the source of truth)
 docs/architecture/diagrams/rendered/
 docs/architecture/diagrams/*.png
+
+# local worktrees (never commit)
+.claude/worktrees/

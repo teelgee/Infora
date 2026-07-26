@@ -20,11 +20,11 @@ import type {
   Round,
   SandboxDocument,
 } from '@infora/contracts';
-import { Download, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
-import { formatDateTime, statusBadge } from './shared';
+import { formatDate, formatDateTime, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
 // chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
@@ -51,6 +51,7 @@ export function CycleScreen() {
   const [rejectStep, setRejectStep] = useState<'confirm' | 'reason' | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
+  const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -274,20 +275,86 @@ export function CycleScreen() {
       )}
 
       {cycle &&
-        [...cycle.rounds].reverse().map((round) => (
-          <RoundCard
-            key={round.id}
-            round={round}
-            cycleState={cycle.state}
-            codes={codes}
-            renditions={renditionsByVersion[round.versionId] ?? []}
-            canComment={round.state === 'open' && !!myReviewer && cycle.state === 'active'}
-            canModerate={round.state === 'open' && (myReviewer?.isLead ?? false)}
-            canRespond={round.state === 'issued' && !!myAuthor && cycle.state === 'active'}
-            act={act}
-          />
-        ))}
+        [...cycle.rounds].reverse().map((round) => {
+          // only the newest round is expanded by default; earlier rounds collapse
+          // to a one-line summary and expand on click (T-231)
+          const isNewest = round.id === cycle.rounds.at(-1)?.id;
+          const expanded = isNewest || expandedRounds.has(round.id);
+          return expanded ? (
+            <RoundCard
+              key={round.id}
+              round={round}
+              cycleState={cycle.state}
+              codes={codes}
+              renditions={renditionsByVersion[round.versionId] ?? []}
+              canComment={round.state === 'open' && !!myReviewer && cycle.state === 'active'}
+              canModerate={round.state === 'open' && (myReviewer?.isLead ?? false)}
+              canRespond={round.state === 'issued' && !!myAuthor && cycle.state === 'active'}
+              collapsible={!isNewest}
+              onCollapse={() =>
+                setExpandedRounds((s) => {
+                  const next = new Set(s);
+                  next.delete(round.id);
+                  return next;
+                })
+              }
+              act={act}
+            />
+          ) : (
+            <RoundSummary
+              key={round.id}
+              round={round}
+              onExpand={() => setExpandedRounds((s) => new Set(s).add(round.id))}
+            />
+          );
+        })}
     </div>
+  );
+}
+
+// A closed round collapsed to one line — number, revision, state, verdict,
+// answered-progress and the issue date; clicking expands it (T-231).
+function RoundSummary(props: { round: Round; onExpand: () => void }) {
+  const { round } = props;
+  const st = statusBadge(round.state);
+  const issued = round.transmittals.find((t) => t.direction === 'issue');
+  const answered = round.comments.filter((c) => c.response !== null).length;
+  return (
+    <button
+      type="button"
+      onClick={props.onExpand}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        width: '100%',
+        textAlign: 'left',
+        padding: '10px 2px',
+        marginBottom: 4,
+        background: 'none',
+        border: 'none',
+        borderBottom: '1px solid var(--border-default)',
+        cursor: 'pointer',
+        font: 'inherit',
+        color: 'var(--text-primary)',
+      }}
+      title="Expand this round"
+    >
+      <ChevronRight size={14} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+      <b>Round {round.number}</b>
+      <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 12 }}>{round.versionReference}</span>
+      <Badge tone={st.tone}>{st.label}</Badge>
+      {round.deliverableCode && (
+        <Badge tone={round.deliverableCode.isAccepting ? 'success' : 'warning'}>{round.deliverableCode.code}</Badge>
+      )}
+      {round.comments.length > 0 && (
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          {answered} of {round.comments.length} answered
+        </span>
+      )}
+      <span style={{ flex: 1 }} />
+      {issued && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(issued.issuedAt)}</span>}
+    </button>
   );
 }
 
@@ -299,9 +366,12 @@ function RoundCard(props: {
   canComment: boolean;
   canModerate: boolean;
   canRespond: boolean;
+  collapsible?: boolean;
+  onCollapse?: () => void;
   act: (action: () => Promise<unknown>) => Promise<void>;
 }) {
   const { round, codes, renditions } = props;
+  const answered = round.comments.filter((c) => c.response !== null).length;
   const [commentBody, setCommentBody] = useState('');
   const [commentCode, setCommentCode] = useState('');
   const [verdict, setVerdict] = useState(round.deliverableCode?.id ?? '');
@@ -315,7 +385,20 @@ function RoundCard(props: {
   return (
     <>
       <SectionLabel>
-        Round {round.number} · {round.versionReference}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {props.collapsible && (
+            <button
+              type="button"
+              className="fb-btn"
+              title="Collapse this round"
+              onClick={props.onCollapse}
+              style={{ padding: 2 }}
+            >
+              <ChevronDown size={13} strokeWidth={2} />
+            </button>
+          )}
+          Round {round.number} · {round.versionReference}
+        </span>
       </SectionLabel>
       <div style={{ display: 'grid', gap: 12, fontSize: 13, marginBottom: 24 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -324,6 +407,11 @@ function RoundCard(props: {
             <Badge tone={round.deliverableCode.isAccepting ? 'success' : 'warning'}>
               {round.deliverableCode.code} — {round.deliverableCode.description}
             </Badge>
+          )}
+          {round.comments.length > 0 && (
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+              {answered} of {round.comments.length} comment{round.comments.length === 1 ? '' : 's'} answered
+            </span>
           )}
           <span style={{ flex: 1 }} />
           {renditions.map((r) => (
