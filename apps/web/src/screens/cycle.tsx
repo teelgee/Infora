@@ -21,7 +21,7 @@ import type {
   SandboxDocument,
 } from '@infora/contracts';
 import { Download } from 'lucide-react';
-import { Badge, Button, Card, Field, Modal, SectionLabel, TextArea } from '@infora/ui';
+import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { statusBadge } from './shared';
@@ -392,20 +392,16 @@ function RoundCard(props: {
                     style={{ ...field, minHeight: 54 }}
                   />
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select
-                      value={commentCode}
-                      onChange={(e) => setCommentCode(e.target.value)}
-                      style={{ ...field, flex: 1 }}
-                    >
-                      <option value="">no code</option>
-                      {codes
-                        .filter((c) => c.level !== 'deliverable')
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.code} — {c.description}
-                          </option>
-                        ))}
-                    </select>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <SelectInput
+                        value={commentCode}
+                        onChange={setCommentCode}
+                        placeholder="no code"
+                        options={codes
+                          .filter((c) => c.level !== 'deliverable')
+                          .map((c) => ({ value: c.id, label: `${c.code} — ${c.description}` }))}
+                      />
+                    </div>
                     <Button
                       size="sm"
                       variant="primary"
@@ -442,17 +438,17 @@ function RoundCard(props: {
                   }}
                 >
                   <span style={{ color: 'var(--text-muted)' }}>Deliverable verdict</span>
-                  <select value={verdict} onChange={(e) => setVerdict(e.target.value)} style={field}>
-                    <option value="">choose a code…</option>
-                    {codes
+                  <SelectInput
+                    value={verdict}
+                    onChange={setVerdict}
+                    placeholder="choose a code…"
+                    options={codes
                       .filter((c) => c.level !== 'comment')
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.code} — {c.description}
-                          {c.isAccepting ? ' (accepting — publishes to the library)' : ''}
-                        </option>
-                      ))}
-                  </select>
+                      .map((c) => ({
+                        value: c.id,
+                        label: `${c.code} — ${c.description}${c.isAccepting ? ' (accepting)' : ''}`,
+                      }))}
+                  />
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ flex: 1 }} />
                     <Button size="sm" variant="primary" disabled={!verdict} onClick={() => setIssuing(true)}>
