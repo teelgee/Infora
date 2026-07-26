@@ -15,6 +15,7 @@ import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Skeleton, T
 import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
+import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
 import { formatDate, statusBadge } from './shared';
 
@@ -446,6 +447,10 @@ function DeliverableDetail(props: {
           ))}
         </div>
       )}
+
+      {/* T-243 — the project ontology: classification + typed relationships
+          (ADR-0045). Read-only for non-producers; editable when canEdit. */}
+      <OntologyPanel containerId={row.containerId} projectId={props.projectId} editable={props.canEdit} />
 
       {props.canEdit && (
         <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12, marginTop: 4 }}>

@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { createDb } from './client.js';
 import { hashPassword } from './credentials.js';
+import { seedProjectOntology } from './ontology-seed.js';
 import * as s from './schema/index.js';
 
 const { db, pool } = createDb();
@@ -14,6 +15,7 @@ await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,
     responses, review_comments, review_snapshots, transmittals, rounds, review_cycles,
     deliverable_authors, deliverable_reviewers, deliverable_shares, acceptance_codes,
+    document_relationships, container_classifications, classification_terms, classification_facets,
     sandbox_document_versions, sandbox_documents, renditions,
     versions, containers, work_items,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
@@ -88,6 +90,11 @@ await db.insert(s.acceptanceCodes).values([
   { projectId: project!.id, code: 'C', description: 'Revise and resubmit', level: 'both', isAccepting: false, sortOrder: 3 },
   { projectId: project!.id, code: 'D', description: 'Rejected', level: 'both', isAccepting: false, sortOrder: 4 },
 ]);
+
+// ── Drawer 6: the project's classification vocabulary (T-240, ADR-0045) ──────
+// Infora's default Uniclass 2015 / ISO 19650 scheme, COPIED to the project at
+// creation — the same copy-not-reference discipline as the acceptance codes.
+await seedProjectOntology(db, project!.id);
 
 // ── Drawer 3: the governed-work anchor for M3–M5 ────────────────────────────
 // The work item's record half (ADR-0032 addendum): a planned, not-yet-produced
