@@ -60,6 +60,7 @@ import { api } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
+import { formatDate } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -93,8 +94,6 @@ const acceptFor: Record<SandboxDocument['format'], string> = {
   xlsx: '.xlsx',
   pptx: '.pptx',
 };
-const fmtWhen = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 
 const scopeLabel: Record<Sandbox['scope'], string> = {
   single_org: 'Single organisation',
@@ -1137,7 +1136,7 @@ export function SandboxScreen() {
             )}
             {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
             <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
-              {formatLabel[doc.format]} · {fmtWhen(doc.updatedAt)}
+              {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
             </span>
           </span>
         </td>
@@ -1629,7 +1628,7 @@ export function SandboxScreen() {
                         </button>
                         {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
                         <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
-                          {formatLabel[doc.format]} · {fmtWhen(doc.updatedAt)}
+                          {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
                         </span>
                       </td>
                       <td>

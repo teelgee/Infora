@@ -55,6 +55,7 @@ import { Presence } from '../presence';
 import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
+import { formatDate, formatDateTime } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -155,7 +156,7 @@ function EditorEntry() {
                   {doc.title}
                 </td>
                 <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  {new Date(doc.updatedAt).toLocaleString()}
+                  {formatDateTime(doc.updatedAt)}
                 </td>
                 <td style={{ textAlign: 'right' }}>
                   <Button size="sm" variant="quiet" onClick={() => open(doc.id)}>
@@ -1011,7 +1012,7 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
         <b>{comment.author.name}</b>{' '}
         {comment.acceptanceCode && <Badge tone="info">{comment.acceptanceCode.code}</Badge>}{' '}
         <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-          {new Date(comment.createdAt).toLocaleDateString()}
+          {formatDate(comment.createdAt)}
         </span>
       </div>
       {comment.anchor?.quote && (

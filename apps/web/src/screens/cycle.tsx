@@ -24,7 +24,7 @@ import { Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
-import { statusBadge } from './shared';
+import { formatDateTime, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
 // chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
@@ -578,7 +578,7 @@ function CommentRow(props: {
         <b>{comment.author.name}</b>{' '}
         {comment.acceptanceCode && <Badge tone="info">{comment.acceptanceCode.code}</Badge>}{' '}
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-          {new Date(comment.createdAt).toLocaleString()}
+          {formatDateTime(comment.createdAt)}
         </span>
       </div>
       {comment.anchor?.quote && (

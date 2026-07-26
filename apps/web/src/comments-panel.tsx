@@ -10,6 +10,7 @@ import type { RosterEntry, SandboxComment } from '@infora/contracts';
 import { Check, MessageSquare, PenLine, Reply, RotateCcw, X } from 'lucide-react';
 import { Button } from '@infora/ui';
 import { api } from './api';
+import { formatDateTime } from './screens/shared';
 
 type Props = {
   documentId: string;
@@ -224,7 +225,7 @@ export function CommentsPanel(props: Props) {
       <div key={comment.id} className={isRoot ? 'comment' : 'comment reply'}>
         <div className="comment-head">
           <b>{comment.author.name}</b>
-          <span className="when">{new Date(comment.createdAt).toLocaleString()}</span>
+          <span className="when">{formatDateTime(comment.createdAt)}</span>
           {mine && editing !== comment.id && (
             <span className="comment-tools">
               <button
@@ -308,7 +309,7 @@ export function CommentsPanel(props: Props) {
         {root.status === 'closed' && root.closedBy !== null && (
           <div className="comment-resolved">
             Resolved by {root.closedBy.name}
-            {root.closedAt !== null && ` · ${new Date(root.closedAt).toLocaleString()}`}
+            {root.closedAt !== null && ` · ${formatDateTime(root.closedAt)}`}
           </div>
         )}
         {replyFor === root.id ? (

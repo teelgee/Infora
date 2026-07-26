@@ -126,11 +126,10 @@ test('3 — the cited draft in the editor; accept lands it and writes the one Si
   await loginAs(page, SEEDED.consultant);
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
-  await page
-    .getByRole('row')
-    .filter({ hasText: documentTitle })
-    .getByRole('button', { name: /Open in Editor/ })
-    .click();
+  // Open in Editor moved into the row's overflow kebab (T-227)
+  const editorRow = page.getByRole('row').filter({ hasText: documentTitle });
+  await editorRow.getByRole('button', { name: /More actions/ }).click();
+  await page.locator('.dropdown-menu').getByText('Open in Editor').click();
 
   // the proposed block: content, citation chip to a project source, withheld notice
   const proposed = page.locator('.proposed');
@@ -160,11 +159,10 @@ test('4 — a manual edit lands with no ceremony: no Suggestion, no Signal', asy
   await loginAs(page, SEEDED.consultant);
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
-  await page
-    .getByRole('row')
-    .filter({ hasText: documentTitle })
-    .getByRole('button', { name: /Open in Editor/ })
-    .click();
+  // Open in Editor moved into the row's overflow kebab (T-227)
+  const editorRow = page.getByRole('row').filter({ hasText: documentTitle });
+  await editorRow.getByRole('button', { name: /More actions/ }).click();
+  await page.locator('.dropdown-menu').getByText('Open in Editor').click();
 
   manualText = `${SURVIVING}\n\nTyped by hand, as if AI did not exist.`;
   await page.locator('.doc-body textarea').fill(manualText);

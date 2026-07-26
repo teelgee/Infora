@@ -16,7 +16,7 @@ import type { BadgeTone } from '@infora/ui';
 import { api } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
-import { statusBadge } from './shared';
+import { formatDate, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -378,7 +378,7 @@ function DeliverableDetail(props: {
         </DetailRow>
         <DetailRow label="Revision">{row.currentVersion?.versionReference ?? '—'}</DetailRow>
         <DetailRow label="Issued">
-          {row.currentVersion ? new Date(row.currentVersion.createdAt).toLocaleDateString() : '—'}
+          {row.currentVersion ? formatDate(row.currentVersion.createdAt) : '—'}
         </DetailRow>
       </div>
 

@@ -10,6 +10,7 @@ import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import type { MeResponse, Run } from '@infora/contracts';
 import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
+import { statusBadge } from './shared';
 import { api } from '../api';
 import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
@@ -225,7 +226,7 @@ function AgentMessage(props: {
       )}
       <details className="meta" style={{ marginTop: 4 }}>
         <summary style={{ cursor: 'pointer' }}>
-          Run {run.id.slice(0, 8)} · {run.state}
+          Run {run.id.slice(0, 8)} · {statusBadge(run.state).label}
           {withheld > 0 && ` · ${withheld} claim${withheld === 1 ? '' : 's'} withheld`} · every step
           in the audit trail
         </summary>

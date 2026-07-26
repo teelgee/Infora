@@ -9,6 +9,7 @@ import { Download, FileText, Inbox, Send } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
+import { formatDate } from './shared';
 
 // the coded reference is the primary identifier — prominent monospace, not the
 // muted 12px .mono treatment used for incidental codes
@@ -17,7 +18,6 @@ const refStyle = {
   fontSize: 13,
   color: 'var(--text-primary)',
 } as const;
-const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 const linkStyle = { fontSize: 13, color: 'var(--text-secondary)', alignSelf: 'center' } as const;
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -288,7 +288,7 @@ export function LibraryScreen() {
                 <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td>{item.discipline ? <span className="mono">{item.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td>{item.producerName}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(item.issuedAt)}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
                 <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                   <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
                     <Button size="sm" variant="quiet" onClick={() => setOpenItem(item)}>

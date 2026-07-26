@@ -8,6 +8,7 @@ import { useNavigate, useOutletContext } from 'react-router';
 import type { HistoryEntry, MeResponse } from '@infora/contracts';
 import { Badge, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
+import { formatDateTime, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -64,12 +65,10 @@ export function HistoryScreen() {
                   )}
                 </td>
                 <td>
-                  <Badge tone={entry.state === 'failed' ? 'danger' : entry.state === 'running' ? 'neutral' : 'success'}>
-                    {entry.state}
-                  </Badge>
+                  <Badge tone={statusBadge(entry.state).tone}>{statusBadge(entry.state).label}</Badge>
                 </td>
                 <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  {new Date(entry.startedAt).toLocaleString()}
+                  {formatDateTime(entry.startedAt)}
                 </td>
               </tr>
             ))}

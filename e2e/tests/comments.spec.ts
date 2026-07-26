@@ -41,11 +41,10 @@ async function openInEditor(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
-  await page
-    .getByRole('row')
-    .filter({ hasText: documentTitle })
-    .getByRole('button', { name: /Open in Editor/ })
-    .click();
+  // Open in Editor moved into the row's overflow kebab (T-227)
+  const row = page.getByRole('row').filter({ hasText: documentTitle });
+  await row.getByRole('button', { name: /More actions/ }).click();
+  await page.locator('.dropdown-menu').getByText('Open in Editor').click();
   // the canvas is loaded (test 1 edits the text, so match the stable stem)
   await expect(page.locator('.doc-body textarea')).toHaveValue(/The site drainage strategy/);
 }
