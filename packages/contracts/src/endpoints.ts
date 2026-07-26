@@ -6,7 +6,18 @@
 // (principle 3).
 
 import { z } from 'zod';
-import type { Id, Resolution, Run, Suggestion, Surface } from './shared';
+import type {
+  ClassificationFacet,
+  ClassificationTerm,
+  ContainerClassification,
+  DocumentRelationship,
+  DocumentRelationshipType,
+  Id,
+  Resolution,
+  Run,
+  Suggestion,
+  Surface,
+} from './shared';
 
 const id = z.uuid();
 
@@ -1136,3 +1147,50 @@ export type PendingTransmittal = {
   versionReference: string;
 };
 export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };
+
+// ── The project ontology (Drawer 6, ADR-0045, T-241) ────────────────────────
+// Classification and relationship endpoints. Reads are pre-filtered server-side
+// (principle 2): a relationship into a container the requester cannot see is
+// never returned, so the ontology cannot leak existence across the wall.
+
+// GET /projects/:projectId/classification-scheme — the owner-owned vocabulary
+export type ClassificationSchemeResponse = {
+  facets: Array<ClassificationFacet & { terms: ClassificationTerm[] }>;
+};
+
+// GET /containers/:containerId/classifications — the container's placements
+export type ContainerClassificationRead = ContainerClassification & {
+  facetKey: string;
+  termCode: string;
+  termLabel: string;
+};
+export type ContainerClassificationsResponse = { items: ContainerClassificationRead[] };
+
+// PUT /containers/:containerId/classifications — set/replace one facet's term
+// (upsert; one term per facet). termId must belong to facetId — the API checks.
+export const setClassificationBody = z.object({ facetId: id, termId: id });
+export type SetClassificationBody = z.infer<typeof setClassificationBody>;
+
+// POST /containers/:containerId/relationships — propose an edge from this
+// container to another (proposed, no effect until confirmed)
+export const proposeRelationshipBody = z.object({
+  toContainerId: id,
+  type: z.enum([
+    'supersedes',
+    'references',
+    'responds_to',
+    'is_part_of',
+    'derived_from',
+  ]) satisfies z.ZodType<DocumentRelationshipType>,
+});
+export type ProposeRelationshipBody = z.infer<typeof proposeRelationshipBody>;
+
+// GET /containers/:containerId/relationships — the container's edges, both
+// directions, visibility-filtered. otherDocumentReference is the coded ref of
+// the endpoint at the other end (always visible here, by the pre-filter).
+export type ContainerRelationshipRead = DocumentRelationship & {
+  direction: 'outgoing' | 'incoming';
+  otherContainerId: Id;
+  otherDocumentReference: string;
+};
+export type ContainerRelationshipsResponse = { items: ContainerRelationshipRead[] };

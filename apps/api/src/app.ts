@@ -17,6 +17,7 @@ import { cycleRoutes } from './cycle';
 import { namingRoutes } from './naming';
 import { healthRoutes, requestObservability } from './observability';
 import { containerRoutes, planRoutes } from './plan';
+import { ontologyRoutes } from './ontology';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
 import type { AppDeps, AppEnv } from './requester';
@@ -141,6 +142,10 @@ export function buildApp(deps: AppDeps) {
   // (Slice A, ADR-0008/0017/0033) — T-118/T-119
   app.route('/', planRoutes(deps));
   app.route('/', containerRoutes(deps));
+
+  // T-241 — the project ontology (classification vocabulary + relationship
+  // edges, ADR-0045). Reads share the deliverable-visibility pre-filter.
+  app.route('/', ontologyRoutes(deps));
 
   // Naming scheme + code-builder (Slice A2, ADR-0008 homed) — T-152
   app.route('/', namingRoutes(deps));
