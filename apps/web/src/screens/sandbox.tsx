@@ -7,7 +7,7 @@
 // (the keyboard-accessible path; the /move endpoints re-parent within one sandbox,
 // never changing access — ADR-0036). Every action is a real in-app dialog (Modal +
 // form controls), never window.prompt. No AI grounds on anything here (ADR-0011).
-import { useCallback, useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type {
   MeResponse,
@@ -873,6 +873,33 @@ export function SandboxScreen() {
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
   const loadDocs = useCallback(() => api.sandboxDocuments(projectId).then((r) => setDocs(r.items)), [projectId]);
+
+  // Upload the native Office file as canonical (T-122). It lands in the org's
+  // default sandbox, so we drop to the flat overview (setSelected(null)) where
+  // it — and its Rename / Replace-file actions — is always visible.
+  const uploadInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const onUploadFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setUploading(true);
+      const done: string[] = [];
+      try {
+        for (const file of Array.from(files)) {
+          await api.uploadSandboxFile(projectId, file);
+          done.push(file.name);
+        }
+        setSelected(null);
+        await loadDocs();
+        setNote(`Uploaded ${done.join(', ')} — the native file is kept as the canonical document.`);
+      } catch (error) {
+        setNote(`Upload failed — ${describeApiError(errorCode(error))}`, 'error');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [projectId, loadDocs, setNote],
+  );
   useEffect(() => {
     void loadSandboxes();
     void loadDocs();
@@ -1384,6 +1411,22 @@ export function SandboxScreen() {
           <Button size="sm" variant="primary" onClick={() => setModal('doc')}>
             <FilePlus2 size={14} strokeWidth={2} /> New document
           </Button>
+          {/* upload a native Office file, kept canonical (T-122 wired to the
+              surface); the hidden input is the file picker the button opens */}
+          <Button size="sm" variant="quiet" disabled={uploading} onClick={() => uploadInput.current?.click()}>
+            <Upload size={14} strokeWidth={2} /> {uploading ? 'Uploading…' : 'Upload file'}
+          </Button>
+          <input
+            ref={uploadInput}
+            type="file"
+            accept=".docx,.xlsx,.pptx"
+            multiple
+            hidden
+            onChange={(e) => {
+              void onUploadFiles(e.target.files);
+              e.target.value = ''; // let the same file be picked again
+            }}
+          />
           {/* creating a sandbox is a super-user act (T-186); an ordinary member
               works in their personal sandbox and any they are admitted to */}
           {participant.elevated && (

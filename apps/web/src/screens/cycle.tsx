@@ -118,27 +118,72 @@ export function CycleScreen() {
     }
   }
 
+  const verdictLabel = row.deliverableCode
+    ? `${row.deliverableCode.code}${
+        codes.find((c) => c.code === row.deliverableCode!.code)?.description
+          ? ` — ${codes.find((c) => c.code === row.deliverableCode!.code)!.description}`
+          : ''
+      }`
+    : null;
+
   return (
     <div className="content">
-      <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
-        {row.documentReference}
-      </h1>
-      <p className="page-sub">
-        {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
-        <Badge tone={status.tone}>{status.label}</Badge>
-        {cycle && cycle.state === 'active' && (
-          <>
-            {' '}
-            · pen with <b>{cycle.editLockHolder === 'reviewing' ? 'the review group' : 'the authoring team'}</b>
-          </>
-        )}
-        {row.deliverableCode && (
-          <>
-            {' '}
-            · verdict <Badge tone="info">{row.deliverableCode.code}</Badge>
-          </>
-        )}
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
+            {row.documentReference}
+          </h1>
+          <p className="page-sub" style={{ margin: 0 }}>
+            {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
+            <Badge tone={status.tone}>{status.label}</Badge>
+            {cycle && cycle.state === 'active' && (
+              <>
+                {' '}
+                · pen with <b>{cycle.editLockHolder === 'reviewing' ? 'the review group' : 'the authoring team'}</b>
+              </>
+            )}
+            {verdictLabel && (
+              <>
+                {' '}
+                · verdict <Badge tone="info">{verdictLabel}</Badge>
+              </>
+            )}
+          </p>
+        </div>
+        {/* actions, right-aligned; the destructive close is set apart from the
+            primary promote by a divider so it never sits adjacent to it (T-226) */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          {draft && myAuthor && (
+            <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
+              Open the draft in the Editor
+            </Button>
+          )}
+          {draft && myAuthor?.isLead && cycle?.state === 'active' && (
+            <Button size="sm" variant="primary" onClick={() => void act(() => api.promoteDocument(draft.id))}>
+              Promote the next version
+            </Button>
+          )}
+          {/* Close-as-rejected is a governance-level, destructive act (→ container
+              `rejected`, never grounds — ADR-0032/T-126), held by the elevated
+              (super-user) tier, not a routine project-role power (T-174/T-133). It
+              surfaces only to elevated participants. */}
+          {cycle?.state === 'active' && me.elevated && (
+            <>
+              <span style={{ alignSelf: 'stretch', borderLeft: '1px solid var(--border-default)', margin: '2px 2px' }} />
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  setRejectReason('');
+                  setRejectStep('confirm');
+                }}
+              >
+                Close as rejected
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
 
       {cycle?.state === 'closed_rejected' && (
         <div className="banner" style={{ marginBottom: 8 }}>
@@ -155,35 +200,6 @@ export function CycleScreen() {
           </button>
         </div>
       )}
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {draft && myAuthor && (
-          <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
-            Open the draft in the Editor
-          </Button>
-        )}
-        {draft && myAuthor?.isLead && cycle?.state === 'active' && (
-          <Button size="sm" variant="primary" onClick={() => void act(() => api.promoteDocument(draft.id))}>
-            Promote the next version
-          </Button>
-        )}
-        {/* Close-as-rejected is a governance-level, destructive act (→ container
-            `rejected`, never grounds — ADR-0032/T-126), held by the elevated
-            (super-user) tier, not a routine project-role power (T-174/T-133). It
-            surfaces only to elevated participants. */}
-        {cycle?.state === 'active' && me.elevated && (
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => {
-              setRejectReason('');
-              setRejectStep('confirm');
-            }}
-          >
-            Close as rejected
-          </Button>
-        )}
-      </div>
 
       {/* the destructive stop is deliberately multi-step (T-194): confirm →
           reason → confirm, so it can't be triggered in one careless click */}

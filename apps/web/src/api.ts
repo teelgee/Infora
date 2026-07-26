@@ -262,6 +262,13 @@ export const api = {
     form.append('file', file);
     return requestForm<SandboxDocument>(`/sandbox-documents/${id}/file`, form);
   },
+  // T-122 upload path, wired to the surface: the native file is canonical
+  // (origin 'uploaded'); it lands in the organisation's default sandbox.
+  uploadSandboxFile: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm<SandboxDocument>(`/projects/${projectId}/sandbox-uploads`, form);
+  },
   setContainerMetadata: (containerId: string, metadata: Record<string, unknown>) =>
     request<{ ok: true }>(`/containers/${containerId}`, {
       method: 'PATCH',
