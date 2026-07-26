@@ -58,8 +58,14 @@ test('a document nests inside a folder, hides until expanded, and re-files via M
   await page.getByRole('row').filter({ hasText: folderName }).getByRole('button', { name: 'Expand folder' }).click();
   await expect(page.getByRole('row').filter({ hasText: docTitle })).toBeVisible();
 
-  // re-file the document to the sandbox root via the Move dialog
-  await page.getByRole('row').filter({ hasText: docTitle }).getByRole('button', { name: `Move ${docTitle}` }).click();
+  // re-file the document to the sandbox root via the Move dialog (Move lives
+  // behind the row's "More actions" kebab now — T-227)
+  await page
+    .getByRole('row')
+    .filter({ hasText: docTitle })
+    .getByRole('button', { name: `More actions for ${docTitle}` })
+    .click();
+  await page.locator('.dropdown-menu').getByText('Move', { exact: false }).click();
   const moveModal = page.getByRole('dialog');
   await expect(moveModal).toBeVisible();
   await moveModal.getByRole('button', { name: 'Move here' }).click();

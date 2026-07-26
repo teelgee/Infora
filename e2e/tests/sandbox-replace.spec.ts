@@ -16,6 +16,13 @@ const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 // not parse it on upload/replace (only "open in editor" reads the bytes)
 const fakeDocx = (tag: string): Buffer => Buffer.from(`PK fake docx — ${tag}`);
 
+// row actions beyond freeze/promote live behind the row's "More actions" kebab
+// (T-227); the menu is portalled to <body>.
+async function rowMenuAction(page: Page, row: ReturnType<Page['getByRole']>, item: string): Promise<void> {
+  await row.getByRole('button', { name: /More actions/ }).click();
+  await page.locator('.dropdown-menu').getByText(item, { exact: false }).click();
+}
+
 async function loginAs(page: Page, email: string) {
   await page.goto('/');
   await page.getByLabel('Email').fill(email);
@@ -62,7 +69,7 @@ test('upload → rename → replace (revision increments) → frozen replace ref
 
   // ── rename (an unbound document) ────────────────────────────────────────────
   const renamed = `T222 drainage strategy ${stamp}`;
-  await row.getByRole('button', { name: 'Rename' }).click();
+  await rowMenuAction(page, row, 'Rename');
   const renameDialog = page.getByRole('dialog');
   await renameDialog.getByRole('textbox').fill(renamed);
   await renameDialog.getByRole('button', { name: 'Rename' }).click();
@@ -71,7 +78,7 @@ test('upload → rename → replace (revision increments) → frozen replace ref
   await expect(row).toBeVisible();
 
   // ── replace the native file → a new working revision, recorded in history ───
-  await row.getByRole('button', { name: 'Replace file' }).click();
+  await rowMenuAction(page, row, 'Replace file');
   let replaceDialog = page.getByRole('dialog');
   await replaceDialog
     .locator('input[type="file"]')
@@ -87,7 +94,7 @@ test('upload → rename → replace (revision increments) → frozen replace ref
   await expect(row.getByRole('button', { name: 'Release' })).toBeVisible();
 
   // ── a replace is refused while frozen (it rewrites canonical bytes) ─────────
-  await row.getByRole('button', { name: 'Replace file' }).click();
+  await rowMenuAction(page, row, 'Replace file');
   replaceDialog = page.getByRole('dialog');
   await replaceDialog
     .locator('input[type="file"]')
@@ -102,7 +109,7 @@ test('upload → rename → replace (revision increments) → frozen replace ref
   await expect(page.getByText(/Released/)).toBeVisible();
 
   // ── replace now succeeds → v0.3 ─────────────────────────────────────────────
-  await row.getByRole('button', { name: 'Replace file' }).click();
+  await rowMenuAction(page, row, 'Replace file');
   replaceDialog = page.getByRole('dialog');
   await replaceDialog
     .locator('input[type="file"]')

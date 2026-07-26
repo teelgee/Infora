@@ -69,7 +69,9 @@ test('the Bind dialog picks a deliverable from a searchable list; the bound code
   // bind it via the searchable dialog — search by the deliverable's title (the
   // combobox filters on title as well as coded reference)
   const row = page.getByRole('row').filter({ hasText: docTitle });
-  await row.getByRole('button', { name: /Bind/ }).click();
+  // Bind now lives behind the row's "More actions" kebab (T-227)
+  await row.getByRole('button', { name: /More actions/ }).click();
+  await page.locator('.dropdown-menu').getByText('Bind', { exact: false }).click();
   const bind = page.getByRole('dialog');
   await expect(bind).toBeVisible();
   await bind.getByPlaceholder(/Search your deliverables/).fill(`UI e2e ${stamp}`);

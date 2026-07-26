@@ -49,13 +49,15 @@ recognised standard is the point of putting classification on the record; it end
 "says who?" argument behind every structural claim the agent makes, and coheres with
 ADR-0041's 19650 versioning. (Original fork: adopt standard vs Infora-native vs defer.)
 
-**Fork 2 — who owns it per project.** Owner-curated (like the naming scheme), vs
-Infora-provided default only, vs per-org. *Recommendation: owner-owned, seeded from the
-default, extendable the way the naming scheme is (producer proposes, owner folds in).*
-This closes the deferred ADR-0008 metadata-schema question. Stress test: per-org vocab
-would let each consultant classify in its own language behind the wall — but then the
-owner's MIDP can't compare like with like across producers; does cross-producer
-legibility have to win?
+**Fork 2 — who owns it per project. ✅ RULED (owner, 2026-07-26): the project-library
+owner owns the ontology** — one shared vocabulary per project, owner-authoritative,
+seeded from the Uniclass/19650 default and extended the way the naming scheme is
+(producer proposes a value, owner folds it into the project-wide vocab,
+[CONTEXT.md:146](../../CONTEXT.md#L146)). Not per-org: the whole payoff is the owner's
+MIDP comparing like with like across producers, so cross-producer legibility wins at the
+classification layer — the wall already hides content, and a shared classification
+skeleton exposes no IP. Closes the deferred ADR-0008 metadata-schema question. (Original
+fork: owner-curated vs Infora-default-only vs per-org.)
 
 **Fork 3 — build-1 surface.** Ship the ontology as an **internal, agent-facing**
 structure first (it silently powers the Fork-2 checks and retrieval pre-filter), vs a

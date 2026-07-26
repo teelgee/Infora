@@ -33,6 +33,7 @@ import {
   Link2,
   Lock,
   LockOpen,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
@@ -46,6 +47,8 @@ import {
   Badge,
   Button,
   Combobox,
+  DropdownMenu,
+  DropdownMenuItem,
   Field,
   Modal,
   SectionLabel,
@@ -769,49 +772,62 @@ function DocActions(props: {
 }) {
   const navigate = useNavigate();
   const { doc } = props;
+  // Two visible quick actions (freeze/release + promote) and a kebab for the
+  // rest (T-227) — so every row is one line and the action column aligns
+  // regardless of the document's state.
   return (
-    <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-      <Button size="sm" variant="quiet" onClick={() => navigate(`/projects/${props.projectId}/editor/${doc.id}`)}>
-        Open in Editor
-      </Button>
-      <Button size="sm" variant="quiet" onClick={() => props.onMove(doc)} aria-label={`Move ${doc.title}`}>
-        <FolderInput size={13} strokeWidth={2} /> Move
-      </Button>
-      <Button size="sm" variant="quiet" onClick={() => props.onMetadata(doc)}>
-        <FileCog size={13} strokeWidth={2} /> Metadata
-      </Button>
-      {/* rename edits the display name — only on an unbound document; a bound
-          one wears the container's plan-owned reference (ADR-0038) */}
-      {!doc.containerId && (
-        <Button size="sm" variant="quiet" onClick={() => props.onRename(doc)} aria-label={`Rename ${doc.title}`}>
-          <Pencil size={13} strokeWidth={2} /> Rename
-        </Button>
-      )}
-      {/* replace swaps the canonical native file — uploaded documents only */}
-      {doc.origin === 'uploaded' && (
-        <Button size="sm" variant="quiet" onClick={() => props.onReplace(doc)} aria-label={`Replace file for ${doc.title}`}>
-          <Upload size={13} strokeWidth={2} /> Replace file
-        </Button>
-      )}
-      {!doc.containerId && (
-        <Button size="sm" variant="quiet" onClick={() => props.onBind(doc)}>
-          <Link2 size={13} strokeWidth={2} /> Bind
-        </Button>
-      )}
+    <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
       {doc.headLocked ? (
-        <Button size="sm" variant="quiet" onClick={() => void release(doc, props.reload, props.setNote)}>
+        <Button size="sm" variant="quiet" onClick={() => void release(doc, props.reload, props.setNote)} aria-label={`Release ${doc.title}`}>
           <LockOpen size={13} strokeWidth={2} /> Release
         </Button>
       ) : (
-        <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)}>
+        <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)} aria-label={`Freeze ${doc.title}`}>
           <Lock size={13} strokeWidth={2} /> Freeze
         </Button>
       )}
       {doc.containerId && (
-        <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)}>
+        <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)} aria-label={`Promote ${doc.title}`}>
           <Send size={13} strokeWidth={2} /> Promote
         </Button>
       )}
+      <DropdownMenu
+        align="end"
+        fixed
+        trigger={(toggle) => (
+          <Button size="sm" variant="quiet" onClick={toggle} aria-label={`More actions for ${doc.title}`} title="More actions">
+            <MoreHorizontal size={15} strokeWidth={2} />
+          </Button>
+        )}
+      >
+        <DropdownMenuItem onClick={() => navigate(`/projects/${props.projectId}/editor/${doc.id}`)}>
+          <FileText size={13} strokeWidth={2} /> Open in Editor
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => props.onMove(doc)}>
+          <FolderInput size={13} strokeWidth={2} /> Move…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => props.onMetadata(doc)}>
+          <FileCog size={13} strokeWidth={2} /> Metadata…
+        </DropdownMenuItem>
+        {/* rename edits the display name — only on an unbound document; a bound
+            one wears the container's plan-owned reference (ADR-0038) */}
+        {!doc.containerId && (
+          <DropdownMenuItem onClick={() => props.onRename(doc)}>
+            <Pencil size={13} strokeWidth={2} /> Rename…
+          </DropdownMenuItem>
+        )}
+        {/* replace swaps the canonical native file — uploaded documents only */}
+        {doc.origin === 'uploaded' && (
+          <DropdownMenuItem onClick={() => props.onReplace(doc)}>
+            <Upload size={13} strokeWidth={2} /> Replace file…
+          </DropdownMenuItem>
+        )}
+        {!doc.containerId && (
+          <DropdownMenuItem onClick={() => props.onBind(doc)}>
+            <Link2 size={13} strokeWidth={2} /> Bind…
+          </DropdownMenuItem>
+        )}
+      </DropdownMenu>
     </span>
   );
 }
@@ -1072,7 +1088,14 @@ export function SandboxScreen() {
             <span className="ficon">
               <FileText size={14} strokeWidth={2} />
             </span>
-            {doc.title}
+            <button
+              type="button"
+              className="tree-name"
+              onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
+              title="Open in the Editor"
+            >
+              {doc.title}
+            </button>
             {doc.workingRevision && (
               <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
                 {doc.workingRevision}
@@ -1545,7 +1568,14 @@ export function SandboxScreen() {
                         <span className="ficon">
                           <FileText size={14} strokeWidth={2} />
                         </span>
-                        {doc.title}
+                        <button
+                          type="button"
+                          className="tree-name"
+                          onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
+                          title="Open in the Editor"
+                        >
+                          {doc.title}
+                        </button>
                         {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
                         <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
                           {formatLabel[doc.format]} · {fmtWhen(doc.updatedAt)}
