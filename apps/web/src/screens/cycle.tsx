@@ -23,6 +23,7 @@ import type {
 import { Download } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
 import { statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
@@ -73,7 +74,7 @@ export function CycleScreen() {
         setRenditions(Object.fromEntries(entries));
       }
     } catch (error) {
-      setLoadError(error instanceof RequestError ? (error.body?.error ?? 'failed') : String(error));
+      setLoadError(error instanceof RequestError ? describeApiError(errorCode(error)) : 'Could not load this deliverable.');
     }
   }, [containerId, me.projectId]);
 
@@ -85,7 +86,7 @@ export function CycleScreen() {
   if (loadError) {
     return (
       <div className="content">
-        <p style={{ color: 'var(--text-muted)' }}>Could not load the deliverable ({loadError}).</p>
+        <p style={{ color: 'var(--text-muted)' }}>{loadError}</p>
       </div>
     );
   }
@@ -112,7 +113,7 @@ export function CycleScreen() {
       await action();
       await reload();
     } catch (error) {
-      if (error instanceof RequestError) setNotice(error.body?.detail ?? error.body?.error ?? 'failed');
+      if (error instanceof RequestError) setNotice(describeApiError(errorCode(error)));
       else throw error;
     }
   }

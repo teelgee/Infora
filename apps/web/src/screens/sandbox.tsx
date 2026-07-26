@@ -53,7 +53,8 @@ import {
   Table,
   TextInput,
 } from '@infora/ui';
-import { api, RequestError } from '../api';
+import { api } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
 import { useMe } from '../session';
 
@@ -1270,14 +1271,11 @@ export function SandboxScreen() {
               await loadDocs();
               setNote('File replaced — a new working revision was recorded.');
             } catch (error) {
-              const detail =
-                error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : undefined;
+              const detail = errorCode(error);
               setNote(
-                detail === 'head_locked'
-                  ? 'Replace refused — the document is checked out. Release it first.'
-                  : detail === 'format_mismatch'
-                    ? `Replace refused — the new file must be a ${formatLabel[replaceDoc.format]} file.`
-                    : 'Replace failed — choose a supported Office file of the same format.',
+                detail === 'format_mismatch'
+                  ? `Replace refused — the new file must be a ${formatLabel[replaceDoc.format]} file.`
+                  : `Replace refused — ${describeApiError(detail)}`,
               );
             }
             setReplaceDoc(null);
@@ -1627,22 +1625,6 @@ async function release(
   }
 }
 
-// map the promote endpoint's specific reason to actionable guidance — so the
-// producer knows exactly which set-up step is missing (T-190 follow-up)
-const PROMOTE_REASON: Record<string, string> = {
-  unplanned_document: 'Bind the document to a planned deliverable first (Bind).',
-  lead_author_only:
-    'Only the deliverable’s lead author can promote — appoint yourself as lead author on the Plan (open the deliverable).',
-  no_lead_reviewer:
-    'The deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it in Review.',
-  no_author: 'The schema requires an author — appoint one on the Plan (open the deliverable) before promoting.',
-  no_document_owner: 'The schema requires a document owner — set one on the Plan (open the deliverable) before promoting.',
-  no_reviewer: 'The schema requires a confirmed reviewer — propose one on the Plan, then the owner confirms it in Review.',
-  round_not_in_respond_phase: 'The review round isn’t in the respond phase yet.',
-  unanswered_comments: 'Answer every review comment before re-promoting.',
-  internal_cycle_active: 'An internal review cycle is still active — finish or release it first.',
-};
-
 async function promote(
   doc: SandboxDocument,
   reload: () => Promise<unknown>,
@@ -1653,8 +1635,6 @@ async function promote(
     await reload();
     setNote('Promoted into the container — the project review cycle is open.');
   } catch (error) {
-    const detail =
-      error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : undefined;
-    setNote(`Promote failed — ${(detail && PROMOTE_REASON[detail]) ?? 'check the deliverable’s set-up on the Plan.'}`);
+    setNote(`Promote failed — ${describeApiError(errorCode(error))}`);
   }
 }

@@ -44,7 +44,8 @@ import {
   WithheldNotice,
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
-import { api, RequestError } from '../api';
+import { api } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { Presence } from '../presence';
@@ -541,9 +542,7 @@ export function EditorScreen() {
                     }),
                   )
                   .catch((error: unknown) => {
-                    const detail =
-                      error instanceof RequestError ? (error.body?.detail ?? error.body?.error) : 'failed';
-                    window.alert(`Promotion refused: ${detail}`);
+                    window.alert(`Promotion refused: ${describeApiError(errorCode(error))}`);
                   })
               }
             >
@@ -945,7 +944,7 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
       await api.respondToComment(comment.id, body.trim(), reason.trim());
       props.onResponded();
     } catch (e) {
-      setError(e instanceof RequestError ? (e.body?.detail ?? e.body?.error ?? 'failed') : 'failed');
+      setError(describeApiError(errorCode(e)));
       setBusy(false);
     }
   }
