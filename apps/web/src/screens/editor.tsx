@@ -31,6 +31,7 @@ import {
   Snowflake,
   ArrowUpFromLine,
   LockOpen,
+  X,
 } from 'lucide-react';
 import {
   Badge,
@@ -38,9 +39,11 @@ import {
   ChatComposer,
   CitedProse,
   Markdown,
+  Modal,
   NumBadge,
   SectionLabel,
   Table,
+  TextArea,
   WithheldNotice,
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
@@ -180,6 +183,30 @@ function EditorEntry() {
   );
 }
 
+// Edit a Suggestion's proposed content before accepting it — a real modal with
+// a TextArea, replacing window.prompt (T-230).
+function EditSuggestionModal(props: { suggestion: Suggestion; onSave: (text: string) => void; onClose: () => void }) {
+  const [text, setText] = useState(props.suggestion.content);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title="Edit the proposed content"
+      size="lg"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button variant="primary" disabled={text.trim() === ''} onClick={() => props.onSave(text)}>
+            Accept edited
+          </Button>
+        </>
+      }
+    >
+      <TextArea value={text} onChange={setText} rows={12} />
+    </Modal>
+  );
+}
+
 export function EditorScreen() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
@@ -189,6 +216,16 @@ export function EditorScreen() {
   const [doc, setDoc] = useState<SandboxDocument | null>(null);
   const [content, setContent] = useState('');
   const [dirty, setDirty] = useState(false);
+  // toned, dismissible notices in place of window.alert (T-230/T-228)
+  const [note, setNoteState] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  const setNote = useCallback((text: string, tone: 'success' | 'error' = 'success') => setNoteState({ text, tone }), []);
+  useEffect(() => {
+    if (note?.tone !== 'success') return;
+    const t = setTimeout(() => setNoteState(null), 5000);
+    return () => clearTimeout(t);
+  }, [note]);
+  // editing a Suggestion's proposed content before accepting — a real modal, not window.prompt (T-230)
+  const [editSuggestion, setEditSuggestion] = useState<Suggestion | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [comments, setComments] = useState<SandboxComment[]>([]); // T-112
   const [cycle, setCycle] = useState<ReviewCycle | null>(null); // T-132: the review to answer
@@ -266,14 +303,19 @@ export function EditorScreen() {
   // T-053: accept/edit/reject — one Signal per Suggestion; accept/edit lands
   // the content in the document, reject leaves it untouched
   async function resolve(suggestion: Suggestion, resolution: 'accepted' | 'edited' | 'rejected') {
-    let editedContent: string | undefined;
+    // "edit" opens a real modal (T-230); accept/reject apply directly
     if (resolution === 'edited') {
-      const edited = window.prompt('Edit the proposed content', suggestion.content);
-      if (edited === null) return;
-      editedContent = edited;
+      setEditSuggestion(suggestion);
+      return;
     }
-    await api.resolveSuggestion(suggestion.id, resolution, editedContent);
+    await api.resolveSuggestion(suggestion.id, resolution);
     await load();
+  }
+
+  async function commitEdit(suggestion: Suggestion, editedContent: string) {
+    await api.resolveSuggestion(suggestion.id, 'edited', editedContent);
+    await load();
+    setEditSuggestion(null);
   }
 
   async function runAgainst(request: string) {
@@ -469,6 +511,13 @@ export function EditorScreen() {
       {sourceOpen !== null && (
         <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
       )}
+      {editSuggestion && (
+        <EditSuggestionModal
+          suggestion={editSuggestion}
+          onSave={(text) => void commitEdit(editSuggestion, text)}
+          onClose={() => setEditSuggestion(null)}
+        />
+      )}
       <div className="topbar" style={{ position: 'static' }}>
         <span className="crumb">
           {/* T-098: where the document lives, clickable */}
@@ -496,9 +545,7 @@ export function EditorScreen() {
                       .releaseDocument(doc.id)
                       .then(() => load())
                       .catch(() =>
-                        window.alert(
-                          'Release refused — an open review round, or a check-out that isn’t yours to release.',
-                        ),
+                        setNote('Release refused — an open review round, or a check-out that isn’t yours to release.', 'error'),
                       )
                   }
                 >
@@ -518,9 +565,9 @@ export function EditorScreen() {
                   .freezeDocument(doc.id)
                   .then((f) => {
                     void load();
-                    window.alert(`Frozen as ${f.versionReference} in the internal series.`);
+                    setNote(`Frozen as ${f.versionReference} in the internal series.`);
                   })
-                  .catch(() => window.alert('Freeze refused — a round may already be open.'))
+                  .catch(() => setNote('Freeze refused — a round may already be open.', 'error'))
               }
             >
               <Snowflake size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
@@ -542,7 +589,7 @@ export function EditorScreen() {
                     }),
                   )
                   .catch((error: unknown) => {
-                    window.alert(`Promotion refused: ${describeApiError(errorCode(error))}`);
+                    setNote(`Promotion refused — ${describeApiError(errorCode(error))}`, 'error');
                   })
               }
             >
@@ -560,6 +607,15 @@ export function EditorScreen() {
           )}
         </div>
       </div>
+
+      {note !== null && (
+        <div className={`banner banner--${note.tone}`} style={{ margin: '8px 0' }}>
+          {note.text}
+          <button className="modal-x" aria-label="Dismiss" onClick={() => setNoteState(null)} style={{ marginLeft: 'auto' }}>
+            <X size={14} strokeWidth={2} />
+          </button>
+        </div>
+      )}
 
       <div className="editor-layout">
         {/* T-132: in review-response mode the version under review sits
