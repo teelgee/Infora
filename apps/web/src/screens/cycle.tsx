@@ -275,11 +275,14 @@ export function CycleScreen() {
       )}
 
       {cycle &&
-        [...cycle.rounds].reverse().map((round) => {
-          // only the newest round is expanded by default; earlier rounds collapse
-          // to a one-line summary and expand on click (T-231)
-          const isNewest = round.id === cycle.rounds.at(-1)?.id;
-          const expanded = isNewest || expandedRounds.has(round.id);
+        (() => {
+          const newestNumber = Math.max(...cycle.rounds.map((r) => r.number));
+          return [...cycle.rounds].sort((a, b) => a.number - b.number).reverse().map((round) => {
+            // only the newest round is expanded by default; earlier rounds collapse
+            // to a one-line summary and expand on click (T-231). The API returns
+            // rounds newest-first, so key expansion on the round number, not order.
+            const isNewest = round.number === newestNumber;
+            const expanded = isNewest || expandedRounds.has(round.id);
           return expanded ? (
             <RoundCard
               key={round.id}
@@ -307,7 +310,8 @@ export function CycleScreen() {
               onExpand={() => setExpandedRounds((s) => new Set(s).add(round.id))}
             />
           );
-        })}
+          });
+        })()}
 
       {cycle && <ActivityTrail cycle={cycle} />}
     </div>
