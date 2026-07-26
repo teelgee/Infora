@@ -75,3 +75,64 @@ export type Suggestion = {
   citations: Citation[];
   signal?: { resolution: Resolution; resolvedAt: string }; // set once resolved
 };
+
+// ── The project ontology (Drawer 6, ADR-0045) ───────────────────────────────
+// Read shapes for the classification vocabulary and the typed edges between
+// deliverables. Metadata and structure only, never a grounded corpus. The
+// endpoint request/response contracts are added with the API (T-241).
+export type ClassificationFacetSource = 'uniclass_2015' | 'iso_19650' | 'custom';
+export type DocumentRelationshipType =
+  | 'supersedes'
+  | 'references'
+  | 'responds_to'
+  | 'is_part_of'
+  | 'derived_from';
+
+// one axis of classification (discipline, system, work_package, …), owner-owned,
+// seeded by copy from the Uniclass/ISO-19650 default
+export type ClassificationFacet = {
+  id: Id;
+  key: string; // the stable address the pre-filter uses, e.g. 'discipline'
+  name: string;
+  source: ClassificationFacetSource;
+  sortOrder: number;
+};
+
+// a term within a facet; hierarchical (parentTermId), currency-by-state
+// (retiredAt — displayed on old classifications, unavailable for new)
+export type ClassificationTerm = {
+  id: Id;
+  facetId: Id;
+  parentTermId: Id | null;
+  code: string; // the scheme code, e.g. Uniclass 'Ss_25'
+  label: string;
+  sortOrder: number;
+  retiredAt: string | null;
+};
+
+// a container's placement under a term; agent-proposed, human-editable —
+// `proposed` is true while an agent suggestion is unconfirmed (setBy null)
+export type ContainerClassification = {
+  id: Id;
+  containerId: Id;
+  facetId: Id;
+  termId: Id;
+  proposed: boolean; // true = agent-suggested, not yet confirmed by a person
+  setByParticipantId: Id | null;
+  updatedAt: string;
+};
+
+// a first-class typed edge between two containers; agent-proposed /
+// human-confirmed (live only once confirmed), currency-by-state (retiredAt)
+export type DocumentRelationship = {
+  id: Id;
+  projectId: Id;
+  fromContainerId: Id;
+  toContainerId: Id;
+  type: DocumentRelationshipType;
+  proposed: boolean; // true = proposed, not yet confirmed (no effect until live)
+  confirmedByParticipantId: Id | null;
+  createdAt: string;
+  confirmedAt: string | null;
+  retiredAt: string | null;
+};
