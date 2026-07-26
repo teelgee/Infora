@@ -99,6 +99,17 @@ export type GetWorkItemResponse = WorkItem & { runs: Run[] };
 //       what the Editor's Suggestions tab renders; same scope as the document
 // PATCH /sandbox-documents/:id
 //       manual editing: no Suggestion, no Signal, no ceremony — by design
+// PATCH /sandbox-documents/:id/title
+//       rename (T-220, ADR-0043 P1): display-name edit on an UNBOUND document —
+//       author-owned metadata, not content, so it takes no ambient version and
+//       is allowed while checked out. A bound document (containerId set) keeps
+//       the container's plan-owned name (ADR-0038) → 409 bound.
+// POST  /sandbox-documents/:id/file
+//       replace the canonical native file (T-220, ADR-0043 P1): multipart, an
+//       'uploaded' document only, a new upload of the SAME format family — writes
+//       a new blob + file_ref and bumps the working revision (an ambient
+//       snapshot). Refused while head_locked (it rewrites canonical bytes, like
+//       the T-122 conversion). Durable prior-blob retention is deferred to P2.
 
 export type SandboxDocument = {
   id: Id;
@@ -147,6 +158,11 @@ export const patchSandboxMetadataBody = z.object({
 });
 export type PatchSandboxMetadataBody = z.infer<typeof patchSandboxMetadataBody>;
 export type PatchSandboxDocumentBody = z.infer<typeof patchSandboxDocumentBody>;
+
+// rename (T-220, ADR-0043 P1): the display name only. Allowed on an unbound
+// document; a bound one keeps the container's plan-owned name (ADR-0038).
+export const renameSandboxDocumentBody = z.object({ title: z.string().min(1) });
+export type RenameSandboxDocumentBody = z.infer<typeof renameSandboxDocumentBody>;
 
 // ── Sandbox comments (T-112, owner-ruled 2026-07-18) ───────────────────────
 //

@@ -466,6 +466,13 @@ POST /projects/:projectId/sandbox-uploads   multipart: { file } → SandboxDocum
 POST /sandbox-documents/:id/conversion      → SandboxDocument
      // "open in editor": uploaded → authored, in place, deliberate; the
      // original file lands in the ambient history; fidelity is honest
+PATCH /sandbox-documents/:id/title  body: { title } → SandboxDocument
+     // rename (T-220, ADR-0043 P1): display name only, an UNBOUND document;
+     // no ambient version, allowed while checked out; a bound doc → 409 bound
+POST /sandbox-documents/:id/file    multipart: { file } → SandboxDocument
+     // replace the canonical native file (T-220): 'uploaded' only, same format
+     // family; new blob + file_ref, bumps the working revision; 409 head_locked
+     // while frozen; 400 not_uploaded / format_mismatch / unsupported_format
 GET  /sandbox-documents/:id/history  → { items: SandboxDocumentVersion[] }
 POST /sandbox-documents/:id/restore  body: { historyVersionId } → SandboxDocument
      // restore copies a snapshot back into the head — never rewrites history
@@ -482,6 +489,8 @@ type SandboxDocumentVersion = { id: Id; sandboxDocumentId: Id;
 ```
 
 *Type extensions (same date):* `WorkItem` gains `containerId: Id | null` (the ADR-0032 addendum join — null for reference material and future non-document types) and its `status` vocabulary becomes the event-driven set `planned | drafting | in_review | accepted | rejected` when T-127 lands. `SandboxDocument` gains `origin: 'authored' | 'uploaded'`, `kind: 'text' | 'slides'`, `format: 'infora_text' | 'docx' | 'xlsx' | 'pptx'`, `containerId: Id | null` (the missing link, ADR-0032) and `headLocked: boolean`.
+
+*Sandbox DMS parity — rename & replace-file (2026-07-26, ADR-0043 P1, T-220).* Two gaps in the sandbox-as-DMS working area close. **Rename** — `PATCH /sandbox-documents/:id/title` carries `{ title }` (`renameSandboxDocumentBody`); it edits the display name only, takes no ambient version, and is allowed while the head is checked out (a title is author-owned metadata, not canonical content — the T-166 precedent). It is refused on a **bound** document (`containerId` set) with `409 { detail: 'bound' }`: a bound doc wears the container's plan-owned reference (ADR-0038). **Replace the native file** — `POST /sandbox-documents/:id/file` (multipart `{ file }`) swaps an uploaded document's canonical native file for a new upload of the **same format family**: a new blob + `file_ref`, bumping the working revision with an ambient snapshot (ADR-0041). An upload now seeds its genesis ambient version, so a fresh upload reads `v0.1` and the first replace increments it to `v0.2`. Replace is refused `409 { detail: 'head_locked' }` while frozen (it rewrites canonical bytes, like the T-122 conversion) and `400` for a non-uploaded document (`not_uploaded`), a different format (`format_mismatch`), or an unsupported extension (`unsupported_format`). The `/file` path joins `sandbox-uploads` on the CSRF multipart allowlist (ADR-0044). Durable prior-blob retention is deferred to P2 — the replaced blob is orphaned on the dev substrate.
 
 *Router security seam + egress audit (2026-07-22, ADR-0037, T-139–T-144).* The `@infora/model` Router gained a policy layer without changing its callers. Adapters optionally declare `attributes: RouteAttributes` (`region`/`retention`/`jurisdiction`/`eligibility`) and an `endpoint`; a `DeploymentSecurity = { policy: TierPolicy; defaultClassification }` (built by `securityForTier(tier, classification)`) is passed at Router construction. Every `chat`/`embed` call now selects a tier-conforming route (`selectRoute`, constraint-then-optimise) and **fails closed** with a `SecurityPolicyError` when none conforms — an undeclared endpoint reads as `UNATTRIBUTED` and conforms to nothing. `ChatRequest` gains optional `classification` (the elevation seam; v1 resolves the deployment default on the Router). `ChatResult`/`EmbedResult` gain `egress: EgressFacts`, threaded through `GroundedDraftResult` → `draft-leaf` → `StepAudit` into new `steps.egress_{endpoint,region,retention,classification}` columns (migration `0016`) and `Step.egress`. Structural non-bypass is enforced by an ESLint rule + a repo-walking guard test (provider SDKs live only in `packages/model`).
 

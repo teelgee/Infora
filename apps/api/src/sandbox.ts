@@ -9,6 +9,7 @@ import {
   createSandboxDocumentBody,
   patchSandboxDocumentBody,
   patchSandboxMetadataBody,
+  renameSandboxDocumentBody,
   restoreSandboxVersionBody,
 } from '@infora/contracts';
 import type {
@@ -199,6 +200,33 @@ export function sandboxRoutes(deps: { db: Db }) {
       .returning();
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
     return c.json(toSandboxDocument(row));
+  });
+
+  // T-220 — rename (ADR-0043 P1, ADR-0038): the display name only. Like the
+  // metadata edit it is author-owned, takes no ambient version, and is allowed
+  // while the head is checked out (a title isn't canonical content). A bound
+  // document's name is the container's plan-owned reference, so renaming one is
+  // refused (409 bound) — it stays stable across the working-doc lifecycle.
+  app.patch('/sandbox-documents/:id/title', documentScope, async (c) => {
+    const body = renameSandboxDocumentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) {
+      return c.json({ error: 'invalid', detail: 'title required' } satisfies ApiError, 400);
+    }
+    const [doc] = await deps.db
+      .select({ containerId: s.sandboxDocuments.containerId })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (!doc) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    if (doc.containerId) {
+      return c.json({ error: 'conflict', detail: 'bound' } satisfies ApiError, 409);
+    }
+    const [row] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ title: body.data.title, updatedAt: sql`now()` })
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .returning();
+    return c.json(toSandboxDocument(row!));
   });
 
   // T-175 — document presence (ADR-0039 real-time, first cut). Heartbeat marks

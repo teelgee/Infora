@@ -10,8 +10,12 @@ import type { AppEnv } from './requester';
 
 const writeMethods = new Set(['POST', 'PUT', 'PATCH']);
 
-// the one legitimately non-JSON write surface (T-122's multipart upload)
-const multipartPaths = [/^\/projects\/[^/]+\/sandbox-uploads$/];
+// the legitimately non-JSON write surfaces: T-122's multipart upload and
+// T-220's replace-the-native-file, both of which carry a file body
+const multipartPaths = [
+  /^\/projects\/[^/]+\/sandbox-uploads$/,
+  /^\/sandbox-documents\/[^/]+\/file$/,
+];
 
 export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {

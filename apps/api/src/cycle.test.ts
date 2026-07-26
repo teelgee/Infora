@@ -616,6 +616,173 @@ describe('upload & conversion (T-122, ADR-0034)', () => {
   });
 });
 
+describe('rename & replace the native file (T-220, ADR-0043 P1)', () => {
+  let textToDocx: (text: string) => Buffer;
+  const uploadDocx = async (text: string, name: string): Promise<string> => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(textToDocx(text))], name));
+    const res = await app.request(`/projects/${projectId}/sandbox-uploads`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { id: string }).id;
+  };
+  const workingRevisionOf = async (id: string): Promise<string | undefined> => {
+    const list = (await (
+      await app.request(`/projects/${projectId}/sandbox-documents`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: Array<{ id: string; workingRevision?: string }> };
+    return list.items.find((d) => d.id === id)?.workingRevision;
+  };
+  const historyLength = async (id: string): Promise<number> => {
+    const hist = (await (
+      await app.request(`/sandbox-documents/${id}/history`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as { items: unknown[] };
+    return hist.items.length;
+  };
+
+  let docId: string;
+
+  beforeAll(async () => {
+    ({ textToDocx } = await import('./renditions.js'));
+  });
+
+  it('an uploaded docx opens at v0.1 with a genesis history entry', async () => {
+    docId = await uploadDocx('The original strategy.', 'Drainage.docx');
+    expect(await workingRevisionOf(docId)).toBe('v0.1');
+    expect(await historyLength(docId)).toBe(1);
+  });
+
+  it('rename retitles an unbound document without an ambient version', async () => {
+    const res = await app.request(`/sandbox-documents/${docId}/title`, {
+      method: 'PATCH',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ title: 'Drainage Strategy (rev A)' }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { title: string }).title).toBe('Drainage Strategy (rev A)');
+    // the title is not content: the working revision and history are untouched
+    expect(await workingRevisionOf(docId)).toBe('v0.1');
+    expect(await historyLength(docId)).toBe(1);
+  });
+
+  it('rename requires a non-empty title', async () => {
+    const res = await app.request(`/sandbox-documents/${docId}/title`, {
+      method: 'PATCH',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ title: '' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rename is refused on a bound document (409 bound) — the name is the plan-owned code', async () => {
+    const boundId = await uploadDocx('A planned draft.', 'Planned.docx');
+    await db.update(s.sandboxDocuments).set({ containerId }).where(eq(s.sandboxDocuments.id, boundId));
+    const res = await app.request(`/sandbox-documents/${boundId}/title`, {
+      method: 'PATCH',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ title: 'off-plan name' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail?: string }).detail).toBe('bound');
+  });
+
+  it('replace swaps the native file, bumps the working revision, and shows in history', async () => {
+    const [before] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, docId));
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(textToDocx('The revised strategy.'))], 'Drainage-v2.docx'));
+    const res = await app.request(`/sandbox-documents/${docId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(200);
+    const [after] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, docId));
+    expect(after!.fileRef).not.toBe(before!.fileRef);
+    expect(after!.origin).toBe('uploaded');
+    expect(after!.format).toBe('docx');
+    // the swap is a save boundary: v0.1 → v0.2, and the timeline grows
+    expect(await workingRevisionOf(docId)).toBe('v0.2');
+    expect(await historyLength(docId)).toBe(2);
+  });
+
+  it('replace refuses a different format family (400 format_mismatch)', async () => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(Buffer.from('PK-not-really'))], 'deck.pptx'));
+    const res = await app.request(`/sandbox-documents/${docId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail?: string }).detail).toBe('format_mismatch');
+  });
+
+  it('replace refuses an unsupported extension (400 unsupported_format)', async () => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(Buffer.from('csv,data'))], 'table.csv'));
+    const res = await app.request(`/sandbox-documents/${docId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail?: string }).detail).toBe('unsupported_format');
+  });
+
+  it('replace refuses an authored document (400 not_uploaded)', async () => {
+    const authoredId = await uploadDocx('To be converted.', 'Convert.docx');
+    const converted = await app.request(`/sandbox-documents/${authoredId}/conversion`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(converted.status).toBe(200);
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(textToDocx('nope'))], 'nope.docx'));
+    const res = await app.request(`/sandbox-documents/${authoredId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail?: string }).detail).toBe('not_uploaded');
+  });
+
+  it('replace is refused while checked out and succeeds after release', async () => {
+    const froze = await app.request(`/sandbox-documents/${docId}/freeze`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(froze.status).toBe(201);
+    const form = () => {
+      const f = new FormData();
+      f.append('file', new File([new Uint8Array(textToDocx('while locked'))], 'locked.docx'));
+      return f;
+    };
+    const refused = await app.request(`/sandbox-documents/${docId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form(),
+    });
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { detail?: string }).detail).toBe('head_locked');
+
+    const released = await app.request(`/sandbox-documents/${docId}/release`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(released.status).toBe(200);
+    const after = await app.request(`/sandbox-documents/${docId}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form(),
+    });
+    expect(after.status).toBe(200);
+    expect(await workingRevisionOf(docId)).toBe('v0.3');
+  });
+});
+
 describe('the freeze & the internal cycle (T-125, ADR-0032)', () => {
   let internalDocId: string;
   let freezeContainerId: string;

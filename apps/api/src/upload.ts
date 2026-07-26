@@ -114,7 +114,58 @@ export function uploadRoutes(deps: { db: Db }) {
         createdByParticipantId: slice.participantId,
       })
       .returning();
+    // the upload is the document's genesis save boundary — seed the ambient
+    // history so it reads v0.1 and shows in the timeline (ADR-0041), the same
+    // way the first authored save does. A later replace-file then bumps to v0.2.
+    await deps.db.insert(s.sandboxDocumentVersions).values({
+      sandboxDocumentId: doc!.id,
+      content: doc!.content,
+      createdByParticipantId: slice.participantId,
+    });
     return c.json(toSandboxDocument(doc!), 201);
+  });
+
+  // T-220 — replace the canonical native file (ADR-0043 P1). An uploaded
+  // document keeps its native file canonical (ADR-0034); this swaps that file
+  // for a new upload of the SAME format family — a new blob + file_ref — and
+  // bumps the working revision with an ambient snapshot. Refused while checked
+  // out (409 head_locked): it rewrites canonical bytes, like the T-122
+  // conversion. Only an 'uploaded' document has a native file to replace.
+  // Durable prior-blob retention is deferred to P2 — the old blob is orphaned.
+  app.post('/sandbox-documents/:id/file', documentScope, async (c) => {
+    const slice = c.get('slice');
+    const [doc] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (doc!.origin !== 'uploaded') return invalid(c, 'not_uploaded');
+    if (doc!.headLocked) {
+      return c.json({ error: 'conflict', detail: 'head_locked' } satisfies ApiError, 409);
+    }
+    const body = await c.req.parseBody().catch(() => null);
+    const file = body?.file;
+    if (!(file instanceof File)) return invalid(c, 'file_required');
+    const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
+    const format = formats[extension as keyof typeof formats];
+    if (!format) return invalid(c, 'unsupported_format');
+    // same format family only — a docx is replaced by a docx (ADR-0034)
+    if (format !== doc!.format) return invalid(c, 'format_mismatch');
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const fileRef = putBlob(bytes, format);
+    const [updated] = await deps.db
+      .update(s.sandboxDocuments)
+      .set({ fileRef, updatedAt: sql`now()` })
+      .where(eq(s.sandboxDocuments.id, doc!.id))
+      .returning();
+    // the ambient snapshot marks the save boundary (ADR-0041) — content is the
+    // canonical-empty '' for an uploaded row; the prior blob is not retained (P2)
+    await deps.db.insert(s.sandboxDocumentVersions).values({
+      sandboxDocumentId: updated!.id,
+      content: updated!.content,
+      createdByParticipantId: slice.participantId,
+    });
+    return c.json(toSandboxDocument(updated!) satisfies SandboxDocument);
   });
 
   // "Open in editor": uploaded → authored, in place, the original preserved.
