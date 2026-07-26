@@ -340,3 +340,20 @@ The first hardening pass and the docs catch-up, batched: small, mostly independe
 | T-219 | **Minimal observability** — request IDs, structured logs, `/health`. | — |
 
 *The design-gated items from the same review (the NFR one-pager, certification targets, the DB-level wall backstop) go to the grill tracker and the infra/security session, not this board.*
+
+---
+
+## UI-polish batch — T-223–T-233 *(owner session, ✅ built 2026-07-26)*
+
+> An unticketed-at-the-time polish pass on the review-cycle and sandbox surfaces, committed directly and recorded here after the fact. **Numbering note:** these numbers were minted concurrently with Slice O's original P1 ticketing; Slice O renumbered to **T-240–T-244** on its branch (`858d9f9`) to clear the collision, so this batch keeps T-223–T-233.
+
+- **T-223** — human-readable API errors (no underscore chips)
+- **T-224** — review-rail overflow fixed (overlapping cards)
+- **T-225** — viewport-based heights for the review viewer + rail
+- **T-226** — structured cycle header + descriptive verdict chip
+- **T-227** — sandbox rows: primary actions + overflow kebab
+- **T-228** — toned, dismissible notices (sandbox + cycle)
+- **T-229** — loading skeletons + honest empty states *(this commit also swept in the concurrent T-215 doc edits — see the T-215 row above)*
+- **T-230** — `window.prompt` / `window.alert` purged from the editor
+- **T-231/T-232** — closed rounds collapse, comment-answered progress, cycle activity trail (+ a follow-up fix: newest round expanded by number, not array order)
+- **T-233** — consistency sweep: dates + status chips
