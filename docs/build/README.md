@@ -26,5 +26,6 @@ Status markers, used here and on the ticket board:
 | `plan-history.md` | The closed-slice archive: every ✅ slice's full record (the M0–M6 milestones, the Phase 7 QA batch, Slices A–A2.6), moved verbatim from `plan.md` as slices close. Precedent, not a board — don't load it by default. | ✅ Archive — grows one block per closed slice |
 | `repo-structure.md` | The monorepo + package layout and dependency rules. Relocated from the overview; provisional, to reconcile with the component cut. | 🟡 Provisional |
 | `nfr.md` | The pilot's operational envelope: scale assumptions, availability, RPO/RTO, latency, security floor, revisit triggers. Pre-read for the infra/security session. | 🟡 Strawman (2026-07-25) — scale owner-ruled; the numbers to grill |
+| `data-model.html` | The stored schema visualised (open in a browser): per-drawer table atlas + pan/zoom ontology graph, generated from `packages/db/src/schema` and the migration triggers. A derived snapshot — regenerate after schema changes; `data-model.md` stays the authority. | ✅ Snapshot at migration 0030 (2026-07-26) |
 
 Scope discipline: the data model is drawn **drawer by drawer, in step with what is being built** — only the entities the walking skeleton touches, never the whole system at once. Deferred components (custom workflows, spatial connectors) get their tables when they are built.

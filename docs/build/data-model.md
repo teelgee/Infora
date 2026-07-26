@@ -1,5 +1,7 @@
 # Data model — the walking skeleton (first cut)
 
+> **Visual companion:** [data-model.html](data-model.html) — the stored schema as built (all tables, FK links, trigger-derived integrity badges) in two views: a per-drawer table atlas and a pan/zoom ontology graph. A derived, point-in-time snapshot (regenerate after schema changes); this prose spec remains the design authority.
+
 > **Status: first cut, 2026-07-01; draft-location item closed 2026-07-04; Drawer 5 rebuilt and sandbox versioning added 2026-07-18 (Slice A session, ADR-0032) — no migration yet; the drawer is drawn ahead of the Slice A tickets per the data-model-first rule.** This is the `CONTEXT.md` glossary drawn as **stored tables** — the things the database remembers — scoped to the walking-skeleton journey and nothing wider. It is drawn *drawer by drawer*: only the entities the first build slice touches. Deferred concepts (programme context, the org-context/Knowledge stores, custom agents, spatial) get their tables when they are built. Where drawing this surfaced a genuine design gap, it is flagged **↩ back to grill** and not resolved here (the build-layer gate). Review before the first migration.
 
 ## How to read this
