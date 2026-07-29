@@ -10,7 +10,7 @@
 
 ## How to read a ticket
 
-`T-###` — title. **Next free number: T-297** — before minting ticket numbers, check this line, the board *and* `git log` (concurrent sessions collided twice: T-208–T-210, T-223–T-233); bump this line in the same commit that claims numbers. **Deps:** tickets that must be done first. **Done when:** the acceptance test, drawn from the walking skeleton's milestone acceptance. Package names from [repo-structure.md](repo-structure.md). A ticket is sized for one focused agent run (roughly a PR each).
+`T-###` — title. **Next free number: T-298** — before minting ticket numbers, check this line, the board *and* `git log` (concurrent sessions collided twice: T-208–T-210, T-223–T-233); bump this line in the same commit that claims numbers. **Deps:** tickets that must be done first. **Done when:** the acceptance test, drawn from the walking skeleton's milestone acceptance. Package names from [repo-structure.md](repo-structure.md). A ticket is sized for one focused agent run (roughly a PR each).
 
 **Definition of done, every ticket:** typed against `packages/contracts`; unit-tested; no surface reaches below the API; no code path resolves its own permissions (component 2 rule); lints and builds clean in CI.
 

@@ -1,7 +1,7 @@
 # Ask — the ticket set (Phase 2)
 
-**Status:** drafted 2026-07-29. **T-245 – T-296.** Next free after this block:
-**T-297** — bump [plan.md](../build/plan.md) line 13 in the same commit that
+**Status:** drafted 2026-07-29. **T-245 – T-297.** Next free after this block:
+**T-298** — bump [plan.md](../build/plan.md) line 13 in the same commit that
 claims numbers.
 
 Requirements this set is built to satisfy: [docs/ask/](README.md).
@@ -144,11 +144,16 @@ there is no row-level security, so a future query written elsewhere against
 database. RLS is already committed as an infra-session item (grill tracker,
 pre-infra rulings); this lands the Ask-relevant half early.
 
-**Scope.** Postgres RLS on `version_chunks` and `containers`. A dep rule: no
-package outside `@infora/knowledge` may import the `versionChunks` schema
-object. A CI grep guard for permission-shaped strings in prompt templates.
+**Scope.** Postgres RLS on `version_chunks`. A source-level rule fencing the
+`versionChunks` symbol to the packages that read and ingest it. A CI grep guard
+for permission-shaped strings in prompt templates.
 
-**Out of scope.** RLS across the remaining drawers (infra session).
+**Out of scope.** RLS across the remaining drawers (infra session). **RLS on
+`containers` — split out to T-297** during the build: `version_chunks` has two
+non-test consumers (retrieval, ingest) so its scope can be declared inside
+`groundedLibrary` with no caller changes, while `containers` has thirteen across
+the whole API, every one of which would need transaction scoping. That is a
+refactor with its own risk profile, not a line in this ticket.
 
 **Acceptance.**
 1. With the application's own pre-filters removed in a test harness, a query as
@@ -164,9 +169,13 @@ implementation (RLS policy present but permissive) fails it.
 **Security notes.** Defence in depth for non-negotiable 2. Do not let RLS become
 an excuse to relax the application pre-filters — both stay.
 
-**Estimate.** M. **Largest risk:** the connection role. Drizzle connects as one
-user; RLS needs a session-scoped setting, and getting it wrong makes RLS a
-no-op that *looks* enforced.
+**Estimate.** M. **Largest risk:** the connection role — *realised, and caught
+by acceptance 1*. The dev substrate's `infora` role is the database superuser,
+and a superuser bypasses RLS entirely, FORCE or not; the first implementation
+returned all 120 rows unscoped. The fix is a separate unprivileged `infora_app`
+role for the application, with migrations and the seed staying on the owner
+connection. This changes the developer setup (`.env`, README, CI) — the cost of
+making RLS real rather than decorative.
 
 ---
 
@@ -1464,6 +1473,10 @@ T-281 ─► T-282 ─► T-283 ─► T-292
 
 **No owner gate outstanding.** ADR-0046's three forks were settled 2026-07-29
 and the ADR is Accepted, so T-245 is execution-ready.
+
+**Added during the build:** **T-297 — RLS on `containers`** (split from T-247;
+see that ticket's Out of scope). Sequences with, or after, the Wave 2
+orchestration work, since both want a per-request transaction seam.
 
 **Spikes:** T-270 (locators), T-276 (authority corpus). Both can start
 immediately and in parallel with Wave 0 — neither blocks it. T-276 is the one

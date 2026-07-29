@@ -5,11 +5,15 @@
 // Dev-only: wipes and reseeds (TRUNCATE bypasses row triggers by design).
 import { sql } from 'drizzle-orm';
 import { createDb } from './client.js';
+import { loadDbEnv } from './env.js';
 import { hashPassword } from './credentials.js';
 import { seedProjectOntology } from './ontology-seed.js';
 import * as s from './schema/index.js';
 
-const { db, pool } = createDb();
+// T-247 — the seed runs as the OWNER, like migrations. It TRUNCATEs, and the
+// application role deliberately holds no TRUNCATE privilege: a running app has
+// no business being able to wipe a table.
+const { db, pool } = createDb(loadDbEnv().MIGRATE_DATABASE_URL);
 
 await db.execute(sql`
   TRUNCATE TABLE citations, signals, suggestions, steps, runs, conversations,

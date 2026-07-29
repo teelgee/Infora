@@ -40,10 +40,17 @@ jobs:
       # a failing dependency-rule check fails the build (plan.md T-002)
       - run: pnpm run check:deps
 
+      # T-247 source guards: the grounding index keeps one reader, and no
+      # prompt template carries a permission instruction
+      - run: pnpm run check:source
+
       - run: pnpm run lint
 
       - run: pnpm run typecheck
 
+      # T-247: migrations run as the OWNER; everything after connects as the
+      # unprivileged app role, so row-level security actually applies (a
+      # superuser bypasses RLS entirely, which would make the policies theatre)
       - run: pnpm --filter @infora/db run migrate
 
       # the wall tests (T-022) run against the seeded subjects

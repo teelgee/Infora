@@ -14,8 +14,9 @@
     "test:tools": "vitest run",
     "lint": "eslint .",
     "check:deps": "node scripts/check-deps.mjs",
+    "check:source": "node scripts/check-source.mjs",
     "check:audit": "pnpm audit --prod",
-    "check": "pnpm run check:deps && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
+    "check": "pnpm run check:deps && pnpm run check:source && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

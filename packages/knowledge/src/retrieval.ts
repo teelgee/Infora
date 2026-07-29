@@ -14,7 +14,7 @@ import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AssembledItem } from '@infora/contracts';
 import type { EntitledSlice } from '@infora/governance';
-import { schema as s } from '@infora/db';
+import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { deliverableVisibleSql } from './visibility';
@@ -41,15 +41,25 @@ export async function groundedLibrary(
 ): Promise<AssembledItem[]> {
   const modelId = deps.router.embeddingModel.id;
 
-  // lexical arm: deliverable codes named in the request beat similarity —
-  // code is how this domain names documents (ADR-0022)
   const scope = request.classificationTermIds ?? [];
   const codes = extractReferenceCodes(request.text);
-  const byCode = codes.length > 0 ? await liveChunksByCode(deps.db, slice, modelId, codes, scope) : [];
-
-  // vector arm: query embedded with the same pinned model the index holds
+  // vector arm: query embedded with the same pinned model the index holds.
+  // Embedded before the transaction opens — an outbound provider call has no
+  // business holding a DB transaction open.
   const { embeddings } = await deps.router.embed([request.text], 'query');
-  const bySimilarity = await nearestLiveChunks(deps.db, slice, modelId, embeddings[0]!, scope);
+
+  // T-247 — both arms run inside a transaction that declares the entitled
+  // project, so row-level security enforces the boundary BENEATH the SQL
+  // pre-filters below (finding F6). The pre-filters are unchanged and still do
+  // the work; RLS is the backstop for a query nobody reviewed. Scoping here
+  // rather than at the callers keeps the guarantee with the only code that
+  // reads this index.
+  const [byCode, bySimilarity] = await withProjectScope(deps.db, slice.projectId, async (tx) => [
+    // lexical arm: deliverable codes named in the request beat similarity —
+    // code is how this domain names documents (ADR-0022)
+    codes.length > 0 ? await liveChunksByCode(tx, slice, modelId, codes, scope) : [],
+    await nearestLiveChunks(tx, slice, modelId, embeddings[0]!, scope),
+  ]);
 
   const seen = new Set<string>();
   const items: AssembledItem[] = [];

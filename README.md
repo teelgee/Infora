@@ -14,7 +14,7 @@ pnpm install
 docker compose up -d --wait              # Postgres 17 + pgvector on :5432
 cp .env.example .env                     # defaults match the compose file
 echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env  # required — the API refuses to boot without it
-pnpm --filter @infora/db run migrate     # apply the five-drawer schema
+pnpm --filter @infora/db run migrate     # apply the schema (runs as the DB owner)
 pnpm --filter @infora/db run seed        # the walking-skeleton seed data
 pnpm run check                           # dep rules + lint + typecheck + tests
 pnpm --filter @infora/data run ingest    # embed the library (needs VOYAGE_API_KEY in .env)
@@ -26,6 +26,14 @@ Seeded dev logins (password `wrenfield-dev`): `rachel.bowen@trentmoor.example`
 `marcus.webb@calderhale.example` (no-Participant wall subject) and
 `priya.nair@halvern.example` (third-org wall subject). Full table:
 [docs/reference/dev-logins.md](docs/reference/dev-logins.md).
+
+**Two database roles, deliberately (T-247).** Migrations and the seed run as the
+owner (`MIGRATE_DATABASE_URL`); everything else — the API, the tests, the e2e
+harness — connects as the unprivileged `infora_app` (`DATABASE_URL`), which
+migration 0034 creates. This is not tidiness: a Postgres superuser bypasses
+row-level security entirely, so connecting as the owner would make the RLS
+backstop on the grounding index theatre. The app role also holds no TRUNCATE
+privilege — a running app has no business wiping a table.
 
 `pnpm run check` mirrors CI exactly. The dependency rules between workspace
 packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on

@@ -239,6 +239,13 @@
       "when": 1785600060000,
       "tag": "0033_conflict-attestation-and-refusals",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785600120000,
+      "tag": "0034_rls-version-chunks",
+      "breakpoints": true
     }
   ]
 }
