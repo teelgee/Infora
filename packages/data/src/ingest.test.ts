@@ -4,7 +4,7 @@
 // than duplicates, and a geometry change is refused, not mixed in.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { createDb, schema as s } from '@infora/db';
+import { createDb, schema as s, withProjectScope } from '@infora/db';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 import { ingestVersions } from './ingest';
@@ -35,6 +35,7 @@ function fakeEmbeddings(dimensions: number, version = 'fake-1'): EmbeddingAdapte
 }
 
 let versionId: string;
+let projectId: string;
 
 beforeAll(async () => {
   const [org] = await db.insert(s.organisations).values({ name: 't012 org' }).returning();
@@ -42,6 +43,7 @@ beforeAll(async () => {
     .insert(s.projects)
     .values({ name: 't012 project', ownerOrganisationId: org!.id })
     .returning();
+  projectId = project!.id;
   const [container] = await db
     .insert(s.containers)
     .values({ projectId: project!.id, producingOrganisationId: org!.id, documentReference: `T012-${Date.now()}`, inLibrary: true })
@@ -68,10 +70,12 @@ describe('ingestVersions (T-012)', () => {
     });
     expect(summary.versions).toBeGreaterThanOrEqual(1);
 
-    const rows = await db
-      .select()
-      .from(s.versionChunks)
-      .where(eq(s.versionChunks.versionId, versionId));
+    // T-247 — the chunk index is under row-level security, so a read must
+    // declare its project scope exactly as retrieval does. An unscoped read
+    // returning nothing is the policy working, not a broken fixture.
+    const rows = await withProjectScope(db, projectId, (tx) =>
+      tx.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, versionId)),
+    );
     expect(rows.length).toBeGreaterThan(1); // the cap forces a split
     expect(rows.map((r) => r.content).join(' ')).toBe(
       'First sentence of the fixture. Second sentence of the fixture. Third one.',
@@ -85,10 +89,9 @@ describe('ingestVersions (T-012)', () => {
 
   it('re-ingest replaces a version’s chunks — no duplicates, no stale rows', async () => {
     await ingestVersions(db, new Router(fakeChat, fakeEmbeddings(1024, 'fake-2')));
-    const rows = await db
-      .select()
-      .from(s.versionChunks)
-      .where(eq(s.versionChunks.versionId, versionId));
+    const rows = await withProjectScope(db, projectId, (tx) =>
+      tx.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, versionId)),
+    );
     expect(rows).toHaveLength(1); // default cap: the fixture packs into one chunk
     expect(rows[0]!.embeddingModelVersion).toBe('fake-2');
   });

@@ -5,7 +5,7 @@
 // resolution on every other endpoint is T-023.
 import { Hono } from 'hono';
 import { deleteCookie, setSignedCookie } from 'hono/cookie';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { changePasswordBody, createSessionBody, patchMeBody } from '@infora/contracts';
 import type { ApiError, MeResponse, UserPreferences } from '@infora/contracts';
@@ -131,7 +131,12 @@ async function readMe(db: Db, user: UserRow): Promise<MeResponse> {
         eq(s.memberships.organisationId, user.organisationId),
       ),
     )
-    .where(and(eq(s.participants.userId, user.id), isNull(s.participants.removedAt)));
+    .where(and(eq(s.participants.userId, user.id), isNull(s.participants.removedAt)))
+    // T-298 — deterministic order. Callers index this list (`participants[0]`
+    // is the default project in the web shell and in a dozen e2e specs), and
+    // an unordered SQL result made that a latent bug the moment anyone held a
+    // second Participant. Oldest first: a user's first project stays first.
+    .orderBy(asc(s.participants.createdAt));
 
   return {
     userId: user.id,

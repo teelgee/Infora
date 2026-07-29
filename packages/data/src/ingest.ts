@@ -5,7 +5,7 @@
 // excluded version can prove the filter works (T-033). Chunks are derived,
 // rebuildable rows: each run replaces a version's chunks wholesale.
 import { and, eq } from 'drizzle-orm';
-import { schema as s } from '@infora/db';
+import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { chunkText } from './chunker';
@@ -28,7 +28,20 @@ export async function ingestVersions(
     );
   }
 
-  const versions = await db.select().from(s.versions);
+  // T-298 — versions carry their project, because the chunk index is under
+  // row-level security (T-247) and the replace-wholesale step below has to be
+  // able to SEE the rows it replaces. A DELETE finds its rows through the
+  // SELECT policy, so an unscoped delete matches nothing and the re-insert
+  // collides — ingest became insert-only, and silently non-idempotent, the
+  // moment RLS landed.
+  const versions = await db
+    .select({
+      id: s.versions.id,
+      content: s.versions.content,
+      projectId: s.containers.projectId,
+    })
+    .from(s.versions)
+    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id));
   let totalChunks = 0;
   let modelVersion = modelId;
 
@@ -42,7 +55,9 @@ export async function ingestVersions(
     );
     modelVersion = result.model.version;
 
-    await db.transaction(async (tx) => {
+    // the transaction declares the version's project, so the DELETE below can
+    // see — and therefore replace — the rows it is meant to replace (T-247)
+    await withProjectScope(db, version.projectId, async (tx) => {
       // replace this model's rows only — each pinned model is its own index
       // (ADR-0024), so e.g. the e2e substrate's fake index coexists with the
       // real one and retrieval's pre-filter keeps them disjoint

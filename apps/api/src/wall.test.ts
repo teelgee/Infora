@@ -113,7 +113,11 @@ describe('T-022 — the seeded wall subjects resolve to nothing', () => {
 
   it('the consultant — the positive control — passes the same boundary everywhere', async () => {
     const me = (await (await hit(consultant, 'GET', '/me')).json()) as MeResponse;
-    expect(me.participants).toHaveLength(1);
+    // T-298: the consultant now works two schemes (the conflict-register
+    // scenario, ADR-0046), so this asserts the boundary rather than a count —
+    // Wrenfield is reachable, and it is FIRST, which a dozen e2e specs rely on
+    // via participants[0] (readMe orders by created_at).
+    expect(me.participants.length).toBeGreaterThanOrEqual(1);
     expect(me.participants[0]!.projectId).toBe(projectId);
 
     for (const [method, path] of routes()) {

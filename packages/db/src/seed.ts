@@ -3,7 +3,7 @@
 // Membership), one Work item, and a small live library to draft from — plus
 // one superseded version and one withdrawn container to prove exclusion.
 // Dev-only: wipes and reseeds (TRUNCATE bypasses row triggers by design).
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { createDb } from './client.js';
 import { loadDbEnv } from './env.js';
 import { hashPassword } from './credentials.js';
@@ -305,6 +305,121 @@ for (const doc of library) {
   }
 }
 
+// ── T-298 — the second client, so the conflict register (ADR-0046) is real ──
+// An exclusion pairs TWO projects, so with one seeded project the register was
+// visible and unusable. The scenario it exists for is a consultancy acting for
+// two different clients, so the second project gets its own owner rather than
+// being a second Trentmoor scheme — a same-owner pair would not exercise the
+// different-clients axis that makes the control mean anything.
+//
+// ORDER MATTERS: every participant here is created AFTER the Wrenfield ones, and
+// readMe now orders participants by created_at, so `participants[0]` stays
+// Wrenfield for the dozen e2e specs that assume it.
+const [marchwood] = await db
+  .insert(s.organisations)
+  .values({ name: 'Marchwood Aggregates' })
+  .returning();
+const [ledbrook] = await db
+  .insert(s.projects)
+  .values({ name: 'Marchwood Quarry Rail Link', ownerOrganisationId: marchwood!.id })
+  .returning();
+
+const [hannah] = await db
+  .insert(s.users)
+  .values({
+    name: 'Hannah Sturt',
+    email: 'hannah.sturt@marchwood.example',
+    organisationId: marchwood!.id,
+    orgRole: 'admin',
+  })
+  .returning();
+// T-298 — the individual-grain subject that must stay ALLOWED: a Calder & Hale
+// colleague on Wrenfield only. A wall naming Eleanor must not touch him, which
+// is the whole point of individual grain (ADR-0046 §7). Marcus cannot play this
+// part — his documented meaning is "no Participant at all" (T-022 wall subject).
+const [owen] = await db
+  .insert(s.users)
+  .values({ name: 'Owen Vance', email: 'owen.vance@calderhale.example', organisationId: calderHale!.id })
+  .returning();
+await db.insert(s.userCredentials).values(
+  [hannah!, owen!].map((u) => ({ userId: u.id, passwordHash: hashPassword(DEV_PASSWORD) })),
+);
+
+// Calder & Hale acts for BOTH clients — the ADR-0046 scenario, as data
+await db.insert(s.memberships).values([
+  { organisationId: marchwood!.id, projectId: ledbrook!.id, role: 'owner' },
+  { organisationId: calderHale!.id, projectId: ledbrook!.id, role: 'member' },
+]);
+await db.insert(s.participants).values({ userId: hannah!.id, projectId: ledbrook!.id, elevated: true });
+// Eleanor works both schemes, so declaring a wall over the pair immediately
+// reports her — the retrospective case (§4) is live in the seed rather than
+// something you have to construct by hand
+await db.insert(s.participants).values({ userId: eleanor!.id, projectId: ledbrook!.id });
+await db.insert(s.participants).values({ userId: owen!.id, projectId: project!.id });
+
+await db.insert(s.acceptanceCodes).values(
+  ['A', 'B', 'C', 'D'].map((code, at) => ({
+    projectId: ledbrook!.id,
+    code,
+    description: ['Accepted', 'Accepted with comments', 'Revise and resubmit', 'Rejected'][at]!,
+    level: 'both' as const,
+    isAccepting: at < 2,
+    sortOrder: at + 1,
+  })),
+);
+await seedProjectOntology(db, ledbrook!.id);
+
+// A little library on the second project, so cross-project retrieval isolation
+// (T-247's RLS, and the ADR-0022 pre-filter above it) is observable by hand
+// after `pnpm --filter @infora/data run ingest` — one project's chunks must
+// never surface in the other's answers.
+const [marchwoodContainer] = await db
+  .insert(s.containers)
+  .values({
+    projectId: ledbrook!.id,
+    producingOrganisationId: marchwood!.id,
+    documentReference: 'MQ-GEO-GIR-001',
+    inLibrary: true,
+    state: 'live',
+  })
+  .returning();
+const [marchwoodVersion] = await db
+  .insert(s.versions)
+  .values({
+    containerId: marchwoodContainer!.id,
+    versionReference: 'v1',
+    content:
+      'Ground Investigation Interpretative Report, Marchwood Quarry Rail Link. Made ground was ' +
+      'recorded to 0.8 m across the proposed rail head, over firm grey CLAY. No contamination ' +
+      'exceedances were identified. This report belongs to the Marchwood scheme and must never ' +
+      'appear in an answer about Wrenfield–Ashcombe.',
+    isCurrent: true,
+  })
+  .returning();
+await db.insert(s.deliverableShares).values({
+  containerId: marchwoodContainer!.id,
+  organisationId: calderHale!.id,
+  grantedByParticipantId: (
+    await db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .where(and(eq(s.participants.userId, hannah!.id), eq(s.participants.projectId, ledbrook!.id)))
+      .limit(1)
+  )[0]!.id,
+});
+await db.insert(s.deliverableAcknowledgements).values({
+  containerId: marchwoodContainer!.id,
+  versionId: marchwoodVersion!.id,
+  organisationId: calderHale!.id,
+  acknowledgedByParticipantId: (
+    await db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .where(and(eq(s.participants.userId, eleanor!.id), eq(s.participants.projectId, ledbrook!.id)))
+      .limit(1)
+  )[0]!.id,
+});
+
 const counts = await db.execute(sql`
   SELECT (SELECT count(*) FROM organisations) AS orgs,
          (SELECT count(*) FROM users) AS users,
@@ -316,5 +431,10 @@ const counts = await db.execute(sql`
 console.log('seeded:', counts.rows[0]);
 console.log(`owner participant ${ownerParticipant!.id} (Rachel Bowen, Trentmoor Energy)`);
 console.log(`consultant participant ${consultant!.id} (Eleanor Price, Calder & Hale)`);
+console.log(
+  'T-298 conflict-register subjects: Eleanor Price works BOTH schemes (declaring a wall over the ' +
+    'pair reports her); Owen Vance works Wrenfield only (an individual wall on Eleanor must leave ' +
+    'him alone). Declare from Personal settings → Ethical walls as eleanor.price@calderhale.example.',
+);
 console.log(`dev login password for all seeded users: ${DEV_PASSWORD}`);
 await pool.end();

@@ -3,7 +3,7 @@
 // then the round loop as its tickets land.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PromotionResult, ReviewCycle } from '@infora/contracts';
-import { createDb, hashPassword, schema as s } from '@infora/db';
+import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from './app';
 import { ensureDefaultSandbox } from './sandbox';
@@ -417,7 +417,11 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     // the accepted current version is chunked for grounding (T-012 sweep)
     const cycleRounds = closed.rounds;
     const acceptedVersionId = cycleRounds[1]!.versionId;
-    const chunks = await db.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, acceptedVersionId));
+    // T-247 — the chunk index is under row-level security, so verifying it
+    // means declaring a project scope, exactly as retrieval does
+    const chunks = await withProjectScope(db, projectId, (tx) =>
+      tx.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, acceptedVersionId)),
+    );
     expect(chunks.length).toBeGreaterThan(0);
 
     // ISO 19650 (ADR-0041): acceptance issues the CONTRACTUAL C-revision, now
