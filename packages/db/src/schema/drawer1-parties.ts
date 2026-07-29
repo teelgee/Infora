@@ -59,6 +59,13 @@ export const projects = pgTable('projects', {
   ownerOrganisationId: uuid('owner_organisation_id')
     .notNull()
     .references(() => organisations.id),
+  // T-246 (ADR-0046 §8) — the owner's assurance lever. The owner cannot see a
+  // supplier's conflict register (it would reveal the supplier's engagements),
+  // so what it gets instead is the power to REQUIRE each member organisation to
+  // attest that it operates a conflict policy. Trust plus audit, deliberately,
+  // not enforcement: a client cannot inspect a supplier's internal wall, and a
+  // control pretending otherwise would be theatre.
+  conflictAttestationRequired: boolean('conflict_attestation_required').notNull().default(false),
 });
 
 // A Participant is an interval, never a deleted row: removal closes
@@ -159,6 +166,56 @@ export const conflictExclusions = pgTable(
       .where(sql`${t.withdrawnAt} IS NULL`),
   ],
 );
+
+// T-246 — the attestation (ADR-0046 §8): how a project owner gains assurance
+// WITHOUT gaining the register. The owner sees THAT an organisation attested and
+// when; never what the attestation protects. An interval, like everything else
+// here: re-attesting supersedes rather than overwrites, so the history of who
+// stood behind the wall and when survives.
+export const conflictAttestations = pgTable(
+  'conflict_attestations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    attestedByUserId: uuid('attested_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    attestedAt: timestamp('attested_at', { withTimezone: true }).notNull().defaultNow(),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('conflict_attestations_live_unique')
+      .on(t.projectId, t.organisationId)
+      .where(sql`${t.supersededAt} IS NULL`),
+  ],
+);
+
+// T-246 — the refusal audit (ADR-0046 §6: "every grant it refused"). Org-private
+// like the register itself: a refusal names the exclusion that caused it, so
+// reading it is reading the register indirectly.
+export const conflictRefusals = pgTable('conflict_refusals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  exclusionId: uuid('exclusion_id')
+    .notNull()
+    .references(() => conflictExclusions.id),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id),
+  /** the admin who attempted the grant */
+  attemptedByUserId: uuid('attempted_by_user_id')
+    .notNull()
+    .references(() => users.id),
+  /** the person the grant was for */
+  subjectUserId: uuid('subject_user_id')
+    .notNull()
+    .references(() => users.id),
+  refusedAt: timestamp('refused_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const memberships = pgTable(
   'memberships',

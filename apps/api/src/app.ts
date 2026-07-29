@@ -11,6 +11,7 @@ import {
 import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
+import { conflictRoutes } from './conflict';
 import { csrfGuard } from './csrf';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
@@ -137,6 +138,10 @@ export function buildApp(deps: AppDeps) {
 
   // Access administration + the roster (Slice A, ADR-0033) — T-117
   app.route('/', administrationRoutes(deps));
+
+  // T-246 — the conflict register (ADR-0046): the declaring organisation's own
+  // register, and the owner's attestation view which carries none of it.
+  app.route('/', conflictRoutes(deps));
 
   // The deliverable plan: TIDP rows, MIDP consolidation, appointments
   // (Slice A, ADR-0008/0017/0033) — T-118/T-119

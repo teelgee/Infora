@@ -2,6 +2,11 @@
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
   ApiError,
+  ConflictExclusionRecord,
+  DeclareExclusionBody,
+  DeclareExclusionResponse,
+  ListConflictAttestationsResponse,
+  ListConflictExclusionsResponse,
   ClassificationSchemeResponse,
   ContainerClassificationsResponse,
   ContainerRelationshipsResponse,
@@ -225,6 +230,35 @@ export const api = {
   removeParticipant: (projectId: string, participantId: string) =>
     request<RosterEntry>(`/projects/${projectId}/participants/${participantId}`, {
       method: 'DELETE',
+    }),
+  // T-246 — the conflict register (ADR-0046). Org-private: these reads return
+  // only the caller's OWN organisation's register, never another's.
+  conflictExclusions: (includeWithdrawn = false) =>
+    request<ListConflictExclusionsResponse>(
+      `/organisation/conflict-exclusions${includeWithdrawn ? '?includeWithdrawn=true' : ''}`,
+    ),
+  declareExclusion: (body: DeclareExclusionBody) =>
+    request<DeclareExclusionResponse>('/organisation/conflict-exclusions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  withdrawExclusion: (exclusionId: string) =>
+    request<ConflictExclusionRecord>(`/conflict-exclusions/${exclusionId}/withdrawal`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  // The owner's view — carries no register data by construction (ADR-0046 §8)
+  conflictAttestations: (projectId: string) =>
+    request<ListConflictAttestationsResponse>(`/projects/${projectId}/conflict-attestations`),
+  setAttestationRequired: (projectId: string, required: boolean) =>
+    request<{ required: boolean }>(`/projects/${projectId}/conflict-attestation`, {
+      method: 'PATCH',
+      body: JSON.stringify({ required }),
+    }),
+  attestConflictPolicy: (projectId: string) =>
+    request<{ attestedAt: string }>(`/projects/${projectId}/conflict-attestation`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
   documentComments: (id: string) =>
     request<ListSandboxCommentsResponse>(`/sandbox-documents/${id}/comments`),

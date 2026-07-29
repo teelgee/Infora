@@ -15,10 +15,56 @@ import type {
   MembershipRecord,
   RosterEntry,
 } from '@infora/contracts';
+import { CONFLICT_REFUSAL, conflictBlocks } from '@infora/governance';
+import type { ConflictExclusion } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope } from './requester';
 import type { AppEnv, UserRow } from './requester';
+
+/**
+ * T-246 — load the facts the T-245 predicate judges, and judge them: does a
+ * live exclusion declared by this organisation bar this user from this project?
+ * Returns the blocking exclusion (so the refusal can be audited to it) or null.
+ *
+ * Two queries, both indexed, and the first returns nothing for the
+ * overwhelming majority of organisations — which have no exclusions at all.
+ */
+async function conflictBlockingGrant(
+  db: Db,
+  target: { userId: string; organisationId: string; projectId: string },
+): Promise<ConflictExclusion | null> {
+  const exclusions = await db
+    .select({
+      id: s.conflictExclusions.id,
+      declaringOrganisationId: s.conflictExclusions.declaringOrganisationId,
+      grain: s.conflictExclusions.grain,
+      subjectUserId: s.conflictExclusions.subjectUserId,
+      projectAId: s.conflictExclusions.projectAId,
+      projectBId: s.conflictExclusions.projectBId,
+      withdrawnAt: s.conflictExclusions.withdrawnAt,
+    })
+    .from(s.conflictExclusions)
+    .where(
+      and(
+        eq(s.conflictExclusions.declaringOrganisationId, target.organisationId),
+        isNull(s.conflictExclusions.withdrawnAt),
+      ),
+    );
+  if (exclusions.length === 0) return null; // the common case, one indexed hit
+
+  const held = await db
+    .select({ projectId: s.participants.projectId })
+    .from(s.participants)
+    .where(and(eq(s.participants.userId, target.userId), isNull(s.participants.removedAt)));
+
+  return conflictBlocks({
+    user: { id: target.userId, organisationId: target.organisationId },
+    targetProjectId: target.projectId,
+    otherLiveProjectIds: held.map((row) => row.projectId),
+    exclusions,
+  });
+}
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
@@ -165,6 +211,28 @@ export function administrationRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (live) return c.json({ error: 'conflict' } satisfies ApiError, 409);
+
+    // T-246 (ADR-0046) — the conflict register refuses the grant. `forbidden`,
+    // not `not_found`: the requester is this organisation's own admin and can
+    // already see both the project and the user, so existence is not what is
+    // being protected (errors.ts — forbidden is only ever used inside an
+    // entitled scope). The message names that a wall applies and NOTHING it
+    // protects — not the other scheme, not the engagement, not the party (§9).
+    const blocking = await conflictBlockingGrant(deps.db, {
+      userId: target.id,
+      organisationId: user.organisationId,
+      projectId,
+    });
+    if (blocking) {
+      await deps.db.insert(s.conflictRefusals).values({
+        exclusionId: blocking.id,
+        projectId,
+        attemptedByUserId: user.id,
+        subjectUserId: target.id,
+      });
+      return c.json({ error: 'forbidden', detail: CONFLICT_REFUSAL } satisfies ApiError, 403);
+    }
+
     // the enrolling admin's own live participant row, when they have one —
     // seeded/first users carry null (contracts §4)
     const [adminParticipant] = await deps.db

@@ -232,6 +232,13 @@
       "when": 1785600000000,
       "tag": "0032_conflict-register",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785600060000,
+      "tag": "0033_conflict-attestation-and-refusals",
+      "breakpoints": true
     }
   ]
 }

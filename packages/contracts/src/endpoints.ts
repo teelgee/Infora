@@ -1194,3 +1194,81 @@ export type ContainerRelationshipRead = DocumentRelationship & {
   otherDocumentReference: string;
 };
 export type ContainerRelationshipsResponse = { items: ContainerRelationshipRead[] };
+
+// ── The conflict register (T-245/T-246, ADR-0046) ────────────────────────────
+// The ethical wall's positive-exclusion form. The register is ORG-PRIVATE: it
+// reveals which of a firm's people are walled from what, which is close to
+// revealing its engagements, so only the declaring organisation's own admins
+// ever read it (ADR-0018 private floor). A project owner gets the attestation
+// instead — evidence a control exists, never its contents (§8).
+
+export type ConflictGrain = 'organisation' | 'individual';
+
+// POST /organisation/conflict-exclusions — the declaring org's own admin only.
+// The pair is unordered (§9); the API stores it canonically, so callers may
+// send either order.
+export const declareExclusionBody = z.object({
+  projectAId: id,
+  projectBId: id,
+  grain: z.enum(['organisation', 'individual']) satisfies z.ZodType<ConflictGrain>,
+  /** required at individual grain, forbidden at organisation grain */
+  subjectUserId: id.optional(),
+  reason: z.string().max(2000).optional(),
+});
+export type DeclareExclusionBody = z.infer<typeof declareExclusionBody>;
+
+export type ConflictExclusionRecord = {
+  id: Id;
+  grain: ConflictGrain;
+  subjectUserId: Id | null;
+  subjectName: string | null;
+  projectAId: Id;
+  projectAName: string;
+  projectBId: Id;
+  projectBName: string;
+  reason: string | null;
+  declaredByName: string;
+  declaredAt: string;
+  withdrawnAt: string | null;
+};
+export type ListConflictExclusionsResponse = { items: ConflictExclusionRecord[] };
+
+/**
+ * A live Participant grant that a newly declared exclusion would breach.
+ * REPORTED, never revoked (§4): an automatic revocation could remove a
+ * specialist mid-examination, and a wall control that causes an unattributed
+ * outage gets switched off rather than trusted.
+ */
+export type RetrospectiveConflict = {
+  userId: Id;
+  userName: string;
+  projectAId: Id;
+  projectAName: string;
+  projectBId: Id;
+  projectBName: string;
+};
+export type DeclareExclusionResponse = {
+  exclusion: ConflictExclusionRecord;
+  /** existing grants this exclusion now covers — for the admin to act on */
+  retrospectiveConflicts: RetrospectiveConflict[];
+};
+
+// GET /projects/:projectId/conflict-attestations — the OWNER's view.
+// Deliberately carries no exclusion data of any kind: not a count, not a date
+// from the register, not a subject. Only who attested, for which organisation,
+// and when (§8).
+export type ConflictAttestationRecord = {
+  organisationId: Id;
+  organisationName: string;
+  attested: boolean;
+  attestedByName: string | null;
+  attestedAt: string | null;
+};
+export type ListConflictAttestationsResponse = {
+  required: boolean;
+  items: ConflictAttestationRecord[];
+};
+
+// PATCH /projects/:projectId/conflict-attestation — owner sets the requirement
+export const setAttestationRequirementBody = z.object({ required: z.boolean() });
+export type SetAttestationRequirementBody = z.infer<typeof setAttestationRequirementBody>;
