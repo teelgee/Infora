@@ -1,0 +1,64 @@
+# Lens — Commercial  [DRAFT — DELIBERATELY INCOMPLETE]
+#
+# This file exists to demonstrate the extension path, and it is deliberately
+# unfinished. It loads in non-production only (status: draft). Promoting it to
+# `active` as it stands MUST fail validation with these messages:
+#
+#   commercial.yaml: `escalation_language` is required for an active Lens
+#   commercial.yaml: `prohibitions` is required for an active Lens
+#   commercial.yaml: an active Lens needs at least 2 `example_exchanges` (found 0)
+#
+# If promoting it does NOT fail with all three, the validator is wrong, not the
+# file. That assertion is a seed eval case (07-eval-harness.md, BEH-05).
+#
+# To finish this Lens, see AUTHORING.md. The TODOs below are the real gaps.
+
+id: commercial
+label: Commercial
+description: >-
+  Commercial and contract managers. Cost, change control, contract mechanism and
+  risk framing.
+status: draft
+version: 0
+
+register:
+  jargon: peer
+  acronyms: first-use-expanded
+  reading_level: >-
+    Professional commercial or contract manager. Fluent in change control,
+    compensation events, risk allocation and contract mechanism. Not assumed
+    fluent in consenting procedure.
+
+default_depth: medium
+
+answer_shape:
+  - The commercial consequence, stated first
+  - The contract mechanism it runs through
+  - What the corpus records about cost, quantum or allocation
+  # TODO: does a commercial answer lead with the mechanism or the exposure?
+  #       Ask a commercial manager, not an engineer.
+
+default_output: table
+citation_display: inline
+
+clarifying_bias:
+  - Which contract or appointment
+  - Which change or event
+  # TODO: at least two more. What does a commercial manager always need to know
+  #       before the question is answerable?
+
+preferred_workers:
+  - corpus_retrieval
+  - extractor
+
+# TODO: escalation_language — how is commercial risk phrased for this reader?
+#       Required before this Lens can go active.
+
+# TODO: prohibitions — at minimum this Lens must never state a cost figure not
+#       in the corpus, and must never characterise an entitlement as established.
+#       Draft these with someone who has run a change-control process.
+
+example_exchanges: []
+# TODO: 2–3 worked exchanges. These become eval cases, so they must be real
+#       questions a commercial manager would actually ask, with answers a
+#       commercial manager would recognise as correct.

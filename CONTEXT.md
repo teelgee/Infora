@@ -118,6 +118,9 @@ A defined, governed, repeatable process that produces an output. Examples: docum
 **Tool**
 The packaged, launchable capability a user meets on the Tools surface. The minimal tool is a single workflow with a name and description; a richer tool (e.g. a QA tool) steps through several workflows. Users see tools; *workflow* stays the engine's term for the codified sequence underneath. Three provenances (owner-ruled 2026-07-13): **standard** (Infora's, for all users), **org-built** (the organisation's own — travelling with its users into projects, never visible across the wall, per the org-context informing rule ADR-0020), and **individually-built** (org-visible in the MVP; per-org privacy is a future organisation choice). Building your own happens in the Tools surface (the Slice F builder); the built workflow surfaces as your own tool.
 
+**Lens**
+How an answer is written for the professional reading it — register, depth, what the answer leads with, default output shape, and which ambiguity gets asked about first. Ask supports several (Planning & Environmental, Engineer, Project Manager, Communications; Commercial drafted), chosen from a chip and changeable at any time including mid-conversation. **A Lens changes register, never reach:** it has no effect whatsoever on what data a user can see, is not a parameter of access resolution or retrieval, and cannot become one — permissions are orthogonal to Lens, and the picker says so in plain words. Named *Lens* rather than *role* because **Role** is already taken (Membership role, owner/member — ADR-0015/0016), and a persona that sounds like a permission is exactly the confusion the design exists to prevent. Capital-L *Lens* is this term; the lower-case word is still used in its ordinary English sense elsewhere in this glossary (feature and component as "two lenses on the same system"). A Lens is declarative content — a YAML file in the authoring layer, owned by Infora's planning specialists, versioned like code — so adding one needs no code change, and a Lens whose prohibitions try to weaken a shared-core rule (provenance, the register separation, no unqualified professional opinion, staleness, version discipline) fails to load rather than degrading silently. Specified in [docs/ask/01-lens-framework.md](docs/ask/01-lens-framework.md).
+
 **Assurance (workflow)**
 The AI workflow that checks a document against predetermined rules and style guides. Distinct from the Assurance cycle: a team typically runs the assurance workflow on a draft, then pushes the document through the assurance cycle to publish it.
 
@@ -280,6 +283,72 @@ Conformance to policy and legislation (the DCO regime, planning policy, PINS req
 
 **Audit trail**
 The complete record of every agent, user, and system action on a run or project.
+
+---
+
+## The consenting domain (NSIP / DCO)
+
+Added 2026-07-29 with the Ask agent harness. The rest of this glossary is Infora's own language plus the ISO 19650 / CDE document-control vocabulary the platform is built on; this section is the **customer's** language — the statutory regime Infora's first users work inside. It is held here because Ask's credibility rests on using it exactly, and because a term used loosely in a prompt or a Lens becomes a wrong answer in a real examination. Terms are defined as practitioners use them, not as a statute would.
+
+**NSIP**
+Nationally Significant Infrastructure Project. The class of scheme consented through the Planning Act 2008 regime rather than through ordinary town and country planning.
+
+**DCO**
+Development Consent Order. The consent granted for an NSIP — a statutory instrument that both permits the scheme and carries the requirements and powers it operates under. **Requirement** in a DCO is the analogue of a planning condition; where this glossary's own "requirement" is meant, context distinguishes them.
+
+**PINS**
+The Planning Inspectorate. Administers the regime and publishes advice under it.
+
+**ExA**
+Examining Authority. The inspector or panel of inspectors examining an application. Ask never predicts what an ExA will conclude (see **Lens**, the shared core).
+
+**PEIR**
+Preliminary Environmental Information Report. The pre-application document consulted on. **Distinct from the ES**, at a different stage with a different statutory function — conflating the two is a real and damaging error, and every Lens prohibits it.
+
+**ES**
+Environmental Statement. The environmental assessment submitted with the application.
+
+**EIA**
+Environmental Impact Assessment. The process; the ES is its output. Governed for this regime by the Infrastructure Planning (EIA) Regulations 2017.
+
+**HRA / AA**
+Habitats Regulations Assessment, and the Appropriate Assessment within it where a likely significant effect on a European site cannot be ruled out. Under the Conservation of Habitats and Species Regulations 2017.
+
+**NPS**
+National Policy Statement. The primary policy test against which an application is judged. Versioned and periodically redesignated, which is why **which version applies** is a first-order question rather than a detail (see **Authority corpus**).
+
+**s.51 advice**
+Advice published by PINS under section 51 of the Planning Act 2008. Public, scheme-specific, and part of the canon.
+
+**Rule 6 / Rule 8 letter**
+Procedural letters setting and confirming the examination timetable.
+
+**ISH / OFH**
+Issue Specific Hearing / Open Floor Hearing.
+
+**Deadline 1, 2, 3…**
+The examination's submission windows. A programme fact, and the anchor for most Project Manager Lens questions.
+
+**RIES**
+Report on the Implications for European Sites.
+
+**DL**
+Decision Letter from the Secretary of State. With precedent DCOs, part of the canon.
+
+**CoCP**
+Code of Construction Practice. Secures construction-phase controls; frequently the document where a commitment actually lives.
+
+**REAC**
+Register of Environmental Actions and Commitments. The commitments register. **A REAC entry is a commitment, never a discretionary option** — a rule every Lens carries.
+
+**Rochdale Envelope**
+The parameter range within which design flexibility is assessed. Moving outside it is an assessment question, not a design one — the boundary the Engineer Lens is built to make visible.
+
+**Advice Note 7**
+PINS advice on EIA process and content.
+
+**The canon**
+Collective term for the stable, public, hierarchical body of consenting law, policy and guidance: the Planning Act 2008, the Infrastructure Planning (EIA) Regulations 2017, the Habitats Regulations 2017, National Policy Statements, PINS Advice Notes, s.51 advice, and precedent DCOs and Decision Letters. **In Infora this is the authority corpus (ADR-0023, extended 2026-07-29)** — versioned by in-force date rather than by document revision, and citable directly. It is **two-tier**: a **standard tier** Infora ships, confined to freely shippable material (the instruments listed above are Crown copyright under the Open Government Licence, so Infora buys no per-customer standards subscriptions), and an **organisation tier** an org owner adds — licensed standards it already subscribes to (ISO, BSI), sector guidance, its own policy — held in that organisation's portable org context, travelling to every project it works on, and never crossing the wall. Both tiers ground and are cited; org placement does not make the organisation tier *informing*, because the operative test is what the material is (a published external instrument with an issuing body, version and in-force date), not who loaded it (ADR-0021). Currency splits with the tiers: Infora maintains it for the standard tier and cannot for the organisation tier, so org-tier entries carry an org-declared interval and a last-reviewed date, reported distinctly. Prefer *authority corpus* in build and design language; *the canon* is the customer's word for the same thing. Distinct from the **project library**, which is one scheme's own record.
 
 ---
 

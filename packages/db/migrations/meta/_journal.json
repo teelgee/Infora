@@ -225,6 +225,13 @@
       "when": 1785082770595,
       "tag": "0031_ontology-drawer",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785600000000,
+      "tag": "0032_conflict-register",
+      "breakpoints": true
     }
   ]
 }

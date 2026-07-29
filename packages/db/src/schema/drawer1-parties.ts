@@ -1,6 +1,6 @@
 // Drawer 1 — parties & access (data-model.md; ADR-0015–0018, ADR-0033).
 // Every other table is scoped by these.
-import { boolean, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -92,6 +92,71 @@ export const participants = pgTable(
     uniqueIndex('participants_user_project_live_unique')
       .on(t.userId, t.projectId)
       .where(sql`${t.removedAt} IS NULL`),
+  ],
+);
+
+// T-245 — the conflict register (ADR-0046): the ethical wall's first
+// POSITIVE-EXCLUSION form. Every other access table grants; this one alone
+// denies — holding access to one project bars access to another.
+//
+// Declared by the consultancy's OWN org admin, never by a project owner (§8):
+// an owner-declared exclusion would require the owner to already know the
+// supplier's other engagements, which the supplier would usually be in breach
+// for disclosing. Org-private on the ADR-0018 private floor — the register
+// reveals which of a firm's people are walled from what, which is close to
+// revealing its engagements.
+//
+// Symmetric by construction (§9): the relation is unordered, so the pair is
+// stored canonically (project_a_id < project_b_id, CHECK-enforced) and the live
+// unique index collapses X↔Y and Y↔X to one row.
+export const conflictGrain = pgEnum('conflict_grain', ['organisation', 'individual']);
+
+export const conflictExclusions = pgTable(
+  'conflict_exclusions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // the firm whose wall this is — exclusions only ever bind its own people
+    declaringOrganisationId: uuid('declaring_organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    declaredByUserId: uuid('declared_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    // §7: individual is the default — a large consultancy legitimately acts on
+    // both sides behind an internal wall with different teams, and forbidding
+    // that moves the scheme off the platform rather than dissolving it. The
+    // organisation form binds every Participant of the firm.
+    grain: conflictGrain('grain').notNull().default('individual'),
+    // the named person at individual grain; null at organisation grain
+    subjectUserId: uuid('subject_user_id').references(() => users.id),
+    projectAId: uuid('project_a_id')
+      .notNull()
+      .references(() => projects.id),
+    projectBId: uuid('project_b_id')
+      .notNull()
+      .references(() => projects.id),
+    reason: text('reason'), // org-private free text
+    declaredAt: timestamp('declared_at', { withTimezone: true }).notNull().defaultNow(),
+    // currency by state, on the Participant pattern: withdrawal closes the
+    // interval and the row survives, so past refusals stay attributable
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    withdrawnByUserId: uuid('withdrawn_by_user_id').references(() => users.id),
+  },
+  (t) => [
+    // The two grains have genuinely different natural keys, so they get an
+    // index each rather than one index over a nullable column. Modelling them
+    // together would need NULLS NOT DISTINCT (the Postgres default treats two
+    // null subjects as distinct, so duplicate organisation-grain rows would
+    // slip through) — and splitting states the keys more precisely anyway.
+    uniqueIndex('conflict_exclusions_individual_live_unique')
+      .on(t.declaringOrganisationId, t.subjectUserId, t.projectAId, t.projectBId)
+      .where(sql`${t.withdrawnAt} IS NULL AND ${t.grain} = 'individual'`),
+    uniqueIndex('conflict_exclusions_organisation_live_unique')
+      .on(t.declaringOrganisationId, t.projectAId, t.projectBId)
+      .where(sql`${t.withdrawnAt} IS NULL AND ${t.grain} = 'organisation'`),
+    index('conflict_exclusions_org_live_idx')
+      .on(t.declaringOrganisationId)
+      .where(sql`${t.withdrawnAt} IS NULL`),
   ],
 );
 
