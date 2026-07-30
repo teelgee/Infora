@@ -11,6 +11,13 @@ export const ALLOWED = {
   '@infora/model': ['@infora/contracts'],
   '@infora/governance': ['@infora/contracts', '@infora/db'],
   '@infora/data': ['@infora/contracts', '@infora/db', '@infora/model'],
+  // T-250 — untrusted external content. THIS ENTRY IS THE SECURITY CONTROL
+  // (docs/ask/09 R3): `web_research` reads public pages, so the worker holding
+  // a prompt injection must be unable to hold client data. Contracts only —
+  // no db, no knowledge, no governance — so it cannot query a store, resolve
+  // an access slice or read a chunk. Widening this line is the event code
+  // review exists to catch.
+  '@infora/external': ['@infora/contracts'],
   '@infora/knowledge': [
     '@infora/contracts',
     '@infora/db',

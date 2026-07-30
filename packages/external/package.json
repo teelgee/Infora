@@ -1,0 +1,21 @@
+{
+  "name": "@infora/external",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "untrusted external content: the web-research seam, behind the type barrier (T-250)",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
+  }
+}

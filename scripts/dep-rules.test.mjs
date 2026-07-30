@@ -55,6 +55,19 @@ describe('checkDeps', () => {
     ).toBe(true);
   });
 
+  // T-250 (docs/ask/09 R3): the untrusted-content barrier is this line of the
+  // matrix. A worker that holds a prompt injection from a fetched page must be
+  // unable to hold client data — not by discipline, by having no route to it.
+  it('matrix invariant: the external package can reach no store', () => {
+    expect(ALLOWED['@infora/external']).toEqual(['@infora/contracts']);
+    const violations = checkDeps([
+      pkg('@infora/external', { '@infora/db': 'workspace:*' }),
+      pkg('@infora/external', { '@infora/knowledge': 'workspace:*' }),
+      pkg('@infora/external', { '@infora/governance': 'workspace:*' }),
+    ]);
+    expect(violations).toHaveLength(3);
+  });
+
   it('matrix invariant: no cycles', () => {
     const visiting = new Set();
     const done = new Set();

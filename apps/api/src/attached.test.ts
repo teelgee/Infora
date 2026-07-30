@@ -128,6 +128,33 @@ describe('attached-source working set on a multiplayer conversation (T-154)', ()
     expect(dList.status).toBe(404); // D is not in the sandbox scope
   });
 
+  // T-250 (docs/ask/09 R3 §6) — the reserved `web` attached-source kind,
+  // resolved. It stays, per the 2026-07-29 ruling: web *research* results are
+  // citable in a separate external register; a user-pinned web attached source
+  // keeps the original ADR-0022 rule and never grounds, never cites. Until now
+  // that held by omission — nothing read the row. This pins it: the pointer is
+  // stored, a run over the same conversation carries nothing from it, and the
+  // only type that can ever carry fetched web content (ExternalSource, T-250)
+  // cannot enter the working input at all.
+  it('a pinned web source is a pointer, not content: no run grounds on it', async () => {
+    const run = await app.request(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ request: 'What do the attached sources say?' }),
+    });
+    expect(run.status).toBe(201);
+    const body = (await run.json()) as {
+      response: string | null;
+      citations: unknown[];
+      steps: Array<{ sourceSet: unknown[] }>;
+    };
+
+    const seen = JSON.stringify([body.steps.flatMap((step) => step.sourceSet), body.citations]);
+    expect(seen).not.toContain('example.test/std'); // the pinned pointer
+    expect(seen).not.toContain('attachedSource');
+    expect(body.response ?? '').not.toContain('example.test/std');
+  });
+
   it('unpins by closing the interval', async () => {
     const list = await app.request(`/conversations/${conversationId}/attached-sources`, { headers: asJson(bCookie) });
     const first = ((await list.json()) as { items: AttachedSource[] }).items[0]!;

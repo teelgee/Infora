@@ -20,6 +20,7 @@ infora/
 │  ├─ knowledge/          # context assembly gateway (ADR-0029); org/project stores as they land
 │  ├─ capabilities/       # grounded-gen, compliance, tabular, plain-english
 │  ├─ workflows/          # standard + custom workflows composing capabilities
+│  ├─ external/           # untrusted external content (web research) — contracts only, by rule (T-250)
 │  ├─ governance/         # access predicates + wall, grounding/NLI rails
 │  ├─ db/                 # Postgres + pgvector: schema (5 drawers), migrations, seed
 │  ├─ contracts/          # shared types + API schema (single source of truth)
@@ -32,6 +33,8 @@ infora/
 
 Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back. The rules are enforced by `scripts/dep-rules.mjs` — a violation fails CI.
 
+One entry in that matrix is a security control rather than a layering choice: **`external` may depend on `contracts` and nothing else** (T-250, [docs/ask/09](../ask/09-permissions-remediation.md) R3). Everything that touches untrusted web content lives there, so the code holding a prompt injection from a fetched page has no route to a store, an access slice or a chunk — not by discipline, by having nothing to reach with. Widening that line is the event code review exists to catch.
+
 The one entry in that matrix depending on a deployable is `evals` (T-255), deliberately: a case must execute through the real API boundary, because that is where identity is established, and a fixture is data that must be materialised through `db`. Nothing depends on `evals` and it ships in no deployable, so the direction stays one-way.
 
 ## Components ↔ packages (the reconciliation)
@@ -43,7 +46,7 @@ The eight [components](../architecture/infora-overview.md) are **design boundari
 | 1 Foundation | `db` (schema, migrations, seed) · `model` (router + adapters) · `contracts` · the CI substrate (`scripts/dep-rules.mjs`) |
 | 2 Access | `governance` — the access predicates (`access.ts`, `sandbox.ts`), evaluated at the `api` boundary; no code path resolves its own permissions |
 | 3 Governance | `governance` — ground-check and rails; the audit record written by `orchestration`'s run-writer into `db` drawer 3 |
-| 4 Context | `knowledge` (the assembly gateway, ADR-0029) · `data` (ingestion + retrieval over pgvector) |
+| 4 Context | `knowledge` (the assembly gateway, ADR-0029) · `data` (ingestion + retrieval over pgvector) · `external` (untrusted web content, deliberately outside every store — T-250) |
 | 5 Document management | **no dedicated package, by design** — the lifecycle is `db` drawers 2/5 plus the `api` route modules (plan, cycle, transmittal, renditions, sandbox, naming) |
 | 6 Engine | `orchestration` (the chain + run state) · `capabilities` (the skills) · `workflows` (the recipes) |
 | 7 Connectors *(deferred)* | future home in `data` |

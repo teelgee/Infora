@@ -3,6 +3,7 @@
 // Scoped drawer-by-drawer like the data model: only what M0–M6 call.
 
 export * from './assembly';
+export * from './external';
 export * from './shared';
 export * from './endpoints';
 export * from './errors';

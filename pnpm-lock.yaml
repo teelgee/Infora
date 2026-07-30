@@ -248,6 +248,19 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@24.13.2)(vite@7.3.6(@types/node@24.13.2)(tsx@4.23.0)(yaml@2.9.0))
 
+  packages/external:
+    dependencies:
+      '@infora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@24.13.2)(vite@7.3.6(@types/node@24.13.2)(tsx@4.23.0)(yaml@2.9.0))
+
   packages/governance:
     dependencies:
       '@infora/contracts':
