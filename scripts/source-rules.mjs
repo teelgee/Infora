@@ -18,7 +18,12 @@ import { join, relative } from 'node:path';
  * ingests into it.
  */
 const CHUNK_SYMBOL = 'versionChunks';
-const CHUNK_READERS = ['packages/knowledge', 'packages/data', 'packages/db'];
+// `evals` (T-255) is the one addition to that pair, and it is a WRITER only:
+// the fixture loader materialises a frozen corpus into the index under its own
+// pinned model (ADR-0024), and reads it back the way a client does — over HTTP,
+// through the API, through the assembly gateway. It builds no retrieval query,
+// and RLS (migration 0034) would return it nothing if it tried.
+const CHUNK_READERS = ['packages/knowledge', 'packages/data', 'packages/db', 'evals'];
 
 /**
  * RULE 2 — permissions are never expressed as prompt instructions.
@@ -61,7 +66,7 @@ function walk(dir, out = []) {
  */
 export function checkSourceRules(root) {
   const violations = [];
-  const roots = ['apps', 'packages', 'e2e', 'scripts'].filter((d) => {
+  const roots = ['apps', 'packages', 'e2e', 'evals', 'scripts'].filter((d) => {
     try {
       return statSync(join(root, d)).isDirectory();
     } catch {
