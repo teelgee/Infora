@@ -1,6 +1,7 @@
 # Ask — the chat and analysis interface
 
-**Status:** Phase 1 requirements, drafted 2026-07-29. Not yet ticketed.
+**Status:** Phase 1 requirements, drafted 2026-07-29. Ticketed on the board as
+Slice Ask (T-245 – T-298); Wave 0 part-built.
 **Phase 0 discovery:** [phase-0-discovery.md](phase-0-discovery.md) — the
 architecture map, the permission interrogation and its findings.
 
@@ -30,7 +31,10 @@ can be demonstrated to a client's technical and security teams.
 | 07 | [07-eval-harness.md](07-eval-harness.md) | Cases, fixtures, runner, categories, hold-out |
 | 08 | [08-interface.md](08-interface.md) | Composer chips, progress rail, completion footer |
 | 09 | [09-permissions-remediation.md](09-permissions-remediation.md) | F1–F8 turned into requirements, sequenced first |
-| — | [tickets.md](tickets.md) | **Phase 2** — the ticket set, T-245 – T-296, dependency-ordered |
+
+**The tickets live on the board**, not here: [docs/build/plan.md](../build/plan.md),
+Slice Ask, T-245 – T-298. One board and one "next free number" counter, because
+concurrent sessions have collided over ticket numbers twice before.
 
 Decision records touched: **ADR-0022** (web research carve-out), **ADR-0027**
 and **ADR-0028** (the two orchestration modes), and new **ADR-0046** (the
@@ -50,7 +54,7 @@ non-negotiable conflict, the non-negotiable wins.
    citation nobody can check is functionally an uncited claim. Uncited claims are
    a build failure, not a style issue. *(Already true for the grounded register
    — [ground-check.ts](../../packages/governance/src/ground-check.ts). The locator-or-quote rule is owner-ruled
-   2026-07-29; see [tickets.md T-270/T-271](tickets.md).)*
+   2026-07-29; T-270/T-271 on the board.)*
 2. **Permissions are enforced at the data layer, never in a prompt.** Filters
    apply before retrieval. *(Already true — [retrieval.ts:73-83](../../packages/knowledge/src/retrieval.ts#L73-L83). Guarded by a CI grep, [09](09-permissions-remediation.md) R6.)*
 3. **Scope attenuates, never escalates.** A worker's access is a subset of its

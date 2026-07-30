@@ -1,5 +1,7 @@
 # Access model (component 2)
 
+> **Drawn:** [access-and-channels.html](access-and-channels.html) — two client projects, two supplier organisations, and what each reaches per environment across the three channels. The one-page version of everything below.
+
 The access model resolves who can see and do what across organisations, workspaces, projects, programmes, roles and ethical walls. It sits below every surface and runs before any data is touched; no other component resolves its own permissions. In the app architecture it is the access layer through which every request passes.
 
 Infora is a network, not a hierarchy. An organisation acts through its workspace and works across many projects, owning some and joining others. Each project has exactly one owner organisation and other organisations as members; a programme groups projects under one owner and gives a portfolio view. Owner is a per-project role a client or a consultant can hold; ownership transfer is possible in principle but is not designed for.

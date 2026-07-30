@@ -1,0 +1,524 @@
+<title>Infora — access and channels</title>
+
+<style>
+  :root {
+    --sheet: #dedad0;
+    --panel: #ffffff;
+    --panel-2: #f2f1ed;
+    --ink: #1c1b18;
+    --ink-2: #57564f;
+    --ink-3: #78766f;
+    --rule: #ccc7bb;
+    --rule-strong: #a9a496;
+    --grounded: #274a6d;
+    --steer: #8a5a12;
+    --deny: #b23b34;
+    --allow: #1a7a3a;
+    --hatch: rgba(178, 59, 52, 0.13);
+    --shadow: 0 1px 0 rgba(28, 27, 24, 0.06), 0 8px 24px -18px rgba(28, 27, 24, 0.5);
+
+    --sans: ui-sans-serif, system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sheet: #171613;
+      --panel: #221f1b;
+      --panel-2: #1c1a17;
+      --ink: #eceae4;
+      --ink-2: #b5b1a7;
+      --ink-3: #8d8a81;
+      --rule: #35322c;
+      --rule-strong: #4a463e;
+      --grounded: #7fa8d4;
+      --steer: #d8a441;
+      --deny: #e2776e;
+      --allow: #5fbc7f;
+      --hatch: rgba(226, 119, 110, 0.16);
+      --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -18px rgba(0, 0, 0, 0.9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --sheet: #171613;
+    --panel: #221f1b;
+    --panel-2: #1c1a17;
+    --ink: #eceae4;
+    --ink-2: #b5b1a7;
+    --ink-3: #8d8a81;
+    --rule: #35322c;
+    --rule-strong: #4a463e;
+    --grounded: #7fa8d4;
+    --steer: #d8a441;
+    --deny: #e2776e;
+    --allow: #5fbc7f;
+    --hatch: rgba(226, 119, 110, 0.16);
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 8px 24px -18px rgba(0, 0, 0, 0.9);
+  }
+
+  :root[data-theme="light"] {
+    --sheet: #dedad0;
+    --panel: #ffffff;
+    --panel-2: #f2f1ed;
+    --ink: #1c1b18;
+    --ink-2: #57564f;
+    --ink-3: #78766f;
+    --rule: #ccc7bb;
+    --rule-strong: #a9a496;
+    --grounded: #274a6d;
+    --steer: #8a5a12;
+    --deny: #b23b34;
+    --allow: #1a7a3a;
+    --hatch: rgba(178, 59, 52, 0.13);
+    --shadow: 0 1px 0 rgba(28, 27, 24, 0.06), 0 8px 24px -18px rgba(28, 27, 24, 0.5);
+  }
+
+  body {
+    background: var(--sheet);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 56px) clamp(16px, 4vw, 40px) 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* ── sheet header ─────────────────────────────────────────────── */
+  .masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1.5px solid var(--rule-strong);
+    padding-bottom: 14px;
+  }
+  .masthead h1 {
+    font-size: clamp(24px, 3.4vw, 36px);
+    font-weight: 620;
+    letter-spacing: -0.021em;
+    line-height: 1.12;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .masthead p {
+    margin: 6px 0 0;
+    color: var(--ink-2);
+    font-size: 15px;
+    max-width: 60ch;
+  }
+  .stamp {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: right;
+    line-height: 1.7;
+    white-space: nowrap;
+  }
+
+  h2 {
+    font-size: 12px;
+    font-family: var(--mono);
+    font-weight: 500;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h2::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  /* ── the network plan ─────────────────────────────────────────── */
+  .plan {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+    overflow-x: auto;
+  }
+  .plan svg { display: block; width: 100%; min-width: 640px; height: auto; }
+
+  .n-box { fill: var(--panel-2); stroke: var(--ink); stroke-width: 1.25; }
+  .n-box--client { fill: var(--panel-2); stroke-width: 2; }
+  .n-title {
+    font-family: var(--mono); font-size: 15px; font-weight: 500;
+    fill: var(--ink); letter-spacing: 0.02em;
+  }
+  .n-sub {
+    font-family: var(--sans); font-size: 12.5px; fill: var(--ink-2);
+  }
+  .n-eyebrow {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+    fill: var(--ink-3); text-transform: uppercase;
+  }
+  .link { stroke: var(--ink-2); stroke-width: 1.25; fill: none; }
+  .link--owns { stroke: var(--ink); stroke-width: 1.75; }
+  .link-label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em;
+    fill: var(--ink-3); text-transform: uppercase;
+  }
+
+  /* ── channel key ──────────────────────────────────────────────── */
+  .keys { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .key {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--chan, var(--ink));
+    border-radius: 3px;
+    padding: 16px 18px 18px;
+    box-shadow: var(--shadow);
+  }
+  .key h3 {
+    margin: 0 0 2px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--chan, var(--ink));
+    letter-spacing: 0.01em;
+  }
+  .key .verdict {
+    font-size: 12px; color: var(--ink-3); font-family: var(--mono);
+    letter-spacing: 0.04em; margin: 0 0 10px;
+  }
+  .key p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .key--grounded { --chan: var(--grounded); }
+  .key--guiding, .key--informing { --chan: var(--steer); }
+
+  /* ── environment cards ────────────────────────────────────────── */
+  .envs { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+  .env {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .env__head {
+    padding: 14px 18px 13px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--panel-2);
+  }
+  .env__who { font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.06em; }
+  .env__where { font-size: 17px; font-weight: 600; letter-spacing: -0.012em; margin: 3px 0 0; }
+  .env__body { padding: 6px 18px 16px; display: flex; flex-direction: column; }
+
+  .chan {
+    display: grid;
+    grid-template-columns: 14px 92px 1fr;
+    gap: 0 12px;
+    align-items: baseline;
+    padding: 11px 0;
+    border-bottom: 1px dotted var(--rule);
+    font-size: 13.5px;
+  }
+  .chan:last-child { border-bottom: 0; }
+  .chan__mark { font-family: var(--mono); font-size: 13px; line-height: 1.4; }
+  .chan__name {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .chan__what { color: var(--ink); }
+  .chan__what small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+
+  .yes .chan__mark { color: var(--allow); }
+  .no  .chan__mark { color: var(--deny); }
+  .no  .chan__what { color: var(--ink-3); }
+
+  .denied {
+    margin: 10px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--deny);
+    border-radius: 2px;
+    background-image: repeating-linear-gradient(45deg, transparent 0 7px, var(--hatch) 7px 8px);
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .denied b { color: var(--deny); }
+
+  /* ── title block ──────────────────────────────────────────────── */
+  .titleblock {
+    border: 1.5px solid var(--rule-strong);
+    border-radius: 3px;
+    background: var(--panel);
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 760px) { .titleblock { grid-template-columns: 1.55fr 1fr; } }
+  .titleblock > div { padding: 18px 20px; }
+  .titleblock > div + div { border-top: 1.5px solid var(--rule-strong); }
+  @media (min-width: 760px) {
+    .titleblock > div + div { border-top: 0; border-left: 1.5px solid var(--rule-strong); }
+  }
+  .rule-statement { font-size: 15.5px; margin: 0; text-wrap: pretty; }
+  .rule-statement strong { font-weight: 640; }
+  .refs { margin: 0; display: flex; flex-direction: column; gap: 7px; }
+  .refs div {
+    display: flex; gap: 10px; font-size: 12.5px; color: var(--ink-2);
+    font-family: var(--mono); letter-spacing: 0.01em;
+  }
+  .refs span:first-child { color: var(--ink); white-space: nowrap; }
+
+  .note {
+    font-size: 13px; color: var(--ink-2); margin: 0;
+    border-left: 2px solid var(--steer); padding-left: 14px;
+  }
+  .note b { color: var(--steer); font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; }
+
+  a { color: inherit; }
+  a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--grounded); outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div>
+      <h1>Access and channels</h1>
+      <p>Who reaches what, and in which environment. Two client projects, two supplier
+         organisations, and the rule that keeps them apart.</p>
+    </div>
+    <div class="stamp">
+      Infora · architecture<br />
+      ADR-0018 / 0020 / 0021 / 0025<br />
+      2026-07-30
+    </div>
+  </header>
+
+  <section>
+    <h2>The network</h2>
+    <div class="plan">
+      <svg viewBox="0 0 1000 430" role="img"
+           aria-label="Org A, the client, owns Project A and Project B. Org B is a member of both projects. Org C is a member of Project B only.">
+
+        <!-- owner → projects -->
+        <path class="link link--owns" d="M470 96 L470 130 L320 130 L320 176" />
+        <path class="link link--owns" d="M530 96 L530 130 L700 130 L700 176" />
+        <text class="link-label" x="384" y="123">owns</text>
+        <text class="link-label" x="600" y="123">owns</text>
+
+        <!-- suppliers → projects -->
+        <path class="link" d="M470 330 L470 300 L320 300 L320 264" />
+        <path class="link" d="M530 330 L530 300 L700 300 L700 264" />
+        <path class="link" d="M810 330 L810 300 L740 300 L740 264" />
+        <text class="link-label" x="360" y="293">member</text>
+        <text class="link-label" x="588" y="293">member</text>
+        <text class="link-label" x="756" y="293">member</text>
+
+        <!-- Org A, the client -->
+        <rect class="n-box n-box--client" x="380" y="26" width="240" height="70" rx="2" />
+        <text class="n-eyebrow" x="400" y="50">client · owner</text>
+        <text class="n-title" x="400" y="76">Org A</text>
+
+        <!-- projects -->
+        <rect class="n-box" x="180" y="176" width="280" height="88" rx="2" />
+        <text class="n-eyebrow" x="200" y="202">project</text>
+        <text class="n-title" x="200" y="228">Project A</text>
+        <text class="n-sub" x="200" y="250">library · project context · guiding</text>
+
+        <rect class="n-box" x="560" y="176" width="280" height="88" rx="2" />
+        <text class="n-eyebrow" x="580" y="202">project</text>
+        <text class="n-title" x="580" y="228">Project B</text>
+        <text class="n-sub" x="580" y="250">library · project context · guiding</text>
+
+        <!-- suppliers -->
+        <rect class="n-box" x="330" y="330" width="280" height="76" rx="2" />
+        <text class="n-eyebrow" x="350" y="356">supplier · both projects</text>
+        <text class="n-title" x="350" y="382">Org B</text>
+
+        <rect class="n-box" x="680" y="330" width="260" height="76" rx="2" />
+        <text class="n-eyebrow" x="700" y="356">supplier · project b only</text>
+        <text class="n-title" x="700" y="382">Org C</text>
+
+        <!-- the absent seat, drawn as absent -->
+        <text class="link-label" x="180" y="356" style="fill: var(--deny)">no seat</text>
+        <text class="n-sub" x="180" y="376" style="fill: var(--ink-3)">Org C holds no</text>
+        <text class="n-sub" x="180" y="393" style="fill: var(--ink-3)">Membership on Project A</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>The three channels</h2>
+    <div class="keys">
+      <article class="key key--grounded">
+        <h3>grounded</h3>
+        <p class="verdict">cited as fact</p>
+        <p>The project's own library, filtered to the deliverables this organisation is
+           entitled to, plus the authority corpus. This is what an answer's citations
+           resolve to.</p>
+      </article>
+      <article class="key key--guiding">
+        <h3>guiding</h3>
+        <p class="verdict">steers · never cited</p>
+        <p>The project's templates, style guides and guardrails. Shapes how something is
+           written; never appears as a source.</p>
+      </article>
+      <article class="key key--informing">
+        <h3>informing</h3>
+        <p class="verdict">informs · never cited</p>
+        <p>The organisation's <em>own</em> context — its precedent, know-how and method.
+           Private, portable, and it travels with its people into every project they work
+           on.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2>What each person reaches, per environment</h2>
+    <div class="envs">
+
+      <article class="env">
+        <div class="env__head">
+          <div class="env__who">a person from Org B</div>
+          <p class="env__where">in Org B's workspace</p>
+        </div>
+        <div class="env__body">
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">grounded</span>
+            <span class="chan__what">Nothing<small>No project is bound, so nothing grounds here</small></span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org B's own knowledge, tools and sandboxes<small>Private or shared within Org B</small></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="env">
+        <div class="env__head">
+          <div class="env__who">a person from Org B</div>
+          <p class="env__where">in Project A</p>
+        </div>
+        <div class="env__body">
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">grounded</span>
+            <span class="chan__what">Project A's library + authority corpus<small>Only the deliverables Org B is entitled to</small></span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">guiding</span>
+            <span class="chan__what">Project A's templates and guardrails</span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org B's own context</span>
+          </div>
+          <div class="chan no">
+            <span class="chan__mark">✕</span><span class="chan__name">grounded</span>
+            <span class="chan__what">Project B's library<small>A different environment — unreachable from here</small></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="env">
+        <div class="env__head">
+          <div class="env__who">a person from Org B</div>
+          <p class="env__where">in Project B</p>
+        </div>
+        <div class="env__body">
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">grounded</span>
+            <span class="chan__what">Project B's library + authority corpus<small>Only the deliverables Org B is entitled to</small></span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">guiding</span>
+            <span class="chan__what">Project B's templates and guardrails</span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org B's own context</span>
+          </div>
+          <div class="chan no">
+            <span class="chan__mark">✕</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org C's context<small>Even though both work this project together</small></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="env">
+        <div class="env__head">
+          <div class="env__who">a person from Org C</div>
+          <p class="env__where">in Project B</p>
+        </div>
+        <div class="env__body">
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">grounded</span>
+            <span class="chan__what">Project B's library + authority corpus<small>Only the deliverables Org C is entitled to</small></span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">guiding</span>
+            <span class="chan__what">Project B's templates and guardrails</span>
+          </div>
+          <div class="chan yes">
+            <span class="chan__mark">●</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org C's own context</span>
+          </div>
+          <div class="chan no">
+            <span class="chan__mark">✕</span><span class="chan__name">informing</span>
+            <span class="chan__what">Org B's context<small>The mirror of the row above</small></span>
+          </div>
+          <div class="denied">
+            <b>And Project A does not exist to them.</b> Org C holds no Membership, so
+            access resolution denies — and denial reads exactly like nonexistence, so
+            nothing is disclosed by asking.
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>The rule this rests on</h2>
+    <div class="titleblock">
+      <div>
+        <p class="rule-statement">
+          A request runs in <strong>exactly one environment</strong>, and the scope is
+          resolved from <em>(project, requester)</em> before any store is touched. There is
+          no parameter that could widen it. So a person who works for two clients cannot
+          bring one client's material into the other's project — <strong>the environment is
+          the wall</strong>, not a rule someone has to remember.
+        </p>
+      </div>
+      <div>
+        <div class="refs">
+          <div><span>ADR-0018</span><span>isolation is the default</span></div>
+          <div><span>ADR-0020</span><span>org / programme / project stores</span></div>
+          <div><span>ADR-0021</span><span>grounded · guiding · informing</span></div>
+          <div><span>ADR-0025</span><span>one environment per request</span></div>
+          <div><span>ADR-0026</span><span>org context: read source, never a destination</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="note">
+    <b>Build state, 2026-07-30 —</b> the grounded channel is live and enforced in SQL
+    pre-filters, with row-level security beneath it. The <em>guiding</em> and
+    <em>informing</em> channels are designed but stubbed: their stores are post-MVP
+    drawers, so today there is no org context to reach and nothing to leak. The
+    per-organisation scoping drawn above is the requirement for when they land.
+  </p>
+
+</div>
