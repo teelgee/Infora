@@ -13,11 +13,19 @@
 import { serve } from '@hono/node-server';
 import type { ServerType } from '@hono/node-server';
 import { buildApp } from '@infora/api/app';
-import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from '@infora/api/test-router';
+import { FAKE_EMBED_VERSION, fakeRouter, fakeVector } from '@infora/api/test-router';
 import { createDb } from '@infora/db';
 import type { Db } from '@infora/db';
 
-const FAKE_EMBED_VERSION = 'fake-1';
+/**
+ * The eval harness writes and reads its OWN pinned index (ADR-0024: each
+ * embedding model is its own index over the same corpus). Not fastidiousness —
+ * `ingestVersions` walks every version in the database and replaces its chunks
+ * wholesale under the model it was given, so a fixture sharing `fake-embed`
+ * with the ingest suite can be re-chunked underneath a running case. A frozen
+ * fixture that another suite can rewrite is not frozen.
+ */
+export const EVAL_EMBED_MODEL = 'eval-embed';
 
 export type Harness = {
   baseUrl: string;
@@ -30,7 +38,7 @@ export type Harness = {
 
 export async function startHarness(): Promise<Harness> {
   const { db, pool } = createDb();
-  const router = fakeRouter();
+  const router = fakeRouter(undefined, EVAL_EMBED_MODEL);
   const app = buildApp({
     db,
     sessionSecret: 'eval-harness-secret',
@@ -50,10 +58,10 @@ export async function startHarness(): Promise<Harness> {
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     db,
-    routing: { chat: 'fake-chat', embedding: FAKE_EMBED_MODEL },
+    routing: { chat: 'fake-chat', embedding: EVAL_EMBED_MODEL },
     embed: (text) => ({
       vector: fakeVector(text),
-      modelId: FAKE_EMBED_MODEL,
+      modelId: EVAL_EMBED_MODEL,
       modelVersion: FAKE_EMBED_VERSION,
     }),
     close: async () => {

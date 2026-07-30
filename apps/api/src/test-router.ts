@@ -8,6 +8,7 @@ import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 
 export const FAKE_EMBED_DIMENSIONS = 1024;
 export const FAKE_EMBED_MODEL = 'fake-embed';
+export const FAKE_EMBED_VERSION = 'fake-1';
 
 export function fakeVector(text: string): number[] {
   const basis = text.toLowerCase().includes('alpha') ? 0 : 1;
@@ -16,8 +17,17 @@ export function fakeVector(text: string): number[] {
   return vector;
 }
 
+/**
+ * `embedModelId` pins which index this router writes and reads. It exists
+ * because each pinned model is its own index over the same corpus (ADR-0024),
+ * so a caller that needs its rows kept clear of every other suite's — the eval
+ * harness, whose fixtures are frozen and must not be re-chunked underneath a
+ * case by `ingestVersions`, which walks every version in the database — asks
+ * for its own model id and gets a disjoint index for free.
+ */
 export function fakeRouter(
   reply = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
+  embedModelId: string = FAKE_EMBED_MODEL,
 ): Router {
   const chat: ChatAdapter = {
     modelId: 'fake-chat',
@@ -30,13 +40,13 @@ export function fakeRouter(
       }),
   };
   const embeddings: EmbeddingAdapter = {
-    modelId: FAKE_EMBED_MODEL,
+    modelId: embedModelId,
     dimensions: FAKE_EMBED_DIMENSIONS,
     attributes: SELF_HOSTED_UK,
     embed: (texts) =>
       Promise.resolve({
         embeddings: texts.map(fakeVector),
-        model: { id: FAKE_EMBED_MODEL, version: 'fake-1' },
+        model: { id: embedModelId, version: FAKE_EMBED_VERSION },
       }),
   };
   return new Router(chat, embeddings);

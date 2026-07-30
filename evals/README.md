@@ -51,6 +51,14 @@ Postgres schema, because every migration pins `public` in its foreign keys and
 grants, and the isolation that matters is enforced anyway — retrieval is
 project-scoped in SQL and, since T-247, under row-level security beneath that.
 
+Fixtures also write their own pinned index, `eval-embed` (ADR-0024: each
+embedding model is its own index over the same corpus). `ingestVersions` walks
+every version in the database and replaces its chunks wholesale under the model
+it was given, so a fixture sharing `fake-embed` with the ingest suite can be
+re-chunked underneath a running case — which showed up as an intermittent
+failure when the suites ran in parallel. A frozen fixture another suite can
+rewrite is not frozen.
+
 ## What is not here yet
 
 The full assertion set and set metrics (T-256), categories and the mode split

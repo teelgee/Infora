@@ -62,6 +62,71 @@ export type Run = {
   // T-088, discharging the step-citation residual for web and M6 alike)
 };
 
+// ── The plan artefact (Drawer 3, docs/ask/03 §3) ────────────────────────────
+// The analysis, persisted: what the system understood and what it intends to
+// do, whose steps correspond 1:1 to the Run's own top-level Step rows. Added
+// with T-260; the read endpoint is T-261.
+export type PlanMode = 'declared' | 'model_chosen';
+export type PlanState =
+  | 'draft'
+  | 'awaiting_clarification'
+  | 'ready'
+  | 'running'
+  | 'complete'
+  | 'failed'
+  | 'superseded';
+// the named stages the progress rail shows (docs/ask/03 §2) — a stage that did
+// not run is never displayed as having run
+export type PlanStage =
+  | 'understand'
+  | 'load_context'
+  | 'clarify'
+  | 'plan'
+  | 'search_corpus'
+  | 'check_authority'
+  | 'research_web'
+  | 'analyse'
+  | 'verify'
+  | 'present';
+export type PlanStepState = 'pending' | 'running' | 'complete' | 'failed' | 'skipped';
+
+export type PlanStep = {
+  id: Id;
+  ordinal: number;
+  stage: PlanStage;
+  worker: string | null; // the worker registry lands at T-269
+  inputs: Record<string, unknown>;
+  dependsOn: Id[]; // parallelism is expressed here, never inferred at run time
+  state: PlanStepState;
+  stepRowId: Id | null; // the append-only Step this intention became
+  outputRef: Id | null;
+  editedByParticipantId: Id | null;
+  editedAt: string | null;
+};
+// Note what is absent: a step declares NO scope. Scope derives from the run's
+// EntitledSlice and is deliberately not expressible, so no plan edit can widen
+// reach (docs/ask/03 §3.4).
+
+export type Plan = {
+  id: Id;
+  runId: Id;
+  conversationId: Id;
+  projectId: Id; // the assembly environment (ADR-0025)
+  requesterParticipantId: Id;
+  mode: PlanMode; // stored, never derived — the labelling requirement is hard
+  workflowId: string | null;
+  workflowVersion: number | null;
+  lensId: string | null;
+  lensVersion: number | null;
+  state: PlanState;
+  question: string; // as asked
+  restatement: string | null; // as understood
+  assumptions: string[];
+  createdAt: string;
+  supersededByPlanId: Id | null;
+  steps: PlanStep[];
+};
+
 export type Suggestion = {
   id: Id;
   runId: Id;

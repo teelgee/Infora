@@ -76,6 +76,29 @@ describe('the eval harness (T-255)', () => {
     ]);
   });
 
+  // T-260 pinned this: the plan artefact records what the chain does and
+  // changes nothing it does. The acceptance was checked by running the smoke
+  // set before and after the change and comparing the result files (identical
+  // once uuids and the generation timestamp are canonicalised — a fresh
+  // fixture instance necessarily has new ids). This keeps it pinned.
+  it('produces the smoke result the plan artefact must not change (T-260)', async () => {
+    const result = await runCase(harness, instance, perm02);
+
+    expect(result.run?.response).toBe(
+      'The investigation recorded contamination exceedances.\n\nAn unsupported figure of 40%.',
+    );
+    expect(result.steps).toEqual([
+      { type: 'retrieve', model: null, cost: null },
+      { type: 'delegate', model: null, cost: null },
+      { type: 'draft', model: 'fake-chat', cost: 0 },
+      { type: 'ground_check', model: null, cost: null },
+      { type: 'cite', model: null, cost: null },
+    ]);
+    // and the harness still reports no plan: the plan read API is T-261, and
+    // a runner that guessed at one would be reporting something it never saw
+    expect(result.plan).toBeNull();
+  });
+
   it('is deterministic: ten executions, one verdict', async () => {
     const results: CaseResult[] = [];
     for (let attempt = 0; attempt < 10; attempt += 1) {

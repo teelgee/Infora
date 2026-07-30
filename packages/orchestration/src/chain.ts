@@ -7,6 +7,14 @@
 // (the retrieval sub-agent), never over the chain.
 import type { AssembledInput, Id } from '@infora/contracts';
 import type { Db } from '@infora/db';
+import {
+  CODED_CHAIN_PLAN,
+  finishPlan,
+  finishPlanStep,
+  markPlanRunning,
+  openPlan,
+  startPlanStep,
+} from './plan-writer';
 import { finishRun, finishStep, openRun, openStep } from './run-writer';
 import type { RunRow, StepAudit } from './run-writer';
 
@@ -80,19 +88,38 @@ export async function runChain(
     requesterParticipantId: input.requesterParticipantId,
   });
 
+  // T-260 — the plan artefact: the four steps are written down, in order, and
+  // sealed BEFORE the first one runs, then each is bound to the Step row it
+  // became. Behaviour is unchanged; the record gains the intention beside the
+  // outcome (docs/ask/03 §3, §5 step 1).
+  const plan = await openPlan(db, {
+    runId: run.id,
+    conversationId: input.conversationId,
+    projectId: input.environmentKey,
+    requesterParticipantId: input.requesterParticipantId,
+    question: input.request,
+    stages: CODED_CHAIN_PLAN,
+  });
+  await markPlanRunning(db, plan.id);
+
   const step = async <In, Out>(
     type: 'retrieve' | 'draft' | 'ground_check' | 'cite',
     leaf: Leaf<In, Out>,
     leafInput: In,
     auditFrom: (output: Out) => StepAudit = () => ({}),
   ): Promise<Out> => {
+    const planStepId = plan.stepIds[CODED_CHAIN_PLAN.findIndex((s) => s.stepType === type)]!;
     const row = await openStep(db, { runId: run.id, type });
+    await startPlanStep(db, planStepId, row.id);
     try {
       const { output, audit } = await leaf({ db, run, stepId: row.id }, leafInput);
       await finishStep(db, row.id, 'completed', { ...auditFrom(output), ...audit });
+      await finishPlanStep(db, planStepId, 'complete');
       return output;
     } catch (error) {
       await finishStep(db, row.id, 'failed');
+      await finishPlanStep(db, planStepId, 'failed');
+      await finishPlan(db, plan.id, 'failed');
       await finishRun(db, run.id, 'failed');
       throw error;
     }
@@ -126,6 +153,7 @@ export async function runChain(
     withSources,
   );
 
+  await finishPlan(db, plan.id, 'complete');
   const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
   return { run: finished, suggestionIds: cited.suggestionIds };
 }

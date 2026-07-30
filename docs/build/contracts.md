@@ -143,6 +143,14 @@ type HistoryEntry = { runId: Id; conversationId: Id; request: string;
                       sandboxDocument: { id: Id; title: string } | null };  // null = an Ask chat turn
 ```
 
+**The plan artefact (T-260, 2026-07-30 — types only; the endpoint is T-261).** `Plan` and `PlanStep`
+join the shared types (`@infora/contracts`): the persisted analysis behind a Run — mode, question,
+stages, and the append-only Step each plan step became (docs/ask/03 §3, data model Drawer 3). Every
+run the chain drives now writes one. No endpoint exposes it yet, deliberately: the read carries the
+run's producer-private scope exactly, and shipping the type first keeps the writer and the reader
+honest about the same shape. Note what the type does **not** carry — a step declares no scope, so no
+plan edit can widen reach.
+
 ### Work items (M3, M5)
 
 ```

@@ -9,9 +9,11 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { participants, projects } from './drawer1-parties.js';
 import { containers, sandboxDocuments } from './drawer2-documents.js';
 
@@ -100,6 +102,118 @@ export const runs = pgTable('runs', {
     .notNull()
     .references(() => participants.id),
 });
+
+// T-260 — the plan artefact (docs/ask/03 §3): the analysis, persisted. One
+// plan per Run, its steps corresponding 1:1 to the append-only Step rows they
+// became. Immutable from `ready` rather than from insertion (trigger, 0035) —
+// a draft plan is mutable while it is being clarified, and what it SAYS
+// freezes when it becomes ready, leaving only what it DID to be written.
+export const planMode = pgEnum('plan_mode', ['declared', 'model_chosen']);
+export const planState = pgEnum('plan_state', [
+  'draft',
+  'awaiting_clarification',
+  'ready',
+  'running',
+  'complete',
+  'failed',
+  'superseded',
+]);
+// the named stages the progress rail shows (docs/ask/03 §2, 08 §4)
+export const planStage = pgEnum('plan_stage', [
+  'understand',
+  'load_context',
+  'clarify',
+  'plan',
+  'search_corpus',
+  'check_authority',
+  'research_web',
+  'analyse',
+  'verify',
+  'present',
+]);
+export const planStepState = pgEnum('plan_step_state', [
+  'pending',
+  'running',
+  'complete',
+  'failed',
+  'skipped',
+]);
+
+export const plans = pgTable(
+  'plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => runs.id),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id),
+    // the assembly environment (ADR-0025) — a run executes in exactly one
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    requesterParticipantId: uuid('requester_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    // stored, never derived: the labelling requirement is hard (docs/ask/03
+    // §1.2) — a user must never be unable to tell which kind of answer they
+    // are holding, and a derived label drifts from what actually ran
+    mode: planMode('mode').notNull(),
+    workflowId: text('workflow_id'),
+    workflowVersion: integer('workflow_version'),
+    lensId: text('lens_id'),
+    lensVersion: integer('lens_version'),
+    state: planState('state').notNull().default('draft'),
+    question: text('question').notNull(), // as asked
+    restatement: text('restatement'), // as understood — shown to the user
+    // named at the top of the answer when clarification was skipped (05 §4)
+    assumptions: jsonb('assumptions').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // an edit-and-rerun creates a NEW plan on a NEW run and points the old one
+    // here: supersession, never mutation, because a plan is evidence
+    supersededByPlanId: uuid('superseded_by_plan_id').references((): AnyPgColumn => plans.id),
+  },
+  (t) => [
+    uniqueIndex('plans_run_unique').on(t.runId),
+    index('plans_conversation_idx').on(t.conversationId),
+  ],
+);
+
+export const planSteps = pgTable(
+  'plan_steps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => plans.id),
+    ordinal: integer('ordinal').notNull(),
+    stage: planStage('stage').notNull(),
+    // the worker registry lands at T-269; a step of the coded chain names none
+    worker: text('worker'),
+    inputs: jsonb('inputs').notNull().default({}),
+    // parallelism is EXPRESSED here, never inferred at run time (03 §2)
+    dependsOn: jsonb('depends_on').notNull().default([]),
+    state: planStepState('state').notNull().default('pending'),
+    // the append-only Step this intention became — the 1:1 link between the
+    // plan and the record
+    stepRowId: uuid('step_row_id').references((): AnyPgColumn => steps.id),
+    outputRef: uuid('output_ref'),
+    editedByParticipantId: uuid('edited_by_participant_id').references(() => participants.id),
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('plan_steps_plan_ordinal_unique').on(t.planId, t.ordinal),
+    uniqueIndex('plan_steps_step_row_unique')
+      .on(t.stepRowId)
+      .where(sql`${t.stepRowId} IS NOT NULL`),
+  ],
+);
+
+// A plan step declares no scope, deliberately (03 §3.4, 09 R8): scope derives
+// from the run's EntitledSlice and is not expressible here, so no plan edit
+// can widen reach. If a `scope` column ever appears above, that guarantee has
+// been lost.
 
 export const steps = pgTable('steps', {
   id: uuid('id').primaryKey().defaultRandom(),

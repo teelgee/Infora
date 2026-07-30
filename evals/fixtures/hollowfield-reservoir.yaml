@@ -16,7 +16,7 @@ version: 1
 description: >-
   Hollowfield Reservoir: an owner, two consultancies, one shared-and-
   acknowledged environmental deliverable and one unshared commercial one.
-embedding_model: fake-embed
+embedding_model: eval-embed
 
 organisations:
   - key: brackenmoor

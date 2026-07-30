@@ -45,7 +45,7 @@ describe('the fixture schema (docs/ask/07 §3)', () => {
   it('loads the Hollowfield fixture and its access graph', async () => {
     const fixture = await loadFixtureFile(join(FIXTURES_DIR, 'hollowfield-reservoir.yaml'));
     expect(fixture.version).toBe(1);
-    expect(fixture.embedding_model).toBe('fake-embed');
+    expect(fixture.embedding_model).toBe('eval-embed');
     // the two halves the permission case needs: one shared and acknowledged,
     // one shared with nobody
     const shared = fixture.containers.find((c) => c.key === 'water_quality')!;
