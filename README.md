@@ -43,4 +43,5 @@ packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on
 
 - `apps/` — deployable surfaces (`api`, `web` — one app, role-scoped views; later `copilot-agent`, `word-addin`)
 - `packages/` — the layers; see [docs/build/repo-structure.md](docs/build/repo-structure.md)
+- `e2e/`, `evals/` — the two harnesses: Playwright acceptance, and the Ask eval harness ([evals/README.md](evals/README.md))
 - `docs/` — the design layer: glossary (`CONTEXT.md`), architecture, ADRs, build docs, mockups

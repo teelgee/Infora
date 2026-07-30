@@ -7,6 +7,9 @@ dist/
 *.log
 .DS_Store
 
+# eval result files (T-255) — a run's output, never the record
+evals/results/
+
 # playwright artifacts
 e2e/test-results/
 e2e/playwright-report/

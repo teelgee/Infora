@@ -51,6 +51,13 @@ export const ALLOWED = {
     '@infora/governance',
   ],
   '@infora/e2e': ['@infora/contracts'], // the harness drives HTTP + browser only
+  // T-255 — the eval harness. A deliberate widening, and the only entry that
+  // depends on a deployable: a case must execute through the real API boundary
+  // (that is where identity is established, apps/api/src/requester.ts), so the
+  // harness boots the real app over real HTTP; and a fixture is DATA that must
+  // be materialised, so it writes through @infora/db. Nothing depends on evals,
+  // it ships in no deployable, and the direction stays one-way.
+  '@infora/evals': ['@infora/contracts', '@infora/db', '@infora/api'],
   // one web app, role-scoped views (T-110, 2026-07-14) — the formerly
   // planned web-owner split is superseded
   '@infora/web': ['@infora/contracts', '@infora/ui'],

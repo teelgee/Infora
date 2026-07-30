@@ -25,11 +25,14 @@ infora/
 │  ├─ contracts/          # shared types + API schema (single source of truth)
 │  └─ ui/                 # shared React kit + design tokens
 ├─ e2e/                   # Playwright browser + API acceptance suites (T-084)
+├─ evals/                 # the Ask eval harness: cases + fixtures as data, run over HTTP (T-255)
 ├─ scripts/               # dep-rules.mjs (enforced in CI), tldr-to-png.mjs
 └─ turbo.json  pnpm-workspace.yaml  tsconfig.base.json
 ```
 
 Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back. The rules are enforced by `scripts/dep-rules.mjs` — a violation fails CI.
+
+The one entry in that matrix depending on a deployable is `evals` (T-255), deliberately: a case must execute through the real API boundary, because that is where identity is established, and a fixture is data that must be materialised through `db`. Nothing depends on `evals` and it ships in no deployable, so the direction stays one-way.
 
 ## Components ↔ packages (the reconciliation)
 

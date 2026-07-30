@@ -2,5 +2,6 @@ packages:
   - apps/*
   - packages/*
   - e2e
+  - evals
 allowBuilds:
   esbuild: true

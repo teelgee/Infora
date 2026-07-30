@@ -10,8 +10,11 @@ const manifests = ['apps', 'packages'].flatMap((group) =>
     .filter((e) => e.isDirectory())
     .map((e) => JSON.parse(readFileSync(join(root, group, e.name, 'package.json'), 'utf8'))),
 );
-// the e2e harness is a workspace package too (T-084) — same discipline
-manifests.push(JSON.parse(readFileSync(join(root, 'e2e', 'package.json'), 'utf8')));
+// the e2e (T-084) and eval (T-255) harnesses are workspace packages too —
+// same discipline, and neither lives under apps/ or packages/
+for (const harness of ['e2e', 'evals']) {
+  manifests.push(JSON.parse(readFileSync(join(root, harness, 'package.json'), 'utf8')));
+}
 
 const violations = checkDeps(manifests);
 if (violations.length > 0) {

@@ -5,7 +5,9 @@
   "type": "module",
   "description": "only deployable that touches the DB and models",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts",
+    "./test-router": "./src/test-router.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

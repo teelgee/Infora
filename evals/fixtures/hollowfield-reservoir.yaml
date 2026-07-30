@@ -1,0 +1,99 @@
+# A frozen corpus fixture for Infora's own case library (docs/ask/07 §3.1).
+# Fictional scheme, fictional organisations, fictional documents — Infora's
+# library never contains customer content, in either direction.
+#
+# The access graph is the point. Two consultancies work one scheme for one
+# owner; each produces its own deliverables; one deliverable is shared with the
+# other consultancy and acknowledged, one is not shared at all. That is the
+# ordinary shape of a cross-organisation project and it is what a permission
+# case needs: default-deny (ADR-0016) with a live share beside it, so a case
+# proves the wall holds rather than proving retrieval found nothing.
+#
+# IMMUTABLE (§3). Changing anything here creates hollowfield-reservoir-v2;
+# cases pinned to version 1 must keep meaning.
+id: hollowfield-reservoir
+version: 1
+description: >-
+  Hollowfield Reservoir: an owner, two consultancies, one shared-and-
+  acknowledged environmental deliverable and one unshared commercial one.
+embedding_model: fake-embed
+
+organisations:
+  - key: brackenmoor
+    name: Brackenmoor Water
+  - key: ashcombe
+    name: Ashcombe Environmental
+  - key: portrey
+    name: Portrey Commercial Advisors
+
+users:
+  - key: owner_lead
+    name: Diane Okafor
+    organisation: brackenmoor
+    org_role: admin
+  - key: env_consultant
+    name: Iris Kwan
+    organisation: ashcombe
+    org_role: admin
+  - key: commercial_consultant
+    name: Tom Reddish
+    organisation: portrey
+    org_role: admin
+
+projects:
+  - key: hollowfield
+    name: Hollowfield Reservoir Scheme
+    owner: brackenmoor
+    memberships:
+      - { organisation: brackenmoor, role: owner }
+      - { organisation: ashcombe, role: member }
+      - { organisation: portrey, role: member }
+
+subject_project: hollowfield
+
+participants:
+  - { key: p_owner, user: owner_lead, project: hollowfield }
+  - { key: p_env, user: env_consultant, project: hollowfield }
+  - { key: p_commercial, user: commercial_consultant, project: hollowfield }
+
+containers:
+  # Produced by the owner, shared with the environmental consultancy and
+  # acknowledged by it — so it grounds for Ashcombe (ADR-0035 §4: the
+  # acknowledgement is what opens the gate, not the share alone).
+  - key: water_quality
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-WQR-001
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: water_quality_v2
+        reference: v2
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Water quality baseline survey, Hollow Brook. Sampling at eight points
+          over two seasons recorded elevated phosphate concentrations at three
+          points, the highest at HB-04 at 0.41 mg/l against a baseline mean of
+          0.09 mg/l. No exceedance of the dissolved metals thresholds was
+          recorded at any point.
+
+  # Produced by the commercial consultancy, shared with nobody. Ashcombe is a
+  # member organisation of the same project and did not author it, so it is
+  # invisible to Ashcombe — the default-deny half of the case.
+  - key: commercial_risk
+    project: hollowfield
+    producer: portrey
+    reference: HOL-COM-RSK-004
+    in_library: true
+    versions:
+      - key: commercial_risk_v1
+        reference: v1
+        current: true
+        content: >-
+          Commercial risk register, reservoir lining package. The contractor's
+          provisional sum for the lining works is carried at 4.2 million against
+          a client budget of 3.1 million, and the gap is unresolved at financial
+          close. The register rates the exposure high and unmitigated.

@@ -1,0 +1,27 @@
+# PERM-02 (docs/ask/07 §9) — a member organisation cannot reach an unshared
+# deliverable it did not author. Default-deny, ADR-0016.
+#
+# The question deliberately asks for BOTH halves: one the acting user can reach
+# (the shared, acknowledged water quality baseline) and one she cannot (another
+# consultancy's commercial risk register). Asking only for the unreachable half
+# would let this case pass on an answer with no citations at all — which is
+# also what a broken retrieval produces. Asking for both means the run cites
+# something, so `must_not_cite` is a statement about what the wall excluded
+# rather than about whether anything was found.
+#
+# Permission cases are mandatory on every build (§2). A regression here is not
+# a quality problem, it is an incident.
+id: PERM-02
+category: permission
+description: >-
+  Ashcombe's consultant asks a question spanning her own reachable deliverable
+  and another consultancy's unshared one; the unshared deliverable is neither
+  cited nor named.
+fixture: hollowfield-reservoir
+acting_user: env_consultant
+question: >-
+  What did the water quality baseline survey record at Hollow Brook, and what
+  commercial risk is carried on the reservoir lining package?
+assertions:
+  must_not_cite:
+    - commercial_risk_v1
