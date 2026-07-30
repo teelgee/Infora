@@ -57,9 +57,12 @@ non-negotiable conflict, the non-negotiable wins.
    2026-07-29; T-270/T-271 on the board.)*
 2. **Permissions are enforced at the data layer, never in a prompt.** Filters
    apply before retrieval. *(Already true — [retrieval.ts:73-83](../../packages/knowledge/src/retrieval.ts#L73-L83). Guarded by a CI grep, [09](09-permissions-remediation.md) R6.)*
-3. **Scope attenuates, never escalates.** A worker's access is a subset of its
-   caller's. No worker holds a service account with wider reach than the
-   requesting user. *(Equal today, not attenuable — finding F8.)*
+3. **Scope never escalates.** No worker holds a service account with wider reach
+   than the requesting user. *(Structurally true today and tested — the child run
+   carries the caller's participant id and `assemble` has no widening parameter.)*
+   The brief's stronger form — that a worker's access be a strict *subset* — is a
+   **hardening, not a requirement**: every worker runs inside the caller's single
+   environment, so equal scope leaks nothing. Finding F8, downgraded 2026-07-30.
 4. **Label propagation.** Anything written back inherits the most restrictive
    access label of any input that touched it. *(Absent today — finding F2.)*
 5. **Untrusted external content never shares a context window with corpus
@@ -97,12 +100,12 @@ Ruled 2026-07-29; recorded in full at [phase-0-discovery.md §4](phase-0-discove
 | --- | --- |
 | Orchestration | **Both modes, honestly labelled.** Declared orchestration is the product; model-chosen orchestration is a named, weaker-guarantee mode. ADR-0027/0028 amended |
 | Web sources | **Citable, in a separate register.** ADR-0022 amended; the worker still holds no corpus access |
-| Conflict register | **In scope for this build**, sequenced first, with its own ADR-0046 |
+| Conflict register | In scope; built as T-245/T-246 with ADR-0046. **Scope corrected 2026-07-30** — an administrative guardrail at enrolment, never an input to access resolution |
 | The persona's name | **Lens.** "Role" stays reserved for Membership role |
 | Consenting vocabulary | **Admitted to CONTEXT.md** |
 | Teach | **A capture path into the ADR-0026 Signal loop**, not a parallel system |
 | Teach's boundary | **No aggregation across customers.** Teach improves the originating organisation's own layer only — no shared-domain destination, no de-identified egress to Infora. ADR-0026 applied unchanged |
-| The conflict register | **ADR-0046 Accepted.** Individual grain with an optional org-level form; the consultancy's own org admin declares, the owner may require an audited attestation but never sees the register; a refusal names that a wall applies and nothing more |
+| The conflict register | **ADR-0046 Accepted, not load-bearing.** Individual grain with an optional org-level form; the consultancy's own org admin declares, the owner may require an audited attestation but never sees the register; a refusal names that a wall applies and nothing more. **It prevents an accidental grant; it does not prevent a leak, because the assembly environment already makes the leak impossible** |
 | Citation precision | **Checkable, not merely precise.** Where a format yields no reliable locator, the citation carries the verbatim passage — never a bare version reference |
 | The authority corpus | **Two-tier** (ADR-0023 extended). Infora ships the freely-shippable standard tier (legislation, NPSs, PINS advice, DCOs, DLs — no paid subscriptions); organisations add their own licensed standards, guidance and policy into portable org context |
 | Mode selection | **No user-facing mode selector.** The system chooses the mode and labels it honestly; the user pins a *tool* ([03](03-orchestration-and-plan.md) §1.4) |

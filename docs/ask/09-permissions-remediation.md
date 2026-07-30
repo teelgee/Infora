@@ -1,52 +1,41 @@
 # 09 — Permission remediation
 
 The eight findings from [phase-0-discovery.md §2](phase-0-discovery.md), turned
-into requirements. **These sequence first, before any feature that widens data
-access** — the cost of each rises sharply once workers exist.
+into requirements.
 
-Every requirement here is a **security-boundary change** and gets its own
-review. Each is reported in Phase 3 with evidence in the interrogation format:
-claim, `file:line`, verdict.
+**Two of these are real leaks — R2 and R3.** Both describe material moving
+*within* one assembly environment, which is exactly what the environment cannot
+prevent. They sequence before the features that would exercise them, because the
+cost of each rises sharply once workers exist.
+
+The rest are hardening, audit quality or cost, and gate nothing. **R1 and R8 in
+particular were originally rated as gaps and are not** — corrected 2026-07-30;
+each says so in its own section.
+
+Requirements that do touch a security boundary are reported in Phase 3 with
+evidence in the interrogation format: claim, `file:line`, verdict.
 
 ---
 
-## R1 — The conflict register *(finding F1)* · ADR-0046
+## R1 — The conflict register *(finding F1)* · ADR-0046 — **built, and not a security control**
 
-**The gap.** Nothing prevents one person holding live Participant grants on a
-promoter's scheme and an objector's scheme. ADR-0018 makes isolation between
-*organisations* the default — and explicitly concludes that "competing
-organisations on one project need no special wall" because they cannot see each
-other's work. That reasoning is sound and does not reach this case: the leak
-here is not organisation-to-organisation on one project, it is **one person
-across two projects**, carrying what they know.
+**Corrected 2026-07-30.** This was originally written as closing a leak: *"ADR-0026
+closed the machine path; the human path is open."* That was wrong. A request runs
+in exactly one assembly environment (ADR-0025) and the gateway has no
+scope-widening parameter, so a person working for two clients **cannot reach one
+client's material from inside the other's project**, whatever they personally
+know. The leak this reached for cannot occur.
 
-This is the same axis as ADR-0026's threat — C serving rival clients A and B —
-but at the individual rather than the store level. ADR-0026 closed the
-*machine* path (what may enter portable org context). The human path is open.
+**What it actually is.** An optional administrative guardrail: a firm's org admin
+records that one of its people must not be added to a project, and the platform
+refuses the enrolment. Useful — it prevents an accidental grant and leaves an
+audit record a compliance conversation can point at. It is **not** an input to
+`resolveAccess`; a request resolves on whether the user holds a live Participant,
+and nothing else. The re-check that briefly existed in the predicate has been
+removed (ADR-0046 §3, struck).
 
-**Ruled in scope for this build, sequenced first** (2026-07-29). Needs its own
-decision record: **ADR-0046**.
-
-**Requirements:**
-
-1. A **conflict register**: declared mutual exclusions, at organisation grain,
-   between projects — or between named sides of a project where an organisation
-   acts for opposing interests.
-2. **Checked at Participant creation**, refusing the grant with a stated reason
-   rather than creating it silently.
-3. **Re-checked in `resolveAccess`** as defence in depth, on the existing
-   pattern where the predicate re-checks `removedAt` even though the query
-   already filtered it ([requester.ts:61-73](../../apps/api/src/requester.ts#L61-L73)).
-4. **Retrospective detection**: adding an exclusion reports existing conflicting
-   grants rather than silently revoking them. Revocation is a human act with a
-   record — an automatic revocation could remove someone mid-examination.
-5. **Audited.** Who declared the exclusion, when, and every refusal it caused.
-
-**Open for the ADR, not settled here:** whether exclusion is symmetric by
-construction; whether it binds at organisation or individual grain (a firm may
-legitimately act on both sides behind its own internal wall, with different
-people); and who may declare one — the project owner, the organisation, or both.
-These are the forks the ADR exists to settle.
+**Built** as T-245/T-246. Nothing gates on it, and it should not have been
+sequenced first — see the correction in ADR-0046 and [phase-0-discovery.md §4](phase-0-discovery.md).
 
 ---
 
@@ -206,43 +195,53 @@ in the live system records a cost of exactly zero.** Token counts are real.
 
 ---
 
-## R8 — Scope attenuation *(finding F8)*
+## R8 — Scope attenuation *(finding F8)* — **a hardening, not a gap**
 
-**The gap.** A child run is opened with the parent's participant id verbatim
+**The position.** A child run is opened with the parent's participant id verbatim
 ([retrieve-leaf.ts:48](../../packages/orchestration/src/retrieve-leaf.ts#L48)), and `assemble` has no scope-widening parameter
-([wall.test.ts:126](../../packages/knowledge/src/wall.test.ts#L126)). Escalation is impossible — which is the important
-half. But scope is **equal**, never attenuable, and non-negotiable 3 requires
-that a worker's access be a *subset* of its caller's.
+([wall.test.ts:126](../../packages/knowledge/src/wall.test.ts#L126)). **Escalation is structurally impossible**, which is the half
+that matters and is already true.
 
-**Requirements:**
+Scope is **equal**, never narrowable. Corrected 2026-07-30: that is not a gap.
+Every worker runs inside the caller's single environment, so equal scope leaks
+nothing — a worker cannot reach further than the user because there is nowhere
+further to reach. Narrowing is worth having as defence in depth and as a way to
+express intent, but it **blocks nothing** and should not be treated as a
+prerequisite for the worker registry.
 
-1. **An optional narrowing on `EntitledSlice`** — a set of container or
-   classification constraints intersected into the pre-filter, never unioned.
-2. **Narrowing is monotonic**: a child's narrowing composes with its parent's by
-   intersection. There is no operation that removes a narrowing.
-3. **The signature guarantee is preserved.** No parameter that could widen scope
-   exists; the existing test asserting this ([wall.test.ts:126](../../packages/knowledge/src/wall.test.ts#L126)) is extended
-   to assert that narrowing cannot widen either.
-4. **Workers declare their narrowing** in the registry, and a workflow step may
-   tighten it further.
+**If built:**
 
-**Blocks:** the worker registry.
+1. An optional narrowing on `EntitledSlice` — container or classification
+   constraints intersected into the pre-filter, **never unioned**.
+2. Monotonic composition: a child's narrowing intersects with its parent's, and
+   no operation removes one.
+3. The existing signature guarantee preserved, with the no-widening test extended
+   to assert narrowing cannot widen either.
+
+**Blocks:** nothing.
 
 ---
 
 ## Sequencing
 
+Corrected 2026-07-30. Ordered by **what actually gates work**, not by how alarming
+each finding sounded on first reading.
+
 | Order | Requirement | Blocks |
 | --- | --- | --- |
-| 1 | **R1** conflict register (+ ADR-0046) | Owner-ruled first |
-| 2 | **R6** RLS, dep rule, CI grep guard | Nothing — cheap, do it early |
-| 3 | **R8** scope attenuation | The worker registry |
-| 4 | **R2** label propagation | The destination selector, `document_builder` |
-| 5 | **R3** untrusted-content type barrier | `web_research` |
-| 6 | **R4** session lifetime + per-step re-resolution | Multi-worker plans |
-| 7 | **R5** passage-grain audit | Nothing; do before a client review |
-| 8 | **R7** real cost attribution | Cost reporting |
+| 1 | **R2** label propagation | The destination selector, `document_builder` |
+| 2 | **R3** untrusted-content type barrier | `web_research` |
+| 3 | **R6** RLS, dep rule, CI grep guard | Nothing — cheap defence in depth, done early |
+| 4 | **R4** session lifetime + per-step re-resolution | Multi-worker plans |
+| 5 | **R5** passage-grain audit | Nothing; worth doing before a client review |
+| 6 | **R7** real cost attribution | Cost reporting |
+| 7 | **R8** scope attenuation | Nothing — a hardening, not a gap |
+| — | ~~**R1** conflict register~~ | **Built (T-245/T-246).** Gates nothing; sequenced first on a severity rating that did not survive scrutiny |
 
-R2 through R8 are all independently shippable and none breaks the running app.
-The eval harness ([07](07-eval-harness.md)) lands alongside R6 so that R8 onward is verified by the
-permission cases rather than by inspection.
+**R2 and R3 are the two that describe real leaks**, and both describe movement
+*within* a single environment — which is precisely what the assembly environment
+does not protect against, and why they are the ones that matter. Everything else
+here is hardening, audit quality or cost.
+
+All are independently shippable and none breaks the running app. The eval harness
+([07](07-eval-harness.md)) can land before any of them; nothing in this document gates it.

@@ -6,8 +6,6 @@
 // 404 as nonexistence (contracts principle 4).
 
 import type { Id } from '@infora/contracts';
-import { conflictBlocks } from './conflict';
-import type { ConflictExclusion } from './conflict';
 
 export type MembershipRole = 'owner' | 'member';
 export type MembershipState = 'proposed' | 'active';
@@ -21,21 +19,16 @@ export type AccessFacts = {
   membership: { organisationId: Id; projectId: Id; role: MembershipRole; state: MembershipState } | null;
   /** the requesting user's Participant on the project, if any */
   participant: { id: Id; userId: Id; projectId: Id; removedAt: Date | null; elevated?: boolean } | null;
-  /**
-   * T-245 (ADR-0046) — the conflict register's defence-in-depth re-check.
-   * Grant-time refusal (T-246) should mean a breaching Participant row never
-   * exists; this catches the one that does anyway, on the same principle that
-   * makes this predicate re-check `removedAt` although the query already
-   * filtered it. Omitted = nothing loaded, which is the pre-T-246 default and
-   * denies nothing.
-   */
-  conflict?: {
-    /** live exclusions declared by the requesting user's own organisation */
-    exclusions: readonly ConflictExclusion[];
-    /** other projects where this user holds a LIVE Participant */
-    otherLiveProjectIds: readonly Id[];
-  };
 };
+
+// NOT an input here, deliberately (owner-ruled 2026-07-30): the conflict
+// register (ADR-0046) is an ENROLMENT-time guardrail, not a runtime access
+// control. Access resolves on whether the user holds a live Participant on this
+// project — nothing else. A re-check against the register briefly lived here and
+// was removed: it made the register look like part of the access boundary, which
+// would mean an administrative record could silently withdraw someone's access
+// mid-work. Conflicts are refused when someone is ADDED, and pre-existing ones
+// are reported to an admin who decides.
 
 // What resolution admits: the scope every read is derived from. Nothing wider
 // than these ids ever reaches a store query (contracts principle 2).
@@ -58,7 +51,7 @@ export type EntitledSlice = {
  * anything resolves.
  */
 export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
-  const { user, project, membership, participant, conflict } = facts;
+  const { user, project, membership, participant } = facts;
   if (!user || !project || !membership || !participant) return null;
 
   // level one — the organisation is on the project, on an *active* seat:
@@ -73,21 +66,6 @@ export function resolveAccess(facts: AccessFacts): EntitledSlice | null {
   if (participant.userId !== user.id) return null;
   if (participant.projectId !== project.id) return null;
   if (participant.removedAt !== null) return null;
-
-  // level three — the conflict register (ADR-0046, T-245): the one rule here
-  // that denies rather than grants. A Participant row that breaches a live
-  // exclusion confers nothing, however it came to exist.
-  if (
-    conflict !== undefined &&
-    conflictBlocks({
-      user: { id: user.id, organisationId: user.organisationId },
-      targetProjectId: project.id,
-      otherLiveProjectIds: conflict.otherLiveProjectIds,
-      exclusions: conflict.exclusions,
-    }) !== null
-  ) {
-    return null;
-  }
 
   return {
     organisationId: user.organisationId,

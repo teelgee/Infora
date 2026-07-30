@@ -1,13 +1,18 @@
-// T-245 — the conflict register predicate (ADR-0046). The ethical wall's first
-// POSITIVE-EXCLUSION form: every other access rule in this package grants, this
-// one alone denies. Holding a live Participant on one project can bar holding
-// one on another.
+// T-245 — the conflict register predicate (ADR-0046). An ADMINISTRATIVE
+// guardrail a firm uses to stop its own people being added to a project they are
+// conflicted out of. Checked when someone is ENROLLED, and nowhere else.
 //
-// Pure, like resolveAccess: callers load rows, this decides. The threat is the
-// one ADR-0018 explicitly does not reach — not organisation-to-organisation on
-// one project, but ONE PERSON across two projects, carrying what they know.
-// ADR-0026 closed the machine path (what may enter portable org context); this
-// closes the human one.
+// It is NOT part of the access boundary, and deliberately so (owner-ruled
+// 2026-07-30). A request resolves on whether the user holds a live Participant
+// on the project; the register is not an input to resolveAccess. The
+// confidentiality guarantee people reach for this to provide is already
+// structural: a request runs in exactly one environment (ADR-0025), so a person
+// working for two clients cannot reach one client's material from the other's
+// project whatever they personally know. This register prevents an
+// administrative accident; it does not prevent a leak, because the leak is not
+// possible.
+//
+// Pure, like resolveAccess: callers load rows, this decides.
 import type { Id } from '@infora/contracts';
 
 export type ConflictGrain = 'organisation' | 'individual';

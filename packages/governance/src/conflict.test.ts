@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONFLICT_REFUSAL, canonicalPair, conflictBlocks } from './conflict';
 import type { ConflictExclusion } from './conflict';
-import { resolveAccess } from './access';
 
 const ORG = 'org-calderhale';
 const OTHER_ORG = 'org-halvern';
@@ -197,55 +196,5 @@ describe('the refusal message (§9)', () => {
     for (const leak of [PROMOTER, OBJECTOR, ORG, ALICE, 'scheme', 'objector', 'promoter']) {
       expect(CONFLICT_REFUSAL.toLowerCase()).not.toContain(leak.toLowerCase());
     }
-  });
-});
-
-describe('resolveAccess — the conflict re-check as defence in depth (T-245)', () => {
-  const base = {
-    user: { id: ALICE, organisationId: ORG },
-    project: { id: PROMOTER },
-    membership: {
-      organisationId: ORG,
-      projectId: PROMOTER,
-      role: 'member' as const,
-      state: 'active' as const,
-    },
-    participant: { id: 'p-1', userId: ALICE, projectId: PROMOTER, removedAt: null },
-  };
-
-  it('resolves normally when no conflict facts are supplied (the pre-T-246 default)', () => {
-    expect(resolveAccess(base)).not.toBeNull();
-  });
-
-  it('resolves normally when conflict facts are supplied but nothing blocks', () => {
-    expect(
-      resolveAccess({
-        ...base,
-        conflict: { exclusions: [exclusion()], otherLiveProjectIds: [UNRELATED] },
-      }),
-    ).not.toBeNull();
-  });
-
-  it('denies a Participant row that breaches a live exclusion, however it came to exist', () => {
-    expect(
-      resolveAccess({
-        ...base,
-        conflict: { exclusions: [exclusion()], otherLiveProjectIds: [OBJECTOR] },
-      }),
-    ).toBeNull();
-  });
-
-  it('denies identically at organisation grain', () => {
-    expect(
-      resolveAccess({
-        ...base,
-        user: { id: BOB, organisationId: ORG },
-        participant: { id: 'p-2', userId: BOB, projectId: PROMOTER, removedAt: null },
-        conflict: {
-          exclusions: [exclusion({ grain: 'organisation', subjectUserId: null })],
-          otherLiveProjectIds: [OBJECTOR],
-        },
-      }),
-    ).toBeNull();
   });
 });
