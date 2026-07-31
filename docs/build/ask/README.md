@@ -1,7 +1,8 @@
 # Ask — the chat and analysis interface
 
 **Status:** Phase 1 requirements, drafted 2026-07-29. Ticketed on the board as
-Slice Ask (T-245 – T-298); Wave 0 part-built.
+Slice Ask (T-245 – T-299); Wave 0 part-built. **The MVP is scoped to end at the
+Lens (ruled 2026-07-31) — see [what the MVP builds](#what-the-mvp-builds-and-what-waits) below.**
 **Phase 0 discovery:** [phase-0-discovery.md](phase-0-discovery.md) — the
 architecture map, the permission interrogation and its findings.
 
@@ -33,8 +34,46 @@ can be demonstrated to a client's technical and security teams.
 | 09 | [09-permissions-remediation.md](09-permissions-remediation.md) | F1–F8 turned into requirements, sequenced first |
 
 **The tickets live on the board**, not here: [docs/build/plan.md](../plan.md),
-Slice Ask, T-245 – T-298. One board and one "next free number" counter, because
+Slice Ask, T-245 – T-299. One board and one "next free number" counter, because
 concurrent sessions have collided over ticket numbers twice before.
+
+---
+
+## What the MVP builds, and what waits
+
+**Ruled 2026-07-31.** The skeleton/MVP needs one thing from this specification:
+Ask returns a **grounded, cited answer whose register changes with the Lens**.
+This whole document set stays authoritative — but most of it is *ahead*, not
+*now*, and reading it as the near-term build overstates what is coming.
+
+| # | Document | MVP |
+| --- | --- | --- |
+| 01 | Lens framework | **Yes** — the terminal wave. §4.3's `preferred_workers` rule is deferred (no registry until T-269); §1.1, §1.4 and §1.5 of the shared core are **not deliverable at MVP** (see below) |
+| 07 | Eval harness | **Yes, built** — T-255–T-258 complete; T-259's seed set closes the MVP, minus the two cases that rest on workers |
+| 09 | Permissions remediation | **Partly** — F2/F3 closed (T-249/T-250), F1/F8 downgraded; T-251 recommended inside the MVP, the rest deferred |
+| 03 | Orchestration and plan | **No** — the plan artefact is written (T-260) but nothing executes from it; a Lens is a prompt overlay on the existing coded chain |
+| 02 | Worker registry | **No** — the whole of Wave 3 |
+| 04 | Model routing | **No** — Wave 5. Task-class routing and the `verify` independence constraint |
+| 05 | Clarifying questions | **No** — Wave 6 |
+| 06 | Teach | **No** — Wave 7 |
+| 08 | Interface | **Mostly no** — Wave 8. The Lens picker rides the existing Ask screen; composer chips, progress rail and completion footer wait |
+
+**Three shared-core promises the MVP cannot keep**, stated here rather than
+discovered in a demo. [01](01-lens-framework.md) §1.1 *checkable provenance*
+needs locators (T-270/T-271) — citations are version-grain today, and §1.1
+itself says an uncheckable citation is functionally an uncited claim. §1.4
+*staleness* needs the authority corpus (T-276/T-277). §1.5 *absence detection*
+needs the `coverage_note` on `corpus_retrieval` (T-272). The Lens loader can
+refuse a file that *weakens* the shared core; it cannot make the runtime *keep*
+it. **Non-negotiable 1 is therefore still open at MVP**, and the Lens work does
+not close it.
+
+**This folder is not deleted when the MVP closes.** It folds document by
+document as each area is actually built (the note at the end of the Slice Ask
+block on the board), and code throughout the repo cites its sections by number.
+The one part that moves at MVP is [lenses/](lenses/) — the five definition files
+and the authoring guide go to `packages/lenses/definitions/` at T-281, as a
+move, so no second copy of a domain-expert-owned file survives.
 
 Decision records touched: **ADR-0022** (web research carve-out), **ADR-0027**
 and **ADR-0028** (the two orchestration modes), and new **ADR-0046** (the
