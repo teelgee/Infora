@@ -46,10 +46,10 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 
 ## 3. Channel retrieval and attached source
 
-**Responsibility.** Run a separate retrieval pipeline per channel and per grounded corpus; search the library hybrid over its single live version per container with superseded/withdrawn excluded; search the authority corpus public and licence-gated; offer the attached-source mode for user-pinned inputs.
-**Governing ADRs.** 0022, 0024.
+**Responsibility.** Run a separate retrieval pipeline per channel and per grounded corpus; search the library hybrid over its single live version per container with superseded/withdrawn excluded; search the authority corpus public and licence-gated; offer the attached-source mode for user-pinned inputs. Carry the ontology's **semantic pre-filter** in the same statement as the access + state pre-filter (ADR-0045, extending 0022/0024): a scoped retrieval narrows to the containers under given classification terms *before* any embedding is compared. The vocabulary is owned by document management (component 5); Context owns only its application to retrieval — **and what selects the scope for a given question is open** (Session 6, grill tracker), so the pre-filter ships unwired from the agent path.
+**Governing ADRs.** 0022, 0024, 0045.
 **Terms owned.** Attached source.
-**Depends on.** Context stores (§1); store substrate (§6); the access model (the pre-retrieval filter); document-state rules from document management (component 5).
+**Depends on.** Context stores (§1); store substrate (§6); the access model (the pre-retrieval filter); document-state rules and the classification vocabulary from document management (component 5).
 
 ## 4. Assembly environment
 
