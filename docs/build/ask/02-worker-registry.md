@@ -62,8 +62,8 @@ writes: none
 cacheable: true                       # key = query + corpus_version + scope_hash
 ```
 
-**Substrate.** This is `groundedLibrary` ([retrieval.ts:37](../../packages/knowledge/src/retrieval.ts#L37)) reached through the
-assembly gateway ([gateway.ts:40](../../packages/knowledge/src/gateway.ts#L40)), which already applies project, in-library,
+**Substrate.** This is `groundedLibrary` ([retrieval.ts:37](../../../packages/knowledge/src/retrieval.ts#L37)) reached through the
+assembly gateway ([gateway.ts:40](../../../packages/knowledge/src/gateway.ts#L40)), which already applies project, in-library,
 live-state, current-version, pinned-model and deliverable-visibility as SQL
 pre-filters in one query. The worker adds structure around it, not a new path to
 the store.
@@ -71,7 +71,7 @@ the store.
 **New work.**
 
 - **Locators, or the verbatim passage.** The chunker records no
-  page/para/section today ([chunker.ts](../../packages/data/src/chunker.ts)). Non-negotiable 1 requires that a
+  page/para/section today ([chunker.ts](../../../packages/data/src/chunker.ts)). Non-negotiable 1 requires that a
   citation be **checkable**, which a locator gives cheaply and a verbatim quote
   gives at the cost of some length. Owner-ruled 2026-07-29: where a format
   yields no reliable locator — PDFs especially — the citation carries the quoted
@@ -132,10 +132,10 @@ cacheable: true                 # key = query + standard_corpus_version +
 
 **Status: the store does not exist.** `authorityRef` runs through the whole type
 system — `AssembledItem.corpus: 'library' | 'authority'`
-([assembly.ts:21-22](../../packages/contracts/src/assembly.ts#L21-L22)), the citation table's `authority_ref` column
-([drawer4-output.ts:44](../../packages/db/src/schema/drawer4-output.ts#L44)), the ground-check's `refKey`
-([ground-check.ts:64](../../packages/governance/src/ground-check.ts#L64)) — but the pipeline returns nothing
-([gateway.ts:35-36](../../packages/knowledge/src/gateway.ts#L35-L36) `guiding`/`informing` are empty stubs and there is no
+([assembly.ts:21-22](../../../packages/contracts/src/assembly.ts#L21-L22)), the citation table's `authority_ref` column
+([drawer4-output.ts:44](../../../packages/db/src/schema/drawer4-output.ts#L44)), the ground-check's `refKey`
+([ground-check.ts:64](../../../packages/governance/src/ground-check.ts#L64)) — but the pipeline returns nothing
+([gateway.ts:35-36](../../../packages/knowledge/src/gateway.ts#L35-L36) `guiding`/`informing` are empty stubs and there is no
 authority pipeline at all). Building it is a substantial ticket in its own right
 and gates the "canon" half of Ask's promise.
 
@@ -221,19 +221,19 @@ because the worker holding the injected text never holds corpus data.
 - `web_research`'s output type is `ExternalSource[]`, a **distinct type** from
   `AssembledItem`. There is no conversion function, and writing one is the thing
   code review exists to catch.
-- `groundedDraft` accepts `AssembledInput` ([grounded-draft.ts:57](../../packages/capabilities/src/grounded-draft.ts#L57)). It cannot be
+- `groundedDraft` accepts `AssembledInput` ([grounded-draft.ts:57](../../../packages/capabilities/src/grounded-draft.ts#L57)). It cannot be
   passed an `ExternalSource`, and the compiler enforces that.
 - The worker's dependency injection carries no `Db`, no `assemble`, and no
   `EntitledSlice` — it physically cannot query a store. This mirrors the
   existing pattern where the retrieve leaf's *only* store reach is the injected
-  gateway ([retrieve-leaf.ts:2-3](../../packages/orchestration/src/retrieve-leaf.ts#L2-L3)).
+  gateway ([retrieve-leaf.ts:2-3](../../../packages/orchestration/src/retrieve-leaf.ts#L2-L3)).
 - The orchestrator receives both, holds them in separate fields, and renders
   them in separate registers. **The orchestrator is the only place they meet**,
   and it meets them as data, not as a shared context window.
 
 **ADR-0022 amendment.** As built, attached sources "never join a corpus, never
 ground, never emit a citation", and a `web` attached-source kind is already
-reserved under that rule ([drawer3-execution.ts:56-62](../../packages/db/src/schema/drawer3-execution.ts#L56-L62)). Owner-ruled
+reserved under that rule ([drawer3-execution.ts:56-62](../../../packages/db/src/schema/drawer3-execution.ts#L56-L62)). Owner-ruled
 2026-07-29: web research is carved out — its results **are** citable, in a
 visibly separate external register (URL, publisher, date, retrieval timestamp,
 badged untrusted-external), never rendered like a library or authority citation.
@@ -309,7 +309,7 @@ cacheable: false
 **This is the product.** Non-negotiable 7's single exception, and the thing the
 chat agent should route into far more often than it improvises.
 
-**`packages/workflows` is currently an empty stub** ([index.ts](../../packages/workflows/src/index.ts) is
+**`packages/workflows` is currently an empty stub** ([index.ts](../../../packages/workflows/src/index.ts) is
 `export {}`). The DAG declaration format, the runner, and the first workflows
 are all new. The DAG format is specified in [03](03-orchestration-and-plan.md) §4 alongside the plan
 artefact, because a declared workflow *is* a plan template.
@@ -345,13 +345,13 @@ cacheable: false
 ```
 
 **Partly exists.** The chain's `document` mode already drafts into a sandbox
-document via suggestions ([chain.ts:109](../../packages/orchestration/src/chain.ts#L109), [cite-leaf.ts](../../packages/orchestration/src/cite-leaf.ts)), grounded-only, with
+document via suggestions ([chain.ts:109](../../../packages/orchestration/src/chain.ts#L109), [cite-leaf.ts](../../../packages/orchestration/src/cite-leaf.ts)), grounded-only, with
 unsourced claims withheld. What is new is the template, the manifest, and the
 label.
 
 **This worker cannot be built before finding F2 is closed.** It is the write
 path, and today writes take the writer's own organisation label
-([sandbox.ts:129](../../apps/api/src/sandbox.ts#L129)) rather than the most restrictive label among its
+([sandbox.ts:129](../../../apps/api/src/sandbox.ts#L129)) rather than the most restrictive label among its
 inputs. The `label` output field is not decoration — it is the evidence that
 propagation happened, and the surface warns on it ([08](08-interface.md) §3).
 
@@ -389,7 +389,7 @@ it.** The distinction matters and is easy to lose:
 | | Deterministic ground-check *(exists)* | `verifier` *(new)* |
 | --- | --- | --- |
 | Question | Does this claim resolve to a source the run actually saw? | Does that source actually **support** the claim? |
-| Mechanism | Pure code, no model call ([ground-check.ts:1-5](../../packages/governance/src/ground-check.ts#L1-L5)) | Frontier model, different family |
+| Mechanism | Pure code, no model call ([ground-check.ts:1-5](../../../packages/governance/src/ground-check.ts#L1-L5)) | Frontier model, different family |
 | Guarantee | Provable | Probabilistic |
 | Runs | Every answer, both modes, always | When the plan declares it |
 | On failure | Withholds the claim (document mode) or labels it open-world (chat mode) | Reports a verdict; the orchestrator decides |
@@ -426,7 +426,7 @@ that produced the claims.
 tool set.** Do not present a tool and then refuse it: an unentitled worker is
 absent, not disabled, and the model is never told it exists. This is the same
 principle as the API's "denial and nonexistence read identically" (contracts
-principle 4, [requester.ts:5-7](../../apps/api/src/requester.ts#L5-L7)).
+principle 4, [requester.ts:5-7](../../../apps/api/src/requester.ts#L5-L7)).
 
 Entitlement is computed per request from three inputs:
 
@@ -450,8 +450,8 @@ on.
 
 A worker invocation is a **Step** in the existing append-only tree, and in most
 cases a child **Run** — the schema already supports this via `parent_run_id`,
-`parent_step_id` and `child_run_id` ([drawer3-execution.ts:104-130](../../packages/db/src/schema/drawer3-execution.ts#L104-L130)), and the
-retrieve leaf already does exactly this today ([retrieve-leaf.ts:36-60](../../packages/orchestration/src/retrieve-leaf.ts#L36-L60)).
+`parent_step_id` and `child_run_id` ([drawer3-execution.ts:104-130](../../../packages/db/src/schema/drawer3-execution.ts#L104-L130)), and the
+retrieve leaf already does exactly this today ([retrieve-leaf.ts:36-60](../../../packages/orchestration/src/retrieve-leaf.ts#L36-L60)).
 
 Required migration: the `step_type` enum gains the worker step types. Everything
 else — model id, usage, cost, egress facts, source set, rail outcomes — is

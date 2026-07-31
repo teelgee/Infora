@@ -35,7 +35,7 @@ This is the part most easily got wrong, so it is stated precisely.
 **It does not weaken grounding, citation or audit.** The deterministic
 ground-check is code and sits *outside* the plan — it runs on every answer in
 both modes, on the source set the run actually admitted
-([ground-check.ts:27-47](../../packages/governance/src/ground-check.ts#L27-L47)). Citations resolve the same way. Every step
+([ground-check.ts:27-47](../../../packages/governance/src/ground-check.ts#L27-L47)). Citations resolve the same way. Every step
 writes the same append-only Step row with the same audit fields. A model-chosen
 run is exactly as provable, claim by claim, as a declared one.
 
@@ -195,7 +195,7 @@ is one-way. The existing append-only trigger pattern (T-008) applies from
 ### 3.3 Permissions
 
 The plan inherits the run's read scope exactly: **readable by the producing
-organisation only**, per the 2026-07-12 ruling ([runs.ts:200-212](../../apps/api/src/runs.ts#L200-L212)). The
+organisation only**, per the 2026-07-12 ruling ([runs.ts:200-212](../../../apps/api/src/runs.ts#L200-L212)). The
 run record is producer-private background data; the client reviews the
 *document* through the review cycle, never the agent's internals.
 
@@ -204,7 +204,7 @@ run record is producer-private background data; the client reviews the
   organisation can read a plan but not re-run it as themselves — re-running is a
   new Run with a new requester, which is the honest record.
 - The plan is resolved through `resourceScope` on its home project, exactly like
-  runs and conversations ([requester.ts:100-108](../../apps/api/src/requester.ts#L100-L108)).
+  runs and conversations ([requester.ts:100-108](../../../apps/api/src/requester.ts#L100-L108)).
 
 ### 3.4 Edit and re-run
 
@@ -259,7 +259,7 @@ workflow:
 - `status: draft` loads in non-production only — the same rule as Lenses.
 
 **Home:** `packages/workflows`, currently an empty stub
-([index.ts](../../packages/workflows/src/index.ts)). Workflow definitions are domain content and sit beside the
+([index.ts](../../../packages/workflows/src/index.ts)). Workflow definitions are domain content and sit beside the
 Lens definitions in the authoring layer, versioned like code with an owner and a
 review process.
 
@@ -276,7 +276,7 @@ built on them.
 
 ## 5. Migration from the current chain
 
-The existing `runChain` is a fixed four-step spine ([chain.ts:103-127](../../packages/orchestration/src/chain.ts#L103-L127)). It
+The existing `runChain` is a fixed four-step spine ([chain.ts:103-127](../../../packages/orchestration/src/chain.ts#L103-L127)). It
 becomes the default declared workflow, in three steps that each keep the app
 shippable:
 
@@ -298,7 +298,7 @@ grounded-answer path works.
 ## 6. Failure and partial results
 
 The current chain fails hard: a leaf failure finishes that step `failed`, the
-run `failed`, and stops ([chain.ts:94-98](../../packages/orchestration/src/chain.ts#L94-L98)). For a multi-worker plan that is
+run `failed`, and stops ([chain.ts:94-98](../../../packages/orchestration/src/chain.ts#L94-L98)). For a multi-worker plan that is
 too blunt — one failed web search should not discard a completed corpus search.
 
 - A step failure marks that step `failed` and every step depending on it

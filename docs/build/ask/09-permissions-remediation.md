@@ -42,8 +42,8 @@ sequenced first — see the correction in ADR-0046 and [phase-0-discovery.md §4
 ## R2 — Label propagation on write-back *(finding F2)*
 
 **The gap.** Written output takes the writer's own organisation
-([sandbox.ts:129](../../apps/api/src/sandbox.ts#L129)), not the most restrictive label among the sources that
-produced it. Ask's "Open in editor" ([ask.tsx:60-65](../../apps/web/src/screens/ask.tsx#L60-L65)) is a live instance: an
+([sandbox.ts:129](../../../apps/api/src/sandbox.ts#L129)), not the most restrictive label among the sources that
+produced it. Ask's "Open in editor" ([ask.tsx:60-65](../../../apps/web/src/screens/ask.tsx#L60-L65)) is a live instance: an
 answer grounded on a deliverable narrowed to named Participants (ADR-0035 §3)
 can be carried into a document in a sandbox scoped `multi_org` (ADR-0036).
 
@@ -52,7 +52,7 @@ can be carried into a document in a sandbox scoped `multi_org` (ADR-0036).
 1. **Compute the label.** Given a run's source set, resolve the most restrictive
    access label across every source: participant-narrowed ⊂ single-organisation
    ⊂ multi-organisation ⊂ project-wide. The inputs already exist —
-   `step.source_set` records every source seen ([drawer3-execution.ts:127](../../packages/db/src/schema/drawer3-execution.ts#L127)).
+   `step.source_set` records every source seen ([drawer3-execution.ts:127](../../../packages/db/src/schema/drawer3-execution.ts#L127)).
 2. **Enforce on write.** A write to a destination broader than the computed
    label is **refused by default**, with a stated reason naming both labels.
 3. **Override is explicit, recorded and attributed** — never a config default.
@@ -70,9 +70,9 @@ can be carried into a document in a sandbox scoped `multi_org` (ADR-0036).
 
 **The gap.** No web fetch path exists today, so the guarantee holds by omission
 rather than by enforcement. The seam is already declared: `attached_sources.kind`
-includes `'web'` ([drawer3-execution.ts:62](../../packages/db/src/schema/drawer3-execution.ts#L62)), pinnable over HTTP
-([attached.ts:78-101](../../apps/api/src/attached.ts#L78-L101)), stored and never read. And the prompt is built by
-concatenating `retrieved.items` ([grounded-draft.ts:60-76](../../packages/capabilities/src/grounded-draft.ts#L60-L76)), so any pipeline
+includes `'web'` ([drawer3-execution.ts:62](../../../packages/db/src/schema/drawer3-execution.ts#L62)), pinnable over HTTP
+([attached.ts:78-101](../../../apps/api/src/attached.ts#L78-L101)), stored and never read. And the prompt is built by
+concatenating `retrieved.items` ([grounded-draft.ts:60-76](../../../packages/capabilities/src/grounded-draft.ts#L60-L76)), so any pipeline
 appending an item reaches the model.
 
 **Requirements — the barrier is a type, not a rule:**
@@ -85,11 +85,11 @@ appending an item reaches the model.
 3. **The worker's dependencies carry no `Db`, no `assemble`, no
    `EntitledSlice`** — it physically cannot query a store. This mirrors the
    existing pattern where the retrieve leaf's only store reach is its injected
-   gateway ([retrieve-leaf.ts:2-3](../../packages/orchestration/src/retrieve-leaf.ts#L2-L3)).
+   gateway ([retrieve-leaf.ts:2-3](../../../packages/orchestration/src/retrieve-leaf.ts#L2-L3)).
 4. **The orchestrator is the only place the two meet**, holding them in separate
    fields and rendering them in separate registers ([08](08-interface.md) §6).
 5. **A dependency rule**, enforced in CI like the existing package rules
-   ([scripts/dep-rules.mjs](../../scripts/dep-rules.mjs)): the web-research package may not import `@infora/db`
+   ([scripts/dep-rules.mjs](../../../scripts/dep-rules.mjs)): the web-research package may not import `@infora/db`
    or `@infora/knowledge`.
 6. **Resolve the reserved `web` attached-source kind**: either wire it under the
    same barrier or remove it, so a declared-but-unenforced path does not sit in
@@ -102,10 +102,10 @@ appending an item reaches the model.
 ## R4 — Session lifetime and in-flight authority *(finding F4)*
 
 **The gap.** The session cookie is set with no `maxAge` and no `expires`
-([auth.ts:41-46](../../apps/api/src/auth.ts#L41-L46)) — a browser-session cookie with no server-side expiry and
+([auth.ts:41-46](../../../apps/api/src/auth.ts#L41-L46)) — a browser-session cookie with no server-side expiry and
 no session table. The run executes inside the request, and the retrieve leaf
 re-reads the participant's organisation but **does not re-run `resolveAccess`**
-([retrieve-leaf.ts:72-81](../../packages/orchestration/src/retrieve-leaf.ts#L72-L81)). A Participant revoked mid-run keeps their
+([retrieve-leaf.ts:72-81](../../../packages/orchestration/src/retrieve-leaf.ts#L72-L81)). A Participant revoked mid-run keeps their
 authority to the end of the chain.
 
 Seconds today. Minutes once a plan fans out across workers.
@@ -144,7 +144,7 @@ document-version grain.
    without storing text twice.
 2. **A retrieval read** that reconstructs a run's assembled context from its
    source set, producer-private like the rest of the run record
-   ([runs.ts:200-212](../../apps/api/src/runs.ts#L200-L212)).
+   ([runs.ts:200-212](../../../apps/api/src/runs.ts#L200-L212)).
 3. **Retention is named**, not left unbounded. Audit retention and export are
    already Slice C scope; this requirement states the dependency rather than
    pre-empting the design.
@@ -158,7 +158,7 @@ saw" from a claim into a demonstration.
 
 **The gap.** The tenant filter is unavoidable *by construction* — `groundedLibrary`
 requires an `EntitledSlice`, and both query arms build their WHERE from the one
-`liveLibraryFilter` ([retrieval.ts:73-83](../../packages/knowledge/src/retrieval.ts#L73-L83)). But there is no row-level
+`liveLibraryFilter` ([retrieval.ts:73-83](../../../packages/knowledge/src/retrieval.ts#L73-L83)). But there is no row-level
 security: a new query written elsewhere against `version_chunks` returns
 everything. Correct today; fails *open* at the database.
 
@@ -178,8 +178,8 @@ everything. Correct today; fails *open* at the database.
 
 ## R7 — Real cost attribution *(finding F7)*
 
-**The gap.** Provider rates default to `0` ([grounded-draft.ts:92-94](../../packages/capabilities/src/grounded-draft.ts#L92-L94)) and the
-running app binds the draft leaf with no options ([app.ts:118](../../apps/api/src/app.ts#L118)) — **every step
+**The gap.** Provider rates default to `0` ([grounded-draft.ts:92-94](../../../packages/capabilities/src/grounded-draft.ts#L92-L94)) and the
+running app binds the draft leaf with no options ([app.ts:118](../../../apps/api/src/app.ts#L118)) — **every step
 in the live system records a cost of exactly zero.** Token counts are real.
 
 **Requirements:**
@@ -190,7 +190,7 @@ in the live system records a cost of exactly zero.** Token counts are real.
    producer-private.
 3. Pinned models marked in cost reporting ([04](04-model-routing.md) §6).
 4. The rate-limit store moves off the per-process `Map`
-   ([rate-limit.ts:3](../../apps/api/src/rate-limit.ts#L3)) before multi-instance deployment — a named seam,
+   ([rate-limit.ts:3](../../../apps/api/src/rate-limit.ts#L3)) before multi-instance deployment — a named seam,
    restated because one plan now means many model calls.
 
 ---
@@ -198,8 +198,8 @@ in the live system records a cost of exactly zero.** Token counts are real.
 ## R8 — Scope attenuation *(finding F8)* — **a hardening, not a gap**
 
 **The position.** A child run is opened with the parent's participant id verbatim
-([retrieve-leaf.ts:48](../../packages/orchestration/src/retrieve-leaf.ts#L48)), and `assemble` has no scope-widening parameter
-([wall.test.ts:126](../../packages/knowledge/src/wall.test.ts#L126)). **Escalation is structurally impossible**, which is the half
+([retrieve-leaf.ts:48](../../../packages/orchestration/src/retrieve-leaf.ts#L48)), and `assemble` has no scope-widening parameter
+([wall.test.ts:126](../../../packages/knowledge/src/wall.test.ts#L126)). **Escalation is structurally impossible**, which is the half
 that matters and is already true.
 
 Scope is **equal**, never narrowable. Corrected 2026-07-30: that is not a gap.

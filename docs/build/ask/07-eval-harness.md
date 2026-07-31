@@ -46,7 +46,7 @@ case:
   the document the acting user cannot reach; the case passes only if that
   document appears in neither the citations nor the answer text.
 - **`max_uncited_claims`** maps directly onto the existing `open_world` rail
-  outcome ([ground-check.ts:43](../../packages/governance/src/ground-check.ts#L43)) — the harness counts them off the Step
+  outcome ([ground-check.ts:43](../../../packages/governance/src/ground-check.ts#L43)) — the harness counts them off the Step
   row rather than parsing prose.
 - **`expect_calls` / `expect_not_called`** are read from the plan's steps. These
   are the routing assertions, and they are what make "the chat agent should route
@@ -89,9 +89,9 @@ A case pins to a snapshot, so a moving corpus does not invalidate results.
 - A pinned embedding model id.
 
 **Most of this substrate exists.** The tests already build exactly this shape
-against a real database ([retrieval-scope.test.ts:44-80](../../packages/knowledge/src/retrieval-scope.test.ts#L44-L80), [wall.test.ts](../../packages/knowledge/src/wall.test.ts)),
+against a real database ([retrieval-scope.test.ts:44-80](../../../packages/knowledge/src/retrieval-scope.test.ts#L44-L80), [wall.test.ts](../../../packages/knowledge/src/wall.test.ts)),
 and a deterministic fake router and fake embedding vectors already exist
-([test-router.ts](../../packages/knowledge/src/test-router.ts)) — which is what makes retrieval reproducible without a
+([test-router.ts](../../../packages/knowledge/src/test-router.ts)) — which is what makes retrieval reproducible without a
 provider call. The new work is declaring a fixture as **data** rather than as
 test setup code, and a loader that materialises it into an isolated schema.
 
@@ -138,7 +138,7 @@ load cases → materialise fixtures → execute against the system
 **Execution goes through the real API**, with a real session for the acting
 user — not by calling internal functions. A permission case that bypasses the
 API boundary tests nothing, because the API boundary is where identity is
-established ([requester.ts:1-7](../../apps/api/src/requester.ts#L1-L7)).
+established ([requester.ts:1-7](../../../apps/api/src/requester.ts#L1-L7)).
 
 **Outputs:**
 

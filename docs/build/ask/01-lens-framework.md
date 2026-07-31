@@ -63,7 +63,7 @@ ExA question that was not answered. A default posture, not a feature — the
 into mush; not a weak inference dressed as a finding.
 
 **1.7 Version discipline.** Never rely on a superseded document without flagging
-it. Retrieval excludes superseded by default ([retrieval.ts:75-78](../../packages/knowledge/src/retrieval.ts#L75-L78));
+it. Retrieval excludes superseded by default ([retrieval.ts:75-78](../../../packages/knowledge/src/retrieval.ts#L75-L78));
 where a Lens or a workflow deliberately opts in, the answer says so at the point
 of use, not in a footnote.
 
@@ -222,7 +222,7 @@ in the orchestrator, not content.
 - **The active Lens is logged against every request** (id + version), for eval,
   analysis and Teach attribution.
 - **Default.** A user's last-used Lens persists in `user.preferences` (the
-  mechanism already exists — [auth.ts:64-77](../../apps/api/src/auth.ts#L64-L77)). A user who has never chosen one gets
+  mechanism already exists — [auth.ts:64-77](../../../apps/api/src/auth.ts#L64-L77)). A user who has never chosen one gets
   `planning-environmental`, as the modal user of the platform. The default is
   config, not code.
 
@@ -239,7 +239,7 @@ outermost first:
 4. **The task** — the workflow's own instruction, or the free-form request.
 
 The current implementation has two hard-coded system strings
-([grounded-draft.ts:32-53](../../packages/capabilities/src/grounded-draft.ts#L32-L53)); those become the shared core plus the mode
+([grounded-draft.ts:32-53](../../../packages/capabilities/src/grounded-draft.ts#L32-L53)); those become the shared core plus the mode
 statement, with the Lens overlay inserted between. **The Lens never sees, and
 never contributes to, the retrieval query.** Register is applied to the answer,
 not to the search — otherwise a Lens would silently become a data filter, which

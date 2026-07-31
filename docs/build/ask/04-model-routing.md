@@ -9,7 +9,7 @@ configuration, not code.
 
 Infora already has one of the two axes built, and it is the more important one.
 The router enforces **deployment security tier** as a hard constraint before any
-task-based optimisation ([tiers.ts:147-175](../../packages/model/src/tiers.ts#L147-L175)):
+task-based optimisation ([tiers.ts:147-175](../../../packages/model/src/tiers.ts#L147-L175)):
 
 ```
 tier policy filter  →  task-class selection  →  dispatch
@@ -19,11 +19,11 @@ tier policy filter  →  task-class selection  →  dispatch
 The order is not negotiable and is already stated in ADR-0037 §3. A cheaper
 model that does not conform to the deployment's tier is not selected — the
 router fails closed rather than falling back to a non-conforming region or
-provider to preserve availability ([tiers.ts:166-171](../../packages/model/src/tiers.ts#L166-L171)).
+provider to preserve availability ([tiers.ts:166-171](../../../packages/model/src/tiers.ts#L166-L171)).
 
 **What this document adds is the second axis only.** `Router.chat(task, request)`
 already accepts a task argument and **currently ignores it**
-([router.ts:77](../../packages/model/src/router.ts#L77) — `_task`). The seam exists; the routing does not.
+([router.ts:77](../../../packages/model/src/router.ts#L77) — `_task`). The seam exists; the routing does not.
 
 ---
 
@@ -119,12 +119,12 @@ organisation and per user.**
 
 Most of this exists: `steps` already carries `model_id`, `model_version`,
 `tokens_prompt`, `tokens_completion`, `cost` and the four egress columns
-([drawer3-execution.ts:114-125](../../packages/db/src/schema/drawer3-execution.ts#L114-L125)), written in the same UPDATE that freezes the
-row ([run-writer.ts:103-131](../../packages/orchestration/src/run-writer.ts#L103-L131)).
+([drawer3-execution.ts:114-125](../../../packages/db/src/schema/drawer3-execution.ts#L114-L125)), written in the same UPDATE that freezes the
+row ([run-writer.ts:103-131](../../../packages/orchestration/src/run-writer.ts#L103-L131)).
 
 **Finding F7 must be fixed first.** Provider rates default to `0`
-([grounded-draft.ts:92-94](../../packages/capabilities/src/grounded-draft.ts#L92-L94)) and the running app binds the draft leaf with no
-options ([app.ts:118](../../apps/api/src/app.ts#L118)) — so **every step in the live system currently
+([grounded-draft.ts:92-94](../../../packages/capabilities/src/grounded-draft.ts#L92-L94)) and the running app binds the draft leaf with no
+options ([app.ts:118](../../../apps/api/src/app.ts#L118)) — so **every step in the live system currently
 records a cost of exactly zero.** Token counts are real; money is not.
 
 Required:
@@ -138,8 +138,8 @@ Required:
    reporting, because a pinned frontier model on a triage step is a real cost
    decision someone should be able to see.
 
-Rate limiting stays where it is — 30 runs/min/user ([app.ts:92-100](../../apps/api/src/app.ts#L92-L100)) — with
-one change: the in-memory sliding window ([rate-limit.ts:3](../../apps/api/src/rate-limit.ts#L3)) does not survive
+Rate limiting stays where it is — 30 runs/min/user ([app.ts:92-100](../../../apps/api/src/app.ts#L92-L100)) — with
+one change: the in-memory sliding window ([rate-limit.ts:3](../../../apps/api/src/rate-limit.ts#L3)) does not survive
 horizontal scaling and must move to a shared store before multi-instance
 deployment. Already a named seam; restated here because a multi-worker plan
 multiplies the calls behind one run.

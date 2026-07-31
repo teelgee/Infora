@@ -33,7 +33,7 @@ infora/
 
 Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back. The rules are enforced by `scripts/dep-rules.mjs` — a violation fails CI.
 
-One entry in that matrix is a security control rather than a layering choice: **`external` may depend on `contracts` and nothing else** (T-250, [docs/ask/09](../ask/09-permissions-remediation.md) R3). Everything that touches untrusted web content lives there, so the code holding a prompt injection from a fetched page has no route to a store, an access slice or a chunk — not by discipline, by having nothing to reach with. Widening that line is the event code review exists to catch.
+One entry in that matrix is a security control rather than a layering choice: **`external` may depend on `contracts` and nothing else** (T-250, [docs/ask/09](ask/09-permissions-remediation.md) R3). Everything that touches untrusted web content lives there, so the code holding a prompt injection from a fetched page has no route to a store, an access slice or a chunk — not by discipline, by having nothing to reach with. Widening that line is the event code review exists to catch.
 
 The one entry in that matrix depending on a deployable is `evals` (T-255), deliberately: a case must execute through the real API boundary, because that is where identity is established, and a fixture is data that must be materialised through `db`. Nothing depends on `evals` and it ships in no deployable, so the direction stays one-way.
 

@@ -2,10 +2,10 @@
 
 Standing constraints from the repo, not restated per component: semantic design
 tokens only, no `window.prompt`, surfaces depend on `contracts` + `ui` only
-(enforced by [scripts/dep-rules.mjs](../../scripts/dep-rules.mjs)), and every surface is a thin client over
-the one typed API. UI vocabulary: [docs/design/ui-vocabulary.md](../design/ui-vocabulary.md).
+(enforced by [scripts/dep-rules.mjs](../../../scripts/dep-rules.mjs)), and every surface is a thin client over
+the one typed API. UI vocabulary: [docs/design/ui-vocabulary.md](../../design/ui-vocabulary.md).
 
-The current Ask screen is [apps/web/src/screens/ask.tsx](../../apps/web/src/screens/ask.tsx) — 237 lines, a
+The current Ask screen is [apps/web/src/screens/ask.tsx](../../../apps/web/src/screens/ask.tsx) — 237 lines, a
 composer with a source-insert popover, agent messages with inline citations, and
 a `<details>` expander wrapping `RunTrace`. Everything below is additive to it.
 
@@ -32,7 +32,7 @@ a `<details>` expander wrapping `RunTrace`. Everything below is additive to it.
 └────────────┴─────────────────────────────────────┴───────────────┘
 ```
 
-The source panel already exists ([source-panel.tsx](../../apps/web/src/source-panel.tsx), T-105) and is unchanged.
+The source panel already exists ([source-panel.tsx](../../../apps/web/src/source-panel.tsx), T-105) and is unchanged.
 
 ---
 
@@ -49,7 +49,7 @@ Below the input. Each is a button showing current state, opening a popover.
 - Draft Lenses do not appear in production ([01](01-lens-framework.md) §4.4).
 - Changing it re-renders the **next** answer. History keeps the Lens it was
   produced under, and each past answer shows its Lens in the footer.
-- Persists to `user.preferences` (mechanism exists — [auth.ts:64-77](../../apps/api/src/auth.ts#L64-L77)).
+- Persists to `user.preferences` (mechanism exists — [auth.ts:64-77](../../../apps/api/src/auth.ts#L64-L77)).
 
 ### 2.2 Model chip
 
@@ -61,7 +61,7 @@ Below the input. Each is a button showing current state, opening a popover.
   conversations.
 - Pinning is logged on the plan and shown in cost reporting ([04](04-model-routing.md) §6).
 - **The tier constraint is not overridable.** The pin list contains only routes
-  conforming to the deployment tier ([tiers.ts:156-175](../../packages/model/src/tiers.ts#L156-L175)); a
+  conforming to the deployment tier ([tiers.ts:156-175](../../../packages/model/src/tiers.ts#L156-L175)); a
   non-conforming model is absent, not disabled.
 
 ### 2.3 Data sources chip
@@ -73,7 +73,7 @@ Below the input. Each is a button showing current state, opening a popover.
   conversation: by classification facet and term (the ontology pre-filter,
   ADR-0045 / T-242), by document type, by container.
 - **Shows only what the user is entitled to.** The list is built from the same
-  `deliverableVisibleSql` pre-filter as retrieval ([library.ts:10](../../apps/api/src/library.ts#L10)), so the
+  `deliverableVisibleSql` pre-filter as retrieval ([library.ts:10](../../../apps/api/src/library.ts#L10)), so the
   chip cannot show a document the answer could not have used.
 - **Refinement narrows, never widens.** The chip's selection is intersected with
   the entitled slice server-side; it is a relevance control, not an access one.
@@ -88,7 +88,7 @@ classification toward it for the conversation; it does not force it.
 ### 2.5 Context indicator
 
 Context budget consumed for the conversation, against the assembly budget
-([gateway.ts:20](../../packages/knowledge/src/gateway.ts#L20)). Informational.
+([gateway.ts:20](../../../packages/knowledge/src/gateway.ts#L20)). Informational.
 
 ### 2.6 Teach
 
@@ -168,7 +168,7 @@ Below every completed answer.
   This is a hard requirement, not a nicety.
 - The Lens the answer was produced under, with version.
 - Counts: claims cited, claims withheld, uncited claims labelled open-world —
-  read off the existing `railOutcomes` ([ask.tsx:194-198](../../apps/web/src/screens/ask.tsx#L194-L198)).
+  read off the existing `railOutcomes` ([ask.tsx:194-198](../../../apps/web/src/screens/ask.tsx#L194-L198)).
 - **Where verification could not be taken independently, say so** ([04](04-model-routing.md) §3).
 
 **Behind a Details affordance:**
@@ -179,7 +179,7 @@ Below every completed answer.
 - Per-step model and cost, with pinned models marked.
 - The **full citation manifest** — every source, with document reference,
   version, locator, and its register (record / authority / external).
-- The existing `RunTrace` ([run-trace.tsx](../../packages/ui/src/run-trace.tsx)), which this replaces the
+- The existing `RunTrace` ([run-trace.tsx](../../../packages/ui/src/run-trace.tsx)), which this replaces the
   `<details>` wrapper around rather than duplicating.
 
 ---
@@ -190,11 +190,11 @@ Non-negotiable 1 and shared-core rule 1.2 must be visible, not merely true.
 
 | Register | Rendering |
 | --- | --- |
-| **Record** | Inline citation chip, opens the source panel. Current behaviour ([cited-prose.tsx](../../packages/ui/src/cited-prose.tsx)). Where the source yields no reliable locator, the chip carries the **verbatim passage** so the reader can search for it — never a bare version reference |
+| **Record** | Inline citation chip, opens the source panel. Current behaviour ([cited-prose.tsx](../../../packages/ui/src/cited-prose.tsx)). Where the source yields no reliable locator, the chip carries the **verbatim passage** so the reader can search for it — never a bare version reference |
 | **Inference** | Visibly marked as inference, with the record it rests on cited |
 | **Authority** | Citation chip carrying the instrument and its in-force version |
 | **External** | **Visually distinct from all three.** URL, publisher, date, retrieval timestamp, badged untrusted-external |
-| Uncited (chat mode) | Existing open-world badge ([ask.tsx:220-226](../../apps/web/src/screens/ask.tsx#L220-L226)) |
+| Uncited (chat mode) | Existing open-world badge ([ask.tsx:220-226](../../../apps/web/src/screens/ask.tsx#L220-L226)) |
 
 **The external register must not be mistakable for the others at a glance.**
 Different chip shape and colour, not a different tooltip. A user skim-reading an

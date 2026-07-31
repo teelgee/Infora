@@ -32,7 +32,7 @@ can be demonstrated to a client's technical and security teams.
 | 08 | [08-interface.md](08-interface.md) | Composer chips, progress rail, completion footer |
 | 09 | [09-permissions-remediation.md](09-permissions-remediation.md) | F1–F8 turned into requirements, sequenced first |
 
-**The tickets live on the board**, not here: [docs/build/plan.md](../build/plan.md),
+**The tickets live on the board**, not here: [docs/build/plan.md](../plan.md),
 Slice Ask, T-245 – T-298. One board and one "next free number" counter, because
 concurrent sessions have collided over ticket numbers twice before.
 
@@ -53,10 +53,10 @@ non-negotiable conflict, the non-negotiable wins.
    because the property that matters is that a reader can *check* it, and a
    citation nobody can check is functionally an uncited claim. Uncited claims are
    a build failure, not a style issue. *(Already true for the grounded register
-   — [ground-check.ts](../../packages/governance/src/ground-check.ts). The locator-or-quote rule is owner-ruled
+   — [ground-check.ts](../../../packages/governance/src/ground-check.ts). The locator-or-quote rule is owner-ruled
    2026-07-29; T-270/T-271 on the board.)*
 2. **Permissions are enforced at the data layer, never in a prompt.** Filters
-   apply before retrieval. *(Already true — [retrieval.ts:73-83](../../packages/knowledge/src/retrieval.ts#L73-L83). Guarded by a CI grep, [09](09-permissions-remediation.md) R6.)*
+   apply before retrieval. *(Already true — [retrieval.ts:73-83](../../../packages/knowledge/src/retrieval.ts#L73-L83). Guarded by a CI grep, [09](09-permissions-remediation.md) R6.)*
 3. **Scope never escalates.** No worker holds a service account with wider reach
    than the requesting user. *(Structurally true today and tested — the child run
    carries the caller's participant id and `assemble` has no widening parameter.)*
@@ -81,7 +81,7 @@ non-negotiable conflict, the non-negotiable wins.
    pass examination or that an assessment is compliant.
 10. **Document version status is respected everywhere.** Superseded documents
     are excluded by default and their use is always flagged. *(Exclusion already
-    true — [retrieval.ts:75-78](../../packages/knowledge/src/retrieval.ts#L75-L78). Deliberate opt-in with flagging is new.)*
+    true — [retrieval.ts:75-78](../../../packages/knowledge/src/retrieval.ts#L75-L78). Deliberate opt-in with flagging is new.)*
 
 ### And one Infora-specific eleventh
 
