@@ -57,6 +57,35 @@ The cut is by **domain capability**; because the component is largely ungrilled,
 **Terms owned.** Custom workflow, custom (org-built) agent.
 **Depends on.** Org context (component 4) as the home; governance (component 3) for the envelope and rails; access model (component 2); assembly environment (ADR-0025).
 
+## 6. Answer invariants
+
+*Moved here from the Ask slice's non-negotiables 2026-07-31 — properties of what
+the engine may say and how a persona may shape it, which outlive the slice that
+wrote them down.*
+
+**Responsibility.** Hold two guarantees about the engine's output:
+
+1. **The system never gives an unqualified professional opinion.** It presents
+   the position, the evidence and the precedent. It does **not** say a scheme
+   will pass examination, or that an assessment is compliant. Infora assists; a
+   human checks, edits and signs off, and the consultant carries the
+   professional liability (the 2026-07-12 ruling). This is a product boundary,
+   not a prompt preference.
+2. **A Lens changes register, never reach.** A Lens shapes how an answer *reads*
+   — tone, depth, ordering, what it foregrounds and what it refuses — and has
+   **no effect whatsoever** on what data a user can see. Enforced structurally
+   rather than by convention: the Lens is not a parameter of `resolveAccess`,
+   `assemble` or `groundedLibrary`, and cannot become one. Giving different
+   personas different data would be a permission control hiding inside a
+   preference.
+
+**Governing ADRs.** 0021, 0027, 0028; ADR-0015/0016 for why the persona is a
+**Lens** and not a `role` (that word is taken by Membership role).
+**Depends on.** Orchestration (§1); the access model (component 2 §7), which
+owns the reach half of invariant 2 and must stay the only owner of it.
+**Verified by.** T-281's signature test, and eval case `PERM-05` — the same
+question under all four Lenses must return an identical source set.
+
 ---
 
 ## Deferred or handed to other components

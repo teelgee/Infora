@@ -8,9 +8,15 @@ ethical wall, with grounded, cited AI drafting.
 
 1. `README.md` — the first-day setup path and repo layout.
 2. `docs/architecture/infora-overview.md` — the vision and the component cut.
-3. `docs/build/plan.md` — the open ticket board (Phase 6 works from it).
-   `docs/build/plan-history.md` is closed-slice precedent only — don't load it
-   by default.
+3. `docs/build/v1.md` — **the current destination**: the first pilot, its scope
+   cut, and what is deliberately deferred. Read before picking up a ticket.
+4. `docs/build/plan.md` — the open ticket board (Phase 6 works from it). Its
+   **Where to start** section names the frontier and the gates.
+5. `docs/grill-sessions/grill-questions.md` — the open-questions index (`Q-###`).
+
+**Don't load by default** — precedent and record, not backlog:
+`docs/build/plan-history.md` (closed slices) and
+`docs/grill-sessions/grill-history.md` (completed sessions, closed rulings).
 
 ## Working rules
 

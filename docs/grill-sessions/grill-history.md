@@ -1,0 +1,247 @@
+# Grill history — the closed record
+
+> **The resolved half of the grill tracker.** Every completed design session's
+> full record, the rulings that closed, and the Path-to-MVP analysis that got
+> the walking skeleton built. Moved here 2026-07-31 so
+> [grill-questions.md](grill-questions.md) can be what its own second paragraph
+> always said it was — an **index of what is still open**, not a store of what
+> is settled.
+>
+> **Precedent, not a backlog — don't load it by default.** The *agreed position*
+> for each decision lives in its component doc or its ADR; this file records
+> *how it got there*, which is useful when re-opening a question and noise
+> otherwise.
+>
+> **Standing convention, mirroring the board and
+> [plan-history.md](../build/plan-history.md): when a question is ruled, its
+> record moves here in the same commit**, leaving a one-line pointer in the
+> index.
+
+---
+
+## Completed sessions
+
+### Session 1 — The grounded corpus vs the working input
+*Resolves gaps 1 & 2; finishes parked Q1 (access-resolved grounding).*
+
+**Key questions asked**
+- ADR-0011 says the project library is the *sole* grounded corpus; CONTEXT.md says org context and Knowledge feed the working input and are the moat. How do these reconcile?
+- Are there distinct input channels — grounded-and-cited project fact vs informing/steering material never cited as project fact? How does generation keep them separate?
+- What does the governance rail do differently for each?
+- Confirm access-resolved grounding (organisation-scoped, pre-retrieval filter, citations safe by construction).
+- Where does distilled Knowledge sit — inside the groundable library, or a separate informing store?
+
+**Answered by**
+- **ADR-0021** — the three-channel model (grounded / guiding / informing); the grounding invariant is **privacy** ("only non-private sources may ground"), generalising the corpus rule beyond the library.
+- **ADR-0011 (refined)** — "sole grounded corpus" annotated as the project-side case of the privacy rule; the authority corpus added as a second grounded corpus.
+- Access-resolved grounding folded into **ADR-0020** and **ADR-0021** (access resolved *before* retrieval).
+- Distilled Knowledge settled as a non-citable overlay that cites *through* to a source — but full distillation is Session 4.
+
+### Session 2 — The org and project context split as two stores
+*Candidate ADR from the architecture; depends on Session 1.*
+
+**Key questions asked**
+- Confirm org and project context as two distinct stores.
+- How do they combine into one working input at query time without org context leaking to other members?
+- What does each hold; which is access-resolved (project) and which is private-by-construction (org)?
+- How does the ground-vs-inform line map onto them?
+- Does a third scope — programme context — exist, or is it out of scope?
+
+**Answered by**
+- **ADR-0020** — three scoped stores (org, programme, project); org & programme private-by-construction and inform-only, project access-resolved and the grounding store; per-request, per-Participant assembly; no-leak by construction (not a redaction pass). **Programme context was a deliberate third store** (chosen over a two-store recommendation).
+
+### Session 3 — Org context confidentiality and portability across clients ⭐
+*Resolved gap 3 (the deepest); the critical pre-code session. Built on Sessions 1 & 2.*
+
+**Key questions asked**
+- Org context is portable to every project, but Knowledge is distilled from confidential, client-owned project work. What may and may not be distilled into a firm's portable org context, so a consultant serving competing clients cannot carry one client's confidential positions into another's project?
+- Is portability of abstracted know-how only (style, structure, approach) or of concrete project facts — and how is that enforced **at distillation time**, not at query time?
+- What happens when private precedent text is baked into a deliverable that is then shared or promoted into the project library?
+- How does the moat compound at all without leaking — retrieval vs training vs codified workflows?
+
+**Answered by**
+- **ADR-0025 (assembly environment)** — the substrate: every request runs in one environment (a project, or the org's own workspace), and the environment, not the user's identity alone, sets which channels are reachable; the informing channel is portable, everything else fixed; access resolution before retrieval. Defines the "own workspace, no project" case ADR-0020 omitted; separates sandbox-privacy from channel-reachability.
+- **ADR-0026 (distillation & egress boundary)** — confidentiality enforced by **two mechanisms**: the environment makes another client's material unreachable elsewhere (structural), and a **destination rule** restricts what may feed portable org context to the firm's own material with client facts stripped (the two filters: ownership of the material, then of the facts within it). Admission is a deliberate, abstracting curation act, never automatic. The moat compounds by **retrieval and codified workflows, never by training on customer data** (per-tenant fine-tune flagged as future-only). The output question resolves by the store being clean-by-construction. Honest limit: defeats automated and accidental leak; deliberate human egress is tracked and audited, not physically prevented.
+- **Offshoot — ADR-0027 (thinking vs doing)** — placeholder; the deterministic-by-default principle (LLM compiles a rule into code once, code runs it forever) surfaced as the third, confidentiality-clean improvement path. To be grilled.
+- **Refined locked ADRs:** **0018** (private floor splits — org context/workspace sandbox absolute, private *project* sandbox owner-overridable and audited; inbound question added), **0020** & **0021** (programme context may ground/guide its *own* projects, configurably — the rule becomes "a scope may ground its own projects but never outside itself"), **0016** (*visible ≠ distillable*), **0024** (domain-tuned embeddings only on de-identified/non-client data). New glossary terms: **Assembly environment**, **Project artefact**, **workspace sandbox**.
+
+### Session 6 (brought forward — partial) — Retrieval, ranking, merging & store choice
+*Design-tree item 5; depends on 1, 2, 4. Done ahead of 3–5.*
+
+**Key questions asked & answered**
+- One merged index or per-channel pipelines? → **ADR-0022:** separate pipeline per channel and per grounded corpus.
+- Pre-retrieval access filter as a hard predicate, not a post-filter? → **ADR-0022 / ADR-0024:** yes, enforced by co-location.
+- Hybrid vs pure-vector for the library; document-state rules? → **ADR-0022:** hybrid (vector + code/metadata); exclude superseded/withdrawn; single live version per container.
+- The sandbox/Excel "use this file" workflow vs ADR-0011? → **ADR-0022:** the **attached-source** mode (user-pinned, badged distinctly, never a grounded citation).
+- Is pgvector the long-term store? → **ADR-0024:** yes, co-located with relational access data; embeddings pinned/versioned per index.
+
+**Still open in Session 6** (see Remaining)
+
+### Offshoot (unplanned) — Authority register placement
+Emerged when the authority corpus (legislation/policy/standards) was added as the grounded channel's second corpus.
+
+- **ADR-0023** — the authority register is universal and Infora-maintained, **and retrievable by users during generation** (first-class), not only a checking input.
+- **Revised 2026-06-27:** the features/components reframe dissolved Compliance as a component, so the authority register was **re-homed to Context** (component 4) and compliance-*checking* became a capability run by the Engine (component 6). See revised [ADR-0023](../adr/0023-authority-register-in-context.md). The register's operational detail (encoding, currency cadence, jurisdiction) is now a **Context** open item (above), not a Compliance one.
+
+### Offshoot (unplanned) — Surfaces alignment session *(2026-07-05 → 06 — ✅ closed 2026-07-06)*
+Interrogating the UI mockups ([docs/design/mockups/](../design/mockups-legacy/index.html)) and the owner's wireframes against the ADRs, grounded in the observed Legora UI review ([docs/reference/legora-ui-review.md](../reference/legora-ui-review.md)). Rulings, edits applied same-day:
+- **Knowledge surface defined** → overview + component-8 §6: sources-outside-library (attached-source path preserved, ADR-0022), guiding material, distilled Knowledge + Signals, and the authority shelf — which **grounds** (surface placement ≠ channel role, ADR-0021).
+- **Guiding outranks informing on conflict** → ADR-0029 §5 refined; glossary updated; constrains Session 6's ranking.
+- **Library may present foldered or flat, per project configuration** → ADR-0016/0011 status notes; folders are never access objects; access stays per deliverable per organisation.
+- **Personal sandbox** — the workspace sandbox is per-user → glossary + ADR-0018 note; project sandboxes are shared-across-orgs or single-org, unchanged. Residual: admin visibility (Access backlog above).
+- **"Task" stays reserved** — review-surface rows are Work items by their real names.
+- **Editor is its own surface** (with Sandbox its own rail slot; Knowledge staged out of the skeleton nav) — Ask and Editor bridged by the output-target chip; the editor carries a Chat · Suggestions · Insert panel. Third-cut mockups (2026-07-06) are the visual spec.
+- **Suggestions are per-item and position-anchored** (closing agenda item 2, ruled 2026-07-06): a Run produces zero or more Suggestions; each is individually resolvable and writes its own Signal; a Suggestion carries a `kind` (insert | replace) and a nullable, *advisory* anchor (a quoted span against the mutable sandbox head — a drifted anchor degrades to user-placed insert, never blocks resolution). Matches Word tracked changes (the add-in's native mechanic) and keeps the Signal fine-grained, which is what the moat distils. The **skeleton** ships one unanchored insert Suggestion; the fields exist from the first migration. → data-model Drawer 4, contracts.
+- **Owner run-visibility vs the wall** (closing agenda item 6, ruled 2026-07-06): a Run bound to a **Work item** is part of the project record — the owner reads it in full (prompt text, step tree, source set, rail outcomes, suggestions and resolutions), because the defensibility of the owner's record is the product promise (M5). An **ad-hoc** Run (Conversation with no Work item — including every Copilot run in v1, ADR-0031) is working-area material: visible to the requester's own organisation only, metadata included, with the project owner holding the same audited, exceptional override as for a private project sandbox (ADR-0018). → ADR-0028 status note; contracts read-scope notes.
+- **The library list unit is the container** (closing agenda item 7, ruled 2026-07-06): one row per deliverable showing the live version; version history expands within the row. Matches the glossary ("a collection of deliverables"), the deliverable plan, one-live-version-per-container grounding, and the contracts library read.
+- **Knowledge both-scopes display** — confirmed as recommended 2026-07-06 (project guidance and the org's private group side by side, badged, when Knowledge arrives with the moat slices).
+- **Skeleton nav ships Review as an empty state** (not hidden): nav stability over churn; the review cycle itself is Slice A.
+Nothing remains open from this session; the residual items already live in their component backlogs (admin visibility of the personal sandbox → Access; withheld-output UX → Governance; Engine HITL/plan-approval gate noted for the Engine grill).
+
+### M1 — Orchestration / run / agent model ⭐ *(done 2026-06-29 → ADR-0028)*
+*The one real pre-code gap. Run against Legora's aOS and Anthropic's multi-agent research system as adjacent references.*
+
+**Key questions asked & answered**
+- Work item ↔ Run cardinality? → **one Work item, many Runs**; the Run is the immutable per-invocation execution unit, the Work item the persistent unit with its own status state machine. Survives the redraft loop.
+- Is a Run the unit for *any* agent execution, including ad-hoc chat? → **yes.** One execution model: every Run has one parent **Conversation** and an **optional Work item** link (chat = no work item; workflow = bound). New term **Conversation**.
+- Is the Run/audit record append-only and immutable? → **yes**, mirroring the DRR and ADR-0002; "regulator-defensible" requires it. M1 scoped to the **agent-execution** audit sense only (not document-content tracked-changes, not doc-management versioning, not user-UI actions).
+- Run → Step: flat or a sub-agent tree? → **a tree**, and **sub-agents are real from v1** (the main chat agent delegates retrieval to a sub-agent that folds documents into its context). New term **Step**.
+- Sub-agent retrieval — through Context or around it? → **through the Context-assembly API (M3) only**, so access-resolution-before-retrieval (ADR-0020/0022) and the ethical wall hold by construction.
+- Coded chain or agentic planner? → **coded spine, agentic leaves**: the chain `retrieve → draft → ground-check → cite` is code (guarantees ground-check + cite always run); agentic freedom is confined to retrieval within a step. Legora ships exactly this as its "Workflows" mode (vs the open "Agent" mode) — named as the post-MVP divergence (Work item → Workflow, Conversation → Agent).
+- Sequential or parallel sub-agents? → **parallel-capable, isolated** (Anthropic orchestrator-worker; Legora/Tabular-Review fan-out); v1 exercises one. The standalone `cite` step matches Anthropic's separate citation pass.
+- What each Step records? → identity/parent, agent + provenance, type, status, timestamps, model+version, token/cost, **plus the access-resolved source set and the rail outcomes** (the two fields that make the trail defensible, not just observable).
+- Agent provenance/deployment? → **folded in here** (not a separate ADR): Agent is the first-class actor, Infora-built vs custom(org-built), one environment, rails tighten-only. v1 = Infora-built only.
+- Real vs stubbed? → real: the run/step/audit model, the coded chain, retrieve-through-Context, grounded generation (one adapter), ground-check, cite, the retrieval sub-agent, access-resolution, Signal capture. Stubbed: other capabilities, custom agents, fan-out, the Signal sink, multi-model routing.
+
+**Answered by**
+- **ADR-0028** — the orchestration/run/agent model. Folds in the first-class Agent concept and discharges the candidate "audit-of-every-action" invariant for the agent-execution case. **New glossary terms: Conversation, Step; Run refined.**
+
+### Slice A — the review drawer / document management design session *(2026-07-18 → ADRs 0032, 0033, 0034)*
+*The pre-ticketing design session for Slice A, run drawer-first per the house rule. Alignment drawn live in [diagrams/slice-a-review-model.tldr](../architecture/diagrams/slice-a-review-model.tldr) (agent) and [diagrams/review roles.tldr](../architecture/diagrams/review%20roles.tldr) (owner); benchmarked against the ProjectWise/AssetWise friction map (added to docs/reference this session) and Legora's Editor.*
+
+**Key questions asked & answered**
+- Where does internal QA review happen, and is it the same workflow as client review? → **ADR-0032:** one role-agnostic review cycle (authoring side / reviewing side) at two scopes — sandbox (org-private internal formal review; its DRR is the firm's QA evidence, never crossing the wall) and project (the wall-crossing cycle, ADR-0014 unchanged). Internal ceremony is optional, never a system gate.
+- What is sandbox versioning? → **ADR-0032:** SharePoint-style *ambient* history (a tool — nothing binds to it) is distinct from the **freeze** ("check out") — promotion's twin at sandbox scope, one Version substrate, head locked while an internal round is open. Promotion takes the head snapshot *or* a QA-accepted frozen version, never a drifted head.
+- The cycle's stored shape? → **ADR-0032 + Drawer 5 rebuild:** the cycle is the instance unit (DRR absorbed as its record; terminals accepted / closed-rejected, the latter an explicit audited close by lead author or owner); beneath it Rounds (one open per cycle, schema-enforced), Transmittals, Snapshots, Comments, and the previously unmodelled **Response**. Rejected deliverables stay in the library (`rejected` state), never grounding.
+- Who plans, who appoints, who administers? → **ADR-0033:** per-organisation deliverable plans (TIDP) consolidated by the owner (MIDP); appointments as append-only interval grant tables with reviewer propose-then-confirm; the roster visible to all Participants ("the wall hides work, never presence"); org admin + auditable Membership/Participant edges.
+- What is a work item? → **ADR-0032 addendum:** the deliverable's work half, 1:1 with its Container by type; status event-driven, never hand-set; per-role click-throughs follow the data links.
+- What format is a document? → **ADR-0034:** canonical format follows origin (uploaded = native file; authored = Infora structured text with one-way Word/PowerPoint exports; slides = an authored document kind); renditions stored immutable (docx/xlsx/pptx/pdf; dwg-class deferred); the Slice B add-in serves the native-docx population.
+- Acceptance codes + library metadata → per-project `acceptance_code` table (copied at creation, retire-never-redefine, `is_accepting` ends the cycle); Documents-view metadata derived by query, plan extras in `Container.metadata` jsonb.
+
+**Parked from the session:** the sandbox-scope review surface (PDF rendition vs frozen native text — establish the workflow, then the method); mention delivery (T-112 residual); the per-project metadata schema + naming scheme (standing ADR-0008 deferral). **Ticketed and then built the same day: T-113–T-129 all landed 2026-07-18, CI green** — the review cycle is browser-drivable end to end (see the board's Slice A status note for the honest deviations: text-first review reads with the PDF rendition downloadable, the in-PDF anchored viewer as follow-up; ADR-0016 shares landed as data mid-slice at T-119).
+
+### Session B — the producing-side deliverable lifecycle *(2026-07-22 → ADRs 0036, 0038, 0039)*
+*Walked as one continuous user story from the perspective of a consultant (Org B) working in a client-owned project (owner Org A), with Org C brought in to probe cross-organisation sharing. Eight beats: set up the TIDP → create the sandbox → create documents → collaborate (team + AI) → internal review → freeze → promote + launch the project cycle → what happens after. Design only (no ticketing this session).*
+
+**Key questions asked & answered**
+- Who owns the naming scheme; generate or receive codes? → **Owner-defined, project-wide, but not fixed** (a producer proposes additions, the owner folds them in); the producer **self-generates** each code within the current scheme, cross-org uniqueness on the originator field. Glossary (Deliverable plan) refined; no ADR (refines 0008/0033).
+- The sandbox model? → **ADR-0036:** unlimited sandboxes; a broad→narrow participant-scope ladder (multi-org ⊃ single-org ⊃ team ⊃ named users) as strict subset; **live/revocable access** (retiring "sharing set at creation"); **separation by provisioning a narrower sandbox, never walling a shared one** (participant-private); self-serve within one's own org, cross-org shared sandboxes owner-gated (create or propose-then-confirm); "team" not a first-class entity; the single-org sandbox is the default home for TIDP deliverables. Super-user scoping parked (T-133).
+- The two document tracks + metadata? → **ADR-0038:** **bound** (linked to a planned container, wears its code, identity locked) vs **unbound** (free working document, may never leave); the distinguishing fact is the `container_id` link alone. **Identity metadata** is plan-owned and read-only on a bound doc; **authoring metadata** accrues in the sandbox and carries on promotion. The lock is a consequence of binding (unbound docs edit all metadata freely). Refines 0008 without reopening "not a metadata gate".
+- The binding transition? → **ADR-0038:** a **first-class, audited, one-way event distinct from and prior to promotion** — it links a draft to its planned container (identity locks) as a coordination act ("this draft will become deliverable X"), but the doc stays a live editable sandbox draft and may sit **bound-but-not-promoted** indefinitely. Fired by the producing side; unwound only through the records lifecycle, never by unbinding; does **not** snapshot (promotion does).
+- Is attached-source enough for team collaboration? → **No; refined ADR-0022 (note):** one *or several* sources — sandbox file(s), an uploaded PDF, or a web search — persisting across a **Conversation** as a working set. Still never grounds, never cited. What grounds is unchanged.
+- Is the document's agent chat private or shared? → **ADR-0039 (the editor is *multiplayer*):** the document's Conversation is a **shared thread scoped to the sandbox participant set** (chat visibility follows document access, like the guidance note). The initial private-chat recommendation was reversed on the build fact that drafting is inline-accept-to-text with no persistent suggestions panel. New glossary term **Multiplayer**.
+- How does informing work in a shared thread? → **ADR-0039 (already fixed by 0025/0020/0028, made explicit):** the **informing channel is resolved per-run to the *invoking* participant's org, never pooled by the shared thread** — B's run reaches B's informing, C's run reaches C's, never each other's; run audit internals stay producing-org-private (T-104). A shared thread shares *outputs*, never private steer or run internals.
+- Internal review mechanics? → **0032 (refined):** runs in a private *or* shared sandbox; **initiation open to the author or anyone in the team** (vs project-scope, launched by the lead author promoting); the initiator **names the review participants and thereby sets DRR access** (grain = the cycle's named participants ⊆ sandbox set); **freeze is automatic at initiation**, head unlocks at round close. The internal DRR is participant-private and never crosses the wall (in a shared sandbox, private to the B+C set, invisible to client A).
+- The terminal verb? → **Confirmed (0003):** a **configurable label over a fixed state** — state is `accepted`/`closed-rejected`, the word ("accept"/"approve") is per-project and the internal gate may label differently from the client gate; behaviour keys off state (`is_accepting`), never the label.
+
+**Side-quest (owner-initiated) — the JR / "defensibility" reframe.** The owner challenged the "judicial review" framing baked into the docs. Resolved: (1) **cross-org access (the ethical wall)** is a **confidentiality/commercial/IP** matter — the risk is competitive leakage between consultants sharing a project — *not* a JR matter; (2) a JR / legal challenge tests the soundness of the human **decision**, not how a document was generated; (3) the **audit trail is a safeguard for the human checker/reviewer** (visibility into what the system did — which documents it drew on) and producer-side evidence of grounding, **not the object a court reviews**. Infora *assists*; humans check, edit and sign off, and the consultant carries the professional liability (T-104). Edits: ADR-0035's risk restated with the Org B/Org C example (JR removed); component-3-governance.md's headline and §39 reframed; overview:115 left (legitimate "defensible autonomy" sense). Recorded in the audit-liability-model memory.
+
+**Parked / adjacent open items:** the super-user / elevated tier (T-133, unchanged); a deliberate *co-driven* single agent session (two users steering one run in real time — a future affordance flagged in ADR-0039, not designed); whether an org admin can reach a user's personal sandbox (unchanged, sandbox-drawer item); the sandbox-scope review rendition (PDF vs frozen native text — still parked, ADR-0032). **Ticketed 2026-07-23 → Slice A2 (T-145–T-162 on the [build board](../build/plan.md)):** the producing-side lifecycle as interactive surfaces on the Slice A spine — the standalone TIDP page + schema/code-builder, the SharePoint-shaped sandbox drawer with folder-view actions, the bind action, the attached-source working set, and the multiplayer shared thread (visibility now, real-time deferred). One full-lifecycle slice; not started.
+
+
+---
+
+### Tier 1 — MVP-gating (do these first)
+
+#### M1 — Orchestration / run / agent model ⭐ ✅ **Done 2026-06-29 → ADR-0028.** Detail in the completed-session record above. Unblocks the skeleton data model (item 0) and gives M2 a concrete chain to classify.
+
+#### M2 — Thinking vs doing (finish ADR-0027) ✅ **Done 2026-07-01 → ADR-0027 accepted.**
+- **Why now:** a build *constraint* that shapes the chain — cheaper to apply from the start than to retrofit. Needed once M1 fixes the chain.
+- **Depends on:** M1 (the chain to classify); ADR-0023 (authority-register currency, for the compiled-rule change-trigger).
+- **The question:** > Promote [ADR-0027](../adr/0027-thinking-vs-doing.md) from placeholder: classify steps at the leaf (thinking → LLM, doing → code); define the two patterns (code-with-LLM-escape-hatch, LLM-with-deterministic-verifier); the currency loop for compiled rules; and how the orchestrator routes between code and LLM at run time.
+- **Outcome:** ADR-0027 accepted, with Decision + Consequences written.
+
+#### M3 — Context-assembly API + v1 channel merge (MVP slice of Session 6) ✅ **Done 2026-07-01 → ADR-0029.**
+- **Why now:** the orchestrator (M1) needs a contract to get the assembled working input; a thin version unblocks the skeleton. The full ranking/budget is Tier 2.
+- **Depends on:** ADR-0012, ADR-0025 (assembly environment), M1.
+- **The question:** > Fix the minimal Context→orchestrator contract: what the orchestrator passes (request, environment, requester) and gets back (the assembled input across channels). Decide a v1 channel merge + token budget — a naive grounded-priority concatenation is acceptable for v1; org-vs-programme precedence and real ranking are deferred.
+- **Outcome:** a thin ADR (or addendum to 0012/0022) fixing the assembly contract and the v1 merge. Can evolve.
+
+
+---
+
+## Path to MVP — what must be resolved before coding
+
+### The walking skeleton (first build slice)
+
+The MVP is a thin slice of the whole shape rather than one layer built deep, so the architecture is proven end to end before anything is built out. The journey: a consultant opens a project, asks the chat to draft a short governed section from the project's own sources; the orchestrator runs a real chain (retrieve → draft → ground-check → cite) and logs every step; the draft appears in the editor with citations; the consultant accepts, edits, or rejects, and that Signal is captured; the owner logs in on a different role and sees the work item with live status and the full audited run, with access correctly scoped.
+
+All of this sits on top of a **skeleton data model** — the stored tables for the entities above — which must be drawn and agreed first; see item 0 on the gating short-list below.
+
+What is real even in the skeleton: the access model, the audit trail, and the accept/edit/reject Signal capture. What is thin: one model adapter, a fixed orchestration chain, grounded generation real with the other capabilities stubbed. Everything below in this section is about getting this skeleton to run.
+
+**The good news: the pre-code design is essentially complete for that skeleton.** Locked and sufficient: the access model (0014–0019), the store/channel/environment model (0020, 0021, 0025), retrieval + store (0022, 0024), grounding/citation (0021), the confidentiality boundary (0025, 0026), and now the **orchestration/run/agent model (0028)**. Everything still open is **moat and sophistication, not skeleton blockers.**
+
+**Defer entirely (post-MVP — they are the moat, not the skeleton):**
+- **Session 4 (distillation engine)** — the MVP has no moat-write loop. It *captures* Signals but feeds them nowhere yet ("signal capture real, the loop thin").
+- **Session 5 (precedent selection)** — a later informing feature; the MVP omits it or pins one precedent manually as an attached source.
+- **Session 7 (Signal sink)** — capture now, sink later.
+- **Most of Session 6** — contextual-retrieval RAG ("x in the context of y") is an enhancement; basic hybrid retrieval (0022) is enough for v1. Per-viewer citation rendering is deferrable for a single-consultant slice.
+- *(ADR-0027 / thinking vs doing was previously deferred here; it is now promoted to gating **Step 1** below — cheaper to fix the chain's thinking/doing split before the chain is coded than to retrofit it.)*
+
+**The short list that gated the MVP build is now cleared:**
+
+**Step 1 — M2: ADR-0027 (thinking vs doing) ✅ accepted.** The v1 chain classified at the leaf: `retrieve`/`ground-check`/`cite` = doing (code), `draft` = thinking (LLM); the two patterns (code-with-escape-hatch, LLM-with-verifier), design-time classification with deterministic run-time routing, and the currency loop for compiled rules are fixed.
+
+**Step 2 — M3: ADR-0029 (Context-assembly contract) ✅ accepted.** One gateway call — `(request, environment, requester)` → the access-resolved working input across channels; two modes (baseline + agentic sub-agent retrieval) on one signature; v1 merge = grounded-first within a token budget. No scope-widening parameter, so the ethical wall is enforced by the contract's shape.
+
+**Step 3 — the skeleton data model ✅ first cut drafted** ([docs/build/data-model.md](../build/data-model.md)). The CONTEXT.md concepts drawn as tables in five drawers (parties & access, documents, work & execution, AI output & feedback, review), scoped to the skeleton. The one item sent back here — the **draft-location decision** — is ✅ **closed, owner-confirmed 2026-07-04**: the draft lives in the sandbox (a Sandbox document table, Drawer 2); Suggestions arise only from agent prompts; promotion stays stubbed.
+
+**Also cleared alongside:** the **governance-authority ADR (→ ADR-0030)** — owner-set rails ceiling, member tighten-only, most-restrictive intersection, every change audited; discharges ADR-0028 §8's forward reference for custom-agent deployment.
+
+**MVP scope addition — the Microsoft 365 Copilot integration (→ ADR-0031).** `@Infora` in Copilot reaches the Ask chat agent as an external thin-client surface, bound to one project per conversation, over the same API (so the ethical wall holds via the ADR-0029 gateway). Read-only Ask in v1 (no drafting/Signals — the Word add-in keeps those). New build: `apps/copilot-agent` (declarative agent + API plugin), Entra SSO → Participant mapping, a `surface` field on the Conversation. The chat agent, assembly, access and audit are reused untouched.
+
+**Next: build the walking skeleton** on the locked design. Everything else (buckets A-non-MVP and all of B) is deferred until the skeleton runs end to end.
+
+### Approach to the rest — triage by method (A / B / C)
+
+Having reviewed Legora as a validated reference ([docs/reference/legora-architecture.md](../reference/legora-architecture.md)), the remaining backlog is no longer uniform. Sort each open question by the **method** that fits it, not just priority — the grill method (slow, adversarial, one fork at a time) is for genuine forks with real trade-offs and *no precedent*, and most of what's left no longer fits that.
+
+- **(A) Reference-decidable — fast-mode, don't grill.** A precedent exists (Legora + adjacent products). Decide in the Claude-drafts-you-intervene mode used for M1's Q5–Q9. Covers: the MVP workflow set, compliance-checking presentation, the custom-builder interface (Legora's answer: natural-language, not a visual builder), surfaces/home/portfolio layout, M3's contract. Mostly post-MVP; pull one forward only if the skeleton needs it (M3 is the one that does).
+- **(B) Must-still-grill — keep the slow method.** No precedent, because these are exactly where Infora diverges from single-firm Legora (reference doc §10): cross-org distillation and signal-derived guidance crossing organisations, the within-tenant vs cross-tenant training reconciliation (ADR-0026), precedent selection under the confidentiality boundary. These are the moat (Sessions 4, 5, 7) and are **post-MVP** — reserve the heavy grilling powder for them.
+- **(C) Not a grill.** The data model (Step 3) and a dedicated **infra/security decision session** (cloud provider, file/blob storage, hosting, deployment, key management, tenant isolation, residency) — benchmarkable against Legora's Azure / EU-residency / SOC 2 / ISO 27001 stack, but a decision session, not a Socratic grill. Not on the skeleton's critical path.
+
+**Bottom line:** two small grills (M2, M3) and one build doc (the data model) stand between here and the skeleton build. The deep grilling method is reserved for bucket (B) — the cross-org confidentiality questions — deliberately deferred until the skeleton runs.
+
+
+---
+
+### A note on ADR numbering
+The original plan anticipated specific ADR numbers (e.g. "Session 1 → ADR-0020 access-resolved grounding"). In practice, access-resolved grounding was **folded into** ADR-0020 (stores) and ADR-0021 (channels) rather than getting its own number, so actual numbers differ from the plan. The table above and the detail below use the **actual** ADR numbers as the source of truth.
+
+
+---
+
+## Rulings closed in the backlog
+
+Questions that were raised in the open backlog and ruled. Moved out of
+[grill-questions.md](grill-questions.md) 2026-07-31 when the index and the record
+were separated; each left a one-line pointer behind.
+
+### The Ask agent-harness gate questions *(2026-07-29)*
+- ~~**The conflict register's three forks.**~~ ✅ **Ruled 2026-07-29 (owner) → ADR-0046 Accepted; scope corrected 2026-07-30.** **The correction first, because it is the part worth remembering:** the register is an *administrative* guardrail checked when someone is **enrolled**, and is **not an input to access resolution**. The Phase 0 finding that prompted it was rated High and is Low — the leak it reached for cannot occur, because a request runs in exactly one assembly environment (ADR-0025) and the gateway has no scope-widening parameter, so a person working for two clients cannot reach one client's material from inside the other's project whatever they personally know. ADR-0026's environment mechanism already covers it. What was genuinely missing is the *record* of a firm's internal wall, which is worth having and is not a security control. The forks, as ruled: *(A) Grain* — **individual by default, with an optional organisation-level form**: a large consultancy legitimately acts on both sides behind an internal wall with different teams, and an organisation-grain-only control does not dissolve that arrangement, it moves one scheme off the platform and back onto email. *(B) Who declares* — **the consultancy's own org admin**, with the project owner able to require an audited **attestation** but never to see the register; an owner-declared exclusion would require the owner to already know the supplier's other engagements, which the supplier would usually be in breach for disclosing, so ADR-0015/0030's composing-ceiling analogy deliberately does not transfer. *(C) Refusal visibility* — **name that a wall applies, direct to the person's own org admin, never the conflicting scheme**; the bare denial was rejected on the counter-intuitive ground that it leaks *more*, because an unexplained refusal gets investigated and the fact surfaces through conversations within a day, in more inboxes and with no audit trail. Symmetry is by construction (unordered relation, one row). The register itself sits on the ADR-0018 private floor — org-private, never visible to a project owner.
+- ~~**Teach's Steer tier and the shared domain layer.**~~ ✅ **Ruled 2026-07-29 (owner), same session: "no aggregation across customers — Teach improves the individual org's signals."** There is no third destination. Teach lands entirely inside the originating organisation's boundary — no shared domain layer, no de-identified egress to Infora, no cross-customer aggregation — so **ADR-0026 applies unchanged rather than being extended** (amended there with a dated note recording the new capture path). The Steer tier becomes exactly ADR-0026's curation act, approved by the firm's own curator with Filters 1 and 2 intact, and the reviewer queue is an organisation-facing surface rather than an Infora-internal one. Two consequences recorded rather than discovered later: the eval harness carries **two libraries that never merge** ([07 §3.1](../build/plan.md)), and **Infora's own suite grows only by Infora's own work** — which needs an ordinary product-defect support channel alongside Teach, since a bug report is not learning ([06 §5](../build/plan.md)).
+- ~~**The authority corpus's licensing and v1 scope.**~~ ✅ **Ruled 2026-07-29 (owner) → ADR-0023 extended.** The corpus is **two-tier**, not the single Infora-maintained register ADR-0023 described. Infora ships a **standard tier** deliberately confined to freely shippable material (UK legislation, NPSs, PINS Advice Notes, s.51 advice, DCOs and Decision Letters — Crown copyright under the OGL), so **Infora buys no per-customer standards subscriptions**; organisations add their own **organisation tier** — licensed ISO/BSI material they already subscribe to, sector guidance, policy — into their portable org context, travelling to every project they work on and never crossing the wall. Three consequences recorded in the ADR: the "outside per-tenant access resolution" rule holds for the standard tier only; an org-tier provision still **grounds and cites** despite living in org context, because ADR-0021 already fixed that placement does not set channel role and the operative test is what the material *is* (a published external instrument) not who loaded it; and **currency splits with the tiers** — Infora cannot know a customer's uploaded standard has been superseded, so org-tier entries carry an org-declared interval and a last-reviewed date, reported distinctly. Two organisations on one project may therefore hold different shelves and legitimately return different answers to the same question. Remaining open: the ADR-0023 residuals of encoding format and update cadence, now scoped by tier (T-276).
+- ~~**Whether the orchestration mode should be user-selectable.**~~ ✅ **Ruled 2026-07-29 (Claude's call, owner-delegated).** No user-facing mode selector: the affordance already exists in better form as the **Tools chip**, where pinning a tool biases classification toward its workflow in the user's own vocabulary. A mode switch would ask users to reason about system internals, create an unanswerable state (declared mode selected, no matching workflow), and strand a user who pins and forgets. The system chooses the mode and labels it honestly; the user chooses the tool. Revisit only if the fall-through metric shows users wanting a workflow the classifier is not selecting — in which case the fix is the classifier or the workflow set ([03 §1.4](../build/plan.md)).
+
+### V1 definition *(2026-07-31)*
+- ~~**How a legacy corpus enters the controlled record.**~~ ✅ **Ruled 2026-07-31 (Claude's call, owner-delegated).** A customer's 100–500 document corpus arrives with no TIDP, no cycle, no acceptance code — it is *received* material, not *produced* material, and V1 must not invent a fake lifecycle to admit it. It enters as **reference-material containers**: admitted directly to the library with a single genesis Version at `live`, so it **grounds** (ADR-0011 — the project library is the grounded corpus) and rides every existing access and state pre-filter unchanged, but carries **no work item**. That last fact is the whole ruling: the ADR-0032 addendum already establishes that reference-material containers have no work item and that surfaces must never assume the link, so the distinguishing fact is an *absence*, exactly as ADR-0038 made `container_id` the sole distinguishing fact between a bound and unbound sandbox document. No new state, no new table, no parallel lifecycle. **One consequence to build, not merely note:** a loaded reference document must be *visibly* distinguishable in the Documents view from an accepted deliverable, or the corpus quietly launders itself into the produced record — the marker is an ingest ticket, not a later polish item.
+- ~~**The admin / super-user access tier.**~~ ✅ **Ruled 2026-07-31 (Claude's call, owner-delegated) — promoted to a V1 blocker, because the full DMS lifecycle in [v1.md](../build/v1.md) needs the destructive actions reachable.** **The answer is the smallest of the three options the question posed: extend the existing `Participant.elevated` flag, not a new platform tier.** The mechanism already exists (`drawer1-parties.ts`, T-174 with T-133 realised); what was missing was the policy. `elevated` holds **close-as-rejected** and **owner supersede/withdraw**, every use audited with the acting Participant named. **ADR-0016 does not reopen**, and that is the load-bearing part: `elevated` is a *capability flag on a Participant*, not a standing role, so "standing roles collapse to owner and member" is untouched — the question's fear was that a super-user tier meant a third role, and it does not. **The org admin is deliberately not extended.** Enrolment (ADR-0033) and destructive lifecycle have different blast radii and different audiences: enrolment is org-internal and affects only that organisation's own people, while close-as-rejected changes the project record *every* organisation on the scheme reads. Folding the second into the first would quietly turn an intra-org power into a cross-org one — the single direction ADR-0033 was careful not to travel. Owner supersede/withdraw is likewise gated on `elevated` **within** the owner organisation; not every owner Participant carries it. **Left open on purpose:** the retention/deletion powers, which wait on the audit-record theme's retention ruling below rather than being folded in here on the way past. *(Original question, for the record:)* Destructive, governance-level lifecycle actions should not sit on the general surface for ordinary users. Watching a round, the owner found **"Close as rejected"** live throughout — but abandoning a deliverable (ADR-0032/T-126: close-rejected → container `rejected`, stands as a record, never grounds) is a heavier power than a project role should routinely carry. The concept to design: an elevated **admin / super-user** tier that holds these actions — close-as-rejected, owner supersede/withdraw, and likely the retention/deletion powers once the audit-record theme rules them. The reconciliation to make is the crux: today's model has the **org admin** (`org_role`, ADR-0033 — an intra-org *enrolment* power, not a lifecycle one) sitting alongside ADR-0016's deliberate "standing roles collapse to owner and member." So is the destructive-lifecycle super-user the org admin extended to hold lifecycle powers, a project-scoped elevation of the owner, or a new platform tier above both — and does introducing it reopen ADR-0016's minimal-roles stance? Interim (T-133, already applied): the ungated reject button is removed from the cycle page; the capability re-enters gated once the tier is designed.
+
+### Phase 7 QA themes and build residuals
+- ~~**Component 8's nav list lags the built rail.**~~ ✅ Discharged same day (2026-07-13, T-109): the component doc's two nav sentences now name the built rail — Home · Ask · Editor · Documents · Review · Sandbox · Tools · History, Knowledge staged out of v1 (T-093 ships it at workspace scope).
+- **Open-world knowledge in chat (internet + model knowledge).** ✅ **Ruled 2026-07-09 (owner):** labelled channels — chat answers may draw on model knowledge (web search when a provider is wired, an infra-session dependency), with grounded claims cited and open-world content clearly labelled; **Suggestions into documents stay grounded-only**. The owner's framing to carry forward: grounding rigor is about *drafting/editing documents*, where provenance must be traceable; chat must be frontier-useful (find across channels, sub-agents, web, judgement). **Standing flag: audit where the grounding strategy applies so it is not enforced onerously in the wrong places.** Chat-mode implementation ticketed (T-089).
+- **Refine-chain suggestion retention.** Ruled for the surface (2026-07-09): reprompt stacks the new suggestion above the old in the document callout (new green, older red); once one is accepted the unaccepted ones disappear and per the owner need not be retained. Suggestions/Signals are append-only in the data model, so v1 hides them presentationally; whether unaccepted refine-chain suggestions may be truly deleted (or need a `superseded` resolution) is to be settled with the Ask audit-trail theme above.
+- ~~**The work item, made super clear.**~~ ✅ **Ruled 2026-07-18 (Slice A session → ADR-0032 addendum).** The work item is the deliverable's *work half*, 1:1 with its Container by type (`container_id`, nullable for future non-document work); status is **event-driven, never hand-set** — planned → drafting → in-review → accepted/rejected, moved by the cycle's events; the missing sandbox-document link is `sandbox_document.container_id`; per-role click-throughs follow the links (consultant → the linked draft, reviewer → the open round's DRR, owner → the MIDP row); reference-material containers have no work item and surfaces never assume the link.
+- ~~**Library metadata for the project user.**~~ ✅ **Ruled 2026-07-18 (Slice A session).** The at-a-glance set is **derived by query, never duplicated** (reference/state from Container, revision from the current Version, originator from `producing_organisation_id`, verdict from the cycle's rounds); plan-authored extras ride `Container.metadata` (jsonb, schema deferred with the naming scheme); the acceptance-code scheme is the per-project `acceptance_code` table (copied from Infora's default at creation; used codes retire, never redefine — ADR-0003 note). Per-role column *display* config is presentation, deferred to the surface build.
+- ~~**The canonical sandbox-document format — and the output formats it must serve.**~~ ✅ **Ruled 2026-07-18 (Slice A session → ADR-0034).** Canonical format follows origin: **uploaded** files stay native (docx/xlsx/pptx canonical — viewed, promoted, reviewed, never edited by Infora); **authored** documents are Infora structured text (the AI substrate) with Word/PowerPoint as one-way exports at promotion, Legora-benchmarked; "open in editor" converts uploaded→authored deliberately, original preserved. PowerPoint = an authored `kind: slides` document (slide-shaped, same substrate) + pptx rendition. Renditions are stored immutable rows (native + PDF; formats docx/xlsx/pptx/pdf now, dwg-class deferred). The Slice B add-in serves the native-docx population — tracked-change suggestions on the user's own file, no forced conversion.

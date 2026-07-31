@@ -82,6 +82,40 @@ The cut is by **domain capability**: the distinct access questions the layer ans
 **Terms owned.** Edit lock.
 **Depends on.** The DRR and transmittal (component 5, which consume this); appointment (§5, which says who holds the lock at each phase); the one-open-round invariant (ADR-0002, ADR-0005).
 
+## 7. Enforcement invariants
+
+*Moved here from the Ask slice's non-negotiables 2026-07-31. They were written
+down during that slice, but they are **properties of this component**, not of
+Ask — and four of the five already hold in the running system with a guard
+keeping them true. A property the code has belongs in the component doc, not in
+a ticket board.*
+
+**Responsibility.** Hold four structural guarantees that no feature may weaken:
+
+1. **Permissions are enforced at the data layer, never in a prompt.** Filters
+   apply *before* retrieval. A model instructed not to mention something will
+   eventually mention it. ✅ *True today, and guarded — `pnpm run check` greps
+   prompt templates for permission-shaped strings (T-247).*
+2. **Scope never escalates.** No worker or sub-agent holds a service account
+   with wider reach than the requesting user; a child run carries the caller's
+   participant id, and the assembly gateway has **no widening parameter**
+   (ADR-0029). ✅ *Structurally true and tested. The stronger form — a strict
+   subset — is a hardening, not a requirement.*
+3. **Label propagation.** Anything written back inherits the **most restrictive**
+   access label of any input that touched it; a destination broader than the
+   sources is refused with both labels named, and the only route past is an
+   explicit, attributed override row — never a config flag. ✅ *T-249.*
+4. **Untrusted external content never shares a context window with corpus
+   content.** Web research returns labelled sources to the orchestrator; it does
+   not read the corpus, and the corpus does not enter its context. ✅ *T-250 —
+   made a type-level impossibility by a leaf package that cannot import a store,
+   with must-not-compile fixtures.*
+
+**Governing ADRs.** 0018, 0022, 0025, 0029.
+**Depends on.** Participant access (§2) and deliverable visibility (§3), which
+these protect; the context gateway (component 4 §3), which is where the
+pre-retrieval filter actually runs.
+
 ---
 
 ## Deferred or handed to other components
