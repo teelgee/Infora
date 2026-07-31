@@ -8,6 +8,8 @@
 import { eq } from 'drizzle-orm';
 import type { Id } from '@infora/contracts';
 import { schema as s } from '@infora/db';
+import { checkPropagation } from '@infora/governance';
+import { runSourceAudience, sandboxDocumentAudience } from '@infora/knowledge';
 import type { ChainLeaves, GroundCheckOutput } from './chain';
 
 export function createCiteLeaf(): ChainLeaves['cite'] {
@@ -40,6 +42,35 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
         );
       }
       return { output: { suggestionIds: [], answer: content } };
+    }
+
+    // T-249 — LABEL PROPAGATION, at the point content crosses into a document
+    // (docs/ask/09 R2, finding F2). The destination is a sandbox with its own
+    // scope grants; the answer rests on the sources this run admitted. A
+    // destination broader than those sources is refused, and the refusal is
+    // recorded on the step's rail outcomes naming BOTH labels — the same
+    // carrier the grounding rail already uses, so it reaches the surface the
+    // same way and is part of the audit record.
+    //
+    // The answer itself is still returned. Withholding the answer as well
+    // would punish the user for the system's own scoping, and the answer is
+    // material they may already read — it is the WRITE that would widen it.
+    const source = await runSourceAudience(ctx.db, ctx.run.id);
+    const destination = await sandboxDocumentAudience(ctx.db, input.sandboxDocumentId);
+    const verdict = checkPropagation(source, destination);
+    if (!verdict.allowed) {
+      return {
+        output: { suggestionIds: [], answer: content },
+        audit: {
+          railOutcomes: [
+            {
+              rail: 'label_propagation',
+              outcome: 'withheld',
+              detail: `Not written to the document: ${verdict.reason}.`,
+            },
+          ],
+        },
+      };
     }
 
     const [conversation] = await ctx.db

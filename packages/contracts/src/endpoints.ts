@@ -160,6 +160,23 @@ export const createSandboxDocumentBody = z.object({
 });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
+// T-249 — carrying an answer into the editor, server-side (docs/ask/09 R2).
+// The client used to create a document and then PATCH the answer into it, so
+// the server never knew the content came from a run and could not check what
+// it was widening. Naming the run makes the provenance the server's own fact,
+// which is the only version of this that can enforce anything.
+//
+// `override` is the ONLY route past a refusal: explicit, reasoned, and
+// attributed to the participant who sent it. There is no config key, no
+// environment variable and no default that does this.
+export const openRunInEditorBody = z.object({
+  title: z.string().min(1).optional(),
+  sandboxId: id.optional(),
+  folderId: id.optional(),
+  override: z.object({ reason: z.string().min(1) }).optional(),
+});
+export type OpenRunInEditorBody = z.infer<typeof openRunInEditorBody>;
+
 export const patchSandboxDocumentBody = z.object({ content: z.string() });
 // authoring metadata (ADR-0038, T-166): document-specific fields that accrue in
 // the sandbox — revision, suitability, classification, relationships. A

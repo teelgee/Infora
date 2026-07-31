@@ -143,6 +143,15 @@ type HistoryEntry = { runId: Id; conversationId: Id; request: string;
                       sandboxDocument: { id: Id; title: string } | null };  // null = an Ask chat turn
 ```
 
+```
+POST /runs/:runId/sandbox-document                  // T-249, 2026-07-31
+  body:  { title?: string, sandboxId?: Id, folderId?: Id, override?: { reason: string } }
+  →      SandboxDocument                            // 201, seeded with the run's answer
+  →      403 { error: 'forbidden', detail }         // the destination is broader than the answer's sources
+```
+
+Carrying an answer into the editor is **one server-side act**, not a create followed by a content PATCH — the server has to know the content came from this run to compute its access label and refuse a destination that would widen it (T-249, [docs/ask/09](../ask/09-permissions-remediation.md) R2). The `detail` names **both** labels. `override` is the only route past a refusal: explicit, reasoned, attributed, and written to `label_overrides` in the same transaction as the content — there is no config key that does this. Restricted to the run's own requester: a colleague may read the run but not carry it, because the resulting document would be attributed to them while resting on someone else's request.
+
 **The plan artefact (T-260, 2026-07-30 — types only; the endpoint is T-261).** `Plan` and `PlanStep`
 join the shared types (`@infora/contracts`): the persisted analysis behind a Run — mode, question,
 stages, and the append-only Step each plan step became (docs/ask/03 §3, data model Drawer 3). Every

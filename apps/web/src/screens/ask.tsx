@@ -11,7 +11,7 @@ import type { MeResponse, Run } from '@infora/contracts';
 import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
 import { useMe } from '../session';
 import { SourcePanel } from '../source-panel';
@@ -33,6 +33,8 @@ export function AskScreen() {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094/T-105)
+  // T-249 — the label-propagation refusal, stated where the action was taken
+  const [editorRefusal, setEditorRefusal] = useState<string | null>(null);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
@@ -56,12 +58,27 @@ export function AskScreen() {
   }, [reopenId]);
 
   // T-106 — the answer carried into the Editor: a fresh sandbox document
-  // seeded with the agent's response, opened on the canvas
+  // seeded with the agent's response, opened on the canvas.
+  // T-249: one server-side call, not create-then-PATCH. The server computes
+  // the answer's access label from the sources the run admitted and refuses a
+  // destination broader than they are (docs/ask/09 R2) — which it could not do
+  // when the content arrived as an anonymous content update. The refusal
+  // names both labels; the destination selector that offers the override
+  // before the fact is T-295.
   async function openInEditor(run: Run) {
-    const title = run.request.length > 60 ? `${run.request.slice(0, 57)}…` : run.request;
-    const doc = await api.createSandboxDocument(participant.projectId, title);
-    await api.patchSandboxDocument(doc.id, run.response ?? '');
-    void navigate(`/projects/${participant.projectId}/editor/${doc.id}`);
+    try {
+      const doc = await api.openRunInEditor(run.id);
+      void navigate(`/projects/${participant.projectId}/editor/${doc.id}`);
+    } catch (error) {
+      // the refusal states both labels — a refusal a user cannot act on reads
+      // as a broken system rather than a careful one
+      const detail = error instanceof RequestError ? error.body?.detail : undefined;
+      setEditorRefusal(
+        detail !== undefined
+          ? `This answer was not opened in the editor: ${detail}.`
+          : 'This answer could not be opened in the editor.',
+      );
+    }
   }
 
   async function send(request: string) {
@@ -139,6 +156,12 @@ export function AskScreen() {
               <div className="msg agent" style={{ maxWidth: '100%' }}>
                 <div className="who">Infora agent</div>
                 <div className="bubble" style={{ color: 'var(--text-muted)' }}>Working…</div>
+              </div>
+            )}
+            {editorRefusal !== null && (
+              <div className="msg agent" style={{ maxWidth: '100%' }}>
+                <div className="who">Infora agent</div>
+                <div className="withheld">{editorRefusal}</div>
               </div>
             )}
             {failed && (

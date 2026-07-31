@@ -7,15 +7,18 @@
 // Everything else is the same not_found as nonexistence.
 import { Hono } from 'hono';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
-import { createConversationBody, createRunBody } from '@infora/contracts';
+import { createConversationBody, createRunBody, openRunInEditorBody } from '@infora/contracts';
 import type { ApiError, GetHistoryResponse, HistoryEntry, Id, Run, WorkItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
+import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import { createConversation, readRun, runChain } from '@infora/orchestration';
 import type { ChainLeaves, RunRow } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
+import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
 
 const notFound = { error: 'not_found' } satisfies ApiError;
 const invalid = (detail: string) => ({ error: 'invalid', detail }) satisfies ApiError;
@@ -76,6 +79,105 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
         sandboxDocumentId: body.data.sandboxDocumentId ?? null,
       });
       return c.json((await readRun(deps.db, run.id)) satisfies Run | null, 201);
+    },
+  );
+
+  // T-249 — carrying an answer into the editor, with the label enforced
+  // (docs/ask/09 R2, finding F2). This exists as a server-side path precisely
+  // BECAUSE the old client flow — create a document, then PATCH the answer in —
+  // told the server nothing about where the content came from. Provenance the
+  // server cannot see is provenance it cannot enforce.
+  app.post(
+    '/runs/:runId/sandbox-document',
+    resourceScope(deps, 'runId', resourceHomes.run),
+    async (c) => {
+      const body = openRunInEditorBody.safeParse(await c.req.json().catch(() => ({})));
+      if (!body.success) return c.json(invalid('title, sandboxId, folderId, override'), 400);
+      const slice = c.get('slice');
+      const runId = c.req.param('runId');
+
+      const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
+      if (!run || !(await runVisibleTo(deps.db, run, slice))) return c.json(notFound, 404);
+      // your own answer, into your own document: a colleague reading the run
+      // may not carry it anywhere, because the resulting document would be
+      // attributed to them while resting on someone else's request
+      if (run.requesterParticipantId !== slice.participantId) return c.json(notFound, 404);
+
+      const sandboxId =
+        body.data.sandboxId ??
+        (await ensureDefaultSandbox(deps.db, slice.projectId, slice.organisationId, slice.participantId));
+      const [sandbox] = await deps.db
+        .select()
+        .from(s.sandboxes)
+        .where(eq(s.sandboxes.id, sandboxId))
+        .limit(1);
+      const grants = sandbox
+        ? await deps.db
+            .select()
+            .from(s.sandboxScopeGrants)
+            .where(
+              and(
+                eq(s.sandboxScopeGrants.sandboxId, sandbox.id),
+                isNull(s.sandboxScopeGrants.removedAt),
+              ),
+            )
+        : [];
+      if (!sandbox || sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) {
+        return c.json(notFound, 404);
+      }
+
+      // the label, computed from the access facts as they stand — never a
+      // stored value that could have gone stale behind a revoked share
+      const source = await runSourceAudience(deps.db, runId);
+      const destination = await sandboxAudience(deps.db, sandboxId);
+      const verdict = checkPropagation(source, destination);
+
+      if (!verdict.allowed && body.data.override === undefined) {
+        // named in full: a refusal a user cannot act on reads as a broken
+        // system rather than a careful one
+        return c.json(
+          { error: 'forbidden', detail: verdict.reason } satisfies ApiError,
+          403,
+        );
+      }
+
+      const title =
+        body.data.title ?? (run.request.length > 60 ? `${run.request.slice(0, 57)}…` : run.request);
+      const document = await deps.db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(s.sandboxDocuments)
+          .values({
+            projectId: slice.projectId,
+            organisationId: slice.organisationId,
+            sandboxId,
+            folderId: body.data.folderId ?? null,
+            title,
+            content: run.response ?? '',
+            createdByParticipantId: slice.participantId,
+          })
+          .returning();
+        if (!verdict.allowed) {
+          // the override and the write land together: an override recorded
+          // separately could be lost while the widened content stood
+          await tx.insert(s.labelOverrides).values({
+            runId,
+            destinationKind: 'sandbox_document',
+            destinationId: row!.id,
+            sourceLabel: verdict.source,
+            destinationLabel: verdict.destination,
+            reason: body.data.override!.reason,
+            overriddenByParticipantId: slice.participantId,
+          });
+        }
+        await tx.insert(s.sandboxDocumentVersions).values({
+          sandboxDocumentId: row!.id,
+          content: row!.content,
+          createdByParticipantId: slice.participantId,
+        });
+        return row!;
+      });
+
+      return c.json(toSandboxDocument(document), 201);
     },
   );
 

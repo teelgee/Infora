@@ -129,6 +129,15 @@ export const api = {
         ...(folderId !== undefined && { folderId }),
       }),
     }),
+  // T-249 — carrying an answer into the editor is one server-side act, not a
+  // create followed by a content PATCH: the server has to know the content
+  // came from this run to check what the destination would widen (docs/ask/09
+  // R2). A destination broader than the answer's sources answers 403.
+  openRunInEditor: (runId: string, sandboxId?: string) =>
+    request<SandboxDocument>(`/runs/${runId}/sandbox-document`, {
+      method: 'POST',
+      body: JSON.stringify({ ...(sandboxId !== undefined && { sandboxId }) }),
+    }),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
   documentSuggestions: (id: string) =>
     request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),

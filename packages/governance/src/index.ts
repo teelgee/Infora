@@ -2,5 +2,23 @@
 export * from './access';
 export * from './conflict';
 export * from './sandbox';
+// T-249 — label propagation on write-back (finding F2). Policy only: the
+// queries that gather the facts live in packages/knowledge, beside the
+// visibility SQL they share a definition with.
+export {
+  ACCESS_LABELS,
+  checkPropagation,
+  destinationAudience,
+  labelRank,
+  sourceAudience,
+  UNCONSTRAINED,
+} from './label';
+export type {
+  AccessLabel,
+  Audience,
+  DestinationAccessFacts,
+  PropagationVerdict,
+  SourceAccessFacts,
+} from './label';
 export { groundCheck } from './ground-check';
 export type { CheckedClaim, GroundCheckResult, RailOutcome } from './ground-check';

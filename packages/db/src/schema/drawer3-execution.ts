@@ -103,6 +103,41 @@ export const runs = pgTable('runs', {
     .references(() => participants.id),
 });
 
+// T-249 — the label-propagation override (docs/ask/09 R2, finding F2). The
+// label itself is never stored: it is computed from the access facts each time
+// (packages/governance/src/label.ts), because a stored label is a cache of an
+// access decision, and a stale one would keep saying "single organisation"
+// after the share that made it so was revoked. What IS stored is a person
+// deciding to write past the refusal — explicit, attributed, reasoned, and
+// append-only, because a decision that can be edited afterwards is not
+// evidence. There is no config key that does this.
+export const labelDestinationKind = pgEnum('label_destination_kind', ['sandbox_document']);
+
+export const labelOverrides = pgTable(
+  'label_overrides',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => runs.id),
+    destinationKind: labelDestinationKind('destination_kind').notNull(),
+    destinationId: uuid('destination_id').notNull(),
+    // both stored as computed, never recomputed later: the justification has to
+    // stay readable against the facts as they stood
+    sourceLabel: text('source_label').notNull(),
+    destinationLabel: text('destination_label').notNull(),
+    reason: text('reason').notNull(),
+    overriddenByParticipantId: uuid('overridden_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('label_overrides_run_idx').on(t.runId),
+    index('label_overrides_destination_idx').on(t.destinationKind, t.destinationId),
+  ],
+);
+
 // T-260 — the plan artefact (docs/ask/03 §3): the analysis, persisted. One
 // plan per Run, its steps corresponding 1:1 to the append-only Step rows they
 // became. Immutable from `ready` rather than from insertion (trigger, 0035) —
