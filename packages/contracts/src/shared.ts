@@ -32,7 +32,10 @@ export type Step = {
     retention: string;
     classification: string;
   };
-  sourceSet: Array<{ versionId: Id } | { authorityRef: string }>; // defensibility field 1 (ADR-0028 §7)
+  // defensibility field 1 (ADR-0028 §7). T-253: at PASSAGE grain where the
+  // source was a library chunk — "what did your AI see" answered exactly,
+  // not at document-version grain (docs/build/ask/09 R5)
+  sourceSet: Array<({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id }>;
   railOutcomes: Array<{
     rail: string;
     outcome: 'passed' | 'withheld' | 'open_world';

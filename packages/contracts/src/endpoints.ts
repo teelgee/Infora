@@ -15,6 +15,7 @@ import type {
   Id,
   Resolution,
   Run,
+  StepType,
   Suggestion,
   Surface,
 } from './shared';
@@ -61,6 +62,31 @@ export type CreateRunResponse = Run; // completed, with steps, suggestions and c
 
 export type GetRunResponse = Run; // the immutable audit read (owner path, M5)
 export type GetConversationResponse = { runs: Run[] };
+
+// T-253 — GET /runs/:runId/context (docs/build/ask/09 R5): the assembled context a run
+// actually saw, reconstructed from its recorded source set at PASSAGE grain.
+// Producer-private, exactly like the run record it belongs to. This is what
+// turns "we log what it saw" from a claim into a demonstration in a client
+// security review — the passages themselves, in the order the model received
+// them, with the step that admitted each.
+export type AssembledPassage = {
+  stepId: Id;
+  stepType: StepType;
+  versionId: Id;
+  documentReference: string | null;
+  versionReference: string;
+  chunkId: Id | null; // null = recorded before T-253, at document grain only
+  chunkIndex: number | null;
+  content: string | null; // null when the passage is no longer reconstructible
+};
+export type GetRunContextResponse = {
+  runId: Id;
+  passages: AssembledPassage[];
+  // stated rather than implied: a passage whose chunk row has since been
+  // re-ingested under a new model, or which predates passage-grain recording,
+  // cannot be reconstructed — and saying so is the honest answer
+  unreconstructable: number;
+};
 
 // GET /projects/:projectId/history
 //     added 2026-07-13 (T-108): the requester's own prompted turns on the

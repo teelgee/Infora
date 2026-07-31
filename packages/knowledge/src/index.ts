@@ -6,6 +6,7 @@ export { deliverableVisibleSql } from './visibility';
 // T-249 — the access facts behind label propagation (finding F2); the policy
 // they feed is pure and lives in @infora/governance
 export {
+  readChunkPassages,
   runSourceAudience,
   sandboxAudience,
   sandboxDocumentAudience,

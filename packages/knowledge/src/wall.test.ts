@@ -138,7 +138,14 @@ describe('the wall through the gateway (T-033)', () => {
       'organisationId' | 'participantId'
     > = true;
     const queryShape: ExactKeys<AssemblyRequest['request'], 'text' | 'mode'> = true;
-    const itemShape: ExactKeys<AssembledItem, 'channel' | 'corpus' | 'source' | 'content'> = true;
+    // T-253 added `chunkId`: an AUDIT field (which passage was seen), never a
+    // scope one — it records what retrieval returned and cannot influence what
+    // retrieval returns. Adding a key here is meant to be a reviewable event,
+    // which is the whole point of pinning the shape.
+    const itemShape: ExactKeys<
+      AssembledItem,
+      'channel' | 'corpus' | 'source' | 'chunkId' | 'content'
+    > = true;
 
     expect([requestShape, requesterShape, queryShape, itemShape]).toEqual([true, true, true, true]);
   });

@@ -152,6 +152,21 @@ POST /runs/:runId/sandbox-document                  // T-249, 2026-07-31
 
 Carrying an answer into the editor is **one server-side act**, not a create followed by a content PATCH — the server has to know the content came from this run to compute its access label and refuse a destination that would widen it (T-249, [docs/ask/09](ask/09-permissions-remediation.md) R2). The `detail` names **both** labels. `override` is the only route past a refusal: explicit, reasoned, attributed, and written to `label_overrides` in the same transaction as the content — there is no config key that does this. Restricted to the run's own requester: a colleague may read the run but not carry it, because the resulting document would be attributed to them while resting on someone else's request.
 
+```
+GET /runs/:runId/context → GetRunContextResponse            // T-253, 2026-07-31
+     // the assembled context the run saw, at PASSAGE grain: the passages
+     // themselves, in the order the model received them, each attributed to
+     // the step that admitted it. Producer-private on exactly the run's scope.
+
+type AssembledPassage = { stepId: Id; stepType: StepType; versionId: Id;
+                          documentReference: string | null; versionReference: string;
+                          chunkId: Id | null; chunkIndex: number | null;
+                          content: string | null };   // null content = no longer reconstructible
+type GetRunContextResponse = { runId: Id; passages: AssembledPassage[]; unreconstructable: number };
+```
+
+`Step.sourceSet` entries gain an optional `chunkId` (T-253): the defensibility field now answers "what did your AI see" at passage grain rather than document-version grain, and chunk rows are immutable so no text is stored twice. `unreconstructable` is stated rather than implied — a passage whose chunk row has since been replaced by a re-ingest is counted, never rendered as an empty passage.
+
 **The plan artefact (T-260, 2026-07-30 — types only; the endpoint is T-261).** `Plan` and `PlanStep`
 join the shared types (`@infora/contracts`): the persisted analysis behind a Run — mode, question,
 stages, and the append-only Step each plan step became (docs/ask/03 §3, data model Drawer 3). Every

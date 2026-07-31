@@ -200,8 +200,10 @@ describe('M3 acceptance (T-047)', () => {
         expect(Array.isArray(step.sourceSet)).toBe(true);
         expect(Array.isArray(step.railOutcomes)).toBe(true);
       }
+      // T-253 — recorded at passage grain: the version AND the chunk the step
+      // actually saw, so "what did your AI see" answers exactly
       expect(steps.find((st) => st.type === 'draft')!.sourceSet).toEqual([
-        { versionId: liveVersionId },
+        { versionId: liveVersionId, chunkId: expect.any(String) as unknown as string },
       ]);
       expect(steps.find((st) => st.type === 'draft')!.modelId).toBe('fake-chat');
 

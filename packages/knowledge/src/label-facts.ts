@@ -10,7 +10,7 @@
 // access-resolved sources the run ACTUALLY admitted (ADR-0028 §7). Recomputing
 // what it might have seen would answer a different question.
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import { schema as s } from '@infora/db';
+import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import {
   destinationAudience,
@@ -155,4 +155,32 @@ async function memberOrganisationCount(db: Db, projectId: string): Promise<numbe
     .from(s.memberships)
     .where(and(eq(s.memberships.projectId, projectId), eq(s.memberships.state, 'active')));
   return new Set(rows.map((row) => row.organisationId)).size;
+}
+
+/**
+ * T-253 — the passages behind a run's recorded chunk ids.
+ *
+ * Lives here, not in orchestration, for two reasons that agree: `version_chunks`
+ * is fenced to this package and `data` by the T-247 source guard, and the read
+ * must declare its project scope or row-level security returns nothing — which
+ * would render every passage "unreconstructable" and quietly turn the audit
+ * answer into an empty one.
+ */
+export async function readChunkPassages(
+  db: Db,
+  projectId: string,
+  chunkIds: string[],
+): Promise<Map<string, { chunkIndex: number; content: string }>> {
+  if (chunkIds.length === 0) return new Map();
+  const rows = await withProjectScope(db, projectId, (tx) =>
+    tx
+      .select({
+        id: s.versionChunks.id,
+        chunkIndex: s.versionChunks.chunkIndex,
+        content: s.versionChunks.content,
+      })
+      .from(s.versionChunks)
+      .where(inArray(s.versionChunks.id, chunkIds)),
+  );
+  return new Map(rows.map((row) => [row.id, { chunkIndex: row.chunkIndex, content: row.content }]));
 }

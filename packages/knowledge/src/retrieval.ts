@@ -70,6 +70,9 @@ export async function groundedLibrary(
       channel: 'grounded',
       corpus: 'library',
       source: { versionId: row.versionId },
+      // T-253 — passage grain: the chunk row is immutable, so its id is enough
+      // to reconstruct exactly what the model was shown
+      chunkId: row.chunkId,
       content: row.content,
     });
   }

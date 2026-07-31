@@ -151,10 +151,14 @@ describe('grounded library retrieval (T-031)', () => {
   it('returns the nearest live library chunk, annotated grounded/library with its source', async () => {
     const items = await retrieve('alpha question');
     expect(items.length).toBeGreaterThan(0);
+    // T-253 — the item carries the PASSAGE it is, not only the document it
+    // came from: the chunk row is immutable, so its id makes the assembled
+    // context exactly reconstructible (docs/build/ask/09 R5)
     expect(items[0]).toEqual({
       channel: 'grounded',
       corpus: 'library',
       source: { versionId: liveAlphaVersionId },
+      chunkId: expect.any(String) as unknown as string,
       content: 'alpha: made ground and contamination findings.',
     });
   });

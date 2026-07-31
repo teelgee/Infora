@@ -190,7 +190,10 @@ describe('the full chain over HTTP (T-046)', () => {
     const draft = run.steps.find((st) => st.type === 'draft')!;
     expect(draft.model).toEqual({ id: 'fake-chat', version: 'fake-chat-1' });
     expect(draft.usage?.tokensPrompt).toBe(500);
-    expect(draft.sourceSet).toEqual([{ versionId }]);
+    // T-253 — passage grain: the chunk beside the version (docs/build/ask/09 R5)
+    expect(draft.sourceSet).toEqual([
+      { versionId, chunkId: expect.any(String) as unknown as string },
+    ]);
     const groundCheck = run.steps.find((st) => st.type === 'ground_check')!;
     expect(groundCheck.railOutcomes).toEqual([
       { rail: 'grounding', outcome: 'withheld', detail: 'An unsupported figure of 40%.' },

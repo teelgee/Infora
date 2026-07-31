@@ -14,7 +14,7 @@ import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
-import { createConversation, readRun, runChain } from '@infora/orchestration';
+import { createConversation, readRun, readRunContext, runChain } from '@infora/orchestration';
 import type { ChainLeaves, RunRow } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -186,6 +186,17 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
     const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
     if (!run || !(await runVisibleTo(deps.db, run, c.get('slice')))) return c.json(notFound, 404);
     return c.json(await readRun(deps.db, runId));
+  });
+
+  // T-253 — the assembled context this run saw, at passage grain
+  // (docs/build/ask/09 R5). Producer-private on exactly the run's own scope: the
+  // passages are the client's documents, and this read is the producer's
+  // evidence of what its agent was shown, never a second route into the corpus.
+  app.get('/runs/:runId/context', resourceScope(deps, 'runId', resourceHomes.run), async (c) => {
+    const runId = c.req.param('runId');
+    const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
+    if (!run || !(await runVisibleTo(deps.db, run, c.get('slice')))) return c.json(notFound, 404);
+    return c.json(await readRunContext(deps.db, runId));
   });
 
   app.get(

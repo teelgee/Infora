@@ -20,7 +20,10 @@ import type { RunRow, StepAudit } from './run-writer';
 
 export const CHAIN_AGENT_ID = 'infora.grounded_draft';
 
-export type SourceRef = { versionId: Id } | { authorityRef: string };
+// T-253 — a recorded source carries the passage it was, where it had one: the
+// Step row's source_set is the audit answer to "what did it see", and a
+// version id answers that at document grain only (docs/build/ask/09 R5).
+export type SourceRef = ({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id };
 
 // A claim is a draft sentence bound (or not) to the source it rests on; the
 // claim→source markers are produced by the draft leaf for the verifier.
@@ -163,10 +166,13 @@ export function sourcesOf(retrieved: AssembledInput): SourceRef[] {
   const refs: SourceRef[] = [];
   for (const item of retrieved.items) {
     if (item.channel !== 'grounded') continue; // only grounded sources back claims (ADR-0021)
-    const key = JSON.stringify(item.source);
+    const ref: SourceRef =
+      item.chunkId === undefined ? item.source : { ...item.source, chunkId: item.chunkId };
+    // passage grain: two chunks of one version are two distinct sources seen
+    const key = JSON.stringify(ref);
     if (seen.has(key)) continue;
     seen.add(key);
-    refs.push(item.source);
+    refs.push(ref);
   }
   return refs;
 }
