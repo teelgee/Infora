@@ -6,29 +6,38 @@
 // project, ask the question, read the Run back. Everything the assertions see
 // comes off that HTTP response — the runner has a database handle only to
 // materialise fixtures, never to read a result it could have been told.
-import type { Run } from '@infora/contracts';
+import type { PlanMode, Run } from '@infora/contracts';
 import { evaluateAssertions, Unevaluable } from './assertions';
 import type { Observation, ObservedSource, RetrievalMetrics } from './assertions';
 import type { Category, EvalCase } from './case';
+import type { GradeRecord } from './grading';
 import { FIXTURE_PASSWORD, materialise } from './fixture';
 import type { Fixture, FixtureInstance } from './fixture';
 import { HarnessSession } from './harness';
 import type { Harness } from './harness';
 
+/**
+ * T-257 — four verdicts, and `ungraded` is the new one (docs/build/ask/07 §6):
+ * an assertion a model had to judge, and no independent model could. It is not
+ * a pass, and it is not a failure of the answer — it is a check nobody made,
+ * and it says so in its own column.
+ */
+export type Verdict = 'pass' | 'fail' | 'error' | 'ungraded';
+
 export type CaseResult = {
   caseId: string;
   category: Category;
   description: string;
-  verdict: 'pass' | 'fail' | 'error';
+  verdict: Verdict;
   failures: string[];
   holdOut: boolean;
   fixture: { id: string; version: number; instance: string };
-  routingTable: { chat: string; embedding: string };
+  routingTable: { chat: string; chatFamily: string; embedding: string };
   // Declared and recorded rather than inferred. Each is null because the thing
   // it names does not exist yet, and a plausible-looking value would be a
   // fabrication in the one artefact that has to be trustworthy:
   lens: string | null; // the Lens framework lands at T-281
-  mode: string | null; // orchestration modes are labelled from T-266
+  mode: PlanMode | null; // orchestration modes are labelled from T-266
   plan: unknown | null; // the plan artefact lands at T-260
   workersCalled: string[] | null; // the worker registry lands at T-269
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
@@ -36,6 +45,9 @@ export type CaseResult = {
   // Reported beside the verdict rather than folded into it: retrieval quality
   // is tracked separately from answer quality (docs/build/ask/07 §1.1).
   retrieval: RetrievalMetrics | null;
+  // T-257 — every model-graded claim with the grader's family, per §6. A grade
+  // taken by an unnamed model is not evidence of anything.
+  grades: GradeRecord[];
   run: {
     id: string;
     state: string;
@@ -83,6 +95,7 @@ export async function runCase(
     workersCalled: null,
     steps: [],
     retrieval: null,
+    grades: [],
     run: null,
   };
 
@@ -148,7 +161,7 @@ export async function runCase(
 
   let report;
   try {
-    report = evaluateAssertions(evalCase.assertions, {
+    report = await evaluateAssertions(evalCase.assertions, {
       observation,
       resolveRef: (ref) => {
         const versionId = instance.versionIds.get(ref);
@@ -170,6 +183,10 @@ export async function runCase(
         }
         return { chunkId };
       },
+      // T-257 — who may grade a `~claim`. The producing family comes off the
+      // harness's own routing record for now; when the router carries families
+      // (T-284/T-286) it comes off the run's draft step instead.
+      grading: { producerFamily: harness.routing.chatFamily, grader: harness.grader },
     });
   } catch (thrown) {
     // Both are the same verdict for the same reason: the harness could not
@@ -181,7 +198,7 @@ export async function runCase(
     return { ...withRun, verdict: 'error', failures: [thrown.message] };
   }
 
-  const evaluated = { ...withRun, retrieval: report.retrieval };
+  const evaluated = { ...withRun, retrieval: report.retrieval, grades: report.grades };
   if (report.unsupported.length > 0) {
     return {
       ...evaluated,
@@ -192,9 +209,14 @@ export async function runCase(
       ],
     };
   }
+  // Precedence: error > fail > ungraded > pass. A known failure is more
+  // informative than an ungraded one, so it wins the label; but a case with
+  // nothing failing and something ungraded is NOT a pass (§6) — that is the
+  // whole point of the fourth verdict.
+  const ungraded = report.grades.some((grade) => grade.outcome === 'ungraded');
   return {
     ...evaluated,
-    verdict: report.failures.length === 0 ? 'pass' : 'fail',
+    verdict: report.failures.length > 0 ? 'fail' : ungraded ? 'ungraded' : 'pass',
     failures: report.failures,
   };
 }

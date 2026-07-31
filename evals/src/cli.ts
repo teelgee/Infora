@@ -24,9 +24,17 @@ try {
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`);
   console.log(`\nresult file: ${path}`);
 
-  // a regression in any category blocks the ticket (docs/build/ask/07 §5) — an
-  // error counts, because a case the harness could not evaluate is not a pass
-  const clean = Object.values(report.byCategory).every((t) => t.fail === 0 && t.error === 0);
+  // A regression in any category blocks the ticket (docs/build/ask/07 §5) — and
+  // an error or an ungraded case counts, because a case the harness could not
+  // evaluate is not a pass (§6). A gate that let `ungraded` through would be
+  // treating it as a pass while calling it something else.
+  //
+  // What follows from that, and belongs to T-258: a case with a model-graded
+  // assertion has no place in the smoke tier, which runs on the fake router
+  // with no provider calls and therefore no independent grader.
+  const clean = Object.values(report.byCategory).every(
+    (t) => t.fail === 0 && t.error === 0 && t.ungraded === 0,
+  );
   process.exitCode = clean ? 0 : 1;
 } finally {
   await harness.close();

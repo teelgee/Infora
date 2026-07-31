@@ -16,6 +16,7 @@ import { buildApp } from '@infora/api/app';
 import { FAKE_EMBED_VERSION, fakeRouter, fakeVector } from '@infora/api/test-router';
 import { createDb } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Grader } from './grading';
 
 /**
  * The eval harness writes and reads its OWN pinned index (ADR-0024: each
@@ -27,16 +28,34 @@ import type { Db } from '@infora/db';
  */
 export const EVAL_EMBED_MODEL = 'eval-embed';
 
+/**
+ * The family the harness's chat model belongs to — the one a model-graded
+ * assertion may NOT be graded by (docs/build/ask/07 §6, 04 §3).
+ *
+ * It is declared here because `packages/model` has no family concept yet: the
+ * routing table and `different_family_from: draft` at dispatch are T-284/T-286.
+ * Until then the harness states the producing family rather than inferring it,
+ * and states that it is doing so.
+ */
+export const FAKE_CHAT_FAMILY = 'fake';
+
 export type Harness = {
   baseUrl: string;
   db: Db;
   /** the routing table in use, recorded in every result file (docs/build/ask/04 §5) */
-  routing: { chat: string; embedding: string };
+  routing: { chat: string; chatFamily: string; embedding: string };
+  /**
+   * The model that grades `~claims`, when one of an independent family is
+   * available. Absent in the smoke tier by construction — it runs on the fake
+   * router with no provider calls (§5) — which is why a graded case there is
+   * `ungraded` rather than a pass.
+   */
+  grader?: Grader;
   embed(text: string): { vector: number[]; modelId: string; modelVersion: string };
   close(): Promise<void>;
 };
 
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(options: { grader?: Grader } = {}): Promise<Harness> {
   const { db, pool } = createDb();
   const router = fakeRouter(undefined, EVAL_EMBED_MODEL);
   const app = buildApp({
@@ -58,7 +77,8 @@ export async function startHarness(): Promise<Harness> {
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     db,
-    routing: { chat: 'fake-chat', embedding: EVAL_EMBED_MODEL },
+    routing: { chat: 'fake-chat', chatFamily: FAKE_CHAT_FAMILY, embedding: EVAL_EMBED_MODEL },
+    ...(options.grader !== undefined && { grader: options.grader }),
     embed: (text) => ({
       vector: fakeVector(text),
       modelId: EVAL_EMBED_MODEL,

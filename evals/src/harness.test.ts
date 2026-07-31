@@ -186,11 +186,25 @@ describe('the eval harness (T-255)', () => {
   });
 
   it('reports per category, and carries no aggregate', async () => {
+    // the report's shape is pinned in report.test.ts; this is the same shape
+    // built from a real run rather than from a constructed result
     const report = buildReport([await runCase(harness, instance, perm02)]);
 
-    expect(report.byCategory.permission).toEqual({ cases: 1, pass: 1, fail: 0, error: 0 });
-    expect(report.byCategory.happy).toEqual({ cases: 0, pass: 0, fail: 0, error: 0 });
-    expect(Object.keys(report)).toEqual(['generatedAt', 'tier', 'byCategory', 'results']);
+    expect(report.byCategory.permission).toEqual({
+      cases: 1,
+      pass: 1,
+      fail: 0,
+      error: 0,
+      ungraded: 0,
+    });
+    expect(report.byCategory.happy).toEqual({ cases: 0, pass: 0, fail: 0, error: 0, ungraded: 0 });
+    expect(Object.keys(report)).toEqual([
+      'generatedAt',
+      'tier',
+      'byCategory',
+      'byMode',
+      'results',
+    ]);
     expect(formatReport(report)).toContain('permission');
     expect(formatReport(report)).not.toMatch(/total|overall/i);
   });
@@ -316,5 +330,56 @@ describe('the full assertion set (T-256)', () => {
     const notCalled = await run('T256-expect-not-called', { expect_not_called: ['web_research'] });
     expect(notCalled.verdict).toBe('error');
     expect(notCalled.workersCalled).toBeNull();
+  });
+
+  // ── T-257 — model-graded assertions, over a real run ─────────────────────────
+  //
+  // The independence rule and the grade→failure mapping are unit-tested in
+  // grading.test.ts. What is proved HERE is the harness's own default and the
+  // verdict it produces: the smoke substrate has no independent grader (it runs
+  // on the fake router, no provider calls, §5), so a graded claim is `ungraded`
+  // — reported, recorded with its reason, and not a pass.
+  it('a graded claim with no independent grader is ungraded, not a pass (T-257)', async () => {
+    const graded = await run('T257-graded-no-grader', {
+      must_contain: ['~the answer states an exceedance was recorded'],
+    });
+
+    expect(graded.verdict).toBe('ungraded');
+    expect(graded.failures).toEqual([]);
+    expect(graded.grades).toEqual([
+      {
+        assertion: 'must_contain',
+        claim: 'the answer states an exceedance was recorded',
+        grader: null,
+        outcome: 'ungraded',
+        reason: 'no grader is configured for this run, so the claim was not assessed',
+      },
+    ]);
+    // and it lands in its own column, never in `pass`
+    const report = buildReport([graded]);
+    expect(report.byCategory.permission).toMatchObject({ cases: 1, pass: 0, ungraded: 1 });
+  });
+
+  it('a real failure outranks an ungraded claim in the same case (T-257)', async () => {
+    // precedence: a known failure is more informative than an unchecked claim,
+    // so `fail` wins the label — but the ungraded claim is still recorded
+    const both = await run('T257-fail-beats-ungraded', {
+      must_contain: ['~something nobody graded', 'a phrase the answer does not contain'],
+    });
+
+    expect(both.verdict).toBe('fail');
+    expect(both.failures).toEqual([
+      'must_contain: the answer does not match a phrase the answer does not contain',
+    ]);
+    expect(both.grades[0]!.outcome).toBe('ungraded');
+  });
+
+  it('records the mode as unlabelled rather than assuming the coded chain is declared', async () => {
+    // The plan stores mode='declared' (T-260) and nothing can read it over HTTP
+    // until T-261, so the result says it does not know.
+    const result = await runCase(harness, instance, perm02);
+    expect(result.mode).toBeNull();
+    expect(buildReport([result]).byMode.unlabelled.cases).toBe(1);
+    expect(buildReport([result]).byMode.declared.cases).toBe(0);
   });
 });

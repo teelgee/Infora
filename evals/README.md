@@ -40,8 +40,12 @@ assertion naming something the fixture does not declare, an assertion whose
 evidence the run did not record — each is an `error`, loudly. The failure mode
 this guards is a harness that reports green while checking nothing.
 
-**Per category, never an aggregate.** `EvalReport` has no total field and
-`formatReport` prints no total row (§4.1). Hold-out results are not emitted
+**Per category and per mode, never an aggregate.** `EvalReport` has no total
+field and `formatReport` prints no total row (§4.1) — pinned structurally in
+`src/report.test.ts`, against the shape rather than the wording, so a `passRate`
+added later in good faith cannot slip past a test that only looked for "total".
+Declared and model-chosen runs are reported separately, always, because a gain
+in one must not mask a regression in the other. Hold-out results are not emitted
 outside a release run, not even as a count, because a count is feedback (§7).
 
 **A fixture is immutable and isolated.** Changing one creates a new fixture, so
@@ -65,7 +69,7 @@ rewrite is not frozen.
 | --- | --- | --- |
 | `must_cite` | the run's citations | |
 | `must_not_cite` | citations **and** the answer text | the permission assertion (§1.1) |
-| `must_contain` / `must_not_contain` | the answer text | plain string = case-insensitive substring; `/pattern/flags` = regex |
+| `must_contain` / `must_not_contain` | the answer text | plain string = case-insensitive substring; `/pattern/flags` = regex; `~claim` = **model-graded** (T-257) |
 | `max_uncited_claims` | the `open_world` rail outcomes | counted off the verifier's decision, never by parsing prose |
 | `expect_calls` / `expect_not_called` | the plan's steps | **deferred, see below** |
 | `gold_passages` + `min_precision` / `min_recall` | the retrieve step's source set | chunk grain: a gold passage is `version_key#chunk_index` |
@@ -90,9 +94,40 @@ the observation carries `workersCalled: null` and a case declaring either type
 is an `error` — because `[]` would make `expect_not_called` pass for every
 worker in the world, for ever.
 
+## Model-graded assertions and the fourth verdict (T-257)
+
+Some assertions cannot be a regex — "the answer states the exceedance is
+against a baseline" is a claim about meaning, and a substring pins it either by
+coincidence or not at all. A `must_contain` / `must_not_contain` entry written
+with a leading `~` is handed to a model instead:
+
+```yaml
+must_contain:
+  - "0.41 mg/l"                                   # substring
+  - /HB-\d\d/                                     # regex
+  - ~the exceedance is stated against a baseline  # model-graded
+```
+
+**The grading model is never the family that produced the answer** (§6, the same
+independence rule the `verifier` runs under, [04](../docs/build/ask/04-model-routing.md) §3): same-family grading is
+largely self-agreement — the failure it cannot see is the failure it just made.
+A same-family grader is **refused, not called**. No grader, or a refused one,
+makes the claim **`ungraded`** — a fourth verdict beside pass / fail / error,
+never a pass, in its own report column, and it blocks the gate. A skip that
+counted as green would be indistinguishable from a check that held.
+
+Verdict precedence is `error > fail > ungraded > pass`: a known failure is more
+informative than an unchecked claim, so it takes the label, and the ungraded
+claim is still recorded with the reason no grade was taken.
+
+The smoke tier has no grader by construction — it runs on the fake router with
+no provider calls (§5) — so a case with a graded claim does not belong in it.
+Wiring it is `startHarness({ grader })`; `family` is the harness's own record
+until `packages/model` carries families (T-284/T-286), at which point the
+producing family comes off the run's draft step instead.
+
 ## What is not here yet
 
-Categories and the mode split (T-257), CI tiers, hold-out and flake detection
-(T-258), and the sixteen-case seed set (T-259) — `PERM-02` is still the one
-case in `cases/`. Model-graded `must_contain` (§6, under the verifier's
-independence rule) lands with T-257; matching here is deterministic only.
+CI tiers, hold-out and flake detection (T-258), and the sixteen-case seed set
+(T-259) — `PERM-02` is still the one case in `cases/`. The report's per-Lens and
+per-worker breakdowns (§4.1) wait for the things they name (T-281, T-269).

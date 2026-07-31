@@ -23,6 +23,8 @@
 // evaluators, harness.test.ts through HTTP), so a wrong implementation cannot
 // pass both.
 import type { AssertionType, Assertions } from './case';
+import { gradeClaims, isGraded } from './grading';
+import type { GradeRecord, GradingContext } from './grading';
 
 export type ObservedSource = { versionId?: string; authorityRef?: string; chunkId?: string };
 
@@ -55,6 +57,8 @@ export type AssertionContext = {
   resolveRef(ref: string): { versionId: string; documentReference: string };
   /** resolve a fixture chunk ref (`version_key#index`) to the chunk row it materialised as */
   resolveChunk(ref: string): { chunkId: string };
+  /** T-257 — who may grade a `~claim`, and who may not (grading.ts) */
+  grading?: GradingContext;
 };
 
 /**
@@ -105,9 +109,9 @@ const EVALUATORS: Partial<Record<AssertionType, Evaluator>> = {
   }) as Evaluator,
 
   // ── the text pair ──────────────────────────────────────────────────────────
-  // Deterministic matching only. §6's model-graded variant — for register and
-  // the phrasings a regex cannot fix — lands with T-257, under the verifier's
-  // independence rule; a grader here would be an ungraded pass in disguise.
+  // Deterministic matching. §6's model-graded variant — for register and the
+  // phrasings a regex cannot fix — is the `~claim` form, lifted out before this
+  // runs and decided in grading.ts under the verifier's independence rule.
   must_contain: ((patterns: string[], { observation }: AssertionContext) =>
     patterns
       .filter((pattern) => !matches(pattern, observation.answer))
@@ -169,14 +173,31 @@ export type AssertionReport = {
   unsupported: AssertionType[];
   /** the set metrics, when the case declared gold passages */
   retrieval: RetrievalMetrics | null;
+  /** T-257 — every model-graded claim, with the grader's family (§6) */
+  grades: GradeRecord[];
 };
 
-export function evaluateAssertions(
+export async function evaluateAssertions(
   assertions: Assertions,
   context: AssertionContext,
-): AssertionReport {
-  const report: AssertionReport = { failures: [], unsupported: [], retrieval: null };
-  for (const [name, declared] of Object.entries(assertions)) {
+): Promise<AssertionReport> {
+  const report: AssertionReport = { failures: [], unsupported: [], retrieval: null, grades: [] };
+
+  // T-257 — the `~claims` come out first: they are the same assertion types,
+  // decided by a model rather than by string matching, and the two halves must
+  // not shadow each other. What is left is matched deterministically.
+  const graded = gradedClaims(assertions);
+  const deterministic: Assertions = {
+    ...assertions,
+    ...(assertions.must_contain !== undefined && {
+      must_contain: assertions.must_contain.filter((pattern) => !isGraded(pattern)),
+    }),
+    ...(assertions.must_not_contain !== undefined && {
+      must_not_contain: assertions.must_not_contain.filter((pattern) => !isGraded(pattern)),
+    }),
+  };
+
+  for (const [name, declared] of Object.entries(deterministic)) {
     if (declared === undefined) continue;
     if (RETRIEVAL_KEYS.includes(name as AssertionType)) continue; // below, as one
     const evaluator = EVALUATORS[name as AssertionType];
@@ -190,7 +211,21 @@ export function evaluateAssertions(
   const setMetrics = evaluateSetMetrics(assertions, context);
   report.retrieval = setMetrics.metrics;
   report.failures.push(...setMetrics.failures);
+
+  const judged = await gradeClaims(graded, context.observation.answer, context.grading);
+  report.failures.push(...judged.failures);
+  report.grades = judged.grades;
   return report;
+}
+
+function gradedClaims(
+  assertions: Assertions,
+): Array<{ assertion: 'must_contain' | 'must_not_contain'; pattern: string }> {
+  return (['must_contain', 'must_not_contain'] as const).flatMap((assertion) =>
+    (assertions[assertion] ?? [])
+      .filter(isGraded)
+      .map((pattern) => ({ assertion, pattern })),
+  );
 }
 
 /**
