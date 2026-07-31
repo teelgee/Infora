@@ -1,5 +1,5 @@
 // T-253 acceptance, end to end against the live dev database: passage-grain
-// audit (docs/build/ask/09 R5, finding F5).
+// audit (finding F5, finding F5).
 //
 // The claim being converted into a demonstration is "we log what it saw". Not
 // "which documents" — which PASSAGES, in the order the model received them,

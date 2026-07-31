@@ -1,5 +1,5 @@
 // T-258 acceptance, part 2 — flake detection and the mode asymmetry
-// (docs/build/ask/07 §8). Pure folding over attempts: the interesting behaviour is what
+// (evals/README.md). Pure folding over attempts: the interesting behaviour is what
 // several verdicts for one case mean, not how they were produced.
 import { describe, expect, it } from 'vitest';
 import { flakeGates, flakeNote, foldAttempts } from './flake';

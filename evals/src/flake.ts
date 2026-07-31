@@ -1,4 +1,4 @@
-// T-258 — flake detection (docs/build/ask/07 §8).
+// T-258 — flake detection (evals/README.md).
 //
 // The nightly tier runs each case N times (default 3). Inconsistent verdicts
 // across those attempts mark the case `flaky` in the result file — set by the

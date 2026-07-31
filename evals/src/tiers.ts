@@ -1,4 +1,4 @@
-// T-258 — the execution tiers (docs/build/ask/07 §5) and what each one is allowed to
+// T-258 — the execution tiers (evals/README.md) and what each one is allowed to
 // run.
 //
 // | smoke   | every change | all permission cases + one per category and per

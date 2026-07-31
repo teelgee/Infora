@@ -1,5 +1,5 @@
 // T-257 acceptance — model-graded assertions and the independence rule
-// (docs/build/ask/07 §6, 04 §3). No provider: the graders here are stubs of a
+// (evals/README.md, 04 §3). No provider: the graders here are stubs of a
 // stated family, which is the only property the rule turns on.
 import { describe, expect, it, vi } from 'vitest';
 import { evaluateAssertions } from './assertions';

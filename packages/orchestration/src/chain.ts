@@ -22,7 +22,7 @@ export const CHAIN_AGENT_ID = 'infora.grounded_draft';
 
 // T-253 — a recorded source carries the passage it was, where it had one: the
 // Step row's source_set is the audit answer to "what did it see", and a
-// version id answers that at document grain only (docs/build/ask/09 R5).
+// version id answers that at document grain only (finding F5).
 export type SourceRef = ({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id };
 
 // A claim is a draft sentence bound (or not) to the source it rests on; the
@@ -94,7 +94,7 @@ export async function runChain(
   // T-260 — the plan artefact: the four steps are written down, in order, and
   // sealed BEFORE the first one runs, then each is bound to the Step row it
   // became. Behaviour is unchanged; the record gains the intention beside the
-  // outcome (docs/build/ask/03 §3, §5 step 1).
+  // outcome (docs/build/plan.md — Slice Ask Wave 2 step 1).
   const plan = await openPlan(db, {
     runId: run.id,
     conversationId: input.conversationId,

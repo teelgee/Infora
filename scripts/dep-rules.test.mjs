@@ -55,7 +55,7 @@ describe('checkDeps', () => {
     ).toBe(true);
   });
 
-  // T-250 (docs/build/ask/09 R3): the untrusted-content barrier is this line of the
+  // T-250 (finding F3): the untrusted-content barrier is this line of the
   // matrix. A worker that holds a prompt injection from a fetched page must be
   // unable to hold client data — not by discipline, by having no route to it.
   it('matrix invariant: the external package can reach no store', () => {

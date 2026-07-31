@@ -1,4 +1,4 @@
-// T-253 — the assembled-context reconstruction (docs/build/ask/09 R5).
+// T-253 — the assembled-context reconstruction (finding F5).
 //
 // `step.source_set` records what each step saw. Since this ticket it records it
 // at PASSAGE grain — the chunk id beside the version id — and chunk rows are

@@ -1,5 +1,5 @@
 // MUST NOT COMPILE. An external source is not an assembled item, and calling
-// it one is the mistake this whole barrier exists to prevent (docs/build/ask/09 R3).
+// it one is the mistake this whole barrier exists to prevent (finding F3).
 // packages/external/src/barrier.test.ts compiles this directory and fails the
 // build if any file in it succeeds.
 import type { AssembledItem } from '@infora/contracts';

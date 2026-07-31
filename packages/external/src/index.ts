@@ -1,5 +1,5 @@
 // @infora/external — everything that touches untrusted external content, and
-// nothing else. T-250 (docs/build/ask/09 R3); the `web_research` worker itself is
+// nothing else. T-250 (finding F3); the `web_research` worker itself is
 // T-279.
 //
 // THE POINT OF THIS PACKAGE IS ITS MANIFEST. It depends on `@infora/contracts`

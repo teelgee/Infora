@@ -1,4 +1,4 @@
-// T-249 — the access facts behind label propagation (docs/build/ask/09 R2).
+// T-249 — the access facts behind label propagation (finding F2).
 //
 // The policy is pure and lives in packages/governance (label.ts). The QUERIES
 // live here, beside deliverableVisibleSql, because they read the same facts the

@@ -1,7 +1,7 @@
 // T-255/T-258 — `pnpm --filter @infora/evals run eval`: run a tier's cases
 // against a live database, print the tables, write the result file.
 //
-//   --tier smoke|full|release   which cases run (docs/build/ask/07 §5); default full
+//   --tier smoke|full|release   which cases run (evals/README.md); default full
 //   --repeats N                 attempts per case for flake detection (§8)
 //
 // The tier selects CASES and REPEATS here, not providers: every tier runs on

@@ -1,5 +1,5 @@
 // T-257 — model-graded assertions, under the verifier's independence rule
-// (docs/build/ask/07 §6).
+// (evals/README.md).
 //
 // Some assertions cannot be a regex. "The answer says the exceedance is against
 // a baseline" is a claim about meaning, and a case that tries to pin it with a

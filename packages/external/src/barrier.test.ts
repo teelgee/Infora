@@ -1,5 +1,5 @@
 // T-250 acceptance — the untrusted-content barrier is a type, and this is what
-// makes that claim checkable rather than aspirational (docs/build/ask/09 R3).
+// makes that claim checkable rather than aspirational (finding F3).
 //
 // Every file under fixtures/must-not-compile is a way of getting external
 // content into the working input the model sees. Each must FAIL to typecheck,

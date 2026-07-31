@@ -12,12 +12,18 @@ export const ALLOWED = {
   '@infora/governance': ['@infora/contracts', '@infora/db'],
   '@infora/data': ['@infora/contracts', '@infora/db', '@infora/model'],
   // T-250 — untrusted external content. THIS ENTRY IS THE SECURITY CONTROL
-  // (docs/build/ask/09 R3): `web_research` reads public pages, so the worker holding
+  // (finding F3): `web_research` reads public pages, so the worker holding
   // a prompt injection must be unable to hold client data. Contracts only —
   // no db, no knowledge, no governance — so it cannot query a store, resolve
   // an access slice or read a chunk. Widening this line is the event code
   // review exists to catch.
   '@infora/external': ['@infora/contracts'],
+  // T-281 (pending) — Lens definitions as domain content. A leaf that will
+  // depend on `contracts` only, so the dep rules keep surfaces out of it and it
+  // stays trivially reviewable by a non-engineer. The definitions moved here
+  // 2026-07-31 when the Ask specification folded into the board; the loader and
+  // validator are the ticket.
+  '@infora/lenses': ['@infora/contracts'],
   '@infora/knowledge': [
     '@infora/contracts',
     '@infora/db',

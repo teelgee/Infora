@@ -1,5 +1,5 @@
 // T-255 — the runner: load cases → materialise fixtures → execute against the
-// system → apply assertions → emit results (docs/build/ask/07 §4).
+// system → apply assertions → emit results (evals/README.md).
 //
 // "Execute against the system" means over HTTP, against the composed app, as
 // the acting user: log in, open a conversation on the fixture's subject
@@ -17,7 +17,7 @@ import { HarnessSession } from './harness';
 import type { Harness } from './harness';
 
 /**
- * T-257 — four verdicts, and `ungraded` is the new one (docs/build/ask/07 §6):
+ * T-257 — four verdicts, and `ungraded` is the new one (evals/README.md):
  * an assertion a model had to judge, and no independent model could. It is not
  * a pass, and it is not a failure of the answer — it is a check nobody made,
  * and it says so in its own column.
@@ -49,7 +49,7 @@ export type CaseResult = {
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
   // T-256 — gold-passage set metrics, recorded whenever the case declared them.
   // Reported beside the verdict rather than folded into it: retrieval quality
-  // is tracked separately from answer quality (docs/build/ask/07 §1.1).
+  // is tracked separately from answer quality (evals/README.md).
   retrieval: RetrievalMetrics | null;
   // T-257 — every model-graded claim with the grader's family, per §6. A grade
   // taken by an unnamed model is not evidence of anything.

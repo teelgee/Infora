@@ -6,7 +6,7 @@
 //   1. a case declared as data runs end to end THROUGH HTTP, as the acting
 //      user, and its permission assertion passes;
 //   2. it does so identically ten times — the determinism the smoke tier rests
-//      on (docs/build/ask/07 §5);
+//      on (evals/README.md);
 //   3. the assertion has teeth: the same assertion pointed at a document the
 //      acting user CAN reach fails, so a pass is evidence of exclusion rather
 //      than evidence of an assertion that never fires;

@@ -103,7 +103,7 @@ export const runs = pgTable('runs', {
     .references(() => participants.id),
 });
 
-// T-249 — the label-propagation override (docs/build/ask/09 R2, finding F2). The
+// T-249 — the label-propagation override (finding F2, finding F2). The
 // label itself is never stored: it is computed from the access facts each time
 // (packages/governance/src/label.ts), because a stored label is a cache of an
 // access decision, and a stale one would keep saying "single organisation"
@@ -138,7 +138,7 @@ export const labelOverrides = pgTable(
   ],
 );
 
-// T-260 — the plan artefact (docs/build/ask/03 §3): the analysis, persisted. One
+// T-260 — the plan artefact (docs/build/plan.md — Slice Ask Wave 2): the analysis, persisted. One
 // plan per Run, its steps corresponding 1:1 to the append-only Step rows they
 // became. Immutable from `ready` rather than from insertion (trigger, 0035) —
 // a draft plan is mutable while it is being clarified, and what it SAYS
@@ -153,7 +153,7 @@ export const planState = pgEnum('plan_state', [
   'failed',
   'superseded',
 ]);
-// the named stages the progress rail shows (docs/build/ask/03 §2, 08 §4)
+// the named stages the progress rail shows (docs/build/plan.md — Slice Ask Wave 2, 08 §4)
 export const planStage = pgEnum('plan_stage', [
   'understand',
   'load_context',
@@ -191,7 +191,7 @@ export const plans = pgTable(
     requesterParticipantId: uuid('requester_participant_id')
       .notNull()
       .references(() => participants.id),
-    // stored, never derived: the labelling requirement is hard (docs/build/ask/03
+    // stored, never derived: the labelling requirement is hard (docs/build/plan.md — Slice Ask Wave 2
     // §1.2) — a user must never be unable to tell which kind of answer they
     // are holding, and a derived label drifts from what actually ran
     mode: planMode('mode').notNull(),

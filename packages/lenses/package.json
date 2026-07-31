@@ -1,0 +1,8 @@
+{
+  "name": "@infora/lenses",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lens definitions as domain content. The loader and validator land at T-281; until then this package is the definitions and nothing else.",
+  "scripts": {}
+}

@@ -21,7 +21,7 @@ export type AssembledItem = {
   corpus?: 'library' | 'authority'; // grounded only
   source: { versionId: Id } | { authorityRef: string }; // what a citation resolves to
   // T-253 — the PASSAGE this item is, not just the document it came from
-  // (docs/build/ask/09 R5). Chunk rows are immutable, so recording the id makes the
+  // (finding F5). Chunk rows are immutable, so recording the id makes the
   // exact assembled text reconstructible without storing it twice. Absent on
   // items that are not library chunks (steering channels, authority refs).
   chunkId?: Id;

@@ -1,7 +1,7 @@
 // T-255/T-256 — the assertion registry.
 //
 // T-255 implemented one type, `must_not_cite`, and made every other declared
-// type an `error`. T-256 implements the rest of the schema (docs/build/ask/07
+// type an `error`. T-256 implements the rest of the schema (evals/README.md
 // §1): the citation pair, the text pair, `max_uncited_claims` off the
 // `open_world` rail outcomes, the routing pair off the plan's steps, and gold-
 // passage precision/recall over the retrieve step's admitted set.

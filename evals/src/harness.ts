@@ -1,6 +1,6 @@
 // T-255 — the harness: the real application, over real HTTP.
 //
-// This is the part of the eval design that is not negotiable (docs/build/ask/07 §4).
+// This is the part of the eval design that is not negotiable (evals/README.md).
 // A runner that calls internal functions tests nothing about the boundary
 // where identity is established (apps/api/src/requester.ts), and a permission
 // case that skips that boundary is theatre. So the harness composes the app
@@ -30,7 +30,7 @@ export const EVAL_EMBED_MODEL = 'eval-embed';
 
 /**
  * The family the harness's chat model belongs to — the one a model-graded
- * assertion may NOT be graded by (docs/build/ask/07 §6, 04 §3).
+ * assertion may NOT be graded by (evals/README.md, 04 §3).
  *
  * It is declared here because `packages/model` has no family concept yet: the
  * routing table and `different_family_from: draft` at dispatch are T-284/T-286.
@@ -42,7 +42,7 @@ export const FAKE_CHAT_FAMILY = 'fake';
 export type Harness = {
   baseUrl: string;
   db: Db;
-  /** the routing table in use, recorded in every result file (docs/build/ask/04 §5) */
+  /** the routing table in use, recorded in every result file (docs/build/plan.md — Slice Ask Wave 5) */
   routing: { chat: string; chatFamily: string; embedding: string };
   /**
    * The model that grades `~claims`, when one of an independent family is

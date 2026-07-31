@@ -61,7 +61,7 @@ export function AskScreen() {
   // seeded with the agent's response, opened on the canvas.
   // T-249: one server-side call, not create-then-PATCH. The server computes
   // the answer's access label from the sources the run admitted and refuses a
-  // destination broader than they are (docs/build/ask/09 R2) — which it could not do
+  // destination broader than they are (finding F2) — which it could not do
   // when the content arrived as an anonymous content update. The refusal
   // names both labels; the destination selector that offers the override
   // before the fact is T-295.

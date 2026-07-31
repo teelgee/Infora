@@ -1,4 +1,4 @@
-// T-258 acceptance, part 1 — which cases each tier runs (docs/build/ask/07 §5, §7).
+// T-258 acceptance, part 1 — which cases each tier runs (evals/README.md).
 // Pure selection over case data: no harness, no database.
 import { describe, expect, it } from 'vitest';
 import { caseSchema } from './case';

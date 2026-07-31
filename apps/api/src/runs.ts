@@ -83,7 +83,7 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
   );
 
   // T-249 — carrying an answer into the editor, with the label enforced
-  // (docs/build/ask/09 R2, finding F2). This exists as a server-side path precisely
+  // (finding F2, finding F2). This exists as a server-side path precisely
   // BECAUSE the old client flow — create a document, then PATCH the answer in —
   // told the server nothing about where the content came from. Provenance the
   // server cannot see is provenance it cannot enforce.
@@ -189,7 +189,7 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
   });
 
   // T-253 — the assembled context this run saw, at passage grain
-  // (docs/build/ask/09 R5). Producer-private on exactly the run's own scope: the
+  // (finding F5). Producer-private on exactly the run's own scope: the
   // passages are the client's documents, and this read is the producer's
   // evidence of what its agent was shown, never a second route into the corpus.
   app.get('/runs/:runId/context', resourceScope(deps, 'runId', resourceHomes.run), async (c) => {

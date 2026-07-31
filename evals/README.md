@@ -1,6 +1,8 @@
 # The Ask eval harness
 
-The machinery behind [docs/build/ask/07-eval-harness.md](../docs/build/ask/07-eval-harness.md).
+The eval-harness design, documented beside the code it describes. The seed
+set and the two-libraries rule live on the board
+([docs/build/plan.md](../docs/build/plan.md), Slice Ask Wave 1).
 Built at T-255 as a vertical slice: the case schema, one fixture declared as
 data with a loader, a runner that executes through the real HTTP API, and one
 permission case. T-256 filled in the assertion set.
@@ -20,7 +22,7 @@ organisations, users and project.
 
 | | |
 | --- | --- |
-| `cases/*.yaml` | a case: fixture, question, acting user, assertions ([07](../docs/build/ask/07-eval-harness.md) §1) |
+| `cases/*.yaml` | a case: fixture, question, acting user, assertions ([07](../docs/build/plan.md) §1) |
 | `fixtures/*.yaml` | a frozen corpus fixture: the access graph, then the corpus (§3) |
 | `src/harness.ts` | the real app on a loopback socket, with the deterministic fake providers |
 | `src/runner.ts` | one case → one result |
@@ -111,7 +113,7 @@ must_contain:
 ```
 
 **The grading model is never the family that produced the answer** (§6, the same
-independence rule the `verifier` runs under, [04](../docs/build/ask/04-model-routing.md) §3): same-family grading is
+independence rule the `verifier` runs under, [04](../docs/build/plan.md) §3): same-family grading is
 largely self-agreement — the failure it cannot see is the failure it just made.
 A same-family grader is **refused, not called**. No grader, or a refused one,
 makes the claim **`ungraded`** — a fourth verdict beside pass / fail / error,

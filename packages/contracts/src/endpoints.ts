@@ -63,7 +63,7 @@ export type CreateRunResponse = Run; // completed, with steps, suggestions and c
 export type GetRunResponse = Run; // the immutable audit read (owner path, M5)
 export type GetConversationResponse = { runs: Run[] };
 
-// T-253 — GET /runs/:runId/context (docs/build/ask/09 R5): the assembled context a run
+// T-253 — GET /runs/:runId/context (finding F5): the assembled context a run
 // actually saw, reconstructed from its recorded source set at PASSAGE grain.
 // Producer-private, exactly like the run record it belongs to. This is what
 // turns "we log what it saw" from a claim into a demonstration in a client
@@ -186,7 +186,7 @@ export const createSandboxDocumentBody = z.object({
 });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
-// T-249 — carrying an answer into the editor, server-side (docs/build/ask/09 R2).
+// T-249 — carrying an answer into the editor, server-side (finding F2).
 // The client used to create a document and then PATCH the answer into it, so
 // the server never knew the content came from a run and could not check what
 // it was widening. Naming the run makes the provenance the server's own fact,

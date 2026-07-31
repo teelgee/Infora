@@ -34,7 +34,7 @@ export type Step = {
   };
   // defensibility field 1 (ADR-0028 §7). T-253: at PASSAGE grain where the
   // source was a library chunk — "what did your AI see" answered exactly,
-  // not at document-version grain (docs/build/ask/09 R5)
+  // not at document-version grain (finding F5)
   sourceSet: Array<({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id }>;
   railOutcomes: Array<{
     rail: string;
@@ -65,7 +65,7 @@ export type Run = {
   // T-088, discharging the step-citation residual for web and M6 alike)
 };
 
-// ── The plan artefact (Drawer 3, docs/build/ask/03 §3) ────────────────────────────
+// ── The plan artefact (Drawer 3, docs/build/plan.md — Slice Ask Wave 2) ────────────────────────────
 // The analysis, persisted: what the system understood and what it intends to
 // do, whose steps correspond 1:1 to the Run's own top-level Step rows. Added
 // with T-260; the read endpoint is T-261.
@@ -78,7 +78,7 @@ export type PlanState =
   | 'complete'
   | 'failed'
   | 'superseded';
-// the named stages the progress rail shows (docs/build/ask/03 §2) — a stage that did
+// the named stages the progress rail shows (docs/build/plan.md — Slice Ask Wave 2) — a stage that did
 // not run is never displayed as having run
 export type PlanStage =
   | 'understand'
@@ -108,7 +108,7 @@ export type PlanStep = {
 };
 // Note what is absent: a step declares NO scope. Scope derives from the run's
 // EntitledSlice and is deliberately not expressible, so no plan edit can widen
-// reach (docs/build/ask/03 §3.4).
+// reach (docs/build/plan.md — Slice Ask Wave 2).
 
 export type Plan = {
   id: Id;

@@ -153,7 +153,7 @@ describe('grounded library retrieval (T-031)', () => {
     expect(items.length).toBeGreaterThan(0);
     // T-253 — the item carries the PASSAGE it is, not only the document it
     // came from: the chunk row is immutable, so its id makes the assembled
-    // context exactly reconstructible (docs/build/ask/09 R5)
+    // context exactly reconstructible (finding F5)
     expect(items[0]).toEqual({
       channel: 'grounded',
       corpus: 'library',

@@ -1,4 +1,4 @@
-// T-260 — the plan writer (docs/build/ask/03 §3): every run records the analysis it
+// T-260 — the plan writer (docs/build/plan.md — Slice Ask Wave 2): every run records the analysis it
 // performed, as a first-class artefact rather than as an inference from its
 // Step rows.
 //
