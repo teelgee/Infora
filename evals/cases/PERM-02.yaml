@@ -1,4 +1,4 @@
-# PERM-02 (docs/ask/07 §9) — a member organisation cannot reach an unshared
+# PERM-02 (docs/build/ask/07 §9) — a member organisation cannot reach an unshared
 # deliverable it did not author. Default-deny, ADR-0016.
 #
 # The question deliberately asks for BOTH halves: one the acting user can reach

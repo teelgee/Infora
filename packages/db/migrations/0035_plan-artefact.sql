@@ -1,4 +1,4 @@
--- T-260 — the plan artefact (docs/ask/03 §3, data-model.md Drawer 3).
+-- T-260 — the plan artefact (docs/build/ask/03 §3, data-model.md Drawer 3).
 --
 -- The plan is the analysis: a persisted, inspectable object recording what the
 -- system understood and what it intends to do, whose steps correspond 1:1 to
@@ -52,7 +52,7 @@ ALTER TABLE "plan_steps" ADD CONSTRAINT "plan_steps_plan_id_plans_id_fk" FOREIGN
 ALTER TABLE "plan_steps" ADD CONSTRAINT "plan_steps_step_row_id_steps_id_fk" FOREIGN KEY ("step_row_id") REFERENCES "public"."steps"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "plan_steps" ADD CONSTRAINT "plan_steps_edited_by_participant_id_participants_id_fk" FOREIGN KEY ("edited_by_participant_id") REFERENCES "public"."participants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 
--- One plan per Run. A re-run is a NEW Run with a new plan (docs/ask/03 §3.4);
+-- One plan per Run. A re-run is a NEW Run with a new plan (docs/build/ask/03 §3.4);
 -- supersession is a chain between plans, never a second plan on one run.
 CREATE UNIQUE INDEX "plans_run_unique" ON "plans" ("run_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "plan_steps_plan_ordinal_unique" ON "plan_steps" ("plan_id","ordinal");--> statement-breakpoint
@@ -62,14 +62,14 @@ CREATE UNIQUE INDEX "plan_steps_step_row_unique" ON "plan_steps" ("step_row_id")
 
 -- A model-chosen plan may never name a workflow: a hand-edited plan is no
 -- longer the declared workflow, and labelling it as one would be a lie
--- (docs/ask/03 §3.4). The converse is deliberately NOT enforced — a `declared`
+-- (docs/build/ask/03 §3.4). The converse is deliberately NOT enforced — a `declared`
 -- plan with no workflow_id is what the coded chain writes until T-265 declares
 -- it as a DAG.
 ALTER TABLE "plans" ADD CONSTRAINT "plans_model_chosen_names_no_workflow" CHECK ("mode" <> 'model_chosen' OR ("workflow_id" IS NULL AND "workflow_version" IS NULL));--> statement-breakpoint
 -- a superseded plan names its successor, and only a superseded plan does
 ALTER TABLE "plans" ADD CONSTRAINT "plans_superseded_names_successor" CHECK (("state" = 'superseded') = ("superseded_by_plan_id" IS NOT NULL));--> statement-breakpoint
 
--- IMMUTABLE FROM `ready`, not from insertion (docs/ask/03 §3.2). A draft plan
+-- IMMUTABLE FROM `ready`, not from insertion (docs/build/ask/03 §3.2). A draft plan
 -- is mutable while it is being clarified; the transition to ready is one-way
 -- and freezes what the plan SAYS, leaving only what it DID to change. This is
 -- the T-008 append-only pattern applied to a two-phase row: same intent

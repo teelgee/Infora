@@ -16,7 +16,7 @@ const perm02 = {
   assertions: { must_not_cite: ['commercial_risk_v1'] },
 };
 
-describe('the case schema (docs/ask/07 §1)', () => {
+describe('the case schema (docs/build/ask/07 §1)', () => {
   it('loads every case in cases/, with unique ids', async () => {
     const cases = await loadCases();
     expect(cases.map((c) => c.id)).toContain('PERM-02');
@@ -41,7 +41,7 @@ describe('the case schema (docs/ask/07 §1)', () => {
   });
 });
 
-describe('the fixture schema (docs/ask/07 §3)', () => {
+describe('the fixture schema (docs/build/ask/07 §3)', () => {
   it('loads the Hollowfield fixture and its access graph', async () => {
     const fixture = await loadFixtureFile(join(FIXTURES_DIR, 'hollowfield-reservoir.yaml'));
     expect(fixture.version).toBe(1);

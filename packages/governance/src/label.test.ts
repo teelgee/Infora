@@ -1,4 +1,4 @@
-// T-249 acceptance, the policy half (docs/ask/09 R2): the lattice, the
+// T-249 acceptance, the policy half (docs/build/ask/09 R2): the lattice, the
 // intersection across a source set, and the refusal. Pure functions over
 // facts — no database, because this package holds no handle to one.
 import { describe, expect, it } from 'vitest';

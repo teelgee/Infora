@@ -1,6 +1,6 @@
 # The Ask eval harness
 
-The machinery behind [docs/ask/07-eval-harness.md](../docs/ask/07-eval-harness.md).
+The machinery behind [docs/build/ask/07-eval-harness.md](../docs/build/ask/07-eval-harness.md).
 Built at T-255 as a vertical slice: the case schema, one fixture declared as
 data with a loader, a runner that executes through the real HTTP API, and one
 permission case.
@@ -18,7 +18,7 @@ organisations, users and project.
 
 | | |
 | --- | --- |
-| `cases/*.yaml` | a case: fixture, question, acting user, assertions ([07](../docs/ask/07-eval-harness.md) §1) |
+| `cases/*.yaml` | a case: fixture, question, acting user, assertions ([07](../docs/build/ask/07-eval-harness.md) §1) |
 | `fixtures/*.yaml` | a frozen corpus fixture: the access graph, then the corpus (§3) |
 | `src/harness.ts` | the real app on a loopback socket, with the deterministic fake providers |
 | `src/runner.ts` | one case → one result |

@@ -91,7 +91,7 @@ export async function runChain(
   // T-260 — the plan artefact: the four steps are written down, in order, and
   // sealed BEFORE the first one runs, then each is bound to the Step row it
   // became. Behaviour is unchanged; the record gains the intention beside the
-  // outcome (docs/ask/03 §3, §5 step 1).
+  // outcome (docs/build/ask/03 §3, §5 step 1).
   const plan = await openPlan(db, {
     runId: run.id,
     conversationId: input.conversationId,

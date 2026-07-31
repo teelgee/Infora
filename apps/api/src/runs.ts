@@ -83,7 +83,7 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
   );
 
   // T-249 — carrying an answer into the editor, with the label enforced
-  // (docs/ask/09 R2, finding F2). This exists as a server-side path precisely
+  // (docs/build/ask/09 R2, finding F2). This exists as a server-side path precisely
   // BECAUSE the old client flow — create a document, then PATCH the answer in —
   // told the server nothing about where the content came from. Provenance the
   // server cannot see is provenance it cannot enforce.

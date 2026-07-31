@@ -1,4 +1,4 @@
-// Contracts §1b — untrusted external content (T-250, docs/ask/09 R3).
+// Contracts §1b — untrusted external content (T-250, docs/build/ask/09 R3).
 //
 // THE BARRIER IS A TYPE, NOT A RULE. `web_research` (T-279) reads public web
 // pages; a prompt injection in a fetched page is a live threat, and the whole
@@ -13,7 +13,7 @@
 // every build, so the mistake is not expressible rather than merely discouraged.
 //
 // The orchestrator is the only place the two ever meet, and it meets them as
-// two separate fields — never a shared context window (docs/ask/02 §3).
+// two separate fields — never a shared context window (docs/build/ask/02 §3).
 import type { Id } from './shared';
 
 /**
@@ -37,7 +37,7 @@ export type ExternalSource = {
 
 /**
  * What a reader sees a claim rest on. The four registers are rendered visibly
- * differently — by chip shape and colour, never by tooltip (docs/ask/08 §6,
+ * differently — by chip shape and colour, never by tooltip (docs/build/ask/08 §6,
  * T-296): a reader skim-reading must be able to tell a web source from a
  * project document without hovering.
  */

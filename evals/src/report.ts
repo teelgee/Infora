@@ -1,4 +1,4 @@
-// T-255 — the two outputs (docs/ask/07 §4): a human-readable per-category
+// T-255 — the two outputs (docs/build/ask/07 §4): a human-readable per-category
 // table, and a machine-readable result file.
 //
 // PER CATEGORY, NEVER A SINGLE AGGREGATE (§4.1). 95% overall with permission

@@ -1,4 +1,4 @@
-// T-249 — label propagation on write-back (docs/ask/09 R2, Phase 0 finding F2).
+// T-249 — label propagation on write-back (docs/build/ask/09 R2, Phase 0 finding F2).
 //
 // THE GAP THIS CLOSES. Written output takes the writer's own organisation
 // (apps/api/src/sandbox.ts), not the most restrictive label among the sources

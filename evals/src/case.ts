@@ -1,4 +1,4 @@
-// T-255 — the case schema (docs/ask/07 §1), as declared there and no wider.
+// T-255 — the case schema (docs/build/ask/07 §1), as declared there and no wider.
 // A case is data: an id, the fixture it pins to, a question, the acting user
 // whose EntitledSlice it runs under, and its assertions.
 //

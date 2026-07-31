@@ -1,5 +1,5 @@
 // T-255 — the runner: load cases → materialise fixtures → execute against the
-// system → apply assertions → emit results (docs/ask/07 §4).
+// system → apply assertions → emit results (docs/build/ask/07 §4).
 //
 // "Execute against the system" means over HTTP, against the composed app, as
 // the acting user: log in, open a conversation on the fixture's subject

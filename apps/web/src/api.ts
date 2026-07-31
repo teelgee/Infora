@@ -131,7 +131,7 @@ export const api = {
     }),
   // T-249 — carrying an answer into the editor is one server-side act, not a
   // create followed by a content PATCH: the server has to know the content
-  // came from this run to check what the destination would widen (docs/ask/09
+  // came from this run to check what the destination would widen (docs/build/ask/09
   // R2). A destination broader than the answer's sources answers 403.
   openRunInEditor: (runId: string, sandboxId?: string) =>
     request<SandboxDocument>(`/runs/${runId}/sandbox-document`, {

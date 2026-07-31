@@ -1,4 +1,4 @@
-// T-255 — a frozen corpus fixture, declared as DATA (docs/ask/07 §3) and
+// T-255 — a frozen corpus fixture, declared as DATA (docs/build/ask/07 §3) and
 // materialised by a loader. The substrate for this already existed as test
 // setup code (packages/knowledge/src/retrieval-scope.test.ts, wall.test.ts);
 // what is new is that a fixture is now a file a domain expert can read, and

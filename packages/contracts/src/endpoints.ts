@@ -160,7 +160,7 @@ export const createSandboxDocumentBody = z.object({
 });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
-// T-249 — carrying an answer into the editor, server-side (docs/ask/09 R2).
+// T-249 — carrying an answer into the editor, server-side (docs/build/ask/09 R2).
 // The client used to create a document and then PATCH the answer into it, so
 // the server never knew the content came from a run and could not check what
 // it was widening. Naming the run makes the provenance the server's own fact,

@@ -1,7 +1,7 @@
 // T-255 — the assertion registry.
 //
 // One assertion type is implemented here: `must_not_cite`, the permission
-// assertion (docs/ask/07 §1.1). The rest of the schema's types land with
+// assertion (docs/build/ask/07 §1.1). The rest of the schema's types land with
 // T-256, each with a passing AND a failing case, so that a wrong
 // implementation cannot pass both.
 //

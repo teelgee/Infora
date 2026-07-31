@@ -45,7 +45,7 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
     }
 
     // T-249 — LABEL PROPAGATION, at the point content crosses into a document
-    // (docs/ask/09 R2, finding F2). The destination is a sandbox with its own
+    // (docs/build/ask/09 R2, finding F2). The destination is a sandbox with its own
     // scope grants; the answer rests on the sources this run admitted. A
     // destination broader than those sources is refused, and the refusal is
     // recorded on the step's rail outcomes naming BOTH labels — the same

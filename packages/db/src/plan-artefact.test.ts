@@ -187,7 +187,7 @@ describe('the plan artefact (T-260, migration 0035)', () => {
 
   it('a model-chosen plan may never name a workflow', async () => {
     // a hand-edited plan is no longer the declared workflow, and labelling it
-    // as one would be a lie (docs/ask/03 §3.4)
+    // as one would be a lie (docs/build/ask/03 §3.4)
     await expectDbError(
       newPlan({ mode: 'model_chosen', workflowId: 'project-question', workflowVersion: 1 }),
       /plans_model_chosen_names_no_workflow/,

@@ -128,7 +128,7 @@ describe('attached-source working set on a multiplayer conversation (T-154)', ()
     expect(dList.status).toBe(404); // D is not in the sandbox scope
   });
 
-  // T-250 (docs/ask/09 R3 §6) — the reserved `web` attached-source kind,
+  // T-250 (docs/build/ask/09 R3 §6) — the reserved `web` attached-source kind,
   // resolved. It stays, per the 2026-07-29 ruling: web *research* results are
   // citable in a separate external register; a user-pinned web attached source
   // keeps the original ADR-0022 rule and never grounds, never cites. Until now

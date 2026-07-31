@@ -1,6 +1,6 @@
 // T-255 — the harness: the real application, over real HTTP.
 //
-// This is the part of the eval design that is not negotiable (docs/ask/07 §4).
+// This is the part of the eval design that is not negotiable (docs/build/ask/07 §4).
 // A runner that calls internal functions tests nothing about the boundary
 // where identity is established (apps/api/src/requester.ts), and a permission
 // case that skips that boundary is theatre. So the harness composes the app
@@ -30,7 +30,7 @@ export const EVAL_EMBED_MODEL = 'eval-embed';
 export type Harness = {
   baseUrl: string;
   db: Db;
-  /** the routing table in use, recorded in every result file (docs/ask/04 §5) */
+  /** the routing table in use, recorded in every result file (docs/build/ask/04 §5) */
   routing: { chat: string; embedding: string };
   embed(text: string): { vector: number[]; modelId: string; modelVersion: string };
   close(): Promise<void>;

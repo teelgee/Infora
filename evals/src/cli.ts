@@ -24,7 +24,7 @@ try {
   await writeFile(path, `${JSON.stringify(report, null, 2)}\n`);
   console.log(`\nresult file: ${path}`);
 
-  // a regression in any category blocks the ticket (docs/ask/07 §5) — an
+  // a regression in any category blocks the ticket (docs/build/ask/07 §5) — an
   // error counts, because a case the harness could not evaluate is not a pass
   const clean = Object.values(report.byCategory).every((t) => t.fail === 0 && t.error === 0);
   process.exitCode = clean ? 0 : 1;

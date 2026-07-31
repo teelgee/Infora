@@ -13,7 +13,7 @@
 //   3. `trust` is stamped, never computed or passed in.
 import type { ExternalSource } from '@infora/contracts';
 
-/** Constant, not computed — no publisher earns corpus trust (docs/ask/02 §3). */
+/** Constant, not computed — no publisher earns corpus trust (docs/build/ask/02 §3). */
 export const WEB_RESEARCH_TRUST = 'external-untrusted' as const;
 
 /**
@@ -23,7 +23,7 @@ export const WEB_RESEARCH_TRUST = 'external-untrusted' as const;
  *
  * Every fetch is egress and is recorded on the Step alongside model egress
  * (ADR-0037 §6); a sovereign-tier deployment assembles no `web_research` at all
- * (docs/ask/02 §9), which is why entitlement is assembly and not filtering.
+ * (docs/build/ask/02 §9), which is why entitlement is assembly and not filtering.
  */
 export type WebFetcher = {
   search(query: string, options: { recency?: 'any' | 'past_year' | 'past_month'; max: number }): Promise<

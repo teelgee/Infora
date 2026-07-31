@@ -1,4 +1,4 @@
--- T-249 — label propagation on write-back (docs/ask/09 R2, finding F2).
+-- T-249 — label propagation on write-back (docs/build/ask/09 R2, finding F2).
 --
 -- Written output takes the writer's own organisation, not the most restrictive
 -- label among the sources that produced it — so an answer grounded on a
