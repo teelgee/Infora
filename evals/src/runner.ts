@@ -30,6 +30,12 @@ export type CaseResult = {
   description: string;
   verdict: Verdict;
   failures: string[];
+  // T-258 — set by the RUNNER across repeated attempts, never by an author
+  // (§8); the case schema refuses a hand-written `flaky` for the same reason.
+  // A single-attempt run is `flaky: false` with one verdict recorded: not
+  // "stable", just "not observed to vary".
+  flaky: boolean;
+  attempts: Verdict[];
   holdOut: boolean;
   fixture: { id: string; version: number; instance: string };
   routingTable: { chat: string; chatFamily: string; embedding: string };
@@ -73,7 +79,21 @@ export async function prepareFixture(harness: Harness, fixture: Fixture): Promis
   return materialise(harness.db, fixture, harness.embed);
 }
 
+/**
+ * One case, once. The attempt's own verdict is recorded as its single attempt —
+ * `flaky` is a property of REPEATED execution (§8), and one execution can only
+ * say what happened once. `runCases` folds several of these together.
+ */
 export async function runCase(
+  harness: Harness,
+  instance: FixtureInstance,
+  evalCase: EvalCase,
+): Promise<CaseResult> {
+  const result = await runOnce(harness, instance, evalCase);
+  return { ...result, attempts: [result.verdict] };
+}
+
+async function runOnce(
   harness: Harness,
   instance: FixtureInstance,
   evalCase: EvalCase,
@@ -82,6 +102,8 @@ export async function runCase(
     caseId: evalCase.id,
     category: evalCase.category,
     description: evalCase.description,
+    flaky: false,
+    attempts: [],
     holdOut: evalCase.hold_out,
     fixture: {
       id: instance.fixture.id,

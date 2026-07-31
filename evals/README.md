@@ -6,8 +6,10 @@ data with a loader, a runner that executes through the real HTTP API, and one
 permission case. T-256 filled in the assertion set.
 
 ```bash
-pnpm --filter @infora/evals run eval    # every case in cases/, per-category table + result file
-pnpm --filter @infora/evals run test    # the harness's own acceptance suite
+pnpm --filter @infora/evals run eval          # the full tier: every case bar hold-out
+pnpm --filter @infora/evals run eval:smoke    # the every-commit subset
+pnpm --filter @infora/evals run eval -- --tier release --repeats 5
+pnpm --filter @infora/evals run test          # the harness's own acceptance suite
 ```
 
 Both need the dev database migrated (`pnpm --filter @infora/db run migrate`).
@@ -126,8 +128,40 @@ Wiring it is `startHarness({ grader })`; `family` is the harness's own record
 until `packages/model` carries families (T-284/T-286), at which point the
 producing family comes off the run's draft step instead.
 
+## Tiers, hold-out and flake (T-258)
+
+| Tier | When | Runs |
+| --- | --- | --- |
+| `smoke` | every change | **every** permission case, plus one per category and per Lens. Deterministic, no model-graded cases |
+| `full` | nightly | every case bar hold-out, repeated 3× for flake |
+| `release` | pre-release | every case, hold-out included |
+
+**Permission cases are never thinned** — a regression in one is an incident, not
+a quality problem (§2), and "make smoke faster" is the change that would cross
+that line first. **A hold-out case is not run outside a release run**, not
+merely filtered out of the report afterwards (§7): never executing it is the
+control, and the report filter is the backstop. Both are tested independently.
+
+**A model-graded case cannot run in smoke** (no independent grader), which
+collides with permission cases being mandatory there. That collision is resolved
+at the case schema: **a permission case may not declare a `~claim`** — a
+reasonable thing to require of a case whose subject is whether a document
+leaked.
+
+**Flake detection** (§8) repeats each case in the nightly tiers and marks
+disagreeing verdicts `flaky`, set by the runner and never by an author. A flaky
+case is counted in its own column — not in `pass`, `fail` or `error`, because
+its verdict is one of several the same case produced — and gets its own section
+naming the mode and the consequence. **The asymmetry:** a flaky *declared* case
+fails the build, because a declared workflow that takes different routes over a
+frozen fixture has broken its central promise; a flaky *model-chosen* case does
+not, because a non-repeatable sequence is its design. An **unlabelled** run gets
+the declared treatment — the exemption needs evidence, and the absence of a
+label is not evidence.
+
 ## What is not here yet
 
-CI tiers, hold-out and flake detection (T-258), and the sixteen-case seed set
-(T-259) — `PERM-02` is still the one case in `cases/`. The report's per-Lens and
-per-worker breakdowns (§4.1) wait for the things they name (T-281, T-269).
+The sixteen-case seed set (T-259) — `PERM-02` is still the one case in `cases/`.
+The report's per-Lens and per-worker breakdowns (§4.1) wait for the things they
+name (T-281, T-269). No CI workflow calls `eval:smoke` yet; the tier it needs
+now exists.

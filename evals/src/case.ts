@@ -14,6 +14,7 @@
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
+import { isGraded } from './grading';
 
 export const CATEGORIES = ['happy', 'negative', 'trap', 'behaviour', 'permission'] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -79,7 +80,7 @@ export type AssertionType = keyof Assertions;
 /** Every assertion type the schema admits — what the registry must cover. */
 export const ASSERTION_TYPES = Object.keys(assertionsObject.shape) as AssertionType[];
 
-export const caseSchema = z
+const caseObject = z
   .object({
     id: z.string(),
     category: z.enum(CATEGORIES),
@@ -97,6 +98,33 @@ export const caseSchema = z
     hold_out: z.boolean().default(false),
   })
   .strict();
+
+/**
+ * T-258 — a permission case may not declare a model-graded claim.
+ *
+ * Two rules meet here and one has to give. Permission cases are mandatory on
+ * every build (§2) — a regression in one is an incident, not a quality problem.
+ * The smoke tier has no independent grader by construction (§5: fake router, no
+ * provider calls), so every `~claim` in it comes back `ungraded` (§6). A
+ * permission case carrying one would quietly drop out of the mandatory set.
+ *
+ * Refusing it at authoring time is the resolution: a permission case must be
+ * decidable without a model, which is a reasonable thing to require of a case
+ * whose subject is whether a document leaked.
+ */
+export const caseSchema = caseObject.superRefine((evalCase, ctx) => {
+  const claims = [
+    ...(evalCase.assertions.must_contain ?? []),
+    ...(evalCase.assertions.must_not_contain ?? []),
+  ];
+  if (evalCase.category === 'permission' && claims.some(isGraded)) {
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        'a permission case may not declare a model-graded (~) claim: permission cases run in every smoke build, and the smoke tier has no independent grader',
+    });
+  }
+});
 
 export type EvalCase = z.infer<typeof caseSchema>;
 

@@ -20,4 +20,7 @@ export { prepareFixture, runCase, UnresolvedRef } from './runner';
 export type { CaseResult, Verdict } from './runner';
 export { buildReport, formatReport, modeOf, REPORTED_MODES } from './report';
 export type { EvalReport, ReportedMode, Tally } from './report';
+export { defaultRepeats, graded, isTier, selectCases, TIERS } from './tiers';
+export type { Selection, Tier } from './tiers';
+export { flakeGates, flakeNote, foldAttempts } from './flake';
 export { CASES_DIR, FIXTURES_DIR, loadCaseById, loadCases, prepareFixtures, runCases } from './suite';

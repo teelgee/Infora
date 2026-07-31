@@ -19,6 +19,8 @@ const result = (over: Partial<CaseResult> = {}): CaseResult => ({
   description: 'a case',
   verdict: 'pass',
   failures: [],
+  flaky: false,
+  attempts: ['pass'],
   holdOut: false,
   fixture: { id: 'f', version: 1, instance: 'f-v1-abcd' },
   routingTable: { chat: 'fake-chat', chatFamily: 'fake', embedding: 'eval-embed' },
@@ -43,10 +45,11 @@ describe('per category, and never a single aggregate (§4.1)', () => {
       fail: 0,
       error: 0,
       ungraded: 0,
+      flaky: 0,
     });
     // a category with no cases is 0/0, not absent: an absent row reads as
     // "nothing to report" where it means "nothing was tested"
-    expect(report.byCategory.trap).toEqual({ cases: 0, pass: 0, fail: 0, error: 0, ungraded: 0 });
+    expect(report.byCategory.trap).toEqual({ cases: 0, pass: 0, fail: 0, error: 0, ungraded: 0, flaky: 0 });
   });
 
   it('has no aggregate field anywhere in the report, by shape not by name', () => {
@@ -89,13 +92,14 @@ describe('the mode split (§4.1)', () => {
       result({ caseId: 'M1', mode: 'model_chosen', verdict: 'pass' }),
     ]);
 
-    expect(report.byMode.declared).toEqual({ cases: 2, pass: 1, fail: 1, error: 0, ungraded: 0 });
+    expect(report.byMode.declared).toEqual({ cases: 2, pass: 1, fail: 1, error: 0, ungraded: 0, flaky: 0 });
     expect(report.byMode.model_chosen).toEqual({
       cases: 1,
       pass: 1,
       fail: 0,
       error: 0,
       ungraded: 0,
+      flaky: 0,
     });
     // the point of the split: a 2/3 pass rate exists nowhere in this report,
     // because a gain in one mode may not mask a regression in the other
@@ -134,6 +138,7 @@ describe('the ungraded verdict (§6)', () => {
       fail: 1,
       error: 1,
       ungraded: 1,
+      flaky: 0,
     });
     expect(formatReport(report)).toContain('ungraded');
   });

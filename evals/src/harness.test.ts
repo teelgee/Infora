@@ -21,7 +21,8 @@ import type { Harness } from './harness';
 import { buildReport, formatReport } from './report';
 import { prepareFixture, runCase } from './runner';
 import type { CaseResult } from './runner';
-import { FIXTURES_DIR, loadCaseById } from './suite';
+import { FIXTURES_DIR, loadCaseById, runCases } from './suite';
+import { selectCases } from './tiers';
 import type { EvalCase } from './case';
 
 let harness: Harness;
@@ -196,8 +197,9 @@ describe('the eval harness (T-255)', () => {
       fail: 0,
       error: 0,
       ungraded: 0,
+      flaky: 0,
     });
-    expect(report.byCategory.happy).toEqual({ cases: 0, pass: 0, fail: 0, error: 0, ungraded: 0 });
+    expect(report.byCategory.happy).toEqual({ cases: 0, pass: 0, fail: 0, error: 0, ungraded: 0, flaky: 0 });
     expect(Object.keys(report)).toEqual([
       'generatedAt',
       'tier',
@@ -372,6 +374,39 @@ describe('the full assertion set (T-256)', () => {
       'must_contain: the answer does not match a phrase the answer does not contain',
     ]);
     expect(both.grades[0]!.outcome).toBe('ungraded');
+  });
+
+  // ── T-258 — the tiers, over a real run ───────────────────────────────────────
+  //
+  // Selection and folding are unit-tested in tiers.test.ts and flake.test.ts.
+  // What is proved here is that repeated execution through the real API agrees
+  // with itself: the determinism the smoke tier rests on, now expressed as the
+  // flake detector rather than as a loop in a test.
+  it('runs a case three times through HTTP and does not call it flaky (T-258)', async () => {
+    const instances = new Map([[instance.fixture.id, instance]]);
+    const [result] = await runCases(harness, [perm02], instances, { repeats: 3 });
+
+    expect(result!.attempts).toEqual(['pass', 'pass', 'pass']);
+    expect(result!.flaky).toBe(false);
+    expect(buildReport([result!]).byCategory.permission).toMatchObject({ pass: 1, flaky: 0 });
+  });
+
+  it('never runs a hold-out case outside a release run (T-258)', async () => {
+    const held: EvalCase = { ...perm02, id: 'PERM-02-held', hold_out: true };
+    const instances = new Map([[instance.fixture.id, instance]]);
+
+    // the control: it is not selected, so no result exists to be filtered
+    for (const tier of ['smoke', 'full'] as const) {
+      expect(selectCases([held], tier).selected).toEqual([]);
+    }
+    const { selected } = selectCases([held], 'release');
+    expect(selected).toHaveLength(1);
+
+    // and the backstop still holds independently — a result that reached the
+    // report by another route is emitted at release and nowhere else
+    const results = await runCases(harness, selected, instances);
+    expect(buildReport(results, 'full').results).toEqual([]);
+    expect(buildReport(results, 'release').results).toHaveLength(1);
   });
 
   it('records the mode as unlabelled rather than assuming the coded chain is declared', async () => {

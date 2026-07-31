@@ -20,7 +20,9 @@
 // leaving it to a process rule.
 import { CATEGORIES } from './case';
 import type { Category } from './case';
+import { flakeNote } from './flake';
 import type { CaseResult } from './runner';
+import type { Tier } from './tiers';
 
 /**
  * The modes a result is reported under. `unlabelled` is the honest third
@@ -32,21 +34,35 @@ import type { CaseResult } from './runner';
 export const REPORTED_MODES = ['declared', 'model_chosen', 'unlabelled'] as const;
 export type ReportedMode = (typeof REPORTED_MODES)[number];
 
-export type Tally = { cases: number; pass: number; fail: number; error: number; ungraded: number };
+export type Tally = {
+  cases: number;
+  pass: number;
+  fail: number;
+  error: number;
+  ungraded: number;
+  /**
+   * T-258 — counted here and NOT in pass/fail/error. §8: a flaky case's verdict
+   * does not gate a ticket and it is reported in its own section rather than
+   * silently counted. Folding it into `fail` would gate on a verdict nobody
+   * trusts; folding it into `pass` would hide it. It gets a column.
+   */
+  flaky: number;
+};
 
 export type EvalReport = {
   generatedAt: string;
-  /** 'development' hides hold-out entirely; 'release' includes it */
-  tier: 'development' | 'release';
+  /** §5's tiers — hold-out is emitted in `release` and nowhere else (§7) */
+  tier: Tier;
   byCategory: Record<Category, Tally>;
   byMode: Record<ReportedMode, Tally>;
   results: CaseResult[];
 };
 
-export function buildReport(
-  results: CaseResult[],
-  tier: 'development' | 'release' = 'development',
-): EvalReport {
+export function buildReport(results: CaseResult[], tier: Tier = 'full'): EvalReport {
+  // The backstop, not the control: a hold-out case is not RUN outside a release
+  // run either (tiers.ts). Two independent mechanisms, because §7's rule is
+  // that the results never reach development feedback at all — not even as a
+  // count, since a count is feedback.
   const emitted = tier === 'release' ? results : results.filter((result) => !result.holdOut);
   const byCategory = Object.fromEntries(
     CATEGORIES.map((category) => [category, tally(emitted.filter((r) => r.category === category))]),
@@ -62,22 +78,29 @@ export function modeOf(result: CaseResult): ReportedMode {
 }
 
 function tally(results: CaseResult[]): Tally {
+  // A flaky case is counted as flaky and as nothing else: its verdict is one of
+  // several the same case produced, and reporting it under that verdict would
+  // state a result the run did not have.
+  const settled = results.filter((r) => !r.flaky);
+  const verdict = (name: CaseResult['verdict']) =>
+    settled.filter((r) => r.verdict === name).length;
   return {
     cases: results.length,
-    pass: results.filter((r) => r.verdict === 'pass').length,
-    fail: results.filter((r) => r.verdict === 'fail').length,
-    error: results.filter((r) => r.verdict === 'error').length,
+    pass: verdict('pass'),
+    fail: verdict('fail'),
+    error: verdict('error'),
     // §6: a case whose grade could not be taken independently is reported as
     // `ungraded`, never as a pass — so it gets a column of its own here rather
     // than being folded into either side
-    ungraded: results.filter((r) => r.verdict === 'ungraded').length,
+    ungraded: verdict('ungraded'),
+    flaky: results.filter((r) => r.flaky).length,
   };
 }
 
 /** The two breakdown tables, for a terminal. No aggregate row, deliberately. */
 export function formatReport(report: EvalReport): string {
   const notes = report.results
-    .filter((result) => result.verdict !== 'pass')
+    .filter((result) => !result.flaky && result.verdict !== 'pass')
     .flatMap((result) => [
       `${result.verdict.toUpperCase()} ${result.caseId} — ${result.description}`,
       ...result.failures.map((failure) => `    ${failure}`),
@@ -86,10 +109,16 @@ export function formatReport(report: EvalReport): string {
         .map((grade) => `    ungraded: ${JSON.stringify(grade.claim)} — ${grade.reason ?? ''}`),
     ]);
 
+  // §8 — its own section, so a flaky case is read rather than counted. The
+  // declared/model-chosen consequence is stated per case, because the two look
+  // identical in a table and mean opposite things.
+  const flakes = report.results.filter((result) => result.flaky).map(flakeNote);
+
   return [
     ...table('category', CATEGORIES, report.byCategory),
     '',
     ...table('mode', REPORTED_MODES, report.byMode),
+    ...(flakes.length > 0 ? ['', ...flakes] : []),
     ...(notes.length > 0 ? ['', ...notes] : []),
   ].join('\n');
 }
@@ -99,12 +128,20 @@ function table<K extends string>(
   keys: readonly K[],
   tallies: Record<K, Tally>,
 ): string[] {
-  const header = [label, 'cases', 'pass', 'fail', 'error', 'ungraded'];
+  const header = [label, 'cases', 'pass', 'fail', 'error', 'ungraded', 'flaky'];
   const rows = keys
     .filter((key) => tallies[key].cases > 0)
     .map((key) => {
       const t = tallies[key];
-      return [key, `${t.cases}`, `${t.pass}`, `${t.fail}`, `${t.error}`, `${t.ungraded}`];
+      return [
+        key,
+        `${t.cases}`,
+        `${t.pass}`,
+        `${t.fail}`,
+        `${t.error}`,
+        `${t.ungraded}`,
+        `${t.flaky}`,
+      ];
     });
   const widths = header.map((_, column) =>
     Math.max(header[column]!.length, ...rows.map((row) => row[column]!.length)),

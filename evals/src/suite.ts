@@ -13,6 +13,7 @@ import { loadCaseFile } from './case';
 import type { EvalCase } from './case';
 import { loadFixtureFile } from './fixture';
 import type { FixtureInstance } from './fixture';
+import { foldAttempts } from './flake';
 import type { Harness } from './harness';
 import { prepareFixture, runCase } from './runner';
 import type { CaseResult } from './runner';
@@ -52,16 +53,30 @@ export async function prepareFixtures(
   return instances;
 }
 
+/**
+ * Run each case `repeats` times and fold the attempts into one result (§8).
+ *
+ * The repetition is the flake detector, so the attempts must be real repeats of
+ * the same case against the same materialised fixture — not one execution
+ * reported three times, and not three executions against three fresh worlds,
+ * either of which would answer a different question.
+ */
 export async function runCases(
   harness: Harness,
   cases: EvalCase[],
   instances: Map<string, FixtureInstance>,
+  options: { repeats?: number } = {},
 ): Promise<CaseResult[]> {
+  const repeats = Math.max(1, options.repeats ?? 1);
   const results: CaseResult[] = [];
   for (const evalCase of cases) {
     const instance = instances.get(evalCase.fixture);
     if (instance === undefined) throw new Error(`case ${evalCase.id} pins unmaterialised fixture ${evalCase.fixture}`);
-    results.push(await runCase(harness, instance, evalCase));
+    const attempts: CaseResult[] = [];
+    for (let attempt = 0; attempt < repeats; attempt += 1) {
+      attempts.push(await runCase(harness, instance, evalCase));
+    }
+    results.push(foldAttempts(attempts));
   }
   return results;
 }
