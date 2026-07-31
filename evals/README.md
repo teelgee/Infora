@@ -3,7 +3,7 @@
 The machinery behind [docs/build/ask/07-eval-harness.md](../docs/build/ask/07-eval-harness.md).
 Built at T-255 as a vertical slice: the case schema, one fixture declared as
 data with a loader, a runner that executes through the real HTTP API, and one
-permission case.
+permission case. T-256 filled in the assertion set.
 
 ```bash
 pnpm --filter @infora/evals run eval    # every case in cases/, per-category table + result file
@@ -36,9 +36,9 @@ exists to test.
 
 **Nothing unevaluable is ever a pass.** An assertion type the registry does not
 implement, a Lens or orchestration mode a case pins before it exists, an
-assertion naming something the fixture does not declare — each is an `error`,
-loudly. The failure mode this guards is a harness that reports green while
-checking nothing.
+assertion naming something the fixture does not declare, an assertion whose
+evidence the run did not record — each is an `error`, loudly. The failure mode
+this guards is a harness that reports green while checking nothing.
 
 **Per category, never an aggregate.** `EvalReport` has no total field and
 `formatReport` prints no total row (§4.1). Hold-out results are not emitted
@@ -59,9 +59,40 @@ re-chunked underneath a running case — which showed up as an intermittent
 failure when the suites ran in parallel. A frozen fixture another suite can
 rewrite is not frozen.
 
+## The assertion set (T-256)
+
+| Assertion | Read from | Notes |
+| --- | --- | --- |
+| `must_cite` | the run's citations | |
+| `must_not_cite` | citations **and** the answer text | the permission assertion (§1.1) |
+| `must_contain` / `must_not_contain` | the answer text | plain string = case-insensitive substring; `/pattern/flags` = regex |
+| `max_uncited_claims` | the `open_world` rail outcomes | counted off the verifier's decision, never by parsing prose |
+| `expect_calls` / `expect_not_called` | the plan's steps | **deferred, see below** |
+| `gold_passages` + `min_precision` / `min_recall` | the retrieve step's source set | chunk grain: a gold passage is `version_key#chunk_index` |
+
+Every type has a passing *and* a failing test, as evaluators
+(`src/assertions.test.ts`) and through HTTP (`src/harness.test.ts`), because an
+evaluator that always returns `[]` passes every positive test on its own.
+
+**The set metrics are at passage grain**, which is what T-253 made possible by
+recording `chunkId` on the Step row's source set. Precision measured at document
+grain reads a version as one hit however much of it was irrelevant. Retrieving
+nothing scores precision **zero**, not the vacuous 1.0 the arithmetic gives —
+an empty answer must never read as perfectly precise. A retrieved source
+recorded without its chunk makes the metric `Unevaluable` rather than being
+counted or dropped, either of which fakes a number.
+
+**`expect_calls` / `expect_not_called` are implemented and deferred.** The
+evaluators are complete and unit-tested both ways; the runner cannot yet observe
+what they read. A plan exists (T-260) but nothing reads one over HTTP until
+T-261, and every plan step's `worker` is null until the registry at T-269. So
+the observation carries `workersCalled: null` and a case declaring either type
+is an `error` — because `[]` would make `expect_not_called` pass for every
+worker in the world, for ever.
+
 ## What is not here yet
 
-The full assertion set and set metrics (T-256), categories and the mode split
-(T-257), CI tiers, hold-out and flake detection (T-258), and the sixteen-case
-seed set (T-259). `must_not_cite` is the one assertion type implemented, and
-`PERM-02` the one case.
+Categories and the mode split (T-257), CI tiers, hold-out and flake detection
+(T-258), and the sixteen-case seed set (T-259) — `PERM-02` is still the one
+case in `cases/`. Model-graded `must_contain` (§6, under the verifier's
+independence rule) lands with T-257; matching here is deterministic only.

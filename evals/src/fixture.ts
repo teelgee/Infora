@@ -21,7 +21,7 @@ import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { hashPassword, schema as s } from '@infora/db';
+import { hashPassword, schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 
 // The dev password every fixture user is created with. The harness logs in
@@ -37,8 +37,8 @@ const versionSchema = z
     reference: z.string(), // the version reference, e.g. 'v2'
     content: z.string(),
     current: z.boolean().default(true),
-    // one chunk per version unless the fixture splits it deliberately; gold
-    // passages (T-256) will address these by index
+    // one chunk per version unless the fixture splits it deliberately; a gold
+    // passage addresses one of these by index, `version_key#0` (T-256)
     chunks: z.array(z.string()).optional(),
     // ADR-0035 §4: a shared deliverable neither grounds nor is visible until
     // the receiving organisation has acknowledged its CURRENT version
@@ -109,6 +109,8 @@ export type FixtureInstance = {
   participantIds: Map<string, string>;
   containerIds: Map<string, string>;
   versionIds: Map<string, string>;
+  /** `version_key#chunk_index` → the chunk row, for gold passages (T-256) */
+  chunkIds: Map<string, string>;
 };
 
 export async function loadFixtureFile(path: string): Promise<Fixture> {
@@ -198,6 +200,7 @@ export async function materialise(
     participantIds: new Map(),
     containerIds: new Map(),
     versionIds: new Map(),
+    chunkIds: new Map(),
   };
 
   for (const org of fixture.organisations) {
@@ -292,19 +295,39 @@ export async function materialise(
       instance.versionIds.set(version.key, versionRow!.id);
 
       const chunks = version.chunks ?? [version.content];
-      await db.insert(s.versionChunks).values(
-        chunks.map((content, chunkIndex) => {
-          const embedded = embed(content);
-          return {
-            versionId: versionRow!.id,
-            chunkIndex,
-            content,
-            embedding: embedded.vector,
-            embeddingModelId: embedded.modelId,
-            embeddingModelVersion: embedded.modelVersion,
-          };
-        }),
+      // Inside the project scope, and not for the insert's sake: version_chunks
+      // is under row-level security (0034) and the policy is on SELECT, so the
+      // RETURNING clause — a read — comes back empty without it, and the gold
+      // passages would silently have no ids to resolve against.
+      const chunkRows = await withProjectScope(
+        db,
+        instance.projectIds.get(container.project)!,
+        (tx) =>
+          tx
+            .insert(s.versionChunks)
+            .values(
+              chunks.map((content, chunkIndex) => {
+                const embedded = embed(content);
+                return {
+                  versionId: versionRow!.id,
+                  chunkIndex,
+                  content,
+                  embedding: embedded.vector,
+                  embeddingModelId: embedded.modelId,
+                  embeddingModelVersion: embedded.modelVersion,
+                };
+              }),
+            )
+            .returning({ id: s.versionChunks.id, chunkIndex: s.versionChunks.chunkIndex }),
       );
+      if (chunkRows.length !== chunks.length) {
+        throw new Error(
+          `fixture ${fixture.id}: version ${version.key} wrote ${chunks.length} chunks and read back ${chunkRows.length} — a gold passage would resolve to nothing`,
+        );
+      }
+      for (const row of chunkRows) {
+        instance.chunkIds.set(`${version.key}#${row.chunkIndex}`, row.id);
+      }
 
       for (const ack of version.acknowledged_by) {
         await db.insert(s.deliverableAcknowledgements).values({

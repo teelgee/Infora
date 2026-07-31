@@ -24,23 +24,60 @@ export type Category = (typeof CATEGORIES)[number];
 // would admit an assertion nothing can evaluate.
 const sourceRef = z.string();
 
-export const assertionsSchema = z
+// T-256 — a gold passage is a CHUNK reference, `version_key#chunk_index`, e.g.
+// `water_quality_v2#0`. Passage grain is the point (T-253 put `chunkId` in the
+// Step row's source set for exactly this): precision measured at document
+// grain reads a version as one hit however much of it was irrelevant.
+const chunkRef = z
+  .string()
+  .regex(/^[a-z0-9_]+#\d+$/, 'a gold passage is written version_key#chunk_index, e.g. water_quality_v2#0');
+
+const assertionsObject = z
   .object({
     must_cite: z.array(sourceRef).optional(),
     must_not_cite: z.array(sourceRef).optional(),
+    // a plain string is a case-insensitive substring; /pattern/flags is a regex
+    // (assertions.ts, `matches`)
     must_contain: z.array(z.string()).optional(),
     must_not_contain: z.array(z.string()).optional(),
     max_uncited_claims: z.number().int().nonnegative().optional(),
     expect_calls: z.array(z.string()).optional(),
     expect_not_called: z.array(z.string()).optional(),
-    gold_passages: z.array(z.string()).optional(),
+    gold_passages: z.array(chunkRef).min(1).optional(),
     min_precision: z.number().min(0).max(1).optional(),
     min_recall: z.number().min(0).max(1).optional(),
   })
   .strict();
 
+/**
+ * The set metrics are one assertion written as three keys, so the halves are
+ * checked against each other at load. Either half alone is a case that looks
+ * like it measures retrieval and does not: gold passages with no threshold
+ * asserts nothing, and a threshold with no gold passages has nothing to
+ * measure against.
+ */
+export const assertionsSchema = assertionsObject.superRefine((assertions, ctx) => {
+  const gold = assertions.gold_passages !== undefined;
+  const threshold = assertions.min_precision !== undefined || assertions.min_recall !== undefined;
+  if (gold && !threshold) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'gold_passages declares a measurement with no threshold: add min_precision or min_recall',
+    });
+  }
+  if (threshold && !gold) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'min_precision/min_recall have nothing to measure against: add gold_passages',
+    });
+  }
+});
+
 export type Assertions = z.infer<typeof assertionsSchema>;
 export type AssertionType = keyof Assertions;
+
+/** Every assertion type the schema admits — what the registry must cover. */
+export const ASSERTION_TYPES = Object.keys(assertionsObject.shape) as AssertionType[];
 
 export const caseSchema = z
   .object({

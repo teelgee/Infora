@@ -7,8 +7,8 @@
 // comes off that HTTP response — the runner has a database handle only to
 // materialise fixtures, never to read a result it could have been told.
 import type { Run } from '@infora/contracts';
-import { evaluateAssertions } from './assertions';
-import type { Observation, ObservedSource } from './assertions';
+import { evaluateAssertions, Unevaluable } from './assertions';
+import type { Observation, ObservedSource, RetrievalMetrics } from './assertions';
 import type { Category, EvalCase } from './case';
 import { FIXTURE_PASSWORD, materialise } from './fixture';
 import type { Fixture, FixtureInstance } from './fixture';
@@ -32,6 +32,10 @@ export type CaseResult = {
   plan: unknown | null; // the plan artefact lands at T-260
   workersCalled: string[] | null; // the worker registry lands at T-269
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
+  // T-256 — gold-passage set metrics, recorded whenever the case declared them.
+  // Reported beside the verdict rather than folded into it: retrieval quality
+  // is tracked separately from answer quality (docs/build/ask/07 §1.1).
+  retrieval: RetrievalMetrics | null;
   run: {
     id: string;
     state: string;
@@ -78,6 +82,7 @@ export async function runCase(
     plan: null,
     workersCalled: null,
     steps: [],
+    retrieval: null,
     run: null,
   };
 
@@ -156,24 +161,39 @@ export async function runCase(
         }
         return { versionId, documentReference: documentReferenceOf(instance, ref) };
       },
+      resolveChunk: (ref) => {
+        const chunkId = instance.chunkIds.get(ref);
+        if (chunkId === undefined) {
+          throw new UnresolvedRef(
+            `gold passage '${ref}' is not a passage of fixture ${instance.fixture.id}`,
+          );
+        }
+        return { chunkId };
+      },
     });
   } catch (thrown) {
-    if (!(thrown instanceof UnresolvedRef)) throw thrown;
+    // Both are the same verdict for the same reason: the harness could not
+    // check what the case declared, and a case it could not check is never a
+    // pass. `Unevaluable` is the registry's own (no plan to read workers from,
+    // no ground-check to count against); `UnresolvedRef` is an authoring
+    // mistake in the case.
+    if (!(thrown instanceof UnresolvedRef) && !(thrown instanceof Unevaluable)) throw thrown;
     return { ...withRun, verdict: 'error', failures: [thrown.message] };
   }
 
+  const evaluated = { ...withRun, retrieval: report.retrieval };
   if (report.unsupported.length > 0) {
     return {
-      ...withRun,
+      ...evaluated,
       verdict: 'error',
       failures: [
-        `unsupported assertion type(s): ${report.unsupported.join(', ')} — implemented at T-256`,
+        `unsupported assertion type(s): ${report.unsupported.join(', ')}`,
         ...report.failures,
       ],
     };
   }
   return {
-    ...withRun,
+    ...evaluated,
     verdict: report.failures.length === 0 ? 'pass' : 'fail',
     failures: report.failures,
   };
@@ -195,16 +215,31 @@ function observe(run: Run): Observation {
       sourceSet.push(toObserved(source));
     }
   }
+  // The set metrics measure RETRIEVAL, so they read the retrieve step's own
+  // admitted set rather than the union above — a later step's set is what the
+  // chain carried forward, which is a different question (§1.1).
+  const retrieve = run.steps.find((step) => step.type === 'retrieve' && step.parentStepId === null);
   return {
     answer: run.response ?? '',
     citations,
     sourceSet,
+    retrieved: retrieve === undefined ? null : retrieve.sourceSet.map(toObserved),
     railOutcomes: run.steps.flatMap((step) => step.railOutcomes),
+    // Null, not []. The plan read API is T-261 and the worker registry T-269;
+    // an empty list here would let `expect_not_called` pass on no evidence.
+    workersCalled: null,
   };
 }
 
-function toObserved(source: { versionId: string } | { authorityRef: string }): ObservedSource {
-  return 'versionId' in source ? { versionId: source.versionId } : { authorityRef: source.authorityRef };
+// T-253 put the chunk in the Step row's source set, so an observation carries
+// the PASSAGE where there was one — the grain the set metrics need, and the
+// grain "what did your AI see" is actually answered at.
+function toObserved(
+  source: ({ versionId: string } | { authorityRef: string }) & { chunkId?: string },
+): ObservedSource {
+  const base: ObservedSource =
+    'versionId' in source ? { versionId: source.versionId } : { authorityRef: source.authorityRef };
+  return source.chunkId === undefined ? base : { ...base, chunkId: source.chunkId };
 }
 
 // The deliverable code the fixture declared for the container holding this
