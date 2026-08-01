@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@infora/contracts": "workspace:*",
+    "@infora/lenses": "workspace:*",
     "@infora/model": "workspace:*"
   },
   "devDependencies": {

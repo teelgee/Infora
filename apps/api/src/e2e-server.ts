@@ -5,6 +5,7 @@
 import { serve } from '@hono/node-server';
 import { ingestVersions } from '@infora/data';
 import { createDb } from '@infora/db';
+import { loadLenses } from '@infora/lenses';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
@@ -24,6 +25,10 @@ const app = buildApp({
   sessionSecret: 'e2e-secret',
   router,
   rateLimits: { loginPerMinute: 1000, runsPerMinute: 1000 },
+  // T-299 — production semantics deliberately: the harness exercises the four
+  // Lenses a real user is offered, and a suite that could reach the draft
+  // Commercial Lens would be testing a configuration nobody ships.
+  lenses: loadLenses({ production: true }),
 });
 
 serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {

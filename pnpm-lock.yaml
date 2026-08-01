@@ -53,6 +53,9 @@ importers:
       '@infora/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@infora/lenses':
+        specifier: workspace:*
+        version: link:../../packages/lenses
       '@infora/model':
         specifier: workspace:*
         version: link:../../packages/model
@@ -171,6 +174,9 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@infora/lenses':
+        specifier: workspace:*
+        version: link:../lenses
       '@infora/model':
         specifier: workspace:*
         version: link:../model

@@ -55,6 +55,13 @@ export type CreateConversationResponse = { conversationId: Id }; // bound to the
 export const createRunBody = z.object({
   request: z.string().min(1), // the Ask/draft turn
   sandboxDocumentId: id.optional(), // document targeted when drafting
+  // T-299 — the Lens this turn is answered under. A REGISTER control, never a
+  // reach one: the same question under every Lens returns an identical source
+  // set (eval case PERM-05). An id the deployment does not carry is a `400`
+  // and never a silent fall-back to a default — a Lens the user did not get is
+  // worse than a refusal, because the answer still arrives and reads
+  // plausibly. Omitted means no Lens, which is the shared core alone.
+  lensId: z.string().min(1).optional(),
 });
 export type CreateRunBody = z.infer<typeof createRunBody>;
 export type CreateRunResponse = Run; // completed, with steps, suggestions and citations

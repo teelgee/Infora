@@ -23,6 +23,7 @@
     "@infora/db": "workspace:*",
     "@infora/governance": "workspace:*",
     "@infora/knowledge": "workspace:*",
+    "@infora/lenses": "workspace:*",
     "@infora/model": "workspace:*",
     "@infora/orchestration": "workspace:*",
     "drizzle-orm": "^0.45.2",

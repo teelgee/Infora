@@ -4,7 +4,8 @@
 // carrying a claim→source marker for the deterministic verifier (the
 // LLM-with-verifier pattern, ADR-0027 §2). The capability knows nothing of
 // runs or steps — orchestration adapts it into the chain.
-import type { AssembledInput, Id } from '@infora/contracts';
+import type { AssembledInput, Id, Lens } from '@infora/contracts';
+import { composeLensOverlay } from '@infora/lenses';
 import type { EgressFacts, ModelIdentity, Router } from '@infora/model';
 
 export type SourceRef = { versionId: Id } | { authorityRef: string };
@@ -29,32 +30,60 @@ export type GroundedDraftOptions = {
   mode?: 'document' | 'chat';
 };
 
+// T-299 — the core clauses are held as an ARRAY rather than a joined string,
+// so composition can be checked by containment: `composeSystemPrompt` asserts
+// every clause survives, and a test asserts a Lens cannot remove one. A
+// pre-joined string could only be checked by substring on the whole blob,
+// which is exactly the check that stops being meaningful when someone
+// reformats it.
 const SYSTEM_SHARED = [
   'Every sentence supported by a numbered source must end with its marker, e.g. [S1].',
   // ADR-0029 §5 precedence, stated to the agent rather than left to ordering:
   'Where project guidance and organisational know-how conflict, the project guidance governs.',
 ];
 
-const SYSTEM_DOCUMENT = [
+export const SYSTEM_DOCUMENT_CLAUSES = [
   'You draft sections of governed deliverables for infrastructure projects.',
   'Use ONLY the numbered sources provided; never draw on outside knowledge.',
   'If the sources do not support a claim the task needs, omit that claim entirely.',
   'Formal register; cite by fact, not by speculation; no cost or programme commitments.',
   ...SYSTEM_SHARED,
-].join(' ');
+] as const;
 
-const SYSTEM_CHAT = [
+export const SYSTEM_CHAT_CLAUSES = [
   'You answer questions about infrastructure projects, clearly and helpfully.',
   'Prefer the numbered sources provided and mark every sentence they support.',
   'You may add relevant knowledge of your own where it helps — leave those sentences unmarked;',
   'they will be labelled as uncited for the reader. Never invent a marker.',
   'Format for reading: short paragraphs, bold for key terms, lists where they help.',
   ...SYSTEM_SHARED,
-].join(' ');
+] as const;
+
+/**
+ * The sentence that makes the core win, stated to the model rather than left
+ * to ordering. It is the prompt-level twin of the validator's core-negation
+ * rule (T-281): the validator stops a Lens file from *asking* to weaken the
+ * core, and this stops a Lens that somehow did from *succeeding*.
+ */
+export const LENS_PRECEDENCE =
+  'What follows describes how to WRITE the answer — its register, its ordering, its emphasis. ' +
+  'It adds to the rules above and relaxes none of them. Where it appears to conflict with anything above, the rule above governs.';
+
+/**
+ * The system prompt: the shared core, then the precedence sentence, then the
+ * Lens overlay. Core first and core last — the Lens is bracketed by the rules
+ * it cannot touch.
+ */
+export function composeSystemPrompt(mode: 'document' | 'chat', lens?: Lens | null): string {
+  const core = mode === 'chat' ? SYSTEM_CHAT_CLAUSES : SYSTEM_DOCUMENT_CLAUSES;
+  const coreText = core.join(' ');
+  if (lens === undefined || lens === null) return coreText;
+  return [coreText, '', LENS_PRECEDENCE, '', composeLensOverlay(lens)].join('\n');
+}
 
 export async function groundedDraft(
   router: Router,
-  input: { request: string; retrieved: AssembledInput },
+  input: { request: string; retrieved: AssembledInput; lens?: Lens | null },
   options: GroundedDraftOptions = {},
 ): Promise<GroundedDraftResult> {
   const grounded = input.retrieved.items.filter((item) => item.channel === 'grounded');
@@ -76,7 +105,10 @@ export async function groundedDraft(
   ].join('\n');
 
   const result = await router.chat('draft', {
-    system: options.mode === 'chat' ? SYSTEM_CHAT : SYSTEM_DOCUMENT,
+    // T-299 — the Lens arrives as DATA on the input, not as a construction
+    // argument: the draft leaf is built once at app composition, so a Lens
+    // bound there could never be per-request.
+    system: composeSystemPrompt(options.mode === 'chat' ? 'chat' : 'document', input.lens),
     messages: [{ role: 'user', content: prompt }],
     ...(options.maxTokens !== undefined && { maxTokens: options.maxTokens }),
   });

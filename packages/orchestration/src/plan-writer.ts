@@ -15,7 +15,7 @@
 // its run's TOP-LEVEL Step rows (the delegate step hangs beneath one of them,
 // parent_step_id, and is part of that step's execution).
 import { asc, eq } from 'drizzle-orm';
-import type { Id, Plan, PlanStage, PlanStepState, StepType } from '@infora/contracts';
+import type { Id, Lens, Plan, PlanStage, PlanStepState, StepType } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -46,6 +46,8 @@ export type OpenPlanInput = {
   requesterParticipantId: Id;
   question: string;
   stages: ReadonlyArray<{ stage: PlanStage }>;
+  /** T-299 — the Lens this run was asked for, or null if it named none. */
+  lens?: Lens | null;
 };
 
 /** The plan for a run: written `draft`, then sealed `ready` before execution. */
@@ -64,10 +66,13 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       // declares it as a DAG in packages/workflows; a declared plan naming no
       // workflow is legal, a model-chosen one naming one is not (CHECK, 0035).
       mode: 'declared',
-      // no Lens exists until T-281. Recording none is the honest value; a
-      // default id here would put a Lens in the evidence that never applied.
-      lensId: null,
-      lensVersion: null,
+      // T-299 — the evidence half: the Lens the request named, and the
+      // VERSION of it, so a register complaint against v1 is never read as one
+      // about v3. Null stays the honest value for a run that named no Lens; a
+      // default substituted here would put a Lens in the evidence that never
+      // applied to the answer.
+      lensId: input.lens?.id ?? null,
+      lensVersion: input.lens?.version ?? null,
       question: input.question,
       // nothing restates the question until the classifier lands (T-266), and
       // echoing the question as its own restatement would be a fabrication

@@ -120,6 +120,10 @@ export function buildApp(deps: AppDeps) {
         groundCheck: createGroundCheckLeaf(),
         cite: createCiteLeaf(),
       },
+      // T-299 — the registry is resolved at composition, not per request:
+      // production reads the definitions once and freezes them, so a Lens
+      // cannot change underneath a run already recording which produced it.
+      ...(deps.lenses !== undefined && { lenses: deps.lenses }),
     }),
   );
 

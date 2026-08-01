@@ -14,6 +14,7 @@ import { resolveAccess } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { LensRegistry } from '@infora/lenses';
 import type { Router } from '@infora/model';
 import { sessionCookie } from './auth';
 
@@ -27,6 +28,15 @@ export type AppDeps = {
   allowedOrigins?: string[];
   /** Throttle overrides (T-217); defaults: login 10/min/IP, runs 30/min/user. */
   rateLimits?: { loginPerMinute?: number; runsPerMinute?: number };
+  /**
+   * T-299 — the Lens registry for this deployment, loaded and validated once
+   * at composition. Optional so an existing caller keeps working: absent means
+   * no Lens is offered, and every `lensId` on a request is a 400. It is not
+   * defaulted to the shipped set here, because which environment this is
+   * decides whether drafts are in it, and the composition root is the only
+   * place that knows.
+   */
+  lenses?: LensRegistry;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);

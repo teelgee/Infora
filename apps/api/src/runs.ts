@@ -13,6 +13,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
+import type { LensRegistry } from '@infora/lenses';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import { createConversation, readRun, readRunContext, runChain } from '@infora/orchestration';
 import type { ChainLeaves, RunRow } from '@infora/orchestration';
@@ -23,7 +24,7 @@ import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
 const notFound = { error: 'not_found' } satisfies ApiError;
 const invalid = (detail: string) => ({ error: 'invalid', detail }) satisfies ApiError;
 
-export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
+export function runRoutes(deps: { db: Db; leaves: ChainLeaves; lenses?: LensRegistry }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -71,12 +72,29 @@ export function runRoutes(deps: { db: Db; leaves: ChainLeaves }) {
         }
       }
 
+      // T-299 — resolve the Lens BEFORE the run opens. An id this deployment
+      // does not carry is a 400 and never a quiet fall-back to a default: a
+      // user who asked for the Communications register and silently got the
+      // planning one gets an answer that reads plausibly and is wrong for
+      // them, which is worse than being told the id is not available. In
+      // production the registry holds no drafts, so a draft id lands here too.
+      // A `400` rather than a `404`: the Lens set is not access-controlled —
+      // every requester is offered the same one — so nothing leaks by saying
+      // the id is unknown, and `not_found` would wrongly imply it might exist
+      // for someone else.
+      let lens = null;
+      if (body.data.lensId !== undefined) {
+        lens = deps.lenses?.get(body.data.lensId) ?? null;
+        if (lens === null) return c.json(invalid(`unknown lens: ${body.data.lensId}`), 400);
+      }
+
       const { run } = await runChain(deps.db, deps.leaves, {
         conversationId: c.req.param('conversationId'),
         request: body.data.request,
         environmentKey: slice.projectId,
         requesterParticipantId: slice.participantId,
         sandboxDocumentId: body.data.sandboxDocumentId ?? null,
+        lens,
       });
       return c.json((await readRun(deps.db, run.id)) satisfies Run | null, 201);
     },

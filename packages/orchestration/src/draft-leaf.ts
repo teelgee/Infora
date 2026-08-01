@@ -12,7 +12,14 @@ export function createDraftLeaf(
   options: GroundedDraftOptions = {},
 ): ChainLeaves['draft'] {
   return async (_ctx, input) => {
-    const result = await groundedDraft(router, input, { ...options, mode: input.mode });
+    // T-299 — `input.lens` travels with the request; `options` is the
+    // deployment's construction-time configuration and carries no Lens, which
+    // is what makes the Lens per-request rather than per-deployment.
+    const result = await groundedDraft(
+      router,
+      { request: input.request, retrieved: input.retrieved, lens: input.lens },
+      { ...options, mode: input.mode },
+    );
     return {
       output: { claims: result.claims },
       audit: {

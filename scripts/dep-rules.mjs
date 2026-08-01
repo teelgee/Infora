@@ -33,8 +33,16 @@ export const ALLOWED = {
     '@infora/model',
     '@infora/governance',
   ],
+  // T-299 widened this line deliberately, and it is reviewable in one
+  // sentence: `capabilities` composes the system prompt, and a Lens is prompt
+  // material, so the one place that turns a Lens into words needs to see the
+  // Lens type's renderer. The direction is safe because `lenses` is itself
+  // confined to `contracts` — depending on it grants `capabilities` no reach
+  // it did not already have. RULE 3 in source-rules.mjs still keeps the
+  // ACCESS path (governance, knowledge, data) from ever doing the same.
   '@infora/capabilities': [
     '@infora/contracts',
+    '@infora/lenses',
     '@infora/model',
     '@infora/knowledge',
     '@infora/governance',
@@ -54,9 +62,13 @@ export const ALLOWED = {
     '@infora/orchestration',
     '@infora/governance',
   ],
+  // T-299 — the api loads the Lens registry at composition and resolves
+  // `lensId` off the request before the chain runs; an unknown id is a 400,
+  // never a silent fall-back to a default.
   '@infora/api': [
     '@infora/contracts',
     '@infora/db',
+    '@infora/lenses',
     '@infora/model',
     '@infora/data',
     '@infora/knowledge',

@@ -16,3 +16,4 @@ export { clearLensCache, DEFINITIONS_DIR, LensValidationError, loadLenses } from
 export type { LensRegistry, LoadLensesOptions } from './load';
 export { RETIRED_LENS_IDS, validateLens } from './validate';
 export type { LensValidation } from './validate';
+export { composeLensOverlay } from './prompt';

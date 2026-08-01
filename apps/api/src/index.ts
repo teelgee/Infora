@@ -1,6 +1,7 @@
 // @infora/api — only deployable that touches the DB and models.
 import { serve } from '@hono/node-server';
 import { createDb } from '@infora/db';
+import { loadLenses } from '@infora/lenses';
 import { AnthropicChatAdapter, Router, VoyageEmbeddingAdapter, securityForTier } from '@infora/model';
 import { buildApp } from './app';
 import { loadApiEnv, resolveRouteAttributes } from './env';
@@ -28,10 +29,19 @@ const router = new Router(
 const allowedOrigins = env.ALLOWED_ORIGINS?.split(',')
   .map((origin) => origin.trim())
   .filter((origin) => origin !== '');
+// T-299 — the Lens registry, read and validated ONCE, at boot. A validation
+// failure throws here, before the server listens: a Lens definition that does
+// not load is a build failure, never a degradation, so the deployment refuses
+// to start rather than quietly serving three Lenses where four were authored.
+// Outside production the set hot-reloads and includes drafts, which is what
+// AUTHORING.md's "put it in with status: draft and open Ask" depends on.
+const lenses = loadLenses({ production: process.env.NODE_ENV === 'production' });
+
 const app = buildApp({
   db,
   sessionSecret: env.SESSION_SECRET,
   router,
+  lenses,
   ...(allowedOrigins !== undefined && { allowedOrigins }),
   // T-217: throttle overrides; unset vars fall through to the in-code defaults
   rateLimits: {

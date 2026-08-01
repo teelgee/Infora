@@ -5,7 +5,7 @@
 // provable. One thinking leaf (draft); the rest are doing. Leaves are typed
 // seams bound by T-042–T-045; agentic freedom exists only *inside* a leaf
 // (the retrieval sub-agent), never over the chain.
-import type { AssembledInput, Id } from '@infora/contracts';
+import type { AssembledInput, Id, Lens } from '@infora/contracts';
 import type { Db } from '@infora/db';
 import {
   CODED_CHAIN_PLAN,
@@ -53,7 +53,13 @@ export type Leaf<In, Out> = (ctx: LeafContext, input: In) => Promise<{ output: O
 
 export type ChainLeaves = {
   retrieve: Leaf<{ request: string }, AssembledInput>; // doing — the gateway (T-042)
-  draft: Leaf<{ request: string; retrieved: AssembledInput; mode: ChainMode }, DraftOutput>; // thinking (T-043)
+  // T-299 — the Lens rides the leaf's INPUT, not its construction: the draft
+  // leaf is built once at app composition (`createDraftLeaf`), so a Lens bound
+  // there could only ever be a deployment default, never this request's.
+  draft: Leaf<
+    { request: string; retrieved: AssembledInput; mode: ChainMode; lens: Lens | null },
+    DraftOutput
+  >; // thinking (T-043)
   groundCheck: Leaf<
     { draft: DraftOutput; retrieved: AssembledInput; mode: ChainMode },
     GroundCheckOutput
@@ -70,6 +76,11 @@ export type ChainInput = {
   environmentKey: string; // the project the run executes in (ADR-0025)
   requesterParticipantId: Id;
   sandboxDocumentId?: Id | null;
+  // T-299 — resolved at the API boundary from the request's `lensId`, already
+  // validated against the registry. Null is the honest value for a run that
+  // named none; there is no default substituted here, because a Lens the user
+  // did not ask for would be recorded on the plan as though they had.
+  lens?: Lens | null;
 };
 
 /**
@@ -102,6 +113,9 @@ export async function runChain(
     requesterParticipantId: input.requesterParticipantId,
     question: input.request,
     stages: CODED_CHAIN_PLAN,
+    // the evidence half (T-299): which Lens produced this answer, and which
+    // version of it, recorded on the plan before the draft step runs
+    lens: input.lens ?? null,
   });
   await markPlanRunning(db, plan.id);
 
@@ -140,7 +154,7 @@ export async function runChain(
   const draft = await step(
     'draft',
     leaves.draft,
-    { request: input.request, retrieved, mode },
+    { request: input.request, retrieved, mode, lens: input.lens ?? null },
     withSources,
   );
   const checked = await step(
