@@ -9,24 +9,31 @@ The boundary between the two is a **gate**: a concept is grilled into the design
 
 ## The gate before code
 
-No database migration or application code is written until the artefacts below exist and are agreed. The grill tracker's [Path to MVP](../grill-sessions/grill-questions.md) is the authority on what gates coding; this folder is where those gating build-docs live.
+No database migration or application code is written until the artefacts below exist and are agreed. The [open-questions index](../grill-sessions/grill-questions.md) is the authority on what is still undecided (`Q-###`, each carrying what it blocks); this folder is where the gating build-docs live.
 
 ## Artefacts
 
-Status markers, used here and on the ticket board:
-✅ built / closed · 🔨 in build ·
-🟢 / 🟡 / 🔴 doc status (settled / drafted-under-review / open).
+**Two axes, deliberately kept apart** — a document can be perfectly settled *and* superseded, which the old single-column vocabulary could not say.
 
-| Doc | Purpose | Status |
-|-----|---------|--------|
-| `data-model.md` | The `CONTEXT.md` glossary drawn as stored tables, fields and relationships — scoped to the walking skeleton. The foundation every other build-doc writes against. | 🟢 Draft-location item closed (2026-07-04); final review at first migration |
-| `walking-skeleton.md` | The first build slice as a standalone spec: scope cut, milestones (M0–M6), acceptance criteria, what is real vs stubbed, incl. the Copilot Ask surface. (Promoted from the grill tracker's Path to MVP.) | 🟢 Spec complete — draft-location decided (owner-confirmed 2026-07-04) |
-| `v1.md` | The **second** build horizon as a standalone spec: the first pilot — three organisations, the full DMS lifecycle, a 100–500 document corpus, three declared workflows, Lens in Ask. Names the destination, the scope cut and what is deliberately deferred. The skeleton proved the architecture; this proves the product. | 🟡 Spec drafted (2026-07-31) — two rulings landed, two questions open with the grill tracker |
-| `contracts.md` | The handful of typed API endpoints the skeleton needs; the seed of `packages/contracts`. Falls out of the M1/M3 grills and the walking-skeleton milestones. | 🟡 First cut drafted (2026-07-04) — review with the first `packages/contracts` commit |
-| `plan.md` | The ticket board: the open slices, the coarse forward roadmap and the skeleton-auth decision. The Phase-5 planning artefact execution works from; when a slice closes (✅) its block moves to `plan-history.md` in the same commit. | 🟢 Live board — split from the history 2026-07-25 |
-| `plan-history.md` | The closed-slice archive: every ✅ slice's full record (the M0–M6 milestones, the Phase 7 QA batch, Slices A–A2.6), moved verbatim from `plan.md` as slices close. Precedent, not a board — don't load it by default. | ✅ Archive — grows one block per closed slice |
-| `repo-structure.md` | The monorepo + package layout, dependency rules, and the components↔packages reconciliation (incl. the two deliberate asymmetries). | 🟢 Settled (T-215, 2026-07-26) — revisit only when a slice forces a new package |
-| `nfr.md` | The pilot's operational envelope: scale assumptions, availability, RPO/RTO, latency, security floor, revisit triggers. Pre-read for the infra/security session. | 🟡 Strawman (2026-07-25) — scale owner-ruled; the numbers to grill |
-| `data-model.html` | The stored schema visualised (open in a browser): per-drawer table atlas + pan/zoom ontology graph, generated from `packages/db/src/schema` and the migration triggers. A derived snapshot — regenerate after schema changes; `data-model.md` stays the authority. | ✅ Snapshot at migration 0030 (2026-07-26) |
+**Lifecycle** — is this worked from *now*?
+▶ **Live** (the current horizon) · ♻ **Living reference** (updated as the build moves) · ✅ **Closed** (superseded; precedent only, **don't load by default**) · ⚙ **Derived** (regenerate, never hand-edit).
 
-Scope discipline: the data model is drawn **drawer by drawer, in step with what is being built** — only the entities the walking skeleton touches, never the whole system at once. Deferred components (custom workflows, spatial connectors) get their tables when they are built.
+**Maturity** — how settled is the content? 🟢 settled · 🟡 drafted, under review · 🔴 open.
+
+> **Naming rule:** a closed companion takes the **`-history` suffix** beside its live sibling (`plan.md` → `plan-history.md`, `grill-questions.md` → `grill-history.md`). Suffix, never a subfolder — links stay stable, and the pair sorts adjacent so you cannot miss it.
+>
+> **Enforced:** `pnpm run check` fails if a file in this folder is missing from the table below, or if the table names a file that does not exist. The convention in prose is what let a 363-line superseded ticket pack sit here unnoticed for five weeks; the convention in CI is what catches the next one.
+
+| Doc | Lifecycle | Purpose | Maturity |
+|-----|-----------|---------|----------|
+| `v1.md` | ▶ **Live** | **The current destination** — the first pilot: three organisations, the full DMS lifecycle, a 100–500 document corpus, three declared workflows, Lens in Ask. Names the scope cut and what is deliberately deferred. Read before picking up a ticket. | 🟡 Drafted 2026-07-31 — two rulings landed, `Q-007`/`Q-008` open |
+| `plan.md` | ▶ **Live** | The ticket board Phase 6 works from. Its **Where to start** section names the frontier, the sequenced work, the fog and the three gates. Closed slices move to `plan-history.md` in the same commit. | 🟢 Live board — re-cut on V1 2026-07-31 |
+| `data-model.md` | ♻ **Living reference** | The `CONTEXT.md` glossary drawn as stored tables, fields and relationships. Drawn **drawer by drawer, in step with what is being built** — the authority every migration is written against. | 🟢 Six drawers drawn; extended per slice |
+| `contracts.md` | ♻ **Living reference** | The typed API surface — the seed and the running record of `packages/contracts`. Contract completions get dated notes here. | 🟡 Grows per slice |
+| `repo-structure.md` | ♻ **Living reference** | The monorepo and package layout, the dependency matrix, and the components↔packages reconciliation. Revisit when a slice forces a new package. | 🟢 Settled (T-215) |
+| `nfr.md` | ♻ **Living reference** | The pilot's operational envelope: scale, availability, RPO/RTO, latency, security floor, revisit triggers. Pre-read for the infra/security session. **Needs re-cutting for V1** — organisations 1 → 3, which fires revisit trigger 1. | 🔴 Strawman; numbers open as `Q-027` |
+| `walking-skeleton.md` | ✅ **Closed** — superseded by `v1.md` | The **first** build horizon: milestones M0–M6, the real-vs-stubbed scope cut, the end-to-end acceptance. All of it is built (tickets in `plan-history.md`). Kept as the 7-phases PRD artefact and because `v1.md` inherits its scope-cut discipline by reference. | 🟢 Spec complete; horizon closed |
+| `plan-history.md` | ✅ **Closed** | The closed-slice archive: every ✅ slice's full record, moved verbatim from `plan.md` as slices close. Precedent, not a board. | ✅ Archive — grows one block per closed slice |
+| `data-model.html` | ⚙ **Derived** | The stored schema visualised (open in a browser): per-drawer table atlas + pan/zoom ontology graph, generated from `packages/db/src/schema`. A throwaway view — regenerate after schema changes; `data-model.md` stays the authority. | ⚙ Snapshot at migration 0030 |
+
+Scope discipline: the data model is drawn **drawer by drawer, in step with what is being built** — only the entities the slice in build touches, never the whole system at once. Deferred components (custom workflows, spatial connectors) get their tables when they are built.
