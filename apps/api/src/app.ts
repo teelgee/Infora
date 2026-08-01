@@ -12,6 +12,7 @@ import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
 import { conflictRoutes } from './conflict';
+import { costRoutes } from './costs';
 import { csrfGuard } from './csrf';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
@@ -124,7 +125,10 @@ export function buildApp(deps: AppDeps) {
       db: deps.db,
       leaves: {
         retrieve: createRetrieveLeaf({ assemble }),
-        draft: createDraftLeaf(deps.router),
+        // T-254 — the rate table is bound HERE, at composition, where the
+        // deployment's configuration is known. Keyed by model id, so the price
+        // follows whichever model the router actually chose.
+        draft: createDraftLeaf(deps.router, { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) }),
         groundCheck: createGroundCheckLeaf(),
         cite: createCiteLeaf(),
       },
@@ -182,6 +186,9 @@ export function buildApp(deps: AppDeps) {
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));
+
+  // T-254 — cost attribution: the organisation's own spend, per user
+  app.route('/', costRoutes(deps));
 
   // Library (M2 read path) — T-086
   app.route('/', libraryRoutes(deps));

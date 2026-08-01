@@ -6,7 +6,8 @@
 // runs or steps — orchestration adapts it into the chain.
 import type { AssembledInput, Id, Lens } from '@infora/contracts';
 import { composeLensOverlay } from '@infora/lenses';
-import type { EgressFacts, ModelIdentity, Router } from '@infora/model';
+import { costOf } from '@infora/model';
+import type { EgressFacts, ModelIdentity, ModelRates, Router } from '@infora/model';
 
 export type SourceRef = { versionId: Id } | { authorityRef: string };
 export type DraftedClaim = { text: string; sourceRef?: SourceRef };
@@ -14,15 +15,18 @@ export type DraftedClaim = { text: string; sourceRef?: SourceRef };
 export type GroundedDraftResult = {
   claims: DraftedClaim[];
   model: ModelIdentity;
-  usage: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  usage: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
   egress?: EgressFacts; // the router's egress facts for this call (ADR-0037 §6)
 };
 
 export type GroundedDraftOptions = {
-  // provider rates per million tokens; deployment config (the infra/security
-  // session), not baked here — cost is still recorded either way
-  costPerPromptMTok?: number;
-  costPerCompletionMTok?: number;
+  // T-254 — provider rates PER MODEL ID, from deployment configuration. Keyed
+  // by model id rather than fixed per leaf because the router chooses the
+  // model (ADR-0037, and T-284's task-class routing will choose more of them):
+  // a single pair of numbers bound at construction prices whatever the router
+  // picked at yesterday's rate. Absent, or missing this model, records `null` —
+  // unpriced — and never 0.
+  rates?: ModelRates;
   maxTokens?: number;
   // 'document' (default) drafts grounded-only; 'chat' may add the model's own
   // knowledge, unmarked — the verifier labels it open-world rather than
@@ -120,10 +124,9 @@ export async function groundedDraft(
     usage: {
       tokensPrompt: result.usage.tokensPrompt,
       tokensCompletion: result.usage.tokensCompletion,
-      cost:
-        (result.usage.tokensPrompt * (options.costPerPromptMTok ?? 0) +
-          result.usage.tokensCompletion * (options.costPerCompletionMTok ?? 0)) /
-        1_000_000,
+      // priced against the model that ACTUALLY served the call, not the one
+      // the deployment expected to be serving it
+      cost: costOf(options.rates, result.model, result.usage),
     },
   };
 }

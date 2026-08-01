@@ -22,7 +22,11 @@ export type Step = {
   startedAt: string;
   endedAt: string | null;
   model?: { id: string; version: string }; // the Router's choice
-  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  // T-254 — `cost` is NULL when the deployment declared no rate for the model
+  // that served this step, never 0. Zero is a price; null is "nobody priced
+  // it", and conflating them is finding F7 told one level up — the arithmetic
+  // succeeds, the number is plausible, and a business case is built on it.
+  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
   // the egress facts the model call used (ADR-0037 §6): endpoint, processing
   // region, retention posture and data classification — the per-call evidence
   // a security review requires. Absent on steps that made no model call.

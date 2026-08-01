@@ -88,7 +88,7 @@ export async function openStep(
 
 export type StepAudit = {
   model?: { id: string; version: string };
-  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
+  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
   egress?: Step['egress']; // the model call's egress facts (ADR-0037 §6)
   sourceSet?: Step['sourceSet'];
   railOutcomes?: Step['railOutcomes'];
@@ -115,7 +115,8 @@ export async function finishStep(
       modelVersion: audit.model?.version ?? null,
       tokensPrompt: audit.usage?.tokensPrompt ?? null,
       tokensCompletion: audit.usage?.tokensCompletion ?? null,
-      cost: audit.usage ? String(audit.usage.cost) : null,
+      // null survives to the column: an unpriced step must not read as free
+      cost: audit.usage?.cost == null ? null : String(audit.usage.cost),
       egressEndpoint: audit.egress?.endpoint ?? null,
       egressRegion: audit.egress?.region ?? null,
       egressRetention: audit.egress?.retention ?? null,

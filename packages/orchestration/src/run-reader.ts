@@ -77,7 +77,9 @@ function toStep(row: typeof s.steps.$inferSelect): Step {
       usage: {
         tokensPrompt: row.tokensPrompt,
         tokensCompletion: row.tokensCompletion ?? 0,
-        cost: row.cost === null ? 0 : Number(row.cost),
+        // T-254 — was `0`. A step nobody priced now reads as null, because
+        // reporting it as costing nothing is exactly finding F7.
+        cost: row.cost === null ? null : Number(row.cost),
       },
     }),
     sourceSet: row.sourceSet as Step['sourceSet'],

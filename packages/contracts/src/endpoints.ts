@@ -81,6 +81,35 @@ export type CreateRunResponse = Run; // completed, with steps, suggestions and c
 // product shipped in before the Lens layer existed.
 export type ListLensesResponse = { lenses: LensSummary[]; defaultLensId: string | null };
 
+// T-254 — GET /organisation/costs: what this organisation's own people spent.
+//
+// Org-scoped by construction and org-admin only. Deliberately NOT a project
+// report: a project's total would sum two organisations' private work into one
+// number and hand it to whichever asked. Run records are producer-private (the
+// 2026-07-12 ruling) and so is what they cost.
+//
+// `unpricedSteps` is not a footnote. Finding F7 was that every step recorded a
+// cost of exactly zero; the way to repeat that is to sum the priced steps,
+// omit the rest, and call the result "the cost". A total read without this
+// number is a LOWER BOUND, and `unpricedModels` names the configuration gap.
+export type UserCost = {
+  userId: Id;
+  userName: string;
+  cost: number;
+  tokensPrompt: number;
+  tokensCompletion: number;
+  pricedSteps: number;
+  unpricedSteps: number;
+};
+export type OrganisationCostsResponse = {
+  organisationId: Id;
+  cost: number;
+  pricedSteps: number;
+  unpricedSteps: number;
+  unpricedModels: string[];
+  users: UserCost[];
+};
+
 export type GetRunResponse = Run; // the immutable audit read (owner path, M5)
 export type GetConversationResponse = { runs: Run[] };
 

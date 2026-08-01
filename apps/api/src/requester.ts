@@ -15,7 +15,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { LensRegistry } from '@infora/lenses';
-import type { Router } from '@infora/model';
+import type { ModelRates, Router } from '@infora/model';
 import { sessionCookie } from './auth';
 import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
 import type { SessionPolicy } from './sessions';
@@ -56,6 +56,12 @@ export type AppDeps = {
    * is still a bound where the skeleton had none at all.
    */
   sessionPolicy?: SessionPolicy;
+  /**
+   * T-254 — provider rates per model id. Absent means every step records
+   * `cost: null` (unpriced), which is the honest state and is reported as
+   * such — never 0, which reads as free.
+   */
+  modelRates?: ModelRates;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);

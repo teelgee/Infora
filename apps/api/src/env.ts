@@ -29,6 +29,13 @@ const schema = z.object({
   // which is still a bound where the skeleton had none at all.
   SESSION_ABSOLUTE_HOURS: z.coerce.number().positive().optional(),
   SESSION_IDLE_MINUTES: z.coerce.number().positive().optional(),
+  // T-254 — provider rates per model id, as JSON. Deployment configuration and
+  // nothing else: provider pricing changes without warning, moves per region
+  // and is negotiated per customer, so a number compiled into the repository
+  // would be wrong somewhere from the day it was written. Unset means every
+  // step records `cost: null` — UNPRICED, which is reportable, rather than 0,
+  // which reads as free (finding F7).
+  MODEL_RATES: z.string().optional(),
   DEPLOYMENT_TIER: z.enum(['standard', 'sovereign']).default('standard'),
   DATA_CLASSIFICATION: z.enum(['official', 'secret']).default('official'),
   // the declared egress attributes of the model endpoints (ADR-0037 §3). All

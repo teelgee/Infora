@@ -2,7 +2,13 @@
 import { serve } from '@hono/node-server';
 import { createDb } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
-import { AnthropicChatAdapter, Router, VoyageEmbeddingAdapter, securityForTier } from '@infora/model';
+import {
+  AnthropicChatAdapter,
+  parseModelRates,
+  Router,
+  VoyageEmbeddingAdapter,
+  securityForTier,
+} from '@infora/model';
 import { buildApp } from './app';
 import { DEFAULT_SESSION_POLICY } from './sessions';
 import { loadApiEnv, resolveRouteAttributes } from './env';
@@ -44,6 +50,10 @@ const app = buildApp({
   router,
   lenses,
   defaultLensId: env.DEFAULT_LENS_ID ?? null,
+  // T-254 — parsed at BOOT, so a malformed rate table refuses to start rather
+  // than reporting confident wrong prices. A pricing error is worse than a
+  // deployment that will not come up.
+  ...(env.MODEL_RATES !== undefined && { modelRates: parseModelRates(env.MODEL_RATES) }),
   sessionPolicy: {
     absoluteHours: env.SESSION_ABSOLUTE_HOURS ?? DEFAULT_SESSION_POLICY.absoluteHours,
     idleMinutes: env.SESSION_IDLE_MINUTES ?? DEFAULT_SESSION_POLICY.idleMinutes,
