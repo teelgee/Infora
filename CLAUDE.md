@@ -25,6 +25,9 @@ ethical wall, with grounded, cited AI drafting.
   depend only on `contracts` + `ui`.
 - Migrations are drawn in `docs/build/data-model.md` before being written.
 - Contract completions get dated notes in `docs/build/contracts.md`.
+- A ticket or ADR that introduces, stores, or derives data about a **named
+  person** says so, and names where that data is deleted — the register is
+  `docs/build/personal-data.md`.
 - Design gaps go to `docs/grill-sessions/grill-questions.md` as open
   questions — never resolved inline.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.

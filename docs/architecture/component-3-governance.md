@@ -43,10 +43,10 @@ The cut is by **domain capability**: grounding, rails, audit, and the security/c
 
 ## 4. Security and compliance posture
 
-**Responsibility.** Hold the platform's security posture and certifications target (SOC 2, Cyber Essentials, G-Cloud, GDPR, zero training on customer data); own data residency and sovereignty routing for public-sector buyers.
-**Governing ADRs.** 0026 (zero-training posture — under revision; see the grill doc). Residency routing **open** (links to the model layer). The wider infra/security model (cloud, storage, encryption) is open — see [component-1-foundation.md](component-1-foundation.md) and the infra/security session.
+**Responsibility.** Hold the platform's security posture and certifications target (SOC 2, Cyber Essentials, G-Cloud, GDPR, zero training on customer data); own data residency and sovereignty routing for public-sector buyers. **And — added 2026-08-01 — the privacy programme: `operator access` (what Infora's own people can reach, and what an "eyes off" claim may honestly say) and `customer-data deletion and contract-end hand-off`.** Both are governance concerns rather than infrastructure ones: the infra/security session settled cloud, storage, keys and deployment, and deliberately did not reach either.
+**Governing ADRs.** 0026 (zero-training posture — under revision; see the grill doc); 0047 (the deployment substrate, which *creates* the operator paths this sub-component must govern — §9's owner-credential migrations and §18's operator corpus load). Residency routing **open** (links to the model layer). **Operator access → `Q-032`; deletion and hand-off → `Q-033`** — both open, and the tracker holds their recommendations until they are ruled; they are deliberately not restated here.
 **Terms owned.** None uniquely.
-**Depends on.** The model layer (component 1, Foundation) for residency routing; the egress boundary (component 4, ADR-0026).
+**Depends on.** The model layer (component 1, Foundation) for residency routing; the egress boundary (component 4, ADR-0026); the access model (component 2) for the ADR-0018 private floor, which operator access sits outside by policy and inside by mechanism. **Reads from** [personal-data.md](../build/personal-data.md), the register of what personal data is held and where it is deleted.
 
 ---
 
