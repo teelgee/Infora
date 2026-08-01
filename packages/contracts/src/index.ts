@@ -4,6 +4,7 @@
 
 export * from './assembly';
 export * from './external';
+export * from './lens';
 export * from './shared';
 export * from './endpoints';
 export * from './errors';

@@ -3,6 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Lens definitions as domain content. The loader and validator land at T-281; until then this package is the definitions and nothing else.",
-  "scripts": {}
+  "description": "the Lens layer: domain content (definitions/) plus its loader and validator (T-281). A Lens changes register, never reach.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
+  }
 }

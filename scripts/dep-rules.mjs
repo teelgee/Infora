@@ -18,11 +18,13 @@ export const ALLOWED = {
   // an access slice or read a chunk. Widening this line is the event code
   // review exists to catch.
   '@infora/external': ['@infora/contracts'],
-  // T-281 (pending) — Lens definitions as domain content. A leaf that will
-  // depend on `contracts` only, so the dep rules keep surfaces out of it and it
-  // stays trivially reviewable by a non-engineer. The definitions moved here
-  // 2026-07-31 when the Ask specification folded into the board; the loader and
-  // validator are the ticket.
+  // T-281 — Lens definitions as domain content, plus their loader and
+  // validator. THIS ENTRY IS HALF OF THE ELEVENTH NON-NEGOTIABLE: contracts
+  // only — no db, no knowledge, no governance — so there is nothing in this
+  // package with which to reach a store, resolve an access slice or narrow a
+  // retrieval. A Lens changes register, never reach, and widening this line is
+  // how that would stop being structurally true. The other half is RULE 3 in
+  // scripts/source-rules.mjs, which keeps the access path from reaching back.
   '@infora/lenses': ['@infora/contracts'],
   '@infora/knowledge': [
     '@infora/contracts',

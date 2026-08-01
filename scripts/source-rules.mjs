@@ -46,6 +46,26 @@ const PERMISSION_PHRASES = [
   'do not share',
 ];
 
+/**
+ * RULE 3 — a Lens changes register, never reach (T-281).
+ *
+ * The eleventh non-negotiable. A Lens is how an answer READS; it is not, and
+ * must never become, a parameter of `resolveAccess` (packages/governance),
+ * `groundedLibrary` / `assemble` (packages/knowledge) or the ingest and
+ * retrieval scope (packages/data). A Lens that could narrow what is retrieved
+ * would be a security control hiding inside a preference — and the failure is
+ * silent, because the answer still arrives, still cites, and is simply built on
+ * less than the user could reach.
+ *
+ * `assemble`'s signature is pinned in contracts and asserted at the type level
+ * (packages/lenses/src/reach.test.ts). The other two are not in contracts, so
+ * this guard is what covers them: the three access-path packages may not so
+ * much as mention a Lens. Bluntness is the feature — there is no legitimate
+ * reason for the word to appear in any of them.
+ */
+const LENS_SYMBOL = /\blens(?:es|Id|Version)?\b/i;
+const NO_LENS_PACKAGES = ['packages/governance', 'packages/knowledge', 'packages/data'];
+
 const SELF = new Set(['scripts/source-rules.mjs', 'scripts/source-rules.test.mjs']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', '.git', 'test-results', 'migrations']);
 const SOURCE = /\.(ts|tsx|mjs)$/;
@@ -89,6 +109,18 @@ export function checkSourceRules(root) {
           violations.push(
             `${rel}: references \`${CHUNK_SYMBOL}\` — the grounding index is read only by ` +
               `${CHUNK_READERS.join(', ')}. Go through the assembly gateway instead.`,
+          );
+        }
+      }
+
+      if (NO_LENS_PACKAGES.some((pkg) => rel.startsWith(pkg))) {
+        const line = text.split('\n').findIndex((l) => LENS_SYMBOL.test(l)) + 1;
+        if (line > 0) {
+          violations.push(
+            `${rel}:${line}: mentions a Lens — the access path (${NO_LENS_PACKAGES.join(', ')}) ` +
+              `must not know Lenses exist. A Lens changes register, never reach (T-281, ` +
+              `non-negotiable 11). If this is a Lens-shaped retrieval scope, it is a workflow ` +
+              `or a scope filter, not a Lens.`,
           );
         }
       }

@@ -73,3 +73,52 @@ describe('the prompt-permission guard', () => {
     ).toHaveLength(0);
   });
 });
+
+// T-281 — RULE 3. The failure this catches is silent: a Lens that narrows
+// retrieval still returns an answer, still cites it, and is simply built on
+// less than the user could reach.
+describe('the Lens-out-of-the-access-path guard', () => {
+  it('rejects a Lens reaching resolveAccess', () => {
+    const violations = checkSourceRules(
+      tree({
+        'packages/governance/src/access.ts':
+          'export function resolveAccess(req, lens) { return slice(req, lens); }',
+      }),
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatch(/changes register, never reach/i);
+  });
+
+  it('rejects a Lens reaching the retrieval query', () => {
+    expect(
+      checkSourceRules(
+        tree({ 'packages/knowledge/src/retrieval.ts': 'const terms = lensId ? byLens(lensId) : [];' }),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('catches it in a test too — a fixture proving the wrong thing is still the wrong thing', () => {
+    expect(
+      checkSourceRules(tree({ 'packages/knowledge/src/wall.test.ts': 'assemble({ lens })' })),
+    ).toHaveLength(1);
+  });
+
+  it('leaves the packages that legitimately hold a Lens alone', () => {
+    expect(
+      checkSourceRules(
+        tree({
+          'packages/lenses/src/load.ts': 'export function loadLenses() { return lenses; }',
+          'packages/orchestration/src/chain.ts': 'const lensId = input.lensId ?? null;',
+          'apps/api/src/runs.ts': 'const lens = registry.get(body.lensId);',
+        }),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('reports the first offending line, so the fix has somewhere to start', () => {
+    const violations = checkSourceRules(
+      tree({ 'packages/data/src/ingest.ts': 'const a = 1;\nconst b = 2;\nconst lensId = null;' }),
+    );
+    expect(violations[0]).toContain('packages/data/src/ingest.ts:3');
+  });
+});

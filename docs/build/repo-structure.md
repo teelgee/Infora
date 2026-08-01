@@ -21,6 +21,7 @@ infora/
 │  ├─ capabilities/       # grounded-gen, compliance, tabular, plain-english
 │  ├─ workflows/          # standard + custom workflows composing capabilities
 │  ├─ external/           # untrusted external content (web research) — contracts only, by rule (T-250)
+│  ├─ lenses/             # Lens definitions (domain content) + loader/validator — contracts only, by rule (T-281)
 │  ├─ governance/         # access predicates + wall, grounding/NLI rails
 │  ├─ db/                 # Postgres + pgvector: schema (5 drawers), migrations, seed
 │  ├─ contracts/          # shared types + API schema (single source of truth)
@@ -33,7 +34,10 @@ infora/
 
 Dependencies flow inward and down: surfaces depend only on `contracts` and `ui`; `api` composes `workflows`; `workflows` use `capabilities` and `orchestration`; those draw on `model`, `data`, `knowledge`. `governance` and `db` are depended on, never depend back. The rules are enforced by `scripts/dep-rules.mjs` — a violation fails CI.
 
-One entry in that matrix is a security control rather than a layering choice: **`external` may depend on `contracts` and nothing else** (T-250, finding F3, [the board's Wave 0 reference](plan.md)). Everything that touches untrusted web content lives there, so the code holding a prompt injection from a fetched page has no route to a store, an access slice or a chunk — not by discipline, by having nothing to reach with. Widening that line is the event code review exists to catch.
+**Two** entries in that matrix are security controls rather than layering choices, and both are the same move — a package confined to `contracts` so that a property holds by having nothing to reach with, rather than by discipline. Widening either line is the event code review exists to catch.
+
+- **`external` may depend on `contracts` and nothing else** (T-250, finding F3, [the board's Wave 0 reference](plan.md)). Everything that touches untrusted web content lives there, so the code holding a prompt injection from a fetched page has no route to a store, an access slice or a chunk.
+- **`lenses` may depend on `contracts` and nothing else** (T-281, non-negotiable 11). A Lens changes register, never reach, so the package holds no store handle, no access slice and no retrieval query with which to narrow anything. The converse — the access path reaching back for a Lens — is `scripts/source-rules.mjs` RULE 3, which forbids `governance`, `knowledge` and `data` from mentioning a Lens at all.
 
 The one entry in that matrix depending on a deployable is `evals` (T-255), deliberately: a case must execute through the real API boundary, because that is where identity is established, and a fixture is data that must be materialised through `db`. Nothing depends on `evals` and it ships in no deployable, so the direction stays one-way.
 
@@ -48,7 +52,7 @@ The eight [components](../architecture/infora-overview.md) are **design boundari
 | 3 Governance | `governance` — ground-check and rails; the audit record written by `orchestration`'s run-writer into `db` drawer 3 |
 | 4 Context | `knowledge` (the assembly gateway, ADR-0029) · `data` (ingestion + retrieval over pgvector) · `external` (untrusted web content, deliberately outside every store — T-250) |
 | 5 Document management | **no dedicated package, by design** — the lifecycle is `db` drawers 2/5 plus the `api` route modules (plan, cycle, transmittal, renditions, sandbox, naming) |
-| 6 Engine | `orchestration` (the chain + run state) · `capabilities` (the skills) · `workflows` (the recipes) |
+| 6 Engine | `orchestration` (the chain + run state) · `capabilities` (the skills) · `workflows` (the recipes) · `lenses` (the register overlays as domain content — T-281) |
 | 7 Connectors *(deferred)* | future home in `data` |
 | 8 Surfaces | `apps/web` · `ui` · the `api` app as the one deployable over the layers; later `word-addin`, `copilot-agent` |
 
