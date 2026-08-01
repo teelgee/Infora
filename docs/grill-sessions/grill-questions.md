@@ -61,6 +61,7 @@ board is **[plan.md](../build/plan.md)**.
 | **B** | Producing-side deliverable lifecycle (2026-07-22) | **0036**, **0038**, **0039** | ✅ Done — design only |
 | **O** | Document ontology (2026-07-26) | **0045** | ✅ Designed + **Slice O P1 built** |
 | **Ask** | Agent-harness gate questions (2026-07-29) | **0046**; 0022/0023/0026/0027/0028 amended | ✅ Ruled — four of six on the spot |
+| **I** | **Infra / security decision session (2026-08-01)** — a decision session, not a grill | **0047**; **0037 amended** (a third `pilot` tier) | ✅ Ruled — `Q-027` closed, nfr.md re-cut |
 
 Full session records in [grill-history.md](grill-history.md).
 
@@ -79,7 +80,7 @@ The orientation map: what remains open per component, and where it is detailed
 below. A **locked** component carries no open questions — its agreed position
 lives in its component doc.
 
-1. **Foundation.** ⬜ Open (infra). [component-1-foundation.md](../architecture/component-1-foundation.md). Settled: the store substrate (pgvector, ADR-0024); the model router and typed contracts. Open — needs the **infra/security decision session**: cloud provider, file/blob storage, hosting, deployment, and the in-depth security model (encryption, key management, tenant isolation, residency). **This session gates any external pilot.**
+1. **Foundation.** 🔒 Locked (ADRs 0024, 0037, **0047**). [component-1-foundation.md](../architecture/component-1-foundation.md). The infra/security decision session ran **2026-08-01** and closed everything this component carried: cloud provider (AWS London), file/blob storage (S3 behind `file_ref`), hosting, deployment, key management, tenant isolation (logical), residency and production identity (Entra deferred behind password auth, with a named expiry). No open questions remain — what is left is **build**, as Slice V1-I on the board. *(Record in [grill-history.md](grill-history.md).)*
 2. **Access.** 🔒 Locked (ADRs 0014–0019, refined by **0033**). [component-2-access.md](../architecture/component-2-access.md). Residual: **Q-024**. *(The admin/super-user tier was ruled 2026-07-31 — `Participant.elevated` extended, not a new tier; record in [grill-history.md](grill-history.md).)*
 3. **Governance.** 🟡 In progress. [component-3-governance.md](../architecture/component-3-governance.md). Settled: the rails authority model → **ADR-0030**. Open (tuning, not authority): grounding-threshold tuning and withheld-output handling; audit retention and export format; deploy-time validation of a tightening; residency and sovereignty routing. See **Q-001**, **Q-015**.
 4. **Context.** 🟡 In progress (ADRs 0020–0026). [component-4-context.md](../architecture/component-4-context.md). Open: library RAG strategy (Session 6 finish, incl. **Q-028**), knowledge distillation (Session 4), precedent selection (Session 5), the Signal sink (Session 7), and the authority register's operational detail (revised ADR-0023). See also **Q-002**, **Q-003**, **Q-007**.
@@ -88,15 +89,16 @@ lives in its component doc.
 7. **Connectors.** ⬜ Deferred. [component-7-connectors.md](../architecture/component-7-connectors.md). Open: the integrate-config handover to an incumbent DMS; for spatial — which products first, read-only reference vs deeper integration; timing relative to the wedge. Deferred until the wedge is proven.
 8. **Surfaces.** 🟡 In progress. [component-8-surfaces.md](../architecture/component-8-surfaces.md). Settled: the Copilot integration → **ADR-0031**. Open: workspace home vs project home layout; the owner portfolio view; mobile scope; the boundary between the document-management interface and the generic project surfaces. See **Q-012**, **Q-016**, **Q-018**.
 
-### Pre-infra-session rulings (owner, 2026-07-25)
+### Pre-infra-session rulings (owner, 2026-07-25) — all now discharged
 
 Ruled ahead of the infra/security session and carried into it as pre-reads:
 **CSRF posture** → ADR-0043/0044 (T-218), the token upgrade named as an
 infra-session item; the **DB-level wall backstop** → Postgres RLS committed and
-now partly built (T-247; `containers` remains, T-297); **certification targets**
-named — ISO 27001, Cyber Essentials Plus, SOC 2 Type II, none a pilot
-precondition but each constraining provider choice. The fourth is still open as
-**Q-027**.
+now partly built (T-247 landed `version_chunks`, the grounding index;
+`containers` remains, T-297); **certification targets** named — ISO 27001, Cyber
+Essentials Plus, SOC 2 Type II, none a pilot precondition but each constraining
+provider choice. The fourth, **Q-027**, was **closed by the session on
+2026-08-01**; record in [grill-history.md](grill-history.md).
 
 ---
 
@@ -135,7 +137,7 @@ this group that a ticket found by trying to build the thing.
 ### Surfaces and workflow
 
 - **Q-009 — Starting governed work from the web UI.** **[A]** · *Blocks: a fully browser-drivable consultant journey.* No surface affordance binds a Conversation to a Work item; Ask's output-target chip targets sandbox documents only, so every UI-originated run is ad-hoc. The fork: a "draft" action on the work item vs a work-item chip on Ask. *(T-080, 2026-07-08.)*
-- **Q-012 — Mention delivery, and the missing notification model.** **[A]** · *Blocks: V1's review cycle being usable in practice.* T-112 stores `@`-mentions and renders them, but nothing *tells* the mentioned colleague — no notification exists anywhere in the build. To rule: what a notification is, where it surfaces, and whether review-cycle events (round issued, lock flipped) join the same channel, which argues for designing it once rather than per-feature. Rides along: whether open comment threads should block or warn at **promotion**. *(T-112, 2026-07-18.)*
+- **Q-012 — Mention delivery, and the missing notification model.** **[A]** · *Blocks: V1's review cycle being usable in practice.* T-112 stores `@`-mentions and renders them, but nothing *tells* the mentioned colleague — no notification exists anywhere in the build. To rule: what a notification is, where it surfaces, and whether review-cycle events (round issued, lock flipped) join the same channel, which argues for designing it once rather than per-feature. Rides along: whether open comment threads should block or warn at **promotion**. **Its infrastructure dependency is discharged (2026-08-01, ADR-0047 §16): the provider is Amazon SES in `eu-west-2`** — carrying two lead-time items, DKIM domain verification and the sandbox-mode exit. *(T-112, 2026-07-18.)*
 - **Q-016 — Workspace-scoped surfaces as a slice.** **[A]** · *Blocks: nothing.* Workspace Ask (org knowledge, no project context — the ADR-0031 §3 deferral), workspace Editor, and a "Your knowledge" page. All depend on the org-context store design, so a Slice E adjacency; candidate for a coherent workspace slice.
 - **Q-017 — The personal sandbox.** **[A]** · *Blocks: nothing.* A foldered, user-private drive, never visible as a context channel. Extends ADR-0018/0019 with a *user*-scoped sandbox; its own drawer when sliced.
 - **Q-018 — The work-item page: audit read vs review cycle.** **[A]** · *Blocks: nothing.* The page's affirmative content is fully specified (the ADR-0032 addendum's event-driven lifecycle and per-role click-throughs). What remains is only where the **run-audit trail** relocates to — a tab, a linked view, or the owner portfolio. Decide with **Q-015**.
@@ -161,7 +163,7 @@ this group that a ticket found by trying to build the thing.
 - **Q-024 — Org admin reach into a personal sandbox.** **[A]** Whether an org admin can reach a user's workspace sandbox (refined ADR-0018). Decide with the sandbox drawer.
 - **Q-025 — The sandbox-scope review rendition.** **[A]** PDF rendition vs frozen native text for internal QA review. Parked in ADR-0032; V1 ships the text-first read with the PDF downloadable as a named deviation.
 - **Q-026 — The naming scheme.** **[A]** The standing ADR-0008 deferral. The per-project metadata *schema* was closed by ADR-0045; only the naming scheme remains.
-- **Q-027 — The NFR numbers.** **[C]** *Blocks: the infra/security session's pre-read.* [nfr.md](../build/nfr.md)'s proposed availability / RPO / RTO / latency figures are a strawman, not agreed. **Also needs re-cutting for V1:** organisations moves from one friendly firm to **three**, which fires revisit trigger 1 and makes RLS blocking.
+- ~~**Q-027 — The NFR numbers.**~~ ✅ **Closed 2026-08-01** by the infra/security session: [nfr.md](../build/nfr.md) re-cut for V1 and its figures agreed. Record in [grill-history.md](grill-history.md).
 
 ---
 
