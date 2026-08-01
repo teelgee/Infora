@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORIES } from './case';
 import type { Category } from './case';
-import { buildReport, formatReport, REPORTED_MODES } from './report';
+import { buildReport, formatReport, NO_LENS, REPORTED_MODES } from './report';
 import type { CaseResult, Verdict } from './runner';
 
 const result = (over: Partial<CaseResult> = {}): CaseResult => ({
@@ -64,6 +64,7 @@ describe('per category, and never a single aggregate (§4.1)', () => {
       'tier',
       'byCategory',
       'byMode',
+      'byLens',
       'results',
     ]);
     // 95% overall with permission at 80% is not a good result, it is a serious
@@ -72,6 +73,7 @@ describe('per category, and never a single aggregate (§4.1)', () => {
     expect(Object.keys(report).filter((key) => aggregate.test(key))).toEqual([]);
     expect(Object.keys(report.byCategory).filter((key) => aggregate.test(key))).toEqual([]);
     expect(Object.keys(report.byMode).filter((key) => aggregate.test(key))).toEqual([]);
+    expect(Object.keys(report.byLens).filter((key) => aggregate.test(key))).toEqual([]);
 
     const printed = formatReport(report);
     expect(printed).not.toMatch(aggregate);
@@ -79,8 +81,57 @@ describe('per category, and never a single aggregate (§4.1)', () => {
     const counted = printed.split('\n').filter((line) => /^\S+(\s+\d+)+\s*$/.test(line));
     expect(counted.length).toBeGreaterThan(0);
     for (const row of counted) {
-      expect([...CATEGORIES, ...REPORTED_MODES]).toContain(row.split(/\s+/)[0]!);
+      expect([...CATEGORIES, ...REPORTED_MODES, ...Object.keys(report.byLens)]).toContain(
+        row.split(/\s+/)[0]!,
+      );
     }
+  });
+});
+
+// T-282 — §4.1's per-Lens breakdown, deferred at T-257 for want of anything to
+// key on. The Lens layer's whole claim is that the four read differently, so a
+// regression in one that another's improvement hides is precisely the result
+// this table exists to prevent.
+describe('the per-Lens breakdown (§4.1, T-282)', () => {
+  it('reports each Lens separately, and a Lens with no cases does not appear', () => {
+    const report = buildReport([
+      result({ caseId: 'L1', lens: 'planning-environmental', verdict: 'pass' }),
+      result({ caseId: 'L2', lens: 'planning-environmental', verdict: 'fail' }),
+      result({ caseId: 'L3', lens: 'communications', verdict: 'pass' }),
+    ]);
+
+    expect(Object.keys(report.byLens).sort()).toEqual(['communications', 'planning-environmental']);
+    expect(report.byLens['planning-environmental']).toEqual({
+      cases: 2,
+      pass: 1,
+      fail: 1,
+      error: 0,
+      ungraded: 0,
+      flaky: 0,
+    });
+    // no `engineer` row of zeroes: unlike a category, a Lens set is open and a
+    // zero row would claim the Lens was covered by a suite that never named it
+    expect(report.byLens['engineer']).toBeUndefined();
+    expect(formatReport(report)).toContain('planning-environmental');
+  });
+
+  it('a case that named no Lens is bucketed as `none`, never dropped', () => {
+    const report = buildReport([result({ caseId: 'N1', lens: null })]);
+    expect(report.byLens[NO_LENS]).toEqual({
+      cases: 1,
+      pass: 1,
+      fail: 0,
+      error: 0,
+      ungraded: 0,
+      flaky: 0,
+    });
+  });
+
+  it('prints no Lens table when no case named one', () => {
+    const printed = formatReport(buildReport([result({ caseId: 'N1', lens: null })]));
+    // a table whose only row is `none` says nothing and trains the reader to
+    // skip the section
+    expect(printed).not.toContain('lens ');
   });
 });
 

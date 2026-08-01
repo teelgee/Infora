@@ -1,0 +1,20 @@
+# LENS-02 (T-282) — the Engineer Lens, from its "figures with their source"
+# exchange. Same question as LENS-01 under a different Lens, deliberately: the
+# pair is the register guard, and a single Lens case in isolation proves only
+# that *a* Lens applied, never that the four differ.
+id: LENS-02
+category: behaviour
+lens: engineer
+description: >-
+  The Engineer Lens reaches the prompt and answers in design vocabulary, on the
+  same question and the same corpus as LENS-01.
+fixture: hollowfield-reservoir
+acting_user: env_consultant
+question: >-
+  What did the water quality baseline survey record at Hollow Brook?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_contain:
+    - civil, structural or environmental engineer
+    - ~the answer is written for an engineer, giving figures with their source rather than planning-law interpretation

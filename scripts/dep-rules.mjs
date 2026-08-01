@@ -84,7 +84,11 @@ export const ALLOWED = {
   // harness boots the real app over real HTTP; and a fixture is DATA that must
   // be materialised, so it writes through @infora/db. Nothing depends on evals,
   // it ships in no deployable, and the direction stays one-way.
-  '@infora/evals': ['@infora/contracts', '@infora/db', '@infora/api'],
+  // T-282 added `@infora/lenses`: a case declares the Lens it runs under, and
+  // the harness resolves it against the same registry the app was composed
+  // with, so a case naming an id the deployment does not offer is an `error`
+  // with the available ids named rather than an opaque 400 from the API.
+  '@infora/evals': ['@infora/contracts', '@infora/db', '@infora/lenses', '@infora/api'],
   // one web app, role-scoped views (T-110, 2026-07-14) — the formerly
   // planned web-owner split is superseded
   '@infora/web': ['@infora/contracts', '@infora/ui'],

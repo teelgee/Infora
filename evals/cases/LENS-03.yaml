@@ -1,0 +1,18 @@
+# LENS-03 (T-282) — the Project Manager Lens, from its "what is outstanding"
+# exchange. Tabular by default, summary first.
+id: LENS-03
+category: behaviour
+lens: project-manager
+description: >-
+  The Project Manager Lens reaches the prompt and answers in programme register,
+  on the same question and the same corpus as LENS-01 and LENS-02.
+fixture: hollowfield-reservoir
+acting_user: env_consultant
+question: >-
+  What did the water quality baseline survey record at Hollow Brook?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_contain:
+    - programme or delivery manager
+    - ~the answer is written for a programme manager, summary first, and marks anything inferred rather than recorded

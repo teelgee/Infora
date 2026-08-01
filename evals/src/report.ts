@@ -55,6 +55,17 @@ export type EvalReport = {
   tier: Tier;
   byCategory: Record<Category, Tally>;
   byMode: Record<ReportedMode, Tally>;
+  /**
+   * T-282 — §4.1's per-Lens breakdown, deferred at T-257 for want of anything
+   * to key on and now live. Keyed by Lens id, with `none` for cases that named
+   * none; a Lens with no cases does not appear, so an empty object is the
+   * honest reading of "no case declared a Lens" rather than a row of zeroes.
+   *
+   * It is a breakdown, not an aggregate: the same rule as `byCategory`. A Lens
+   * whose register cases regress while another's improve must be visible as
+   * two rows, because the Lens layer's whole claim is that the four differ.
+   */
+  byLens: Record<string, Tally>;
   results: CaseResult[];
 };
 
@@ -70,11 +81,29 @@ export function buildReport(results: CaseResult[], tier: Tier = 'full'): EvalRep
   const byMode = Object.fromEntries(
     REPORTED_MODES.map((mode) => [mode, tally(emitted.filter((r) => modeOf(r) === mode))]),
   ) as Record<ReportedMode, Tally>;
-  return { generatedAt: new Date().toISOString(), tier, byCategory, byMode, results: emitted };
+  const lensKeys = [...new Set(emitted.map(lensOf))].sort();
+  const byLens = Object.fromEntries(
+    lensKeys.map((lens) => [lens, tally(emitted.filter((r) => lensOf(r) === lens))]),
+  );
+  return {
+    generatedAt: new Date().toISOString(),
+    tier,
+    byCategory,
+    byMode,
+    byLens,
+    results: emitted,
+  };
 }
 
 export function modeOf(result: CaseResult): ReportedMode {
   return result.mode ?? 'unlabelled';
+}
+
+/** `none` is a bucket, not a missing value: a case that named no Lens ran under the shared core alone. */
+export const NO_LENS = 'none';
+
+export function lensOf(result: CaseResult): string {
+  return result.lens ?? NO_LENS;
 }
 
 function tally(results: CaseResult[]): Tally {
@@ -114,10 +143,15 @@ export function formatReport(report: EvalReport): string {
   // identical in a table and mean opposite things.
   const flakes = report.results.filter((result) => result.flaky).map(flakeNote);
 
+  const lensKeys = Object.keys(report.byLens).sort();
+
   return [
     ...table('category', CATEGORIES, report.byCategory),
     '',
     ...table('mode', REPORTED_MODES, report.byMode),
+    // Only when a Lens was actually named. A table whose single row is `none`
+    // says nothing and trains the reader to skip the section.
+    ...(lensKeys.some((key) => key !== NO_LENS) ? ['', ...table('lens', lensKeys, report.byLens)] : []),
     ...(flakes.length > 0 ? ['', ...flakes] : []),
     ...(notes.length > 0 ? ['', ...notes] : []),
   ].join('\n');

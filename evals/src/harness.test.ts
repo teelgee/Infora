@@ -11,7 +11,7 @@
 //      acting user CAN reach fails, so a pass is evidence of exclusion rather
 //      than evidence of an assertion that never fires;
 //   4. an assertion type the registry cannot evaluate, or a case pinning a
-//      Lens that does not exist yet, is an `error` — never a quiet pass.
+//      Lens the deployment does not offer, is an `error` — never a quiet pass.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 import { loadFixtureFile } from './fixture';
@@ -149,11 +149,35 @@ describe('the eval harness (T-255)', () => {
     expect(result.failures[0]).toContain('unsupported assertion type(s): must_sing');
   });
 
-  it('refuses to run a case pinning a Lens or an orchestration mode that does not exist yet', async () => {
-    const lensed = await runCase(harness, instance, { ...perm02, lens: 'planning-environmental' });
-    expect(lensed.verdict).toBe('error');
-    expect(lensed.failures[0]).toContain('no Lens framework is wired yet');
+  // T-282 — a Lens is now something a case may pin. The mode half of this rule
+  // still holds: nothing labels an orchestration mode until T-266.
+  it('runs a case under a Lens the deployment offers, and records which', async () => {
+    const lensed = await runCase(harness, instance, {
+      ...perm02,
+      id: 'PERM-02-lensed',
+      lens: 'planning-environmental',
+    });
+    expect(lensed.verdict).toBe('pass');
+    expect(lensed.lens).toBe('planning-environmental');
+    // the Lens reached the prompt, and the source set is unchanged by it — the
+    // PERM-05 guarantee, observed here as a side effect of a permission case
+    expect(lensed.run?.response).toContain('planning and environmental practitioner');
+    const plain = await runCase(harness, instance, perm02);
+    expect(lensed.run?.sourceSet).toEqual(plain.run?.sourceSet);
+  });
 
+  it('refuses a Lens the deployment does not offer, naming the ones it does', async () => {
+    // `commercial` is authored and loads outside production; the harness runs
+    // production semantics, so it is absent here exactly as it would be for a
+    // real user. The message names the available ids rather than surfacing the
+    // API's 400 as an opaque "asking the question returned 400".
+    const unavailable = await runCase(harness, instance, { ...perm02, lens: 'commercial' });
+    expect(unavailable.verdict).toBe('error');
+    expect(unavailable.failures[0]).toContain("case declares lens 'commercial'");
+    expect(unavailable.failures[0]).toContain('planning-environmental');
+  });
+
+  it('refuses to run a case pinning an orchestration mode that does not exist yet', async () => {
     const declared = await runCase(harness, instance, { ...perm02, mode: 'declared' });
     expect(declared.verdict).toBe('error');
     expect(declared.failures[0]).toContain('orchestration modes are not labelled yet');
@@ -205,6 +229,7 @@ describe('the eval harness (T-255)', () => {
       'tier',
       'byCategory',
       'byMode',
+      'byLens',
       'results',
     ]);
     expect(formatReport(report)).toContain('permission');

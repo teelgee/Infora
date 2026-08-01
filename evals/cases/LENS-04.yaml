@@ -1,0 +1,21 @@
+# LENS-04 (T-282) — the Communications Lens, from its "what can we say" exchange.
+# Plain English, acronyms expanded, published/unpublished distinguished.
+#
+# This is the Lens whose register differs most from LENS-01's, which is why the
+# four cases together are the guard rather than any one of them.
+id: LENS-04
+category: behaviour
+lens: communications
+description: >-
+  The Communications Lens reaches the prompt and answers in plain English, on
+  the same question and the same corpus as LENS-01 to LENS-03.
+fixture: hollowfield-reservoir
+acting_user: env_consultant
+question: >-
+  What did the water quality baseline survey record at Hollow Brook?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_contain:
+    - Professional communicator
+    - ~the answer is written in plain English for a non-specialist, translating technical material into what it means for people

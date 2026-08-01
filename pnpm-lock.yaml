@@ -149,6 +149,9 @@ importers:
       '@infora/db':
         specifier: workspace:*
         version: link:../packages/db
+      '@infora/lenses':
+        specifier: workspace:*
+        version: link:../packages/lenses
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)

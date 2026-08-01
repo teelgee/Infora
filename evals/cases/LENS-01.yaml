@@ -1,0 +1,32 @@
+# LENS-01 (T-282) — the Planning & Environmental Lens, from its first worked
+# exchange ("Does our noise chapter deal properly with…"), re-pointed at the
+# fixture's own corpus.
+#
+# WHAT A LENS CASE PROVES, and it is not what a happy case proves: not that the
+# answer is right, but that it is written for THIS reader. Register is exactly
+# what a regex cannot check — "peer register, unexpanded acronyms, leads with
+# the test" has no substring — so the register assertion is a model-graded
+# `~claim` (T-257). On the fake router there is no independent family, so it
+# returns `ungraded`, which is not a bug: see the grader ruling in
+# evals/README.md.
+#
+# The substring assertion beneath it is deliberate and does non-graded work: it
+# holds that the Lens reached the prompt at all. Without it, a run where the
+# Lens was silently dropped would produce exactly the same `ungraded` verdict as
+# one where it applied and nobody could grade it.
+id: LENS-01
+category: behaviour
+lens: planning-environmental
+description: >-
+  The Planning & Environmental Lens reaches the prompt and answers in peer
+  register, leading with the test rather than the finding.
+fixture: hollowfield-reservoir
+acting_user: env_consultant
+question: >-
+  What did the water quality baseline survey record at Hollow Brook?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_contain:
+    - planning and environmental practitioner
+    - ~the answer is written for a planning or environmental specialist, in professional register, without explaining basic consenting terms

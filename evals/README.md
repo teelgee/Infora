@@ -130,6 +130,38 @@ Wiring it is `startHarness({ grader })`; `family` is the harness's own record
 until `packages/model` carries families (T-284/T-286), at which point the
 producing family comes off the run's draft step instead.
 
+### The grader ruling for the MVP (T-282, 2026-08-01)
+
+T-282 required a choice — **configure an independent family for the nightly
+tier, or accept human review for the MVP — and record which.**
+
+**Ruled: human review, recorded here.** It is not really a fork. Configuring an
+independent family needs a second provider, which sits behind the
+infra/security decision session (the gate that blocks any external pilot), and
+needs the router to carry a family concept at all, which is T-284/T-286. Neither
+is available to an MVP ticket, so "configure one" is not a thing this ticket
+could have chosen; pretending otherwise would have shipped a decision nobody
+could act on.
+
+**What that means in practice.** The four `LENS-*` cases run, reach the prompt,
+and come back **`ungraded`**. That blocks the eval gate, **by design and not as
+a bug**: `ungraded` is never a pass (§6), and a register claim nobody assessed
+must not read as one that held. Until a family lands, the register half of these
+cases is checked by a person reading the four answers side by side — which is
+the honest description of what is happening, and is why the report now carries a
+per-Lens table (§4.1) naming exactly which Lens is unchecked.
+
+**What is still machine-checked meanwhile**, and it is not nothing: each
+`LENS-*` case carries a plain substring beside its `~claim`, asserting that the
+Lens **reached the prompt at all**. Without it, a run where the Lens was
+silently dropped would produce the same `ungraded` verdict as one where it
+applied and nobody could grade it — and those are very different failures.
+`PERM-05`'s identical-source-set half is fully machine-checked, at the API
+boundary as well (`apps/api/src/lens.test.ts`).
+
+**When this is revisited:** when T-284/T-286 land a family-aware router, or when
+the infra session names a second provider — whichever is first.
+
 ## Tiers, hold-out and flake (T-258)
 
 | Tier | When | Runs |
@@ -161,9 +193,41 @@ not, because a non-repeatable sequence is its design. An **unlabelled** run gets
 the declared treatment — the exemption needs evidence, and the absence of a
 label is not evidence.
 
+## Lens cases (T-282)
+
+A case may declare `lens:`, and the runner passes it as `lensId` on the run
+(T-299). It is resolved against **the harness's own registry**, loaded with
+production semantics — the four active Lenses and not the draft `commercial`,
+because a case that could reach a draft Lens would be evidence about a
+configuration nobody ships. A case naming an id the deployment does not offer
+is an `error` naming the ids it does, rather than an opaque `400` surfacing as
+"asking the question returned 400".
+
+`LENS-01` to `LENS-04` are the register guard: **the same question, the same
+corpus and the same acting user under all four Lenses.** One Lens case in
+isolation proves only that *a* Lens applied; the set is what proves the four
+differ. They are `behaviour` cases and they are the reason the report gained a
+per-Lens table.
+
+The harness's fake chat prefixes its answer with the reader named in the system
+prompt, so a Lens's effect is observable through HTTP. **A run naming no Lens
+gets the original reply byte for byte** — T-260's acceptance pins the smoke
+result to prove the plan artefact changes nothing, and a baseline that moved for
+an unrelated reason would silently invalidate that pin.
+
 ## What is not here yet
 
-The sixteen-case seed set (T-259) — `PERM-02` is still the one case in `cases/`.
-The report's per-Lens and per-worker breakdowns (§4.1) wait for the things they
-name (T-281, T-269). No CI workflow calls `eval:smoke` yet; the tier it needs
-now exists.
+The sixteen-case seed set (T-259) — `PERM-02` and `LENS-01`–`LENS-04` are the
+five cases in `cases/`. The report's per-worker breakdown (§4.1) waits for the
+registry (T-269); the per-Lens half landed with T-282. No CI workflow calls
+`eval:smoke` yet; the tier it needs now exists.
+
+**The fixture is two documents, and the seed set needs more.**
+[v1.md](../docs/build/v1.md) states the obligation directly: *"the eval seed set
+must run against a few hundred fixture documents, not five, or it proves nothing
+about the real corpus."* `hollowfield-reservoir` is sized for the access graph a
+permission case needs and for nothing else. Eight of the twelve worked exchanges
+in the Lens definitions cannot be expressed against it without contrivance —
+they ask about noise chapters, Rochdale envelopes and Deadline 3, none of which
+this fixture has. That is a fixture-sizing job, not a Lens job, and it
+belongs to the seed set (T-259) rather than to the Lens layer.

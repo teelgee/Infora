@@ -16,6 +16,8 @@ import { buildApp } from '@infora/api/app';
 import { FAKE_EMBED_VERSION, fakeRouter, fakeVector } from '@infora/api/test-router';
 import { createDb } from '@infora/db';
 import type { Db } from '@infora/db';
+import { loadLenses } from '@infora/lenses';
+import type { LensRegistry } from '@infora/lenses';
 import type { Grader } from './grading';
 
 /**
@@ -51,17 +53,40 @@ export type Harness = {
    * `ungraded` rather than a pass.
    */
   grader?: Grader;
+  /**
+   * T-282 — the Lenses this harness offers, loaded with PRODUCTION semantics:
+   * the four active ones and not the draft. A case that could reach a draft
+   * Lens would be evidence about a configuration nobody ships, and `commercial`
+   * exists precisely to be unfinished.
+   */
+  lenses: LensRegistry;
   embed(text: string): { vector: number[]; modelId: string; modelVersion: string };
   close(): Promise<void>;
 };
 
 export async function startHarness(options: { grader?: Grader } = {}): Promise<Harness> {
   const { db, pool } = createDb();
-  const router = fakeRouter(undefined, EVAL_EMBED_MODEL);
+  const lenses = loadLenses({ production: true });
+  // T-282 — the fake chat answers with a fingerprint of the SYSTEM prompt when
+  // a Lens is in it, so a Lens's effect is observable through HTTP. A router
+  // that ignored its prompt would let every Lens case pass on an answer no
+  // Lens touched, which is the exact failure the register guard exists to
+  // catch.
+  //
+  // A run naming NO Lens gets the original reply, byte for byte. That is not
+  // tidiness: T-260's acceptance pins the smoke result so the plan artefact can
+  // be proved to change nothing, and a harness whose baseline answer moved for
+  // an unrelated reason would silently invalidate that pin.
+  const router = fakeRouter((system) => {
+    const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
+    const answer = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.';
+    return reader === undefined ? answer : `${reader}. ${answer}`;
+  }, EVAL_EMBED_MODEL);
   const app = buildApp({
     db,
     sessionSecret: 'eval-harness-secret',
     router,
+    lenses,
     // the harness logs in once per case execution from one address, and a
     // determinism check runs the same case ten times in a row — far past the
     // production throttles, which exist to slow credential guessing and paid
@@ -78,6 +103,7 @@ export async function startHarness(options: { grader?: Grader } = {}): Promise<H
     baseUrl: `http://127.0.0.1:${port}`,
     db,
     routing: { chat: 'fake-chat', chatFamily: FAKE_CHAT_FAMILY, embedding: EVAL_EMBED_MODEL },
+    lenses,
     ...(options.grader !== undefined && { grader: options.grader }),
     embed: (text) => ({
       vector: fakeVector(text),

@@ -39,10 +39,14 @@ export type CaseResult = {
   holdOut: boolean;
   fixture: { id: string; version: number; instance: string };
   routingTable: { chat: string; chatFamily: string; embedding: string };
-  // Declared and recorded rather than inferred. Each is null because the thing
-  // it names does not exist yet, and a plausible-looking value would be a
-  // fabrication in the one artefact that has to be trustworthy:
-  lens: string | null; // the Lens framework lands at T-281
+  // T-282 — the Lens this case ran under. The API refuses an id it does not
+  // carry (400, T-299), so a completed run is evidence the Lens applied; the
+  // run's OWN recorded lens comes off its plan, which is not readable over
+  // HTTP until T-261, so this stays the case's declaration until then.
+  lens: string | null;
+  // The rest are declared and recorded rather than inferred, and each is null
+  // because the thing it names does not exist yet — a plausible-looking value
+  // would be a fabrication in the one artefact that has to be trustworthy:
   mode: PlanMode | null; // orchestration modes are labelled from T-266
   plan: unknown | null; // the plan artefact lands at T-260
   workersCalled: string[] | null; // the worker registry lands at T-269
@@ -126,12 +130,18 @@ async function runOnce(
   if (evalCase.fixture !== instance.fixture.id) {
     return error(`case pins fixture ${evalCase.fixture}, given ${instance.fixture.id}`);
   }
-  // A case cannot pin what does not exist. Both of these run silently if
-  // allowed through — the case would execute Lens-less, or under whatever
-  // orchestration the coded chain happens to be, and its pass would assert
-  // something the harness never checked.
-  if (evalCase.lens !== undefined) {
-    return error(`case declares lens '${evalCase.lens}'; no Lens framework is wired yet (T-281)`);
+  // A case cannot pin what does not exist — it would run under whatever the
+  // coded chain happens to do, and its pass would assert something the harness
+  // never checked. The Lens half of that rule is now satisfiable (T-281/T-299),
+  // so it becomes a resolution against the harness's registry rather than a
+  // blanket refusal; a case naming an id the deployment does not offer is
+  // still an `error`, and is caught HERE with a message naming the available
+  // ids rather than surfacing later as an opaque 400.
+  if (evalCase.lens !== undefined && !harness.lenses.has(evalCase.lens)) {
+    return error(
+      `case declares lens '${evalCase.lens}', which this deployment does not offer ` +
+        `(available: ${harness.lenses.list().map((lens) => lens.id).join(', ')})`,
+    );
   }
   if (evalCase.mode !== 'any') {
     return error(`case declares mode '${evalCase.mode}'; orchestration modes are not labelled yet (T-266)`);
@@ -159,6 +169,7 @@ async function runOnce(
 
   const asked = await session.post(`/conversations/${conversationId}/runs`, {
     request: evalCase.question,
+    ...(evalCase.lens !== undefined && { lensId: evalCase.lens }),
   });
   if (asked.status !== 201) return error(`asking the question returned ${asked.status}`);
   const run = (await asked.json()) as Run;
@@ -167,6 +178,7 @@ async function runOnce(
   const observation = observe(run);
   const withRun: Omit<CaseResult, 'verdict' | 'failures'> = {
     ...base,
+    lens: evalCase.lens ?? null,
     steps: run.steps.map((step) => ({
       type: step.type,
       model: step.model?.id ?? null,

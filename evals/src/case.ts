@@ -87,10 +87,11 @@ const caseObject = z
     description: z.string(),
     fixture: z.string(),
     question: z.string(),
-    // The Lens is declarative domain content that does not exist until T-281.
-    // A case may not pin one yet — see runner.ts, which reports a case that
-    // declares one as `error` rather than running it Lens-less and calling
-    // that a pass.
+    // T-282 — the Lens this case runs under, live since T-281/T-299. Resolved
+    // against the harness's registry at run time rather than validated here:
+    // which Lenses exist is a property of the deployment (production carries
+    // no drafts), not of the case file, so a schema-level enum would go stale
+    // the moment a Lens is authored or retired.
     lens: z.string().optional(),
     mode: z.enum(['declared', 'model_chosen', 'any']).default('any'),
     acting_user: z.string(), // a fixture user key — this fixes the EntitledSlice
