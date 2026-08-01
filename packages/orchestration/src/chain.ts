@@ -81,7 +81,50 @@ export type ChainInput = {
   // named none; there is no default substituted here, because a Lens the user
   // did not ask for would be recorded on the plan as though they had.
   lens?: Lens | null;
+  /**
+   * T-252 — re-resolve the requester's entitlement BEFORE each step runs
+   * (finding F4, half two).
+   *
+   * A run resolves its `EntitledSlice` once, at the API boundary. That is
+   * exact for a request measured in seconds; a plan that fans out over
+   * minutes (T-266 onward) is a different proposition, and "the access facts
+   * held when this started" is not the same claim as "they hold now".
+   *
+   * THE CHAIN DOES NOT RESOLVE ITS OWN PERMISSIONS — component 2's rule. It
+   * calls back to the boundary that already did, and does nothing with the
+   * answer but stop. Nothing about the slice is passed IN or read here: this
+   * seam can refuse a step and can never widen one, which is why it is a
+   * predicate returning a reason rather than a slice.
+   *
+   * Absent means no re-check, which is exactly what the system did before
+   * this ticket — so an existing caller keeps its old behaviour rather than
+   * silently gaining a control it never asked for.
+   */
+  revalidate?: Revalidate;
 };
+
+/**
+ * The re-check the API installs. `ok: false` stops the run at the NEXT step
+ * boundary — never mid-step, because a step that has already called a model
+ * has already spent the money and already seen the context, and pretending
+ * otherwise would put a false claim in the audit record.
+ */
+export type Revalidate = () => Promise<{ ok: true } | { ok: false; reason: RevalidationFailure }>;
+
+/**
+ * Why a run stopped. Distinguished because they are genuinely different
+ * events: a revoked session is an account act, a lost entitlement is a
+ * project one, and an operator reading the record needs to know which.
+ */
+export type RevalidationFailure = 'session_ended' | 'entitlement_lost';
+
+/** Thrown by the chain when a re-check refuses. Carries the reason to the API. */
+export class RunHalted extends Error {
+  constructor(readonly reason: RevalidationFailure) {
+    super(`run halted before the next step: ${reason}`);
+    this.name = 'RunHalted';
+  }
+}
 
 /**
  * Runs the spine, writing each Step row with its audit fields as it runs.
@@ -126,6 +169,25 @@ export async function runChain(
     auditFrom: (output: Out) => StepAudit = () => ({}),
   ): Promise<Out> => {
     const planStepId = plan.stepIds[CODED_CHAIN_PLAN.findIndex((s) => s.stepType === type)]!;
+
+    // T-252 — re-resolve BEFORE the step opens. Before, not after: a step that
+    // has opened has already been recorded as attempted, and a step that has
+    // run has already spent a model call and already seen the context. The
+    // only honest place to stop is at the boundary between them.
+    if (input.revalidate !== undefined) {
+      const check = await input.revalidate();
+      if (!check.ok) {
+        // The plan step is `skipped`, not `failed`: nothing about it went
+        // wrong, and it did not run. The RUN is failed, because the answer it
+        // would have produced does not exist — an incomplete answer offered as
+        // a complete one is the failure mode this whole slice exists to avoid.
+        await finishPlanStep(db, planStepId, 'skipped');
+        await finishPlan(db, plan.id, 'failed');
+        await finishRun(db, run.id, 'failed');
+        throw new RunHalted(check.reason);
+      }
+    }
+
     const row = await openStep(db, { runId: run.id, type });
     await startPlanStep(db, planStepId, row.id);
     try {

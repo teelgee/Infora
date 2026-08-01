@@ -7,7 +7,7 @@ export {
   openStep,
 } from './run-writer';
 export type { ConversationRow, RunRow, StepAudit, StepRow } from './run-writer';
-export { CHAIN_AGENT_ID, runChain, sourcesOf } from './chain';
+export { CHAIN_AGENT_ID, RunHalted, runChain, sourcesOf } from './chain';
 export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 export { createGroundCheckLeaf } from './ground-check-leaf';
@@ -38,5 +38,7 @@ export type {
   GroundCheckOutput,
   Leaf,
   LeafContext,
+  Revalidate,
+  RevalidationFailure,
   SourceRef,
 } from './chain';

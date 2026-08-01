@@ -133,6 +133,9 @@ export function buildApp(deps: AppDeps) {
       // cannot change underneath a run already recording which produced it.
       ...(deps.lenses !== undefined && { lenses: deps.lenses }),
       ...(deps.defaultLensId !== undefined && { defaultLensId: deps.defaultLensId }),
+      // T-252 — the same policy the middleware admitted the request under, so
+      // the mid-run re-check and the front-door check cannot disagree
+      sessionPolicy: deps.sessionPolicy ?? DEFAULT_SESSION_POLICY,
     }),
   );
 

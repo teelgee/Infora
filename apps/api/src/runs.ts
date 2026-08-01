@@ -23,10 +23,13 @@ import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import type { LensRegistry } from '@infora/lenses';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
-import { createConversation, readRun, readRunContext, runChain } from '@infora/orchestration';
-import type { ChainLeaves, RunRow } from '@infora/orchestration';
-import { projectScope, resourceHomes, resourceScope } from './requester';
+import { createConversation, readRun, readRunContext, RunHalted, runChain } from '@infora/orchestration';
+import type { ChainLeaves, Revalidate, RunRow } from '@infora/orchestration';
+import { projectScope, resolveSlice, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
+import { resolveSession } from './sessions';
+import { DEFAULT_SESSION_POLICY } from './sessions';
+import type { SessionPolicy } from './sessions';
 import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
 
 const notFound = { error: 'not_found' } satisfies ApiError;
@@ -37,6 +40,7 @@ export function runRoutes(deps: {
   leaves: ChainLeaves;
   lenses?: LensRegistry;
   defaultLensId?: string | null;
+  sessionPolicy?: SessionPolicy;
 }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -122,14 +126,52 @@ export function runRoutes(deps: {
         if (lens === null) return c.json(invalid(`unknown lens: ${body.data.lensId}`), 400);
       }
 
-      const { run } = await runChain(deps.db, deps.leaves, {
-        conversationId: c.req.param('conversationId'),
-        request: body.data.request,
-        environmentKey: slice.projectId,
-        requesterParticipantId: slice.participantId,
-        sandboxDocumentId: body.data.sandboxDocumentId ?? null,
-        lens,
-      });
+      // T-252 — the re-check the chain calls before each step. It is built
+      // HERE, at the boundary that resolves permissions, and handed down as a
+      // predicate: the chain does not resolve its own permissions (component
+      // 2), and this seam can only ever refuse a step, never widen one.
+      const user = c.get('user');
+      const sessionId = c.get('sessionId');
+      const revalidate: Revalidate = async () => {
+        // the session first: it is the cheaper check and the one an account
+        // action (T-251's revocation) moves
+        const session = await resolveSession(
+          deps.db,
+          sessionId,
+          deps.sessionPolicy ?? DEFAULT_SESSION_POLICY,
+        );
+        if (!session.live) return { ok: false, reason: 'session_ended' };
+        // then the entitlement, re-derived from the access facts as they stand
+        // — the colocated store's immediate-effect property (ADR-0024) is what
+        // makes this meaningful: a revoked Participant is gone from the next
+        // read, not from the next cache expiry
+        const current = await resolveSlice(deps.db, user, slice.projectId);
+        if (current === null) return { ok: false, reason: 'entitlement_lost' };
+        return { ok: true };
+      };
+
+      let run: RunRow;
+      try {
+        ({ run } = await runChain(deps.db, deps.leaves, {
+          conversationId: c.req.param('conversationId'),
+          request: body.data.request,
+          environmentKey: slice.projectId,
+          requesterParticipantId: slice.participantId,
+          sandboxDocumentId: body.data.sandboxDocumentId ?? null,
+          lens,
+          revalidate,
+        }));
+      } catch (error) {
+        if (!(error instanceof RunHalted)) throw error;
+        // 401 for a session that ended, 404 for entitlement lost. The second is
+        // deliberate and not a softening: once the requester cannot reach the
+        // project, the project reads as nonexistent to them, and a distinct
+        // status would tell someone just removed from a project that it is
+        // still there (principle 4).
+        return error.reason === 'session_ended'
+          ? c.json({ error: 'unauthenticated' } satisfies ApiError, 401)
+          : c.json(notFound, 404);
+      }
       return c.json((await readRun(deps.db, run.id)) satisfies Run | null, 201);
     },
   );
