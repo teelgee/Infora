@@ -23,6 +23,12 @@ const schema = z.object({
   // `planning-environmental` would make Infora's view of the modal user into
   // everyone's default. Unset means no Lens — the shared core alone.
   DEFAULT_LENS_ID: z.string().min(1).optional(),
+  // T-251 — the two session clocks (finding F4). Both are deployment
+  // configuration because the right numbers are a security-session decision,
+  // not a build-time one. Unset falls through to the modest in-code posture,
+  // which is still a bound where the skeleton had none at all.
+  SESSION_ABSOLUTE_HOURS: z.coerce.number().positive().optional(),
+  SESSION_IDLE_MINUTES: z.coerce.number().positive().optional(),
   DEPLOYMENT_TIER: z.enum(['standard', 'sovereign']).default('standard'),
   DATA_CLASSIFICATION: z.enum(['official', 'secret']).default('official'),
   // the declared egress attributes of the model endpoints (ADR-0037 §3). All

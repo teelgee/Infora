@@ -29,6 +29,12 @@ Relationship: Organisation ─< User.
 Fields: `user_id` → User (primary key), `password_hash`.
 Relationship: User ─ User credential (at most one).
 
+**Session** *(drawn 2026-08-01, T-251; migration 0037)* — a live login, as a **row** rather than only as a signed cookie. The reason is one sentence: **a signed cookie cannot be revoked.** It is valid because it verifies, so an administrator who removes a user, or a user who signs out on a lost laptop, changes nothing until the signature expires — and the skeleton's cookie carried no expiry at all. Finding F4's other half is per-step re-resolution (T-252); this is the half that makes a session *end*.
+Fields: `id` (the opaque token the cookie carries — a random 256-bit value, **not** the user id, so the cookie stops being a bearer assertion of identity and becomes a pointer to a record the server controls), `user_id` → User, `created_at`, `last_seen_at` (touched on use, the idle clock), `expires_at` (the **absolute** lifetime, fixed at creation and never extended), `revoked_at` (nullable), `revoked_reason` (nullable — `signed_out` | `expired_idle` | `revoked`; **why** a session ended is the audit fact, and a deleted row carries none of it).
+**Two clocks, and they are not the same control.** The absolute lifetime bounds how long a stolen cookie is useful *at all* and is never extended by activity; the idle timeout ends a session someone walked away from. A session is live only when `revoked_at IS NULL` **and** `now() < expires_at` **and** `now() - last_seen_at < idle`. Both are deployment configuration (`SESSION_ABSOLUTE_HOURS`, `SESSION_IDLE_MINUTES`), because the right numbers are a security-session decision and not a build-time one.
+**Currency by state, like every other interval here**: signing out sets `revoked_at`, it does not delete the row. A session that ended is evidence of a login that happened.
+Relationship: User ─< Session. Deliberately **not** a drawer-3 audit table — a session is an access fact, and it belongs beside the Participant and the credential it authenticates.
+
 **Project** — a construction scheme; the central unit.
 Fields: `id`, `name`, `owner_organisation_id` → Organisation.
 Relationship: one Organisation owns many Projects (owner is a role, ADR-0015).

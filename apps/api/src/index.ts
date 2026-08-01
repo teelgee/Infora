@@ -4,6 +4,7 @@ import { createDb } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
 import { AnthropicChatAdapter, Router, VoyageEmbeddingAdapter, securityForTier } from '@infora/model';
 import { buildApp } from './app';
+import { DEFAULT_SESSION_POLICY } from './sessions';
 import { loadApiEnv, resolveRouteAttributes } from './env';
 
 const env = loadApiEnv();
@@ -43,6 +44,10 @@ const app = buildApp({
   router,
   lenses,
   defaultLensId: env.DEFAULT_LENS_ID ?? null,
+  sessionPolicy: {
+    absoluteHours: env.SESSION_ABSOLUTE_HOURS ?? DEFAULT_SESSION_POLICY.absoluteHours,
+    idleMinutes: env.SESSION_IDLE_MINUTES ?? DEFAULT_SESSION_POLICY.idleMinutes,
+  },
   ...(allowedOrigins !== undefined && { allowedOrigins }),
   // T-217: throttle overrides; unset vars fall through to the in-code defaults
   rateLimits: {

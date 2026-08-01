@@ -4,20 +4,22 @@
 // infra/security session lands production identity (Entra-first); requester
 // resolution on every other endpoint is T-023.
 import { Hono } from 'hono';
-import { deleteCookie, setSignedCookie } from 'hono/cookie';
+import { deleteCookie, getSignedCookie, setSignedCookie } from 'hono/cookie';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { changePasswordBody, createSessionBody, patchMeBody } from '@infora/contracts';
 import type { ApiError, MeResponse, UserPreferences } from '@infora/contracts';
 import { hashPassword, schema as s, verifyPassword } from '@infora/db';
 import type { Db } from '@infora/db';
+import { endSession, openSession } from './sessions';
+import type { SessionPolicy } from './sessions';
 import type { AppEnv, UserRow } from './requester';
 
 export const sessionCookie = 'infora_session';
 
 const unauthenticated = { error: 'unauthenticated' } satisfies ApiError;
 
-export function authRoutes(deps: { db: Db; sessionSecret: string }) {
+export function authRoutes(deps: { db: Db; sessionSecret: string; sessionPolicy: SessionPolicy }) {
   const app = new Hono<AppEnv>();
 
   app.post('/auth/session', async (c) => {
@@ -38,18 +40,31 @@ export function authRoutes(deps: { db: Db; sessionSecret: string }) {
       return c.json(unauthenticated, 401);
     }
 
-    await setSignedCookie(c, sessionCookie, row.user.id, deps.sessionSecret, {
+    // T-251 — the cookie carries an opaque TOKEN, not the user id. That is the
+    // whole change: a cookie holding a user id is a bearer assertion of
+    // identity that stays true until the signature expires; a cookie holding a
+    // token is a pointer to a row the server can revoke. It is still signed, so
+    // a forged token is rejected before the database is touched.
+    const session = await openSession(deps.db, row.user.id, deps.sessionPolicy);
+    await setSignedCookie(c, sessionCookie, session.id, deps.sessionSecret, {
       httpOnly: true,
       sameSite: 'Lax',
       path: '/',
+      // the cookie now expires WITH the session's absolute lifetime, so a
+      // browser stops sending a cookie the server would refuse anyway
+      expires: session.expiresAt,
     });
     return c.body(null, 204); // the cookie is the product; identity reads via GET /me
   });
 
-  // T-111 — sign out: the cookie is the session, so deleting it ends the
-  // session. Idempotent and unauthenticated by design (the middleware exempts
-  // the /auth/session path): a stale or absent cookie signs out the same way.
-  app.delete('/auth/session', (c) => {
+  // T-111 — sign out. T-251 changed what this MEANS: deleting the cookie used
+  // to be the whole of it, so a copy of the cookie taken beforehand kept
+  // working. Now the server ends the session too, and the copy is dead.
+  // Idempotent and unauthenticated by design (the middleware exempts this
+  // path): a stale or absent cookie signs out the same way.
+  app.delete('/auth/session', async (c) => {
+    const token = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
+    if (typeof token === 'string') await endSession(deps.db, token, 'signed_out');
     deleteCookie(c, sessionCookie, { path: '/' });
     return c.body(null, 204);
   });

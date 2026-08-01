@@ -17,9 +17,14 @@ import type { Db } from '@infora/db';
 import type { LensRegistry } from '@infora/lenses';
 import type { Router } from '@infora/model';
 import { sessionCookie } from './auth';
+import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
+import type { SessionPolicy } from './sessions';
 
 export type UserRow = typeof s.users.$inferSelect;
-export type AppEnv = { Variables: { user: UserRow; slice: EntitledSlice } };
+// T-251 — `sessionId` rides the context so a later step can re-check the
+// session it started under (T-252's re-resolution) without re-reading a cookie
+// that is no longer in scope by then.
+export type AppEnv = { Variables: { user: UserRow; slice: EntitledSlice; sessionId: string } };
 export type AppDeps = {
   db: Db;
   sessionSecret: string;
@@ -45,6 +50,12 @@ export type AppDeps = {
    * the shared core, which is what the product did before Lenses existed.
    */
   defaultLensId?: string | null;
+  /**
+   * T-251 — the absolute lifetime and idle window. Optional so an existing
+   * caller keeps working; unset means the modest out-of-the-box posture, which
+   * is still a bound where the skeleton had none at all.
+   */
+  sessionPolicy?: SessionPolicy;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -54,14 +65,29 @@ const isUuid = (value: string) => z.uuid().safeParse(value).success;
 export function sessionMiddleware(deps: {
   db: Db;
   sessionSecret: string;
+  sessionPolicy?: SessionPolicy;
 }): MiddlewareHandler<AppEnv> {
+  const policy = deps.sessionPolicy ?? DEFAULT_SESSION_POLICY;
   return async (c, next) => {
     if (c.req.path === '/auth/session') return next();
     if (c.req.path === '/health') return next(); // liveness probe (T-219)
-    const userId = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
-    if (!userId) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
-    const [user] = await deps.db.select().from(s.users).where(eq(s.users.id, userId)).limit(1);
-    if (!user) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401); // stale cookie
+    const token = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
+    if (!token) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
+    // T-251 — the signature proves the token was minted here; the ROW proves it
+    // is still live. Signature first, so a forged token never reaches the
+    // database. Every ending — unknown, revoked, expired, idle — answers the
+    // same 401: which one it was is the server's business, and telling a caller
+    // "this session was revoked" distinguishes a real session from a forged
+    // one, which is the same leak principle 4 closes everywhere else.
+    const check = await resolveSession(deps.db, token, policy);
+    if (!check.live) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
+    c.set('sessionId', check.session.id);
+    const [user] = await deps.db
+      .select()
+      .from(s.users)
+      .where(eq(s.users.id, check.session.userId))
+      .limit(1);
+    if (!user) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401); // stale row
     c.set('user', user);
     await next();
   };

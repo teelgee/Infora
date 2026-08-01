@@ -53,6 +53,57 @@ export const userCredentials = pgTable('user_credentials', {
   passwordHash: text('password_hash').notNull(),
 });
 
+// T-251 — how a session ended. `revoked_at` says a session is over; this says
+// WHY, and why is the audit fact a deleted row would carry none of.
+export const sessionEndReason = pgEnum('session_end_reason', [
+  'signed_out',
+  'expired_idle',
+  'revoked',
+]);
+
+/**
+ * T-251 — a live login as a ROW, not only as a signed cookie (finding F4).
+ *
+ * The reason is one sentence: a signed cookie cannot be revoked. It is valid
+ * because it verifies, so removing a user, or signing out on a lost laptop,
+ * changes nothing until the signature expires — and the skeleton's cookie
+ * carried no expiry at all.
+ *
+ * `id` is the token the cookie carries: a random value, NOT the user id, so
+ * the cookie stops being a bearer assertion of identity and becomes a pointer
+ * to a record the server controls.
+ *
+ * TWO CLOCKS, and they are not the same control. `expires_at` is the absolute
+ * lifetime, fixed at creation and never extended by activity — it bounds how
+ * long a stolen cookie is useful at all. `last_seen_at` drives the idle
+ * timeout, which ends a session someone walked away from. Both thresholds are
+ * deployment configuration, because the right numbers are a security-session
+ * decision and not a build-time one.
+ *
+ * Currency by state, like every other interval in this drawer: signing out
+ * sets `revoked_at`, it does not delete the row. A session that ended is
+ * evidence of a login that happened.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(), // the opaque token; see above
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedReason: sessionEndReason('revoked_reason'),
+  },
+  (t) => [
+    // the revocation read: "end every live session of this user", which is what
+    // an org admin removing someone actually needs
+    index('sessions_user_live_idx').on(t.userId).where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

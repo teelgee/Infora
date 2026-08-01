@@ -21,6 +21,7 @@ import { containerRoutes, planRoutes } from './plan';
 import { ontologyRoutes } from './ontology';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
+import { DEFAULT_SESSION_POLICY } from './sessions';
 import type { AppDeps, AppEnv } from './requester';
 import { renditionRoutes } from './renditions';
 import { runRoutes } from './runs';
@@ -103,8 +104,15 @@ export function buildApp(deps: AppDeps) {
   // Liveness probe (T-219) — sessionless, DB-pinging
   app.route('/', healthRoutes(deps));
 
-  // Auth & session (M1, M6) — T-021
-  app.route('/', authRoutes(deps));
+  // Auth & session (M1, M6) — T-021; revocable server-side sessions, T-251
+  app.route(
+    '/',
+    authRoutes({
+      db: deps.db,
+      sessionSecret: deps.sessionSecret,
+      sessionPolicy: deps.sessionPolicy ?? DEFAULT_SESSION_POLICY,
+    }),
+  );
 
   // Conversations, runs & work items (M3, M5, M6) — T-046. The chain's
   // leaves are bound once here: retrieval reaches stores only through the
