@@ -2,7 +2,7 @@
 
 Surfaces are the interfaces where people and agents meet: the workspace home, the project home (with the left project nav rail), the document-management interface, the consultant workspace (chat plus editor), the owner/client portfolio view (the generalised "control tower"), the Word add-in, and the Microsoft 365 Copilot integration. The principle is to meet users where they already work. The project is the context everything sits inside; the command bar is the agent entry; each **tool** is its own launchable surface (Workflows renamed Tools, owner-ruled 2026-07-13/T-109: a tool is the packaged capability a user launches — the minimal tool is one workflow with a name — while *workflow* stays the engine's term for the codified sequence it runs).
 
-The left rail carries the project switcher, the sections (Home, Ask, Editor, Documents, Review, Sandbox, Tools, History — as built at T-109; Knowledge is staged with the moat slices), and the firm-scoped user. The owner sees the same home with a portfolio switcher above the project. All surfaces reuse one typed API (`contracts`) so new surfaces add without divergence and inherit orchestration, context, capabilities, governance, audit and access scoping rather than re-implementing any of it.
+The left rail carries the project switcher, the sections (Home, Ask, Editor, Documents, Review, Sandbox, Tools, History — as built at T-109; **Notifications** joins them per ADR-0049 §6a; Knowledge is staged with the moat slices), and the firm-scoped user. The owner sees the same home with a portfolio switcher above the project. All surfaces reuse one typed API (`contracts`) so new surfaces add without divergence and inherit orchestration, context, capabilities, governance, audit and access scoping rather than re-implementing any of it.
 
 The **Word add-in** is cross-cutting and recorded explicitly here and in document management (component 5), because it is both a surface and the consultant authoring surface. It is a **thin client**: a task-pane web app (Office.js plus a manifest) with no intelligence locally, calling the same API as every other surface. On open it resolves which project the document belongs to. Its job is **governed editing**: agent changes land as native Word tracked changes carrying a citation and rationale, never silent rewrites; the user accepts, edits or rejects using Word's own review controls, and that resolution is the **Signal**. It is a consultant authoring surface, not a reviewer capture path — reviewers comment on the PDF in Infora's own viewer (ADR-0004), so the add-in does not capture review comments in build 1. Deployment is a GTM lever: Office add-ins push centrally through the M365 admin centre, so an owner can roll Infora out to every appointed consultant at once.
 
@@ -22,8 +22,8 @@ The cut is by **surface**: the distinct places a user meets the system. All shar
 
 ## 1. Workspace and project home
 
-**Responsibility.** Provide the org's workspace home and each project's home with the left nav rail (Home, Ask, Editor, Documents, Review, Sandbox, Tools, History — T-109; Knowledge staged) and project switcher; decide the layout and what lives at workspace versus project scope.
-**Governing ADRs.** **Open.**
+**Responsibility.** Provide the org's workspace home and each project's home with the left nav rail (Home, Ask, Editor, Documents, Review, Sandbox, Tools, History — T-109; **Notifications** per ADR-0049 §6a; Knowledge staged) and project switcher; decide the layout and what lives at workspace versus project scope. The project home carries the **"Needs you" notification panel directly above the work items and reviews** (§6a) — project-scoped, and absent at zero rather than showing an empty state.
+**Governing ADRs.** **0049** (the two notification placements and their differing scopes). Layout otherwise **open**.
 **Terms owned.** None uniquely; surfaces Workspace, Project (access model, component 2).
 **Depends on.** Access model (component 2); all components below the surface.
 
@@ -67,7 +67,16 @@ The cut is by **surface**: the distinct places a user meets the system. All shar
 
 ## 7. Notifications
 
-**Responsibility.** Tell a user that something happened which they need to know about. A **notification** is a persisted, event-shaped record — recipient, event type, a reference to its subject, a read state — surfaced in-app as an unread indicator and a recency-ordered list. **The in-app list is the surface of record; email is only a nudge toward it.**
+**Responsibility.** Tell a user that something happened which they need to know about. A **notification** is a persisted, event-shaped record — recipient, event type, a reference to its subject, a read state. **The in-app list is the surface of record; email is only a nudge toward it.**
+
+**Placement is two surfaces, deliberately** (ADR-0049 §6a, ruled 2026-08-01 against drawn mockups):
+
+- **The rail** carries the durable unread count, as a `Notifications` item alongside Home and Review. The only placement that survives wherever the user is — which matters because the person a round-issued event most needs to reach has been in the editor all afternoon and will not visit a home page.
+- **The project home** carries a **"Needs you"** panel directly above the work items and reviews, so a notification sits beside the thing it is about. **Absent at zero rather than showing an empty state.**
+
+**They are scoped differently on purpose** (§6b): the **rail count is the user's own across every project they can reach**, grouped by project; the **panel is scoped to its project**. The rail answers *"anything for me?"*, the panel *"anything here?"* — without the split, a mention on a second project would be silently invisible, since the rail sits beneath a project switcher and would otherwise inherit its scope.
+
+**A floating panel over the canvas is rejected** as the home for the record (§6c): it covers the work — landing on the drafting canvas where a consultant spends the day — and reads as transient, contradicting the durability the record exists for. That shape belongs to confirming an action the user *just took*, which is a different mechanism and must not share this surface.
 
 Three properties are load-bearing and belong to this component to enforce, because the leak they prevent arrives through a surface nobody thinks of as a data surface:
 
