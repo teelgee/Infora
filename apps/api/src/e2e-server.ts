@@ -10,7 +10,15 @@ import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
 const { db } = createDb();
-const router = fakeRouter();
+// T-283 — the substrate's chat names the reader it was given, so the Lens
+// picker can be seen working through the browser. Only when a Lens is present:
+// every earlier spec sends no `lensId` and must keep the reply it was written
+// against.
+const router = fakeRouter((system) => {
+  const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
+  const answer = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.';
+  return reader === undefined ? answer : `${reader}. ${answer}`;
+});
 
 // index the library under the fake embedding model so retrieval has a
 // grounded corpus here; the real voyage index coexists untouched (each
@@ -29,6 +37,9 @@ const app = buildApp({
   // Lenses a real user is offered, and a suite that could reach the draft
   // Commercial Lens would be testing a configuration nobody ships.
   lenses: loadLenses({ production: true }),
+  // T-283 — the default is config, and the substrate declares one so the
+  // picker's preselected state is exercised rather than assumed
+  defaultLensId: 'planning-environmental',
 });
 
 serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {

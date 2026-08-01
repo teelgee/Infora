@@ -13,13 +13,19 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
+import { LensPicker, useLenses } from '../lens-picker';
+import type { LensChoice } from '../lens-picker';
 import { useMe } from '../session';
 import { SourcePanel } from '../source-panel';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 type Message =
   | { id: number; kind: 'user'; text: string }
-  | { id: number; kind: 'agent'; run: Run }
+  // T-283 — `lens` is the Lens THIS answer was produced under, carried on the
+  // message rather than read from the picker. Switching re-renders the next
+  // answer only; history keeps what produced it, so scrolling back does not
+  // silently relabel an old answer with a register it was never written in.
+  | { id: number; kind: 'agent'; run: Run; lens: LensChoice }
   | { id: number; kind: 'note'; text: string }; // e.g. a cancelled wait (T-097)
 
 export function AskScreen() {
@@ -35,10 +41,25 @@ export function AskScreen() {
   const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094/T-105)
   // T-249 — the label-propagation refusal, stated where the action was taken
   const [editorRefusal, setEditorRefusal] = useState<string | null>(null);
+  // T-283 — the active Lens. Deliberately NOT persisted on the conversation:
+  // an answer's Lens is a property of the answer, which is why it rides the
+  // run (and the plan record T-299 writes) and not a conversation column.
+  const { lenses, defaultLensId, loaded: lensesLoaded } = useLenses();
+  const [lens, setLens] = useState<LensChoice>(null);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const nextId = useRef(0);
+
+  // The configured default, applied once the list has loaded. `null` is a real
+  // configuration (no Lens named), so this cannot key off `lens === null`.
+  const [lensInitialised, setLensInitialised] = useState(false);
+  useEffect(() => {
+    if (!lensesLoaded || lensInitialised) return;
+    const preselected = lenses.find((candidate) => candidate.id === defaultLensId);
+    if (preselected !== undefined) setLens({ id: preselected.id, label: preselected.label });
+    setLensInitialised(true);
+  }, [lensesLoaded, lensInitialised, lenses, defaultLensId]);
 
   // T-108 — a History entry reopens here: the past runs seed the transcript
   // and the conversation continues under its own id
@@ -51,7 +72,12 @@ export function AskScreen() {
       setMessages(
         runs.flatMap((run) => [
           { id: nextId.current++, kind: 'user' as const, text: run.request },
-          { id: nextId.current++, kind: 'agent' as const, run },
+          // A reopened conversation's Lens is not recoverable over HTTP yet:
+          // it lives on the plan (T-299) and the plan read API is T-261. Null
+          // here means "not known", and the footer says so rather than
+          // guessing at the picker's current value, which would be a
+          // fabrication about a past answer.
+          { id: nextId.current++, kind: 'agent' as const, run, lens: null },
         ]),
       ),
     );
@@ -89,8 +115,17 @@ export function AskScreen() {
     abortRef.current = new AbortController();
     try {
       conversationRef.current ??= (await api.createConversation(participant.projectId)).conversationId;
-      const run = await api.createRun(conversationRef.current, request, undefined, abortRef.current.signal);
-      setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run }]);
+      // the Lens is captured HERE, at send time — switching while a run is in
+      // flight must not relabel the answer already being produced
+      const sentUnder = lens;
+      const run = await api.createRun(
+        conversationRef.current,
+        request,
+        undefined,
+        abortRef.current.signal,
+        sentUnder?.id,
+      );
+      setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run, lens: sentUnder }]);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setMessages((m) => [
@@ -146,6 +181,7 @@ export function AskScreen() {
                 <AgentMessage
                   key={message.id}
                   run={message.run}
+                  lens={message.lens}
                   onOpenSource={setSourceOpen}
                   onOpenInEditor={() => void openInEditor(message.run)}
                 />
@@ -190,10 +226,13 @@ export function AskScreen() {
               onSend={(request) => void send(request)}
               onCancel={cancel}
               sources={
-                <ComposerSources
-                  projectId={participant.projectId}
-                  onInsert={(snippet) => composerRef.current?.insert(snippet)}
-                />
+                <>
+                  <LensPicker lenses={lenses} value={lens} onChange={setLens} />
+                  <ComposerSources
+                    projectId={participant.projectId}
+                    onInsert={(snippet) => composerRef.current?.insert(snippet)}
+                  />
+                </>
               }
             />
           </div>
@@ -210,6 +249,7 @@ export function AskScreen() {
 
 function AgentMessage(props: {
   run: Run;
+  lens: LensChoice;
   onOpenSource: (versionId: string) => void;
   onOpenInEditor: () => void;
 }) {
@@ -250,6 +290,9 @@ function AgentMessage(props: {
       <details className="meta" style={{ marginTop: 4 }}>
         <summary style={{ cursor: 'pointer' }}>
           Run {run.id.slice(0, 8)} · {statusBadge(run.state).label}
+          {/* T-283 — the Lens THIS answer was produced under, never the
+              picker's current value. Switching does not rewrite history. */}
+          {props.lens !== null && ` · ${props.lens.label} Lens`}
           {withheld > 0 && ` · ${withheld} claim${withheld === 1 ? '' : 's'} withheld`} · every step
           in the audit trail
         </summary>

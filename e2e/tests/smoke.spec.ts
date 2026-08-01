@@ -26,7 +26,12 @@ test('api: the session helper resolves the seeded identities', async () => {
   const consultant = await ApiSession.login(SEEDED.consultant);
   const me = await consultant.get<MeResponse>('/me');
   expect(me.organisationName).toBe('Calder & Hale');
-  expect(me.participants).toHaveLength(1);
+  // TWO schemes since T-298: the conflict-register scenario needs a subject who
+  // works both clients, so Eleanor is a Participant of Wrenfield and Marchwood.
+  // The assertion that survives the seed growing is the ORDER — twelve specs
+  // index `participants[0]`, which T-298 made deterministic by `created_at`.
+  expect(me.participants).toHaveLength(2);
+  expect(me.participants[0]!.projectName).toBe('Wrenfield–Ashcombe 400kV Connection');
 
   // the wall subject authenticates but is entitled to nothing
   const marcus = await ApiSession.login(SEEDED.noParticipant);

@@ -10,7 +10,7 @@
 // because the eval harness cannot yet observe the prompt.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { asc, eq } from 'drizzle-orm';
-import type { ApiError, Plan, Run } from '@infora/contracts';
+import type { ApiError, ListLensesResponse, Plan, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
 import { readPlanForRun } from '@infora/orchestration';
@@ -31,6 +31,7 @@ const app = buildApp({
     return `Answering for ${reader}. [S1]`;
   }),
   lenses,
+  defaultLensId: 'planning-environmental',
 });
 
 const stamp = Date.now();
@@ -125,6 +126,83 @@ function sourcesOf(run: Run): string[] {
   const retrieve = run.steps.find((step) => step.type === 'retrieve')!;
   return retrieve.sourceSet.map((source) => JSON.stringify(source)).sort();
 }
+
+// T-283 — what the picker may offer, and the config default.
+describe('T-283 — the Lens list and the configured default', () => {
+  it('offers the four active Lenses as summaries, and no prompt material', async () => {
+    const res = await app.request('/lenses', { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ListLensesResponse;
+
+    expect(body.lenses.map((l) => l.id).sort()).toEqual([
+      'communications',
+      'engineer',
+      'planning-environmental',
+      'project-manager',
+    ]);
+    // summaries ONLY: prohibitions and worked exchanges are prompt material
+    // and have no business on the wire
+    for (const summary of body.lenses) {
+      expect(Object.keys(summary).sort()).toEqual(['description', 'id', 'label', 'version']);
+    }
+  });
+
+  it('reports the deployment default, which is config and not code', async () => {
+    const res = await app.request('/lenses', { headers: { cookie } });
+    expect(((await res.json()) as ListLensesResponse).defaultLensId).toBe('planning-environmental');
+
+    // a deployment naming none offers the shared core — the state the product
+    // shipped in before the Lens layer existed, and a valid configuration
+    const noDefault = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter(), lenses });
+    const bare = await noDefault.request('/lenses', { headers: { cookie } });
+    expect(((await bare.json()) as ListLensesResponse).defaultLensId).toBeNull();
+  });
+
+  it('never reports a default the registry does not carry', async () => {
+    // a typo in DEFAULT_LENS_ID must not preselect an id the picker cannot
+    // offer and the run endpoint would then refuse with a 400
+    const misconfigured = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter(),
+      lenses,
+      defaultLensId: 'planing-environmental',
+    });
+    const res = await misconfigured.request('/lenses', { headers: { cookie } });
+    expect(((await res.json()) as ListLensesResponse).defaultLensId).toBeNull();
+  });
+
+  it('requires a session, like every route but login and health', async () => {
+    expect((await app.request('/lenses')).status).toBe(401);
+  });
+
+  it('is the same list for every requester — a list that varied would be a reach control', async () => {
+    // the wall's shape is irrelevant here BY DESIGN: the Lens set is a property
+    // of the deployment, and this test exists to keep it that way
+    const first = (await (await app.request('/lenses', { headers: { cookie } })).json()) as ListLensesResponse;
+    const second = (await (await app.request('/lenses', { headers: { cookie } })).json()) as ListLensesResponse;
+    expect(first).toEqual(second);
+  });
+});
+
+describe('T-283 — switching changes the next answer, never a past one', () => {
+  it('two turns in one conversation may carry different Lenses', async () => {
+    // persistence is PER RUN, in the plan record — there is no conversation
+    // column, because an answer's Lens is a property of the answer
+    const first = (await (await ask('planning-environmental')).json()) as Run;
+    const second = (await (await ask('communications')).json()) as Run;
+
+    const firstPlan = (await readPlanForRun(db, first.id)) as Plan;
+    const secondPlan = (await readPlanForRun(db, second.id)) as Plan;
+    expect(firstPlan.lensId).toBe('planning-environmental');
+    // the earlier answer is untouched by the later switch
+    expect(secondPlan.lensId).toBe('communications');
+    expect(first.response).not.toBe(second.response);
+
+    const reread = (await readPlanForRun(db, first.id)) as Plan;
+    expect(reread.lensId).toBe('planning-environmental');
+  });
+});
 
 describe('T-299 — the Lens through the request and into the prompt', () => {
   it('the same question under two Lenses: two different answers, one identical source set', async () => {

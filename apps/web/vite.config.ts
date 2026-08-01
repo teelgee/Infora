@@ -33,6 +33,11 @@ const apiPrefixes = [
   '/review-comments',
   '/cycles',
   '/renditions',
+  // T-283 — the Lens picker's options. A missing prefix here does not error,
+  // it returns index.html, which parses as "no Lenses" and renders no chip at
+  // all — a silent, plausible-looking nothing. The e2e caught it; the unit
+  // tests could not, because they call the API directly.
+  '/lenses',
 ];
 
 const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';

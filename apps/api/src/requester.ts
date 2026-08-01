@@ -37,6 +37,14 @@ export type AppDeps = {
    * place that knows.
    */
   lenses?: LensRegistry;
+  /**
+   * T-283 — the Lens the picker preselects. CONFIG, not code
+   * (`DEFAULT_LENS_ID`): which register a firm's people should start in is a
+   * deployment decision, and hard-coding `planning-environmental` would make
+   * Infora's own view of the modal user into everyone's default. Unset means
+   * the shared core, which is what the product did before Lenses existed.
+   */
+  defaultLensId?: string | null;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);

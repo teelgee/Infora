@@ -31,6 +31,7 @@ import type {
   GetVersionResponse,
   GetWorkItemResponse,
   ListOrgUsersResponse,
+  ListLensesResponse,
   ListRosterResponse,
   ListSandboxCommentsResponse,
   ListSandboxDocumentsResponse,
@@ -450,15 +451,25 @@ export const api = {
     requestText: string,
     sandboxDocumentId?: string,
     signal?: AbortSignal, // cancels the wait, not the run (T-097; tracker)
+    // T-283 — the Lens this turn is answered under. Sent per RUN, never held
+    // on the conversation: an answer's Lens is a property of the answer, so
+    // switching changes the next one and leaves history as it was produced.
+    lensId?: string,
   ) =>
     request<Run>(`/conversations/${conversationId}/runs`, {
       method: 'POST',
       body: JSON.stringify({
         request: requestText,
         ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
+        ...(lensId !== undefined && { lensId }),
       }),
       ...(signal !== undefined && { signal }),
     }),
+
+  // T-283 — the Lens picker's options. Deployment-wide, not project-scoped:
+  // the same list for every requester, because a list that differed by who
+  // asked would make a Lens a reach control.
+  lenses: () => request<ListLensesResponse>('/lenses'),
 
   // T-241/T-243 — the project ontology (ADR-0045): classification vocabulary +
   // typed relationship edges.

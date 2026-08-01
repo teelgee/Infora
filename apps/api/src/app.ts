@@ -124,6 +124,7 @@ export function buildApp(deps: AppDeps) {
       // production reads the definitions once and freezes them, so a Lens
       // cannot change underneath a run already recording which produced it.
       ...(deps.lenses !== undefined && { lenses: deps.lenses }),
+      ...(deps.defaultLensId !== undefined && { defaultLensId: deps.defaultLensId }),
     }),
   );
 

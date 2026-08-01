@@ -42,6 +42,7 @@ const app = buildApp({
   sessionSecret: env.SESSION_SECRET,
   router,
   lenses,
+  defaultLensId: env.DEFAULT_LENS_ID ?? null,
   ...(allowedOrigins !== undefined && { allowedOrigins }),
   // T-217: throttle overrides; unset vars fall through to the in-code defaults
   rateLimits: {

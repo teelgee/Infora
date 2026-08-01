@@ -18,6 +18,11 @@ const schema = z.object({
   // deployment security posture (ADR-0037 §1–§2): tier and default data
   // classification are deployment-level settings. Both default to the safe
   // out-of-the-box posture — standard tier carrying OFFICIAL.
+  // T-283 — the Lens the picker preselects. Config, not code: which register a
+  // firm's people start in is a deployment decision, and baking in
+  // `planning-environmental` would make Infora's view of the modal user into
+  // everyone's default. Unset means no Lens — the shared core alone.
+  DEFAULT_LENS_ID: z.string().min(1).optional(),
   DEPLOYMENT_TIER: z.enum(['standard', 'sovereign']).default('standard'),
   DATA_CLASSIFICATION: z.enum(['official', 'secret']).default('official'),
   // the declared egress attributes of the model endpoints (ADR-0037 §3). All

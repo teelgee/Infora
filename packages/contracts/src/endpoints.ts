@@ -19,6 +19,7 @@ import type {
   Suggestion,
   Surface,
 } from './shared';
+import type { LensSummary } from './lens';
 
 const id = z.uuid();
 
@@ -66,6 +67,19 @@ export const createRunBody = z.object({
 export type CreateRunBody = z.infer<typeof createRunBody>;
 export type CreateRunResponse = Run; // completed, with steps, suggestions and citations
 // (v1 returns on completion; streaming is a later, additive change)
+
+// T-283 — GET /lenses: what the picker is allowed to offer.
+//
+// Deliberately NOT project-scoped and not access-resolved. The Lens set is a
+// property of the DEPLOYMENT, identical for every requester — which is the
+// point: if the list differed by who asked, a Lens would be a reach control.
+// It carries summaries only (id, label, description, version); prohibitions
+// and worked exchanges are prompt material and never leave the server.
+//
+// `defaultLensId` is CONFIG, not code (`DEFAULT_LENS_ID`), and may be null —
+// a deployment that names none offers the shared core, which is the state the
+// product shipped in before the Lens layer existed.
+export type ListLensesResponse = { lenses: LensSummary[]; defaultLensId: string | null };
 
 export type GetRunResponse = Run; // the immutable audit read (owner path, M5)
 export type GetConversationResponse = { runs: Run[] };

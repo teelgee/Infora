@@ -8,7 +8,15 @@
 import { Hono } from 'hono';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { createConversationBody, createRunBody, openRunInEditorBody } from '@infora/contracts';
-import type { ApiError, GetHistoryResponse, HistoryEntry, Id, Run, WorkItem } from '@infora/contracts';
+import type {
+  ApiError,
+  GetHistoryResponse,
+  HistoryEntry,
+  Id,
+  ListLensesResponse,
+  Run,
+  WorkItem,
+} from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
@@ -24,9 +32,35 @@ import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
 const notFound = { error: 'not_found' } satisfies ApiError;
 const invalid = (detail: string) => ({ error: 'invalid', detail }) satisfies ApiError;
 
-export function runRoutes(deps: { db: Db; leaves: ChainLeaves; lenses?: LensRegistry }) {
+export function runRoutes(deps: {
+  db: Db;
+  leaves: ChainLeaves;
+  lenses?: LensRegistry;
+  defaultLensId?: string | null;
+}) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
+
+  // T-283 — what the Lens picker may offer.
+  //
+  // NOT project-scoped and not access-resolved, deliberately: the Lens set is a
+  // property of the deployment and is identical for every requester. A list
+  // that differed by who asked would make a Lens a reach control, which is the
+  // one thing it must never be. It still sits behind the session middleware —
+  // an anonymous caller has no business enumerating a deployment's
+  // configuration — and carries SUMMARIES only, because prohibitions and worked
+  // exchanges are prompt material and do not leave the server.
+  app.get('/lenses', (c) =>
+    c.json({
+      lenses: deps.lenses?.summaries() ?? [],
+      // config, never code. A deployment that names none offers the shared
+      // core — the state the product shipped in before Lenses existed.
+      defaultLensId:
+        deps.defaultLensId !== undefined && deps.defaultLensId !== null && deps.lenses?.has(deps.defaultLensId) === true
+          ? deps.defaultLensId
+          : null,
+    } satisfies ListLensesResponse),
+  );
 
   app.post('/projects/:projectId/conversations', project, async (c) => {
     const body = createConversationBody.safeParse(await c.req.json().catch(() => null));
