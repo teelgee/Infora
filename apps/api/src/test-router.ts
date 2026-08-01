@@ -32,7 +32,10 @@ export function fakeRouter(
     // SYSTEM prompt. The Lens's whole claim is that it changes how an answer
     // reads, and a router that ignores its prompt can prove neither half of
     // "two visibly different answers, one identical source set".
-    | ((system: string) => string) = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
+    // T-259 widened this to carry the USER prompt as well: the eval seed set
+    // needs a substrate whose citations depend on what retrieval admitted,
+    // and the numbered sources live in the user message, not the system one.
+    | ((system: string, prompt: string) => string) = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
   embedModelId: string = FAKE_EMBED_MODEL,
 ): Router {
   const chat: ChatAdapter = {
@@ -40,7 +43,10 @@ export function fakeRouter(
     attributes: SELF_HOSTED_UK,
     chat: (req) =>
       Promise.resolve({
-        text: typeof reply === 'function' ? reply(req.system ?? '') : reply,
+        text:
+          typeof reply === 'function'
+            ? reply(req.system ?? '', req.messages.map((message) => message.content).join('\n'))
+            : reply,
         model: { id: 'fake-chat', version: 'fake-chat-1' },
         usage: { tokensPrompt: 500, tokensCompletion: 60 },
       }),

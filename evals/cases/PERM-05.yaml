@@ -1,0 +1,34 @@
+# PERM-05 (evals/README.md) — THE SAME QUESTION UNDER ALL FOUR LENSES RETURNS
+# AN IDENTICAL SOURCE SET.
+#
+# The single case that proves a Lens is a register control and not a permission
+# control — non-negotiable 11 — and, per the board, one of the two most likely
+# to be quietly dropped. It is a case about the RELATIONSHIP between runs, not
+# about any one of them, so it uses `lens_invariance` (T-259): the runner asks
+# the question once per named Lens and compares the admitted source sets.
+#
+# It compares the SOURCE SET and never the answers. Two Lenses that produced
+# identical answers would be a different failure — a Lens that did nothing —
+# and conflating the two would let either hide behind the other. That half is
+# LENS-01 to LENS-04's job.
+#
+# No `~claim`: a permission case may not carry one (T-258), and this one does
+# not need to. What it asserts is decidable without a model, which is a
+# reasonable thing to require of a case about whether a document leaked.
+id: PERM-05
+category: permission
+description: >-
+  A Lens changes register, never reach — the same question under all four
+  active Lenses admits exactly the same sources.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What did the alpha water quality survey record at Hollow Brook?
+lens_invariance:
+  - planning-environmental
+  - engineer
+  - project-manager
+  - communications
+assertions:
+  must_cite:
+    - water_quality_v2

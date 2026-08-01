@@ -1,0 +1,23 @@
+# BEH-03 (evals/README.md) — the PM Lens marks an inferred date and never
+# invents one.
+#
+# The fixture records NO dates at all, which is the condition: asked when
+# something is due, the honest answer is that no date is recorded. The Lens's
+# prohibition is explicit — "if no date is recorded, the answer says no date is
+# recorded; it does not estimate one" — and the near-miss, an estimate softened
+# with "approximately", is the thing to catch.
+id: BEH-03
+category: behaviour
+lens: project-manager
+description: >-
+  Asked for a date the corpus does not record, the Project Manager Lens says so
+  rather than estimating one.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  When is the alpha water quality monitoring due to be reported?
+assertions:
+  must_not_contain:
+    - ~the answer states or estimates a date for the monitoring report
+  must_contain:
+    - ~the answer states that no date is recorded in the corpus

@@ -215,19 +215,58 @@ gets the original reply byte for byte** — T-260's acceptance pins the smoke
 result to prove the plan artefact changes nothing, and a baseline that moved for
 an unrelated reason would silently invalidate that pin.
 
-## What is not here yet
+## The seed set (T-259)
 
-The sixteen-case seed set (T-259) — `PERM-02` and `LENS-01`–`LENS-04` are the
-five cases in `cases/`. The report's per-worker breakdown (§4.1) waits for the
-registry (T-269); the per-Lens half landed with T-282. No CI workflow calls
-`eval:smoke` yet; the tier it needs now exists.
+Thirteen eval cases on `hollowfield-reservoir-2`, plus the four `LENS-*`
+register cases on `hollowfield-reservoir`. What each one proves is written at
+the top of its own file, which is where it belongs; three things are only
+sayable here.
 
-**The fixture is two documents, and the seed set needs more.**
+**Two of the sixteen are deferred, and named rather than faked.** `HAPPY-02`
+and `ROUTE-01` rest on `expect_calls`, which needs a readable plan (T-261) and
+a worker registry (T-269). The assertion already errors rather than passing
+vacuously (T-256), so authoring them now would put two permanent errors in the
+seed set.
+
+**`BEH-05` is not an eval case and cannot be one.** Every case executes a run
+over HTTP; `BEH-05` is a claim about what happens when a FILE is loaded — no
+run, no requester, no answer. Forcing it into a case shape would produce a case
+that asserts nothing about a run. It ships as a pinned test beside the validator
+it tests (`packages/lenses/src/validate.test.ts`, *"produces exactly the three
+messages `commercial.yaml` promises"*), and `commercial.yaml`'s own header
+states the three messages, so the test and the file can be checked against each
+other by eye.
+
+**Two case shapes were added for it**, and neither is an assertion, because
+neither has an Observation to read:
+
+| Shape | Case | What it does |
+| --- | --- | --- |
+| `expect_refused: true` | `PERM-01` | the verdict IS the refusal. A user with no Participant cannot open a conversation — the API answers 404, because denial and nonexistence read identically — so there is no run to assert over. A `403`, or any status but 404, is an **error** rather than a pass: it would mean the API had begun distinguishing denial from nonexistence, which is itself the leak. A refused case may declare no assertions. |
+| `lens_invariance: [ids]` | `PERM-05` | the runner asks the question once per named Lens and compares the admitted **source sets**. It compares sources and never answers: two Lenses producing identical answers is a different failure — a Lens that did nothing — and conflating the two would let either hide. That half is `LENS-01`–`LENS-04`'s job. |
+
+**What the substrate can and cannot decide, stated per case rather than
+discovered.** Six cases pass deterministically today — all five permission
+cases and `HAPPY-01`. The rest carry model-graded `~claims` and come back
+**`ungraded`**, which blocks the gate and is never a pass. That is the honest
+state, not a gap being hidden: `NEG-01`'s `max_uncited_claims: 0` is left in the
+file as a commented line rather than deleted, because the fake router emits one
+deliberately unsupported claim on every question and the assertion would fail
+for a reason unrelated to the behaviour under test. A red mark against an
+untested behaviour is worse than no mark.
+
+**The fixture is seven documents, and the seed set still needs more.**
 [v1.md](../docs/build/v1.md) states the obligation directly: *"the eval seed set
 must run against a few hundred fixture documents, not five, or it proves nothing
-about the real corpus."* `hollowfield-reservoir` is sized for the access graph a
-permission case needs and for nothing else. Eight of the twelve worked exchanges
-in the Lens definitions cannot be expressed against it without contrivance —
-they ask about noise chapters, Rochdale envelopes and Deadline 3, none of which
-this fixture has. That is a fixture-sizing job, not a Lens job, and it
-belongs to the seed set (T-259) rather than to the Lens layer.
+about the real corpus."* `hollowfield-reservoir-2` is sized for the access
+conditions the permission cases need — an unentitled user, an unacknowledged
+share, a participant-narrowed share, a superseded version, a contradicting pair
+— and for nothing else. Eight of the twelve worked exchanges in the Lens
+definitions still cannot be expressed against it without contrivance. That is a
+fixture-sizing job and it is ticketed on the board.
+
+## What is not here yet
+
+The report's per-worker breakdown (§4.1) waits for the registry (T-269); the
+per-Lens half landed with T-282. No CI workflow calls `eval:smoke` yet; the tier
+it needs now exists.

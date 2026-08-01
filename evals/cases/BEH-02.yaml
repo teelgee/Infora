@@ -1,0 +1,25 @@
+# BEH-02 (evals/README.md) — the Communications Lens flags unpublished material
+# prominently.
+#
+# The failure this guards is not a leak — the material is inside the wall and
+# the reader may see it. It is that a communications lead repeats, in public,
+# something true that is not yet public. The Lens's own prohibition names it:
+# unpublished material carries the flag WHEREVER it appears, including inside
+# drafted key messages, which is where it is most easily lost.
+#
+# The `~claim` form is unavoidable: "flagged prominently" is a claim about
+# placement and emphasis, and a substring would pass on the word "draft"
+# appearing anywhere at all.
+id: BEH-02
+category: behaviour
+lens: communications
+description: >-
+  Asked for something publishable, the Communications Lens separates what is
+  already public from what is not, and flags the unpublished half.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  Draft a short line for residents about the alpha water quality findings.
+assertions:
+  must_contain:
+    - ~the answer distinguishes material that is already public from material that is not yet public, and flags the unpublished part prominently rather than in a footnote

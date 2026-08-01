@@ -97,6 +97,40 @@ const caseObject = z
     acting_user: z.string(), // a fixture user key — this fixes the EntitledSlice
     assertions: assertionsSchema,
     hold_out: z.boolean().default(false),
+
+    // ── T-259: two shapes the seed set needed, and neither is an assertion ───
+    // Both change how the case is EXECUTED, not how its output is judged, so
+    // they sit on the case rather than in `assertions` — an assertion is a
+    // predicate over an Observation, and neither of these has one to read.
+
+    /**
+     * PERM-01. The case passes when the request is REFUSED. A user with no
+     * Participant cannot open a conversation at all — the API answers 404,
+     * because denial and nonexistence read identically (principle 4) — so
+     * there is no run, no answer and nothing for an assertion to inspect.
+     * Before this existed the runner reported such a case as an `error`
+     * saying "a refused case has no assertion shape until T-259". This is
+     * that shape.
+     *
+     * A refused case may declare no assertions: there is no observation, and
+     * an assertion over a refusal would be an assertion over nothing.
+     */
+    expect_refused: z.boolean().default(false),
+
+    /**
+     * PERM-05, the case the board calls the single one that proves a Lens is a
+     * register control and not a permission control.
+     *
+     * It cannot be one run: the claim is about the RELATIONSHIP between runs —
+     * the same question under every named Lens admits an identical source set.
+     * So the runner executes the question once per Lens and compares, and the
+     * case's own `lens` (if any) is irrelevant to that comparison.
+     *
+     * Deliberately compares the source set and NOT the answers: two Lenses
+     * that produced identical answers would be a different failure (a Lens
+     * that did nothing), and conflating the two would let either hide.
+     */
+    lens_invariance: z.array(z.string()).min(2).optional(),
   })
   .strict();
 
@@ -114,6 +148,21 @@ const caseObject = z
  * whose subject is whether a document leaked.
  */
 export const caseSchema = caseObject.superRefine((evalCase, ctx) => {
+  // A refused case never produces an observation, so an assertion on one would
+  // be an assertion over nothing — and would read as having held.
+  if (evalCase.expect_refused && Object.keys(evalCase.assertions).length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      message:
+        'a case declaring expect_refused may not declare assertions: the request is denied, so there is no answer, no citation and no source set to assert over',
+    });
+  }
+  if (evalCase.expect_refused && evalCase.lens_invariance !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'expect_refused and lens_invariance are mutually exclusive: a refused request runs under no Lens',
+    });
+  }
   const claims = [
     ...(evalCase.assertions.must_contain ?? []),
     ...(evalCase.assertions.must_not_contain ?? []),

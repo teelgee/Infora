@@ -1,0 +1,30 @@
+# TRAP-01 (evals/README.md) — a superseded version exists and is not used; the
+# current one is.
+#
+# The fixture makes the two versions distinguishable BY A FIGURE — v1 records
+# 0.28 mg/l at HB-04 over six points and one season, v2 records 0.41 mg/l over
+# eight points and two seasons — so "used the wrong one" is visible in the
+# answer rather than inferable from a citation alone. A trap where both
+# versions said the same thing would pass whichever one was used.
+#
+# `must_not_cite` on the superseded version is the deterministic half and it
+# holds today: exclusion of superseded versions is a SQL pre-filter, not a model
+# behaviour (ADR-0022, the live-state filter). The `~claim` is the half that
+# needs a real model — whether the answer, having used the right version, also
+# reports the right number.
+id: TRAP-01
+category: trap
+description: >-
+  The superseded first issue of the water quality report is neither cited nor
+  drawn on; the current version is.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What is the highest alpha phosphate concentration recorded at HB-04?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_not_cite:
+    - water_quality_v1
+  must_not_contain:
+    - ~the answer states the highest phosphate concentration is 0.28 mg/l

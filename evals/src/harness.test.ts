@@ -92,8 +92,16 @@ describe('the eval harness (T-255)', () => {
   it('produces the smoke result the plan artefact must not change (T-260)', async () => {
     const result = await runCase(harness, instance, perm02);
 
+    // T-259 REPINNED, deliberately. The harness's deterministic chat now marks
+    // every numbered source it was given rather than a fixed `[S1]`, because a
+    // fake that could cite at most one document made TRAP-02 (two documents,
+    // both cited) unsatisfiable by construction and made every other
+    // `must_cite` turn on an arbitrary ranking. The T-260 PROPERTY is
+    // unchanged and still guarded — this is a snapshot of the substrate's
+    // output, and a snapshot updated for a stated reason still catches the
+    // next unexplained change.
     expect(result.run?.response).toBe(
-      'The investigation recorded contamination exceedances.\n\nAn unsupported figure of 40%.',
+      'Water quality baseline survey, Hollow Brook. Sampling at eight points over two seasons recorded elevated phosphate concentrations at three points, the highest at HB-04 at 0.41 mg/l against a baseline mean of 0.09 mg/l. No exceedance of the dissolved metals thresholds was recorded at any point.\n\nAn unsupported figure of 40%.',
     );
     expect(result.steps).toEqual([
       { type: 'retrieve', model: null, cost: null },
@@ -281,18 +289,18 @@ describe('the full assertion set (T-256)', () => {
 
   it('must_contain / must_not_contain: over the answer text, literal and regex', async () => {
     const present = await run('T256-contain-pass', {
-      must_contain: ['contamination exceedances', '/unsupported figure of \\d+%/i'],
-      must_not_contain: ['dissolved metals'],
+      must_contain: ['phosphate concentrations', '/unsupported figure of \\d+%/i'],
+      must_not_contain: ['archaeological'],
     });
     expect(present.verdict).toBe('pass');
 
     const absent = await run('T256-contain-fail', {
-      must_contain: ['phosphate at HB-04'],
+      must_contain: ['contamination exceedances'],
       must_not_contain: ['/40%/'],
     });
     expect(absent.verdict).toBe('fail');
     expect(absent.failures).toEqual([
-      'must_contain: the answer does not match phosphate at HB-04',
+      'must_contain: the answer does not match contamination exceedances',
       'must_not_contain: the answer matches /40%/',
     ]);
   });

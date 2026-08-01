@@ -20,7 +20,19 @@ describe('the case schema (evals/README.md)', () => {
   it('loads every case in cases/, with unique ids', async () => {
     const cases = await loadCases();
     expect(cases.map((c) => c.id)).toContain('PERM-02');
-    for (const evalCase of cases) expect(declaredAssertions(evalCase).length).toBeGreaterThan(0);
+    // Every case asserts something — except a refused one, which by
+    // construction may not (T-259): there is no answer, no citation and no
+    // source set, so an assertion over it would be an assertion over nothing.
+    for (const evalCase of cases) {
+      if (evalCase.expect_refused) {
+        expect(declaredAssertions(evalCase)).toEqual([]);
+        continue;
+      }
+      expect(
+        declaredAssertions(evalCase).length + (evalCase.lens_invariance === undefined ? 0 : 1),
+        evalCase.id,
+      ).toBeGreaterThan(0);
+    }
   });
 
   it('rejects an unknown key rather than ignoring it', () => {

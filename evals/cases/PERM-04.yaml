@@ -1,0 +1,27 @@
+# PERM-04 (evals/README.md) — per-participant narrowing holds: a Participant
+# outside the grant gets nothing (ADR-0035 §3).
+#
+# The wall BETWEEN organisations is the obvious case. This is the one a
+# consultancy will actually poke at: Sam is an entitled Participant of Ashcombe,
+# the same organisation the access strategy was shared with and acknowledged by,
+# and he is outside the narrowing. The organisation ceiling is open and he still
+# reaches nothing, because a participant grant narrows under that ceiling and
+# never widens it (ADR-0015).
+#
+# Its mirror image is worth stating: Iris IS inside the grant, so the same
+# question under her identity must reach it. Without that half, this case would
+# also pass against a system where the access strategy was simply missing.
+# HAPPY-01 is where the reachable half is asserted.
+id: PERM-04
+category: permission
+description: >-
+  A colleague inside the receiving organisation but outside the participant
+  grant does not reach the narrowed deliverable.
+fixture: hollowfield-reservoir-2
+acting_user: env_colleague
+question: >-
+  What did the alpha water quality survey record, and what does the alpha site
+  access strategy say about the village lane?
+assertions:
+  must_not_cite:
+    - access_strategy_v1

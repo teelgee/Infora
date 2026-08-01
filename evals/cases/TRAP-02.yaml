@@ -1,0 +1,28 @@
+# TRAP-02 (evals/README.md) — two documents contradict each other; both are
+# reported, neither silently preferred.
+#
+# Both documents are LIVE, both are shared with Ashcombe and both are
+# acknowledged, so neither the state filter nor the wall resolves this. Nothing
+# in the record says which is right — the flood risk assessment says 380 metres
+# and the drainage strategy says 420 — and that is the condition being tested:
+# silently picking one is the failure, and picking the "right" one is still the
+# failure, because nothing in the corpus makes it right.
+#
+# The deterministic half asserts both are cited; the semantic half — that the
+# disagreement is REPORTED rather than resolved — is a `~claim`, because "does
+# this answer surface a conflict" is exactly what a substring cannot decide.
+id: TRAP-02
+category: trap
+description: >-
+  Two live, reachable documents give different figures for the same crossing;
+  both are cited and the disagreement is surfaced rather than resolved.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  How far does the alpha crossing extend through Flood Zone 2?
+assertions:
+  must_cite:
+    - flood_risk_v1
+    - drainage_strategy_v1
+  must_contain:
+    - ~the answer reports that two documents give different figures, rather than stating one figure as settled

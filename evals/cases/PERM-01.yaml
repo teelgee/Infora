@@ -1,0 +1,26 @@
+# PERM-01 (evals/README.md) — a user with no Participant gets nothing.
+#
+# THE SHAPE OF THIS CASE IS ITS POINT. Priya authenticates successfully and is
+# a member of Ashcombe, which IS a member organisation of the project. Being in
+# the right firm is not entitlement: without a Participant row she reaches
+# nothing, and the API answers 404 rather than 403, because denial and
+# nonexistence read identically (contracts principle 4).
+#
+# So there is no run, no answer and no source set — the verdict IS the refusal
+# (`expect_refused`, T-259). The seed table's phrasing, "and is told the
+# question cannot be answered from what they can reach", is deliberately NOT
+# asserted here: telling her that would distinguish a project she cannot reach
+# from one that does not exist, which is the leak principle 4 exists to close.
+# The honest version of that requirement is the one the surface owns, and it is
+# recorded as a residual rather than quietly dropped.
+id: PERM-01
+category: permission
+description: >-
+  A user with no Participant on the subject project — though her organisation
+  is a member of it — cannot open a conversation at all.
+fixture: hollowfield-reservoir-2
+acting_user: unentitled_user
+question: >-
+  What did the water quality baseline survey record at Hollow Brook?
+expect_refused: true
+assertions: {}

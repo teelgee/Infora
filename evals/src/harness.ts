@@ -67,20 +67,32 @@ export type Harness = {
 export async function startHarness(options: { grader?: Grader } = {}): Promise<Harness> {
   const { db, pool } = createDb();
   const lenses = loadLenses({ production: true });
-  // T-282 — the fake chat answers with a fingerprint of the SYSTEM prompt when
-  // a Lens is in it, so a Lens's effect is observable through HTTP. A router
-  // that ignored its prompt would let every Lens case pass on an answer no
-  // Lens touched, which is the exact failure the register guard exists to
-  // catch.
+  // The deterministic chat. It does two things a fixed string cannot, and both
+  // are needed by cases that would otherwise be untestable:
   //
-  // A run naming NO Lens gets the original reply, byte for byte. That is not
-  // tidiness: T-260's acceptance pins the smoke result so the plan artefact can
-  // be proved to change nothing, and a harness whose baseline answer moved for
-  // an unrelated reason would silently invalidate that pin.
-  const router = fakeRouter((system) => {
+  //   * T-282 — it names the reader from the SYSTEM prompt when a Lens is in
+  //     it, so a Lens's effect is observable through HTTP. A router that
+  //     ignored its prompt would let every Lens case pass on an answer no Lens
+  //     touched, which is the exact failure the register guard exists to catch.
+  //   * T-259 — it marks EVERY numbered source it was given, echoing each
+  //     source's own text. Citation then depends on what retrieval admitted,
+  //     which is what makes `must_cite` and `must_not_cite` mean something: a
+  //     fake that always emitted `[S1]` could cite at most one document, so
+  //     TRAP-02 (two documents, both cited) was unsatisfiable by construction
+  //     and every other `must_cite` turned on an arbitrary ranking.
+  //
+  // The trailing unsupported claim stays: it is what gives the ground-check an
+  // `open_world` outcome to record, which `max_uncited_claims` counts off.
+  const router = fakeRouter((system, prompt) => {
     const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
-    const answer = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.';
-    return reader === undefined ? answer : `${reader}. ${answer}`;
+    const sources = [...prompt.matchAll(/\[S(\d+)\]\s*([^\n]+)/g)].map(
+      (match) => `${match[2]!.trim()} [S${match[1]!}]`,
+    );
+    const body =
+      sources.length === 0
+        ? 'The corpus does not cover that.'
+        : `${sources.join(' ')} An unsupported figure of 40%.`;
+    return reader === undefined ? body : `${reader}. ${body}`;
   }, EVAL_EMBED_MODEL);
   const app = buildApp({
     db,

@@ -1,0 +1,220 @@
+# T-259 — the seed set's fixture. A SECOND fixture, not an edit of
+# `hollowfield-reservoir`: §3 makes a fixture immutable, and PERM-02 and
+# LENS-01–04 are pinned to that one and must keep meaning.
+#
+# Same fictional scheme, a fuller access graph. Every addition exists because a
+# named seed case needs a condition the two-document fixture cannot express:
+#
+#   PERM-01  a user who authenticates and is a Participant of nothing
+#   PERM-03  a deliverable SHARED but never acknowledged (ADR-0035 §4)
+#   PERM-04  a share narrowed to one named Participant (ADR-0035 §3), with a
+#            colleague of the same organisation left outside it
+#   TRAP-01  a superseded version beside its current one, differing on a figure
+#   TRAP-02  two live documents that contradict each other on the same fact
+#   HAPPY-01 a multi-chunk version, so gold passages measure at passage grain
+#
+# Fictional scheme, fictional organisations, fictional documents. Infora's own
+# case library never contains customer content, in either direction.
+#
+# IMMUTABLE (§3). Changing anything here creates hollowfield-reservoir-3.
+id: hollowfield-reservoir-2
+version: 1
+description: >-
+  Hollowfield Reservoir, fuller access graph: an owner, two consultancies, an
+  unentitled user, an unacknowledged share, a participant-narrowed share, a
+  superseded version and a contradicting pair.
+embedding_model: eval-embed
+
+organisations:
+  - key: brackenmoor
+    name: Brackenmoor Water
+  - key: ashcombe
+    name: Ashcombe Environmental
+  - key: portrey
+    name: Portrey Commercial Advisors
+
+users:
+  - key: owner_lead
+    name: Diane Okafor
+    organisation: brackenmoor
+    org_role: admin
+  - key: env_consultant
+    name: Iris Kwan
+    organisation: ashcombe
+    org_role: admin
+  # PERM-04's other half: a colleague in the SAME organisation as the grantee.
+  # The wall between organisations is the obvious case; narrowing within one is
+  # the case a consultancy will actually poke at.
+  - key: env_colleague
+    name: Sam Devlin
+    organisation: ashcombe
+  - key: commercial_consultant
+    name: Tom Reddish
+    organisation: portrey
+  # PERM-01: authenticates, and is a Participant of nothing. Deliberately in a
+  # member organisation of the project — being in the right firm is not
+  # entitlement, and a user in an unrelated org would prove a weaker thing.
+  - key: unentitled_user
+    name: Priya Raman
+    organisation: ashcombe
+
+projects:
+  - key: hollowfield
+    name: Hollowfield Reservoir Scheme
+    owner: brackenmoor
+    memberships:
+      - { organisation: brackenmoor, role: owner }
+      - { organisation: ashcombe, role: member }
+      - { organisation: portrey, role: member }
+
+subject_project: hollowfield
+
+participants:
+  - { key: p_owner, user: owner_lead, project: hollowfield }
+  - { key: p_env, user: env_consultant, project: hollowfield }
+  - { key: p_colleague, user: env_colleague, project: hollowfield }
+  - { key: p_commercial, user: commercial_consultant, project: hollowfield }
+  # NB: unentitled_user has no participant row. That absence is the case.
+
+containers:
+  # Shared with Ashcombe and acknowledged, so it grounds (ADR-0035 §4).
+  # Carries TWO versions: v1 superseded, v2 current, differing on the figure —
+  # TRAP-01 turns on the answer using the current one and not the old one.
+  # v2 is split into three chunks so HAPPY-01's gold passages measure at
+  # passage grain rather than reading a whole version as one hit.
+  - key: water_quality
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-WQR-001
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: water_quality_v1
+        reference: v1
+        current: false
+        content: >-
+          Water quality baseline survey, Hollow Brook, first alpha issue.
+          Sampling at six points over one season recorded elevated phosphate
+          concentrations at two points, the highest at HB-04 at 0.28 mg/l
+          against a baseline mean of 0.09 mg/l.
+      - key: water_quality_v2
+        reference: v2
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        chunks:
+          - >-
+            Water quality baseline survey, Hollow Brook, alpha issue. Sampling
+            at eight points over two seasons recorded elevated phosphate
+            concentrations at three points, the highest at HB-04 at 0.41 mg/l
+            against a baseline mean of 0.09 mg/l.
+          - >-
+            No exceedance of the dissolved metals thresholds was recorded at any
+            of the eight alpha sampling points across either season.
+          - >-
+            The alpha survey methodology followed the standing sampling protocol
+            for the scheme, with duplicate samples at HB-01 and HB-04.
+        content: >-
+          Water quality baseline survey, Hollow Brook. Sampling at eight points
+          over two seasons recorded elevated phosphate concentrations at three
+          points, the highest at HB-04 at 0.41 mg/l against a baseline mean of
+          0.09 mg/l. No exceedance of the dissolved metals thresholds was
+          recorded at any point.
+
+  # PERM-02: produced by Portrey, shared with nobody. Ashcombe is a member of
+  # the same project and did not author it, so it is invisible — default-deny.
+  - key: commercial_risk
+    project: hollowfield
+    producer: portrey
+    reference: HOL-COM-RSK-004
+    in_library: true
+    versions:
+      - key: commercial_risk_v1
+        reference: v1
+        current: true
+        content: >-
+          Commercial risk register, alpha reservoir lining package. The contractor's
+          provisional sum for the lining works is carried at 4.2 million against
+          a client budget of 3.1 million, and the gap is unresolved at financial
+          close.
+
+  # PERM-03: SHARED with Ashcombe and never acknowledged. The share alone does
+  # not open it — the acknowledgement is what clears the gate (ADR-0035 §4) —
+  # so this is invisible for a different reason from commercial_risk, and a
+  # system that confused the two would pass PERM-02 and leak here.
+  - key: ecology_baseline
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-ECO-002
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: ecology_baseline_v1
+        reference: v1
+        current: true
+        content: >-
+          Ecology baseline, Hollow Brook corridor. The alpha survey recorded
+          breeding waterfowl at the northern inlet and no evidence of protected
+          mammal species within the survey area.
+
+  # PERM-04: shared with Ashcombe, acknowledged, and then NARROWED to Iris
+  # alone. Sam is an entitled Participant of the same organisation and is
+  # outside the grant, so he gets nothing — narrowing within an organisation,
+  # under the organisation ceiling it can never widen (ADR-0015/0035 §3).
+  - key: access_strategy
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-CIV-ACC-003
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner, narrowed_to: [p_env] }
+    versions:
+      - key: access_strategy_v1
+        reference: v1
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Site access strategy. The alpha haul route enters from the northern
+          approach with a single point of construction access off the B-road,
+          and no access is taken from the village lane at any phase.
+
+  # TRAP-02: two LIVE documents, both reachable by Ashcombe, that disagree on
+  # the same fact. Neither is superseded and neither is wrong on its face — the
+  # right behaviour is to report both, not to silently prefer one.
+  - key: flood_risk
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-FRA-005
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: flood_risk_v1
+        reference: v1
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Flood risk assessment. The alpha crossing of the Hollow Brook corridor
+          extends 380 metres through Flood Zone 2.
+
+  - key: drainage_strategy
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-CIV-DRA-006
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: drainage_strategy_v1
+        reference: v1
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Drainage strategy. The alpha crossing of the Hollow Brook corridor
+          extends 420 metres through Flood Zone 2, a figure that does not agree
+          with the flood risk assessment.

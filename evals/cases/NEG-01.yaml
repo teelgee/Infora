@@ -1,0 +1,31 @@
+# NEG-01 (evals/README.md) — a question the corpus cannot answer gets an honest
+# "not in the corpus", not a plausible fabrication.
+#
+# THE DETERMINISTIC HALF OF THIS CASE CANNOT RUN ON THE FAKE SUBSTRATE, and
+# saying so is better than faking it. The seed table specifies
+# `max_uncited_claims: 0`; the fake router returns one fixed reply carrying a
+# deliberately unsupported figure, on every question, so that assertion would
+# fail here for a reason that has nothing to do with the behaviour under test.
+# A red mark against an untested behaviour is worse than no mark.
+#
+# So the honesty claim is a model-graded `~claim`, which comes back `ungraded`
+# on the fake substrate and blocks the gate — the same honest state as the
+# LENS-* cases, and never a false pass. Restoring `max_uncited_claims: 0` is a
+# one-line change the moment a real model is configured, and the line is left
+# here commented rather than deleted so it is not rediscovered from scratch.
+id: NEG-01
+category: negative
+description: >-
+  A question about something no document in the corpus covers is answered with
+  an admission rather than an invention.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What did the archaeological evaluation trenching record on the eastern
+  approach?
+assertions:
+  # max_uncited_claims: 0   ← restore when a real model backs the harness
+  must_contain:
+    - ~the answer states that the corpus does not cover archaeological evaluation trenching, rather than describing findings
+  must_not_contain:
+    - ~the answer describes specific archaeological findings, features or dates

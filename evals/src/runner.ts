@@ -157,13 +157,34 @@ async function runOnce(
   const opened = await session.post(`/projects/${instance.subjectProjectId}/conversations`, {
     surface: 'web',
   });
+
+  // T-259 — PERM-01's shape. A user with no Participant cannot open a
+  // conversation at all: the API answers 404, because denial and nonexistence
+  // read identically (principle 4). There is no run and no observation, so the
+  // verdict IS the refusal.
+  if (evalCase.expect_refused) {
+    if (opened.status === 201) {
+      return {
+        ...base,
+        verdict: 'fail',
+        failures: [
+          `expect_refused: the request was ALLOWED (201) — ${evalCase.acting_user} reached a conversation on the subject project`,
+        ],
+      };
+    }
+    // 404 specifically, not "any non-201": a 500 is a broken system, and a 403
+    // would mean the API had started distinguishing denial from nonexistence,
+    // which is itself a leak (principle 4). Either must not read as a pass.
+    if (opened.status !== 404) {
+      return error(
+        `expect_refused: the request was refused with ${opened.status}, expected 404 — denial and nonexistence must read identically (principle 4)`,
+      );
+    }
+    return { ...base, verdict: 'pass', failures: [] };
+  }
+
   if (opened.status !== 201) {
-    // The deny path is real behaviour, not a harness fault — but it is not yet
-    // an observation the assertion set can describe (nothing in §1 asserts
-    // over a refusal). PERM-01 needs it; T-259 gives it a shape.
-    return error(
-      `opening a conversation returned ${opened.status}; a refused case has no assertion shape until T-259`,
-    );
+    return error(`opening a conversation returned ${opened.status}`);
   }
   const { conversationId } = (await opened.json()) as { conversationId: string };
 
@@ -232,7 +253,49 @@ async function runOnce(
     return { ...withRun, verdict: 'error', failures: [thrown.message] };
   }
 
-  const evaluated = { ...withRun, retrieval: report.retrieval, grades: report.grades };
+  // T-259 — PERM-05. The claim is about the RELATIONSHIP between runs, not
+  // about any one of them: the same question under every named Lens must admit
+  // an identical source set. Compared on the SOURCE SET and never the answers,
+  // because two Lenses producing identical answers is a different failure — a
+  // Lens that did nothing — and conflating them would let either hide.
+  const invarianceFailures: string[] = [];
+  if (evalCase.lens_invariance !== undefined) {
+    const baseline = fingerprint(observation.sourceSet);
+    for (const lensId of evalCase.lens_invariance) {
+      if (!harness.lenses.has(lensId)) {
+        return {
+          ...withRun,
+          verdict: 'error',
+          failures: [`lens_invariance names lens '${lensId}', which this deployment does not offer`],
+        };
+      }
+      const under = await session.post(`/conversations/${conversationId}/runs`, {
+        request: evalCase.question,
+        lensId,
+      });
+      if (under.status !== 201) {
+        return {
+          ...withRun,
+          verdict: 'error',
+          failures: [`lens_invariance: asking under '${lensId}' returned ${under.status}`],
+        };
+      }
+      const lensRun = (await under.json()) as Run;
+      const seen = fingerprint(observe(lensRun).sourceSet);
+      if (seen !== baseline) {
+        invarianceFailures.push(
+          `lens_invariance: the '${lensId}' Lens admitted a different source set — a Lens changes register, never reach`,
+        );
+      }
+    }
+  }
+
+  const evaluated = {
+    ...withRun,
+    retrieval: report.retrieval,
+    grades: report.grades,
+  };
+  report.failures.push(...invarianceFailures);
   if (report.unsupported.length > 0) {
     return {
       ...evaluated,
@@ -256,6 +319,11 @@ async function runOnce(
 }
 
 export class UnresolvedRef extends Error {}
+
+/** An order-independent identity for a source set — what lens_invariance compares. */
+function fingerprint(sources: ObservedSource[]): string {
+  return sources.map((source) => JSON.stringify(source)).sort().join('|');
+}
 
 function observe(run: Run): Observation {
   const citations = [...run.citations, ...run.suggestions.flatMap((s) => s.citations)].map(

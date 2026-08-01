@@ -1,0 +1,32 @@
+# HAPPY-01 (evals/README.md) — a grounded, cited answer, with precision and
+# recall measured over gold passages.
+#
+# The reachable half PERM-04 needs beside it: Iris IS inside the access-strategy
+# narrowing and IS the acknowledger of the water quality report, so both ground
+# for her. Without a case proving that, every permission case would also pass
+# against a system where nothing was reachable by anyone.
+#
+# GOLD PASSAGES ARE AT CHUNK GRAIN (T-256). `water_quality_v2` is deliberately
+# split into three passages in the fixture so that precision means something:
+# measured at document grain, a version reads as one hit however much of it was
+# irrelevant.
+id: HAPPY-01
+category: happy
+description: >-
+  The acknowledged, shared water quality report grounds and is cited, and the
+  phosphate passage is among what retrieval admitted.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What did the alpha water quality survey record about phosphate at Hollow Brook?
+assertions:
+  must_cite:
+    - water_quality_v2
+  gold_passages:
+    - water_quality_v2#0
+  # Recall, not precision: the substrate's retrieval admits the project's whole
+  # library for any question (the ontology pre-filter is built and deliberately
+  # unwired — T-242), so a precision floor here would measure the absence of a
+  # scope selector rather than the quality of retrieval. It becomes meaningful
+  # when Q-028 is answered and the filter is reachable.
+  min_recall: 1.0

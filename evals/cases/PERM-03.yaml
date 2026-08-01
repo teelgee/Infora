@@ -1,0 +1,26 @@
+# PERM-03 (evals/README.md) — a shared-but-unacknowledged deliverable is
+# invisible until the receiving organisation acknowledges (ADR-0035 §4).
+#
+# THIS IS A DIFFERENT FAILURE FROM PERM-02, and the pair is the point. In
+# PERM-02 the deliverable was never shared. Here it WAS shared, by the owner,
+# to Iris's own organisation — and it still does not ground, because the
+# acknowledgement is what clears the gate, not the share. A system that
+# conflated the two would pass PERM-02 and leak here.
+#
+# The question asks for both halves so the run cites something: asking only for
+# the unreachable half would let this pass on an answer with no citations at
+# all, which is also what a broken retrieval produces.
+id: PERM-03
+category: permission
+description: >-
+  The ecology baseline is shared with Ashcombe and never acknowledged, so it is
+  neither cited nor named — the acknowledgement gate, not the share, is what
+  opens a deliverable.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What did the alpha water quality survey record, and what did the alpha
+  ecology baseline record about protected species?
+assertions:
+  must_not_cite:
+    - ecology_baseline_v1

@@ -57,7 +57,17 @@ const containerSchema = z
     in_library: z.boolean().default(true),
     state: z.enum(['live', 'superseded', 'withdrawn']).default('live'),
     shares: z
-      .array(z.object({ organisation: key, granted_by: key }))
+      .array(
+        z.object({
+          organisation: key,
+          granted_by: key,
+          // T-259 — ADR-0035 §3 intra-organisation narrowing. Absent means the
+          // whole-organisation default: every entitled Participant of the
+          // receiving organisation sees it. Present means only these ones do —
+          // narrowing UNDER the organisation ceiling, never widening it.
+          narrowed_to: z.array(key).optional(),
+        }),
+      )
       .default([]),
     versions: z.array(versionSchema).min(1),
   })
@@ -156,6 +166,9 @@ function validate(fixture: Fixture, path: string): Fixture {
     for (const share of container.shares) {
       if (!orgs.has(share.organisation)) fail(`container ${container.key} shares with unknown organisation ${share.organisation}`);
       if (!participants.has(share.granted_by)) fail(`container ${container.key} names unknown granting participant ${share.granted_by}`);
+      for (const narrowed of share.narrowed_to ?? []) {
+        if (!participants.has(narrowed)) fail(`container ${container.key} narrows to unknown participant ${narrowed}`);
+      }
     }
     if (container.versions.filter((v) => v.current).length !== 1) {
       fail(`container ${container.key} must declare exactly one current version`);
@@ -280,6 +293,17 @@ export async function materialise(
         organisationId: instance.organisationIds.get(share.organisation)!,
         grantedByParticipantId: instance.participantIds.get(share.granted_by)!,
       });
+      // ADR-0035 §3 — the narrowing sits INSIDE the share it narrows, so a
+      // fixture cannot express a participant grant without the organisation
+      // ceiling that bounds it. That is the invariant, not a convenience.
+      for (const narrowed of share.narrowed_to ?? []) {
+        await db.insert(s.deliverableParticipantGrants).values({
+          containerId: row!.id,
+          organisationId: instance.organisationIds.get(share.organisation)!,
+          participantId: instance.participantIds.get(narrowed)!,
+          grantedByParticipantId: instance.participantIds.get(share.granted_by)!,
+        });
+      }
     }
 
     for (const version of container.versions) {

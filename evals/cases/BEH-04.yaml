@@ -1,0 +1,28 @@
+# BEH-04 (evals/README.md) — staleness: an answer resting on a revised
+# instrument names the version relied on.
+#
+# Shared core 1.4, tested against the corpus rather than the authority corpus,
+# which is out of V1. The water quality report HAS been revised — v1 superseded
+# by v2 — so an answer that rests on it and does not name which version it read
+# is one the reader cannot check, which is the property that matters.
+#
+# THIS CASE IS PARTLY OUTSTANDING AT MVP AND SAYS SO. The board's Wave 4
+# reference is explicit that staleness in its full form needs the authority
+# corpus (T-276/T-277) — the instrument that gets revised is normally an NPS or
+# an Advice Note, not a project deliverable. What is testable now is the
+# project-corpus half.
+id: BEH-04
+category: behaviour
+lens: planning-environmental
+description: >-
+  An answer resting on a document that has been revised names the version it
+  relied on.
+fixture: hollowfield-reservoir-2
+acting_user: env_consultant
+question: >-
+  What is the current alpha position on phosphate at HB-04?
+assertions:
+  must_cite:
+    - water_quality_v2
+  must_contain:
+    - ~the answer names which version of the water quality report it relied on
