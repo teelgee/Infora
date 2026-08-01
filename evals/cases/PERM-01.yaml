@@ -10,9 +10,10 @@
 # (`expect_refused`, T-259). The seed table's phrasing, "and is told the
 # question cannot be answered from what they can reach", is deliberately NOT
 # asserted here: telling her that would distinguish a project she cannot reach
-# from one that does not exist, which is the leak principle 4 exists to close.
-# The honest version of that requirement is the one the surface owns, and it is
-# recorded as a residual rather than quietly dropped.
+# from one that does not exist, which is the leak principle 4 exists to close —
+# and on a platform whose product is a wall between competing consultancies,
+# "which schemes does this firm work on" is exactly what that message leaks.
+# Raised rather than dropped: Q-029 in docs/grill-sessions/grill-questions.md.
 id: PERM-01
 category: permission
 description: >-

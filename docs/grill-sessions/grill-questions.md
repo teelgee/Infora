@@ -25,7 +25,7 @@ is the **process log**.
 
 ## How to read an entry
 
-`Q-###` — title. **Next free number: Q-029.** Each entry carries:
+`Q-###` — title. **Next free number: Q-030.** Each entry carries:
 
 - **Method tag** — the triage that decides *how* it gets answered, not just when:
   - **[A] reference-decidable** — a precedent exists (Legora and adjacent
@@ -116,11 +116,16 @@ precondition but each constraining provider choice. The fourth is still open as
 
 ### V1 — the first pilot *(raised 2026-07-31, [v1.md](../build/v1.md))*
 
-Both gate the Phase C checker. Two further V1 questions — how a legacy corpus
-enters the controlled record, and the elevated tier — were ruled the same day;
-records in [grill-history.md](grill-history.md).
+`Q-007` and `Q-008` gate the Phase C checker (T-308, T-310, T-311). Two further
+V1 questions — how a legacy corpus enters the controlled record, and the
+elevated tier — were ruled 2026-07-31; records in
+[grill-history.md](grill-history.md). **`Q-029` joined them on 2026-08-01**,
+raised by the seed set rather than by a design pass: it is the one question in
+this group that a ticket found by trying to build the thing.
 
 - **Q-007 — The rulebook's channel.** **[A]** · *Blocks: V1 Phase C — the checker.* The checker reviews a draft against the corpus, manually attached documents, and the firm's own **style guide or rulebook** — which has no home today. **Recommendation: guiding-channel material in org context (ADR-0021)** — it steers, never grounds, is never cited as project fact, and it keeps the authority corpus (whose standard tier is a data project, not a build ticket) out of V1 entirely. The purist alternative is the **org tier** of the 2026-07-29 two-tier authority ruling, more correct long-term but dragging in T-277's store and interval model for no pilot benefit. **Stress test:** if the rulebook only steers, a finding cannot cite the rule it enforces — is "this breaches your house style" without a quotable clause actionable enough, or does the checker need the rulebook quotable-but-uncited? Decide with **Q-008**.
+- **Q-029 — What an unentitled user is told, and whether it can be anything.** **[B]** · *Blocks: PERM-01's second half; the honesty half of every refusal a user meets.* Raised 2026-08-01 while authoring the eval seed set (T-259). The seed table specifies PERM-01 as *"a user with no Participant gets nothing, **and is told the question cannot be answered from what they can reach**"* — and the second half **cannot be built as written**. Denial and nonexistence read identically (contracts principle 4), so an unentitled requester gets `404`, and telling them "this cannot be answered from what you can reach" distinguishes a project they cannot reach from one that does not exist. That is the leak principle 4 exists to close, and it is not a small one on a platform whose product is a wall between competing consultancies: "which schemes does this firm work on" is commercially valuable and is exactly what the message would leak. **The fork is real in both directions.** A user who asks a reasonable question and gets a bare "not found" experiences a broken system, and the refusal-must-be-actionable principle applies everywhere else in the build (T-249's label refusal names both labels; T-246's grant refusal names the exclusion). **Candidate shapes to weigh:** (a) accept the bare refusal and carry the explanation in the *surface's* empty state, which knows only that this user has no projects and leaks nothing; (b) distinguish "you are a Participant of nothing at all" — which is an account fact the user already knows — from "you cannot reach *this* project", which is not; (c) an owner-configurable disclosure, which is how the underlying question is really "whose secret is it". **Stress test:** if (b) is admitted, a user removed from one project of several still learns the difference between the two cases the moment they compare, so the boundary is between *account-level* and *project-level* facts and not between phrasings. *(PERM-01 ships today asserting the refusal itself, which is the half that is buildable; the case file records why the other half is absent rather than dropping it silently.)*
+
 - **Q-008 — The checker's output shape.** **[A]** · *Blocks: V1 Phase C — the checker DAG and findings surface.* Whether the checking side is **checking, generative, or both**, and how findings are presented and made actionable. The Engine backlog's long-standing compliance-checking item, now with a pilot deadline. V1 needs a finding schema (`extractor`, T-274) and a findings surface that does not exist.
 
 ### Retrieval

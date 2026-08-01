@@ -106,7 +106,10 @@ describe('the eval harness (T-255)', () => {
     expect(result.steps).toEqual([
       { type: 'retrieve', model: null, cost: null },
       { type: 'delegate', model: null, cost: null },
-      { type: 'draft', model: 'fake-chat', cost: 0 },
+      // T-254 — was `0`. The harness declares no rate table, so the draft step
+      // is UNPRICED, and unpriced is null. Zero was finding F7 in miniature:
+      // it read as "this run was free" when it meant "nobody priced it".
+      { type: 'draft', model: 'fake-chat', cost: null },
       { type: 'ground_check', model: null, cost: null },
       { type: 'cite', model: null, cost: null },
     ]);
