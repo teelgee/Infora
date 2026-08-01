@@ -205,6 +205,9 @@ A workflow built by an organisation, held in org context, deployable to any proj
 **Capability**
 A reusable domain skill that workflows compose. Examples: grounded generation, compliance check, tabular review, plain-English, document understanding.
 
+**Notification**
+A persisted record that something happened which a named user should know about: recipient, event type, a reference to its subject (a round, a document, a comment), and a read state. **Its visibility follows the thing it points at** — a notification is never a channel by which a fact reaches someone who could not otherwise reach it. The in-app list is the surface of record; **email is a nudge that carries a pointer and a bare fact, never content**, because an email leaves the platform into a mailbox where access resolution no longer applies. The pilot set is *round issued* and *@-mention* (ADR-0049).
+
 **Finding**
 A single structured result from the **checker** — never prose. It names the input it arose from (the corpus, an attached document, or the firm's rulebook), **anchors into the draft** at a locator, and carries a severity and its evidence; it may also carry a proposed revision, which is offered as a **suggestion** and never applied automatically. A finding states a *defect*, never a *verdict*: it says a paragraph asserts a figure with no source, not that a chapter is compliant — the system does not give an unqualified professional opinion. Where the evidence is a house rule, the finding may quote it **verbatim without citing it**: a rule is an instruction to the author, not a fact about the scheme, so it never enters the citation register and must not render as a source. A finding quoting an organisation's rulebook is **org-private** and never crosses the wall (ADR-0048).
 

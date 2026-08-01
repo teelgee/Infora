@@ -65,6 +65,21 @@ The cut is by **surface**: the distinct places a user meets the system. All shar
 **Depends on.** Context (component 4) for all content; access model (component 2); document management (component 5) for the add-to-library promotion action.
 **Staging.** Not in the walking-skeleton nav; the section arrives with the moat slices (plan.md Slice E), except the owner's "add reference material" action, which lives on the library (ADR-0011) and needs no Knowledge section.
 
+## 7. Notifications
+
+**Responsibility.** Tell a user that something happened which they need to know about. A **notification** is a persisted, event-shaped record — recipient, event type, a reference to its subject, a read state — surfaced in-app as an unread indicator and a recency-ordered list. **The in-app list is the surface of record; email is only a nudge toward it.**
+
+Three properties are load-bearing and belong to this component to enforce, because the leak they prevent arrives through a surface nobody thinks of as a data surface:
+
+- **Visibility follows the subject.** A notification is resolved through the same access path as the thing it points at, and is never a channel by which a fact reaches someone who could not otherwise reach it (ADR-0018).
+- **Email carries a pointer and a bare fact, never content** — not the comment text, not a finding's text, and never a quoted rulebook clause, which ADR-0048 §6 made org-private. An email leaves the platform into a mailbox where access resolution no longer applies, survives revocation, and can be forwarded outside the organisation.
+- **Access resolves at send time, not enqueue**, or ADR-0024's revoke-in-the-same-transaction guarantee reopens in the one medium that cannot be recalled.
+
+**Governing ADRs.** **0049**; 0018 (the wall), 0024 (revoke), 0047 §16 (Amazon SES as the transport), 0048 §6 (org-private quoted rules).
+**Terms owned.** Notification.
+**Depends on.** Access model (component 2) for the visibility resolution; document management (component 5) for the round and comment subjects; foundation (component 1) for the transport.
+**Staging.** The pilot set is **`round-issued` + `@-mention`**; lock-flipped and any later event type join without a schema change (ADR-0049 §2's explicit guard). Per-event preferences, digests and batching are deliberately unbuilt at pilot scale.
+
 ---
 
 ## Deferred or handed to other components

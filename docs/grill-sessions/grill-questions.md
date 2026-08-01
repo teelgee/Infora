@@ -63,6 +63,7 @@ board is **[plan.md](../build/plan.md)**.
 | **Ask** | Agent-harness gate questions (2026-07-29) | **0046**; 0022/0023/0026/0027/0028 amended | ✅ Ruled — four of six on the spot |
 | **I** | **Infra / security decision session (2026-08-01)** — a decision session, not a grill | **0047**; **0037 amended** (a third `pilot` tier) | ✅ Ruled — `Q-027` closed, nfr.md re-cut |
 | **2** | **The checker (2026-08-01)** — `Q-007` + `Q-008`, ruled together | **0048** | ✅ Ruled — T-308/T-310/T-311 unblocked |
+| **3** | **Notifications + the promotion gate (2026-08-01)** — `Q-012` and its rider | **0049** | ✅ Ruled — T-329–T-332 minted |
 
 Full session records in [grill-history.md](grill-history.md).
 
@@ -88,7 +89,7 @@ lives in its component doc.
 5. **Document management.** 🔒 Locked (ADRs 0001–0013, generalised by **0032/0033/0034**; ontology → **0045**). [component-5-document-management.md](../architecture/component-5-document-management.md). Residuals: **Q-025**, **Q-026**.
 6. **Engine.** 🟡 In progress. [component-6-engine.md](../architecture/component-6-engine.md). Open: the workflow set (**Q-006**), how a workflow is defined, where human-in-the-loop checkpoints sit, how a workflow drives a work item's status; for custom workflows — **Q-014**. *(Compliance-checking closed 2026-08-01 → **ADR-0048**: findings not prose, checking not generative.)*
 7. **Connectors.** ⬜ Deferred. [component-7-connectors.md](../architecture/component-7-connectors.md). Open: the integrate-config handover to an incumbent DMS; for spatial — which products first, read-only reference vs deeper integration; timing relative to the wedge. Deferred until the wedge is proven.
-8. **Surfaces.** 🟡 In progress. [component-8-surfaces.md](../architecture/component-8-surfaces.md). Settled: the Copilot integration → **ADR-0031**. Open: workspace home vs project home layout; the owner portfolio view; mobile scope; the boundary between the document-management interface and the generic project surfaces. See **Q-012**, **Q-016**, **Q-018**.
+8. **Surfaces.** 🟡 In progress. [component-8-surfaces.md](../architecture/component-8-surfaces.md). Settled: the Copilot integration → **ADR-0031**. Open: workspace home vs project home layout; the owner portfolio view; mobile scope; the boundary between the document-management interface and the generic project surfaces. See **Q-016**, **Q-018**. *(**Q-012** closed 2026-08-01 → **ADR-0049**.)*
 
 ### Pre-infra-session rulings (owner, 2026-07-25) — all now discharged
 
@@ -141,7 +142,7 @@ this group that a ticket found by trying to build the thing.
 ### Surfaces and workflow
 
 - **Q-009 — Starting governed work from the web UI.** **[A]** · *Blocks: a fully browser-drivable consultant journey.* No surface affordance binds a Conversation to a Work item; Ask's output-target chip targets sandbox documents only, so every UI-originated run is ad-hoc. The fork: a "draft" action on the work item vs a work-item chip on Ask. *(T-080, 2026-07-08.)*
-- **Q-012 — Mention delivery, and the missing notification model.** **[A]** · *Blocks: V1's review cycle being usable in practice.* T-112 stores `@`-mentions and renders them, but nothing *tells* the mentioned colleague — no notification exists anywhere in the build. To rule: what a notification is, where it surfaces, and whether review-cycle events (round issued, lock flipped) join the same channel, which argues for designing it once rather than per-feature. Rides along: whether open comment threads should block or warn at **promotion**. **Its infrastructure dependency is discharged (2026-08-01, ADR-0047 §16): the provider is Amazon SES in `eu-west-2`** — carrying two lead-time items, DKIM domain verification and the sandbox-mode exit. *(T-112, 2026-07-18.)*
+- ~~**Q-012 — Mention delivery, and the missing notification model.**~~ ✅ **Ruled 2026-08-01** → [ADR-0049](../adr/0049-notifications-and-the-promotion-gate.md): a persisted notification record whose visibility follows its subject, email carrying a pointer but never content, the pilot set fixed at **round-issued + @-mention**, and promotion **blocked** by open threads or findings with an audited `elevated` override. Record in [grill-history.md](grill-history.md).
 - **Q-016 — Workspace-scoped surfaces as a slice.** **[A]** · *Blocks: nothing.* Workspace Ask (org knowledge, no project context — the ADR-0031 §3 deferral), workspace Editor, and a "Your knowledge" page. All depend on the org-context store design, so a Slice E adjacency; candidate for a coherent workspace slice.
 - **Q-017 — The personal sandbox.** **[A]** · *Blocks: nothing.* A foldered, user-private drive, never visible as a context channel. Extends ADR-0018/0019 with a *user*-scoped sandbox; its own drawer when sliced.
 - **Q-018 — The work-item page: audit read vs review cycle.** **[A]** · *Blocks: nothing.* The page's affirmative content is fully specified (the ADR-0032 addendum's event-driven lifecycle and per-role click-throughs). What remains is only where the **run-audit trail** relocates to — a tab, a linked view, or the owner portfolio. Decide with **Q-015**.
