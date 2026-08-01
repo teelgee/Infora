@@ -162,6 +162,31 @@ boundary as well (`apps/api/src/lens.test.ts`).
 **When this is revisited:** when T-284/T-286 land a family-aware router, or when
 the infra session names a second provider — whichever is first.
 
+#### Revisit performed 2026-08-01 — the trigger fired, and the ruling stands
+
+The infra/security session named a second provider (**Bedrock**, ADR-0047 §13,
+ticketed T-320/T-321), so the second limb of the trigger fired the same day the
+ruling was written. The revisit it obliges has been done, and the outcome is
+that **human review stands** — for a reason the trigger's own wording missed.
+
+**A second *provider* is not a second *family*.** Bedrock's headline Anthropic
+offering is Claude, which is the family the build already runs on, and **grading
+Claude's output with Claude is not independence** — it is the same model marking
+its own homework through a different endpoint. T-320 as written names a provider
+and not a family, so landing it does not by itself make the eleven `ungraded`
+cases gradable.
+
+**The real condition is narrower than the trigger said:** *a configured route to
+a non-Anthropic family*. Bedrock can satisfy it — it also serves Llama, Mistral,
+Nova and Cohere — but only if T-320 is deliberately pointed at one of them
+rather than at Claude. That is a free option worth taking while the adapter is
+being written, and T-320's board entry now says so.
+
+**Until then nothing changes:** `ungraded` is still never a pass (§6), the four
+`LENS-*` cases are still checked by a person reading the answers side by side,
+and the substring assertion still catches a silently-dropped Lens. Re-rule when
+a non-Anthropic route exists, not when T-320 merely lands.
+
 ## Tiers, hold-out and flake (T-258)
 
 | Tier | When | Runs |

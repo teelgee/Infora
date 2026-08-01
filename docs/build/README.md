@@ -26,7 +26,7 @@ No database migration or application code is written until the artefacts below e
 
 | Doc | Lifecycle | Purpose | Maturity |
 |-----|-----------|---------|----------|
-| `v1.md` | ▶ **Live** | **The current destination** — the first pilot: three organisations, the full DMS lifecycle, a 100–500 document corpus, three declared workflows, Lens in Ask. Names the scope cut and what is deliberately deferred. Read before picking up a ticket. | 🟡 Drafted 2026-07-31 — two rulings landed, `Q-007`/`Q-008` open |
+| `v1.md` | ▶ **Live** | **The current destination** — the first pilot: three organisations, the full DMS lifecycle, a 100–500 document corpus, three declared workflows, Lens in Ask. Names the scope cut and what is deliberately deferred. Read before picking up a ticket. | 🟢 Drafted 2026-07-31, amended 2026-08-01 — `Q-007`, `Q-008` and `Q-012` all closed (ADR-0048/0049); gate section re-cut on the infra ruling |
 | `plan.md` | ▶ **Live** | The ticket board Phase 6 works from. Its **Where to start** section names the frontier, the sequenced work, the fog and the three gates. Closed slices move to `plan-history.md` in the same commit. | 🟢 Live board — re-cut on V1 2026-07-31 |
 | `data-model.md` | ♻ **Living reference** | The `CONTEXT.md` glossary drawn as stored tables, fields and relationships. Drawn **drawer by drawer, in step with what is being built** — the authority every migration is written against. | 🟢 Six drawers drawn; extended per slice |
 | `contracts.md` | ♻ **Living reference** | The typed API surface — the seed and the running record of `packages/contracts`. Contract completions get dated notes here. | 🟡 Grows per slice |
