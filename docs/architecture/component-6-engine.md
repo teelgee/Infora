@@ -39,9 +39,15 @@ The cut is by **domain capability**; because the component is largely ungrilled,
 ## 3. Capabilities (incl. compliance checking)
 
 **Responsibility.** Hold the reusable domain skills workflows compose — grounded generation, compliance checking, tabular review, plain-English, document understanding, chat/QA; keep each composable and independently callable. Compliance checking tests a document or output against the relevant authority and surfaces gaps and non-conformances (flags, severity, links to the offending text), reading the authority corpus from Context.
-**Governing ADRs.** 0012; revised 0023 (the corpus is owned by Context). Checking-vs-generative and results presentation **open**.
-**Terms owned.** Capability, Compliance (the checking skill).
+**Governing ADRs.** 0012; revised 0023 (the corpus is owned by Context); **0048 — checking-vs-generative and results presentation, ruled 2026-08-01.**
+**Terms owned.** Capability, Compliance (the checking skill), **Finding**.
 **Depends on.** The model layer (component 1); Context (component 4) for the assembled input and the authority corpus; document management (component 5) for document anchors on results.
+
+**The checker's settled position (ADR-0048).** Output is a list of **findings** — structured records, never prose — each naming the input it arose from (corpus, attached document, or rulebook), an **anchor into the draft**, a severity and its evidence. Three properties are load-bearing:
+
+- **It checks; it does not write.** A finding may carry a proposed revision, but that revision enters the **existing accept/edit/reject Suggestion mechanism** and is never auto-applied — the checker gains no write path the drafting side lacks. Proposed fixes are collapsed by default and never applied in bulk, because a reviewer accepting patches instead of reading findings performs the human check in appearance only.
+- **A finding states a defect, never a verdict** — §6's first answer invariant, applied where it is easiest to cross by accident.
+- **The rulebook guides, and a finding may quote it verbatim without citing it.** A house rule is an instruction to the author, not a fact about the scheme, so quoting it asserts nothing about the project. **The render must differ from a grounded citation** — a quoted rule is not a source chip. And because the rulebook lives in org context, a **quoted rule is org-private**: a finding quoting Org B's manual must never appear on a surface Org A reads.
 
 ## 4. Workflow definition and checkpoints
 
