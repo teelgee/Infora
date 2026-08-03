@@ -3,7 +3,7 @@
 // without provider keys and with reproducible model output. Never deployed;
 // the production entry is index.ts.
 import { serve } from '@hono/node-server';
-import { ingestVersions } from '@infora/data';
+import { ingestAllVersions } from '@infora/data';
 import { createDb } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
 import { buildApp } from './app';
@@ -23,7 +23,7 @@ const router = fakeRouter((system) => {
 // index the library under the fake embedding model so retrieval has a
 // grounded corpus here; the real voyage index coexists untouched (each
 // pinned model is its own index, ADR-0024)
-const { chunks } = await ingestVersions(db, router);
+const { chunks } = await ingestAllVersions(db, router);
 console.log(`e2e substrate: ${chunks} chunks indexed under the fake embedding model`);
 
 // the harness logs in per test from one IP, far past the production login

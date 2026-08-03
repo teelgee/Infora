@@ -9,7 +9,7 @@ import {
   securityForTier,
   type RouteAttributes,
 } from '@infora/model';
-import { ingestVersions } from './ingest';
+import { ingestAllVersions } from './ingest';
 
 // ingest embeds under the deployment's security posture too (ADR-0037 §5): the
 // invariant admits no exception, so the router refuses a non-conforming route
@@ -51,7 +51,9 @@ const router = new Router(
 );
 
 const { db, pool } = createDb();
-const summary = await ingestVersions(db, router);
+// the sweep is right here and nowhere on a request path (T-302): this CLI
+// indexes a freshly seeded database from nothing
+const summary = await ingestAllVersions(db, router);
 console.log(
   `ingested ${summary.versions} versions → ${summary.chunks} chunks, embedded by ${summary.model}`,
 );

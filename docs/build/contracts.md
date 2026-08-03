@@ -567,3 +567,36 @@ GET /health → 200 { ok: true } | 503 { ok: false }   // sessionless liveness
   (`ALLOWED_ORIGINS`, defaulting to the local dev/e2e web origins) receive no
   CORS headers at all; every response carries `X-Content-Type-Options:
   nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
+
+## The ingest entry points (internal — `@infora/data`)
+
+*Incremental ingest (2026-08-03, T-302).* `ingestVersions` is replaced by **two**
+entry points, because one function was serving two jobs that scale differently.
+
+```
+ingestVersion(db, router, versionId, options?)     → IngestSummary   // the product path
+ingestAllVersions(db, router, options?)            → IngestSummary   // dev CLI + e2e substrate only
+```
+
+**`ingestVersion` takes a version id.** The old single function walked *every
+version in the database* on each call and ran on library admission — invisible at
+the skeleton's few dozen rows, and roughly **125,000 re-ingests** to bulk-load
+[v1.md](v1.md)'s 500-document corpus. It is not a projection: on 2026-08-01 the
+shared dev database reached ~1,050 versions and the api suite began failing on
+5-second timeouts in exactly the cycle tests that admit a version to grounding.
+An unknown id **throws** rather than indexing nothing quietly.
+
+**The sweep survives under a name that says what it does**, and is called by the
+`@infora/data` ingest CLI and the e2e substrate only — both index a freshly
+seeded database from nothing. Nothing on a request path may call it.
+
+**A version is indexed when it comes into existence, not when it starts
+grounding.** Ingest excludes nothing — exclusion is retrieval's job (ADR-0022,
+T-033) — so all three version-creating acts ingest: the sandbox freeze, promotion,
+and the contractual revision an accepting verdict issues. **This closes a real gap
+the sweep was masking:** a promotion onto a container already in the library makes
+a new version current, and until this ticket its chunks arrived only at the *next*
+acceptance anywhere in the project — so between the two the deliverable's current
+version had no chunks and it silently dropped out of retrieval. Each call sits
+after its transaction commits; an outbound embedding call holds no transaction
+open. The bulk-load path itself is **T-303**.

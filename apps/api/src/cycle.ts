@@ -30,7 +30,13 @@ import type {
   Round,
   TransmittalRecord,
 } from '@infora/contracts';
-import { ingestVersions } from '@infora/data';
+// T-302 — a version is indexed at the moment it comes into existence: one
+// targeted ingest, never a sweep of the corpus. Ingest excludes nothing —
+// exclusion is retrieval's job (ADR-0022, T-033) — so every new version is
+// indexed whether or not it currently grounds. Each call sits AFTER its
+// transaction commits: an outbound embedding call has no business holding a
+// database transaction open.
+import { ingestVersion } from '@infora/data';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -476,6 +482,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       return { versionId: version!.id, versionReference, containerId: freezeContainer!.id };
     });
     await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
+    await ingestVersion(deps.db, deps.router, result.versionId);
     return c.json(result, 201);
   });
 
@@ -752,6 +759,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     });
     // the record's renditions, generated beside the version (T-121, ADR-0034)
     await generateRenditions(deps.db, { id: result.versionId, content: sourceContent }, doc);
+    await ingestVersion(deps.db, deps.router, result.versionId);
 
     return c.json(result, 201);
   });
@@ -982,21 +990,21 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       // the contractual revision's renditions, generated beside it like a
       // promotion's (T-121, ADR-0034) — the published record the client owns
       if (contractual) {
+        const issued = contractual as { id: string; content: string };
         const [boundDoc] = await deps.db
           .select()
           .from(s.sandboxDocuments)
           .where(eq(s.sandboxDocuments.containerId, container.id))
           .limit(1);
         if (boundDoc) {
-          await generateRenditions(
-            deps.db,
-            { id: (contractual as { id: string }).id, content: (contractual as { content: string }).content },
-            boundDoc,
-          );
+          await generateRenditions(deps.db, { id: issued.id, content: issued.content }, boundDoc);
         }
+        // chunk + embed the contractual revision acceptance just issued — the
+        // one version this act brings into existence (T-302). A sandbox-scope
+        // (internal QA) acceptance issues none and never grounds (ADR-0032),
+        // so there is nothing to index on that path.
+        await ingestVersion(deps.db, deps.router, issued.id);
       }
-      // chunk + embed whatever newly grounds — an idempotent sweep (T-012)
-      await ingestVersions(deps.db, deps.router);
     }
     const fresh = await readCycle(deps.db, container, slice);
     return c.json({ transmittalId, cycle: fresh! });

@@ -22,8 +22,8 @@ export function fakeVector(text: string): number[] {
  * because each pinned model is its own index over the same corpus (ADR-0024),
  * so a caller that needs its rows kept clear of every other suite's — the eval
  * harness, whose fixtures are frozen and must not be re-chunked underneath a
- * case by `ingestVersions`, which walks every version in the database — asks
- * for its own model id and gets a disjoint index for free.
+ * case by an ingest of the same version — asks for its own model id and gets a
+ * disjoint index for free.
  */
 export function fakeRouter(
   reply:

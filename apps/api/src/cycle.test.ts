@@ -414,7 +414,8 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     const [container] = await db.select().from(s.containers).where(eq(s.containers.id, containerId));
     expect(container!.inLibrary).toBe(true);
 
-    // the accepted current version is chunked for grounding (T-012 sweep)
+    // the accepted current version is chunked for grounding (T-012; indexed at
+    // promotion by T-302's targeted ingest rather than by a corpus-wide sweep)
     const cycleRounds = closed.rounds;
     const acceptedVersionId = cycleRounds[1]!.versionId;
     // T-247 — the chunk index is under row-level security, so verifying it
@@ -442,6 +443,17 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     expect(again.cycleId).not.toBe(closed.id);
     expect(again.versionReference).toBe('P03'); // a fresh P revision after the C-accepted one
     expect(again.roundNumber).toBe(1);
+
+    // T-302 — the new P revision is current on a container already IN the
+    // library, so it grounds the moment it exists. The old corpus-wide sweep
+    // ran only on acceptance, so between this promotion and the next accepting
+    // verdict the container's current version had no chunks at all and the
+    // deliverable silently dropped out of retrieval. Targeted ingest indexes it
+    // here, which is why this assertion is the regression guard.
+    const promotedChunks = await withProjectScope(db, projectId, (tx) =>
+      tx.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, again.versionId)),
+    );
+    expect(promotedChunks.length).toBeGreaterThan(0);
   });
 
   it('close-rejected is the explicit audited stop: container rejected, never grounds (ADR-0032)', async () => {

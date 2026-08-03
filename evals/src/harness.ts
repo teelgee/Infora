@@ -23,10 +23,11 @@ import type { Grader } from './grading';
 /**
  * The eval harness writes and reads its OWN pinned index (ADR-0024: each
  * embedding model is its own index over the same corpus). Not fastidiousness —
- * `ingestVersions` walks every version in the database and replaces its chunks
- * wholesale under the model it was given, so a fixture sharing `fake-embed`
- * with the ingest suite can be re-chunked underneath a running case. A frozen
- * fixture that another suite can rewrite is not frozen.
+ * ingest replaces a version's chunks wholesale under the model it was given,
+ * and `ingestAllVersions` does it for every version in the database, so a
+ * fixture sharing `fake-embed` with the ingest suite can be re-chunked
+ * underneath a running case. A frozen fixture another suite can rewrite is not
+ * frozen.
  */
 export const EVAL_EMBED_MODEL = 'eval-embed';
 
