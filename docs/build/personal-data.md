@@ -56,6 +56,14 @@ Grouped by *why* it exists, because that is the question a DPA and a DPIA both a
 
 > ⚠ **The one that is live and easy to miss.** `GET /organisation/costs` aggregates spend at organisation **and named-user** grain. That is **per-person usage data, shipped in V1** — visible to an org admin, showing who spent what. It is **not a Signal**, so **Session 7 will never reach it**, and it is not covered by any current ruling. It needs naming in the DPA regardless of when Session 7 runs. *(Carve-out recorded on Session 7 in the tracker, 2026-08-01.)*
 
+### Transient inputs — held nowhere, and that is the requirement
+
+| What | Where | Why held | Deleted where |
+|---|---|---|---|
+| An uploaded schema spreadsheet, which routinely names **authors and reviewers** in its role columns | **nowhere** — parsed in-request (T-337) | Schema import: the firm's existing schema becomes candidate fields | **Never persisted.** Not admitted to the library, not chunked, not retrievable |
+
+⚠ **The trap this row exists to close.** `runs.request` is persisted (above), so echoing the uploaded file body into the run record would turn a transient parse into a **permanent store of named people** that no ruling covers and no deletion zone in `Q-033` reaches. T-337 carries "the run request must not echo the file body" as an acceptance criterion for exactly this reason. The general rule it instances: **a transient input stops being transient the moment the audit record quotes it.**
+
 ### Derived and non-obvious stores
 
 Deletion that reaches only the row is not deletion. `Q-033`'s stress test lives here:
