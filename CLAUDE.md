@@ -29,7 +29,9 @@ ethical wall, with grounded, cited AI drafting.
   person** says so, and names where that data is deleted — the register is
   `docs/build/personal-data.md`.
 - Design gaps go to `docs/grill-sessions/grill-questions.md` as open
-  questions — never resolved inline.
+  questions — never resolved inline. Derive the number with
+  `pnpm run check:questions -- --next`, never by reading the counter line
+  (T-343); `pnpm run check:tickets -- --next` is its equivalent for `T-###`.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
   Cite them, don't re-argue them.
 - One commit per ticket, `T-xxx: summary` style.

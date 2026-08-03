@@ -25,7 +25,16 @@ is the **process log**.
 
 ## How to read an entry
 
-`Q-###` — title. **Next free number: Q-036.** Each entry carries:
+`Q-###` — title. **Next free number: Q-036** — **derive it, don't trust it:
+`pnpm run check:questions -- --next`** (T-343) scans this tracker,
+[grill-history.md](grill-history.md) *and* `git log`, and prints the next free
+number. Bump this line in the same commit that claims one; `pnpm run check`
+fails if it falls behind, or if a `Q-###` is defined twice. The line stays
+because it is readable, but the script is the authority — the prose convention
+alone let two concurrent sessions both reach for `Q-034` on 2026-08-03, caught
+by eye rather than by any check. A **struck** entry left behind as a pointer to
+its record in the history is the tracker's own convention and passes; an
+unstruck duplicate does not. Each entry carries:
 
 - **Method tag** — the triage that decides *how* it gets answered, not just when:
   - **[A] reference-decidable** — a precedent exists (Legora and adjacent
