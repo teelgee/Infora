@@ -91,6 +91,11 @@ beforeAll(async () => {
         embedding: fakeVector(content),
         embeddingModelId: FAKE_EMBED_MODEL,
         embeddingModelVersion: 'fake-1',
+        // T-271 — the spans these passages really occupy in the version above,
+        // which is PASSAGES joined by a single space
+        startOffset: PASSAGES.slice(0, chunkIndex).reduce((at, p) => at + p.length + 1, 0),
+        endOffset:
+          PASSAGES.slice(0, chunkIndex).reduce((at, p) => at + p.length + 1, 0) + content.length,
       })),
     );
   chunkIds = await withProjectScope(db, projectId, async (tx) => {
@@ -165,6 +170,29 @@ describe('passage-grain audit (T-253, finding F5)', () => {
     // each passage once, attributed to the FIRST step that saw it — the later
     // steps work from the same set and would otherwise triple the answer
     expect(context.passages).toHaveLength(PASSAGES.length);
+  });
+
+  // T-271 — the evidence read answers "what did your AI read" and now "where
+  // was it", which is the difference between a citation and a checkable one.
+  it('says where in the document each passage sat', async () => {
+    const run = await ask();
+    const context = (await (
+      await app.request(`/runs/${run.id}/context`, { headers: { cookie: consultantCookie } })
+    ).json()) as GetRunContextResponse;
+
+    const source = PASSAGES.join(' ');
+    for (const passage of context.passages) {
+      expect(passage.locator).not.toBeNull();
+      const { span, verbatim, paragraph } = passage.locator!;
+      // the span slices the real version content back to the passage
+      expect(source.slice(span.start, span.end)).toBe(verbatim);
+      expect(verbatim).toBe(passage.content);
+      expect(paragraph).toBe(0); // one paragraph in this fixture, no newlines
+    }
+    // and the two passages sit at different places, which is the whole point of
+    // recording a position rather than a document
+    const starts = context.passages.map((p) => p.locator!.span.start);
+    expect(new Set(starts).size).toBe(PASSAGES.length);
   });
 
   it('is producer-private, like the run record it belongs to', async () => {

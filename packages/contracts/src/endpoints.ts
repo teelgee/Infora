@@ -20,6 +20,7 @@ import type {
   Surface,
 } from './shared';
 import type { LensSummary } from './lens';
+import type { Locator } from './assembly';
 
 const id = z.uuid();
 
@@ -128,6 +129,11 @@ export type AssembledPassage = {
   chunkId: Id | null; // null = recorded before T-253, at document grain only
   chunkIndex: number | null;
   content: string | null; // null when the passage is no longer reconstructible
+  // T-271 — WHERE in the document the passage sits, so the evidence answers
+  // "what did your AI read, and where was it" rather than only the first half.
+  // Null degrades to version grain: a chunk ingested before spans existed, or
+  // one whose span no longer resolves against its version.
+  locator: Locator | null;
 };
 export type GetRunContextResponse = {
   runId: Id;

@@ -568,6 +568,28 @@ GET /health → 200 { ok: true } | 503 { ok: false }   // sessionless liveness
   CORS headers at all; every response carries `X-Content-Type-Options:
   nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
 
+*Locators on an assembled passage (2026-08-04, T-271).* `AssembledItem` gains
+**`locator?: Locator`** and `AssembledPassage` gains **`locator: Locator | null`**,
+where `Locator` is `{ span: { start, end }; paragraph: number; verbatim: string }`.
+The spike ([spike-locators.md](spike-locators.md)) settled the shape: **store the
+position, compute the view.** A character span into `versions.content` is the
+only *exact* locator — paragraph, section and page are all views of a position —
+and it needs no per-format branch, where a per-format scheme needs one for every
+format admitted. `paragraph` is derived (newlines before the span; `docxToText`
+emits one per `<w:p>`); **page and section are absent rather than guessed**,
+because a docx has no pages at all and Word section numbering is resolved at
+render time. **`verbatim` is not `content`:** `content` is what the model was
+shown, and `verbatim` is what the document says at that span — they differ
+wherever the chunker rewrote inter-sentence whitespace, and the second is what a
+reader checks. **Absent/null is the deliberate degrade to version grain** — a
+chunk ingested before spans existed, or one whose span no longer resolves against
+its version. A locator is emitted only when the stored span is *demonstrated* to
+still point at the passage, because a citation that renders and does not resolve
+is worse than none: it looks checkable. Adding `locator` to `AssembledItem` fired
+`wall.test.ts`'s pinned key set by design; it is an **output-side** field like
+`chunkId`, computed on rows retrieval had already returned, so it can no more
+widen a slice than `chunkId` can.
+
 *The elevated tier's refusal record (2026-08-04, T-301).* No endpoint changes
 shape and no response body changes. What changes is that a **403 from the
 elevated gate is now written down**: `POST /cycles/:id/close-rejected`

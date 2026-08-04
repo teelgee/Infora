@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EntitledSlice } from '@infora/governance';
 import { createDb, schema as s } from '@infora/db';
+import { chunkText } from '@infora/data';
 import { extractReferenceCodes, groundedLibrary } from './retrieval';
 import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
 
@@ -21,6 +22,12 @@ async function addDocument(options: {
   inLibrary?: boolean;
   state?: 'live' | 'withdrawn';
   versions: Array<{ current: boolean; content: string; modelId?: string }>;
+  // T-271 — when set, the fixture chunks through the REAL chunker and stores
+  // the spans it produces. Left unset, the whole-content chunk carries no span,
+  // which is exactly the state of every row ingested before T-271 and is worth
+  // keeping as the default: most of these cases are about the pre-filter, and
+  // they should keep exercising the version-grain degrade for free.
+  chunkMaxChars?: number;
 }) {
   // the producing organisation is the test project's owner (ADR-0033, T-114)
   const [proj] = await db
@@ -50,14 +57,22 @@ async function addDocument(options: {
       })
       .returning();
     versionIds.push(version!.id);
-    await db.insert(s.versionChunks).values({
-      versionId: version!.id,
-      chunkIndex: 0,
-      content: v.content,
-      embedding: fakeVector(v.content),
-      embeddingModelId: v.modelId ?? FAKE_EMBED_MODEL,
-      embeddingModelVersion: 'fake-1',
-    });
+    const chunks =
+      options.chunkMaxChars === undefined
+        ? [{ index: 0, content: v.content, start: null, end: null }]
+        : chunkText(v.content, options.chunkMaxChars);
+    await db.insert(s.versionChunks).values(
+      chunks.map((chunk) => ({
+        versionId: version!.id,
+        chunkIndex: chunk.index,
+        content: chunk.content,
+        embedding: fakeVector(chunk.content),
+        embeddingModelId: v.modelId ?? FAKE_EMBED_MODEL,
+        embeddingModelVersion: 'fake-1',
+        startOffset: chunk.start,
+        endOffset: chunk.end,
+      })),
+    );
   }
   return versionIds;
 }
@@ -185,6 +200,54 @@ describe('grounded library retrieval (T-031)', () => {
     const items = await retrieve(`summarise ${betaReference} for the report`);
     expect(items[0]!.source).toEqual({ versionId: currentBetaVersionId });
     expect(items[0]!.content).toContain('beta current');
+  });
+
+  // T-271 — the locator, end to end: chunked by the real chunker, stored with
+  // its span, and resolved back into the real document by retrieval.
+  it('carries a locator that resolves into the source document (T-271)', async () => {
+    const stamp = Date.now();
+    // two paragraphs, so the interesting chunk is one whose span crosses a
+    // paragraph break — the case a search-based implementation cannot find
+    const content =
+      'Locator fixture heading.\nThe dewatering assessment considers the perched horizon.  ' +
+      'It reports a plausible pathway.\n\nThe monitoring ran across three visits.';
+    const [versionId] = await addDocument({
+      projectId: slice.projectId,
+      reference: `T271-LIB-LOC-${stamp}`,
+      versions: [{ current: true, content }],
+      chunkMaxChars: 70,
+    });
+
+    const items = await retrieve('dewatering perched horizon pathway');
+    const item = items.find((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    expect(item).toBeDefined();
+    expect(item!.locator).toBeDefined();
+
+    const { span, paragraph, verbatim } = item!.locator!;
+    // the span points at real, contiguous text in the version
+    expect(content.slice(span.start, span.end)).toBe(verbatim);
+    // and the verbatim is the passage, differing from what the model saw only
+    // in the whitespace the packer rewrote
+    expect(verbatim.replace(/\s+/g, ' ')).toBe(item!.content.replace(/\s+/g, ' '));
+    // paragraph is the source's own newline count before the span
+    const before = content.slice(0, span.start);
+    expect(paragraph).toBe(before.length - before.replaceAll('\n', '').length);
+  });
+
+  it('degrades to version grain for a chunk stored without a span (T-271)', async () => {
+    // every chunk ingested before this ticket is in exactly this state, and the
+    // honest answer is a citation with no locator — never a guessed one
+    const stamp = Date.now();
+    const [versionId] = await addDocument({
+      projectId: slice.projectId,
+      reference: `T271-LIB-NOSPAN-${stamp}`,
+      versions: [{ current: true, content: 'Spanless fixture about ballast fouling on the branch.' }],
+    });
+    const items = await retrieve('ballast fouling branch');
+    const item = items.find((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    expect(item).toBeDefined();
+    expect(item!.locator).toBeUndefined();
+    expect(item!.content).toContain('ballast fouling'); // still retrieved, still cited
   });
 
   it('extractReferenceCodes finds hyphenated codes and ignores prose', () => {

@@ -85,6 +85,10 @@ export async function readRunContext(db: Db, runId: Id): Promise<GetRunContextRe
       chunkId: entry.source.chunkId ?? null,
       chunkIndex: chunk?.chunkIndex ?? null,
       content: chunk?.content ?? null,
+      // T-271 — null here is the version-grain degrade, not a second kind of
+      // unreconstructable: the passage IS reconstructible, we just cannot say
+      // where in the document it sat.
+      locator: chunk?.locator ?? null,
     };
   });
 

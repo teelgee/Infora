@@ -274,6 +274,13 @@
       "when": 1785859200000,
       "tag": "0038_elevated-refusals",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1785945600000,
+      "tag": "0039_chunk-offsets",
+      "breakpoints": true
     }
   ]
 }

@@ -206,6 +206,9 @@ importers:
 
   packages/data:
     dependencies:
+      '@infora/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@infora/db':
         specifier: workspace:*
         version: link:../db
@@ -288,6 +291,9 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@infora/data':
+        specifier: workspace:*
+        version: link:../data
       '@infora/db':
         specifier: workspace:*
         version: link:../db

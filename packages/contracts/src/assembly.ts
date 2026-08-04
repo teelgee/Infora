@@ -16,6 +16,28 @@ export type AssemblyRequest = {
   requester: { organisationId: Id; participantId: Id };
 };
 
+// T-271 — WHERE in the source document a passage is, so a citation is
+// checkable rather than merely precise (non-negotiable 1). The spike (T-270)
+// settled the shape: **store the position, compute the view.** A character
+// span is the only exact locator — paragraph, section and page are all *views*
+// of a position — and it is format-agnostic, where a per-format scheme needs a
+// new branch for every format admitted.
+export type Locator = {
+  // character range into `versions.content`, the exact thing everything else
+  // derives from
+  span: { start: number; end: number };
+  // derived, not stored: the count of newlines before `span.start`.
+  // `docxToText` emits exactly one `\n` per `<w:p>`, so this is the source
+  // document's own paragraph index and a reader can act on it.
+  paragraph: number;
+  // the source text AS IT REALLY READS at that span — not the assembled
+  // `content`, whose inter-sentence whitespace the chunker rewrote (T-270
+  // finding 1). This is the half of non-negotiable 1 that says "either a
+  // locator or the verbatim passage": here it is both, and the verbatim is
+  // taken from the document rather than searched for in it.
+  verbatim: string;
+};
+
 export type AssembledItem = {
   channel: 'grounded' | 'guiding' | 'informing'; // ADR-0021
   corpus?: 'library' | 'authority'; // grounded only
@@ -25,6 +47,12 @@ export type AssembledItem = {
   // exact assembled text reconstructible without storing it twice. Absent on
   // items that are not library chunks (steering channels, authority refs).
   chunkId?: Id;
+  // T-271 — absent means this passage resolves at VERSION grain only, which is
+  // the deliberate degrade: a chunk ingested before offsets existed, or one
+  // whose span no longer matches the version it points into. Never a guessed
+  // locator — a quote that cannot be found is worse than none, because it looks
+  // checkable.
+  locator?: Locator;
   content: string;
 };
 

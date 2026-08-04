@@ -142,9 +142,15 @@ describe('the wall through the gateway (T-033)', () => {
     // scope one — it records what retrieval returned and cannot influence what
     // retrieval returns. Adding a key here is meant to be a reviewable event,
     // which is the whole point of pinning the shape.
+    //
+    // T-271 added `locator` on the same terms, and this test firing is the
+    // review. It says WHERE an admitted passage sits in its version — computed
+    // from a span the ingest path stored, on rows retrieval had already
+    // returned. It is on the output side of the pre-filter, so it can no more
+    // widen a slice than `chunkId` can.
     const itemShape: ExactKeys<
       AssembledItem,
-      'channel' | 'corpus' | 'source' | 'chunkId' | 'content'
+      'channel' | 'corpus' | 'source' | 'chunkId' | 'locator' | 'content'
     > = true;
 
     expect([requestShape, requesterShape, queryShape, itemShape]).toEqual([true, true, true, true]);

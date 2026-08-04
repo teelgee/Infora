@@ -1,5 +1,16 @@
 # SPIKE — locator extraction (T-270)
 
+> **✅ Closed 2026-08-04 by T-271**, which built the recommendation below:
+> `start_offset` / `end_offset` on `version_chunks` (migration 0039), the
+> paragraph index derived from them, the verbatim passage taken at the span
+> rather than searched for, and the version-grain degrade when a span does not
+> resolve. **Two of the five recommended items were deliberately left to their
+> own tickets** and are not defects: the heading-number split is **T-307** —
+> the spike itself argues for a separate commit, because re-chunking moves
+> embeddings and the eval seed set should measure the change — and PDF input is
+> **T-305**. The findings below are the reasoning, kept as the record of *why*
+> offsets are stored rather than recovered.
+>
 > **Status: findings, 2026-08-01. Research, not build.** T-270 is a spike: it
 > blocks nothing and produces findings, not code. It exists because
 > non-negotiable 1 — *no assertion without provenance*, where provenance means

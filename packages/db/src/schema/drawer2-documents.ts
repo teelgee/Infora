@@ -183,6 +183,18 @@ export const versionChunks = pgTable(
     embedding: vector('embedding', { dimensions: 1024 }).notNull(),
     embeddingModelId: text('embedding_model_id').notNull(),
     embeddingModelVersion: text('embedding_model_version').notNull(),
+    // T-271 — the character range in versions.content this chunk was packed
+    // from. Stored because it CANNOT be recovered: the chunker rewrites
+    // inter-sentence whitespace, so a chunk that crossed a paragraph break is
+    // not a substring of its own version and indexOf returns -1 (T-270 finding
+    // 1). Everything else a citation shows — paragraph now, page and section
+    // when the formats carrying them land — is derived from this span.
+    //
+    // Nullable: chunks written before this ticket carry none, and such a
+    // passage degrades to version grain rather than rendering a locator nobody
+    // can follow.
+    startOffset: integer('start_offset'),
+    endOffset: integer('end_offset'),
   },
   (t) => [
     // unique per pinned model: each embedding model is its own index over the

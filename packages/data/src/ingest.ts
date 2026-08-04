@@ -132,6 +132,11 @@ async function ingestRows(
           embedding: result.embeddings[at]!,
           embeddingModelId: result.model.id,
           embeddingModelVersion: result.model.version,
+          // T-271 — where in versions.content this chunk was packed from. The
+          // chunker is the only place that knows, and it knows only now: the
+          // offsets cannot be recovered afterwards (T-270 finding 1).
+          startOffset: chunk.start,
+          endOffset: chunk.end,
         })),
       );
     });

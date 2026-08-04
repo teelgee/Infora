@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
     "@infora/model": "workspace:*",
     "drizzle-orm": "^0.45.2",

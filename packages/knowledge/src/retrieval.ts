@@ -17,6 +17,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
+import { resolveLocator } from '@infora/data';
 import { deliverableVisibleSql } from './visibility';
 
 export const GROUNDED_CHUNK_LIMIT = 8;
@@ -66,6 +67,11 @@ export async function groundedLibrary(
   for (const row of [...byCode, ...bySimilarity]) {
     if (seen.has(row.chunkId) || items.length >= GROUNDED_CHUNK_LIMIT) continue;
     seen.add(row.chunkId);
+    // T-271 — a locator when the stored span still demonstrably points at this
+    // passage, and otherwise nothing. Version grain is the honest degrade; a
+    // locator that does not resolve is worse than none, because it looks
+    // checkable.
+    const locator = resolveLocator(row);
     items.push({
       channel: 'grounded',
       corpus: 'library',
@@ -73,6 +79,7 @@ export async function groundedLibrary(
       // T-253 — passage grain: the chunk row is immutable, so its id is enough
       // to reconstruct exactly what the model was shown
       chunkId: row.chunkId,
+      ...(locator !== null && { locator }),
       content: row.content,
     });
   }
@@ -107,10 +114,23 @@ function classificationScopeSql(termIds: string[]): SQL {
       )}))`;
 }
 
+// T-271 — the locator's raw materials, resolved in the same query as the
+// passage. `verbatim` and `paragraph` are computed in SQL rather than by
+// selecting `versions.content`: a 200-page chapter's full text pulled back for
+// eight chunks would be the expensive way to read two small facts. Postgres
+// `substr` is 1-indexed, hence the +1; the paragraph count is newlines before
+// the span, which is the source document's own paragraph index because
+// `docxToText` emits exactly one `\n` per `<w:p>`.
 const chunkColumns = {
   chunkId: s.versionChunks.id,
   versionId: s.versionChunks.versionId,
   content: s.versionChunks.content,
+  startOffset: s.versionChunks.startOffset,
+  endOffset: s.versionChunks.endOffset,
+  verbatim: sql<string | null>`substr(${s.versions.content}, ${s.versionChunks.startOffset} + 1,
+    ${s.versionChunks.endOffset} - ${s.versionChunks.startOffset})`.as('verbatim'),
+  paragraph: sql<number | null>`length(left(${s.versions.content}, ${s.versionChunks.startOffset}))
+    - length(replace(left(${s.versions.content}, ${s.versionChunks.startOffset}), E'\n', ''))`.as('paragraph'),
 };
 
 function liveChunksByCode(
