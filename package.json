@@ -18,8 +18,9 @@
     "check:tickets": "node scripts/check-tickets.mjs",
     "check:questions": "node scripts/check-questions.mjs",
     "check:docs": "node scripts/check-docs.mjs",
+    "check:links": "node scripts/check-links.mjs --baseline scripts/link-baseline.txt",
     "check:audit": "pnpm audit --prod",
-    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:docs && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
+    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:docs && pnpm run check:links && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

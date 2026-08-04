@@ -1,0 +1,9 @@
+# Pre-existing breakage recorded when the link guard landed (2026-08-04).
+# One `source → target` per line; fix the link, delete its line. Nothing may
+# be added here for new breakage — new breakage fails the build.
+#
+# grill.md links line anchors (#L185) into rendered markdown, which GitHub
+# does not support — broken since the day they were written.
+docs/grill-sessions/grill.md → ../../CONTEXT.md#L185
+docs/grill-sessions/grill.md → ../build/data-model.md#L48
+docs/grill-sessions/grill.md → ../../CONTEXT.md#L146
