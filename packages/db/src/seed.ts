@@ -20,7 +20,7 @@ await db.execute(sql`
     responses, review_comments, review_snapshots, transmittals, rounds, review_cycles,
     deliverable_authors, deliverable_reviewers, deliverable_shares, acceptance_codes,
     document_relationships, container_classifications, classification_terms, classification_facets,
-    sandbox_document_versions, sandbox_documents, renditions,
+    sandbox_document_versions, sandbox_documents, sandbox_scope_grants, sandboxes, renditions,
     versions, containers, work_items,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
@@ -305,6 +305,120 @@ for (const doc of library) {
   }
 }
 
+// ── T-300 — the THIRD organisation on Wrenfield: Org C ──────────────────────
+// [v1.md] seeds three organisations on one project so the wall is *demonstrable
+// in the customer's own tenant* — a screen the buyer can look at, rather than a
+// property they take on trust. Session B's story exactly: Trentmoor is Org A
+// (owner), Calder & Hale is Org B (consultant), and Redgate Ecology is Org C,
+// brought in to probe cross-organisation sharing. **B↔C invisibility is the
+// thing a consultancy will actually poke at**, so Org C is seeded with work of
+// its own — a sandbox and a produced deliverable it has NOT shared — and the
+// negative is demonstrable rather than merely an absence of rows.
+//
+// TWO OF THE THREE ARE OPERATOR-HELD OR FICTIONAL ([v1.md]). This is a
+// demonstration, not a commercial proof: the wall between two genuinely
+// independent firms stays unproven until [nfr.md]'s revisit trigger 1 fires for
+// real. Said here because this is where an operator reads it.
+//
+// Redgate is a NEW organisation rather than a promotion of Halvern Associates:
+// Halvern's documented meaning is "an organisation with no Membership at all"
+// (T-022's wall subject), and reusing it would delete a test subject to create
+// one. ORDER: created after the Wrenfield participants above, so `participants[0]`
+// stays Wrenfield for the dozen e2e specs that index it (T-298).
+const [redgate] = await db.insert(s.organisations).values({ name: 'Redgate Ecology' }).returning();
+const [nadia] = await db
+  .insert(s.users)
+  .values({
+    name: 'Nadia Okonjo',
+    email: 'nadia.okonjo@redgate.example',
+    organisationId: redgate!.id,
+    orgRole: 'admin',
+  })
+  .returning();
+await db.insert(s.userCredentials).values({ userId: nadia!.id, passwordHash: hashPassword(DEV_PASSWORD) });
+await db
+  .insert(s.memberships)
+  .values({ organisationId: redgate!.id, projectId: project!.id, role: 'member' });
+// elevated for the same reason Eleanor is: Org C's lead author may decline-and-
+// close her own organisation's deliverable (ADR-0032, T-174)
+const [redgateParticipant] = await db
+  .insert(s.participants)
+  .values({ userId: nadia!.id, projectId: project!.id, elevated: true })
+  .returning();
+
+// Org C's own single-org sandbox, provisioned exactly as the API's lazy path
+// would (ADR-0018/0019): the working area Org B must never see into.
+const [redgateSandbox] = await db
+  .insert(s.sandboxes)
+  .values({
+    projectId: project!.id,
+    name: 'Sandbox',
+    scope: 'single_org',
+    owningOrganisationId: redgate!.id,
+    createdByParticipantId: redgateParticipant!.id,
+  })
+  .returning();
+await db.insert(s.sandboxScopeGrants).values({
+  sandboxId: redgateSandbox!.id,
+  granteeType: 'organisation',
+  organisationId: redgate!.id,
+  grantedByParticipantId: redgateParticipant!.id,
+});
+await db.insert(s.sandboxDocuments).values({
+  projectId: project!.id,
+  organisationId: redgate!.id,
+  title: 'Bat activity survey — working notes',
+  sandboxId: redgateSandbox!.id,
+  createdByParticipantId: redgateParticipant!.id,
+  content:
+    'Working notes, not for issue. Three transect visits completed; common and soprano pipistrelle ' +
+    'recorded along the Ashcombe Brook corridor. Roost potential in the Wrenfield Sidings brick ' +
+    'structure to be confirmed by emergence survey. Belongs to Redgate Ecology and must never be ' +
+    'visible to Calder & Hale.',
+});
+
+// A deliverable Org C PRODUCED and did NOT share. Note the visibility rule it
+// exercises (ADR-0016 as data): producer | project owner | live share — so
+// Trentmoor sees it because it owns the library, and Calder & Hale does not,
+// because there is no share row. Deliberately no deliverable_shares and no
+// acknowledgement: the missing rows ARE the negative.
+const [redgateContainer] = await db
+  .insert(s.containers)
+  .values({
+    projectId: project!.id,
+    producingOrganisationId: redgate!.id,
+    documentReference: 'WA-ECO-PEA-001',
+    inLibrary: true,
+    state: 'live',
+  })
+  .returning();
+await db.insert(s.deliverableAuthors).values({
+  containerId: redgateContainer!.id,
+  participantId: redgateParticipant!.id,
+  isLead: true,
+  grantedByParticipantId: redgateParticipant!.id,
+});
+await db.insert(s.versions).values({
+  containerId: redgateContainer!.id,
+  versionReference: 'v1',
+  content:
+    'Preliminary Ecological Appraisal. Extended Phase 1 habitat survey of the order limits recorded ' +
+    'species-poor semi-improved grassland, defunct hedgerow along Ashcombe Lane, and a small area of ' +
+    'wet woodland adjoining the brook. Great crested newt eDNA returned negative at both ponds. ' +
+    'Badger activity was recorded at two setts outside the working corridor. This report was ' +
+    'produced by Redgate Ecology and has NOT been shared with Calder & Hale, so it must never ' +
+    'appear in an answer they receive.',
+  isCurrent: true,
+});
+await db.insert(s.workItems).values({
+  projectId: project!.id,
+  type: 'document_production',
+  title: 'Preliminary Ecological Appraisal',
+  status: 'accepted',
+  containerId: redgateContainer!.id,
+  assigneeParticipantId: redgateParticipant!.id,
+});
+
 // ── T-298 — the second client, so the conflict register (ADR-0046) is real ──
 // An exclusion pairs TWO projects, so with one seeded project the register was
 // visible and unusable. The scenario it exists for is a consultancy acting for
@@ -431,6 +545,14 @@ const counts = await db.execute(sql`
 console.log('seeded:', counts.rows[0]);
 console.log(`owner participant ${ownerParticipant!.id} (Rachel Bowen, Trentmoor Energy)`);
 console.log(`consultant participant ${consultant!.id} (Eleanor Price, Calder & Hale)`);
+console.log(
+  `T-300 three organisations on Wrenfield — A: Trentmoor Energy (owner), B: Calder & Hale, ` +
+    `C: Redgate Ecology (nadia.okonjo@redgate.example, participant ${redgateParticipant!.id}). ` +
+    'B↔C is the demonstrable negative: Redgate produced WA-ECO-PEA-001 and shared it with nobody, ' +
+    'and holds a sandbox of its own — so Eleanor Price sees neither, while Rachel Bowen sees the ' +
+    'deliverable because Trentmoor owns the library. Two of the three are operator-held: this is a ' +
+    'demonstration, not a commercial proof (v1.md).',
+);
 console.log(
   'T-298 conflict-register subjects: Eleanor Price works BOTH schemes (declaring a wall over the ' +
     'pair reports her); Owen Vance works Wrenfield only (an individual wall on Eleanor must leave ' +

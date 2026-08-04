@@ -10,7 +10,14 @@ export const SEEDED = {
   owner: 'rachel.bowen@trentmoor.example',
   consultant: 'eleanor.price@calderhale.example',
   noParticipant: 'marcus.webb@calderhale.example',
+  // an authenticated user whose organisation holds NO Membership on the project
+  // (T-022's wall subject). Named before T-300 existed: "third org" here means
+  // outside the project, NOT Org C on it — that is `secondConsultant` below.
   thirdOrg: 'priya.nair@halvern.example',
+  // T-300 — Org C, the second consultant ON the Wrenfield project. Session B's
+  // story: brought in to probe cross-organisation sharing, and the organisation
+  // whose invisibility to Calder & Hale a buyer will actually poke at.
+  secondConsultant: 'nadia.okonjo@redgate.example',
 } as const;
 
 export class ApiSession {
