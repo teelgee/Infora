@@ -1,638 +1,170 @@
-# Contracts — the skeleton's typed API (first cut)
-
-**Contents:** [Principles](#principles-from-the-design-layer-restated-as-api-law) · [1. The Context-assembly contract](#1-the-context-assembly-contract-internal--the-adr-0029-gateway) · [2. Shared types](#2-shared-types) · [3. External endpoints, by milestone](#3-external-endpoints-by-milestone) · [4. Slice A](#4-slice-a--document-management-t-116-2026-07-18) · [5. Error envelope](#5-error-envelope) · [What this cut deliberately omits](#what-this-cut-deliberately-omits)
-
-> **Status: first cut, 2026-07-04.** The handful of typed contracts the walking skeleton needs — the seed of `packages/contracts`, written against the [data model](data-model.md), the walking skeleton (closed; record in [plan-history.md](plan-history.md)) and ADR-[0028](../architecture/adr/0028-orchestration-run-agent-model.md) / [0029](../architecture/adr/0029-context-assembly-contract.md) / [0031](../architecture/adr/0031-copilot-ask-surface.md). Scoped drawer-by-drawer like the data model: only what M0–M6 call, nothing wider. Types are TypeScript; the wire format is JSON over HTTPS. Review alongside the first `packages/contracts` commit.
-
-## Principles (from the design layer, restated as API law)
-
-1. **One typed API, thin surfaces.** Every surface — `web` (one app, role-scoped views — was `web-consultant`; the planned `web-owner` split is superseded, T-110, 2026-07-14), `word-addin`, `copilot-agent` — calls these contracts and resolves nothing locally (component 8). `packages/contracts` is the single source of truth; `apps/api` implements it.
-2. **No scope-widening parameter exists.** No call takes a corpus, store, organisation or visibility argument that could widen what the requester reaches. Scope is derived server-side from `(environment, requester)` — the ADR-0029 shape, applied to the whole API, not just assembly.
-3. **The requester is resolved, never supplied.** Identity comes from the session (or Entra SSO for Copilot, ADR-0031), resolved server-side to `(user, organisation, participant)`. No endpoint accepts a caller-supplied identity.
-4. **Deny is silent.** An unentitled request returns the same `404 not_found` as a nonexistent resource — existence is never leaked across the wall (M1's deny path).
-5. **Append-only reads are reconstructions.** `Run`/`Step`/`Signal` reads return the immutable record; there is no mutating verb on any append-only table (ADR-0028 §3).
-
----
-
-## 1. The Context-assembly contract (internal — the ADR-0029 gateway)
-
-Not an HTTP endpoint. The one call at the `knowledge`/`orchestration` package boundary; every retrieval — baseline and sub-agent — goes through it (ADR-0028 §4).
-
-```ts
-type AssemblyEnvironment =
-  | { kind: 'project'; projectId: Id }
-  | { kind: 'workspace'; organisationId: Id };   // ADR-0025; workspace unused in the skeleton
-
-type AssemblyRequest = {
-  request: { text: string; mode: 'baseline' | 'targeted' };  // ADR-0029 §4
-  environment: AssemblyEnvironment;
-  requester: { organisationId: Id; participantId: Id };
-};
-
-type AssembledItem = {
-  channel: 'grounded' | 'guiding' | 'informing';             // ADR-0021
-  corpus?: 'library' | 'authority';                          // grounded only
-  source: { versionId: Id } | { authorityRef: string };      // what a citation resolves to
-  content: string;
-};
-
-type AssembledInput = {
-  items: AssembledItem[];          // grounded-first within the budget (ADR-0029 §5)
-  budget: { tokenLimit: number; tokensUsed: number };
-};
-
-// the one gateway (ADR-0029 §1–2): access resolution runs INSIDE, before retrieval
-function assemble(req: AssemblyRequest): Promise<AssembledInput>;
-```
-
-In the skeleton, `guiding` and `informing` may return empty; the signature carries them so the upgrade (Session 6) doesn't ripple into the orchestrator.
-
-## 2. Shared types
-
-```ts
-type Id = string;                                            // uuid
-type Surface = 'web' | 'word_addin' | 'copilot';             // ADR-0031
-type StepType = 'retrieve' | 'draft' | 'ground_check' | 'cite' | 'delegate';
-type Resolution = 'accepted' | 'edited' | 'rejected';
-
-type Citation = {
-  id: Id;
-  source: { versionId: Id; documentReference: string } | { authorityRef: string };
-  claimSpan?: { start: number; end: number };                // where in the content it backs
-};
-
-type Step = {
-  id: Id; runId: Id; parentStepId: Id | null;
-  type: StepType; status: 'running' | 'completed' | 'failed';
-  startedAt: string; endedAt: string | null;
-  model?: { id: string; version: string };                   // the Router's choice
-  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number };
-  sourceSet: Array<{ versionId: Id } | { authorityRef: string }>;  // defensibility field 1 (ADR-0028 §7)
-  railOutcomes: Array<{ rail: string; outcome: 'passed' | 'withheld' | 'open_world';
-                        detail?: string }>;                        // defensibility field 2; detail carries
-                                                                   // e.g. the withheld claim text for the UI.
-                                                                   // 'open_world' added 2026-07-09 (T-089): an uncited
-                                                                   // model-knowledge claim kept in *chat*, labelled —
-                                                                   // document-targeted drafting stays grounded-only
-  childRunId?: Id;                                           // when type = 'delegate'
-};
-
-type Run = {
-  id: Id; conversationId: Id; parentRunId: Id | null;
-  agentId: string; agentProvenance: 'infora' | 'custom';
-  state: 'running' | 'completed' | 'failed';
-  request: string;                                           // the prompt/task text — part of the record
-  response: string | null;                                   // the produced answer — part of the record too
-                                                             // (added 2026-07-08, T-052; ADR-0031 §6 renders it in Copilot)
-  startedAt: string; endedAt: string | null;
-  steps: Step[];                                             // the append-only tree, flattened by parentStepId
-  suggestions: Suggestion[];                                 // zero or more, per-item (ruled 2026-07-06)
-  citations: Citation[];                                     // the answer's citations when no Suggestion carries them
-                                                             // (untargeted chat — cite-step citations surfaced; added
-                                                             // 2026-07-09, T-088, discharging the step-citation residual
-                                                             // for the web surface and M6 alike)
-};
-
-type Suggestion = {
-  id: Id; runId: Id; workItemId: Id | null; sandboxDocumentId: Id;
-  kind: 'insert' | 'replace';
-  anchor?: { quote: string };                                // advisory span against the sandbox head;
-                                                             // null/absent in the skeleton (unanchored insert)
-  content: string; rationale: string;
-  citations: Citation[];
-  signal?: { resolution: Resolution; resolvedAt: string };   // set once resolved
-};
-```
-
-## 3. External endpoints, by milestone
-
-### Conversations & runs (M3, M6)
-
-```
-POST /projects/:projectId/conversations
-  body:  { surface: Surface, workItemId?: Id }
-  →      { conversationId: Id }                    // bound to the project environment for life (ADR-0025/0031)
-
-POST /conversations/:conversationId/runs
-  body:  { request: string, sandboxDocumentId?: Id }   // the Ask/draft turn; document targeted when drafting
-  →      Run                                       // completed, with steps, suggestion and citations
-                                                    // (v1 returns on completion; streaming is a later, additive change)
-
-GET  /runs/:runId          → Run                    // the immutable audit read (owner path, M5)
-GET  /conversations/:conversationId → { runs: Run[] }
-```
-
-Read scope (ruled 2026-07-12, superseding 2026-07-06's project-record read): **every Run is readable
-by its producing organisation only**, work-item bound or not; any other reader gets `404 not_found`
-(principle 4). The record is retained background data anchored to the work — the consultant carries
-the professional liability for the work product, and the client owner reviews the *document* through
-the review cycle (ADR-0005–0014), never the agent's internals. The work-item read returns its
-review-cycle facts to every entitled reader; its `runs` list carries the requester organisation's
-own runs only.
-
-```
-GET /projects/:projectId/history → { items: HistoryEntry[] }
-     // added 2026-07-13 (T-108): the requester's own prompted turns on the
-     // project, newest first — Ask chats and agent use in a document alike.
-     // Self-scoped by construction (only runs the caller requested), so the
-     // producer-private read above is not widened. A turn's document is read
-     // off its suggestions (the run row names none — residual, tracker).
-
-type HistoryEntry = { runId: Id; conversationId: Id; request: string;
-                      state: Run['state']; startedAt: string;
-                      sandboxDocument: { id: Id; title: string } | null };  // null = an Ask chat turn
-```
-
-```
-POST /runs/:runId/sandbox-document                  // T-249, 2026-07-31
-  body:  { title?: string, sandboxId?: Id, folderId?: Id, override?: { reason: string } }
-  →      SandboxDocument                            // 201, seeded with the run's answer
-  →      403 { error: 'forbidden', detail }         // the destination is broader than the answer's sources
-```
-
-Carrying an answer into the editor is **one server-side act**, not a create followed by a content PATCH — the server has to know the content came from this run to compute its access label and refuse a destination that would widen it (T-249, finding F2, [the board's Wave 0 reference](plan.md)). The `detail` names **both** labels. `override` is the only route past a refusal: explicit, reasoned, attributed, and written to `label_overrides` in the same transaction as the content — there is no config key that does this. Restricted to the run's own requester: a colleague may read the run but not carry it, because the resulting document would be attributed to them while resting on someone else's request.
-
-```
-GET /runs/:runId/context → GetRunContextResponse            // T-253, 2026-07-31
-     // the assembled context the run saw, at PASSAGE grain: the passages
-     // themselves, in the order the model received them, each attributed to
-     // the step that admitted it. Producer-private on exactly the run's scope.
-
-type AssembledPassage = { stepId: Id; stepType: StepType; versionId: Id;
-                          documentReference: string | null; versionReference: string;
-                          chunkId: Id | null; chunkIndex: number | null;
-                          content: string | null };   // null content = no longer reconstructible
-type GetRunContextResponse = { runId: Id; passages: AssembledPassage[]; unreconstructable: number };
-```
-
-`Step.sourceSet` entries gain an optional `chunkId` (T-253): the defensibility field now answers "what did your AI see" at passage grain rather than document-version grain, and chunk rows are immutable so no text is stored twice. `unreconstructable` is stated rather than implied — a passage whose chunk row has since been replaced by a re-ingest is counted, never rendered as an empty passage.
-
-**The plan artefact (T-260, 2026-07-30 — types only; the endpoint is T-261).** `Plan` and `PlanStep`
-join the shared types (`@infora/contracts`): the persisted analysis behind a Run — mode, question,
-stages, and the append-only Step each plan step became (docs/ask/03 §3, data model Drawer 3). Every
-run the chain drives now writes one. No endpoint exposes it yet, deliberately: the read carries the
-run's producer-private scope exactly, and shipping the type first keeps the writer and the reader
-honest about the same shape. Note what the type does **not** carry — a step declares no scope, so no
-plan edit can widen reach.
-
-### Work items (M3, M5)
-
-```
-GET /projects/:projectId/work-items                → { items: WorkItem[] }
-GET /work-items/:workItemId                        → WorkItem & { runs: Run[] }
-
-type WorkItem = { id: Id; projectId: Id; type: string; title: string;
-                  status: string; assigneeParticipantId: Id | null };
-```
-
-### Sandbox documents (M4 — the draft-location decision)
-
-```
-POST  /projects/:projectId/sandbox-documents       body: { title, containerId? } → SandboxDocument
-      // containerId added 2026-07-18 (T-129): the draft's plan-row link
-      // (ADR-0032) — own-org library containers on this project only
-GET   /projects/:projectId/sandbox-documents       → { items: SandboxDocument[] }
-      // list added 2026-07-08 (T-051): the requester's organisation's private
-      // project sandbox (ADR-0018) — org-scoped by construction, no parameter
-GET   /sandbox-documents/:id                       → SandboxDocument
-GET   /sandbox-documents/:id/suggestions           → { items: Suggestion[] }
-      // added 2026-07-08 (T-082): the document's Suggestions, newest first —
-      // what the Editor's Suggestions tab renders; same scope as the document
-PATCH /sandbox-documents/:id                       body: { content }          → SandboxDocument
-      // manual editing: no Suggestion, no Signal, no ceremony — by design
-
-type SandboxDocument = { id: Id; projectId: Id; organisationId: Id;
-                         title: string; content: string; updatedAt: string };
-```
-
-### Sandbox comments (T-112, owner-ruled 2026-07-18)
-
-```
-GET    /sandbox-documents/:id/comments             → { items: SandboxComment[] }
-       // roots and replies flat; the surface assembles threads via
-       // parentCommentId; same scope as the document — the org-private
-       // sandbox, so the wall needs no new rule
-POST   /sandbox-documents/:id/comments             body: { body, anchor?, parentCommentId?, mentions? } → SandboxComment
-PATCH  /sandbox-comments/:id                       body: { body, mentions? }  → SandboxComment
-       // author-only — mutable like the sandbox (distinct from the
-       // append-only DRR Comment, Slice A)
-DELETE /sandbox-comments/:id                       → 204
-       // author-only; deleting a root deletes its thread
-POST   /sandbox-comments/:id/status                body: { status: 'open' | 'closed' } → SandboxComment
-       // root only; any entitled participant, not just the author —
-       // "suggest an edit" is prose in a comment, and the colleague who
-       // makes the manual edit closes the thread
-GET    /projects/:projectId/participants           → { items: ProjectParticipant[] }
-       // the @-mention picker: the requester's organisation's participants
-       // on the project — org-scoped by construction, like the sandbox list;
-       // mention delivery (notifications) is parked on the tracker
-
-type SandboxComment = { id: Id; sandboxDocumentId: Id; parentCommentId: Id | null;
-                        author: { participantId: Id; name: string };
-                        body: string; anchor: string | null;   // anchor advisory, never blocking
-                        status: 'open' | 'closed';
-                        closedBy: { participantId: Id; name: string } | null;
-                        closedAt: string | null; mentions: Id[];
-                        createdAt: string; updatedAt: string };
-type ProjectParticipant = { participantId: Id; userId: Id; name: string };
-```
-
-### Suggestion resolution — the Signal (M4)
-
-```
-POST /suggestions/:suggestionId/resolution
-  body:  { resolution: Resolution, editedContent?: string }   // editedContent required iff 'edited'
-  →      { signalId: Id, sandboxDocument?: SandboxDocument }  // updated document on accept/edit
-```
-
-Exactly one Signal per Suggestion (v1); a second call is `409 conflict`. Accept applies `content`, edit applies `editedContent`, reject applies nothing.
-
-### Library (M2 read path, seed browsing)
-
-```
-GET /projects/:projectId/library
-  →  { items: Array<{ containerId: Id; documentReference: string;
-                      currentVersionId: Id; state: 'live' }> }
-      // one row per container — the ruled list unit (2026-07-06); version history
-      // expands within the container view when Slice A lands.
-      // pre-filtered to the requester's access-resolved slice; superseded/withdrawn
-      // stay out of grounding by ADR-0013 and are omitted here for the skeleton
-
-GET /versions/:versionId
-  →  { versionId; documentReference; versionReference; content;
-       containerState: 'live' | 'superseded' | 'withdrawn' | 'rejected'; isCurrent }
-      // added 2026-07-09 (T-094): a citation chip opens the version it names.
-      // scoped like the library (the version's project, through the wall);
-      // superseded/withdrawn stay readable here — the immutable record's
-      // citations must resolve — with state carried for the surface to badge.
-      // grounding untouched: retrieval's pre-filters admit none of this
-```
-
-*2026-07-18 (T-114, mechanical completion):* `containerState` gains `'rejected'` (ADR-0032/0013 — a closed-rejected deliverable stands as a record, never grounding). Both library reads are now explicitly scoped to **library-scope** containers: a freeze-series (sandbox-scope) container is org-private working machinery (ADR-0032), so its versions 404 here by construction and get their own org-scoped reads with Slice A's internal cycle (T-125).
-
-### Auth & session (M1, M6)
-
-```
-POST   /auth/session          // skeleton login for seeded users (see plan.md ticket note)
-DELETE /auth/session          // sign out (added 2026-07-14, T-111): clears the cookie, 204;
-                              // idempotent and unauthenticated by design — the cookie is the
-                              // session, so a stale or absent one signs out the same way
-GET  /me                      → { userId, name, organisationId, organisationName,
-                                  participants: Array<{ projectId: Id; participantId: Id;
-                                                        projectName: string;
-                                                        ownerOrganisationName: string;
-                                                        membershipRole: 'owner' | 'member' }> }
-      // display facts added 2026-07-08 (T-050): the workspace landing and the
-      // rail render names and role badges; every fact is the requester's own
-      // entitlement, so this completes the read rather than widening any scope
-      // + email and preferences { theme } added 2026-07-09 (T-092)
-      // + orgRole ('admin' | 'member') added 2026-07-18 (T-117, ADR-0033) — the
-      //   requester's own administration role, a self fact gating only the
-      //   settings Administration panel; never project access
-
-PATCH /me                     body: { name?, preferences?: { theme? } }  → MeResponse
-POST  /me/password            body: { currentPassword, newPassword }    → 204 (401 on wrong current)
-      // personal settings (T-092, 2026-07-09): both writes are self-scoped —
-      // the session's own user row, no id parameter, no wall implication;
-      // password change stays useful as the break-glass path after Entra SSO
-```
-
-Copilot adds no endpoints: the API plugin (ADR-0031) calls the same contracts with `surface: 'copilot'`, identity mapped from Entra SSO via `User.external_identity`.
-
-## 4. Slice A — document management (T-116, 2026-07-18)
-
-The review-cycle slice's contracts, written against ADR-0032/0033/0034 and the rebuilt Drawers 1/2/5. Implemented ticket by ticket (T-117–T-128); until a ticket lands its endpoints 501.
-
-### Roster & administration (ADR-0033, T-117)
-
-```
-GET    /projects/:projectId/participants  → { items: RosterEntry[] }
-       // WIDENED (ADR-0033, supersedes the T-112 org-scoped note): the project
-       // roster is visible to every Participant — the wall hides work, never
-       // presence. Removed entries stay listed for attribution; pickers
-       // filter to live ones.
-GET    /organisation/users                → { items: OrgUser[] }
-       // org admin only: the requester's own organisation's users (the enrol
-       // picker); self-org by construction
-POST   /projects/:projectId/participants  body: { userId } → RosterEntry
-       // org admin enrols their own organisation's user (ADR-0015's level two)
-DELETE /projects/:projectId/participants/:participantId → RosterEntry
-       // org admin, own org only: closes the interval (removed_at) — the row
-       // survives, live grants auto-revoke from that moment
-POST   /projects/:projectId/memberships   body: { organisationId } → Membership
-       // owner grants a seat (state active); a member proposes one (state
-       // proposed — confers nothing, ADR-0019)
-POST   /memberships/:membershipId/confirmation → Membership   // owner confirms
-
-type RosterEntry = { participantId: Id; userId: Id; name: string;
-                     organisationId: Id; organisationName: string;
-                     membershipRole: 'owner' | 'member'; removedAt: string | null };
-type OrgUser = { userId: Id; name: string; email: string; orgRole: 'admin' | 'member' };
-type Membership = { id: Id; organisationId: Id; organisationName: string;
-                    projectId: Id; role: 'owner' | 'member';
-                    state: 'proposed' | 'active'; createdAt: string };
-```
-
-### The deliverable plan (ADR-0008/0033, T-118/T-119)
-
-```
-GET   /projects/:projectId/plan   → { items: PlanRow[] }
-      // access-decided, no parameter: a member reads its own organisation's
-      // rows (the TIDP); the owner reads every organisation's (the MIDP
-      // consolidation). At-a-glance facts are derived by query, never stored
-      // twice (the 2026-07-18 metadata ruling).
-POST  /projects/:projectId/plan   body: { documentReference, title, metadata? } → PlanRow
-      // a producing-organisation act (ADR-0033): creates the planned
-      // container on the requester's organisation's plan AND its
-      // document_production work item (status 'planned' — event-driven from
-      // here, never hand-set)
-PATCH /containers/:containerId    body: { metadata } → PlanRow
-      // producing organisation only; the coded reference is immutable once
-      // a version exists
-
-type PlanRow = { containerId: Id; documentReference: string;
-                 producingOrganisationId: Id; producingOrganisationName: string;
-                 metadata: Record<string, unknown>;
-                 state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
-                 workItem: { id: Id; title: string; status: string } | null;   // null = owner-added reference material
-                 currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
-                 deliverableCode: { code: string; description: string } | null; // the latest round's verdict — derived
-                 authors: AppointmentGrant[]; reviewers: ReviewerGrant[] };
-```
-
-### Appointments (ADR-0017/0033, T-118/T-119)
-
-```
-POST /containers/:containerId/authors    body: { participantId, isLead? } → AppointmentGrant
-     // the producing side writes its own set (lead author amends, ADR-0017);
-     // authors must belong to organisations sharing the deliverable's sandbox
-POST /containers/:containerId/reviewers  body: { participantId, isLead? } → ReviewerGrant
-     // the producing organisation PROPOSES (unconfirmed — confers no access);
-     // an owner-made grant is auto-confirmed
-POST /authors/:grantId/revocation        → AppointmentGrant     // closes the interval
-POST /reviewers/:grantId/revocation      → ReviewerGrant
-POST /reviewers/:grantId/confirmation    → ReviewerGrant
-     // owner only — and exactly where ADR-0015 bites: confirming a reviewer
-     // whose organisation lacks the deliverable share forces share-first,
-     // or decline
-
-type AppointmentGrant = { id: Id; containerId: Id; participantId: Id; name: string;
-                          isLead: boolean; grantedAt: string; revokedAt: string | null };
-type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null };  // null = proposed
-```
-
-### Deliverable shares (ADR-0016 as data, T-119)
-
-```
-POST /containers/:containerId/shares   body: { organisationId } → DeliverableShare
-     // owner only; the shared organisation must hold an active seat; the
-     // only thing that opens a deliverable across the wall (ADR-0016)
-POST /shares/:shareId/revocation       → DeliverableShare      // owner; interval closes
-
-type DeliverableShare = { id: Id; containerId: Id; organisationId: Id;
-                          organisationName: string; grantedAt: string;
-                          revokedAt: string | null };
-```
-
-Visibility is **producer | owner | live share**, applied as one SQL predicate in the library list, the version read and the grounding query (so surfaces and retrieval cannot drift). Confirming a reviewer whose organisation lacks visibility returns `409 { detail: 'share_required' }` — ADR-0015's share-first, as an error the surface can act on. `PlanRow` gains `sharedWith` (live shares; `[]` for non-owner readers). The seed shares the reference library with the consultant organisation, preserving the walking-skeleton journey on the now-real wall.
-
-### Acceptance codes (ADR-0003, T-116)
-
-```
-GET /projects/:projectId/acceptance-codes → { items: AcceptanceCode[] }
-    // the project's copied scheme; scheme editing (retire-and-replace) is an
-    // owner curation surface, post-slice
-
-type AcceptanceCode = { id: Id; code: string; description: string;
-                        level: 'comment' | 'deliverable' | 'both';
-                        isAccepting: boolean; sortOrder: number;
-                        retiredAt: string | null };
-```
-
-### Promotion & the freeze (ADR-0002/0032, T-120/T-125)
-
-```
-POST /sandbox-documents/:id/promotion  → PromotionResult
-     // the near-empty hand-off (ADR-0008 — "no wizard" is the acceptance
-     // test): snapshots the head (or the freeze series' QA-accepted frozen
-     // version — ADR-0032's two legal sources, never a drifted head) into
-     // the LINKED plan container (container_id required). First promotion
-     // launches the project cycle: round 1 opens, lock to the reviewers.
-     // On an active cycle it is the transmittal back: allowed only from the
-     // respond phase; round N+1 opens, the lock returns to the reviewers.
-POST /sandbox-documents/:id/freeze     → { versionId; versionReference; containerId }
-     // T-125: snapshot into the document's sandbox-scope freeze container
-     // (auto-created at first freeze); org-private by construction; the
-     // head locks while a sandbox-scope round is open
-
-type PromotionResult = { versionId: Id; versionReference: string;
-                         cycleId: Id; roundId: Id; roundNumber: number };
-```
-
-### The review cycle (ADR-0005–0014/0032, T-123/T-124/T-126)
-
-```
-GET /containers/:containerId/cycle → ReviewCycle | null
-    // the active (or latest closed) cycle with its rounds; ADR-0014 phasing
-    // applied server-side — the OPEN round's comments are omitted for the
-    // authoring side; issued rounds are permanently visible to all entitled
-POST /rounds/:roundId/comments             body: { body, anchor?, acceptanceCodeId? } → ReviewComment
-    // reviewing side, while the round is open; comments are live and
-    // cross-organisation within the review group (ADR-0007)
-PATCH /review-comments/:commentId          body: { body?, acceptanceCodeId?, anchor? } → ReviewComment
-    // while the round is open only: the author edits their own, the lead
-    // reviewer moderates any (ADR-0007); frozen at issue by the DB itself
-POST /rounds/:roundId/deliverable-code     body: { acceptanceCodeId } → Round
-    // lead reviewer: the authoritative per-round verdict, suggested from
-    // the comment codes (ADR-0003), set while the round is open
-POST /rounds/:roundId/issue                body: { recipients?, purposeCode?, dueAt? } → { transmittalId: Id; cycle: ReviewCycle }
-    // lead reviewer closes and issues: transmittal recorded, snapshot
-    // frozen, the round revealed to the authoring side, the lock flipped —
-    // or, when the round's deliverable code is accepting, the cycle closes
-    // accepted: the work item closes, the version auto-admits to the
-    // library and starts grounding (ADR-0003/0011/0013)
-POST /review-comments/:commentId/response  body: { body, nextVersionId?, nextVersionAnchor?, noChangeReason? } → ReviewResponse
-    // authoring side, during the respond phase; exactly one of the link or
-    // the reason (ADR-0004); one response per comment
-POST /cycles/:cycleId/close-rejected       → ReviewCycle
-    // lead author or project owner — the explicit audited stop (ADR-0032):
-    // container → rejected (stays in the library, never grounds), work
-    // item → rejected
-
-type ReviewCycle = { id: Id; containerId: Id;
-                     state: 'active' | 'accepted' | 'closed_rejected';
-                     editLockHolder: 'authoring' | 'reviewing';
-                     launchedAt: string; closedAt: string | null;
-                     rounds: Round[] };
-type Round = { id: Id; number: number; versionId: Id; versionReference: string;
-               state: 'open' | 'issued' | 'responded';
-               reviewPeriodTarget: string | null;                 // guides, never gates (ADR-0005)
-               deliverableCode: AcceptanceCode | null;
-               comments: ReviewComment[]; transmittals: Transmittal[] };
-type ReviewComment = { id: Id; roundId: Id; versionId: Id;
-                       author: { participantId: Id; name: string };
-                       body: string; acceptanceCode: { id: Id; code: string } | null;
-                       anchor: CommentAnchor | null; createdAt: string;
-                       response: ReviewResponse | null };
-type CommentAnchor = { page?: number; quote?: string;             // rendition-agnostic structured
-                       rects?: Array<{ x: number; y: number; w: number; h: number }>;
-                       point?: { x: number; y: number } };        // fields, never a sidecar (ADR-0006)
-type ReviewResponse = { id: Id; commentId: Id;
-                        author: { participantId: Id; name: string };
-                        body: string; nextVersionId: Id | null;
-                        nextVersionAnchor: CommentAnchor | null;
-                        noChangeReason: string | null; createdAt: string };
-type Transmittal = { id: Id; roundId: Id; direction: 'issue' | 'return';
-                     sender: { participantId: Id; name: string };
-                     recipients: Id[]; purposeCode: string | null;
-                     issuedAt: string; dueAt: string | null };
-```
-
-### Renditions, upload & ambient history (ADR-0034, T-121/T-122/T-128)
-
-```
-GET  /versions/:versionId/renditions → { items: Rendition[] }
-GET  /renditions/:renditionId/file   → the bytes (content-type per format)
-POST /projects/:projectId/sandbox-uploads   multipart: { file } → SandboxDocument
-     // origin 'uploaded': the native file is canonical (docx/xlsx/pptx)
-POST /sandbox-documents/:id/conversion      → SandboxDocument
-     // "open in editor": uploaded → authored, in place, deliberate; the
-     // original file lands in the ambient history; fidelity is honest
-PATCH /sandbox-documents/:id/title  body: { title } → SandboxDocument
-     // rename (T-220, ADR-0043 P1): display name only, an UNBOUND document;
-     // no ambient version, allowed while checked out; a bound doc → 409 bound
-POST /sandbox-documents/:id/file    multipart: { file } → SandboxDocument
-     // replace the canonical native file (T-220): 'uploaded' only, same format
-     // family; new blob + file_ref, bumps the working revision; 409 head_locked
-     // while frozen; 400 not_uploaded / format_mismatch / unsupported_format
-GET  /sandbox-documents/:id/history  → { items: SandboxDocumentVersion[] }
-POST /sandbox-documents/:id/restore  body: { historyVersionId } → SandboxDocument
-     // restore copies a snapshot back into the head — never rewrites history
-DELETE /sandbox-documents/:id        → SandboxDocument   // soft-delete (T-128):
-POST /sandbox-documents/:id/undelete → SandboxDocument   // the recycle bin is
-GET  /projects/:id/sandbox-documents?deleted=1           // self-service — the
-     // ProjectWise A1 fold-in; recovery is never a helpdesk ticket
-
-type Rendition = { id: Id; versionId: Id; kind: 'native' | 'pdf';
-                   format: 'docx' | 'xlsx' | 'pptx' | 'pdf'; createdAt: string };
-type SandboxDocumentVersion = { id: Id; sandboxDocumentId: Id;
-                                createdBy: { participantId: Id; name: string };
-                                createdAt: string };   // content fetched by restore/preview, not listed
-```
-
-*Type extensions (same date):* `WorkItem` gains `containerId: Id | null` (the ADR-0032 addendum join — null for reference material and future non-document types) and its `status` vocabulary becomes the event-driven set `planned | drafting | in_review | accepted | rejected` when T-127 lands. `SandboxDocument` gains `origin: 'authored' | 'uploaded'`, `kind: 'text' | 'slides'`, `format: 'infora_text' | 'docx' | 'xlsx' | 'pptx'`, `containerId: Id | null` (the missing link, ADR-0032) and `headLocked: boolean`.
-
-*Sandbox DMS parity — rename & replace-file (2026-07-26, ADR-0043 P1, T-220).* Two gaps in the sandbox-as-DMS working area close. **Rename** — `PATCH /sandbox-documents/:id/title` carries `{ title }` (`renameSandboxDocumentBody`); it edits the display name only, takes no ambient version, and is allowed while the head is checked out (a title is author-owned metadata, not canonical content — the T-166 precedent). It is refused on a **bound** document (`containerId` set) with `409 { detail: 'bound' }`: a bound doc wears the container's plan-owned reference (ADR-0038). **Replace the native file** — `POST /sandbox-documents/:id/file` (multipart `{ file }`) swaps an uploaded document's canonical native file for a new upload of the **same format family**: a new blob + `file_ref`, bumping the working revision with an ambient snapshot (ADR-0041). An upload now seeds its genesis ambient version, so a fresh upload reads `v0.1` and the first replace increments it to `v0.2`. Replace is refused `409 { detail: 'head_locked' }` while frozen (it rewrites canonical bytes, like the T-122 conversion) and `400` for a non-uploaded document (`not_uploaded`), a different format (`format_mismatch`), or an unsupported extension (`unsupported_format`). The `/file` path joins `sandbox-uploads` on the CSRF multipart allowlist (ADR-0044). Durable prior-blob retention is deferred to P2 — the replaced blob is orphaned on the dev substrate.
-
-*Router security seam + egress audit (2026-07-22, ADR-0037, T-139–T-144).* The `@infora/model` Router gained a policy layer without changing its callers. Adapters optionally declare `attributes: RouteAttributes` (`region`/`retention`/`jurisdiction`/`eligibility`) and an `endpoint`; a `DeploymentSecurity = { policy: TierPolicy; defaultClassification }` (built by `securityForTier(tier, classification)`) is passed at Router construction. Every `chat`/`embed` call now selects a tier-conforming route (`selectRoute`, constraint-then-optimise) and **fails closed** with a `SecurityPolicyError` when none conforms — an undeclared endpoint reads as `UNATTRIBUTED` and conforms to nothing. `ChatRequest` gains optional `classification` (the elevation seam; v1 resolves the deployment default on the Router). `ChatResult`/`EmbedResult` gain `egress: EgressFacts`, threaded through `GroundedDraftResult` → `draft-leaf` → `StepAudit` into new `steps.egress_{endpoint,region,retention,classification}` columns (migration `0016`) and `Step.egress`. Structural non-bypass is enforced by an ESLint rule + a repo-walking guard test (provider SDKs live only in `packages/model`).
-
-*The Lens on a run (2026-08-01, T-281/T-299).* `createRunBody` gains **`lensId?: string`** — the Lens this turn is answered under. A **register control, never a reach one**: the same question under every Lens returns an identical source set, asserted at the API boundary (`lens.test.ts`) as well as by eval case `PERM-05`. An id the deployment does not carry is **`400 { error: 'invalid', detail: 'unknown lens: <id>' }`**, refused **before the run opens** — never a silent fall-back to a default, because a user who asked for the Communications register and quietly got the planning one receives an answer that reads plausibly and is wrong for them. `400` rather than `404` deliberately: the Lens set is not access-controlled (every requester is offered the same one), so nothing leaks by naming the id, and `not_found` would wrongly imply it might exist for someone else. **Omitting `lensId` means no Lens** — the shared core alone, and the prompt is byte-identical to what it was before this ticket. In production the registry carries no `status: draft` Lens, so a draft id lands on the same refusal; outside production drafts load, which is what AUTHORING.md's "put it in with `status: draft` and open Ask" depends on. The Lens type itself is `Lens` / `LensSummary` in contracts; the definitions, loader and validator are `@infora/lenses`. **Evidence:** `plans.lens_id` and `plans.lens_version` (migration 0035, previously always null) are written from the request, so a register complaint against v1 is never read as one about v3.
-
-*The Lens picker's options (2026-08-01, T-283).* `GET /lenses` → `{ lenses: LensSummary[]; defaultLensId: string | null }`. **Deliberately not project-scoped and not access-resolved:** the Lens set is a property of the *deployment* and is identical for every requester — a list that differed by who asked would make a Lens a reach control, which is the one thing it must never be, and a test pins that. It sits behind the session middleware like every route but login and `/health`, and carries **summaries only** (`id`, `label`, `description`, `version`); prohibitions and worked exchanges are prompt material and do not leave the server. `defaultLensId` is **config, not code** (`DEFAULT_LENS_ID`): which register a firm's people start in is a deployment decision, and a hard-coded default would make Infora's view of the modal user into everyone's. It is **null when unset *and* when it names an id the registry does not carry**, so a typo preselects nothing rather than preselecting an id the run endpoint would then refuse. **Persistence stays per run** — the Lens rides `createRunBody.lensId` and lands on the plan; there is no conversation-level Lens column, because an answer's Lens is a property of the answer, and switching therefore changes the next answer and never a past one.
-
-*Cost attribution (2026-08-01, T-254, finding F7).* `Step.usage.cost` becomes **`number | null`** — it was `number`, and the reader coerced a null column to `0`. **Null means UNPRICED and zero means free**, and conflating them is finding F7 told one level up: the arithmetic succeeds, the number is plausible, and a business case is built on it. Rates are per model id, from deployment configuration (`MODEL_RATES`), parsed at boot so a malformed table refuses to start; a call is priced against the model that *actually served it*, because the router chooses the model. New read **`GET /organisation/costs`** → `OrganisationCostsResponse` — the requester's own organisation's spend, aggregated per user, **org-admin only** and org-scoped by construction (no parameter widens it; the organisation comes off the resolved requester, principle 3). Deliberately **not** a project report: a project total would sum two organisations' private work into one number and hand it to whichever asked, and a run record is producer-private (the 2026-07-12 ruling). `unpricedSteps` and `unpricedModels` sit beside the total, because summing the priced steps and omitting the rest is how F7 comes back — **a total read without them is a lower bound.** A step that called no model is neither priced nor unpriced, or three quarters of every run would report as a pricing gap.
-
-## 5. Error envelope
-
-```ts
-type ApiError = { error: 'not_found' | 'conflict' | 'invalid' | 'unauthenticated'; detail?: string };
-```
-
-`not_found` covers both nonexistence and denial (principle 4). There is no `forbidden` on cross-wall reads — that would leak existence.
-
-## What this cut deliberately omits
-
-~~Promotion and the review cycle endpoints~~ *(arrived 2026-07-18 with Slice A, §4 above)*. Still omitted: attached sources; workflow launch beyond the single chat/draft path; acceptance-scheme editing (retire-and-replace is an owner curation surface, post-slice); notification delivery (the parked mention/transmittal channel — tracker); pagination and webhooks; streaming (additive later). Each arrives with its slice, matching the data model's drawers.
-
-## Cross-cutting behaviours (2026-07-25, T-216/T-217/T-219)
-
-```
-GET /health → 200 { ok: true } | 503 { ok: false }   // sessionless liveness
-     // probe: one `select 1` against the database; exempted from the session
-     // middleware the same way POST /auth/session is
-```
-
-- **Request id (T-219).** Every response carries `X-Request-Id` (a per-request
-  `crypto.randomUUID()`), and the API emits one structured JSON log line per
-  request at the boundary — `method`, `path`, `status`, `durationMs`,
-  `requestId` — suppressed under `NODE_ENV=test`.
-- **Rate limits (T-217).** In-memory sliding windows: `POST /auth/session`
-  per IP (default 10/min, `RATE_LIMIT_LOGIN_PER_MINUTE`) and
-  `POST /conversations/:id/runs` per user (default 30/min,
-  `RATE_LIMIT_RUNS_PER_MINUTE` — run creation invokes paid model calls). Over
-  the window answers `429 { error: 'rate_limited' }` in the §5 envelope
-  (`rate_limited` joins the `error` vocabulary). The store is per-process;
-  it becomes shared (Redis) at the infra session.
-- **CORS + security headers (T-216).** Origins outside the explicit allowlist
-  (`ALLOWED_ORIGINS`, defaulting to the local dev/e2e web origins) receive no
-  CORS headers at all; every response carries `X-Content-Type-Options:
-  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
-
-*Locators on an assembled passage (2026-08-04, T-271).* `AssembledItem` gains
-**`locator?: Locator`** and `AssembledPassage` gains **`locator: Locator | null`**,
-where `Locator` is `{ span: { start, end }; paragraph: number; verbatim: string }`.
-The spike ([spike-locators.md](spikes/spike-locators.md)) settled the shape: **store the
-position, compute the view.** A character span into `versions.content` is the
-only *exact* locator — paragraph, section and page are all views of a position —
-and it needs no per-format branch, where a per-format scheme needs one for every
-format admitted. `paragraph` is derived (newlines before the span; `docxToText`
-emits one per `<w:p>`); **page and section are absent rather than guessed**,
-because a docx has no pages at all and Word section numbering is resolved at
-render time. **`verbatim` is not `content`:** `content` is what the model was
-shown, and `verbatim` is what the document says at that span — they differ
-wherever the chunker rewrote inter-sentence whitespace, and the second is what a
-reader checks. **Absent/null is the deliberate degrade to version grain** — a
-chunk ingested before spans existed, or one whose span no longer resolves against
-its version. A locator is emitted only when the stored span is *demonstrated* to
-still point at the passage, because a citation that renders and does not resolve
-is worse than none: it looks checkable. Adding `locator` to `AssembledItem` fired
-`wall.test.ts`'s pinned key set by design; it is an **output-side** field like
-`chunkId`, computed on rows retrieval had already returned, so it can no more
-widen a slice than `chunkId` can.
-
-*The elevated tier's refusal record (2026-08-04, T-301).* No endpoint changes
-shape and no response body changes. What changes is that a **403 from the
-elevated gate is now written down**: `POST /cycles/:id/close-rejected`
-(`elevated_required`), `POST /containers/:id/withdrawal` and
-`POST /containers/:id/restoration` (both `super_user_required`) append a row to
-`elevated_refusals` before answering. The two `detail` strings stay different —
-they have been since T-174, and unifying them inside an audit ticket would be a
-contract change in disguise. **A cross-organisation attempt is deliberately not
-recorded:** it is answered `404` above the tier check, because denial and
-nonexistence read identically (principle 4), and logging it would record an act
-against a container the requester was never shown. There is **no read endpoint
-yet** — the record exists so the question can be answered, and what surface
-answers it is not this ticket's to decide.
-
-## The ingest entry points (internal — `@infora/data`)
-
-*Incremental ingest (2026-08-03, T-302).* `ingestVersions` is replaced by **two**
-entry points, because one function was serving two jobs that scale differently.
-
-```
-ingestVersion(db, router, versionId, options?)     → IngestSummary   // the product path
-ingestAllVersions(db, router, options?)            → IngestSummary   // dev CLI + e2e substrate only
-```
-
-**`ingestVersion` takes a version id.** The old single function walked *every
-version in the database* on each call and ran on library admission — invisible at
-the skeleton's few dozen rows, and roughly **125,000 re-ingests** to bulk-load
-[v1.md](v1.md)'s 500-document corpus. It is not a projection: on 2026-08-01 the
-shared dev database reached ~1,050 versions and the api suite began failing on
-5-second timeouts in exactly the cycle tests that admit a version to grounding.
-An unknown id **throws** rather than indexing nothing quietly.
-
-**The sweep survives under a name that says what it does**, and is called by the
-`@infora/data` ingest CLI and the e2e substrate only — both index a freshly
-seeded database from nothing. Nothing on a request path may call it.
-
-**A version is indexed when it comes into existence, not when it starts
-grounding.** Ingest excludes nothing — exclusion is retrieval's job (ADR-0022,
-T-033) — so all three version-creating acts ingest: the sandbox freeze, promotion,
-and the contractual revision an accepting verdict issues. **This closes a real gap
-the sweep was masking:** a promotion onto a container already in the library makes
-a new version current, and until this ticket its chunks arrived only at the *next*
-acceptance anywhere in the project — so between the two the deliverable's current
-version had no chunks and it silently dropped out of retrieval. Each call sits
-after its transaction commits; an outbound embedding call holds no transaction
-open. The bulk-load path itself is **T-303**.
+# Contracts — the API's law, its catalogue, and the record of why
+
+> **Status: living reference, re-cut 2026-08-04.** This document held the
+> walking skeleton's first-cut type listings (2026-07-04) and grew a dated note
+> per slice until the copies drifted from the code — `AssembledItem` here
+> lacked the `chunkId` the real type has carried since T-253. The re-cut ends
+> the copy: **`packages/contracts` is the spec**, and nothing in this file
+> restates a type. What lives here is the three things the code cannot say
+> about itself — the **principles** the whole API is held to, a **catalogue**
+> of what each contract guarantees and where it lives, and the **dated log of
+> why** contracts took the shape they did. Contract completions still get
+> dated notes here (the standing rule), filtered: an entry earns its place by
+> recording *why*, never *what* — "what" is `git log`'s job.
+
+## Principles — API law, and what enforces each
+
+Five principles from the design layer, restated as law. They are authority the
+code is held to, not description of it — which is why three of them are
+**tests** and the other two are **structural guards**, so breaking one is a
+red build rather than a drift.
+
+1. **One typed API, thin surfaces.** Every surface — `web`, `word-addin`,
+   `copilot-agent` — calls these contracts and resolves nothing locally
+   (component 8). `packages/contracts` is the single source of truth;
+   `apps/api` implements it. *Enforced structurally:* `scripts/dep-rules.mjs`
+   fails the build if a surface depends on anything but `contracts` + `ui`.
+
+2. **No scope-widening parameter exists.** No call takes a corpus, store,
+   organisation or visibility argument that could widen what the requester
+   reaches; scope is derived server-side from `(environment, requester)` —
+   the ADR-0029 shape, applied to the whole API. *The test:*
+   [wall.test.ts](../../packages/knowledge/src/wall.test.ts) pins the exact
+   key set of `AssemblyRequest` and `AssembledItem` at compile time, so adding
+   any parameter is a reviewable event. Output-side fields (`chunkId`,
+   `locator`) are admitted there by name, with the argument recorded beside
+   the pin.
+
+3. **The requester is resolved, never supplied.** Identity comes from the
+   session (or Entra SSO for Copilot, ADR-0031), resolved server-side to
+   `(user, organisation, participant)`. A request body may name a *subject* —
+   the colleague being enrolled, the organisation being shared with — but
+   never the requester. *The tests:*
+   [principles.test.ts](../../packages/contracts/src/principles.test.ts) walks
+   every body schema and pins the reviewed subject-field list, so a new
+   identity-shaped key fails until argued in; and
+   [requester.test.ts](../../apps/api/src/requester.test.ts) (T-023) proves
+   resolution sits in front of every endpoint at the HTTP boundary.
+
+4. **Deny is silent.** An unentitled request returns the same `404 not_found`
+   as a nonexistent resource — existence is never leaked across the wall.
+   `forbidden` exists only *within* an entitled scope, where existence is
+   already visible. *The tests:*
+   [principles.test.ts](../../packages/contracts/src/principles.test.ts) pins
+   the error vocabulary so a new error word is a reviewable event, and
+   [requester.test.ts](../../apps/api/src/requester.test.ts) drives every
+   scoped route with an unentitled requester and asserts the identical 404.
+
+5. **Append-only reads are reconstructions.** `Run`/`Step`/`Signal` reads
+   return the immutable record; there is no mutating verb on any append-only
+   table (ADR-0028 §3). *Enforced at the database:* the T-008 append-only
+   trigger rejects `UPDATE`/`DELETE` on the record tables, tested in
+   `packages/db`.
+
+## The catalogue — what each contract guarantees
+
+Pointers, never copies. Each entry names the guarantee; the file is the shape.
+
+| Contract | Guarantees | Spec |
+|---|---|---|
+| **The assembly gateway** | One call `(request, environment, requester) → assembled input`; access resolution runs *inside* it, before retrieval, and every retrieval — baseline and sub-agent — goes through it. No widening parameter is expressible (principle 2's pinned shape). A `Locator` is exact-or-absent: a span demonstrated to still resolve, never a guess. | [assembly.ts](../../packages/contracts/src/assembly.ts) |
+| **The record types** — `Run`, `Step`, `Citation`, `Suggestion` | Every step carries the two defensibility fields (`sourceSet`, `railOutcomes`, ADR-0028 §7) plus model, usage and egress facts; a citation resolves to a version or an authority ref; a suggestion is resolved exactly once and its resolution is the Signal. | [shared.ts](../../packages/contracts/src/shared.ts) |
+| **The plan artefact** — `Plan`, `PlanStep`, `PlanStage` | The persisted analysis behind a run: mode stored, never derived; versioned by supersession, immutable from `ready`; a step declares no scope, so no plan edit can widen reach. | [shared.ts](../../packages/contracts/src/shared.ts) |
+| **HTTP bodies and responses** | Request bodies are zod schemas, so `apps/api` validates against the same source the surfaces type against; responses are plain types. Scope-relevant reads are pre-filtered server-side with no parameter. | [endpoints.ts](../../packages/contracts/src/endpoints.ts) |
+| **The Lens** | A register control, never a reach one: the shape has no field a Lens could use to narrow or widen retrieval, and `governance`/`knowledge`/`data` may not mention a Lens at all (source-rule 3). | [lens.ts](../../packages/contracts/src/lens.ts) |
+| **The untrusted-content barrier** | `ExternalSource` is a *different type* from `AssembledItem` with no conversion function anywhere in the repository; the mistake is not expressible, checked by must-not-compile fixtures on every build (T-250). | [external.ts](../../packages/contracts/src/external.ts) |
+| **The error envelope** | One envelope; `not_found` covers nonexistence and denial alike (principle 4); the vocabulary is pinned. | [errors.ts](../../packages/contracts/src/errors.ts) |
+| **The ingest entry points** *(internal, `@infora/data`)* | `ingestVersion(db, router, versionId)` on every product path — an unknown id throws rather than indexing nothing quietly; the full-table sweep survives only as `ingestAllVersions`, reachable from the dev CLI and e2e substrate and from nothing on a request path. | [ingest.ts](../../packages/data/src/ingest.ts) |
+| **The router policy layer** *(internal, `@infora/model`)* | Every `chat`/`embed` call selects a tier-conforming route and **fails closed** when none conforms; an undeclared endpoint conforms to nothing; egress facts ride every result into the Step audit (ADR-0037). Provider SDKs live only in `packages/model`, guard-enforced. | [packages/model/src/](../../packages/model/src/) |
+
+## The completion log — why, not what
+
+Dated entries that record a *reason* the contract took its shape. Endpoint
+additions, field additions and mechanical completions are `git log`'s job and
+are not recorded here.
+
+- **2026-07-06 — per-item suggestions.** A run produces zero or more
+  Suggestions, each individually resolvable, because a single blob resolution
+  would make one bad sentence veto a good page.
+- **2026-07-09 (T-089) — `open_world` as a rail outcome.** An uncited
+  model-knowledge claim is *kept* in chat and labelled, while
+  document-targeted drafting stays grounded-only — the register split that
+  lets Ask be useful without letting the record absorb unsourced prose.
+- **2026-07-12 (owner-ruled, T-104) — the run read turns inward.** Every Run
+  is readable by its producing organisation only; the owner reviews the
+  *document* through the review cycle, never the agent's internals, because
+  the consultant carries the professional liability. Superseded the
+  2026-07-06 owner read. Full reasoning: ADR-0028's status block.
+- **2026-07-18 (ADR-0033) — the roster read widened.** The project roster is
+  visible to every Participant where T-112 had scoped it to the requester's
+  organisation: **the wall hides work, never presence.**
+- **2026-07-22 (ADR-0037, T-139–T-144) — the router fails closed.** A route
+  with no declared attributes reads as `UNATTRIBUTED` and conforms to
+  *nothing*, because a policy layer that defaulted open would be a comment,
+  not a control. Availability is never traded for conformance.
+- **2026-07-26 (ADR-0043 P1, T-220) — rename rides through a checkout,
+  replace does not.** A title is author-owned metadata, not canonical content
+  (the T-166 precedent), so renaming a checked-out document is allowed;
+  replacing its native file rewrites canonical bytes and is refused while
+  `head_locked`, exactly like the T-122 conversion.
+- **2026-07-31 (T-249, finding F2) — carrying an answer into the editor
+  became one server-side act.** The old client-side create-then-PATCH gave
+  the server no provenance to enforce labels against; `POST
+  /runs/:runId/sandbox-document` exists so the server *knows* the content
+  came from this run, can compute its label, and can refuse a destination
+  that would widen it, naming both labels. Override is explicit, reasoned,
+  attributed, and written in the same transaction as the content — there is
+  no config key that does this.
+- **2026-07-31 (T-253) — `chunkId` is an audit field, never a scope one.**
+  It records what retrieval returned and cannot influence what retrieval
+  returns; the pinned key-set test was widened deliberately, with that
+  argument recorded beside the pin. `unreconstructable` is a count, not a
+  silently empty passage — zero because the chunk is gone must never read as
+  zero because nothing was lost.
+- **2026-07-30 (T-260) — the plan type shipped before its endpoint.** The
+  read carries the run's producer-private scope exactly, and shipping the
+  type first keeps the writer and the eventual reader honest about one shape.
+- **2026-08-01 (T-281/T-299) — an unknown `lensId` is a 400, refused before
+  the run opens.** Never a silent fall-back: a user who asked for the
+  Communications register and quietly got the planning one receives an
+  answer that reads plausibly and is wrong for them. `400` rather than `404`
+  because the Lens set is not access-controlled, so naming the id leaks
+  nothing and `not_found` would wrongly imply it might exist for someone
+  else.
+- **2026-08-01 (T-283) — `GET /lenses` is deliberately not access-resolved.**
+  The Lens set is a property of the deployment, identical for every
+  requester — a list that differed by who asked would make a Lens a reach
+  control. `defaultLensId` is config, not code, and reports `null` on a typo
+  rather than preselecting an id the run endpoint would then refuse.
+- **2026-08-01 (T-254, finding F7) — null means unpriced, zero means free.**
+  `Step.usage.cost` became `number | null` because the reader was coercing a
+  null column to `0` — the arithmetic succeeds, the number is plausible, and
+  a business case gets built on it. `unpricedSteps`/`unpricedModels` sit
+  beside every total because a total read without them is a lower bound. The
+  cost report is org-scoped and org-admin only — a project total would sum
+  two organisations' private work and hand it to whichever asked.
+- **2026-08-04 (T-271) — store the position, compute the view.** A character
+  span into `versions.content` is the only *exact* locator; paragraph is
+  derived, and page and section are **absent rather than guessed** (a docx
+  has no pages). A locator is emitted only when the stored span is
+  demonstrated to still resolve — a citation that renders and does not
+  resolve is worse than none, because it looks checkable. `verbatim` is what
+  the document says at the span, not what the model was shown; they differ
+  wherever the chunker rewrote whitespace, and the first is what a reader
+  checks.
+- **2026-08-04 (T-301) — a refusal from the elevated gate is written down; a
+  cross-organisation attempt is not.** The cross-org case is answered `404`
+  *above* the tier check (principle 4), and logging it would record an act
+  against a container the requester was never shown. The two `detail`
+  strings (`elevated_required` / `super_user_required`) stay different —
+  unifying them inside an audit ticket would be a contract change in
+  disguise.
+- **2026-08-04 (T-302) — ingest split in two because the sweep was ~125,000
+  re-ingests.** One function was serving two jobs that scale differently:
+  bulk-loading [v1.md](v1.md)'s 500-document corpus through the
+  walk-every-version path is roughly 125,000 re-ingests, and the failure was
+  live — the shared dev database hit ~1,050 versions and the api suite began
+  timing out in exactly the cycle tests that admit a version to grounding.
+  The split also closed a masked gap: a promotion onto a library container
+  previously left the new current version chunkless until the *next*
+  acceptance anywhere in the project, silently dropping it out of retrieval.
