@@ -1,4 +1,4 @@
-// The workspace landing (T-050) per docs/design/mockups-legacy/workspace-landing.html
+// The workspace landing (T-050) per the legacy mockup docs/design/mockups-legacy/workspace-landing.html (removed 2026-08-04; in git history)
 // (historical build reference — superseded by design-tokens.json/design-rules.md):
 // the organisation's entry point — every project it owns or has joined, with
 // per-project role badges. Every rail item routes (T-093, 2026-07-09 QA

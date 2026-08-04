@@ -1,4 +1,4 @@
-// The Editor surface (T-082) per docs/design/mockups-legacy/editor.html
+// The Editor surface (T-082) per the legacy mockup docs/design/mockups-legacy/editor.html (removed 2026-08-04; in git history)
 // (historical build reference — superseded by design-tokens.json/design-rules.md): the
 // document canvas with manual editing via PATCH (no Suggestion, no Signal,
 // no ceremony), pending Suggestions rendered as proposed blocks with their

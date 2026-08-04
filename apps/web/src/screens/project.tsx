@@ -1,4 +1,4 @@
-// The project shell (T-050) per docs/design/mockups-legacy/project-home.html
+// The project shell (T-050) per the legacy mockup docs/design/mockups-legacy/project-home.html (removed 2026-08-04; in git history)
 // (historical build reference — superseded by design-tokens.json/design-rules.md): the
 // rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools ·
 // History — component 8's set plus the T-108 History log; Workflows renamed

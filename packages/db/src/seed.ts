@@ -317,7 +317,7 @@ for (const doc of library) {
 //
 // TWO OF THE THREE ARE OPERATOR-HELD OR FICTIONAL ([v1.md]). This is a
 // demonstration, not a commercial proof: the wall between two genuinely
-// independent firms stays unproven until [nfr.md]'s revisit trigger 1 fires for
+// independent firms stays unproven until [operating-envelope.md]'s revisit trigger 1 fires for
 // real. Said here because this is where an operator reads it.
 //
 // Redgate is a NEW organisation rather than a promotion of Halvern Associates:

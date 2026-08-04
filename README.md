@@ -21,11 +21,27 @@ pnpm --filter @infora/data run ingest    # embed the library (needs VOYAGE_API_K
 pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 
-Seeded dev logins (password `wrenfield-dev`): `rachel.bowen@trentmoor.example`
-(owner), `eleanor.price@calderhale.example` (consultant),
-`marcus.webb@calderhale.example` (no-Participant wall subject) and
-`priya.nair@halvern.example` (third-org wall subject). Full table:
-[docs/reference/dev-logins.md](docs/reference/dev-logins.md).
+Seeded dev logins (all share the password `wrenfield-dev`; log in on the web
+sign-in screen, or `POST /auth/session` with `{ email, password }`), on the
+project **Wrenfield–Ashcombe 400kV Connection** (owner: Trentmoor Energy):
+
+| Email | Organisation | Role |
+|---|---|---|
+| `rachel.bowen@trentmoor.example` | Trentmoor Energy | **Owner** · org admin · elevated — the owner view (MIDP, sharing, review confirmation) |
+| `eleanor.price@calderhale.example` | Calder & Hale | **Consultant** · org admin · lead author · elevated — the producing-side view (TIDP, sandbox, drafting, promotion) |
+| `marcus.webb@calderhale.example` | Calder & Hale | Authenticates but has **no Participant** — a wall-test subject (T-022), not a working account |
+| `priya.nair@halvern.example` | Halvern Associates | Authenticates but the org has **no Membership** — a wall-test subject (T-022) |
+
+The seed also holds the **conflict-register scenario** (T-298, ADR-0046): a
+second client and scheme — **Marchwood Aggregates** owns **Marchwood Quarry Rail
+Link**, with `hannah.sturt@marchwood.example` as its owner admin — and Calder &
+Hale acts for both clients. Eleanor works **both** schemes, so declaring a wall
+over the pair immediately reports her (the retrospective case, reported and
+never revoked); `owen.vance@calderhale.example` works Wrenfield only and is the
+subject an individual-grain wall on Eleanor must leave alone. Declare from
+Personal settings → Ethical walls, signed in as Eleanor. Rachel and Eleanor hold
+the **elevated** capability (T-174), which gates destructive lifecycle actions;
+ordinary participants do not see those actions.
 
 **Two database roles, deliberately (T-247).** Migrations and the seed run as the
 owner (`MIGRATE_DATABASE_URL`); everything else — the API, the tests, the e2e

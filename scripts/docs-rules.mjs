@@ -24,7 +24,7 @@ import { join } from 'node:path';
  * Folders whose README carries an artefact table. Add a folder here and its
  * contents become guarded; that is the intended way to extend this.
  */
-const INDEXED = ['docs/build'];
+const INDEXED = ['docs/build', 'docs/build/spikes'];
 
 /** Documented file types. The README itself is the index, never a row in it. */
 const DOCUMENTED = /\.(md|html)$/;

@@ -52,7 +52,7 @@ An organisation acts through its **workspace**. Each **project** is a shared spa
 
 ### 2. The app architecture
 
-The running system. Every surface passes through the **access layer**, which resolves identity, project role, ownership, and ethical walls before anything below is touched. The engine assembles one working input from the context stores per request — the requester's own private stores (org, and programme if it owns the programme) plus the access-resolved project slice. Governance and audit wrap the lower layers. *(For brevity this diagram draws context as two boxes; the full three-store topology — org, programme, project — is the figure that follows, detailed in [component-4-context.md](component-4-context.md).)*
+The running system. Every surface passes through the **access layer**, which resolves identity, project role, ownership, and ethical walls before anything below is touched. The engine assembles one working input from the context stores per request — the requester's own private stores (org, and programme if it owns the programme) plus the access-resolved project slice. Governance and audit wrap the lower layers. *(For brevity this diagram draws context as two boxes; the full three-store topology — org, programme, project — is the figure that follows, detailed in [component-4-context.md](components/component-4-context.md).)*
 
 ![App architecture: every surface passes through access resolution and ethical walls into the engine (orchestration, capabilities, workflows), which draws on the context stores, the model layer and connected data, all wrapped by governance and audit.](diagrams/app-architecture.svg)
 
