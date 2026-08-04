@@ -10,6 +10,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
+    "datamodel": "tsx scripts/generate-data-model.ts",
+    "datamodel:check": "tsx scripts/generate-data-model.ts --check",
     "migrate": "tsx src/migrate.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run"

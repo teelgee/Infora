@@ -1,786 +1,787 @@
 <!--
-  A point-in-time visual of the stored schema, generated from
-  packages/db/src/schema/drawer1-5 + the migration triggers (migration 0030,
-  2026-07-26). Two views: the per-table atlas and a pan/zoom ontology graph.
-  It does not self-update: after a schema change, regenerate the node/edge
-  data from the drawer files (table names, FK references, triggers) and the
-  card content, or ask the agent to. The prose spec (data-model.md) remains
-  the design authority; this is a derived view. Self-contained — open
-  directly in a browser, no build step, no network.
+  GENERATED FILE — do not edit by hand.
+  Emitted by packages/db/scripts/generate-data-model.ts from
+  packages/db/src/schema (tables, columns, FKs) and packages/db/migrations
+  (trigger-derived integrity badges). Regenerate with
+      pnpm --filter @infora/db run datamodel
+  `pnpm run check` fails when this file is stale (check:data-model), so the
+  atlas can no longer sit nine migrations behind the schema the way the
+  hand-generated version did. data-model.md holds the narrative and the design
+  decisions; this file is the shape, as built.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Infora — the five-drawer data model</title>
+<title>Infora — the data model, as built</title>
 <style>
   :root {
-    --ground: #F4F6F7;
-    --card: #FFFFFF;
-    --ink: #1C2733;
-    --ink-soft: #55636F;
-    --line: #D8DFE3;
-    --chipline: #E4E9EC;
-    --d1: #3E5C76; --d1-soft: #E8EEF3;
-    --d2: #2E7D5B; --d2-soft: #E5F1EB;
-    --d3: #A9721F; --d3-soft: #F6EEDD;
-    --d4: #68579E; --d4-soft: #ECE8F4;
-    --d5: #A8453C; --d5-soft: #F5E7E5;
-    --badge-ink: #4A5560;
-    --badge-bg: #EEF1F3;
-    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-    --sans: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --ground: #151A20;
-      --card: #1D242C;
-      --ink: #E4E9ED;
-      --ink-soft: #93A1AD;
-      --line: #2C353F;
-      --chipline: #333E49;
-      --d1: #7FA3C2; --d1-soft: #24313E;
-      --d2: #6BBB97; --d2-soft: #1F3229;
-      --d3: #D2A050; --d3-soft: #362C18;
-      --d4: #A395D2; --d4-soft: #2C2740;
-      --d5: #D07A70; --d5-soft: #3A2523;
-      --badge-ink: #A6B2BC;
-      --badge-bg: #262F38;
-    }
-  }
-  :root[data-theme="dark"] {
-    --ground: #151A20; --card: #1D242C; --ink: #E4E9ED; --ink-soft: #93A1AD;
-    --line: #2C353F; --chipline: #333E49;
-    --d1: #7FA3C2; --d1-soft: #24313E; --d2: #6BBB97; --d2-soft: #1F3229;
-    --d3: #D2A050; --d3-soft: #362C18; --d4: #A395D2; --d4-soft: #2C2740;
-    --d5: #D07A70; --d5-soft: #3A2523;
-    --badge-ink: #A6B2BC; --badge-bg: #262F38;
-  }
-  :root[data-theme="light"] {
     --ground: #F4F6F7; --card: #FFFFFF; --ink: #1C2733; --ink-soft: #55636F;
-    --line: #D8DFE3; --chipline: #E4E9EC;
-    --d1: #3E5C76; --d1-soft: #E8EEF3; --d2: #2E7D5B; --d2-soft: #E5F1EB;
-    --d3: #A9721F; --d3-soft: #F6EEDD; --d4: #68579E; --d4-soft: #ECE8F4;
-    --d5: #A8453C; --d5-soft: #F5E7E5;
-    --badge-ink: #4A5560; --badge-bg: #EEF1F3;
+    --line: #D8DFE3;
+    --d1: #3E5C76; --d2: #2E7D5B; --d3: #A9721F; --d4: #68579E; --d5: #A8453C; --d6: #3C7A82;
   }
-
-  body {
-    background: var(--ground);
-    color: var(--ink);
-    font-family: var(--sans);
-    line-height: 1.5;
-    margin: 0;
-    padding: 2.5rem 1.25rem 5rem;
-  }
-  .wrap { max-width: 1200px; margin: 0 auto; }
-
-  header.masthead { margin-bottom: 2rem; }
-  .eyebrow {
-    font-family: var(--mono); font-size: .72rem; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--ink-soft); margin: 0 0 .5rem;
-  }
-  h1 {
-    font-size: clamp(1.6rem, 3.5vw, 2.3rem); font-weight: 650;
-    margin: 0 0 .4rem; text-wrap: balance; letter-spacing: -.01em;
-  }
-  .standfirst { color: var(--ink-soft); max-width: 62ch; margin: 0; font-size: .95rem; }
-  .standfirst code { font-family: var(--mono); font-size: .85em; }
-
-  /* drawer spine */
-  .spine {
-    display: flex; align-items: stretch; gap: .4rem; margin: 1.75rem 0 .75rem;
-    overflow-x: auto; padding-bottom: .25rem;
-  }
-  .spine a {
-    flex: 1 1 0; min-width: 148px; text-decoration: none; color: inherit;
-    border: 1px solid var(--line); border-left: 4px solid var(--dc);
-    background: var(--card); border-radius: 6px; padding: .6rem .75rem .55rem;
-  }
-  .spine a:hover, .spine a:focus-visible { border-color: var(--dc); outline: none; }
-  .spine .dnum { font-family: var(--mono); font-size: .68rem; color: var(--dc); letter-spacing: .08em; }
-  .spine .dname { font-weight: 620; font-size: .92rem; display: block; }
-  .spine .dcount { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); }
-
-  .flowline {
-    font-size: .8rem; color: var(--ink-soft); margin: 0 0 2.25rem;
-    font-family: var(--mono);
-  }
-  .flowline b { font-weight: 600; color: var(--ink); }
-
-  .legend {
-    display: flex; flex-wrap: wrap; gap: .5rem 1.1rem; align-items: center;
-    font-size: .76rem; color: var(--ink-soft); margin-bottom: 2.5rem;
-    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-    padding: .6rem 0;
-  }
-  .legend .badge { margin: 0; }
-
-  section.drawer { margin-bottom: 3rem; }
-  .drawer-head {
-    display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap;
-    border-bottom: 2px solid var(--dc); padding-bottom: .45rem; margin-bottom: .5rem;
-  }
-  .drawer-head h2 { font-size: 1.2rem; font-weight: 650; margin: 0; }
-  .drawer-head .dnum { font-family: var(--mono); font-size: .75rem; color: var(--dc); letter-spacing: .08em; }
-  .drawer-head .file { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); margin-left: auto; }
-  .drawer-blurb { color: var(--ink-soft); font-size: .88rem; max-width: 75ch; margin: 0 0 1.1rem; }
-
-  .grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-    gap: .8rem;
-  }
-  .entity {
-    background: var(--card); border: 1px solid var(--line);
-    border-top: 3px solid var(--dc); border-radius: 6px;
-    padding: .8rem .9rem .75rem; display: flex; flex-direction: column; gap: .45rem;
-  }
-  .entity h3 {
-    font-family: var(--mono); font-size: .88rem; font-weight: 650; margin: 0;
-    display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
-  }
-  .entity .purpose { font-size: .8rem; color: var(--ink-soft); margin: 0; }
-  .entity .cols {
-    font-family: var(--mono); font-size: .72rem; color: var(--ink);
-    background: color-mix(in srgb, var(--dc-soft) 55%, var(--card));
-    border-radius: 4px; padding: .35rem .5rem; overflow-x: auto; white-space: nowrap;
-  }
-  .chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: auto; }
-  .fk {
-    font-family: var(--mono); font-size: .68rem; padding: .1rem .45rem .12rem;
-    border: 1px solid var(--chipline); border-radius: 999px;
-    color: var(--fc); background: var(--fc-soft);
-    white-space: nowrap;
-  }
-  .fk::before { content: "→ "; opacity: .7; }
-  .fk.d1 { --fc: var(--d1); --fc-soft: var(--d1-soft); }
-  .fk.d2 { --fc: var(--d2); --fc-soft: var(--d2-soft); }
-  .fk.d3 { --fc: var(--d3); --fc-soft: var(--d3-soft); }
-  .fk.d4 { --fc: var(--d4); --fc-soft: var(--d4-soft); }
-  .fk.d5 { --fc: var(--d5); --fc-soft: var(--d5-soft); }
-  .badge {
-    font-family: var(--mono); font-size: .62rem; letter-spacing: .06em;
-    text-transform: uppercase; padding: .12rem .4rem;
-    border-radius: 3px; background: var(--badge-bg); color: var(--badge-ink);
-    white-space: nowrap;
-  }
-  .badge.hard { background: var(--dc-soft); color: var(--dc); }
-
-  .drawer.d1 { --dc: var(--d1); --dc-soft: var(--d1-soft); }
-  .drawer.d2 { --dc: var(--d2); --dc-soft: var(--d2-soft); }
-  .drawer.d3 { --dc: var(--d3); --dc-soft: var(--d3-soft); }
-  .drawer.d4 { --dc: var(--d4); --dc-soft: var(--d4-soft); }
-  .drawer.d5 { --dc: var(--d5); --dc-soft: var(--d5-soft); }
-  .spine a.d1 { --dc: var(--d1); } .spine a.d2 { --dc: var(--d2); }
-  .spine a.d3 { --dc: var(--d3); } .spine a.d4 { --dc: var(--d4); }
-  .spine a.d5 { --dc: var(--d5); }
-
-  footer {
-    margin-top: 3rem; border-top: 1px solid var(--line); padding-top: .8rem;
-    font-size: .75rem; color: var(--ink-soft); font-family: var(--mono);
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .entity { transition: border-color .15s ease; }
-  }
-  .entity:hover { border-color: var(--dc); }
-
-  /* ── view tabs ── */
-  .tabbar { display: flex; gap: .4rem; margin: 1.5rem 0 1.75rem; }
-  .tabbar button {
-    font-family: var(--mono); font-size: .78rem; letter-spacing: .04em;
-    padding: .45rem .9rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink-soft);
-  }
-  .tabbar button[aria-selected="true"] {
-    background: var(--ink); color: var(--ground); border-color: var(--ink);
-  }
-  .tabbar button:focus-visible { outline: 2px solid var(--d1); outline-offset: 2px; }
-
-  /* ── ontology graph view ── */
-  #view-graph .standfirst { margin-bottom: 1rem; }
-  .klegend {
-    display: flex; flex-wrap: wrap; gap: .4rem .6rem; margin-bottom: .9rem; align-items: center;
-  }
-  .klegend button {
-    display: inline-flex; align-items: center; gap: .4rem; cursor: pointer;
-    font-family: var(--mono); font-size: .72rem; padding: .28rem .65rem;
-    border: 1px solid var(--chipline); border-radius: 999px;
-    background: var(--card); color: var(--ink);
-  }
-  .klegend button .dot { width: .6rem; height: .6rem; border-radius: 50%; background: var(--kc); }
-  .klegend button[aria-pressed="true"] { border-color: var(--kc); box-shadow: inset 0 0 0 1px var(--kc); }
-  .klegend button:focus-visible { outline: 2px solid var(--kc); outline-offset: 2px; }
-  .klegend .note { font-size: .72rem; color: var(--ink-soft); font-family: var(--mono); }
-  .graph-shell {
-    position: relative; border: 1px solid var(--line); border-radius: 8px;
-    background: var(--card); overflow: hidden;
-  }
-  #graph { display: block; width: 100%; height: 640px; cursor: grab; touch-action: none; }
-  #graph.dragging { cursor: grabbing; }
-  #gtip {
-    position: absolute; pointer-events: none; max-width: 300px; display: none;
-    background: var(--ink); color: var(--ground); border-radius: 6px;
-    padding: .5rem .65rem; font-size: .74rem; line-height: 1.4; z-index: 5;
-  }
-  #gtip .tname { font-family: var(--mono); font-weight: 650; font-size: .8rem; }
-  #gtip .tclass { font-family: var(--mono); font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
-  .graph-caption { font-size: .76rem; color: var(--ink-soft); margin-top: .6rem; max-width: 80ch; }
-  .gctl {
-    position: absolute; right: .6rem; top: .6rem; display: flex; flex-direction: column;
-    gap: .25rem; z-index: 4;
-  }
-  .gctl button {
-    width: 1.9rem; height: 1.9rem; border-radius: 5px; cursor: pointer;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    font-family: var(--mono); font-size: .95rem; line-height: 1; padding: 0;
-  }
-  .gctl button:hover { border-color: var(--ink-soft); }
-  .gctl button:focus-visible { outline: 2px solid var(--d1); outline-offset: 1px; }
-  .gctl .zlabel {
-    font-family: var(--mono); font-size: .6rem; color: var(--ink-soft); text-align: center;
-  }
-  .ghint {
-    position: absolute; left: .7rem; bottom: .55rem; z-index: 4; pointer-events: none;
-    font-family: var(--mono); font-size: .66rem; color: var(--ink-soft);
-  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 2rem; background: var(--ground); color: var(--ink);
+         font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+  p.note { color: var(--ink-soft); margin: 0 0 1.5rem; max-width: 60rem; }
+  section.drawer { margin: 0 0 2rem; }
+  section.drawer > h2 { font-size: 1.05rem; border-bottom: 2px solid var(--line);
+                        padding-bottom: .3rem; }
+  .d1 > h2 { border-color: var(--d1); } .d2 > h2 { border-color: var(--d2); }
+  .d3 > h2 { border-color: var(--d3); } .d4 > h2 { border-color: var(--d4); }
+  .d5 > h2 { border-color: var(--d5); } .d6 > h2 { border-color: var(--d6); }
+  p.blurb { color: var(--ink-soft); margin: .25rem 0 1rem; }
+  section.drawer { display: block; }
+  .card { display: inline-block; vertical-align: top; background: var(--card);
+          border: 1px solid var(--line); border-radius: 8px; padding: .75rem 1rem;
+          margin: 0 1rem 1rem 0; min-width: 20rem; }
+  .card h3 { margin: 0 0 .5rem; font-size: .95rem; font-family: ui-monospace, monospace; }
+  .card.d1 h3 { color: var(--d1); } .card.d2 h3 { color: var(--d2); }
+  .card.d3 h3 { color: var(--d3); } .card.d4 h3 { color: var(--d4); }
+  .card.d5 h3 { color: var(--d5); } .card.d6 h3 { color: var(--d6); }
+  .badge { font: 10px/1 -apple-system, sans-serif; color: #4A5560; background: #EEF1F3;
+           border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
+           vertical-align: middle; }
+  .card table { border-collapse: collapse; }
+  .card td { padding: 1px 10px 1px 0; font-family: ui-monospace, monospace; font-size: 12px; }
+  td.type { color: var(--ink-soft); }
+  td.notes { color: var(--ink-soft); font-family: -apple-system, sans-serif; font-size: 11px; }
 </style>
 </head>
 <body>
-
-<div class="wrap">
-<header class="masthead">
-  <p class="eyebrow">Infora · build layer · reference</p>
-  <h1>The five-drawer data model</h1>
-  <p class="standfirst">All 43 stored tables as built — drawn from <code>packages/db/src/schema/drawer1–5</code> at migration 0030 (2026-07-26, branch <code>slice-a2-producing-side-surfaces</code>). Chips point at each table's foreign keys, tinted by the drawer they land in; badges mark the integrity rules the database itself enforces by trigger. The prose spec this reflects is <code>docs/build/data-model.md</code>.</p>
-</header>
-
-<div class="tabbar" role="tablist" aria-label="Views">
-  <button role="tab" id="tab-graph" aria-selected="true" aria-controls="view-graph">Ontology graph</button>
-  <button role="tab" id="tab-atlas" aria-selected="false" aria-controls="view-atlas">Table atlas</button>
-</div>
-
-<section id="view-graph" role="tabpanel" aria-labelledby="tab-graph">
-  <p class="standfirst">The same 43 tables, re-classed by what each row <em>is</em> rather than which drawer stores it: agents &amp; settings, information artifacts, the provenance chain, normative positions (time-indexed rights and duties), and institutional acts (irrevocable declarations that change the normative graph). Edges are the foreign keys; the one dashed edge is <code>canReadDeliverable</code> — the wall, a <em>derived</em> relation computed from the normative sub-graph, never stored. Node size is degree: the hub is the deliverable, not the project. Drag nodes; hover for detail; click a class to isolate it.</p>
-  <div class="klegend" id="klegend" aria-label="Ontological classes"></div>
-  <div class="graph-shell">
-    <canvas id="graph" aria-label="Force-directed graph of the 43 tables classed by ontology role. The table atlas tab lists the same content accessibly."></canvas>
-    <div id="gtip"></div>
-    <div class="gctl">
-      <button id="gz-in" aria-label="Zoom in" title="Zoom in">+</button>
-      <button id="gz-out" aria-label="Zoom out" title="Zoom out">−</button>
-      <button id="gz-fit" aria-label="Reset view" title="Reset view">⌂</button>
-      <div class="zlabel" id="gz-pct">100%</div>
-    </div>
-    <div class="ghint">scroll / pinch to zoom · drag space to pan · drag a node to move it</div>
-  </div>
-  <p class="graph-caption">Reading it: the <b>normative</b> ring (ochre) sits between agents and artifacts — every path from a person to a document passes through a time-indexed grant, which is the ethical wall stated topologically. The <b>acts</b> (oxide) cluster against the artifacts they freeze; the <b>provenance</b> chain (violet) hangs off the working document and terminates in <code>signals</code> — the moat's inlet.</p>
-</section>
-
-<div id="view-atlas" role="tabpanel" aria-labelledby="tab-atlas" hidden>
-
-<nav class="spine" aria-label="Drawers">
-  <a class="d1" href="#d1"><span class="dnum">DRAWER 1</span><span class="dname">Parties &amp; access</span><span class="dcount">6 tables</span></a>
-  <a class="d2" href="#d2"><span class="dnum">DRAWER 2</span><span class="dname">Documents</span><span class="dcount">16 tables</span></a>
-  <a class="d3" href="#d3"><span class="dnum">DRAWER 3</span><span class="dname">Execution</span><span class="dcount">5 tables</span></a>
-  <a class="d4" href="#d4"><span class="dnum">DRAWER 4</span><span class="dname">Output &amp; signal</span><span class="dcount">3 tables</span></a>
-  <a class="d5" href="#d5"><span class="dnum">DRAWER 5</span><span class="dname">Review &amp; sharing</span><span class="dcount">13 tables</span></a>
-</nav>
-<p class="flowline"><b>The grain of the system:</b> parties gate everything → documents are worked in the sandbox, bound, frozen → review issues &amp; accepts them into the library → agent runs (execution) propose output whose signals feed back — and drawer&nbsp;5's grants decide who may see any of it.</p>
-
-<div class="legend">
-  <span><span class="badge">append-only</span> DB trigger rejects UPDATE/DELETE</span>
-  <span><span class="badge">immutable</span> content frozen at write</span>
-  <span><span class="badge">interval</span> grant opened/closed by timestamps, never deleted</span>
-  <span><span class="badge">one-way</span> transition can never be reversed</span>
-  <span><span class="badge">jsonb</span> schema-as-data field</span>
-</div>
-
-<!-- ═══════════ DRAWER 1 ═══════════ -->
-<section class="drawer d1" id="d1">
-  <div class="drawer-head"><span class="dnum">DRAWER 1</span><h2>Parties &amp; access</h2><span class="file">drawer1-parties.ts</span></div>
-  <p class="drawer-blurb">Who exists and what they may touch. The ethical wall (ADR-0018) is computed from these rows — organisations are isolated by default; a participant row is a person's live entitlement on one project.</p>
-  <div class="grid">
-    <div class="entity"><h3>organisations</h3><p class="purpose">A firm on the platform — the tenant grain of the ethical wall.</p><div class="cols">id · name</div><div class="chips"></div></div>
-    <div class="entity"><h3>users</h3><p class="purpose">A person, belonging to exactly one organisation. Carries the org-admin role and the Entra seam for production identity.</p><div class="cols">organisation_id · org_role · external_identity · preferences</div><div class="chips"><span class="fk d1">organisations</span><span class="badge">jsonb</span></div></div>
-    <div class="entity"><h3>user_credentials</h3><p class="purpose">Skeleton email + password (scrypt) — dropped wholesale at the infra/security session (T-021).</p><div class="cols">user_id · password_hash</div><div class="chips"><span class="fk d1">users</span></div></div>
-    <div class="entity"><h3>projects</h3><p class="purpose">The owner organisation's project — the container for everything below.</p><div class="cols">owner_organisation_id · name</div><div class="chips"><span class="fk d1">organisations</span></div></div>
-    <div class="entity"><h3>memberships</h3><p class="purpose">An organisation's seat on a project (owner / member), with the ADR-0035 acknowledgement mode and controller.</p><div class="cols">role · state · ack_mode · ack_controller_participant_id</div><div class="chips"><span class="fk d1">organisations</span><span class="fk d1">projects</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>participants</h3><p class="purpose">A user's live entitlement on one project; <code>elevated</code> is the super-user flag (T-174/176). Closing the interval revokes forward, never retroactively.</p><div class="cols">user_id · project_id · elevated · added_by · removed_at</div><div class="chips"><span class="fk d1">users</span><span class="fk d1">projects</span><span class="badge hard">interval</span></div></div>
-  </div>
-</section>
-
-<!-- ═══════════ DRAWER 2 ═══════════ -->
-<section class="drawer d2" id="d2">
-  <div class="drawer-head"><span class="dnum">DRAWER 2</span><h2>Documents</h2><span class="file">drawer2-documents.ts</span></div>
-  <p class="drawer-blurb">The two record configurations (ADR-0001): the controlled deliverable (container → immutable versions) and the mutable working area (sandbox → documents → ambient history), joined one-way by the binding event (ADR-0038).</p>
-  <div class="grid">
-    <div class="entity"><h3>containers</h3><p class="purpose">The deliverable record: coded reference, lifecycle state (planned → in_library / rejected / withdrawn), producing organisation, plan metadata.</p><div class="cols">document_reference · scope · state · producing_organisation_id · metadata</div><div class="chips"><span class="fk d1">projects</span><span class="fk d1">organisations</span><span class="badge">jsonb</span></div></div>
-    <div class="entity"><h3>versions</h3><p class="purpose">An immutable controlled revision (ADR-0002) — P/C references per ISO 19650 (ADR-0041); <code>is_current</code> keys retrieval and the library.</p><div class="cols">container_id · version_reference · content · is_current</div><div class="chips"><span class="fk d2">containers</span><span class="badge hard">append-only</span><span class="badge hard">immutable</span></div></div>
-    <div class="entity"><h3>renditions</h3><p class="purpose">Stored exports per version — the native file and the PDF the review reads (ADR-0034).</p><div class="cols">version_id · format · file_ref</div><div class="chips"><span class="fk d2">versions</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>version_chunks</h3><p class="purpose">Chunk + embedding rows per accepted version — the grounding substrate, indexed per embedding model (pgvector, ADR-0024).</p><div class="cols">version_id · chunk_index · content · embedding</div><div class="chips"><span class="fk d2">versions</span><span class="badge">pgvector</span></div></div>
-    <div class="entity"><h3>sandboxes</h3><p class="purpose">A working area on the scope ladder — multi-org → single-org → team → named-user (ADR-0036); personal sandboxes auto-provisioned (ADR-0042); per-sandbox settings (ADR-0040).</p><div class="cols">scope · owning_organisation_id · allow_member_folder_create</div><div class="chips"><span class="fk d1">projects</span><span class="fk d1">organisations</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>sandbox_scope_grants</h3><p class="purpose">Live, revocable access to a sandbox — a revoke takes effect in-transaction because access is colocated with data (ADR-0024).</p><div class="cols">sandbox_id · organisation_id / participant_id · granted_at · removed_at</div><div class="chips"><span class="fk d2">sandboxes</span><span class="fk d1">organisations</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>sandbox_folders</h3><p class="purpose">SharePoint-shaped nesting; a folder is never an access object — scope stays the sandbox's.</p><div class="cols">sandbox_id · parent_folder_id · name</div><div class="chips"><span class="fk d2">sandboxes</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>sandbox_documents</h3><p class="purpose">The working document: authored structured text or an uploaded native (ADR-0034); <code>head_locked</code> is the check-out (T-180); <code>container_id</code> set by binding.</p><div class="cols">origin · kind · format · file_ref · folder_id · container_id · head_locked</div><div class="chips"><span class="fk d2">sandboxes</span><span class="fk d2">sandbox_folders</span><span class="fk d2">containers</span><span class="fk d1">organisations</span><span class="badge hard">one-way bind</span></div></div>
-    <div class="entity"><h3>sandbox_document_versions</h3><p class="purpose">Ambient history — the v0.x working revisions snapshotted at save boundaries, browse + restore (T-128, ADR-0041).</p><div class="cols">sandbox_document_id · content · created_at</div><div class="chips"><span class="fk d2">sandbox_documents</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>binding_events</h3><p class="purpose">The audited, one-way transition joining a draft to its deliverable (ADR-0038); identity fields lock at bind, no un-bind path exists.</p><div class="cols">sandbox_document_id · container_id · bound_by · bound_at</div><div class="chips"><span class="fk d2">sandbox_documents</span><span class="fk d2">containers</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>sandbox_comments</h3><p class="purpose">Word-style working threads with @-mentions (T-112) — mutable chatter, deliberately distinct from the drawer-5 review record.</p><div class="cols">sandbox_document_id · thread · quoted_span · state</div><div class="chips"><span class="fk d2">sandbox_documents</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>document_presence</h3><p class="purpose">Who is viewing / editing right now — the heartbeat behind live avatars (T-175), first step of ADR-0039's real-time half.</p><div class="cols">sandbox_document_id · participant_id · mode · last_seen</div><div class="chips"><span class="fk d2">sandbox_documents</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>sandbox_checkout_events</h3><p class="purpose">The audited freeze / release trail — check-out and review-round lock are one mechanism, two triggers (T-180).</p><div class="cols">sandbox_document_id · action · by · at</div><div class="chips"><span class="fk d2">sandbox_documents</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>project_naming_schemes</h3><p class="purpose">The per-project deliverable schema, 1:1 by unique index — unified fields carrying type, required, in-code and role slots (T-188).</p><div class="cols">project_id · separator · fields</div><div class="chips"><span class="fk d1">projects</span><span class="badge">jsonb</span><span class="badge">1:1 project</span></div></div>
-    <div class="entity"><h3>naming_serials</h3><p class="purpose">Per (project, organisation, series-prefix) auto-increment — serials never collide across organisations.</p><div class="cols">project_id · organisation_id · series_key · next_serial</div><div class="chips"><span class="fk d1">projects</span><span class="fk d1">organisations</span></div></div>
-    <div class="entity"><h3>naming_scheme_proposals</h3><p class="purpose">A producer's proposed addition to the project scheme — negotiated at scheme level, owner folds in or declines.</p><div class="cols">proposing_organisation_id · body · status</div><div class="chips"><span class="fk d1">projects</span><span class="fk d1">organisations</span><span class="fk d1">participants</span></div></div>
-  </div>
-</section>
-
-<!-- ═══════════ DRAWER 3 ═══════════ -->
-<section class="drawer d3" id="d3">
-  <div class="drawer-head"><span class="dnum">DRAWER 3</span><h2>Execution</h2><span class="file">drawer3-execution.ts</span></div>
-  <p class="drawer-blurb">Work and the agent's audited doing (ADR-0028). Every run writes an immutable tree; the whole record is producing-organisation-private background data (the 2026-07-12 liability ruling, T-104).</p>
-  <div class="grid">
-    <div class="entity"><h3>work_items</h3><p class="purpose">A deliverable's work half, 1:1 with its container by type — status is event-driven, never hand-set (ADR-0032 addendum).</p><div class="cols">project_id · container_id · type · status</div><div class="chips"><span class="fk d1">projects</span><span class="fk d2">containers</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>conversations</h3><p class="purpose">A thread — Ask, a document's shared multiplayer thread (visibility rides the sandbox scope, ADR-0039), or Copilot-bound.</p><div class="cols">project_id · work_item_id · sandbox_document_id · surface</div><div class="chips"><span class="fk d1">projects</span><span class="fk d3">work_items</span><span class="fk d2">sandbox_documents</span></div></div>
-    <div class="entity"><h3>attached_sources</h3><p class="purpose">The conversation-scoped working set — pinned sandbox files / uploads / web refs that persist across turns and never enter a corpus, never ground, never cite (ADR-0022 refined).</p><div class="cols">conversation_id · kind · ref · pinned_by · removed_at</div><div class="chips"><span class="fk d3">conversations</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>runs</h3><p class="purpose">One agent execution. Producer-private; work-item-bound or ad-hoc; the defensibility record's root.</p><div class="cols">conversation_id · requested_by · state · model</div><div class="chips"><span class="fk d3">conversations</span><span class="fk d1">participants</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>steps</h3><p class="purpose">The run's audited tree — retrieve / draft / ground-check / cite leaves with model, tokens, source set, rail outcomes and the ADR-0037 egress facts.</p><div class="cols">run_id · kind · source_set · rail_outcomes · egress_*</div><div class="chips"><span class="fk d3">runs</span><span class="badge hard">append-only</span></div></div>
-  </div>
-</section>
-
-<!-- ═══════════ DRAWER 4 ═══════════ -->
-<section class="drawer d4" id="d4">
-  <div class="drawer-head"><span class="dnum">DRAWER 4</span><h2>Output &amp; signal</h2><span class="file">drawer4-output.ts</span></div>
-  <p class="drawer-blurb">What a run proposes and what the human did with it. Signals are the moat's raw stream — partitioned by organisation, never pooled across the wall (ADR-0026).</p>
-  <div class="grid">
-    <div class="entity"><h3>suggestions</h3><p class="purpose">A proposed edit into a document — grounded-only by rule; hidden presentationally once one is accepted, rows retained.</p><div class="cols">run_id · work_item_id · sandbox_document_id · content · resolution</div><div class="chips"><span class="fk d3">runs</span><span class="fk d3">work_items</span><span class="fk d2">sandbox_documents</span></div></div>
-    <div class="entity"><h3>citations</h3><p class="purpose">The grounded source behind each claim — version identity + claim span; rendered as the source chip (T-105).</p><div class="cols">suggestion_id · step_id · version_id · claim_span</div><div class="chips"><span class="fk d4">suggestions</span><span class="fk d3">steps</span><span class="fk d2">versions</span></div></div>
-    <div class="entity"><h3>signals</h3><p class="purpose">Accept / edit / reject captured per suggestion — the behavioural stream that steers, never trains or grounds (ADR-0002/0026).</p><div class="cols">suggestion_id · action · by</div><div class="chips"><span class="fk d4">suggestions</span><span class="fk d1">participants</span><span class="badge hard">append-only</span></div></div>
-  </div>
-</section>
-
-<!-- ═══════════ DRAWER 5 ═══════════ -->
-<section class="drawer d5" id="d5">
-  <div class="drawer-head"><span class="dnum">DRAWER 5</span><h2>Review &amp; sharing</h2><span class="file">drawer5-review.ts</span></div>
-  <p class="drawer-blurb">The controlled record's ceremony (ADRs 0032/0033/0035): the two-scope review cycle, the transmittal facts, and the grant tables the wall predicate reads — shares, acknowledgements, narrowing, appointments.</p>
-  <div class="grid">
-    <div class="entity"><h3>acceptance_codes</h3><p class="purpose">The per-project code scheme, copied from Infora's default at creation; used codes retire, never redefine (ADR-0003).</p><div class="cols">project_id · code · meaning · is_accepting · retired_at</div><div class="chips"><span class="fk d1">projects</span></div></div>
-    <div class="entity"><h3>review_cycles</h3><p class="purpose">The role-agnostic cycle at two scopes — the client review, and the org-private internal QA on the same machinery (ADR-0032).</p><div class="cols">container_id · scope · state</div><div class="chips"><span class="fk d2">containers</span><span class="fk d1">participants</span></div></div>
-    <div class="entity"><h3>rounds</h3><p class="purpose">One open round per cycle (partial unique index); closes only with a verdict (T-202); each round reviews one frozen version.</p><div class="cols">review_cycle_id · version_id · verdict_code_id · opened/closed</div><div class="chips"><span class="fk d5">review_cycles</span><span class="fk d2">versions</span><span class="fk d5">acceptance_codes</span></div></div>
-    <div class="entity"><h3>transmittals</h3><p class="purpose">The audited issue event — two kinds under one table: review (carries the round) and non-review (owner's org-level share, ADR-0035), a CHECK tying <code>round_id</code> to kind.</p><div class="cols">kind · round_id · container_id · version_id · recipient_organisation_ids</div><div class="chips"><span class="fk d5">rounds</span><span class="fk d2">containers</span><span class="fk d2">versions</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>review_snapshots</h3><p class="purpose">The frozen record at issue — what was actually sent, byte-stable forever.</p><div class="cols">transmittal_id · content</div><div class="chips"><span class="fk d5">transmittals</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>review_comments</h3><p class="purpose">The DRR's anchored comments — page / quoted-text / quad anchors stored in the row, never a sidecar (ADR-0006); frozen once the round issues.</p><div class="cols">round_id · version_id · anchor · body · code_id</div><div class="chips"><span class="fk d5">rounds</span><span class="fk d2">versions</span><span class="fk d5">acceptance_codes</span><span class="badge hard">frozen</span></div></div>
-    <div class="entity"><h3>responses</h3><p class="purpose">The author's mandatory answer per comment — next-version link or no-change-with-reason (T-124); frozen once written.</p><div class="cols">review_comment_id · body · next_version_id</div><div class="chips"><span class="fk d5">review_comments</span><span class="fk d2">versions</span><span class="badge hard">frozen</span></div></div>
-    <div class="entity"><h3>deliverable_authors</h3><p class="purpose">The authoring-side appointment grants with lead flag — propose-then-confirm intervals (ADR-0033).</p><div class="cols">container_id · participant_id · is_lead · granted/removed</div><div class="chips"><span class="fk d2">containers</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>deliverable_reviewers</h3><p class="purpose">The review-side grants — proposed by the producer, confirmed by the owner before promotion can launch a cycle.</p><div class="cols">container_id · participant_id · is_lead · confirmed_*</div><div class="chips"><span class="fk d2">containers</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>deliverable_shares</h3><p class="purpose">The owner's deliberate share of a deliverable to an organisation — the default-deny wall's only opening (ADR-0016/0018).</p><div class="cols">container_id · organisation_id · granted/removed</div><div class="chips"><span class="fk d2">containers</span><span class="fk d1">organisations</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>deliverable_acknowledgements</h3><p class="purpose">The ADR-0035 gate at organisation grain, per version — one live row clears the whole receiving org for that version; re-triggered per version.</p><div class="cols">container_id · version_id · organisation_id · acknowledged_at</div><div class="chips"><span class="fk d2">containers</span><span class="fk d2">versions</span><span class="fk d1">organisations</span><span class="badge hard">append-only</span></div></div>
-    <div class="entity"><h3>deliverable_participant_grants</h3><p class="purpose">Intra-org narrowing at participant grain — absent means the whole-org default; part of the wall predicate's conjunction (ADR-0035 §3).</p><div class="cols">container_id · organisation_id · participant_id · interval</div><div class="chips"><span class="fk d2">containers</span><span class="fk d1">organisations</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-    <div class="entity"><h3>deliverable_grant_rules</h3><p class="purpose">The standing routing rule — a code pattern auto-creating narrowing grants at transmittal issue (ADR-0035 §3, MVP).</p><div class="cols">organisation_id · code_pattern · participant_id · interval</div><div class="chips"><span class="fk d1">projects</span><span class="fk d1">organisations</span><span class="fk d1">participants</span><span class="badge hard">interval</span></div></div>
-  </div>
-</section>
-
-</div><!-- /view-atlas -->
-
-<footer>
-  Source of truth: packages/db/src/schema (Drizzle) + packages/db/migrations 0000–0030 · prose spec docs/build/data-model.md · integrity badges read from the migration triggers · generated 2026-07-26.
-</footer>
-</div>
-
-<script>
-(function () {
-  'use strict';
-
-  /* ── ontological classes ── */
-  var CLASSES = {
-    agent:     { label: 'Agents & settings',    token: '--d1', blurb: 'Endurants: organisations, people, projects — the bearers of roles.' },
-    artifact:  { label: 'Information artifacts', token: '--d2', blurb: 'FRBR-shaped: Work (container) → Expression (version) → Manifestation (rendition), plus the working substrate.' },
-    prov:      { label: 'Provenance',            token: '--d4', blurb: 'PROV-shaped: activities (runs, steps), their outputs (suggestions, citations) and the human judgement on them (signals).' },
-    norm:      { label: 'Normative positions',   token: '--d3', blurb: 'Time-indexed rights and duties — grants, shares, appointments. The wall is computed from these.' },
-    act:       { label: 'Institutional acts',    token: '--d5', blurb: 'Irrevocable declarations: bind, transmit, acknowledge, freeze — the events state is projected from.' }
-  };
-
-  /* ── nodes: every stored table, classed by what a row is ── */
-  var NODES = [
-    ['organisations','agent','A firm — the tenant grain of the wall'],
-    ['users','agent','A person, in exactly one organisation'],
-    ['user_credentials','agent','Skeleton login (scrypt); infra session replaces'],
-    ['projects','agent','The owner’s setting for everything below'],
-    ['containers','artifact','FRBR Work — the deliverable’s identity'],
-    ['versions','artifact','FRBR Expression — immutable revision'],
-    ['renditions','artifact','FRBR Manifestation — format embodiment'],
-    ['version_chunks','artifact','Retrieval part — the grounding substrate'],
-    ['sandboxes','artifact','Working area on the scope ladder'],
-    ['sandbox_folders','artifact','Nesting; never an access object'],
-    ['sandbox_documents','artifact','The pre-Work draft; identity conferred at bind'],
-    ['sandbox_document_versions','artifact','Ambient history — v0.x working revisions'],
-    ['sandbox_comments','artifact','Working chatter; deliberately not the record'],
-    ['project_naming_schemes','artifact','TBox-as-data: the per-project schema'],
-    ['naming_serials','artifact','Per-org serial allocation'],
-    ['acceptance_codes','artifact','Controlled vocabulary; retire, never redefine'],
-    ['attached_sources','artifact','Conversation working set; never grounds'],
-    ['review_snapshots','artifact','The frozen record at issue'],
-    ['work_items','prov','The deliverable’s work half; status projected'],
-    ['conversations','prov','A thread; multiplayer visibility rides sandbox scope'],
-    ['runs','prov','PROV Activity — one agent execution'],
-    ['steps','prov','The audited tree: model, tokens, egress'],
-    ['suggestions','prov','Proposed edit — a generated Entity'],
-    ['citations','prov','wasDerivedFrom, qualified by span'],
-    ['signals','prov','Human judgement attributed to machine output'],
-    ['document_presence','prov','Who is here now — activity heartbeat'],
-    ['participants','norm','Role occupancy: a person’s live entitlement'],
-    ['memberships','norm','An org’s seat + acknowledgement mode'],
-    ['sandbox_scope_grants','norm','Live, revocable sandbox access'],
-    ['deliverable_authors','norm','Authoring appointment interval'],
-    ['deliverable_reviewers','norm','Review appointment; propose→confirm'],
-    ['deliverable_shares','norm','The owner’s deliberate wall opening'],
-    ['deliverable_acknowledgements','norm','Discharged duty gating the share (also an act)'],
-    ['deliverable_participant_grants','norm','Intra-org narrowing, participant grain'],
-    ['deliverable_grant_rules','norm','Standing rule auto-creating grants'],
-    ['binding_events','act','Identity conferred, one-way, forever'],
-    ['sandbox_checkout_events','act','Freeze / release, audited both ways'],
-    ['transmittals','act','The issue declaration, two kinds'],
-    ['naming_scheme_proposals','act','Producer’s proposal; owner declares'],
-    ['review_cycles','act','The ceremony’s container, two scopes'],
-    ['rounds','act','One open at a time; closes on a verdict'],
-    ['review_comments','act','Anchored record; frozen at issue'],
-    ['responses','act','Mandatory answer; frozen once written']
-  ];
-
-  /* ── edges: the FK map extracted from packages/db/src/schema ── */
-  var EDGES = [
-    ['users','organisations'],['user_credentials','users'],['projects','organisations'],
-    ['participants','users'],['participants','projects'],
-    ['memberships','organisations'],['memberships','projects'],['memberships','participants'],
-    ['containers','projects'],['containers','organisations'],
-    ['versions','containers'],['renditions','versions'],['version_chunks','versions'],
-    ['sandboxes','projects'],['sandboxes','organisations'],['sandboxes','participants'],
-    ['sandbox_scope_grants','sandboxes'],['sandbox_scope_grants','organisations'],['sandbox_scope_grants','participants'],
-    ['sandbox_folders','sandboxes'],['sandbox_folders','participants'],
-    ['sandbox_documents','projects'],['sandbox_documents','organisations'],['sandbox_documents','sandboxes'],
-    ['sandbox_documents','sandbox_folders'],['sandbox_documents','containers'],['sandbox_documents','participants'],
-    ['sandbox_document_versions','sandbox_documents'],['sandbox_document_versions','participants'],
-    ['binding_events','sandbox_documents'],['binding_events','containers'],['binding_events','participants'],
-    ['sandbox_comments','sandbox_documents'],['sandbox_comments','participants'],
-    ['document_presence','sandbox_documents'],['document_presence','participants'],
-    ['sandbox_checkout_events','sandbox_documents'],['sandbox_checkout_events','participants'],
-    ['project_naming_schemes','projects'],
-    ['naming_serials','projects'],['naming_serials','organisations'],
-    ['naming_scheme_proposals','projects'],['naming_scheme_proposals','organisations'],['naming_scheme_proposals','participants'],
-    ['work_items','projects'],['work_items','containers'],['work_items','participants'],
-    ['conversations','projects'],['conversations','work_items'],['conversations','sandbox_documents'],
-    ['attached_sources','conversations'],['attached_sources','participants'],
-    ['runs','conversations'],['runs','participants'],['steps','runs'],
-    ['suggestions','runs'],['suggestions','work_items'],['suggestions','sandbox_documents'],
-    ['citations','suggestions'],['citations','steps'],['citations','versions'],
-    ['signals','suggestions'],['signals','participants'],
-    ['acceptance_codes','projects'],
-    ['review_cycles','containers'],['review_cycles','participants'],
-    ['rounds','review_cycles'],['rounds','versions'],['rounds','acceptance_codes'],
-    ['transmittals','rounds'],['transmittals','containers'],['transmittals','versions'],['transmittals','participants'],
-    ['review_snapshots','transmittals'],
-    ['review_comments','rounds'],['review_comments','versions'],['review_comments','participants'],['review_comments','acceptance_codes'],
-    ['responses','review_comments'],['responses','participants'],['responses','versions'],
-    ['deliverable_authors','containers'],['deliverable_authors','participants'],
-    ['deliverable_reviewers','containers'],['deliverable_reviewers','participants'],
-    ['deliverable_shares','containers'],['deliverable_shares','organisations'],['deliverable_shares','participants'],
-    ['deliverable_acknowledgements','containers'],['deliverable_acknowledgements','versions'],
-    ['deliverable_acknowledgements','organisations'],['deliverable_acknowledgements','participants'],
-    ['deliverable_participant_grants','containers'],['deliverable_participant_grants','organisations'],['deliverable_participant_grants','participants'],
-    ['deliverable_grant_rules','projects'],['deliverable_grant_rules','organisations'],['deliverable_grant_rules','participants']
-  ];
-  /* the wall: derived, never stored */
-  var DERIVED = [['participants','containers','canReadDeliverable — computed from shares + acks + narrowing']];
-
-  /* ── build graph structures ── */
-  var idx = {}, nodes = [];
-  NODES.forEach(function (n, i) {
-    idx[n[0]] = i;
-    nodes.push({ name: n[0], cls: n[1], blurb: n[2], x: 0, y: 0, vx: 0, vy: 0, deg: 0, fixed: false });
-  });
-  var edges = EDGES.map(function (e) {
-    nodes[idx[e[0]]].deg++; nodes[idx[e[1]]].deg++;
-    return { s: idx[e[0]], t: idx[e[1]] };
-  });
-  var derived = DERIVED.map(function (e) { return { s: idx[e[0]], t: idx[e[1]], label: e[2] }; });
-
-  var canvas = document.getElementById('graph');
-  var ctx = canvas.getContext('2d');
-  var tip = document.getElementById('gtip');
-  var shell = canvas.parentElement;
-  var W = 0, H = 0, DPR = 1;
-  var hover = -1, dragging = -1, focusCls = null, alpha = 1;
-  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  /* view transform: screen = world * k + (tx, ty) */
-  var k = 1, tx = 0, ty = 0;
-  var panning = false, panStart = null;
-  var pointers = {}, pinchStart = null;
-  var KMIN = 0.35, KMAX = 5;
-
-  function pct() { var el = document.getElementById('gz-pct'); if (el) el.textContent = Math.round(k * 100) + '%'; }
-  function zoomAt(sx, sy, factor) {
-    var nk = Math.min(KMAX, Math.max(KMIN, k * factor));
-    var wx = (sx - tx) / k, wy = (sy - ty) / k;
-    k = nk; tx = sx - wx * k; ty = sy - wy * k;
-    pct();
-  }
-  function resetView() { k = 1; tx = 0; ty = 0; pct(); }
-
-  function tokens() {
-    var cs = getComputedStyle(document.documentElement);
-    var t = { ground: cs.getPropertyValue('--card').trim(), ink: cs.getPropertyValue('--ink').trim(),
-              soft: cs.getPropertyValue('--ink-soft').trim(), line: cs.getPropertyValue('--line').trim() };
-    Object.keys(CLASSES).forEach(function (k) { t[k] = cs.getPropertyValue(CLASSES[k].token).trim(); });
-    return t;
-  }
-
-  function resize() {
-    DPR = window.devicePixelRatio || 1;
-    W = shell.clientWidth; H = 640;
-    canvas.width = W * DPR; canvas.height = H * DPR;
-    canvas.style.height = H + 'px';
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-
-  /* seed positions: each class around its home angle */
-  var HOME = { agent: -2.2, norm: -0.9, artifact: 0.35, act: 1.5, prov: 2.7 };
-  function seed() {
-    nodes.forEach(function (n, i) {
-      var a = HOME[n.cls] + (i % 7) * 0.13;
-      var r = Math.min(W, H) * 0.28 + (i % 5) * 22;
-      n.x = W / 2 + Math.cos(a) * r;
-      n.y = H / 2 + Math.sin(a) * r * 0.82;
-    });
-  }
-
-  function radius(n) { return 5 + Math.sqrt(n.deg) * 2.6; }
-
-  function tick() {
-    var i, j, a, b, dx, dy, d2, d, f;
-    for (i = 0; i < nodes.length; i++) {
-      a = nodes[i];
-      for (j = i + 1; j < nodes.length; j++) {
-        b = nodes[j];
-        dx = b.x - a.x; dy = b.y - a.y;
-        d2 = dx * dx + dy * dy + 30;
-        f = 2600 / d2;
-        d = Math.sqrt(d2);
-        dx /= d; dy /= d;
-        if (!a.fixed) { a.vx -= dx * f; a.vy -= dy * f; }
-        if (!b.fixed) { b.vx += dx * f; b.vy += dy * f; }
-      }
-    }
-    edges.forEach(function (e) {
-      a = nodes[e.s]; b = nodes[e.t];
-      dx = b.x - a.x; dy = b.y - a.y;
-      d = Math.sqrt(dx * dx + dy * dy) || 1;
-      f = (d - 96) * 0.012;
-      dx /= d; dy /= d;
-      if (!a.fixed) { a.vx += dx * f * d * 0.02; a.vy += dy * f * d * 0.02; }
-      if (!b.fixed) { b.vx -= dx * f * d * 0.02; b.vy -= dy * f * d * 0.02; }
-    });
-    nodes.forEach(function (n) {
-      if (n.fixed) return;
-      var ha = HOME[n.cls];
-      var hx = W / 2 + Math.cos(ha) * Math.min(W, H) * 0.3;
-      var hy = H / 2 + Math.sin(ha) * Math.min(W, H) * 0.26;
-      n.vx += (hx - n.x) * 0.004 + (W / 2 - n.x) * 0.006;
-      n.vy += (hy - n.y) * 0.004 + (H / 2 - n.y) * 0.006;
-      n.vx *= 0.82; n.vy *= 0.82;
-      n.x += n.vx * alpha; n.y += n.vy * alpha;
-      var r = radius(n) + 4;
-      if (n.x < r) n.x = r; if (n.x > W - r) n.x = W - r;
-      if (n.y < r) n.y = r; if (n.y > H - r) n.y = H - r;
-    });
-  }
-
-  function neighbours(i) {
-    var set = {}; set[i] = true;
-    edges.forEach(function (e) { if (e.s === i) set[e.t] = true; if (e.t === i) set[e.s] = true; });
-    return set;
-  }
-
-  function draw() {
-    var T = tokens();
-    ctx.clearRect(0, 0, W, H);
-    ctx.save();
-    ctx.translate(tx, ty);
-    ctx.scale(k, k);
-    var nb = hover >= 0 ? neighbours(hover) : null;
-
-    function dimmed(n) {
-      if (focusCls && n.cls !== focusCls) return true;
-      return false;
-    }
-
-    edges.forEach(function (e) {
-      var a = nodes[e.s], b = nodes[e.t];
-      var lit = nb && (e.s === hover || e.t === hover);
-      var dim = (nb && !lit) || dimmed(a) || dimmed(b);
-      ctx.strokeStyle = lit ? T[nodes[e.t].cls] : T.line;
-      ctx.globalAlpha = dim ? 0.18 : (lit ? 0.95 : 0.55);
-      ctx.lineWidth = lit ? 1.6 : 1;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    });
-
-    /* the derived wall edge — dashed */
-    derived.forEach(function (e) {
-      var a = nodes[e.s], b = nodes[e.t];
-      var dim = (nb && !(e.s === hover || e.t === hover)) || dimmed(a) || dimmed(b);
-      ctx.save();
-      ctx.setLineDash([6, 5]);
-      ctx.strokeStyle = T.norm; ctx.lineWidth = 1.6;
-      ctx.globalAlpha = dim ? 0.25 : 0.9;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.restore();
-    });
-
-    ctx.globalAlpha = 1;
-    nodes.forEach(function (n, i) {
-      var r = radius(n);
-      var dim = (nb && !nb[i]) || dimmed(n);
-      ctx.globalAlpha = dim ? 0.22 : 1;
-      ctx.fillStyle = T[n.cls];
-      ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
-      if (i === hover) {
-        ctx.strokeStyle = T.ink; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(n.x, n.y, r + 2.5, 0, Math.PI * 2); ctx.stroke();
-      }
-      ctx.font = (i === hover ? '650 ' : '') + '10.5px ui-monospace, Menlo, Consolas, monospace';
-      ctx.fillStyle = dim ? T.soft : T.ink;
-      ctx.textAlign = 'center';
-      ctx.fillText(n.name, n.x, n.y + r + 12);
-    });
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
-
-  function loop() {
-    if (alpha > 0.03) { tick(); alpha *= 0.995; }
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  /* ── interaction ── */
-  function pick(mx, my) {
-    for (var i = nodes.length - 1; i >= 0; i--) {
-      var n = nodes[i], dx = mx - n.x, dy = my - n.y;
-      if (dx * dx + dy * dy < Math.pow(radius(n) + 6, 2)) return i;
-    }
-    return -1;
-  }
-  function pos(ev) {
-    var r = canvas.getBoundingClientRect();
-    var sx = ev.clientX - r.left, sy = ev.clientY - r.top;
-    return { sx: sx, sy: sy, x: (sx - tx) / k, y: (sy - ty) / k };
-  }
-  canvas.addEventListener('pointerdown', function (ev) {
-    pointers[ev.pointerId] = pos(ev);
-    canvas.setPointerCapture(ev.pointerId);
-    if (Object.keys(pointers).length === 2) {
-      /* second finger: switch to pinch, abandon any node/pan drag */
-      if (dragging >= 0) { nodes[dragging].fixed = false; dragging = -1; }
-      panning = false;
-      var ids = Object.keys(pointers), a = pointers[ids[0]], b = pointers[ids[1]];
-      pinchStart = { d: Math.hypot(a.sx - b.sx, a.sy - b.sy), k: k, cx: (a.sx + b.sx) / 2, cy: (a.sy + b.sy) / 2, tx: tx, ty: ty };
-      return;
-    }
-    var p = pos(ev), i = pick(p.x, p.y);
-    if (i >= 0) {
-      dragging = i; nodes[i].fixed = true; canvas.classList.add('dragging');
-      alpha = Math.max(alpha, 0.3);
-    } else {
-      panning = true; panStart = { sx: p.sx, sy: p.sy, tx: tx, ty: ty };
-      canvas.classList.add('dragging');
-      tip.style.display = 'none';
-    }
-  });
-  canvas.addEventListener('pointermove', function (ev) {
-    if (pointers[ev.pointerId]) pointers[ev.pointerId] = pos(ev);
-    var ids = Object.keys(pointers);
-    if (pinchStart && ids.length === 2) {
-      var a = pointers[ids[0]], b = pointers[ids[1]];
-      var d = Math.hypot(a.sx - b.sx, a.sy - b.sy);
-      var cx = (a.sx + b.sx) / 2, cy = (a.sy + b.sy) / 2;
-      var nk = Math.min(KMAX, Math.max(KMIN, pinchStart.k * (d / (pinchStart.d || 1))));
-      /* keep the pinch centre fixed in world space, then follow the midpoint */
-      var wx = (pinchStart.cx - pinchStart.tx) / pinchStart.k, wy = (pinchStart.cy - pinchStart.ty) / pinchStart.k;
-      k = nk; tx = cx - wx * k; ty = cy - wy * k;
-      pct();
-      return;
-    }
-    var p = pos(ev);
-    if (dragging >= 0) { nodes[dragging].x = p.x; nodes[dragging].y = p.y; alpha = Math.max(alpha, 0.25); return; }
-    if (panning && panStart) { tx = panStart.tx + (p.sx - panStart.sx); ty = panStart.ty + (p.sy - panStart.sy); return; }
-    var i = pick(p.x, p.y);
-    if (i !== hover) hover = i;
-    if (i >= 0) {
-      var n = nodes[i];
-      tip.style.display = 'block';
-      tip.innerHTML = '<div class="tname">' + n.name + '</div><div class="tclass">' + CLASSES[n.cls].label + ' · ' + n.deg + ' edges</div><div>' + n.blurb + '</div>';
-      var lx = Math.min(p.sx + 14, W - 310), ly = Math.max(p.sy - 10, 8);
-      tip.style.left = lx + 'px'; tip.style.top = ly + 'px';
-      canvas.style.cursor = 'pointer';
-    } else { tip.style.display = 'none'; canvas.style.cursor = ''; }
-  });
-  function endPointer(ev) {
-    delete pointers[ev.pointerId];
-    if (Object.keys(pointers).length < 2) pinchStart = null;
-    if (dragging >= 0) { nodes[dragging].fixed = false; dragging = -1; }
-    panning = false; panStart = null;
-    canvas.classList.remove('dragging');
-  }
-  window.addEventListener('pointerup', endPointer);
-  window.addEventListener('pointercancel', endPointer);
-  canvas.addEventListener('pointerleave', function () { hover = -1; tip.style.display = 'none'; });
-
-  canvas.addEventListener('wheel', function (ev) {
-    ev.preventDefault();
-    var r = canvas.getBoundingClientRect();
-    zoomAt(ev.clientX - r.left, ev.clientY - r.top, Math.exp(-ev.deltaY * 0.0015));
-  }, { passive: false });
-
-  document.getElementById('gz-in').addEventListener('click', function () { zoomAt(W / 2, H / 2, 1.3); });
-  document.getElementById('gz-out').addEventListener('click', function () { zoomAt(W / 2, H / 2, 1 / 1.3); });
-  document.getElementById('gz-fit').addEventListener('click', resetView);
-
-  /* ── legend / class filter ── */
-  var legend = document.getElementById('klegend');
-  Object.keys(CLASSES).forEach(function (k) {
-    var b = document.createElement('button');
-    b.style.setProperty('--kc', 'var(' + CLASSES[k].token + ')');
-    b.setAttribute('aria-pressed', 'false');
-    b.title = CLASSES[k].blurb;
-    b.innerHTML = '<span class="dot"></span>' + CLASSES[k].label;
-    b.addEventListener('click', function () {
-      focusCls = focusCls === k ? null : k;
-      legend.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
-      if (focusCls) b.setAttribute('aria-pressed', 'true');
-    });
-    legend.appendChild(b);
-  });
-  var note = document.createElement('span');
-  note.className = 'note';
-  note.textContent = '⌇ dashed = derived (the wall predicate, never stored)';
-  legend.appendChild(note);
-
-  /* ── tabs ── */
-  var tabG = document.getElementById('tab-graph'), tabA = document.getElementById('tab-atlas');
-  var vG = document.getElementById('view-graph'), vA = document.getElementById('view-atlas');
-  function select(g) {
-    tabG.setAttribute('aria-selected', g ? 'true' : 'false');
-    tabA.setAttribute('aria-selected', g ? 'false' : 'true');
-    vG.hidden = !g; vA.hidden = g;
-    if (g) { resize(); alpha = Math.max(alpha, 0.15); }
-  }
-  tabG.addEventListener('click', function () { select(true); });
-  tabA.addEventListener('click', function () { select(false); });
-
-  window.addEventListener('resize', function () { resize(); alpha = Math.max(alpha, 0.2); });
-
-  resize(); seed();
-  if (reduced) { for (var s = 0; s < 400; s++) tick(); alpha = 0; }
-  loop();
-})();
-</script>
+  <h1>Infora — the data model, as built</h1>
+  <p class="note">Generated from <code>packages/db/src/schema</code>; integrity badges
+  from the migration triggers. The narrative and the design decisions live in
+  <code>docs/build/data-model.md</code>; this page is the shape.</p>
+    <section class="drawer d1">
+      <h2>Drawer 1 — Parties &amp; access</h2>
+      <p class="blurb">Who exists, and who may see what. Every other table is scoped by these.</p>
+      <article class="card d1">
+        <h3>conflict_attestations</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">attested_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">attested_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">superseded_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>conflict_exclusions</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">declaring_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">declared_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">grain</td><td class="type">conflict_grain</td><td class="notes">default</td></tr>
+          <tr><td class="col">subject_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
+          <tr><td class="col">project_a_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">project_b_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">declared_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">withdrawn_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">withdrawn_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>conflict_refusals</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">exclusion_id</td><td class="type">uuid</td><td class="notes">→ conflict_exclusions.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">attempted_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">subject_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">refused_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>memberships</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">role</td><td class="type">membership_role</td><td class="notes"></td></tr>
+          <tr><td class="col">state</td><td class="type">membership_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">ack_mode</td><td class="type">acknowledgement_mode</td><td class="notes">default</td></tr>
+          <tr><td class="col">ack_controller_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">added_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>organisations</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>participants</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">added_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">elevated</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">removed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>projects</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">owner_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">conflict_attestation_required</td><td class="type">boolean</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>sessions</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">text</td><td class="notes">PK</td></tr>
+          <tr><td class="col">user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">last_seen_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">expires_at</td><td class="type">timestamp with time zone</td><td class="notes"></td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">revoked_reason</td><td class="type">session_end_reason</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>user_credentials</h3>
+        <table><tbody>
+          <tr><td class="col">user_id</td><td class="type">uuid</td><td class="notes">PK · → users.id</td></tr>
+          <tr><td class="col">password_hash</td><td class="type">text</td><td class="notes"></td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d1">
+        <h3>users</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">email</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">org_role</td><td class="type">org_role</td><td class="notes">default</td></tr>
+          <tr><td class="col">external_identity</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">preferences</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d2">
+      <h2>Drawer 2 — Documents</h2>
+      <p class="blurb">The controlled record and the working area: containers, immutable versions, the retrieval index, the sandbox.</p>
+      <article class="card d2">
+        <h3>binding_events <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">bound_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">bound_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>containers</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">scope</td><td class="type">container_scope</td><td class="notes">default</td></tr>
+          <tr><td class="col">producing_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">document_reference</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id · nullable</td></tr>
+          <tr><td class="col">in_library</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">state</td><td class="type">container_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">document_owner_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">withdrawn_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">metadata</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>document_presence</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">last_seen_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>elevated_refusals <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">attempted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">action</td><td class="type">elevated_action</td><td class="notes"></td></tr>
+          <tr><td class="col">required_tier</td><td class="type">text</td><td class="notes">default</td></tr>
+          <tr><td class="col">refused_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>naming_scheme_proposals</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">proposing_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">proposed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">body</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">status</td><td class="type">naming_proposal_status</td><td class="notes">default</td></tr>
+          <tr><td class="col">resolved_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">resolved_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>naming_serials</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">series_key</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">next_serial</td><td class="type">integer</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>project_naming_schemes</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">separator</td><td class="type">text</td><td class="notes">default</td></tr>
+          <tr><td class="col">fields</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>renditions <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">kind</td><td class="type">rendition_kind</td><td class="notes"></td></tr>
+          <tr><td class="col">format</td><td class="type">rendition_format</td><td class="notes"></td></tr>
+          <tr><td class="col">content_ref</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_checkout_events</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">action</td><td class="type">sandbox_checkout_action</td><td class="notes"></td></tr>
+          <tr><td class="col">by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_comments</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">parent_comment_id</td><td class="type">uuid</td><td class="notes">→ sandbox_comments.id · nullable</td></tr>
+          <tr><td class="col">author_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">body</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">anchor</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">status</td><td class="type">sandbox_comment_status</td><td class="notes">default</td></tr>
+          <tr><td class="col">closed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">closed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">mentions</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_document_versions</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_documents <span class="badge">one-way transition</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">sandbox_id</td><td class="type">uuid</td><td class="notes">→ sandboxes.id</td></tr>
+          <tr><td class="col">folder_id</td><td class="type">uuid</td><td class="notes">→ sandbox_folders.id · nullable</td></tr>
+          <tr><td class="col">title</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">origin</td><td class="type">document_origin</td><td class="notes">default</td></tr>
+          <tr><td class="col">kind</td><td class="type">document_kind</td><td class="notes">default</td></tr>
+          <tr><td class="col">format</td><td class="type">document_format</td><td class="notes">default</td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes">default</td></tr>
+          <tr><td class="col">file_ref</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
+          <tr><td class="col">head_locked</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">authoring_metadata</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">deleted_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_folders</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_id</td><td class="type">uuid</td><td class="notes">→ sandboxes.id</td></tr>
+          <tr><td class="col">parent_folder_id</td><td class="type">uuid</td><td class="notes">→ sandbox_folders.id · nullable</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandbox_scope_grants</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">sandbox_id</td><td class="type">uuid</td><td class="notes">→ sandboxes.id</td></tr>
+          <tr><td class="col">grantee_type</td><td class="type">sandbox_grantee_type</td><td class="notes"></td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id · nullable</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">removed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>sandboxes</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">scope</td><td class="type">sandbox_scope</td><td class="notes"></td></tr>
+          <tr><td class="col">owning_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">allow_member_folder_create</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">is_personal</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>version_chunks</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">chunk_index</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">embedding</td><td class="type">vector(1024)</td><td class="notes"></td></tr>
+          <tr><td class="col">embedding_model_id</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">embedding_model_version</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">start_offset</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">end_offset</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>versions <span class="badge">append-only</span> <span class="badge">immutable content</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">version_reference</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">is_current</td><td class="type">boolean</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d3">
+      <h2>Drawer 3 — Work &amp; execution</h2>
+      <p class="blurb">Work items, conversations, the append-only Run/Step record, the plan artefact.</p>
+      <article class="card d3">
+        <h3>attached_sources</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">conversation_id</td><td class="type">uuid</td><td class="notes">→ conversations.id</td></tr>
+          <tr><td class="col">kind</td><td class="type">attached_source_kind</td><td class="notes"></td></tr>
+          <tr><td class="col">ref</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">label</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">pinned_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">pinned_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">removed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>conversations</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">work_item_id</td><td class="type">uuid</td><td class="notes">→ work_items.id · nullable</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id · nullable</td></tr>
+          <tr><td class="col">surface</td><td class="type">surface</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>label_overrides <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">destination_kind</td><td class="type">label_destination_kind</td><td class="notes"></td></tr>
+          <tr><td class="col">destination_id</td><td class="type">uuid</td><td class="notes"></td></tr>
+          <tr><td class="col">source_label</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">destination_label</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">overridden_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>plan_steps <span class="badge">immutable from ready</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">plan_id</td><td class="type">uuid</td><td class="notes">→ plans.id</td></tr>
+          <tr><td class="col">ordinal</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">stage</td><td class="type">plan_stage</td><td class="notes"></td></tr>
+          <tr><td class="col">worker</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">inputs</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">depends_on</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">state</td><td class="type">plan_step_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">step_row_id</td><td class="type">uuid</td><td class="notes">→ steps.id · nullable</td></tr>
+          <tr><td class="col">output_ref</td><td class="type">uuid</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">edited_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">edited_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>plans <span class="badge">immutable from ready</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">conversation_id</td><td class="type">uuid</td><td class="notes">→ conversations.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">requester_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">mode</td><td class="type">plan_mode</td><td class="notes"></td></tr>
+          <tr><td class="col">workflow_id</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">workflow_version</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">lens_id</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">lens_version</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">state</td><td class="type">plan_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">question</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">restatement</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">assumptions</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">superseded_by_plan_id</td><td class="type">uuid</td><td class="notes">→ plans.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>runs <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">conversation_id</td><td class="type">uuid</td><td class="notes">→ conversations.id</td></tr>
+          <tr><td class="col">parent_run_id</td><td class="type">uuid</td><td class="notes">→ runs.id · nullable</td></tr>
+          <tr><td class="col">agent_id</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">agent_provenance</td><td class="type">agent_provenance</td><td class="notes"></td></tr>
+          <tr><td class="col">state</td><td class="type">run_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">request</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">response</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">started_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">ended_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">environment_key</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">requester_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>steps <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">parent_step_id</td><td class="type">uuid</td><td class="notes">→ steps.id · nullable</td></tr>
+          <tr><td class="col">type</td><td class="type">step_type</td><td class="notes"></td></tr>
+          <tr><td class="col">status</td><td class="type">step_status</td><td class="notes">default</td></tr>
+          <tr><td class="col">started_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">ended_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">model_id</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">model_version</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">tokens_prompt</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">tokens_completion</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">cost</td><td class="type">numeric</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">egress_endpoint</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">egress_region</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">egress_retention</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">egress_classification</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">source_set</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">rail_outcomes</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">child_run_id</td><td class="type">uuid</td><td class="notes">→ runs.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
+        <h3>work_items</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">type</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">title</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">status</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
+          <tr><td class="col">assignee_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d4">
+      <h2>Drawer 4 — AI output &amp; feedback</h2>
+      <p class="blurb">Suggestions, citations, and the Signal each resolution writes.</p>
+      <article class="card d4">
+        <h3>citations</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">suggestion_id</td><td class="type">uuid</td><td class="notes">→ suggestions.id · nullable</td></tr>
+          <tr><td class="col">step_id</td><td class="type">uuid</td><td class="notes">→ steps.id · nullable</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id · nullable</td></tr>
+          <tr><td class="col">authority_ref</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">claim_span</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d4">
+        <h3>signals <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">suggestion_id</td><td class="type">uuid</td><td class="notes">→ suggestions.id</td></tr>
+          <tr><td class="col">resolution</td><td class="type">resolution</td><td class="notes"></td></tr>
+          <tr><td class="col">edited_content</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">resolved_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">resolved_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d4">
+        <h3>suggestions</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">work_item_id</td><td class="type">uuid</td><td class="notes">→ work_items.id · nullable</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">kind</td><td class="type">suggestion_kind</td><td class="notes"></td></tr>
+          <tr><td class="col">anchor</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">rationale</td><td class="type">text</td><td class="notes"></td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d5">
+      <h2>Drawer 5 — Review</h2>
+      <p class="blurb">The review cycle at two scopes: cycles, rounds, transmittals, comments, responses, appointments and shares.</p>
+      <article class="card d5">
+        <h3>acceptance_codes</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">code</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">description</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">level</td><td class="type">acceptance_code_level</td><td class="notes">default</td></tr>
+          <tr><td class="col">is_accepting</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">sort_order</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_acknowledgements <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">acknowledged_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">acknowledged_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_authors <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">is_lead</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_grant_rules <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">code_pattern</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_participant_grants <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_reviewers <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">is_lead</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">confirmed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">confirmed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>deliverable_shares <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>responses <span class="badge">frozen at issue</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">comment_id</td><td class="type">uuid</td><td class="notes">→ review_comments.id</td></tr>
+          <tr><td class="col">author_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">body</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">next_version_id</td><td class="type">uuid</td><td class="notes">→ versions.id · nullable</td></tr>
+          <tr><td class="col">next_version_anchor</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">no_change_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>review_comments <span class="badge">frozen at issue</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">round_id</td><td class="type">uuid</td><td class="notes">→ rounds.id</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">author_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">body</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">acceptance_code_id</td><td class="type">uuid</td><td class="notes">→ acceptance_codes.id · nullable</td></tr>
+          <tr><td class="col">anchor</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>review_cycles</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">state</td><td class="type">review_cycle_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">edit_lock_holder</td><td class="type">edit_lock_side</td><td class="notes">default</td></tr>
+          <tr><td class="col">launched_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">closed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">closed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">closed_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>review_snapshots <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">transmittal_id</td><td class="type">uuid</td><td class="notes">→ transmittals.id</td></tr>
+          <tr><td class="col">content</td><td class="type">jsonb</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>rounds</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">cycle_id</td><td class="type">uuid</td><td class="notes">→ review_cycles.id</td></tr>
+          <tr><td class="col">number</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">state</td><td class="type">round_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">review_period_target</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">deliverable_code_id</td><td class="type">uuid</td><td class="notes">→ acceptance_codes.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>transmittals <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">kind</td><td class="type">transmittal_kind</td><td class="notes">default</td></tr>
+          <tr><td class="col">round_id</td><td class="type">uuid</td><td class="notes">→ rounds.id · nullable</td></tr>
+          <tr><td class="col">direction</td><td class="type">transmittal_direction</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id · nullable</td></tr>
+          <tr><td class="col">sender_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">recipients</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">recipient_organisation_ids</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">purpose_code</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">issued_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">due_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d6">
+      <h2>Drawer 6 — The project ontology</h2>
+      <p class="blurb">The classification vocabulary and the typed edges between containers.</p>
+      <article class="card d6">
+        <h3>classification_facets</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">key</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">source</td><td class="type">classification_facet_source</td><td class="notes">default</td></tr>
+          <tr><td class="col">sort_order</td><td class="type">integer</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d6">
+        <h3>classification_terms</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">facet_id</td><td class="type">uuid</td><td class="notes">→ classification_facets.id</td></tr>
+          <tr><td class="col">parent_term_id</td><td class="type">uuid</td><td class="notes">→ classification_terms.id · nullable</td></tr>
+          <tr><td class="col">code</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">label</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">sort_order</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d6">
+        <h3>container_classifications</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">facet_id</td><td class="type">uuid</td><td class="notes">→ classification_facets.id</td></tr>
+          <tr><td class="col">term_id</td><td class="type">uuid</td><td class="notes">→ classification_terms.id</td></tr>
+          <tr><td class="col">proposed_by_run_id</td><td class="type">uuid</td><td class="notes">→ runs.id · nullable</td></tr>
+          <tr><td class="col">set_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d6">
+        <h3>document_relationships</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">from_container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">to_container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">type</td><td class="type">document_relationship_type</td><td class="notes"></td></tr>
+          <tr><td class="col">proposed_by_run_id</td><td class="type">uuid</td><td class="notes">→ runs.id · nullable</td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">confirmed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">confirmed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+    </section>
 </body>
 </html>

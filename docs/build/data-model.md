@@ -1,248 +1,274 @@
-# Data model — the walking skeleton (first cut)
+# Data model — the drawers, their reasoning, and the drawing board
 
-> **Visual companion:** [data-model.html](data-model.html) — the stored schema as built (all tables, FK links, trigger-derived integrity badges) in two views: a per-drawer table atlas and a pan/zoom ontology graph. A derived, point-in-time snapshot (regenerate after schema changes); this prose spec remains the design authority.
+> **Visual companion:** [data-model.html](data-model.html) — the stored schema
+> **as built** (every table, column, FK, and trigger-derived integrity badge),
+> **generated from `packages/db/src/schema` and regenerated under CI**:
+> `pnpm run check` fails when it is stale (`check:data-model`), so it can no
+> longer sit nine migrations behind the schema the way the hand-generated
+> version did. Regenerate with `pnpm --filter @infora/db run datamodel`.
 
-> **Status: first cut, 2026-07-01; draft-location item closed 2026-07-04; Drawer 5 rebuilt and sandbox versioning added 2026-07-18 (Slice A session, ADR-0032) — no migration yet; the drawer is drawn ahead of the Slice A tickets per the data-model-first rule.** This is the `CONTEXT.md` glossary drawn as **stored tables** — the things the database remembers — scoped to the walking-skeleton journey and nothing wider. It is drawn *drawer by drawer*: only the entities the first build slice touches. Deferred concepts (programme context, the org-context/Knowledge stores, custom agents, spatial) get their tables when they are built. Where drawing this surfaced a genuine design gap, it is flagged **↩ back to grill** and not resolved here (the build-layer gate). Review before the first migration.
+> **Status: living reference, re-cut 2026-08-04.** This is the `CONTEXT.md`
+> glossary drawn as **stored tables**, drawer by drawer, in step with what is
+> being built. **What a drawer carries depends on its state:**
+>
+> - **While a drawer is unbuilt, it carries field lists.** That is the drawing
+>   board — migrations are *drawn here before being written* (the standing
+>   rule), exactly as Drawer 6 was drawn on 2026-07-26 and built the same day.
+> - **Once a drawer is built, the schema file in
+>   [`packages/db/src/schema`](../../packages/db/src/schema) is the authority
+>   on its shape**, the generated atlas is its view, and the drawer here keeps
+>   only its **narrative** — what it is for, and the design decisions it
+>   embodies, which no schema file can state — plus the pointer.
+>
+> All six drawers are currently built, so no field list appears below; the
+> next drawer drawn (notifications, T-329, is the first candidate) carries its
+> field lists here until its migration lands, then reduces to narrative like
+> the rest. This split preserves "migrations are drawn before being written"
+> while removing the permanent sync obligation the old always-carry-fields
+> form imposed — a drawing that has done its job stops being a second copy.
 
 ## How to read this
 
-A **table** is one kind of thing the system stores, with one **row** per instance — one row per organisation, one row per run, and so on. Each table has **fields** (the facts stored about that thing) and **relationships** (how a row points at rows in other tables — e.g. a Project points at the Organisation that owns it). "Points at" is a stored link (a foreign key): the row keeps the id of the thing it belongs to. Two rules of thumb used throughout:
+A **table** stores one kind of thing, one **row** per instance; **fields** are
+the stored facts and **relationships** are stored links (foreign keys). Two
+recurring disciplines, used throughout and worth naming once:
 
-- **one-to-many** ("─<"): one row here relates to many rows there (one Project has many Work items).
-- **append-only**: rows are only ever added, never edited or deleted, so the history is permanent — used for everything that must be auditable (ADR-0002, ADR-0028).
+- **Append-only**: rows are only ever added — `UPDATE`/`DELETE` are rejected
+  by trigger (the T-008 pattern) — used for everything that must be auditable
+  (ADR-0002, ADR-0028).
+- **Currency by state**: a thing ends by closing an interval
+  (`revoked_at`, `withdrawn_at`, `retired_at`), never by deleting the row, so
+  attribution survives departures and past events stay explicable.
 
-> ⚠ **Write migrations by hand — `drizzle-kit generate` is not safe in this repo
-> (found 2026-08-04, T-301).** The stored snapshot under `migrations/meta/` has
-> drifted from the applied migrations, because the recent ones were hand-written
-> rather than generated. `generate` therefore re-emits **everything from 0032
-> onward** as one new file — `CREATE TABLE` for tables that already exist,
-> alongside the one change actually wanted. Applying that output without reading
-> it would be destructive. Both 0038 and 0039 were written by hand, with their
-> `_journal.json` entries appended by hand, which is now the working convention.
-> Re-syncing the snapshot so `generate` is usable again would be its own ticket.
-
-The skeleton journey these tables must support (from the grill tracker): *a consultant opens a project, asks the chat to draft a short governed section from the project's own sources; the orchestrator runs retrieve → draft → ground-check → cite and logs every step; the draft appears with citations; the consultant accepts/edits/rejects and that Signal is captured; the owner logs in on a different role and sees the work item with live status and the full audited run, access correctly scoped.*
+> ⚠ **Write migrations by hand — `drizzle-kit generate` is not safe in this
+> repo (found 2026-08-04, T-301).** The stored snapshot under
+> `migrations/meta/` has drifted from the applied migrations, because the
+> recent ones were hand-written rather than generated. `generate` therefore
+> re-emits **everything from 0032 onward** as one new file — `CREATE TABLE`
+> for tables that already exist, alongside the one change actually wanted.
+> Applying that output without reading it would be destructive. Both 0038 and
+> 0039 were written by hand, with their `_journal.json` entries appended by
+> hand, which is now the working convention. Re-syncing the snapshot so
+> `generate` is usable again would be its own ticket.
 
 ---
 
 ## Drawer 1 — Parties & access
-*Who exists, and who may see what. Every other table is scoped by these. (ADR-0015–0018.)*
+*Who exists, and who may see what. Every other table is scoped by these.
+(ADR-0015–0018, 0033, 0046.)*
+**Shape:** [drawer1-parties.ts](../../packages/db/src/schema/drawer1-parties.ts)
 
-**Organisation** — a company with an Infora account; the boundary for all private data.
-Fields: `id`, `name`.
+The access spine — Organisation, User, Project, Membership, Participant — with
+three decisions carried in its shape. **A Participant is an interval, never a
+deleted row**: removal closes `removed_at`, auto-revoking live grants from that
+moment while past rounds keep their attribution (ADR-0033). **The roster is
+project-visible** — the wall hides work, never presence. And **the user
+credential is its own table**, not a column on User, so the skeleton-auth
+scaffold drops cleanly when production identity (Entra-first) replaces it.
 
-**User** — an individual belonging to one organisation.
-Fields: `id`, `name`, `email`, `organisation_id` → Organisation, `org_role` (`admin` | `member` — an org admin manages the organisation's own users and enrols/removes them on projects the org is a member of, ADR-0033), `external_identity` (the Entra ID / M365 subject, nullable — used to map a Microsoft 365 Copilot SSO login to this user, ADR-0031), `preferences` (jsonb — the user's own display choices, e.g. `{ theme }`; never an access or context fact; added 2026-07-09, T-092).
-Relationship: Organisation ─< User.
+**Session** (T-251, migration 0037) exists for one sentence: **a signed cookie
+cannot be revoked** — it is valid because it verifies. The cookie therefore
+carries an opaque random token, not the user id: a pointer to a row the server
+controls rather than a bearer assertion of identity. Two clocks, deliberately
+distinct — an absolute lifetime never extended by activity (the bound on a
+stolen cookie), and a sliding idle window — with both durations deployment
+config, because the right numbers are a security-session decision. Endings are
+recorded (`revoked_reason`), never deleted: a session that ended is evidence of
+a login that happened.
 
-**User credential** *(skeleton-auth scaffolding — plan.md's recorded build-time decision, added at T-021)* — the password hash behind the seeded users' session login. Kept as its own table, not a column on User, so the scaffold drops cleanly when the infra/security session replaces it with production identity (Entra-first).
-Fields: `user_id` → User (primary key), `password_hash`.
-Relationship: User ─ User credential (at most one).
+**Conflict exclusion** (ADR-0046, T-245) is an *administrative* guardrail
+checked at enrolment, deliberately **not** an input to access resolution — an
+administrative record must never silently withdraw access mid-work, and the
+leak it might guard against cannot occur anyway, because a request runs in
+exactly one assembly environment (ADR-0025). It is org-private on the ADR-0018
+floor (a firm's register is close to its engagement list), **symmetric by
+construction** (the project pair stored canonically, CHECK-enforced, so X↔Y
+and Y↔X are one row), and can only ever **deny** — there is no permit form,
+which is what makes "the individual grain narrows within the organisation
+ceiling and can never widen it" true structurally rather than by check.
+**Conflict attestation** (ADR-0046 §8) is how an owner gains assurance without
+gaining the register: it sees *that* an attestation exists, never what it
+protects — trust-plus-audit, because a client inspecting a supplier's internal
+wall would be theatre.
 
-**Session** *(drawn 2026-08-01, T-251; migration 0037)* — a live login, as a **row** rather than only as a signed cookie. The reason is one sentence: **a signed cookie cannot be revoked.** It is valid because it verifies, so an administrator who removes a user, or a user who signs out on a lost laptop, changes nothing until the signature expires — and the skeleton's cookie carried no expiry at all. Finding F4's other half is per-step re-resolution (T-252); this is the half that makes a session *end*.
-Fields: `id` (the opaque token the cookie carries — a random 256-bit value, **not** the user id, so the cookie stops being a bearer assertion of identity and becomes a pointer to a record the server controls), `user_id` → User, `created_at`, `last_seen_at` (touched on use, the idle clock), `expires_at` (the **absolute** lifetime, fixed at creation and never extended), `revoked_at` (nullable), `revoked_reason` (nullable — `signed_out` | `expired_idle` | `revoked`; **why** a session ended is the audit fact, and a deleted row carries none of it).
-**Two clocks, and they are not the same control.** The absolute lifetime bounds how long a stolen cookie is useful *at all* and is never extended by activity; the idle timeout ends a session someone walked away from. A session is live only when `revoked_at IS NULL` **and** `now() < expires_at` **and** `now() - last_seen_at < idle`. Both are deployment configuration (`SESSION_ABSOLUTE_HOURS`, `SESSION_IDLE_MINUTES`), because the right numbers are a security-session decision and not a build-time one.
-**Currency by state, like every other interval here**: signing out sets `revoked_at`, it does not delete the row. A session that ended is evidence of a login that happened.
-Relationship: User ─< Session. Deliberately **not** a drawer-3 audit table — a session is an access fact, and it belongs beside the Participant and the credential it authenticates.
+## Drawer 2 — Documents
+*The controlled record, the retrieval index, and the working area.
+(ADR-0002, 0011, 0032, 0034, 0036, 0038, 0040, 0041.)*
+**Shape:** [drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts)
 
-**Project** — a construction scheme; the central unit.
-Fields: `id`, `name`, `owner_organisation_id` → Organisation.
-Relationship: one Organisation owns many Projects (owner is a role, ADR-0015).
+**Container and Version** carry the record model: a container is the
+persistent home of one immutable version series, at two scopes (a **library**
+container is a deliverable with a coded reference and a plan row; a
+**sandbox** container is a freeze series — org-private, no coded reference,
+ADR-0032). Versions are **append-only**, and only versions whose container is
+`in_library` and `state = live` ground (ADR-0022). The Documents view's
+at-a-glance columns are **derived by query, never duplicated into a metadata
+table** — the ProjectWise B4 lesson: no hand-built views, no drift.
 
-**Membership** — the record that an organisation is on a project, with a role. An auditable record, not just an edge (ADR-0033).
-Fields: `id`, `organisation_id` → Organisation, `project_id` → Project, `role` (`owner` | `member`), `state` (`proposed` | `active` — ADR-0019's member-proposes-owner-confirms, carried as data), `added_by_participant_id` → Participant, `created_at`.
-Relationship: Organisation ─< Membership >─ Project (an organisation joins many projects; a project has many member organisations). Exactly one Membership per project has `role = owner`.
+**Version chunk** is the retrieval index, co-located with the relational
+access data so ADR-0022's access and state rules apply as SQL **pre-filters in
+the same query** as vector search (ADR-0024). Derived and rebuildable — every
+version is chunked, including superseded ones, because *exclusion is
+retrieval's job*, which is what makes it provable (T-033). The embedding model
+id and version are pinned beside every vector; each pinned model is its own
+complete index, and a model change is a deliberate re-index, never a mix.
+**`start_offset`/`end_offset`** (T-271, migration 0039) are stored at chunk
+time because they **cannot be recovered later**: the splitter eats whitespace
+and the packer rejoins with one space, so a chunk is not a substring of its
+own version (T-270 finding 1). The span is the only exact locator — paragraph,
+section and page are all views of a position — and a citation renders only
+when the stored span still resolves; older chunks carry null and degrade to
+version grain. Full reasoning: [spikes/spike-locators.md](spikes/spike-locators.md).
 
-**Participant** — a user's access to a project; the user-level subject of access. An interval, never a deleted row: removal closes `removed_at`, so attribution survives departures (ADR-0033).
-Fields: `id`, `user_id` → User, `project_id` → Project, `added_by_participant_id` → Participant (nullable — the enrolling org admin; null for seeded/first users), `created_at`, `removed_at` (nullable — set on removal; closing it auto-revokes the participant's live grants from that moment, past rounds untouched). (Per-deliverable grants — review group, authoring team, assignee — are recorded on the work/review tables in later drawers, not here, per ADR-0016's flat model.)
-Relationship: User ─< Participant >─ Project. **The roster is project-visible**: every Participant sees every Participant's name, organisation and project role — the wall hides work, never presence (ADR-0033).
+**Sandbox document** is the draft's home (owner-confirmed 2026-07-04): a real,
+freely-editable working copy with **no document controls** — manual editing
+produces no Suggestion and no Signal, an agent proposes content only when
+prompted, and the AI never grounds on it (ADR-0011). It is **deliberately
+mutable**, the one non-append-only content table by design. Canonical format
+follows origin (ADR-0034): structured text for an authored document, the
+native file for an uploaded one, exactly one of the two set. `container_id`
+is the sole distinguishing fact of a bound document (ADR-0038 — binding is a
+one-way transition, trigger-enforced), and `head_locked` is the freeze's
+check-out lock (ADR-0032 addendum: every freeze locks the head; one
+mechanism, two triggers). The full sandbox model around it — sandboxes at
+four scopes, folders, scope grants, per-sandbox settings, checkout events,
+ambient history — landed with Slices A2.x (ADR-0036/0040/0041).
 
-**Conflict exclusion** *(drawn 2026-07-29, ADR-0046; migration 0032, T-245)* — an **administrative** record that a firm's own person must not be added to a given project, checked when someone is **enrolled** and nowhere else. Distinct from the *ethical wall* (ADR-0018's default-deny isolation between organisations), which is a different mechanism and already built — this table does not extend it. It is **not** an input to access resolution: a request resolves on whether the user holds a live Participant, and an administrative record must never silently withdraw access from someone mid-work (ADR-0046 §3, struck). Declared by the **consultancy's own org admin**, never by a project owner (ADR-0046 §8), and **org-private on the ADR-0018 private floor** — the register reveals which of a firm's people are walled from what, which is close to revealing its engagements, so no project owner and no other organisation ever reads it.
-Fields: `id`, `declaring_organisation_id` → Organisation (the firm whose wall this is), `declared_by_user_id` → User (the org admin), `grain` (`organisation` | `individual` — ADR-0046 §7: the default binds a named person, because a large consultancy legitimately acts on both sides behind an internal wall with different teams; the organisation form binds every Participant of the firm), `subject_user_id` → User (nullable — the named person at `individual` grain, null at `organisation` grain), `project_a_id` → Project, `project_b_id` → Project, `reason` (nullable free text, org-private), `declared_at`, `withdrawn_at` (nullable), `withdrawn_by_user_id` → User (nullable).
-**Symmetric by construction** (ADR-0046 §9): the relation is unordered, so the pair is stored canonically with `project_a_id < project_b_id`, CHECK-enforced — declaring X↔Y and Y↔X is therefore one row, not two. Uniqueness is **one live partial index per grain**, because the grains have different natural keys: individual by `(declaring_organisation_id, subject_user_id, project_a_id, project_b_id)`, organisation by `(declaring_organisation_id, project_a_id, project_b_id)`. A single combined index over the nullable `subject_user_id` would need `NULLS NOT DISTINCT` (Postgres treats two null subjects as distinct, so duplicate organisation-grain rows would slip through) — and per-grain indexes state the keys more precisely anyway. Two further CHECKs: the pair names two different projects, and `individual` grain carries a subject while `organisation` grain does not.
-**Currency by state, on the Participant pattern**: withdrawal closes `withdrawn_at` and the row survives, so past refusals stay attributable to the exclusion that caused them.
-Relationship: Organisation ─< Conflict exclusion >─ Project (twice). Exclusions only ever **deny** — there is no permit form, which is what makes ADR-0046 §7's "the individual grain narrows within the organisation ceiling and can never widen it" true by construction rather than by check.
-
-**Conflict attestation** *(drawn 2026-07-29, ADR-0046 §8; migration 0032, T-246)* — how a project owner gains assurance **without** gaining the register. The owner sets a per-project requirement; each member organisation attests that it operates a conflict policy and has declared the exclusions its engagements require. The owner sees *that* an attestation exists, never *what* it protects.
-Fields: `id`, `project_id` → Project, `organisation_id` → Organisation, `attested_by_user_id` → User, `attested_at`, `superseded_at` (nullable — a re-attestation closes the prior one).
-Plus on **Membership** or the project: `conflict_attestation_required` (bool, owner-set). *(Placement decided at T-246; the requirement is per-project, so it belongs on Project unless a per-organisation waiver is wanted.)*
-Relationship: Project ─< Conflict attestation >─ Organisation. Deliberately trust-plus-audit, not enforcement: a client cannot inspect a supplier's internal wall, and a control pretending otherwise would be theatre (ADR-0046 §8).
-
-*(The elevated tier's **refusal** record is drawn in Drawer 2 beside Container, the object every one of its actions acts on.)*
-
----
-
-## Drawer 2 — Documents (the grounding corpus)
-*The project's own sources the AI grounds on. In the skeleton these already exist to be drafted *from*; producing a new controlled document is thin (see the ↩ note). (ADR-0002, ADR-0011.)*
-
-**Container** — the persistent home of one immutable version series. Two scopes (ADR-0032): a **library** container is one deliverable, identified by its coded document reference, a row of the deliverable plan (ADR-0008); a **sandbox** container is a sandbox document's freeze series — org-private, no coded reference, no plan row, auto-created at first freeze.
-Fields: `id`, `project_id` → Project, `scope` (`library` | `sandbox`), `producing_organisation_id` → Organisation (whose plan row this is — container creation and metadata are producing-org acts, ADR-0033; an organisation's deliverable plan *is* its set of planned library-scope containers, the owner's MIDP the view over all of them), `document_reference` (nullable — null at sandbox scope; the freeze series and the issued series are two reference sequences, the P-rev/C-rev convention), `sandbox_document_id` → Sandbox document (nullable — set only at sandbox scope: whose freeze series this is), `in_library` (bool — is this a grounded library member), `state` (`live` | `superseded` | `withdrawn` | `rejected`, ADR-0013/0032), `metadata` (jsonb — the plan-authored extras ADR-0008 promises, e.g. discipline, work package; its per-project *schema* is deferred alongside the naming scheme). **The Documents view's at-a-glance columns are derived by query, never duplicated into a metadata table** — reference and state here, revision from the current Version, originator from `producing_organisation_id`, latest verdict from the cycle's rounds (ruled 2026-07-18; the ProjectWise B4 lesson: sensible defaults, no hand-built views, no drift).
-Relationship: Project ─< Container. A sandbox-scope container never grounds and is never visible across the wall (ADR-0011/0032).
-
-**Elevated refusal** *(drawn 2026-08-04, T-301; the 2026-07-31 elevated-tier ruling)* — an **append-only** record of a destructive lifecycle action refused for want of the elevated tier. The gate itself is not new — T-174/T-176 built it — but a refusal left **no trace**, so *"did anyone try to end this deliverable and get stopped"* had no answer. Same shape and same purpose as **Conflict refusal** (T-246): a control nobody can see operating is a control nobody can audit.
-Fields: `id`, `project_id` → Project, `container_id` → Container (what was acted on — every action in scope has one, which is why this sits in Drawer 2 rather than beside the tier in Drawer 1), `attempted_by_participant_id` → Participant (**identity from the record, never from the caller** — contracts principle 3; the Participant grain rather than the User grain, because the tier is a *project* capability and the same person may hold it on one project and not another), `action` (`close_rejected` | `container_withdraw` | `container_restore`), `required_tier` (text — `elevated` today), `refused_at`.
-**`required_tier` is stored although exactly one value is possible.** A row reading *"refused, tier `elevated`"* still means what it meant when a second tier exists; a row reading only *"refused"* changes meaning that day, and every historic row changes with it silently.
-**Restore is recorded although it is recovery rather than destruction.** The record answers *"who attempted an act this tier holds, and was refused"*, and splitting it by destructiveness would leave it incomplete for the tier while looking complete. Plan-metadata editing rides the same `canEditPlan` predicate and is **deliberately out**: it is an ordinary edit, and auditing every refused field change would bury the three acts this table exists for.
-**Supersede is absent from the `action` enum on purpose** — the act itself does not exist, and whether the owner organisation may perform it at all is `Q-036`. Adding the value ahead of the ruling would put a claim in the schema that no code can make true.
-Relationship: Project ─< Elevated refusal >─ Participant, Container ─< Elevated refusal. **Append-only** on the ADR-0028 pattern (UPDATE and DELETE rejected by trigger), because a refusal record a super-user could quietly delete is worth nothing — and the people who hold this tier are exactly the people who would want to.
-
-**Version** — one immutable revision of a deliverable (ADR-0002). **Append-only.**
-Fields: `id`, `container_id` → Container, `version_reference` (v1, v2…), `created_at`, `content_ref` (the canonical snapshot — Infora structured text for an authored document, the native file for an uploaded one, ADR-0034), `is_current` (bool).
-Relationship: Container ─< Version. Only versions whose Container is `in_library` and `state = live` are retrievable for grounding (ADR-0022).
-
-**Rendition** *(added 2026-07-18, ADR-0034)* — a stored, immutable, one-way export bound to its version; a snapshot of the record, never an editing surface. For an authored version the native rendition is generated at promotion (house styles at export — future config); for an uploaded version the native rendition *is* the file, the PDF derived. **Append-only** with its Version.
-Fields: `id`, `version_id` → Version, `kind` (`native` — the asset the client owns and reuses | `pdf` — the authoritative review-and-record rendition, ADR-0004), `format` (`docx` | `xlsx` | `pptx` | `pdf` — the dwg/CAD class deferred), `content_ref`, `created_at`.
-Relationship: Version ─< Rendition.
-
-**Version chunk** *(retrieval index, added at T-012)* — one embedded slice of a Version's content, co-located with the relational access data so ADR-0022's access and state rules apply as SQL **pre-filters** in the same query as vector search (ADR-0024). Derived and rebuildable, not a record: every Version is chunked (including superseded/withdrawn — exclusion is retrieval's job, which is what makes it provable, T-033). The embedding model id **and** version are pinned beside every vector; a model change is a re-index migration, never a mix. Chunks are unique per `(version_id, embedding_model_id, chunk_index)` — each pinned model is its own complete index over the corpus (the e2e substrate's fake index coexists with the live voyage-3.5 index this way, migration 0005), and retrieval pins exactly one model id per query, which is where "never a mix" is enforced (2026-07-08, T-054).
-Fields: `id`, `version_id` → Version, `chunk_index`, `content`, `embedding` (pgvector), `embedding_model_id`, `embedding_model_version`, plus **`start_offset` / `end_offset`** *(added 2026-08-04, T-271; migration 0039)* — the character range in `versions.content` this chunk was packed from.
-**The offsets are stored and everything else is derived**, which is [spike-locators.md](spikes/spike-locators.md)'s recommendation and its reasoning: a span is the only *exact* locator, since paragraph, section and page are all views of a position; it is format-agnostic, where a per-format scheme needs a new branch per format admitted; and it is only available at chunk time. **They cannot be recovered later** — the splitter consumes the whitespace run after a sentence terminator and the packer rejoins with a single space, so a chunk whose interior crossed a paragraph break is **not a substring of its own version** and `indexOf` returns `-1` (T-270 finding 1).
-**`content` and `versions.content[start:end]` are deliberately different things.** `content` is what the model was shown; the slice is what the document actually says there. Both are wanted — one is what was read, the other is what a reader can check — and a citation is rendered only when the second still matches the first, whitespace-insensitively. **Nullable, because chunks written before T-271 carry no span**; such a passage degrades to version grain rather than rendering a locator nobody can follow.
-Relationship: Version ─< Version chunk.
-
-**Sandbox document** — a working copy in the project sandbox: the home of a draft before promotion (owner-decided 2026-07-04, closing the ↩ item below). Freely editable with **no document controls** — a user creates and edits it manually exactly as they would if AI didn't exist, with no Suggestion and no Signal; an agent proposes content to it only when prompted (via a Suggestion, Drawer 4). The AI never grounds on it (ADR-0011). **Deliberately mutable** — it is the uncontrolled working area, the one non-append-only content table by design.
-Fields: `id`, `project_id` → Project, `organisation_id` → Organisation (whose sandbox it sits in — the skeleton models one implicit private project sandbox per organisation; the full sandbox model — shared/private sandboxes, the workspace sandbox, folders, the owner's audited override — is deferred to its own drawer), `title`, `origin` (`authored` | `uploaded` — canonical format follows origin, ADR-0034), `kind` (`text` | `slides` — authored only; a slide deck is a differently-shaped document in the same substrate), `format` (`infora_text` | `docx` | `xlsx` | `pptx` | …), `content` (nullable — the canonical structured text when authored), `file_ref` (nullable — the canonical native file when uploaded; exactly one of the two is set), `created_by_participant_id` → Participant, `updated_at`, `container_id` → Container **(nullable, added 2026-07-18, ADR-0032 — the intended plan row this draft is producing: the previously missing sandbox-document ↔ deliverable link; the work item's production click-through follows it; null for ad-hoc documents)**, `head_locked` (bool — the freeze's check-out lock: set while a sandbox-scope round is open, released by transmittal-back or audited early release, ADR-0032). "Open in editor" converts an uploaded document to authored **in place**, the original file preserved in the ambient history — a deliberate act, honest about formatting fidelity (ADR-0034).
-Relationship: Project ─< Sandbox document; Container (library scope) ─< Sandbox document (the drafts feeding a deliverable). A sandbox document's *freeze series* is a separate sandbox-scope Container pointing back via `sandbox_document_id`.
-
-**Sandbox document version** *(ambient history, ADR-0032)* — the SharePoint-style automatic version history: a snapshot at each save boundary, browsable and restorable. **A working tool, not a record** — nothing review-grade binds to it, it never grounds, and it is not the freeze (a freeze is an immutable Version in the document's sandbox-scope container). Derived working data: restore copies a snapshot back into the head, it never rewrites history.
-Fields: `id`, `sandbox_document_id` → Sandbox document, `content`, `created_at`, `created_by_participant_id` → Participant.
-Relationship: Sandbox document ─< Sandbox document version.
-
-**Sandbox comment** *(owner-ruled 2026-07-18)* — a working-draft comment on a Sandbox document: Word-style collaboration in the Editor. **Distinct from the DRR Comment** (Drawer 5 — formal review input on a frozen version, append-only): this is uncontrolled working-area conversation, **mutable like the sandbox it annotates** — authors edit or delete their own comments, threads close and reopen, nothing survives into the controlled record. A thread is a root comment plus replies; any participant entitled to the document can comment, reply, and close. A "suggested edit" is just what a comment *says* ("change x to y") — a colleague edits the canvas manually and closes the thread; there is no apply machinery, no Suggestion, no Signal (those stay agent-only, Drawer 4). Anchoring reuses the Suggestion pattern: a quoted span against the mutable head, **advisory** — a drifted anchor degrades to an unanchored comment and never blocks. `@`-mentions are stored as participant references; mention *delivery* (notification) is a design gap parked on the tracker — mentions render as highlights only for now.
-Fields: `id`, `sandbox_document_id` → Sandbox document, `parent_comment_id` → Sandbox comment (nullable — null = thread root; replies point at their root; `status` is meaningful on the root only), `author_participant_id` → Participant, `body`, `anchor` (nullable quoted span, advisory), `status` (`open` | `closed`), `closed_by_participant_id` → Participant (nullable), `closed_at` (nullable), `mentions` (participant ids referenced in the body), `created_at`, `updated_at`.
-Relationship: Sandbox document ─< Sandbox comment; Sandbox comment ─< Sandbox comment (the thread, one level deep).
-
-> ✅ **Resolved (owner-confirmed 2026-07-04):** the *new* draft the consultant produces lives **in the sandbox** as a Sandbox document (above), not as content dangling off the Run or a controlled Version. The agent's proposed draft is held on the **Suggestion** (Drawer 4, which gains a `sandbox_document_id`); accept/edit applies the content to the Sandbox document; promotion into a controlled `Version` (ADR-0002) remains the document-management bridge, **stubbed** in the first slice. `Container`/`Version` stay read-only in this slice.
-
----
+**Elevated refusal** (T-301, migration 0038) records a destructive lifecycle
+action refused for want of the elevated tier — the gate existed (T-174/T-176),
+but a refusal left no trace, and a control nobody can see operating is a
+control nobody can audit. Participant grain, because the tier is a *project*
+capability; **append-only**, because a refusal record a super-user could
+quietly delete is worth nothing, and the people who hold the tier are exactly
+the people who would want to. `required_tier` is stored although one value is
+possible today — a row must still mean what it meant once a second tier
+exists. `supersede` is deliberately absent from the action enum: the act does
+not exist in code, and whether the owner may perform it at all is `Q-036` — a
+value the schema carries and no code can set is a claim the schema makes
+falsely.
 
 ## Drawer 3 — Work & execution
-*The heart of the skeleton: a unit of work, the chat thread it happens in, and the audited runs. (ADR-0028.)*
+*Work items, conversations, and the audited record of every run.
+(ADR-0025, 0028.)*
+**Shape:** [drawer3-execution.ts](../../packages/db/src/schema/drawer3-execution.ts)
 
-**Work item** — one unit of governed work on a project: the deliverable's *work half* (the Container is its record half; the plan row is their join — clarity ruling, owner 2026-07-18).
-Fields: `id`, `project_id` → Project, `type` (the workflow behind it, e.g. `document_production`), `title` (the human name, e.g. "Statement of community consultation"), `container_id` → Container **(required for `document_production`, null for future non-document types)**, `status`, `assignee_participant_id` → Participant.
-Relationship: Project ─< Work item; Container ─ Work item (at most one). **Status is event-driven, never hand-set:** `planned` (container created) → `drafting` (a linked sandbox document exists) → `in_review` (first project-cycle transmittal; the round number is derivable from the cycle, not stored) → `accepted` | `rejected` (the cycle's terminal closes it, ADR-0032/0033). Runs still inform but never move it (ADR-0028 §2). Per-role click-throughs follow the links: consultant in production → the linked sandbox document; reviewer in an open round → the round's DRR; owner → the MIDP row with cycle state. **Not every container has a work item**: owner-added reference material (ADR-0011) is a container with no work item — the Documents view keys off containers, the Review view off cycles, and work items exist only where work was planned.
+**Work item** is the deliverable's *work half* (the container is its record
+half; the plan row is their join — owner clarity ruling, 2026-07-18). Its
+status is **event-driven, never hand-set**: container created → linked draft
+exists → first transmittal → the cycle's terminal. Runs inform but never move
+it (ADR-0028 §2). Not every container has a work item — reference material
+carries none, and that *absence* is its distinguishing fact (ADR-0032
+addendum), the same pattern as ADR-0038's `container_id`.
 
-**Conversation** — the persistent thread an agent interaction happens in.
-Fields: `id`, `project_id` → Project (the bound environment, ADR-0025/0029 — for a Copilot thread this is the one project the conversation is bound to, ADR-0031), `work_item_id` → Work item **(nullable)** — set when the thread is doing governed work, null for ad-hoc chat, `surface` (`web` | `word_addin` | `copilot` — where the thread originated; its Runs inherit it for the audit trail, ADR-0031).
-Relationship: Conversation ─< Run. (A plain chat = a Conversation with `work_item_id` null; a workflow = one bound to a Work item — ADR-0028 §1. A Copilot conversation is a `surface = copilot`, `work_item_id` null thread bound to one `project_id`.)
+**Run and Step** are the append-only execution record (ADR-0028 §3): every
+step carries the two defensibility fields — the access-resolved `source_set`
+and the `rail_outcomes` — plus model, usage, cost and egress facts, and
+delegation is a real child run, so the audit is a tree of what actually
+happened.
 
-**Run** — one agent execution (a chat answer or a workflow step). **Append-only, immutable once finished** (ADR-0028 §3).
-Fields: `id`, `conversation_id` → Conversation, `parent_run_id` → Run **(nullable — set when this run is a sub-agent spawned by a step)**, `agent_id`, `agent_provenance` (`infora` | `custom`), `state` (`running` | `completed` | `failed`), `request` (the prompt/task text — part of the record, ruled 2026-07-06), `response` (nullable — the produced answer text, set once at completion; part of the record for the same reason the request is, and what ADR-0031 §6 returns with citations for Copilot to render — added 2026-07-08, T-052), `started_at`, `ended_at`, `environment_key` (the project the request ran in), `requester_participant_id` → Participant.
-Relationships: Conversation ─< Run; Run ─< Run (the sub-agent tree, via `parent_run_id`).
+**Plan** (T-260, migration 0035) is **the analysis, persisted** — an
+inspectable object rather than conversational preamble. `mode` is a **stored
+column, never derived**, because the labelling requirement is hard: a user
+must never be unable to tell which kind of answer they hold. Plans are
+**versioned by supersession, not mutation** — a plan is evidence, and "what
+did your AI do" must survive the user editing it afterwards — and **mutable
+only while `draft`**: the transition to `ready` is one-way and freezes the
+declarative fields by trigger (the T-008 pattern applied to a two-phase row).
+A `model_chosen` plan may never name a workflow (a hand-edited workflow is no
+longer the declared workflow), CHECK-enforced. **A plan step's scope is not a
+field** — it derives from the run's entitled slice and is deliberately not
+expressible, so no plan edit can widen reach. And **the ground-check stays
+outside the plan**: if it were a step, a planner could skip it, which would
+break the guarantee both orchestration modes rest on (asserted at T-262).
 
-**Plan** *(drawn 2026-07-30, [the board's Wave 2 reference](plan.md); migration 0035, T-260)* — **the analysis, persisted.** A run's plan is an inspectable, editable object rather than conversational preamble: what the system understood, what it intends to do, in what order, and — once it has run — which append-only Step each intention became. One plan per Run; a re-run is a **new Run with a new plan**, the old one marked superseded.
-Fields: `id`, `run_id` → Run (unique — one plan per run), `conversation_id` → Conversation, `project_id` → Project (the assembly environment, ADR-0025), `requester_participant_id` → Participant (identity from the record, never from the caller), `mode` (`declared` | `model_chosen` — a stored column, not derived, because the labelling requirement is hard: a user must never be unable to tell which kind of answer they hold, [the board's Wave 2 reference](plan.md)), `workflow_id` + `workflow_version` (nullable — the codified workflow this plan instantiates), `lens_id` + `lens_version` (nullable), `state` (`draft` | `awaiting_clarification` | `ready` | `running` | `complete` | `failed` | `superseded`), `question` (as asked), `restatement` (nullable — as understood, shown to the user), `assumptions` (jsonb array — named when clarification was skipped), `created_at`, `superseded_by_plan_id` → Plan (nullable).
-**Immutable from `ready`, not append-only from insertion**: a `draft` plan is mutable while it is being clarified; the transition to `ready` is one-way and freezes the declarative fields. After it, only the execution columns (`state`, and on a step its progress) may change — enforced by trigger, the T-008 pattern applied to a two-phase row. This matters because a plan is *evidence*: "what did your AI do" must survive the user editing it afterwards, which is why an edit supersedes rather than mutates (the currency-by-state pattern used for containers, participants, shares and ontology edges).
-Two CHECKs state what the enums cannot: a `model_chosen` plan may never name a workflow (a hand-edited plan is no longer the declared workflow — [the board's Wave 2 reference](plan.md)), and a superseded plan must name its successor. Note the converse does **not** hold: a `declared` plan with no `workflow_id` is legal, and is exactly what the coded chain writes until it is declared as a DAG (T-265).
-Relationship: Run ─ Plan (exactly one); Plan ─< Plan step; Plan ─ Plan (supersession chain).
+**Label override** (T-249, migration 0036, finding F2) is the record of a
+person deciding, by name and with a stated reason, to write material into a
+destination broader than its sources' label. There is no `allowBroadening`
+config key — the only way past the refusal is a row here, and a row has an
+author. **The label itself is never stored**: it is computed from the access
+facts on every call, because a stored label is a cache of an access decision,
+and a stale cache of an access decision would keep saying "single
+organisation" after the share that made it so was revoked.
 
-**Plan step** — one intended action in a plan, and the link from intention to record.
-Fields: `id`, `plan_id` → Plan, `ordinal` (unique within the plan), `stage` (`understand` | `load_context` | `clarify` | `plan` | `search_corpus` | `check_authority` | `research_web` | `analyse` | `verify` | `present` — the named stages the progress rail shows, [the board's Wave 2 reference](plan.md)), `worker` (nullable worker id — the registry lands at T-269), `inputs` (jsonb, the worker's declared input), `depends_on` (jsonb array of plan-step ids — parallelism is *expressed* here, never inferred at run time), `state` (`pending` | `running` | `complete` | `failed` | `skipped`), `step_row_id` → Step (nullable — **the append-only Step this became**; the 1:1 correspondence between plan and record), `output_ref` (nullable), `edited_by_participant_id` → Participant (nullable), `edited_at` (nullable).
-Relationship: Plan ─< Plan step; Plan step ─ Step (at most one). **A step's scope is not a field** — it derives from the run's `EntitledSlice` and is deliberately not expressible, so no plan edit can widen reach ([the board's Wave 2 reference](plan.md), finding F8).
-> **The ground-check stays outside the plan.** It is code, it runs on every answer in both modes, and if it became a plan step a planner could skip it — which would break the guarantee both orchestration modes rest on. The `verify` stage names it in the *record* of what ran; it is not a step the executor may decline to take (asserted at T-262).
+**Attached source** rides here too: the user-pinned, single-generation input
+of ADR-0022 — drawn on, badged user-supplied, never grounding.
 
-**Label override** *(drawn 2026-07-31, finding F2, [the board's Wave 0 reference](plan.md); migration 0036, T-249)* — the record of a person deciding, deliberately and by name, to write material into a destination broader than the material's own access label. Finding F2's fix refuses such a write by default; this table is what makes the exception **explicit, recorded and attributed** rather than a configuration flag. There is no `allowBroadening` setting and no environment variable — the only way past the refusal is a row here, and a row has an author.
-Fields: `id`, `run_id` → Run (the material's provenance — its source set is what the label was computed from), `destination_kind` (`sandbox_document` today; `template`/`export` as those write paths land), `destination_id`, `source_label` + `destination_label` (both stored as computed, not recomputed later — the justification must be readable against the facts as they stood), `reason` (required free text — an override with no stated reason is indistinguishable from a mis-click), `overridden_by_participant_id` → Participant, `created_at`.
-**Append-only** (the T-008 trigger pattern): an override is evidence of a decision, and a decision that can be edited afterwards is not evidence.
-Relationship: Run ─< Label override >─ Participant.
-> **The label itself is not stored on the document.** It is *computed* from the access facts each time — the deliverable shares, acknowledgements and per-participant grants a source rests on, and the scope grants of the destination sandbox. A stored label would be a cache of an access decision, and a stale cache of an access decision is exactly the class of bug the whole wall exists to avoid: it would keep saying "single organisation" after the share that made it so was revoked.
+## Drawer 4 — AI output & feedback
+*What the agent proposes, and the human resolution that is the moat's raw
+material. (ADR-0021, 0026, 0028.)*
+**Shape:** [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts)
 
-**Step** — one atomic action within a run — a retrieve, draft, ground-check, cite, or delegate. **Append-only.**
-Fields: `id`, `run_id` → Run, `parent_step_id` → Step (nullable, for nesting), `type` (`retrieve` | `draft` | `ground_check` | `cite` | `delegate`), `status`, `started_at`, `ended_at`, `model` + `model_version` (the Router's choice), `tokens_prompt`, `tokens_completion`, `cost`, `source_set` (the access-resolved sources this step saw — the defensibility field, ADR-0028 §7), `rail_outcomes` (which rails applied, any withheld output), `child_run_id` → Run (nullable, when `type = delegate`).
-Relationship: Run ─< Step; Step ─< Step.
+A **Suggestion** exists **only when a user prompts an agent** — manual editing
+produces none (the draft-location decision, Drawer 2). Suggestions are
+per-item and individually resolvable (ruled 2026-07-06), each writing its own
+append-only **Signal**; anchors are **advisory**, because the sandbox head is
+mutable by design — a drifted anchor degrades, never blocks. **Citations**
+attach only to grounded-channel items; steering material is never cited
+(ADR-0021). The Signal is *captured but not sunk* — nothing distils it into
+Knowledge until Session 7 is grilled; the table exists, the loop off it does
+not.
+
+## Drawer 5 — Review
+*One review workflow at two scopes: the org-private internal cycle and the
+wall-crossing project cycle. (ADR-0002–0017, 0032, 0033, 0035.)*
+**Shape:** [drawer5-review.ts](../../packages/db/src/schema/drawer5-review.ts)
+
+The **cycle** is the instance and the DRR is its record — one live,
+append-only record per cycle (ADR-0009). The appointed sides are **interval
+grant tables** read live at all times — there is no copy at launch, so "who
+could act in round N" is reconstructed from intervals against timestamps
+(ADR-0033). **Deliverable share** is ADR-0016 made storable: the owner's
+organisation-level grant is the only thing that ever opens a deliverable
+across the wall, and visibility — producer | owner | live share — is applied
+as one SQL predicate in the library reads *and* the grounding query, so what
+a surface shows and what the AI grounds on cannot drift. Reviewer
+appointments are propose-then-confirm, and confirmation is where ADR-0015
+bites: a reviewer whose organisation lacks the share forces share-first or
+decline. ADR-0035 adds the acknowledgement gate and per-participant narrowing
+on the same substrate. **At most one open round per cycle is a partial unique
+index** — the load-bearing invariant held by the schema, not by convention.
+Comments freeze at issue (trigger), responses must link the addressing change
+or state no-change with a reason (ADR-0004), and **acceptance codes are
+copied per project and retired, never redefined** — a code ever referenced is
+immutable (ADR-0003).
+
+## Drawer 6 — The project ontology
+*The classification vocabulary and the typed edges between containers —
+drawn 2026-07-26 and built the same day (ADR-0045, migration 0031).*
+**Shape:** [drawer6-ontology.ts](../../packages/db/src/schema/drawer6-ontology.ts)
+
+Colocated relational tables, **not a graph store** (ADR-0024/0045): the
+ontology adds semantic **pre-filters to the same access+state query** the
+retrieval path already runs — the 100k-document scoping lever — and purely
+structural questions answer from these tables with no vector search at all.
+Metadata and structure only; nothing about what grounds changes
+(ADR-0011/0021). Facets and terms are **seeded by copy** at project creation
+(the acceptance-code pattern — one project's edits never rewrite another's),
+owned by the project-library owner, with terms retired-never-redefined.
+Classification is agent-proposed and human-editable; **edges are
+agent-proposed and human-confirmed** — a proposed edge has no effect until a
+person confirms it, and a retired edge survives as a record. Edge visibility
+rides both endpoints' deliverable visibility, so neither a surface nor the
+agent can see an edge into a container the wall hides.
 
 ---
 
-## Drawer 4 — AI output & feedback (the Signal loop)
-*What the agent proposes, the citations it attaches, and the human resolution that becomes the moat's raw material. (ADR-0028, ADR-0021, ADR-0026.)*
+## What is deliberately not drawn yet
 
-**Suggestion** — an agent-produced change offered for accept / edit / reject (distinct from a human Comment). Exists **only when a user prompts an agent** — manual editing of a sandbox document produces no Suggestion (draft-location decision, Drawer 2). **Per-item and position-anchored (ruled 2026-07-06, surfaces alignment):** a Run produces zero or more Suggestions, each individually resolvable and each writing its own Signal.
-Fields: `id`, `run_id` → Run (the run that produced it), `work_item_id` → Work item, `sandbox_document_id` → Sandbox document (the document the content is proposed for; applied on accept/edit), `kind` (`insert` | `replace`), `anchor` (nullable — a quoted span locating the change against the sandbox head; **advisory**, because the sandbox document is mutable by design: a drifted anchor degrades to a user-placed insert and never blocks resolution), `content` (the proposed text/change), `rationale`.
-Relationship: Run ─< Suggestion; Sandbox document ─< Suggestion. *The skeleton exercises one unanchored `insert` Suggestion per run; the fields exist from the first migration because Drawer 4's neighbours are append-only and the shape must be representable early.*
-
-**Citation** — the link from a grounded claim to its supporting source.
-Fields: `id`, `suggestion_id` → Suggestion (or `step_id` → Step), `version_id` → Version **or** `authority_ref` (a grounded library source, or an authority-corpus reference — ADR-0021). Only grounded-channel items get citations; steering items never do.
-Relationship: Suggestion ─< Citation.
-
-**Signal** — the captured resolution of a Suggestion (accept / edit / reject); the feedback behind the moat. **Append-only.**
-Fields: `id`, `suggestion_id` → Suggestion, `resolution` (`accepted` | `edited` | `rejected`), `edited_content` (nullable, when edited), `resolved_by_participant_id` → Participant, `resolved_at`.
-Relationship: Suggestion ─< Signal (one resolution per suggestion in v1).
-
-> In the skeleton the Signal is **captured but not sunk** — it is stored, but nothing distils it into Knowledge yet (Session 7, post-MVP). The table exists; the write-loop off it does not.
-
----
-
-## Drawer 5 — Review (rebuilt 2026-07-18, Slice A session)
-*The review cycle as stored tables: one workflow at two scopes — the org-private internal formal cycle and the wall-crossing project cycle — role-agnostic, an authoring side and a reviewing side per instance (ADR-0032; mechanics per ADRs 0002–0017). Replaces the thin skeleton cut (a container-level DRR + Comment), which was never migrated.*
-
-**Review cycle** — one launch of the review workflow on a container; the instance unit. The DRR is this row's record — one live, append-only record per cycle (ADR-0009 refined). Scope is the container's: a sandbox-scope cycle is the internal formal review, org-private and retained permanently (the QA evidence); a project-scope cycle is the client review — one per deliverable, spanning every issued version, which preserves ADR-0009's per-deliverable reading.
-Fields: `id`, `container_id` → Container, `state` (`active` | `accepted` | `closed_rejected` — both terminals by explicit human action: acceptance via the lead reviewer's accepting code, rejection closed by the lead author or project owner, audited, ADR-0032), `edit_lock_holder` (`authoring` | `reviewing`, ADR-0014), `launched_at`.
-Relationship: Container ─< Review cycle (at most one active cycle per container — the one-in-flight rule, ADR-0002). The appointed sides are the two grant tables below — the cycle reads the live sets at all times; there is no copy at launch (ADR-0033).
-
-**Deliverable author** — an authoring-team appointment on a deliverable (ADR-0017/0033). **Append-only interval rows** — an amendment is a new row or a closed interval, never an edit; "who could act in round N" is reconstructed from intervals against the round's timestamps.
-Fields: `id`, `container_id` → Container, `participant_id` → Participant, `is_lead` (bool — exactly one live lead per container), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable). Written by the producing side (the lead author amends their own set, ADR-0017); authors must belong to organisations sharing the deliverable's sandbox (ADR-0019).
-Relationship: Container ─< Deliverable author.
-
-**Deliverable share** *(added 2026-07-18, T-119 — ADR-0016 made storable)* — the owner's organisation-level grant that opens a deliverable across the wall; the only thing that ever does. **Append-only interval rows** (revocation closes, nothing deleted); visibility everywhere is producer | owner | live share, applied as SQL pre-filters in the library reads and the grounding query alike — so what a surface shows and what the AI grounds on cannot drift apart.
-Fields: `id`, `container_id` → Container, `organisation_id` → Organisation (must hold an active seat), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable).
-Relationship: Container ─< Deliverable share.
-
-**Deliverable reviewer** — a review-group appointment on a deliverable (ADR-0017/0033), same interval shape, plus propose-then-confirm: the producing organisation may propose reviewers on its plan ("if known"), conferring **no access until the owner confirms** — and confirmation is where ADR-0015's invariant bites (a reviewer whose organisation lacks the deliverable share forces the owner to share first, or decline).
-Fields: `id`, `container_id` → Container, `participant_id` → Participant (any roster Participant — the roster is project-visible, ADR-0033), `is_lead` (bool), `granted_by_participant_id` → Participant, `granted_at`, `revoked_at` (nullable), `confirmed_by_participant_id` → Participant (nullable — null = proposed, no access), `confirmed_at` (nullable).
-Relationship: Container ─< Deliverable reviewer.
-
-**Round** — one pass of review of one frozen version.
-Fields: `id`, `cycle_id` → Review cycle, `number` (1, 2…), `version_id` → Version (the frozen version under review — anchors never drift, ADR-0006), `state` (`open` | `issued` | `responded`, ADR-0005), `review_period_target` (guides — reminders and overdue — never gates, ADR-0005), `deliverable_code_id` → Acceptance code (nullable — the lead reviewer's authoritative per-round verdict, suggested from the comment codes, ADR-0003; a code with `is_accepting` ends the cycle).
-Relationship: Review cycle ─< Round. **At most one open round per cycle, enforced by a partial unique index** — ADR-0014's load-bearing invariant held by the schema, not by convention.
-
-**Transmittal** — the flip event in both directions (ADR-0010/0014); on-platform it moves no file. **Append-only.**
-Fields: `id`, `round_id` → Round, `direction` (`issue` — the closed round to the authoring side, revealing it and handing over the pen | `return` — the next version back, opening the next round), `sender_participant_id` → Participant, `recipients` (participant ids notified), `purpose_code`, `issued_at`, `due_at` (nullable). Flips the cycle's edit lock, freezes the snapshot, notifies.
-Relationship: Round ─< Transmittal (normally one per direction).
-
-**Review snapshot** — the internal frozen record at each transmittal: the comments and responses as they stood (ADR-0009). Retrievable, never a surface users open. **Append-only.**
-Fields: `id`, `transmittal_id` → Transmittal, `content` (the frozen comment/response state), `created_at`.
-Relationship: Transmittal ─ Review snapshot (one each).
-
-**Comment** — human review input on a frozen version, within a round; distinct from an agent Suggestion (Drawer 4) and from the mutable working-area Sandbox comment (Drawer 2). **Append-only once its round is issued.**
-Fields: `id`, `round_id` → Round, `version_id` → Version, `author_participant_id` → Participant, `body`, `acceptance_code_id` → Acceptance code (per-comment, ADR-0003), `anchor` (structured fields, rendition-agnostic — page + highlight/point on the PDF at project scope, ADR-0006; the sandbox-scope review surface is parked, ADR-0032).
-Relationship: Round ─< Comment.
-
-**Acceptance code** *(added 2026-07-18)* — one review-verdict code in a project's scheme (ADR-0003 made storable). **Seeded by copying Infora's default scheme at project creation** — a copy, not a reference, so one project's edits never rewrite another's. **A code ever referenced is immutable: retire and replace, never redefine** — `retired_at` keeps it valid and displayed on old rounds while unavailable for new coding (currency by state, the standing principle).
-Fields: `id`, `project_id` → Project, `code` (e.g. "B"), `description` (e.g. "Accepted with comments"), `level` (`comment` | `deliverable` | `both` — where it may be applied), `is_accepting` (bool — a deliverable-level code that ends the cycle and closes the work item), `sort_order`, `retired_at` (nullable).
-Relationship: Project ─< Acceptance code; referenced by Comment (`acceptance_code_id`) and Round (`deliverable_code_id`).
-
-**Response** — the authoring side's reply to a comment (first-class per ADR-0032; previously unmodelled): the mandatory link to the section of the next version that addresses it, or an explicit no-change with a reason (ADR-0004). Paired with its comment, the comment-to-resolution moat data.
-Fields: `id`, `comment_id` → Comment, `author_participant_id` → Participant, `body`, `next_version_id` → Version (nullable), `next_version_anchor` (nullable — the linked section), `no_change_reason` (nullable — exactly one of the link or the reason is present), `created_at`.
-Relationship: Comment ─ Response (one per comment in v1).
-
----
-
-## Drawer 6 — The project ontology (drawn 2026-07-26, ADR-0045; no migration yet)
-*The classification vocabulary deliverables classify against, and the typed edges between them — drawn ahead of the Slice O tickets per the data-model-first rule. Colocated relational tables, not a graph store (ADR-0024/0045): the ontology adds semantic pre-filters to the same access+state query the retrieval path already runs (ADR-0022). Metadata and structure only — never a grounded corpus; grounding is unchanged (ADR-0011/0021).*
-
-**Classification facet** — one axis of classification (discipline, system / asset breakdown, work package, document type, phase). **Seeded by copy** at project creation from Infora's default scheme grounded in Uniclass 2015 / ISO 19650 (ADR-0041/0045) — a copy, not a reference, so one project's edits never rewrite another's (the acceptance-code pattern, ADR-0003). Owned by the project-library owner; extended the way the naming scheme is (a producer proposes, the owner folds in — [CONTEXT.md](../../CONTEXT.md)).
-Fields: `id`, `project_id` → Project, `key` (e.g. `discipline`, `system`, `work_package`), `name`, `source` (`uniclass_2015` | `iso_19650` | `custom`), `sort_order`.
-Relationship: Project ─< Classification facet.
-
-**Classification term** — one term within a facet, **hierarchical** (breakdown structures are trees — `parent_term_id` self-reference). **A term ever referenced is immutable: retire and replace, never redefine** — `retired_at` keeps it valid and displayed on old classifications while unavailable for new ones (currency-by-state, ADR-0013, the acceptance-code rule).
-Fields: `id`, `facet_id` → Classification facet, `parent_term_id` → Classification term (nullable — null = top of its facet's tree), `code` (the Uniclass/scheme code, e.g. `Ss_25`), `label`, `sort_order`, `retired_at` (nullable).
-Relationship: Classification facet ─< Classification term; Classification term ─< Classification term (the breakdown tree).
-
-**Container classification** — a container's placement under a term. **Agent-proposed, human-editable** (ADR-0045): rides the plan/authoring metadata, so it is **mutable** like `Container.metadata` — not append-only; a reclassification overwrites. `proposed_by_run_id` records an agent origin (null = human-set), so a surface can badge "suggested, unconfirmed".
-Fields: `id`, `container_id` → Container, `term_id` → Classification term, `proposed_by_run_id` → Run (nullable), `set_by_participant_id` → Participant (nullable — null while an agent proposal is unconfirmed), `updated_at`. Unique per `(container_id, facet_id-of-term)` — one term per facet per container (facet derived through the term).
-Relationship: Container ─< Container classification; Classification term ─< Container classification.
-
-**Document relationship** *(the edge)* — a first-class, directional link between two containers (ADR-0045). **Append-only; currency-by-state** — a stale edge is retired (`retired_at`), never deleted (ADR-0013). **Agent-proposed / human-confirmed:** `confirmed_by_participant_id` null = proposed and **not yet live** (the reviewer propose-then-confirm shape, Drawer 5); only a confirmed, un-retired edge counts. Visibility rides both endpoints' deliverable visibility (producer | owner | live share — Drawer 5), applied as the same SQL pre-filter as the library reads, so a surface and the agent can never see an edge into a container the wall hides.
-Fields: `id`, `project_id` → Project, `from_container_id` → Container, `to_container_id` → Container, `type` (`supersedes` | `references` | `responds_to` | `is_part_of` | `derived_from` — `supersedes` records the link ADR-0013's supersede *state* implies), `proposed_by_run_id` → Run (nullable — an agent origin), `created_by_participant_id` → Participant, `confirmed_by_participant_id` → Participant (nullable — null = proposed, no effect until confirmed), `created_at`, `confirmed_at` (nullable), `retired_at` (nullable).
-Relationship: Container ─< Document relationship (as `from`); Container ─< Document relationship (as `to`).
-
-> **Retrieval note (ADR-0022/0045).** The `Version chunk` grounding query gains classification and edge **pre-filters** in the same statement as the existing access+state pre-filter: a scoped retrieval narrows the candidate set structurally (this facet/term, edge-connected containers) *before* the vector comparison — the 100k-document scoping lever. Purely structural questions (currency, coverage, dependency) are answered from these tables with no vector search at all. No new store; no change to what grounds.
-
-## What this first cut deliberately omits
-Per drawer-by-drawer discipline, and because these are post-MVP (grill tracker buckets A/B): **programme** and programme context; the **org-context / Knowledge / precedent** stores and the distillation loop (Sessions 4/7); **custom agents** and the builder; the **full sandbox model** (shared/private project sandboxes, the workspace sandbox, folders, the owner's audited override — the skeleton carries only the minimal Sandbox document table in Drawer 2); **attached sources**; the **authority corpus** internals (referenced by Citation, owned by Context); **rails** as scoped records (ADR-0030 — add when governance is built); **programme/portfolio** views. Each returns as its own drawer when its slice is built.
+Per the drawer-by-drawer discipline, still absent because their slices are
+deferred: **programme** and programme context; the **org-context / Knowledge /
+precedent** stores and the distillation loop (Sessions 4/7); **custom agents**
+and the builder (Slice F); the **authority corpus** internals (ADR-0023 —
+referenced by Citation, owned by Context); **rails as scoped records**
+(ADR-0030); **notifications** (ruled by ADR-0049, ticketed as T-329 — the
+first drawer the drawing-board rule above will apply to); portfolio and
+programme views. Each is drawn here, fields first, when its slice starts.
 
 ## Open items sent back to the grill tracker
-- **Draft location before promotion** — ✅ **closed, owner-confirmed 2026-07-04** (Drawer 2): the draft lives in the sandbox as a Sandbox document; Suggestions arise only from agent prompts; promotion stays stubbed in the skeleton.
-- **Still open from the Slice A session (2026-07-18):** the sandbox-scope review surface (PDF vs frozen native text — parked in ADR-0032); sandbox-comment mention delivery (owner note, Drawer 2); the per-project metadata *schema* and naming scheme (the standing ADR-0008 deferral — `Container.metadata` jsonb holds the values meanwhile). *(Closed same-day: grant tables — agenda item 6 → ADR-0033; work-item clarity — agenda item 1 → ADR-0032 addendum; renditions, canonical format and the slides kind — agenda item 4 → ADR-0034; acceptance-code scheme + derived library metadata — agenda item 5, ADR-0003 note + Drawer 5's Acceptance code table.)*
-- Everything else the skeleton omits is already tracked.
+
+- The sandbox-scope review rendition (PDF vs frozen native text) — parked in
+  ADR-0032, carried as `Q-025`.
+- The naming scheme — the standing ADR-0008 deferral, carried as `Q-026`
+  (the metadata *schema* half closed with ADR-0045).
+- Everything else the drawers omit is already tracked in
+  [grill-questions.md](../grill-sessions/grill-questions.md).
