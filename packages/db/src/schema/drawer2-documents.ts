@@ -76,6 +76,56 @@ export const containers = pgTable(
   ],
 );
 
+// T-301 — the elevated tier's refusal record (the 2026-07-31 ruling;
+// data-model.md Drawer 2). The gate is not new — T-174/T-176 built it — but a
+// refusal left no trace, so "did anyone try to end this deliverable and get
+// stopped" had no answer. The conflict register's `conflict_refusals` (T-246)
+// is the precedent: a control nobody can see operating is a control nobody can
+// audit.
+//
+// `supersede` is absent from this enum ON PURPOSE. Nothing in the build sets a
+// container superseded, and whether the OWNER organisation may do it at all is
+// Q-036 — the first cross-organisation container write. Adding the value ahead
+// of that ruling would put a claim in the schema no code can make true.
+export const elevatedAction = pgEnum('elevated_action', [
+  'close_rejected',
+  'container_withdraw',
+  // recovery rather than destruction, and recorded anyway: the record answers
+  // "who attempted an act this tier holds and was refused", and omitting one
+  // direction of the same gate leaves it incomplete while looking complete
+  'container_restore',
+]);
+
+// Append-only (enforced by trigger, T-008): a refusal record a super-user could
+// quietly delete is worth nothing, and the people who hold this tier are
+// exactly the people who would want to.
+export const elevatedRefusals = pgTable(
+  'elevated_refusals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    containerId: uuid('container_id')
+      .notNull()
+      .references((): AnyPgColumn => containers.id),
+    // identity from the record, never from the caller (contracts principle 3).
+    // Participant grain rather than User: the tier is a PROJECT capability, and
+    // the same person may hold it on one project and not another.
+    attemptedByParticipantId: uuid('attempted_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    action: elevatedAction('action').notNull(),
+    // stored although exactly one value is possible today: a row reading
+    // "refused, tier elevated" still means what it meant once a second tier
+    // exists, where a bare "refused" would change meaning that day — and every
+    // historic row would change with it, silently.
+    requiredTier: text('required_tier').notNull().default('elevated'),
+    refusedAt: timestamp('refused_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('elevated_refusals_container_idx').on(t.containerId, t.refusedAt)],
+);
+
 // Append-only (enforced by trigger, T-008).
 export const versions = pgTable('versions', {
   id: uuid('id').primaryKey().defaultRandom(),

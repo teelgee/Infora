@@ -3,12 +3,21 @@
 // as interval grants with reviewer propose-then-confirm (ADR-0008/0017/0033).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GetPlanResponse, PlanRow, ReviewerGrant } from '@infora/contracts';
+import { asc, eq } from 'drizzle-orm';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
+
+// T-301 — the elevated tier's refusal record, oldest first
+const refusalsFor = (containerId: string) =>
+  db
+    .select()
+    .from(s.elevatedRefusals)
+    .where(eq(s.elevatedRefusals.containerId, containerId))
+    .orderBy(asc(s.elevatedRefusals.refusedAt), asc(s.elevatedRefusals.id));
 
 const stamp = Date.now();
 const password = 'pw-t118';
@@ -359,4 +368,52 @@ describe('document owner + remove-with-reason (T-189)', () => {
     expect(restBody.state).toBe('live');
     expect(restBody.withdrawnReason).toBeNull();
   });
+
+  // T-301 — the gate was built by T-174/T-176; what was missing is the trace.
+  it('records an unelevated member’s refused withdraw and restore, naming the tier', async () => {
+    const before = await refusalsFor(cId);
+    expect(before).toHaveLength(0);
+
+    const withdraw = await app.request(`/containers/${cId}/withdrawal`, {
+      method: 'POST',
+      headers: asJson(colleagueCookie),
+      body: JSON.stringify({ reason: 'not mine to remove' }),
+    });
+    expect(withdraw.status).toBe(403);
+    expect(((await withdraw.json()) as { detail: string }).detail).toBe('super_user_required');
+
+    const restore = await app.request(`/containers/${cId}/restoration`, {
+      method: 'POST',
+      headers: asJson(colleagueCookie),
+    });
+    expect(restore.status).toBe(403);
+
+    const rows = await refusalsFor(cId);
+    expect(rows.map((r) => r.action)).toEqual(['container_withdraw', 'container_restore']);
+    for (const row of rows) {
+      // identity from the record, never from the caller
+      expect(row.attemptedByParticipantId).toBe(consultColleagueParticipantId);
+      expect(row.projectId).toBe(projectId);
+      // the tier is named, so the row still means what it means once a second
+      // tier exists
+      expect(row.requiredTier).toBe('elevated');
+    }
+  });
+
+  it('does not record a cross-organisation attempt — it never saw the container', async () => {
+    // denial and nonexistence read identically (contracts principle 4): the
+    // other org gets 404, and recording it would log an act against a container
+    // the requester was never shown
+    const before = (await refusalsFor(cId)).length;
+    const res = await app.request(`/containers/${cId}/withdrawal`, {
+      method: 'POST',
+      headers: asJson(otherCookie),
+      body: JSON.stringify({ reason: 'not my project' }),
+    });
+    expect(res.status).toBe(404);
+    expect(await refusalsFor(cId)).toHaveLength(before);
+  });
+
+  // the trigger itself is asserted in @infora/db's append-only suite, where
+  // every insert-only table's contract lives together
 });

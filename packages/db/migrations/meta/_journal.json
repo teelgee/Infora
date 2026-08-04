@@ -267,6 +267,13 @@
       "when": 1785772800000,
       "tag": "0037_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785859200000,
+      "tag": "0038_elevated-refusals",
+      "breakpoints": true
     }
   ]
 }

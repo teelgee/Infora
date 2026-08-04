@@ -42,6 +42,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { generateRenditions } from './renditions';
+import { refuseElevated } from './elevated';
 import { loadSchemeOrDefault } from './naming';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
@@ -1073,7 +1074,16 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // close-as-rejected is a destructive lifecycle action held by the elevated
     // (super-user) tier, not a routine project-role power (T-174/T-133). ADR-0032's
     // "lead author or owner may close" is satisfied by granting them elevation.
-    if (!slice.elevated) return forbidden(c, 'elevated_required');
+    // The refusal is recorded (T-301) — the attempt to permanently stop a
+    // deliverable is exactly the thing an incident review asks about.
+    if (!slice.elevated) {
+      return refuseElevated(c, deps.db, 'elevated_required', {
+        projectId: container!.projectId,
+        containerId: container!.id,
+        attemptedByParticipantId: slice.participantId,
+        action: 'close_rejected',
+      });
+    }
     // a mandatory, audited reason for the permanent stop (T-194)
     const body = closeRejectedBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid', detail: 'reason_required' } satisfies ApiError, 400);

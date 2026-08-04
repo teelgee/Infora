@@ -568,6 +568,20 @@ GET /health → 200 { ok: true } | 503 { ok: false }   // sessionless liveness
   CORS headers at all; every response carries `X-Content-Type-Options:
   nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`.
 
+*The elevated tier's refusal record (2026-08-04, T-301).* No endpoint changes
+shape and no response body changes. What changes is that a **403 from the
+elevated gate is now written down**: `POST /cycles/:id/close-rejected`
+(`elevated_required`), `POST /containers/:id/withdrawal` and
+`POST /containers/:id/restoration` (both `super_user_required`) append a row to
+`elevated_refusals` before answering. The two `detail` strings stay different —
+they have been since T-174, and unifying them inside an audit ticket would be a
+contract change in disguise. **A cross-organisation attempt is deliberately not
+recorded:** it is answered `404` above the tier check, because denial and
+nonexistence read identically (principle 4), and logging it would record an act
+against a container the requester was never shown. There is **no read endpoint
+yet** — the record exists so the question can be answered, and what surface
+answers it is not this ticket's to decide.
+
 ## The ingest entry points (internal — `@infora/data`)
 
 *Incremental ingest (2026-08-03, T-302).* `ingestVersions` is replaced by **two**

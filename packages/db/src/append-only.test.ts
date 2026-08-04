@@ -96,6 +96,24 @@ describe('strictly insert-only tables', () => {
     await expectDbError(db.delete(s.renditions).where(eq(s.renditions.id, rendition!.id)), /append-only/);
   });
 
+  it('rejects UPDATE and DELETE on elevated_refusals — the tier cannot erase its own refusals (T-301)', async () => {
+    const [refusal] = await db
+      .insert(s.elevatedRefusals)
+      .values({
+        projectId: (await db.select().from(s.containers).where(eq(s.containers.id, containerId)).limit(1))[0]!
+          .projectId,
+        containerId,
+        attemptedByParticipantId: participantId,
+        action: 'container_withdraw',
+      })
+      .returning();
+    await expectDbError(
+      db.update(s.elevatedRefusals).set({ requiredTier: 'none' }).where(eq(s.elevatedRefusals.id, refusal!.id)),
+      /append-only/,
+    );
+    await expectDbError(db.delete(s.elevatedRefusals).where(eq(s.elevatedRefusals.id, refusal!.id)), /append-only/);
+  });
+
   it('rejects UPDATE and DELETE on signals and comments', async () => {
     const run = await makeRun();
     const organisationId = (await db.select().from(s.organisations).limit(1))[0]!.id;

@@ -31,6 +31,7 @@ import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
+import { refuseElevated } from './elevated';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
@@ -340,7 +341,17 @@ export function containerRoutes(deps: { db: Db }) {
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
-    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    // the refusal is recorded (T-301). A cross-organisation attempt answered
+    // 404 above is deliberately NOT recorded: it is denial-reads-as-nonexistence
+    // (contracts principle 4), and the requester was never shown the container.
+    if (!canEditPlan(slice)) {
+      return refuseElevated(c, deps.db, 'super_user_required', {
+        projectId: container.projectId,
+        containerId: container.id,
+        attemptedByParticipantId: slice.participantId,
+        action: 'container_withdraw',
+      });
+    }
     const body = withdrawContainerBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     const [updated] = await deps.db
@@ -361,7 +372,18 @@ export function containerRoutes(deps: { db: Db }) {
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
-    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    // recovery rather than destruction, and recorded anyway (T-301): the record
+    // answers "who attempted an act this tier holds and was refused", and one
+    // direction of the same gate going unrecorded leaves it incomplete while
+    // looking complete.
+    if (!canEditPlan(slice)) {
+      return refuseElevated(c, deps.db, 'super_user_required', {
+        projectId: container.projectId,
+        containerId: container.id,
+        attemptedByParticipantId: slice.participantId,
+        action: 'container_restore',
+      });
+    }
     const [updated] = await deps.db
       .update(s.containers)
       .set({ state: 'live', withdrawnReason: null })

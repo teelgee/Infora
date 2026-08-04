@@ -514,6 +514,17 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       body: JSON.stringify({ reason: 'x' }),
     });
     expect(sneaky.status).toBe(403);
+    // T-301 — and the attempt leaves a trace. An attempt to permanently stop a
+    // deliverable is exactly what an incident review asks about, and until this
+    // ticket a refusal left nothing behind at all.
+    const refusals = await db
+      .select()
+      .from(s.elevatedRefusals)
+      .where(eq(s.elevatedRefusals.containerId, container2!.id));
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]!.action).toBe('close_rejected');
+    expect(refusals[0]!.requiredTier).toBe('elevated');
+    expect(refusals[0]!.attemptedByParticipantId).toBe(colleagueParticipantId);
     // the reason is mandatory (T-194) — a reasonless close is refused
     const noReason = await app.request(`/cycles/${cycle2!.id}/close-rejected`, {
       method: 'POST',
