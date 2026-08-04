@@ -23,7 +23,10 @@ ethical wall, with grounded, cited AI drafting.
 - `pnpm run check` mirrors CI exactly (dep rules + lint + typecheck + tests).
 - Package dependency rules are enforced by `scripts/dep-rules.mjs` — surfaces
   depend only on `contracts` + `ui`.
-- Migrations are drawn in `docs/build/data-model.md` before being written.
+- Migrations are drawn in `docs/build/data-model.md` before being written, then
+  **written by hand** — `drizzle-kit generate` re-emits every migration from
+  0032 onward because its snapshot has drifted, and applying that output would
+  be destructive. Append the `migrations/meta/_journal.json` entry by hand too.
 - Contract completions get dated notes in `docs/build/contracts.md`.
 - A ticket or ADR that introduces, stores, or derives data about a **named
   person** says so, and names where that data is deleted — the register is

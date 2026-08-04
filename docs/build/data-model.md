@@ -11,6 +11,16 @@ A **table** is one kind of thing the system stores, with one **row** per instanc
 - **one-to-many** ("─<"): one row here relates to many rows there (one Project has many Work items).
 - **append-only**: rows are only ever added, never edited or deleted, so the history is permanent — used for everything that must be auditable (ADR-0002, ADR-0028).
 
+> ⚠ **Write migrations by hand — `drizzle-kit generate` is not safe in this repo
+> (found 2026-08-04, T-301).** The stored snapshot under `migrations/meta/` has
+> drifted from the applied migrations, because the recent ones were hand-written
+> rather than generated. `generate` therefore re-emits **everything from 0032
+> onward** as one new file — `CREATE TABLE` for tables that already exist,
+> alongside the one change actually wanted. Applying that output without reading
+> it would be destructive. Both 0038 and 0039 were written by hand, with their
+> `_journal.json` entries appended by hand, which is now the working convention.
+> Re-syncing the snapshot so `generate` is usable again would be its own ticket.
+
 The skeleton journey these tables must support (from the grill tracker): *a consultant opens a project, asks the chat to draft a short governed section from the project's own sources; the orchestrator runs retrieve → draft → ground-check → cite and logs every step; the draft appears with citations; the consultant accepts/edits/rejects and that Signal is captured; the owner logs in on a different role and sees the work item with live status and the full audited run, access correctly scoped.*
 
 ---

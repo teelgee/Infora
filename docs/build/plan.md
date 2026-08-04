@@ -25,18 +25,28 @@
 
 **✅ The Ask MVP closed 2026-08-01.** T-281 → T-299 → T-282 → T-283 → T-259 all landed, with T-251, T-252, T-254 and the T-270 spike beside them. Ask now returns a grounded, cited answer whose register changes with the Lens; sessions are revocable and re-checked between steps; and a run records a real cost, or says it could not price one. **The sequence stands: Ask MVP → V1 → beyond.**
 
+**✅ Landed 2026-08-03 → 04, off this frontier.** ~~**T-302**~~ ingest takes a
+version id and the sweep is now `ingestAllVersions`, off every request path.
+~~**T-343**~~ `check:questions` — `pnpm run check:questions -- --next` is how a
+session derives a question number. ~~**T-300**~~ three organisations on Wrenfield,
+with `three-organisations.spec.ts` asserting the B↔C negative
+[v1.md](v1.md)'s acceptance names. ~~**T-271**~~ offsets on `version_chunks`,
+everything else derived — [spike-locators.md](spike-locators.md) closes with it.
+~~**T-342**~~ the conflict register's `reason`, narrowed on screen. **T-301's
+refusal audit** landed (migration 0038); its supersede half did not — see below.
+Full records in each ticket's entry.
+
 **▶ The frontier right now** — [v1.md](v1.md)'s Phase A floor, because nothing a firm touches can precede it:
 
-- ~~**T-302**~~ ✅ **built 2026-08-03** — ingest takes a version id, and the sweep is now `ingestAllVersions`, off every request path. **T-303 → T-304** are next in that chain: the bulk-load path, then the reference-material marker.
-- ~~**T-300**~~ ✅ **built 2026-08-04** — three organisations on Wrenfield, and `three-organisations.spec.ts` asserts the B↔C negative [v1.md](v1.md)'s acceptance names.
-- **T-301** — the elevated tier, **re-cut 2026-08-04**: T-174/T-176 had already built the gates and the absent-not-disabled surfaces, and the **refusal audit** ✅ **landed 2026-08-04** (migration 0038). Only the **supersede** half remains, and it is fog behind **`Q-036`** — see its entry.
-- **T-305** — PDF text extraction. The commercially significant gap [spike-locators.md](spike-locators.md) found: there is no PDF *input* path at all, and page is the locator a planner uses.
-- ~~**T-271**~~ ✅ **built 2026-08-04** — offsets on `version_chunks`, everything else derived; [spike-locators.md](spike-locators.md) closes with it. **Non-negotiable 1's verbatim half is now kept for any ingested document**; the *page* half still waits on **T-305**, so the gap is "offsets now, pages later" rather than "locators".
+- **T-303 → T-304** — the bulk-load path, then the reference-material marker. **Unblocked by T-302** and the rest of the corpus chain hangs off them.
+- **T-305** — PDF text extraction. The commercially significant gap [spike-locators.md](spike-locators.md) found: there is no PDF *input* path at all, and page is the locator a planner uses. **Sharper since T-271**: offsets are stored and paragraph is derived, so page is now the *only* missing locator rather than one of several.
+- **T-307** — the chunker's heading-number split. Small, and [spike-locators.md](spike-locators.md) asks for it in **its own commit** because re-chunking moves embeddings — run the eval seed set (T-259) either side.
 - **T-276** — the authority-corpus spike. Blocks nothing, unblocks Wave 3, research rather than build.
-- ~~**T-343**~~ ✅ **built 2026-08-03** — `check:questions`, the guard the `Q-###` counter has never had. `pnpm run check:questions -- --next` is now how a session derives a question number.
 - **T-337** — schema import (Slice V1-S, added 2026-08-03). Unblocked, no migration, and its deterministic half needs no worker — it is onboarding work that lands in the pilot's first hour, so it sits with the Phase A floor rather than behind the agent waves.
+- **T-340** — Purge. ⚠ **Buildable but not closable while Slice V1-I is parked:** its acceptance names *"the S3 object has no recoverable version"* and there is no object store (T-317 → T-316). The blob substrate is a local directory, so the erase can be built with the S3 version-level purge as a named seam. Note also that two of its three Done-when clauses describe **T-341's** path — purge never reaches library material (ADR-0050 §6), and only library material is chunked.
+- **T-301 (part)** — only the **supersede** half remains, and it is 🌫 fog behind **`Q-036`**.
 
-**⏳ Sequenced, and named so nobody starts them early:** **T-297** (RLS on `containers`) waits on Wave 2's per-request seam. **T-310** and **T-311** (the checker and its findings surface) were blocked on `Q-007`/`Q-008` when this section was written and were **unblocked the same day** by ADR-0048 — they now wait on **T-328** and on `extractor` (T-274), which is a dependency rather than a gate.
+**⏳ Sequenced, and named so nobody starts them early:** **Slice V1-I is parked by the owner (2026-08-04)** — *"we're not going to set that up yet"* — so **T-316 is not to be started**, and **T-314** (Deps: T-316) and **T-339** (Deps: T-316) are parked with it, as is **T-340**'s S3 clause. Nothing else in the slice moves until that is lifted; it is an owner decision, not a dependency a ticket can clear. **T-297** (RLS on `containers`) waits on Wave 2's per-request seam. **T-310** and **T-311** (the checker and its findings surface) were blocked on `Q-007`/`Q-008` when this section was written and were **unblocked the same day** by ADR-0048 — they now wait on **T-328** and on `extractor` (T-274), which is a dependency rather than a gate.
 
 **🚧 The three gates**, none of which a ticket can clear:
 
