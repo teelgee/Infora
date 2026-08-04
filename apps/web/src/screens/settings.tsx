@@ -429,16 +429,31 @@ function ConflictRegisterPanel() {
                 ))}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Why (optional, private to this organisation)"
-                style={{ ...fieldStyle, flex: 1 }}
-              />
-              <Button size="sm" variant="primary" onClick={() => void declare()}>
-                Declare
-              </Button>
+            {/* T-342 (ADR-0050 §3) — the minimisation half, and the cheapest
+                real reduction available. This one field is what turns "a person
+                and two scheme ids" into a client roster, and the register sits
+                on the ADR-0018 private floor while a break-glass operator can
+                read it regardless (encryption was rejected on a finding: the
+                operator controls the deployment and therefore the key). The
+                field STAYS — a compliance partner reviewing a two-year-old wall
+                needs the why — so what narrows is its purpose, stated where it
+                is typed rather than in a policy nobody reads. */}
+            <div style={{ display: 'grid', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Why — the fact, not the client (optional)"
+                  style={{ ...fieldStyle, flex: 1 }}
+                />
+                <Button size="sm" variant="primary" onClick={() => void declare()}>
+                  Declare
+                </Button>
+              </div>
+              <span style={{ color: 'var(--text-muted)', fontSize: 'var(--body-dense-size)' }}>
+                Record the fact, not the client — “bid team conflict” rather than naming the other
+                side. Private to this organisation, and kept for whoever reviews this wall later.
+              </span>
             </div>
             {error && <span style={{ color: 'var(--feedback-danger-text)' }}>{error}</span>}
           </div>
