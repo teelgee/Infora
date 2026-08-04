@@ -27,7 +27,15 @@ ethical wall, with grounded, cited AI drafting.
   **written by hand** — `drizzle-kit generate` re-emits every migration from
   0032 onward because its snapshot has drifted, and applying that output would
   be destructive. Append the `migrations/meta/_journal.json` entry by hand too.
-- Contract completions get dated notes in `docs/build/contracts.md`.
+  **The drawing is state-dependent:** an *unbuilt* drawer carries field lists
+  (the drawing board); once built, `packages/db/src/schema` is the authority on
+  the shape and the drawer keeps narrative + pointer only. After a schema
+  change, regenerate the atlas (`pnpm --filter @infora/db run datamodel`) —
+  `pnpm run check` fails while it is stale.
+- Contract completions get dated notes in `docs/build/contracts.md`, filtered
+  by **why, not what**: an entry earns its place by recording a reason ("ingest
+  split in two because the sweep was ~125,000 re-ingests"); "added endpoint X"
+  is git's job. The file restates no type — `packages/contracts` is the spec.
 - A ticket or ADR that introduces, stores, or derives data about a **named
   person** says so, and names where that data is deleted — the register is
   `docs/build/personal-data.md`.
