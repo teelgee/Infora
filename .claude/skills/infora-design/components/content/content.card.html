@@ -1,0 +1,48 @@
+<!-- @dsCard group="Components" viewport="700x320" name="Content" subtitle="Project rows, suggestions, tables, traces, skeletons" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Content</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="../../ds-boot.js"></script>
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; gap:10px; }
+  .cap { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+  .onframe { background:var(--surface-frame); border-radius:var(--radius-md); padding:12px; }
+</style>
+<div id="root"></div>
+
+<script type="text/ds-babel">
+  const { ProjectCard, SuggestionCard, Table, RunTrace, Skeleton, Badge, Button, Prose } = window.DS;
+  const App = () => (
+    <div className="col">
+      <ProjectCard title="A414 Trentmoor Bypass" subtitle="Owner · 7 of 11 deliverables drafted" count={7}
+        action={<Badge tone="neutral" pill>Owner</Badge>} />
+      <SuggestionCard title="Suggestion ready · pending your decision"
+        actions={<><Button variant="primary" size="sm">Accept</Button><Button size="sm">Edit</Button><Button size="sm">Reject</Button></>}>
+        HGV movements route via the A414 slip road rather than Calder Lane.
+      </SuggestionCard>
+      <div className="row" style={{ alignItems: 'flex-start', gap: 20 }}>
+        <div style={{ flex: 1 }}>
+          <Table columns={['Document', 'Status']} rows={[
+            { cells: ['Statement of Consultation', <Badge tone="success">Current</Badge>], icon: '▤' },
+            { cells: ['Appendix C — Noise', <Badge tone="warning">In review</Badge>], icon: '▤', indent: true },
+          ]} />
+        </div>
+        <div style={{ width: 180 }}>
+          <RunTrace steps={[{ label: 'Retrieved sources' }, { label: 'Drafted', pending: true }]} />
+        </div>
+        <div className="col" style={{ width: 120, gap: 6 }}>
+          <Skeleton width="40%" /><Skeleton width="92%" /><Skeleton width="70%" />
+        </div>
+      </div>
+      <Prose><p style={{margin:0}}>A restriction <span className="del">may be considered</span> <span className="ins">remains available</span> as a fallback.</p></Prose>
+    </div>
+  );
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>dsBoot(['../../ds-preview.jsx'], '../../_ds_bundle.js');</script>

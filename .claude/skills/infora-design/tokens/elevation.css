@@ -1,0 +1,14 @@
+/* Elevation — four levels, the core rule of this system.
+   1 flat   the frame AND the nav rail (the rail is part of the frame)
+   2 pane   content panes floating on the frame: canvas, chat panel
+   3 popout nested cards inside a pane: suggestions, ask-bar, rows, bubbles
+   4 overlay dropdowns, menus, modals, toasts
+   If you cannot say which level a thing is, it is flat. */
+:root {
+  --elevation-1: none;
+  --elevation-2: 0 10px 26px rgba(20, 20, 20, 0.12);
+  --elevation-3: 0 10px 28px rgba(20, 20, 20, 0.09);
+  --elevation-3-soft: 0 8px 22px rgba(20, 20, 20, 0.07);
+  --elevation-4: 0 4px 8px rgba(0, 0, 0, 0.08), 0 24px 60px -12px rgba(0, 0, 0, 0.35);
+  --focus-shadow: 0 0 0 3px var(--focus-ring);
+}

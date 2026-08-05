@@ -1,0 +1,23 @@
+<!-- @dsCard group="Colors" viewport="700x130" name="Status hues" subtitle="A closed set of five — the only colour outside the greys, besides tracked changes" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div class="grid">
+  <div class="sw" style="width:126px"><div class="chip-sw" style="background:#e8f5ea;display:flex;align-items:center;justify-content:center;gap:5px;color:#1a7a3a;font-size:11.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#1a7a3a"></span>success</div><div class="nm">success</div><div class="hx">#1a7a3a</div></div>
+  <div class="sw" style="width:126px"><div class="chip-sw" style="background:#f8efdd;display:flex;align-items:center;justify-content:center;gap:5px;color:#8a5a12;font-size:11.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#8a5a12"></span>warning</div><div class="nm">warning</div><div class="hx">#8a5a12</div></div>
+  <div class="sw" style="width:126px"><div class="chip-sw" style="background:#fbeceb;display:flex;align-items:center;justify-content:center;gap:5px;color:#b23b34;font-size:11.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#b23b34"></span>danger</div><div class="nm">danger</div><div class="hx">#b23b34</div></div>
+  <div class="sw" style="width:126px"><div class="chip-sw" style="background:#e9eff6;display:flex;align-items:center;justify-content:center;gap:5px;color:#274a6d;font-size:11.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#274a6d"></span>info</div><div class="nm">info</div><div class="hx">#274a6d</div></div>
+  <div class="sw" style="width:126px"><div class="chip-sw" style="background:#ececea;display:flex;align-items:center;justify-content:center;gap:5px;color:#57564f;font-size:11.5px;font-weight:600"><span style="width:6px;height:6px;border-radius:50%;background:#57564f"></span>neutral</div><div class="nm">neutral</div><div class="hx">#57564f</div></div>
+</div>

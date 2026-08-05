@@ -1,0 +1,24 @@
+<!-- @dsCard group="Brand" viewport="700x190" name="Elevation — four levels" subtitle="The core rule: the frame and the rail are flat; only panes, cards and overlays lift" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div style="background:var(--surface-frame);border-radius:var(--radius-lg);padding:16px;display:flex;gap:14px;align-items:center">
+  <div style="width:120px;height:132px;display:flex;align-items:flex-end;font-size:10.5px;font-weight:700;color:var(--text-secondary)">1 — flat<br>frame + rail</div>
+  <div style="flex:1;background:var(--surface-pane);border-radius:var(--radius-md);box-shadow:var(--elevation-2);padding:14px;height:132px;box-sizing:border-box">
+    <div style="font-size:10.5px;font-weight:700;color:var(--text-muted);margin-bottom:10px">2 — PANE</div>
+    <div style="background:var(--surface-sunken);border-radius:var(--radius-md);box-shadow:var(--elevation-3);padding:10px;font-size:10.5px;font-weight:700">3 — popout · nested card</div>
+    <div style="margin-top:10px;background:var(--surface-pane);border-radius:var(--radius-md);box-shadow:var(--elevation-4);padding:10px;font-size:10.5px;font-weight:700">4 — overlay · menu</div>
+  </div>
+</div>

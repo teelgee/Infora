@@ -1,0 +1,34 @@
+/* Type scale — 8 steps. --text-ui (12.5px) is the base UI size and covers the
+   plurality of the app; reach for it first. */
+:root {
+  --text-50: 10.5px;
+  --text-100: 11.5px;
+  --text-200: 12.5px;
+  --text-300: 13px;
+  --text-400: 15.5px;
+  --text-500: 18px;
+  --text-600: 24px;
+  --text-700: 29px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.3;
+  --leading-snug: 1.55;
+  --leading-normal: 1.65;
+  --leading-relaxed: 1.75;
+
+  /* Semantic roles */
+  --text-display-lg: var(--text-700); /* serif, page greeting */
+  --text-display-sm: var(--text-600); /* serif, section H2 */
+  --text-wordmark: var(--text-500);
+  --text-heading: var(--text-500); /* sans, semibold */
+  --text-prose-size: var(--text-400);
+  --text-dense: var(--text-300);
+  --text-ui: var(--text-200);
+  --text-label: var(--text-100);
+  --text-micro: var(--text-50);
+  --tracking-micro: 0.6px;
+}

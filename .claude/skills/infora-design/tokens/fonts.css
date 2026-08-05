@@ -1,0 +1,16 @@
+/* Type families.
+
+   SUBSTITUTION NOTE: the product's serif is Iowan Old Style — an Apple system
+   face with no webfont binary and no redistributable licence. Source Serif 4
+   (Google Fonts) is the substitute for non-Apple platforms and is loaded here;
+   Iowan Old Style stays first in the stack so Apple users get the real face.
+   Supply a licensed webfont if the brand wants one face everywhere. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
+
+:root {
+  /* Serif — wordmark and the two largest headings ONLY. */
+  --font-serif: 'Iowan Old Style', 'Source Serif 4', 'Source Serif Pro', Georgia, 'Times New Roman', serif;
+  /* Sans — all UI chrome and document body. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+}

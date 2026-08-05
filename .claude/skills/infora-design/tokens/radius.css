@@ -1,0 +1,15 @@
+/* Radius — hierarchical, not decorative. The biggest radius goes on the biggest
+   surface; never give a small control a bigger radius than its container. */
+:root {
+  --radius-xs: 4px;   /* tight tags, dots */
+  --radius-sm: 8px;   /* controls: buttons, chips, nav items */
+  --radius-md: 12px;  /* nested cards, floating panes */
+  --radius-lg: 16px;  /* app frame, chat bubbles, composer */
+  --radius-full: 999px;
+  --radius-circle: 50%;
+
+  --radius-control: var(--radius-sm);
+  --radius-nested-card: var(--radius-md);
+  --radius-pane: var(--radius-md);
+  --radius-frame: var(--radius-lg);
+}

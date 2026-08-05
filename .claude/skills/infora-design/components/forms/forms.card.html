@@ -1,0 +1,41 @@
+<!-- @dsCard group="Components" viewport="700x220" name="Forms" subtitle="Fields, inputs, selects, errors" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Forms</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="../../ds-boot.js"></script>
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; gap:10px; }
+  .cap { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+  .onframe { background:var(--surface-frame); border-radius:var(--radius-md); padding:12px; }
+</style>
+<div id="root"></div>
+
+<script type="text/ds-babel">
+  const { Field, TextInput, TextArea, SelectInput } = window.DS;
+  const App = () => {
+    const [a, setA] = React.useState('Statement of Community Consultation');
+    const [b, setB] = React.useState('');
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+        <Field label="Deliverable name" hint="Shown in the project library">
+          <TextInput value={a} onChange={setA} />
+        </Field>
+        <Field label="Lens" error="Choose a lens before promoting">
+          <SelectInput value={b} onChange={setB} placeholder="Choose a lens"
+            options={[{ value: 'dco', label: 'DCO application' }, { value: 'ea', label: 'Environmental statement' }]} />
+        </Field>
+        <Field label="Reason">
+          <TextArea value="" onChange={() => {}} rows={3} placeholder="Reason for rejection" />
+        </Field>
+      </div>
+    );
+  };
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>dsBoot(['../../ds-preview.jsx'], '../../_ds_bundle.js');</script>
