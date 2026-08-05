@@ -157,14 +157,14 @@ for menus and modals). Blur grows and opacity eases off as a surface floats
 further from the frame. If you cannot say which level a thing is, it is flat.
 Never shadow a table row, and never shadow the frame.
 
-**Corner radii are hierarchical, not decorative.** 4 / 8 / 12 / 16px plus pill
-and circle. The biggest radius goes on the biggest surface: 16 for the frame,
-chat bubbles and the composer; 12 for floating panes and nested cards; 8 for
+**Corner radii are hierarchical, not decorative.** 4 / 8 / 8 / 10px plus pill
+and circle. The biggest radius goes on the biggest surface: 10 for the frame,
+chat bubbles and the composer; 8 for floating panes and nested cards; 8 for
 controls; 4 for tags and tight marks. A small control never gets a bigger radius
 than the thing containing it.
 
 **Cards: filled, soft, and shadowed — never bordered.** A nested card is a
-`#efeeeb` fill at 12px radius with the popout shadow. No border, no left-accent
+`#efeeeb` fill at 8px radius with the popout shadow. No border, no left-accent
 bar (the old system's proposal card had one; it is removed). Borders in this
 system are hairlines that *separate* (a pane header's underline, a table row
 rule), never outlines that *contain*.
