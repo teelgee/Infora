@@ -132,9 +132,10 @@ a { color: inherit; text-decoration: none; }
 .rail.collapsed nav a span:not(.glyph),
 .rail.collapsed nav a .drill,
 .rail.collapsed .chev,
-.rail.collapsed .wordmark span {
+.rail.collapsed .wordmark .word {
   display: none;
 }
+.rail.collapsed .wordmark { justify-content: center; padding: 0 0 18px; }
 .rail.collapsed nav a { justify-content: center; }
 .rail.collapsed .project-switcher,
 .rail.collapsed .ws-zone,
@@ -155,10 +156,14 @@ a { color: inherit; text-decoration: none; }
 .rail-resize-grip:hover { background: var(--resize-grip-hover-background); }
 
 .wordmark {
+  display: flex; align-items: center; gap: 8px;
   font-family: var(--primitive-font-family-serif); font-size: 21px; letter-spacing: .2px;
   color: var(--text-primary); padding: 0 10px 18px;
 }
-.wordmark span { color: var(--text-secondary); }
+/* the near-black square standing in for a logo (design-system readme: none
+   exists and none was invented — a real mark replaces this square) */
+.wordmark .mark { width: 18px; height: 18px; border-radius: var(--primitive-radius-xs); background: var(--action-primary-bg); flex: none; }
+.wordmark .word span { color: var(--text-secondary); }
 
 .project-switcher {
   border-radius: var(--nav-rail-item-radius);
@@ -191,9 +196,13 @@ a { color: inherit; text-decoration: none; }
 
 .rail .spacer { flex: 1; }
 
+/* frame-sunken block, not a divider row — the rail carries no hairlines
+   (design-rules.md §B NavRail: no divider; quiet blocks use frameSunken) */
 .user-chip {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-top: 1px solid var(--border-default);
+  padding: 8px 10px; margin: 0 2px;
+  background: var(--nav-rail-user-chip-background);
+  border-radius: var(--nav-rail-item-radius);
 }
 .avatar {
   width: 28px; height: 28px; border-radius: var(--avatar);
