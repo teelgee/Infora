@@ -44,7 +44,7 @@
     },
     "font": {
       "family": {
-        "serif": "'Iowan Old Style', 'Source Serif Pro', Georgia, 'Times New Roman', serif",
+        "serif": "'Source Serif 4', 'Iowan Old Style', Georgia, 'Times New Roman', serif",
         "sans": "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, 'Helvetica Neue', Arial, sans-serif",
         "mono": "'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace"
       },
@@ -95,6 +95,9 @@
       "surface.pane":       { "light": "{primitive.color.neutral.0}",  "dark": "{primitive.color.neutralDark.50}" },
       "surface.sunken":     { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}", "note": "nested cards, chip fills, composer fill, hover fill" },
       "surface.hover":      { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}" },
+      "surface.frameHover":  { "light": "#e5e3dc", "dark": "{primitive.color.neutralDark.100}", "note": "hover fill for controls sitting directly ON the frame (nav items, collapse toggle) — one step darker than the frame, since surface.hover is tuned for white panes and disappears here" },
+      "surface.frameActive": { "light": "#c9c5b8", "dark": "{primitive.color.neutralDark.200}", "note": "selected/active fill for nav items on the frame" },
+      "surface.frameSunken": { "light": "#e5e3dc", "dark": "{primitive.color.neutralDark.100}", "note": "quiet filled blocks on the frame: org switcher, user chip" },
       "surface.active":     { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
       "surface.rowHover":   { "light": "{primitive.color.neutral.50}",  "dark": "{primitive.color.neutralDark.100}" },
 
@@ -149,15 +152,15 @@
     "radius": {
       "control.sm": "{primitive.radius.sm}",
       "control.md": "{primitive.radius.md}",
-      "pane": "{primitive.radius.lg}",
+      "pane": "{primitive.radius.md}",
       "nestedCard": "{primitive.radius.md}",
       "chip": "{primitive.radius.full}",
       "avatar": "{primitive.radius.circle}",
       "frame": "{primitive.radius.lg}"
     },
     "elevation": {
-      "level1.flat":     { "shadow": "{primitive.shadow.level1}", "usage": "the app frame/page background; hairline tables; never gets a shadow" },
-      "level2.pane":     { "shadow": "{primitive.shadow.level2}", "shadowDark": "{primitive.shadow.level2Dark}", "usage": "the 3 primary panes: nav, canvas, chat/panel" },
+      "level1.flat":     { "shadow": "{primitive.shadow.level1}", "usage": "the app frame/page background AND the nav rail, which is part of the frame; hairline tables; dense list rows — never gets a shadow" },
+      "level2.pane":     { "shadow": "{primitive.shadow.level2}", "shadowDark": "{primitive.shadow.level2Dark}", "usage": "content panes that float on the frame: canvas, chat/panel. NOT the nav rail" },
       "level3.popout":   { "shadow": "{primitive.shadow.level3}", "shadowDark": "{primitive.shadow.level3Dark}", "usage": "nested cards inside a pane: suggestion callouts, ask-bar, project rows, chat bubbles, composer" },
       "level4.overlay":  { "shadow": "{primitive.shadow.level4}", "usage": "dropdowns, menus, modals — floats above every pane, positioned outside pane bounds" }
     },
@@ -166,7 +169,7 @@
       "display.sm": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.600}", "weight": "{primitive.font.weight.medium}", "lineHeight": "{primitive.font.lineHeight.tight}" },
       "wordmark":   { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.regular}" },
       "heading.md": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.semibold}" },
-      "body.prose": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.400}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.relaxed}" },
+      "body.prose": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.400}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.relaxed}", "note": "serif — the canvas reads as the document of record, not as interface (font fix 2026-08-05)" },
       "body.dense": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.300}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.snug}" },
       "ui.default": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.200}", "weight": "{primitive.font.weight.medium}" },
       "ui.label":   { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.100}", "weight": "{primitive.font.weight.medium}" },
@@ -183,26 +186,31 @@
 
   "component": {
     "navRail": {
-      "note": "flush with the app frame — elevation 1, not a card (design-rules.md §A/§B, turns 10a/11a supersede 4a/5a's nav-as-card treatment). No divider — turn 10b's hairline was considered and rejected.",
       "width.default": "216px",
       "width.collapsed": "64px",
-      "background": "{semantic.color.surface.frame}",
+      "background": "transparent",
       "padding": "{semantic.space.pane.padding} {primitive.space.2}",
       "radius": "{primitive.radius.none}",
-      "shadow": "{primitive.shadow.level1}",
+      "shadow": "{semantic.elevation.level1.flat}",
+      "note": "the rail is PART of the frame, not a card on it: no fill of its own, no radius, no shadow, no divider (turn 10b's hairline divider was considered and rejected; turns 10a/11a supersede 4a/5a's nav-as-card treatment). The frame's radius clips its outer corners. See design-rules.md §C 'Shell z-order'",
       "item.padding": "7px 10px",
       "item.radius": "{semantic.radius.control.sm}",
       "item.gap": "{semantic.space.gap.default}",
       "item.text": "{semantic.type.ui.default}",
       "item.color.default": "{semantic.color.text.secondary}",
-      "item.color.hover.bg": "{semantic.color.surface.hover}",
-      "item.color.active.bg": "{semantic.color.surface.active}",
+      "item.color.hover.bg": "{semantic.color.surface.frameHover}",
+      "item.color.active.bg": "{semantic.color.surface.frameActive}",
       "item.color.active.text": "{semantic.color.text.primary}",
       "icon.size": "15px",
       "icon.set": "lucide",
       "resizable": true,
       "resize.min": "160px",
-      "resize.max": "420px"
+      "resize.max": "420px",
+      "collapsed.labels": "hidden",
+      "collapsed.item.justify": "center",
+      "collapsed.item.padding": "7px 0",
+      "orgSwitcher.background": "{semantic.color.surface.frameSunken}",
+      "userChip.background": "{semantic.color.surface.frameSunken}"
     },
     "pane": {
       "background": "{semantic.color.surface.pane}",
@@ -223,10 +231,14 @@
     "appFrame": {
       "background.light": "#dedad0",
       "background.dark": "{primitive.color.neutralDark.0}",
-      "radius": "{primitive.radius.md}",
-      "padding": "{primitive.space.3}",
+      "radius": "{primitive.radius.lg}",
+      "overflow": "hidden",
+      "padding": "0",
       "shadow": "none",
-      "note": "never shadowed — see design-rules.md 'elevation levels'"
+      "contentRegion.padding": "{primitive.space.3} {primitive.space.3} {primitive.space.3} 0",
+      "contentRegion.gap": "0",
+      "contentRegion.gutter": "{primitive.space.3}",
+      "note": "never shadowed. The frame itself has NO padding — the nav rail runs flush to its edges and the frame's lg radius clips the rail's corners. Only the content region to the right of the rail is inset, and its left padding is 0 so the first pane's shadow reads against the rail. The content region's own gap is 0: the 12px gutter belongs either to a ResizeGrip between two panes or to a margin between adjacent panes, never to both. See design-rules.md section C 'Shell z-order'"
     },
     "button.primary": {
       "background.default": "{semantic.color.action.primary.bg}",
@@ -262,19 +274,6 @@
       "radius": "{semantic.radius.chip}",
       "padding": "4px 10px",
       "type": "{semantic.type.ui.label}"
-    },
-    "sourceChip": {
-      "note": "added during the apps/web migration — no dedicated mockup exists; §E only said 'keep as its own component, recolor to monochrome + feedback.info for the authority variant'. Two variants: lib (in-library source, monochrome) and auth (external authority source, feedback.info).",
-      "radius": "{semantic.radius.chip}",
-      "padding": "2px 8px",
-      "gap": "4px",
-      "type": "{semantic.type.ui.label}",
-      "lib.background": "{semantic.color.surface.sunken}",
-      "lib.border": "{semantic.color.border.default}",
-      "lib.text": "{semantic.color.text.secondary}",
-      "auth.background": "{semantic.color.feedback.info.tint}",
-      "auth.border": "{semantic.color.feedback.info.text}",
-      "auth.text": "{semantic.color.feedback.info.text}"
     },
     "badge.status": {
       "dot.size": "6px",
@@ -318,6 +317,19 @@
       "shadow": "{semantic.elevation.level3.popout}",
       "badge.circle.size": "24px",
       "title.type": "{semantic.type.heading.md}"
+    },
+    "sourceChip": {
+      "note": "added during the apps/web migration — no dedicated mockup exists; §E only said 'keep as its own component, recolor to monochrome + feedback.info for the authority variant'. Two variants: lib (in-library source, monochrome) and auth (external authority source, feedback.info).",
+      "radius": "{semantic.radius.chip}",
+      "padding": "2px 8px",
+      "gap": "4px",
+      "type": "{semantic.type.ui.label}",
+      "lib.background": "{semantic.color.surface.sunken}",
+      "lib.border": "{semantic.color.border.default}",
+      "lib.text": "{semantic.color.text.secondary}",
+      "auth.background": "{semantic.color.feedback.info.tint}",
+      "auth.border": "{semantic.color.feedback.info.text}",
+      "auth.text": "{semantic.color.feedback.info.text}"
     },
     "dropdownMenu": {
       "background": "{semantic.color.surface.pane}",
