@@ -69,3 +69,18 @@ Ordered by the wedge-first logic of the overview; each slice names its design ga
 **Slice H — Connectors** *(deferred until the wedge is proven).* Integrate-configuration handover to an incumbent DMS; spatial/CAD/BIM by reference.
 
 **Gate before any external pilot — the infra/security decision session** *(bucket C, component 1).* Cloud provider, blob/object storage for renditions, hosting and deployment, encryption and key management, tenant isolation, residency, production identity (replacing the skeleton auth above). The skeleton deliberately runs on the dev substrate until this is held.
+
+---
+
+## Sidequest — Slice UI (`slice-ui-redesign`): the design-system re-skin
+
+**Separate from the build slices above** — this is a visual/UI sidequest, not part of the wedge roadmap; it changes no contracts, no data model, no permissions path. Runs on branch `slice-ui-redesign`, merges as one slice. Source of truth: `docs/design/` (rules + tokens); reference kit: `.claude/skills/infora-design/` (mirrored from the "Infora Design System" claude.ai/design project via DesignSync — sync notes in the slice commits). Steps are slice-internal (no `T-###` minted — owner ruling 2026-08-05: keep it as its own slice).
+
+- **UI-1 — Skill install + audit** ✅ 2026-08-05. Skill committed; class-by-class chrome audit and export-inventory audit run (record: the audit in this slice's session; design-rules §E demoted to precedent).
+- **UI-2 — Two-way sync** ✅ 2026-08-05. Live design project re-fetched (serif document body, Source Serif 4-first stack); docs/design absorbed the compiled system, keeping repo-side additions; radius compile-slip (8/10 vs canonical 12/16) ruled against the compiled copy; merged rules/tokens/readme pushed back to the design project.
+- **UI-3 — Components.** The 8 missing exports into `packages/ui/src` (AppFrame, Pane, PaneHeader, CollapseToggle, ResizeGrip, IconButton, Prose, ChatBubble) + Source Serif 4 webfont load + tests.
+- **UI-4 — Shell.** Two layers, not three: `#root` → AppFrame contentRegion model, rail flush (transparent, frame-tuned fills — fixes the invisible hover), gutter-carrying grip.
+- **UI-5 — Screens**, one commit each, only the four with approved mockups: workspace → library → sandbox → editor (reference: `ui_kits/app/` + design-rules §G checklist). The other 11 screens are explicitly out of scope — no approved mockup, do not restyle.
+- **Done when:** the four screens compose `@infora/ui` components inside the new shell, both themes render per the §G checklist, `pnpm run check` green, behaviour unchanged (presentation-only diff).
+
+On close, this block moves to `plan-history.md` per the standing convention.
