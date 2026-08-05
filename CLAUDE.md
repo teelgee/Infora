@@ -9,9 +9,12 @@ ethical wall, with grounded, cited AI drafting.
 1. `README.md` — the first-day setup path and repo layout.
 2. `docs/architecture/infora-overview.md` — the vision and the component cut.
 3. `docs/build/v1.md` — **the current destination**: the first pilot, its scope
-   cut, and what is deliberately deferred. Read before picking up a ticket.
-4. `docs/build/plan.md` — the open ticket board — the execution board of the 7-phases method. Its
-   **Where to start** section names the frontier and the gates.
+   cut, and what is deliberately deferred. Its **"V1 on one page"** summary is
+   the fast read; read it before picking up a ticket.
+4. `docs/build/plan.md` — the open ticket board (the 7-phases method's
+   execution board), in two parts: **Building for V1** and **Beyond V1 — the
+   deferred register**. Its **Where to start** section names the frontier and
+   the gates.
 5. `docs/grill-sessions/grill-questions.md` — the open-questions index (`Q-###`).
 
 **Don't load by default** — precedent and record, not backlog:
