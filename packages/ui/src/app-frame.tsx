@@ -7,9 +7,11 @@
 // control and the drag gutter between two panes.
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
-/** The canonical app shell. `rail` renders flush — never wrap it in a pane. */
+/** The canonical app shell. `rail` renders flush — never wrap it in a pane.
+ * Omit it only on rail-less surfaces (settings); the content region then
+ * supplies its own left inset. */
 export function AppFrame(props: {
-  rail: ReactNode;
+  rail?: ReactNode;
   width?: number | string;
   height?: number | string;
   /** One or two `Pane` elements (plus an optional `ResizeGrip` between). */

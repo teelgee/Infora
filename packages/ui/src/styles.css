@@ -88,18 +88,22 @@ body {
   display: flex;
 }
 
-/* component.appFrame (design-rules.md §A/§B) — the outer shell every screen
-   sits in: flat fill, no shadow, holds the panes with pane.gap between them.
-   The React mount point takes the body's flex row (app addition to the spec). */
+/* The React mount point (slice-ui-redesign UI-4): the frame duties moved to
+   .app-frame (design-rules.md §C) — #root just fills the viewport and lets
+   the frame stretch. Background kept as a fallback for rail-less moments. */
 #root {
   display: flex;
   width: 100%;
   min-height: 100vh;
   background: var(--app-frame-background);
-  padding: var(--app-frame-padding);
-  gap: var(--pane-gap);
   box-sizing: border-box;
 }
+#root > .app-frame { flex: 1; min-height: 100vh; }
+/* rail-less frames (settings): the content region supplies its own left inset */
+.app-frame > .frame-content:first-child { padding-left: var(--app-frame-content-region-gutter); }
+/* safety net for screens not yet on AppFrame (settings, the 404 shell): a bare
+   .main mounted straight into #root keeps the inset the old #root padding gave it */
+#root > .main { margin: var(--app-frame-content-region-gutter); }
 
 a { color: inherit; text-decoration: none; }
 
@@ -158,7 +162,8 @@ a { color: inherit; text-decoration: none; }
 
 .project-switcher {
   border-radius: var(--nav-rail-item-radius);
-  background: var(--surface-sunken); padding: 9px 12px; margin: 0 2px 6px;
+  /* frame-sunken, not surface-sunken — the pane-tuned fill is invisible on the frame */
+  background: var(--nav-rail-org-switcher-background); padding: 9px 12px; margin: 0 2px 6px;
   cursor: pointer; line-height: 1.35;
 }
 .project-switcher .kicker { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-muted); }
