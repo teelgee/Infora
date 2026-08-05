@@ -8,6 +8,10 @@
    .comment-*, .canvas-mirror, .mention*) still depend on them. Do not delete
    an old var while any selector still references it. */
 
+/* Source Serif 4 (SIL OFL) — the primary serif on every platform since the
+   2026-08-05 font fix; Iowan Old Style sits behind it in the stack. Without
+   this load, non-Apple platforms fall through to Georgia. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
 @import './tokens.generated.css';
 
 :root {
@@ -592,7 +596,10 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
   background: var(--surface-sunken); padding: var(--primitive-space-3);
   border-radius: 0 0 var(--pane-radius) var(--pane-radius);
 }
-.canvas {
+/* scoped to the editor layout (slice-ui-redesign): the bare class collided
+   with component.pane's `canvas` variant, and this rule's padding/overflow
+   are editor-specific, not part of the Pane treatment */
+.editor-layout .canvas {
   flex: 1; min-width: 0; overflow: auto; padding: 42px 52px 60px;
   background: var(--surface-pane); border-radius: var(--pane-radius); box-shadow: var(--pane-shadow);
 }
@@ -1083,6 +1090,124 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   display: flex; flex-direction: column;
 }
 .drawer-body { padding: var(--primitive-space-6); display: grid; gap: var(--primitive-space-5); overflow-y: auto; }
+
+/* ---------- Shell additions (slice-ui-redesign, design-rules.md §C) — the
+   two-layer AppFrame model. Values from the design system's chrome.css, var
+   names from tokens.generated.css. The shell commit moves #root onto these;
+   until then they style only the new components where screens adopt them. */
+.app-frame {
+  display: flex;
+  background: var(--app-frame-background);
+  border-radius: var(--app-frame-radius);
+  overflow: hidden;
+  font-family: var(--primitive-font-family-sans);
+  color: var(--text-primary);
+}
+/* Content region: inset from top/right/bottom, flush left against the rail.
+   Gap is 0 — a ResizeGrip carries the whole gutter, so a gap here would
+   double it (§C: only one thing may own the 12px gutter). */
+.frame-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--app-frame-content-region-gap);
+  padding: var(--app-frame-content-region-padding);
+  box-sizing: border-box;
+}
+/* Sibling panes with no grip between them still need the gutter. */
+.frame-content > .pane + .pane { margin-left: var(--app-frame-content-region-gutter); }
+.pane {
+  background: var(--pane-background);
+  border-radius: var(--pane-radius);
+  box-shadow: var(--pane-shadow);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.pane.canvas { flex: 1; }
+/* 308px is §C's named default panel width — no component token exists yet */
+.pane.panel { width: 308px; min-width: 308px; padding: var(--pane-padding); }
+.pane-header {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-default);
+  padding: var(--pane-header-padding);
+  border-bottom: 1px solid var(--pane-header-border-bottom);
+}
+.collapse-toggle {
+  margin-left: auto;
+  width: var(--collapse-toggle-size);
+  height: var(--collapse-toggle-size);
+  border: none;
+  background: transparent;
+  border-radius: var(--collapse-toggle-radius);
+  color: var(--collapse-toggle-color-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ui-default-size);
+  cursor: pointer;
+  transition: background var(--primitive-motion-duration-base) var(--primitive-motion-easing-standard),
+    color var(--primitive-motion-duration-base) var(--primitive-motion-easing-standard);
+}
+/* on the frame (rail context) the pane-tuned hover fill is invisible — frame ramp */
+.collapse-toggle:hover { background: var(--surface-frame-hover); color: var(--collapse-toggle-color-hover); }
+.pane .collapse-toggle:hover { background: var(--collapse-toggle-background-hover); }
+.grip {
+  width: var(--resize-grip-width);
+  flex: none;
+  cursor: var(--resize-grip-cursor);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--primitive-radius-xs);
+  transition: background var(--primitive-motion-duration-base) var(--primitive-motion-easing-standard);
+}
+.grip:hover { background: var(--resize-grip-hover-background); }
+
+/* ---------- Icon button (component addition — the composer's send, close,
+   overflow): a square .btn variant, so it composes .btn's states ---------- */
+.icon-btn {
+  width: var(--ask-bar-send-button-size);
+  height: var(--ask-bar-send-button-size);
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--nested-card);
+}
+
+/* ---------- Prose (component.type body.prose) — the document body: serif,
+   the record not the interface; 560px measure per §C (no token yet) ---------- */
+.prose {
+  max-width: 560px;
+  margin: 0 auto;
+  font-family: var(--body-prose-family);
+  font-size: var(--body-prose-size);
+  line-height: var(--body-prose-line-height);
+  color: var(--text-primary);
+  text-wrap: pretty;
+}
+.prose h2 { font-size: var(--heading-md-size); font-weight: var(--heading-md-weight); color: var(--text-primary); margin: 0 0 14px; }
+.prose p { margin: 0 0 14px; }
+.prose mark { background: var(--surface-active); border-radius: var(--primitive-radius-xs); padding: 0 2px; color: inherit; }
+
+/* ---------- Chat bubble (component addition) — the user's turn is a filled
+   card; the agent's reply is plain text, deliberately asymmetric ---------- */
+.bubble {
+  background: var(--surface-sunken);
+  border-radius: var(--primitive-radius-lg);
+  padding: 10px 13px;
+  font-size: var(--ui-default-size);
+  color: var(--text-primary);
+  max-width: 92%;
+  box-shadow: var(--level3-popout);
+}
+.bubble.mine { align-self: flex-end; }
+.reply { font-size: var(--ui-default-size); color: var(--text-secondary); line-height: var(--primitive-font-line-height-snug); }
+/* the legacy .msg markup (ask.tsx, editor.tsx chat tab) predates ChatBubble —
+   neutralize the new base .bubble treatment inside it so pre-migration
+   screens keep their pixels; .msg.user/.msg.agent's own rules still win */
+.msg .bubble { background: none; box-shadow: none; border-radius: 0; max-width: none; font-size: inherit; }
 
 /* document presence avatar stack (T-175) */
 .presence-stack { display: inline-flex; align-items: center; }

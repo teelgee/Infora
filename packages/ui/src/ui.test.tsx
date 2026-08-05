@@ -5,20 +5,28 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Step } from '@infora/contracts';
 import {
+  AppFrame,
   Badge,
   Button,
+  ChatBubble,
   Chip,
+  CollapseToggle,
   Combobox,
   CommandBar,
   DropdownMenu,
   Field,
+  IconButton,
   MadeCard,
   Modal,
   OutChip,
+  Pane,
+  PaneHeader,
   ProjectCard,
   ProjectSwitcher,
+  Prose,
   Rail,
   RailNav,
+  ResizeGrip,
   RunTrace,
   SelectInput,
   Skeleton,
@@ -194,6 +202,89 @@ describe('new components (design-rules.md §B)', () => {
     expect(html).toContain('Open');
     expect(html).not.toContain('dropdown-menu');
     expect(html).not.toContain('item');
+  });
+});
+
+describe('shell additions (slice-ui-redesign, design-rules.md §C)', () => {
+  it('the app frame renders the rail flush and the panes in a content region', () => {
+    const html = renderToStaticMarkup(
+      <AppFrame rail={<aside className="rail" />}>
+        <Pane>
+          <PaneHeader title="Statement of Community Consultation" />
+        </Pane>
+      </AppFrame>,
+    );
+    expect(html).toContain('class="app-frame"');
+    expect(html).toContain('class="frame-content"');
+    // the rail is a direct child of the frame, never inside the content region
+    expect(html.indexOf('class="rail"')).toBeLessThan(html.indexOf('frame-content'));
+  });
+
+  it('panes carry their variant; panel takes a live-resize width override', () => {
+    expect(renderToStaticMarkup(<Pane>x</Pane>)).toContain('class="pane canvas"');
+    const panel = renderToStaticMarkup(
+      <Pane variant="panel" width={348}>
+        x
+      </Pane>,
+    );
+    expect(panel).toContain('class="pane panel"');
+    expect(panel).toContain('width:348px');
+  });
+
+  it('the pane header slots location / title / action', () => {
+    const html = renderToStaticMarkup(
+      <PaneHeader location="Project sandbox" title="SoCC" action={<Button variant="primary">Promote</Button>} />,
+    );
+    expect(html).toContain('class="pane-header"');
+    expect(html).toContain('location-chip');
+    expect(html).toContain('class="btn primary"');
+  });
+
+  it('the collapse toggle is an accessibly-labelled button with a direction glyph', () => {
+    const html = renderToStaticMarkup(<CollapseToggle direction="right" label="Collapse panel" />);
+    expect(html).toContain('class="collapse-toggle"');
+    expect(html).toContain('aria-label="Collapse panel"');
+    expect(html).toContain('»');
+  });
+
+  it('the resize grip is a vertical separator carrying the gutter', () => {
+    const html = renderToStaticMarkup(<ResizeGrip />);
+    expect(html).toContain('class="grip"');
+    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-orientation="vertical"');
+  });
+});
+
+describe('component additions (slice-ui-redesign)', () => {
+  it('icon button composes the .btn state set with the square variant', () => {
+    const html = renderToStaticMarkup(
+      <IconButton variant="primary" aria-label="Send">
+        ↵
+      </IconButton>,
+    );
+    expect(html).toContain('class="btn icon-btn primary"');
+    expect(html).toContain('aria-label="Send"');
+  });
+
+  it('prose wraps the document body; tracked changes ride inside as spans', () => {
+    const html = renderToStaticMarkup(
+      <Prose>
+        <p>
+          A restriction <span className="del">may be considered</span>
+          <span className="ins">remains available</span> as a fallback.
+        </p>
+      </Prose>,
+    );
+    expect(html).toContain('class="prose"');
+    expect(html).toContain('class="del"');
+    expect(html).toContain('class="ins"');
+  });
+
+  it('chat turns are asymmetric: user is a filled bubble, agent is plain reply text', () => {
+    expect(renderToStaticMarkup(<ChatBubble>Draft a mitigation</ChatBubble>)).toContain('class="bubble mine"');
+    expect(renderToStaticMarkup(<ChatBubble from="agent">Done — 1 suggestion.</ChatBubble>)).toContain(
+      'class="reply"',
+    );
   });
 });
 
