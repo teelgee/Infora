@@ -1,4 +1,4 @@
-The document surface in the Editor.
+The document surface in the Editor — set in the serif, so the canvas reads as the document of record rather than as interface.
 
 ```jsx
 <Prose>

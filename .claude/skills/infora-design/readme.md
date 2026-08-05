@@ -103,9 +103,9 @@ means content exists but is out of reach, say so and say why: "2 files withheld 
 Calderhale Energy's private sandbox." Silence would read as absence, which is a
 different and wrong fact.
 
-**No emoji in product chrome.** The `✦` ask glyph and the `▤` / `§` source marks
-are the only non-Lucide symbols, and they are typographic marks, not emoji. The
-mockups use 📎 and ▧ as placeholders where a Lucide icon belongs — replace them.
+**No emoji in product chrome.** The `✦` ask glyph is the only non-Lucide symbol, and it is a
+typographic mark, not emoji. The mockups use 📎, ▤ and ▧ as placeholders where a
+Lucide icon belongs — replace them.
 
 **Empty states name the next action.** One line of plain text plus the primary
 action, no illustration, no encouragement: "Ask a question to begin a run."
@@ -131,13 +131,18 @@ warning, danger, info, neutral) and tracked changes (green insert, red delete).
 Using a status colour for a button or generic emphasis is a system violation,
 because it spends the meaning the reservation buys.
 
-**Type: one serif, two roles.** Iowan Old Style (Source Serif 4 substituting off
-Apple platforms) is used for the wordmark and the two largest headings — a page
-greeting at 29px, a section H2 at 24px, and project titles at 15.5px. Everything
-else, including the document body, is the system sans. An eight-step scale from
-10.5px to 29px; the 12.5px UI size carries the plurality of the app. Document
-prose sits at 15.5px / 1.75 leading, capped at a 560px measure and centred
-regardless of how wide the pane is dragged.
+**Type: one serif, four roles.** Source Serif 4 carries the wordmark, the two
+largest headings — a page greeting at 29px, a section H2 at 24px — project titles
+at 15.5px, and the document body. Everything else, all interface chrome, is the
+system sans. An eight-step scale from 10.5px to 29px; the 12.5px UI size carries
+the plurality of the app. Document prose sits at 15.5px / 1.75 leading, capped at
+a 560px measure and centred regardless of how wide the pane is dragged. The serif
+on the canvas is deliberate: these are consultation statements and environmental
+chapters going to a planning inspectorate, and the serif is what makes the canvas
+read as the document of record rather than as interface. Source Serif 4 is the
+primary face on every platform; Iowan Old Style, the Apple system face the
+product started on, sits behind it in the stack and is no longer what most users
+see.
 
 **Backgrounds: flat fills only.** No gradients anywhere. No imagery, no
 illustration, no pattern, no texture, no noise. The warm grey does the work a
@@ -216,8 +221,8 @@ the card renders without a network dependency.
 
 **Substitution flagged:** the mockups use a handful of unicode placeholders where
 a Lucide icon belongs — `📎` (attach), `▧` (sandbox), `▤` (library/document),
-`⇧` (promote), `⌇` (draft), `✓` (accept), `✦` (ask), `»`/`«` (collapse). Only
-`✦`, `▤` and `§` are intended to stay as typographic marks. The rest should be
+`⇧` (promote), `⌇` (draft), `✓` (accept), `✦` (ask), `»`/`«` (collapse). Only `✦` is
+intended to stay as a typographic mark. The rest should be
 replaced with `Paperclip`, `FolderOpen`, `ArrowUpFromLine`, `FileText`, `Check`
 and `ChevronsLeft`/`ChevronsRight` when implemented.
 

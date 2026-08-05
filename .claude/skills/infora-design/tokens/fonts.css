@@ -1,16 +1,16 @@
 /* Type families.
 
-   SUBSTITUTION NOTE: the product's serif is Iowan Old Style — an Apple system
-   face with no webfont binary and no redistributable licence. Source Serif 4
-   (Google Fonts) is the substitute for non-Apple platforms and is loaded here;
-   Iowan Old Style stays first in the stack so Apple users get the real face.
-   Supply a licensed webfont if the brand wants one face everywhere. */
+   Source Serif 4 (Google Fonts, SIL Open Font Licence) is the primary serif on
+   every platform. Iowan Old Style — the Apple system face the product used
+   originally — stays in the stack after it, but it is no longer what most users
+   see: it has no webfont binary, so leading with it made non-Apple platforms
+   fall through inconsistently. */
 @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
 
 :root {
-  /* Serif — wordmark and the two largest headings ONLY. */
-  --font-serif: 'Iowan Old Style', 'Source Serif 4', 'Source Serif Pro', Georgia, 'Times New Roman', serif;
-  /* Sans — all UI chrome and document body. */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  /* Serif — wordmark, the two largest headings, project titles, document prose. */
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  /* Sans — all UI chrome. The document body is serif. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Menlo, Consolas, monospace;
 }

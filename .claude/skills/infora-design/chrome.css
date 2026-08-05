@@ -422,7 +422,7 @@ td.indent { padding-left: var(--space-6); }
 .prose {
   max-width: var(--prose-measure);
   margin: 0 auto;
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
   font-size: var(--text-prose-size);
   line-height: var(--leading-relaxed);
   color: var(--text-prose);
