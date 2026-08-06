@@ -118,6 +118,9 @@ export function DeliverableStatusScreen() {
   }
 
   const isOwner = me.membershipRole === 'owner';
+  const myConfirmedReviewer = row.reviewers.some(
+    (g) => g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null,
+  );
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
   const status = statusBadge(row.workItem?.status ?? row.state);
   const containerState = statusBadge(row.state);
@@ -181,7 +184,8 @@ export function DeliverableStatusScreen() {
         <CycleStatusBar
           cycle={cycle}
           onAcknowledge={
-            isOwner && newestRound
+            // owner organisation, or a live confirmed reviewer (ADR-0051 addendum)
+            (isOwner || myConfirmedReviewer) && newestRound
               ? () => void act(() => api.acknowledgeRound(newestRound.id))
               : undefined
           }

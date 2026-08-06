@@ -204,7 +204,8 @@ export function CycleScreen() {
           cycle={cycle}
           showPriorRounds={false}
           onAcknowledge={
-            me.membershipRole === 'owner'
+            // owner organisation, or a live confirmed reviewer (ADR-0051 addendum)
+            me.membershipRole === 'owner' || myReviewer
               ? () => {
                   const newest = [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1);
                   if (newest) void act(() => api.acknowledgeRound(newest.id));

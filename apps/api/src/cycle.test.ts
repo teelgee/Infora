@@ -22,9 +22,12 @@ let documentId: string;
 let leadAuthorCookie: string; // consultant lead author
 let colleagueCookie: string; // consultant non-lead author
 let ownerCookie: string; // owner-side lead reviewer
+let thirdOrgReviewerCookie: string; // third-org confirmed reviewer (ADR-0051 addendum)
 let leadAuthorParticipantId: string;
 let colleagueParticipantId: string;
 let ownerParticipantId: string;
+let thirdOrgReviewerParticipantId: string;
+let thirdOrg: string;
 
 async function makeUser(name: string, organisationId: string, elevated = false) {
   const [user] = await db
@@ -55,8 +58,10 @@ const promote = (cookie: string, docId = documentId) =>
 beforeAll(async () => {
   const [oA] = await db.insert(s.organisations).values({ name: 't120 owner org' }).returning();
   const [oB] = await db.insert(s.organisations).values({ name: 't120 consult org' }).returning();
+  const [oC] = await db.insert(s.organisations).values({ name: 't120 third org' }).returning();
   ownerOrg = oA!.id;
   consultOrg = oB!.id;
+  thirdOrg = oC!.id;
   const [project] = await db
     .insert(s.projects)
     .values({ name: 't120 project', ownerOrganisationId: ownerOrg })
@@ -65,6 +70,7 @@ beforeAll(async () => {
   await db.insert(s.memberships).values([
     { organisationId: ownerOrg, projectId, role: 'owner' },
     { organisationId: consultOrg, projectId, role: 'member' },
+    { organisationId: thirdOrg, projectId, role: 'member' },
   ]);
   await db.insert(s.acceptanceCodes).values([
     { projectId, code: 'A', description: 'Accepted', isAccepting: true, sortOrder: 1 },
@@ -74,12 +80,15 @@ beforeAll(async () => {
   const lead = await makeUser('t120-lena', consultOrg, true); // elevated: may close-reject (T-174)
   const colleague = await makeUser('t120-cole', consultOrg);
   const owner = await makeUser('t120-opal', ownerOrg);
+  const thirdReviewer = await makeUser('t120-thea', thirdOrg);
   leadAuthorParticipantId = lead.participant.id;
   colleagueParticipantId = colleague.participant.id;
   ownerParticipantId = owner.participant.id;
+  thirdOrgReviewerParticipantId = thirdReviewer.participant.id;
   leadAuthorCookie = await session(lead.user.email);
   colleagueCookie = await session(colleague.user.email);
   ownerCookie = await session(owner.user.email);
+  thirdOrgReviewerCookie = await session(thirdReviewer.user.email);
 
   const [container] = await db
     .insert(s.containers)
@@ -430,11 +439,25 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
     ).json()) as ReviewCycle;
     expect(cycle.editLockHolder).toBe('reviewing');
-    // round 2 restarts at the gate (ADR-0051) — the owner acknowledges it open
+    // round 2 restarts at the gate (ADR-0051) — and this time a CONFIRMED
+    // third-org reviewer acknowledges it open (the addendum: the review group
+    // receives the submission; proposal alone would confer nothing)
     expect(cycle.rounds.map((r) => r.state)).toEqual(['responded', 'submitted']);
+    await db.insert(s.deliverableShares).values({
+      containerId,
+      organisationId: thirdOrg,
+      grantedByParticipantId: ownerParticipantId,
+    });
+    await db.insert(s.deliverableReviewers).values({
+      containerId,
+      participantId: thirdOrgReviewerParticipantId,
+      grantedByParticipantId: ownerParticipantId,
+      confirmedByParticipantId: ownerParticipantId,
+      confirmedAt: new Date(),
+    });
     const ack = await app.request(`/rounds/${cycle.rounds[1]!.id}/acknowledge`, {
       method: 'POST',
-      headers: asJson(ownerCookie),
+      headers: asJson(thirdOrgReviewerCookie),
     });
     expect(ack.status).toBe(200);
     expect(((await ack.json()) as ReviewCycle).rounds.map((r) => r.state)).toEqual([

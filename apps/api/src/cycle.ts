@@ -809,12 +809,14 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     return { ...row, slice };
   }
 
-  // ADR-0051 — the owner organisation acknowledges a submission, opening the
-  // round for review. Any Participant of the owner organisation may fire it
-  // (routine coordination, not the elevated tier); recorded who/when on the
-  // round — the transmittal is append-only (ADR-0009/0010), and the round is
-  // the thing the act transitions. Sandbox-scope rounds are created 'open'
-  // and never pass through here.
+  // ADR-0051 — acknowledging a submission opens the round for review. Any
+  // Participant of the owner organisation, or a live CONFIRMED reviewer of
+  // the deliverable (the addendum — the review group is who receives the
+  // submission into review; proposal confers nothing, ADR-0033), may fire
+  // it: routine coordination, not the elevated tier. Recorded who/when on
+  // the round — the transmittal is append-only (ADR-0009/0010), and the
+  // round is the thing the act transitions. Sandbox-scope rounds are
+  // created 'open' and never pass through here.
   app.post('/rounds/:roundId/acknowledge', async (c) => {
     const scope = await roundScope(c, c.req.param('roundId'));
     if (!scope) return notFound(c);
@@ -825,8 +827,9 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       .from(s.projects)
       .where(eq(s.projects.id, container.projectId))
       .limit(1);
-    if (project?.ownerOrganisationId !== slice.organisationId) {
-      return forbidden(c, 'owner_organisation_only');
+    const isOwnerOrg = project?.ownerOrganisationId === slice.organisationId;
+    if (!isOwnerOrg && !(await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))) {
+      return forbidden(c, 'owner_organisation_or_reviewer_only');
     }
     await deps.db
       .update(s.rounds)
