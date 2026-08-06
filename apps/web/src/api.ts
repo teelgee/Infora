@@ -208,6 +208,11 @@ export const api = {
   // opening the round for review
   acknowledgeRound: (roundId: string) =>
     request<ReviewCycle>(`/rounds/${roundId}/acknowledge`, { method: 'POST' }),
+  // ADR-0052 (T-353) — the reviewer's own completion signal on an open round
+  markReviewComplete: (roundId: string) =>
+    request<ReviewCycle>(`/rounds/${roundId}/review-completion`, { method: 'POST' }),
+  withdrawReviewComplete: (roundId: string) =>
+    request<ReviewCycle>(`/rounds/${roundId}/review-completion`, { method: 'DELETE' }),
   addReviewComment: (roundId: string, body: CreateReviewCommentBody) =>
     request<ReviewComment>(`/rounds/${roundId}/comments`, {
       method: 'POST',

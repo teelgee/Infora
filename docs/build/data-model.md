@@ -231,7 +231,11 @@ a second acknowledgement one level up:** a project-scope round is created
 organisation acknowledges the submission — two nullable columns **on the
 round** (the transmittal is append-only by trigger, ADR-0051 §2), one new
 initial `round_state` value; sandbox-scope rounds are exempt and created
-`open`. **At most one open round
+`open`. **ADR-0052 (ruled 2026-08-06, built with T-353)** adds the
+per-reviewer completion **signal** beside it: one row per (round,
+participant), markable and withdrawable only while the round is open — so
+the set freezes at issue with no trigger — and walled from the authoring
+side until issue exactly like the open round's comments. **At most one open round
 per cycle is a partial unique index** — the load-bearing invariant held by
 the schema, not by convention.
 Comments freeze at issue (trigger), responses must link the addressing change

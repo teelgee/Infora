@@ -188,3 +188,13 @@ are not recorded here.
   acknowledgement" from pre-gate history: rounds that advanced before
   migration 0040 have no receipt, and rendering them "awaiting" would be a
   false fact.
+- **2026-08-06 (T-353) — completion is a signal on the read, not a state in
+  the machine.** `Round.reviewerCompletions` answers "has each reviewer
+  finished?", which was previously not derivable — a reviewer with nothing
+  to say is done, not absent. Two deliberate negatives shape the contract:
+  the mark/withdraw acts are legal only on an `open` round, so the set
+  freezes at issue with no trigger; and the field is phased server-side
+  under the same ADR-0014 rule as the comments, because a completion is
+  reviewer-side positioning and returning it to the authoring side during
+  an open round would leak through a different door what the comment
+  phasing walls off.

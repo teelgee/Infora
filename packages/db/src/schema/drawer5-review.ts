@@ -238,6 +238,31 @@ export const responses = pgTable(
   (t) => [uniqueIndex('responses_comment_unique').on(t.commentId)],
 );
 
+// ── Per-reviewer completion (ADR-0052, T-353) ──────────────────────────────
+// A round-scoped SIGNAL: the reviewer states their pass over the version is
+// done. Not derivable from comments (a reviewer with nothing to say is done,
+// not absent). Deletable while the round is open — a resumed review is a
+// changed mind, not an audit event; the act is legal only on an open round,
+// which freezes the set at issue with no trigger. Reviewer-side state,
+// walled from the authoring side until issue exactly like the open round's
+// comments (ADR-0014). Stores a named Participant — personal-data.md.
+export const reviewCompletions = pgTable(
+  'review_completions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    roundId: uuid('round_id')
+      .notNull()
+      .references(() => rounds.id),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id),
+    completedAt: timestamp('completed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('review_completions_round_participant_unique').on(t.roundId, t.participantId),
+  ],
+);
+
 // ── Appointment grants (ADR-0017/0033) ─────────────────────────────────────
 // Append-only interval rows on the container: an amendment is a new row or a
 // closed interval, never an edit — "who could act in round N" reconstructs

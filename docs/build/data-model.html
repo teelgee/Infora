@@ -677,6 +677,15 @@
         </tbody></table>
       </article>
       <article class="card d5">
+        <h3>review_completions</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">round_id</td><td class="type">uuid</td><td class="notes">→ rounds.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">completed_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
         <h3>review_cycles</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

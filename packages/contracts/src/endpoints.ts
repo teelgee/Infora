@@ -767,6 +767,10 @@ export type Round = {
   // a sandbox-scope round
   acknowledgedBy: { participantId: Id; name: string } | null;
   acknowledgedAt: string | null;
+  // ADR-0052: the reviewers who have stated their pass is done — reviewer-side
+  // state, withheld from the authoring side while the round is open (the
+  // ADR-0014 rule, applied server-side alongside the comments)
+  reviewerCompletions: Array<{ participantId: Id; name: string; completedAt: string }>;
   reviewPeriodTarget: string | null; // guides, never gates (ADR-0005)
   deliverableCode: AcceptanceCode | null;
   comments: ReviewComment[];

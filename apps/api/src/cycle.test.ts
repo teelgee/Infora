@@ -344,6 +344,46 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     expect(comment.anchor?.page).toBe(1);
   });
 
+  it('a reviewer marks completion; it is walled from authors while open, withdrawable, and refused to non-reviewers (ADR-0052)', async () => {
+    // the author holds no completion power
+    const byAuthor = await app.request(`/rounds/${roundId}/review-completion`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(byAuthor.status).toBe(403);
+
+    // the reviewer marks their pass done
+    const marked = await app.request(`/rounds/${roundId}/review-completion`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(marked.status).toBe(201);
+    const asReviewer = (await marked.json()) as ReviewCycle;
+    expect(asReviewer.rounds[0]!.reviewerCompletions).toHaveLength(1);
+    expect(asReviewer.rounds[0]!.reviewerCompletions[0]!.participantId).toBe(ownerParticipantId);
+
+    // reviewer-side state: withheld from the authoring side while open
+    const asAuthor = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: leadAuthorCookie } })
+    ).json()) as ReviewCycle;
+    expect(asAuthor.rounds[0]!.reviewerCompletions).toHaveLength(0);
+
+    // a changed mind while open withdraws the signal…
+    const withdrawn = await app.request(`/rounds/${roundId}/review-completion`, {
+      method: 'DELETE',
+      headers: asJson(ownerCookie),
+    });
+    expect(withdrawn.status).toBe(200);
+    expect(((await withdrawn.json()) as ReviewCycle).rounds[0]!.reviewerCompletions).toHaveLength(0);
+
+    // …and the reviewer re-marks, so the issue below freezes a completed set
+    const again = await app.request(`/rounds/${roundId}/review-completion`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(again.status).toBe(201);
+  });
+
   it('the lead reviewer moderates, sets the verdict, and issues — lock flips, round revealed', async () => {
     const moderated = await app.request(`/review-comments/${commentId}`, {
       method: 'PATCH',
@@ -376,6 +416,14 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: leadAuthorCookie } })
     ).json()) as ReviewCycle;
     expect(asAuthor.rounds[0]!.comments).toHaveLength(2);
+    // issue reveals the completion set to the authoring side (ADR-0052 §4)…
+    expect(asAuthor.rounds[0]!.reviewerCompletions).toHaveLength(1);
+    // …and freezes it: the acts are legal only on an open round
+    const lateMark = await app.request(`/rounds/${roundId}/review-completion`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(lateMark.status).toBe(409);
 
     const [workItem] = await db.select().from(s.workItems).where(eq(s.workItems.containerId, containerId));
     expect(workItem!.status).toBe('responding');

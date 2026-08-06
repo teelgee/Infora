@@ -216,8 +216,40 @@ export function DeliverableStatusScreen() {
                 No reviewers appointed yet.
               </p>
             )}
-            {liveReviewers.map((g) => (
+            {liveReviewers.map((g) => {
+              // ADR-0052 — the newest round's completion signals. The server
+              // already withholds them from the authoring side while the
+              // round is open; while open the group sees live state, after
+              // issue only the completions stand (no stale "Reviewing").
+              const completion =
+                g.confirmedAt !== null
+                  ? newestRound?.reviewerCompletions.find((rc) => rc.participantId === g.participantId)
+                  : undefined;
+              const roundOpen = newestRound?.state === 'open' && cycle?.state === 'active';
+              const showLiveState = roundOpen && (myConfirmedReviewer || isOwner);
+              const isSelf = g.participantId === me.participantId;
+              return (
               <PersonRow key={g.id} grant={g} organisationName={orgByParticipant.get(g.participantId)}>
+                {completion ? (
+                  <Badge tone="success">Review complete</Badge>
+                ) : showLiveState && g.confirmedAt !== null ? (
+                  <Badge tone="neutral">Reviewing</Badge>
+                ) : null}
+                {isSelf && myConfirmedReviewer && roundOpen && newestRound && (
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    onClick={() =>
+                      void act(() =>
+                        completion
+                          ? api.withdrawReviewComplete(newestRound.id)
+                          : api.markReviewComplete(newestRound.id),
+                      )
+                    }
+                  >
+                    {completion ? 'Resume review' : 'Mark my review complete'}
+                  </Button>
+                )}
                 {/* one badge per row: the lead's title subsumes "confirmed";
                     a proposed row states that plus the owner's act */}
                 {g.confirmedAt !== null ? (
@@ -247,7 +279,8 @@ export function DeliverableStatusScreen() {
                   </Button>
                 )}
               </PersonRow>
-            ))}
+              );
+            })}
             {canManageReviewers && (
               <div style={{ marginTop: 10 }}>
                 <SelectInput

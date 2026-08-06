@@ -195,6 +195,16 @@ export async function readCycle(
         .where(inArray(s.transmittals.roundId, roundIds))
         .orderBy(asc(s.transmittals.issuedAt))
     : [];
+  // ADR-0052 — per-reviewer completion signals, phased like the comments
+  const completionRows = roundIds.length
+    ? await db
+        .select({ completion: s.reviewCompletions, name: s.users.name })
+        .from(s.reviewCompletions)
+        .innerJoin(s.participants, eq(s.reviewCompletions.participantId, s.participants.id))
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.reviewCompletions.roundId, roundIds))
+        .orderBy(asc(s.reviewCompletions.completedAt))
+    : [];
   const codeRows = await db
     .select()
     .from(s.acceptanceCodes)
@@ -233,6 +243,9 @@ export async function readCycle(
   }
 
   const rounds: Round[] = roundRows.map(({ round, versionReference }) => {
+    // one wall, two payloads: the open round's comments AND its completion
+    // signals are reviewer-side state, withheld from the authoring side
+    // until the lead issues (ADR-0014; ADR-0052 §4)
     const hideComments = authoringSide && round.state === 'open';
     const comments: ReviewComment[] = hideComments
       ? []
@@ -281,6 +294,15 @@ export async function readCycle(
           }
         : null,
       acknowledgedAt: round.acknowledgedAt?.toISOString() ?? null,
+      reviewerCompletions: hideComments
+        ? []
+        : completionRows
+            .filter((r) => r.completion.roundId === round.id)
+            .map(({ completion, name }) => ({
+              participantId: completion.participantId,
+              name,
+              completedAt: completion.completedAt.toISOString(),
+            })),
       reviewPeriodTarget: round.reviewPeriodTarget?.toISOString() ?? null,
       deliverableCode: deliverableCode ? toAcceptanceCode(deliverableCode) : null,
       comments,
@@ -839,6 +861,47 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         acknowledgedAt: sql`now()`,
       })
       .where(eq(s.rounds.id, round.id));
+    return c.json(await readCycle(deps.db, container, slice));
+  });
+
+  // ADR-0052 — the reviewer's own completion signal: mark on an open round,
+  // withdraw while it stays open (a changed mind, not an audit event). The
+  // set freezes at issue for free — both acts are legal only on 'open'.
+  app.post('/rounds/:roundId/review-completion', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    if (!reviewer) return forbidden(c, 'reviewers_only');
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    try {
+      await deps.db
+        .insert(s.reviewCompletions)
+        .values({ roundId: round.id, participantId: slice.participantId });
+    } catch (error) {
+      if (error instanceof Error && /review_completions_round_participant_unique|duplicate key/.test(String(error.cause ?? error.message))) {
+        return conflict(c, 'already_complete');
+      }
+      throw error;
+    }
+    return c.json(await readCycle(deps.db, container, slice), 201);
+  });
+
+  app.delete('/rounds/:roundId/review-completion', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    const reviewer = await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId);
+    if (!reviewer) return forbidden(c, 'reviewers_only');
+    if (round.state !== 'open') return conflict(c, 'round_not_open');
+    await deps.db
+      .delete(s.reviewCompletions)
+      .where(
+        and(
+          eq(s.reviewCompletions.roundId, round.id),
+          eq(s.reviewCompletions.participantId, slice.participantId),
+        ),
+      );
     return c.json(await readCycle(deps.db, container, slice));
   });
 
