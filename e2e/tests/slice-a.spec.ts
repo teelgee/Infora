@@ -247,8 +247,11 @@ test('browser — the accepted deliverable reads on the Review plan table', asyn
   await page.goto(`/projects/${projectId}/review`);
   await expect(page.getByText(REFERENCE, { exact: true })).toBeVisible();
   await page.getByText(REFERENCE, { exact: true }).click();
+  // T-348 — the schedule click lands on the STATUS page, not the round tray
   // T-347 — the status bar reads the accepted cycle: all four steps stand done
   await expect(page.getByText('Complete', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open the review' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open the review' }).click();
   await expect(page.getByText('Round 2 · P02')).toBeVisible();
   await expect(page.getByText('A — Accepted', { exact: false }).first()).toBeVisible();
 });

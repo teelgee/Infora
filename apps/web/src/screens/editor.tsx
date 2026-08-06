@@ -585,7 +585,7 @@ export function EditorScreen() {
                 void api
                   .promoteDocument(doc.id)
                   .then((r) =>
-                    navigate(`/projects/${participant.projectId}/review/${doc.containerId}`, {
+                    navigate(`/projects/${participant.projectId}/review/${doc.containerId}/cycle`, {
                       state: { promoted: r.versionReference },
                     }),
                   )

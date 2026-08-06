@@ -1,0 +1,330 @@
+// T-348 — the deliverable status page (approved mockup:
+// docs/design/mockups/deliverable-status-page.html). Clicking a reference on
+// the review schedule lands HERE, not in the round: everything a coordinator
+// needs before opening the review on one screen — the four-state status bar
+// (T-347), the people (reviewer confirmation moved here from the schedule,
+// where T-133 first put it), the deliverable's metadata, and every reviewed
+// version with its renditions. "Open the review" is the single primary
+// action; the round tray lives one step deeper at review/:containerId/cycle.
+// The transmittal & acknowledgement history card is T-350.
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useNavigate, useOutletContext, useParams } from 'react-router';
+import type {
+  AppointmentGrant,
+  MeResponse,
+  PlanRow,
+  Rendition,
+  ReviewCycle,
+  ReviewerGrant,
+  SandboxDocument,
+} from '@infora/contracts';
+import { X } from 'lucide-react';
+import { Badge, Button, Card, SectionLabel, Skeleton } from '@infora/ui';
+import { api, RequestError } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
+import { CycleStatusBar } from '../cycle-status-bar';
+import { formatDate, initialsOf, statusBadge } from './shared';
+
+type ShellContext = { participant: MeResponse['participants'][number] };
+
+export function DeliverableStatusScreen() {
+  const { participant: me } = useOutletContext<ShellContext>();
+  const { containerId } = useParams();
+  const navigate = useNavigate();
+  const [row, setRow] = useState<PlanRow | null>(null);
+  const [cycle, setCycle] = useState<ReviewCycle | null>(null);
+  const [draft, setDraft] = useState<SandboxDocument | null>(null);
+  const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!containerId) return;
+    try {
+      const [plan, cycleRead, docs] = await Promise.all([
+        api.plan(me.projectId),
+        api.cycle(containerId),
+        api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
+      ]);
+      const planRow = plan.items.find((r) => r.containerId === containerId) ?? null;
+      setRow(planRow);
+      setCycle(cycleRead);
+      setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
+      setLoaded(true);
+      // renditions for every reviewed version, plus the current version when it
+      // is a fresh issue outside the rounds (the accepted C revision, ADR-0041)
+      const wanted = new Set<string>(cycleRead?.rounds.map((r) => r.versionId) ?? []);
+      if (planRow?.currentVersion) wanted.add(planRow.currentVersion.versionId);
+      const entries = await Promise.all(
+        [...wanted].map(async (v) => [v, await api.renditions(v).then((r) => r.items, () => [])] as const),
+      );
+      setRenditions(Object.fromEntries(entries));
+    } catch (error) {
+      setLoadError(error instanceof RequestError ? describeApiError(errorCode(error)) : 'Could not load this deliverable.');
+    }
+  }, [containerId, me.projectId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  async function act(action: () => Promise<unknown>) {
+    setNotice(null);
+    try {
+      await action();
+      await reload();
+    } catch (error) {
+      if (error instanceof RequestError) setNotice(describeApiError(errorCode(error)));
+      else throw error;
+    }
+  }
+
+  if (!containerId) return null;
+  if (loadError) {
+    return (
+      <div className="content">
+        <p style={{ color: 'var(--text-muted)' }}>{loadError}</p>
+      </div>
+    );
+  }
+  if (row === null) {
+    return (
+      <div className="content">
+        {loaded ? (
+          <p style={{ color: 'var(--text-muted)' }}>This deliverable is not on a plan you can see.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={16} width="70%" />
+            <Skeleton height={320} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const isOwner = me.membershipRole === 'owner';
+  const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
+  const status = statusBadge(row.workItem?.status ?? row.state);
+  const containerState = statusBadge(row.state);
+  const liveAuthors = row.authors.filter((g) => g.revokedAt === null);
+  const liveReviewers = row.reviewers.filter((g) => g.revokedAt === null);
+  const newestRound = cycle ? [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1) : null;
+
+  const renditionLinks = (versionId: string) => {
+    const items = renditionsByVersion[versionId] ?? [];
+    if (items.length === 0) return null;
+    return (
+      <>
+        {items.map((r, i) => (
+          <span key={r.id}>
+            {i > 0 && ' · '}
+            <a href={`/renditions/${r.id}/file`}>{r.kind === 'pdf' ? 'PDF' : `native .${r.format}`}</a>
+          </span>
+        ))}
+      </>
+    );
+  };
+
+  return (
+    <div className="content">
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
+            {row.documentReference}
+          </h1>
+          <p className="page-sub" style={{ margin: 0 }}>
+            {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          {draft && myAuthor && (
+            <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
+              Open the draft in the Editor
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}/cycle`)}
+          >
+            Open the review
+          </Button>
+        </div>
+      </div>
+
+      {notice && (
+        <div className="banner banner--error" style={{ marginBottom: 8 }}>
+          {notice}
+          <button className="modal-x" aria-label="Dismiss" onClick={() => setNotice(null)} style={{ marginLeft: 'auto' }}>
+            <X size={14} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+
+      {cycle ? (
+        <CycleStatusBar
+          cycle={cycle}
+          onAcknowledge={
+            isOwner && newestRound
+              ? () => void act(() => api.acknowledgeRound(newestRound.id))
+              : undefined
+          }
+        />
+      ) : (
+        <Card>
+          <div style={{ padding: 18, color: 'var(--text-muted)', fontSize: 13 }}>
+            Not yet promoted — the review cycle launches when the lead author promotes the first
+            version from the sandbox draft.
+          </div>
+        </Card>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+        <Card>
+          <div style={{ padding: '12px 16px' }}>
+            <SectionLabel>Reviewers</SectionLabel>
+            {liveReviewers.length === 0 && (
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+                No reviewers appointed yet.
+              </p>
+            )}
+            {liveReviewers.map((g) => (
+              <PersonRow key={g.id} grant={g}>
+                {g.isLead && <Badge tone="neutral">Lead reviewer</Badge>}
+                {g.confirmedAt === null ? (
+                  <>
+                    <Badge tone="warning">Proposed</Badge>
+                    {/* confirmation is the owner's act, and access follows
+                        confirmation, never proposal (ADR-0033, T-133) */}
+                    {isOwner && (
+                      <Button size="sm" variant="quiet" onClick={() => void act(() => api.confirmReviewer(g.id))}>
+                        Confirm
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Badge tone="success">Confirmed</Badge>
+                )}
+              </PersonRow>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '12px 16px' }}>
+            <SectionLabel>{`Authors — ${row.producingOrganisationName}`}</SectionLabel>
+            {liveAuthors.length === 0 && (
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+                No authors appointed yet.
+              </p>
+            )}
+            {liveAuthors.map((g) => (
+              <PersonRow key={g.id} grant={g}>
+                {g.isLead && <Badge tone="neutral">Lead author</Badge>}
+              </PersonRow>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '12px 16px' }}>
+            <SectionLabel>Deliverable</SectionLabel>
+            <MetaRow k="Reference">
+              <span style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.documentReference}</span>
+            </MetaRow>
+            <MetaRow k="Producing organisation">{row.producingOrganisationName}</MetaRow>
+            <MetaRow k="State">
+              <Badge tone={containerState.tone}>{containerState.label}</Badge>
+            </MetaRow>
+            {row.currentVersion && (
+              <MetaRow k="Current revision">{row.currentVersion.versionReference}</MetaRow>
+            )}
+            {row.deliverableCode && (
+              <MetaRow k="Verdict">{`${row.deliverableCode.code} — ${row.deliverableCode.description}`}</MetaRow>
+            )}
+            {row.documentOwner && <MetaRow k="Document owner">{row.documentOwner.name}</MetaRow>}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ padding: '12px 16px' }}>
+            <SectionLabel>Documents</SectionLabel>
+            {!cycle && (
+              <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+                No versions yet — nothing has been promoted.
+              </p>
+            )}
+            {cycle &&
+              [...cycle.rounds]
+                .sort((a, b) => b.number - a.number)
+                .map((r) => (
+                  <MetaRow key={r.id} k={r.versionReference}>
+                    Round {r.number} — {statusBadge(r.state).label.toLowerCase()}
+                    {renditionsByVersion[r.versionId]?.length ? <> · {renditionLinks(r.versionId)}</> : null}
+                  </MetaRow>
+                ))}
+            {row.currentVersion &&
+              cycle &&
+              !cycle.rounds.some((r) => r.versionId === row.currentVersion!.versionId) && (
+                <MetaRow k={row.currentVersion.versionReference}>
+                  Issued {formatDate(row.currentVersion.createdAt)} — current
+                  {renditionsByVersion[row.currentVersion.versionId]?.length ? (
+                    <> · {renditionLinks(row.currentVersion.versionId)}</>
+                  ) : null}
+                </MetaRow>
+              )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function PersonRow(props: { grant: AppointmentGrant | ReviewerGrant; children?: ReactNode }) {
+  const { grant } = props;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-subtle, var(--border-default))' }}>
+      <span
+        aria-hidden
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 8,
+          background: 'var(--action-primary-bg)',
+          color: 'var(--action-primary-text)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 11,
+          fontWeight: 700,
+          flex: 'none',
+        }}
+      >
+        {initialsOf(grant.name)}
+      </span>
+      <span style={{ fontSize: 12.5, fontWeight: 600 }}>{grant.name}</span>
+      <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{props.children}</span>
+    </div>
+  );
+}
+
+function MetaRow(props: { k: string; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 16,
+        padding: '7px 0',
+        fontSize: 12.5,
+        borderBottom: '1px solid var(--border-subtle, var(--border-default))',
+      }}
+    >
+      <span style={{ color: 'var(--text-muted)', flex: 'none' }}>{props.k}</span>
+      <span style={{ textAlign: 'right' }}>{props.children}</span>
+    </div>
+  );
+}

@@ -108,7 +108,7 @@ test('the reviewer anchors a comment from a PDF selection; the overlay paints fr
   page,
 }) => {
   await signIn(page, SEEDED.owner);
-  await page.goto(`/projects/${projectId}/review/${containerId}`);
+  await page.goto(`/projects/${projectId}/review/${containerId}/cycle`);
 
   // the frozen version's PDF renders in the viewer
   await expect(page.locator('.review-pdf canvas').first()).toBeVisible();
@@ -155,7 +155,7 @@ test('the authoring side sees the overlays only once the round is issued (ADR-00
   // while the round is open the author is blind to the round's comments and
   // their overlays — the viewer renders, the anchors do not
   await signIn(page, SEEDED.consultant);
-  await page.goto(`/projects/${projectId}/review/${containerId}`);
+  await page.goto(`/projects/${projectId}/review/${containerId}/cycle`);
   await expect(page.locator('.review-pdf canvas').first()).toBeVisible();
   await expect(page.locator('.review-pdf-overlay [aria-label="anchored comment highlight"]')).toHaveCount(0);
   await expect(page.getByText(body)).toHaveCount(0);

@@ -11,6 +11,7 @@ import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
 import { PlanScreen } from './screens/plan';
 import { SchemaScreen } from './screens/schema';
 import { CycleScreen } from './screens/cycle';
+import { DeliverableStatusScreen } from './screens/deliverable-status';
 import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
 import { SettingsScreen } from './screens/settings';
@@ -33,7 +34,10 @@ const router = createBrowserRouter([
       { path: 'plan/scheme', element: <SchemaScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
       { path: 'review', element: <ReviewScreen /> },
-      { path: 'review/:containerId', element: <CycleScreen /> },
+      // T-348 — the schedule click-through lands on the status page; the
+      // round tray (the review itself) is one deliberate step deeper
+      { path: 'review/:containerId', element: <DeliverableStatusScreen /> },
+      { path: 'review/:containerId/cycle', element: <CycleScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
       { path: 'history', element: <HistoryScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemScreen /> },

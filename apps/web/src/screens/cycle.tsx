@@ -161,6 +161,9 @@ export function CycleScreen() {
         {/* actions, right-aligned; the destructive close is set apart from the
             primary promote by a divider so it never sits adjacent to it (T-226) */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}`)}>
+            Back to status
+          </Button>
           {draft && myAuthor && (
             <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
               Open the draft in the Editor
