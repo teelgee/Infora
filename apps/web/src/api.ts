@@ -64,6 +64,7 @@ import type {
   AttachedSource,
   NonReviewTransmittal,
   Acknowledgement,
+  ListContainerTransmittalsResponse,
   ListPendingTransmittalsResponse,
   ListPresenceResponse,
 } from '@infora/contracts';
@@ -436,6 +437,10 @@ export const api = {
   unpinAttachedSource: (sourceId: string) =>
     request<{ ok: true }>(`/attached-sources/${sourceId}/unpin`, { method: 'POST' }),
   // T-161 — non-review transmittal + the acknowledgement gate (ADR-0035)
+  // T-350 — the container's transmittal & acknowledgement history; the
+  // three-way distribution cut arrives already applied by the server
+  containerTransmittals: (containerId: string) =>
+    request<ListContainerTransmittalsResponse>(`/containers/${containerId}/transmittals`),
   issueTransmittal: (containerId: string, organisationIds: string[], purposeCode?: string) =>
     request<NonReviewTransmittal>(`/containers/${containerId}/transmittals`, {
       method: 'POST',

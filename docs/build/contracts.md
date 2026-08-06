@@ -168,3 +168,23 @@ are not recorded here.
   The split also closed a masked gap: a promotion onto a library container
   previously left the new current version chunkless until the *next*
   acceptance anywhere in the project, silently dropping it out of retrieval.
+- **2026-08-06 (T-346) — the submission acknowledgement lives on the round,
+  not the transmittal it acknowledges.** The first cut put the who/when pair
+  on the review transmittal — the thing being received — and the database
+  refused it: transmittals are append-only by trigger (ADR-0009/0010), and
+  carving an exception for one column pair would spend a load-bearing
+  invariant on a tidy noun. The round is one-to-one with the submission and
+  already mutable by design, so `POST /rounds/:id/acknowledge` writes the
+  pair in the same statement that moves `submitted → open`, and `Round`
+  (not `TransmittalRecord`) carries `acknowledgedBy`/`acknowledgedAt`.
+- **2026-08-06 (T-350) — the distribution cut is the endpoint's, never the
+  client's.** `GET /containers/:id/transmittals` returns three different
+  shapes for the same container by viewer (owner: every recipient
+  organisation + acknowledgement state; receiver: its own rows; producer:
+  rows with `recipientsWithheld`), because a surface must not *receive* what
+  its viewer may not see — a fuller payload filtered client-side would put
+  the competitor list one devtools tab away (ADR-0035 addendum). The row
+  also carries `roundState` so the surface can tell "awaiting
+  acknowledgement" from pre-gate history: rounds that advanced before
+  migration 0040 have no receipt, and rendering them "awaiting" would be a
+  false fact.

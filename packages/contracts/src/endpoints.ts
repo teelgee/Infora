@@ -590,6 +590,34 @@ export type NonReviewTransmittal = {
   issuedAt: string;
 };
 
+// T-350 — the container's transmittal & acknowledgement history (ADR-0035
+// addendum, ruled 2026-08-06). The three-way distribution-list cut is enforced
+// in the endpoint's row construction, never by a client filtering a fuller
+// payload: the OWNER sees every recipient organisation and its acknowledgement
+// state; a RECEIVING organisation sees only its own rows; the PRODUCING
+// organisation sees that issues occurred with the recipient list withheld.
+export type TransmittalHistoryRecipient = {
+  organisationId: Id;
+  organisationName: string;
+  acknowledged: { by: { participantId: Id; name: string }; at: string } | null;
+};
+export type TransmittalHistoryRow = {
+  id: Id;
+  kind: 'review' | 'non_review';
+  direction: 'issue' | 'return' | null; // review kind only
+  roundNumber: number | null; // review kind only
+  roundState: Round['state'] | null; // review kind only — lets the surface tell "awaiting acknowledgement" from pre-gate history
+  versionReference: string | null;
+  sender: { participantId: Id; name: string };
+  purposeCode: string | null;
+  issuedAt: string;
+  recipientOrganisations: TransmittalHistoryRecipient[]; // non_review only, cut per viewer
+  recipientsWithheld: boolean; // the producing organisation's view of a non_review row
+  // ADR-0051 — the owner's receipt of a review submission (return-direction rows)
+  submissionAcknowledged: { by: { participantId: Id; name: string }; at: string } | null;
+};
+export type ListContainerTransmittalsResponse = { items: TransmittalHistoryRow[] };
+
 // The organisation-level acknowledgement (§4). No body — mode-aware server-side
 // (controller vs open), fired on the requester's organisation's behalf for the
 // deliverable's current version; the first firing clears the org gate.

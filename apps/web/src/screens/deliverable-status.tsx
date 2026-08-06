@@ -17,6 +17,7 @@ import type {
   ReviewCycle,
   ReviewerGrant,
   SandboxDocument,
+  TransmittalHistoryRow,
 } from '@infora/contracts';
 import { X } from 'lucide-react';
 import { Badge, Button, Card, SectionLabel, Skeleton } from '@infora/ui';
@@ -35,6 +36,7 @@ export function DeliverableStatusScreen() {
   const [cycle, setCycle] = useState<ReviewCycle | null>(null);
   const [draft, setDraft] = useState<SandboxDocument | null>(null);
   const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
+  const [transmittals, setTransmittals] = useState<TransmittalHistoryRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -42,15 +44,18 @@ export function DeliverableStatusScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs] = await Promise.all([
+      const [plan, cycleRead, docs, history] = await Promise.all([
         api.plan(me.projectId),
         api.cycle(containerId),
         api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
+        // the server applies the ADR-0035-addendum three-way distribution cut
+        api.containerTransmittals(containerId).catch(() => ({ items: [] as TransmittalHistoryRow[] })),
       ]);
       const planRow = plan.items.find((r) => r.containerId === containerId) ?? null;
       setRow(planRow);
       setCycle(cycleRead);
       setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
+      setTransmittals(history.items);
       setLoaded(true);
       // renditions for every reviewed version, plus the current version when it
       // is a fresh issue outside the rounds (the accepted C revision, ADR-0041)
@@ -278,8 +283,110 @@ export function DeliverableStatusScreen() {
               )}
           </div>
         </Card>
+
+        {/* T-350 — the transmittal & acknowledgement history. The rows arrive
+            already cut three ways by the server (ADR-0035 addendum): the owner
+            sees every recipient organisation and its acknowledgement state; a
+            receiving organisation only its own rows; the producing
+            organisation sees that issues occurred, recipients withheld. */}
+        {transmittals.length > 0 && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Card>
+              <div style={{ padding: '12px 16px' }}>
+                <SectionLabel>Transmittals and acknowledgements</SectionLabel>
+                <table style={{ marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Kind</th>
+                      <th>Version</th>
+                      <th>Issued by</th>
+                      <th>Recipient</th>
+                      <th>Acknowledgement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transmittals.map((t) => (
+                      <TransmittalRow key={t.id} row={t} />
+                    ))}
+                  </tbody>
+                </table>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.4 }}>
+                  {isOwner
+                    ? 'The full distribution record — every recipient organisation and its acknowledgement state.'
+                    : 'Your organisation’s view of the record; the owner holds the full distribution list.'}
+                </p>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
+  const kindLabel =
+    row.kind === 'review'
+      ? row.direction === 'return'
+        ? 'Review — submitted'
+        : 'Review — issued'
+      : (row.purposeCode ?? 'Issued to organisation');
+  const recipientLabel =
+    row.kind === 'review' ? (row.direction === 'return' ? 'Review group' : 'Authoring team') : null;
+  const ackCell = (() => {
+    if (row.kind === 'review') {
+      if (row.direction !== 'return') return <Badge tone="neutral">Not required</Badge>;
+      if (row.submissionAcknowledged) {
+        return (
+          <Badge tone="success">
+            Acknowledged — {row.submissionAcknowledged.by.name}, {formatDate(row.submissionAcknowledged.at)}
+          </Badge>
+        );
+      }
+      // pre-gate history: a round that advanced without a recorded receipt
+      // (before migration 0040) is a dash, never a false "awaiting"
+      return row.roundState === 'submitted' ? <Badge tone="warning">Awaiting acknowledgement</Badge> : <>—</>;
+    }
+    return null;
+  })();
+
+  if (row.kind === 'review' || row.recipientsWithheld) {
+    return (
+      <tr>
+        <td>{formatDate(row.issuedAt)}</td>
+        <td>{kindLabel}</td>
+        <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.versionReference ?? '—'}</td>
+        <td>{row.sender.name}</td>
+        <td style={row.recipientsWithheld ? { color: 'var(--text-muted)' } : undefined}>
+          {row.recipientsWithheld ? 'Withheld — the owner’s distribution record' : recipientLabel}
+        </td>
+        <td>{row.recipientsWithheld ? '—' : ackCell}</td>
+      </tr>
+    );
+  }
+  // one display row per visible recipient organisation
+  return (
+    <>
+      {row.recipientOrganisations.map((org) => (
+        <tr key={`${row.id}:${org.organisationId}`}>
+          <td>{formatDate(row.issuedAt)}</td>
+          <td>{kindLabel}</td>
+          <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.versionReference ?? '—'}</td>
+          <td>{row.sender.name}</td>
+          <td>{org.organisationName}</td>
+          <td>
+            {org.acknowledged ? (
+              <Badge tone="success">
+                Acknowledged — {org.acknowledged.by.name}, {formatDate(org.acknowledged.at)}
+              </Badge>
+            ) : (
+              <Badge tone="warning">Awaiting acknowledgement</Badge>
+            )}
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }
 

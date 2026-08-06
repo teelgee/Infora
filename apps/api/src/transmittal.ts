@@ -7,7 +7,7 @@
 // the usual 404, and no parameter widens a requester's scope.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createGrantRuleBody,
@@ -20,10 +20,12 @@ import type {
   AcknowledgementModeSetting,
   ApiError,
   GrantRule,
+  ListContainerTransmittalsResponse,
   ListGrantRulesResponse,
   ListPendingTransmittalsResponse,
   NonReviewTransmittal,
   ParticipantGrant,
+  TransmittalHistoryRow,
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -430,6 +432,156 @@ export function transmittalRoutes(deps: { db: Db }) {
       mode: updated!.ackMode,
       controllerParticipantId: updated!.ackControllerParticipantId,
     } satisfies AcknowledgementModeSetting);
+  });
+
+  // ── T-350: the container's transmittal & acknowledgement history ─────────
+  // The ADR-0035 addendum's three-way cut, enforced HERE in row construction,
+  // never by the client filtering a fuller payload: the owner organisation
+  // gets every recipient and its acknowledgement state; a receiving
+  // organisation gets only its own rows; the producing organisation gets
+  // kind/version/date with the recipient list withheld. Review-kind rows
+  // (already visible through the cycle read to anyone who can see the
+  // container) disclose no distribution — their recipient is the review
+  // group or the authoring team by construction.
+  app.get('/containers/:containerId/transmittals', async (c) => {
+    const container = await loadLibraryContainer(c.req.param('containerId'));
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice) return notFound(c);
+    const [project] = await deps.db
+      .select({ ownerOrganisationId: s.projects.ownerOrganisationId })
+      .from(s.projects)
+      .where(eq(s.projects.id, container.projectId))
+      .limit(1);
+    const isOwnerOrg = project?.ownerOrganisationId === slice.organisationId;
+    const isProducer = container.producingOrganisationId === slice.organisationId;
+    if (!isOwnerOrg && !isProducer && !(await liveShare(container.id, slice.organisationId))) {
+      return notFound(c);
+    }
+
+    // review-kind rows, via the container's cycles
+    const reviewRows = await deps.db
+      .select({
+        transmittal: s.transmittals,
+        roundNumber: s.rounds.number,
+        roundState: s.rounds.state,
+        ackBy: s.rounds.acknowledgedByParticipantId,
+        ackAt: s.rounds.acknowledgedAt,
+        versionReference: s.versions.versionReference,
+        senderName: s.users.name,
+      })
+      .from(s.transmittals)
+      .innerJoin(s.rounds, eq(s.transmittals.roundId, s.rounds.id))
+      .innerJoin(s.reviewCycles, eq(s.rounds.cycleId, s.reviewCycles.id))
+      .innerJoin(s.versions, eq(s.rounds.versionId, s.versions.id))
+      .innerJoin(s.participants, eq(s.transmittals.senderParticipantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.reviewCycles.containerId, container.id));
+
+    // non-review rows on the container itself
+    const issueRows = await deps.db
+      .select({
+        transmittal: s.transmittals,
+        versionReference: s.versions.versionReference,
+        senderName: s.users.name,
+      })
+      .from(s.transmittals)
+      .innerJoin(s.versions, eq(s.transmittals.versionId, s.versions.id))
+      .innerJoin(s.participants, eq(s.transmittals.senderParticipantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(and(eq(s.transmittals.containerId, container.id), eq(s.transmittals.kind, 'non_review')));
+
+    // names for every referenced organisation and acknowledger, in two lookups
+    const orgIds = [...new Set(issueRows.flatMap((r) => r.transmittal.recipientOrganisationIds))];
+    const orgNames = new Map(
+      orgIds.length
+        ? (
+            await deps.db
+              .select({ id: s.organisations.id, name: s.organisations.name })
+              .from(s.organisations)
+              .where(inArray(s.organisations.id, orgIds))
+          ).map((r) => [r.id, r.name])
+        : [],
+    );
+    const acks = await deps.db
+      .select({ ack: s.deliverableAcknowledgements, name: s.users.name })
+      .from(s.deliverableAcknowledgements)
+      .innerJoin(
+        s.participants,
+        eq(s.deliverableAcknowledgements.acknowledgedByParticipantId, s.participants.id),
+      )
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.deliverableAcknowledgements.containerId, container.id));
+    const ackByVersionOrg = new Map(
+      acks.map((r) => [
+        `${r.ack.versionId}:${r.ack.organisationId}`,
+        {
+          by: { participantId: r.ack.acknowledgedByParticipantId, name: r.name },
+          at: r.ack.acknowledgedAt.toISOString(),
+        },
+      ]),
+    );
+    const roundAckerIds = [...new Set(reviewRows.map((r) => r.ackBy).filter((v): v is string => v !== null))];
+    const roundAckerNames = new Map(
+      roundAckerIds.length
+        ? (
+            await deps.db
+              .select({ participantId: s.participants.id, name: s.users.name })
+              .from(s.participants)
+              .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+              .where(inArray(s.participants.id, roundAckerIds))
+          ).map((r) => [r.participantId, r.name])
+        : [],
+    );
+
+    const items: TransmittalHistoryRow[] = [
+      ...reviewRows.map(({ transmittal, roundNumber, roundState, ackBy, ackAt, versionReference, senderName }) => ({
+        id: transmittal.id,
+        kind: 'review' as const,
+        direction: transmittal.direction,
+        roundNumber,
+        roundState,
+        versionReference,
+        sender: { participantId: transmittal.senderParticipantId, name: senderName },
+        purposeCode: transmittal.purposeCode,
+        issuedAt: transmittal.issuedAt.toISOString(),
+        recipientOrganisations: [],
+        recipientsWithheld: false,
+        submissionAcknowledged:
+          transmittal.direction === 'return' && ackBy && ackAt
+            ? { by: { participantId: ackBy, name: roundAckerNames.get(ackBy) ?? '' }, at: ackAt.toISOString() }
+            : null,
+      })),
+      ...issueRows.flatMap(({ transmittal, versionReference, senderName }) => {
+        // the three-way cut: which recipient organisations may THIS viewer see?
+        const visibleOrgIds = isOwnerOrg
+          ? transmittal.recipientOrganisationIds
+          : transmittal.recipientOrganisationIds.filter((o) => o === slice.organisationId);
+        if (!isOwnerOrg && !isProducer && visibleOrgIds.length === 0) return []; // not issued to this org — not its row
+        return [
+          {
+            id: transmittal.id,
+            kind: 'non_review' as const,
+            direction: null,
+            roundNumber: null,
+            roundState: null,
+            versionReference,
+            sender: { participantId: transmittal.senderParticipantId, name: senderName },
+            purposeCode: transmittal.purposeCode,
+            issuedAt: transmittal.issuedAt.toISOString(),
+            recipientOrganisations: visibleOrgIds.map((organisationId) => ({
+              organisationId,
+              organisationName: orgNames.get(organisationId) ?? '',
+              acknowledged: ackByVersionOrg.get(`${transmittal.versionId}:${organisationId}`) ?? null,
+            })),
+            recipientsWithheld: !isOwnerOrg && isProducer,
+            submissionAcknowledged: null,
+          },
+        ];
+      }),
+    ].sort((a, b) => (a.issuedAt < b.issuedAt ? 1 : -1));
+
+    return c.json({ items } satisfies ListContainerTransmittalsResponse);
   });
 
   // ── The receiving org's inbox (T-161): deliverables shared to my org whose
