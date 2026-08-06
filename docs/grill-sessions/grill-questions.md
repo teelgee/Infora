@@ -25,7 +25,7 @@ is the **process log**.
 
 ## How to read an entry
 
-`Q-###` — title. **Next free number: Q-037** — **derive it, don't trust it:
+`Q-###` — title. **Next free number: Q-038** — **derive it, don't trust it:
 `pnpm run check:questions -- --next`** (T-343) scans this tracker,
 [grill-history.md](grill-history.md) *and* `git log`, and prints the next free
 number. Bump this line in the same commit that claims one; `pnpm run check`
@@ -162,6 +162,7 @@ this group that a ticket found by trying to build the thing.
 - **Q-019 — The sandbox drawer, and the personal→project push.** **[A/B]** · *Blocks: nothing.* SharePoint-shaped folder capability is largely built (Slice A2.4). What is unruled is the **cross-scope move**: pushing a personal-sandbox document into the project's own-org sandbox — one-way push? copy or move? does anything come back? No ADR covers it. *(Owner's access-model sketch, 2026-07-14, drawn red in [access-model.tldr](../architecture/diagrams/access-model.tldr).)*
 - **Q-020 — Sandbox content in chat context.** **[B]** · *Blocks: T-100's placeholder chip.* ADR-0011 rules the AI never *grounds* on sandbox content. The fork is whether sandbox material may enter chat context **at all** — as a labelled, uncitable channel like open-world? as find-my-file navigation only? — and how that squares with the sandbox being the uncontrolled working area.
 - **Q-021 — A user-facing model picker.** **[A]** · *Blocks: T-100's placeholder chip.* Model-agnosticism is already guaranteed at the seams (Router, per-index pinned embeddings, model id audited per step). A *user-facing* picker is per-request routing policy — ADR-0028 §9's stubbed multi-model routing — to design when a second adapter lands. Related: T-284.
+- **Q-037 — Does the deliverable plan seed the document creator's structure?** **[A]** · *Blocks: T-335's bound-container path only — the unbound path builds regardless.* Raised 2026-08-06, pulled out of T-335's prose per the Q/T boundary rule. **The user situation:** a consultant opens the document creator (Tools) for a draft bound to a planned container; the plan row already carries the deliverable's title, coded reference and metadata. Does the outline arrive pre-seeded from that plan row, or empty? **Recommendation:** seed the *read-only facts* the user can already see (title, reference, the plan metadata their access admits) and never the structure itself — the plan row is owner-controlled project data, the outline is producing-organisation authoring, and ADR-0038 deliberately made `container_id` the *only* link between the two; anything richer walks into `Q-034`'s wall-through-content territory. **Stress test:** the owner edits the plan-row metadata after the outline was seeded — does the creator surface the divergence or silently keep the stale seed, and is that the same currency question the naming scheme carries (`Q-026`)?
 - **Q-023 — Predetermined response styles.** **[A]** · *Blocks: T-107's placeholder chip.* A Style chip drawing on styles set by the project or organisation. To settle: what a style *is*, who defines and edits one, where styles live (the org-context store is the natural adjacency), how it enters the chain (steer into the draft leaf — thinking, never doing, ADR-0027), and whether it applies per-turn or per-conversation. Closely related to **Q-004**.
 
 ### The record

@@ -49,7 +49,7 @@ recurring disciplines, used throughout and worth naming once:
 > Applying that output without reading it would be destructive. Both 0038 and
 > 0039 were written by hand, with their `_journal.json` entries appended by
 > hand, which is now the working convention. Re-syncing the snapshot so
-> `generate` is usable again would be its own ticket.
+> `generate` is usable again is **T-344**.
 
 ---
 
