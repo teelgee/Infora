@@ -21,7 +21,7 @@ import type {
   TransmittalHistoryRow,
 } from '@infora/contracts';
 import { X } from 'lucide-react';
-import { Badge, Button, Skeleton } from '@infora/ui';
+import { Badge, Button, SelectInput, Skeleton } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
@@ -39,6 +39,7 @@ export function DeliverableStatusScreen() {
   const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
   const [transmittals, setTransmittals] = useState<TransmittalHistoryRow[]>([]);
   const [orgByParticipant, setOrgByParticipant] = useState<Map<string, string>>(new Map());
+  const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export function DeliverableStatusScreen() {
       setOrgByParticipant(
         new Map(roster.items.map((r) => [r.participantId, r.organisationName])),
       );
+      setRoster(roster.items.filter((r) => r.removedAt === null));
       setLoaded(true);
       // renditions for every reviewed version, plus the current version when it
       // is a fresh issue outside the rounds (the accepted C revision, ADR-0041)
@@ -121,6 +123,14 @@ export function DeliverableStatusScreen() {
   const myConfirmedReviewer = row.reviewers.some(
     (g) => g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null,
   );
+  const myLeadReviewer = row.reviewers.some(
+    (g) =>
+      g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null && g.isLead,
+  );
+  // ADR-0033 addendum (T-352): the owner and the confirmed lead reviewer
+  // manage the group from here; a lead-reviewer proposal is non-confirming
+  // unless owner-side, and revocation is always wall-safe
+  const canManageReviewers = isOwner || myLeadReviewer;
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
   const status = statusBadge(row.workItem?.status ?? row.state);
   const containerState = statusBadge(row.state);
@@ -229,8 +239,34 @@ export function DeliverableStatusScreen() {
                     )}
                   </>
                 )}
+                {/* remove, never on the lead's own row — a cycle cannot run
+                    without its lead reviewer (ADR-0005/0008) */}
+                {canManageReviewers && !g.isLead && (
+                  <Button size="sm" variant="quiet" onClick={() => void act(() => api.revokeReviewer(g.id))}>
+                    Remove
+                  </Button>
+                )}
               </PersonRow>
             ))}
+            {canManageReviewers && (
+              <div style={{ marginTop: 10 }}>
+                <SelectInput
+                  value=""
+                  placeholder="Add a reviewer from the roster…"
+                  options={roster
+                    .filter((r) => !liveReviewers.some((g) => g.participantId === r.participantId))
+                    .map((r) => ({ value: r.participantId, label: `${r.name} — ${r.organisationName}` }))}
+                  onChange={(participantId) => {
+                    if (participantId) void act(() => api.grantReviewer(containerId, participantId, false));
+                  }}
+                />
+                {!isOwner && (
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                    Your addition is a proposal — access follows the owner’s confirmation.
+                  </p>
+                )}
+              </div>
+            )}
         </StatusCard>
 
         <StatusCard label="Authors">

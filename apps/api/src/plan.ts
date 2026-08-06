@@ -29,6 +29,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
+import { isLiveConfirmedReviewer } from './cycle';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
@@ -424,14 +425,24 @@ export function containerRoutes(deps: { db: Db }) {
   });
 
   // Reviewers: the producing organisation PROPOSES (confirms nothing); an
-  // owner-made grant is auto-confirmed (ADR-0033).
+  // owner-made grant is auto-confirmed (ADR-0033). The ADR-0033 addendum
+  // (owner-ruled 2026-08-06, T-352) adds the live confirmed LEAD reviewer:
+  // they run the group, so they may propose too — non-confirming unless they
+  // are owner-side, because confirmation is where the wall bites (ADR-0015).
   app.post('/containers/:containerId/reviewers', async (c) => {
-    const scopedCtx = await scoped(c, c.req.param('containerId'));
-    if (!scopedCtx) return notFound(c);
-    const { container, slice } = scopedCtx;
+    // not scoped(): planVisible admits only owner/producer, and the addendum's
+    // third party — the confirmed lead reviewer — may sit outside both; the
+    // lead's own confirmed grant is their sight (ADR-0015 share-first ran at
+    // their confirmation)
+    const container = await loadContainer(deps.db, c.req.param('containerId'));
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice) return notFound(c);
     const isOwner = slice.membershipRole === 'owner';
     const isProducer = container.producingOrganisationId === slice.organisationId;
-    if (!isOwner && !isProducer) return notFound(c);
+    const leadReviewer = (await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))
+      ?.isLead ?? false;
+    if (!isOwner && !isProducer && !leadReviewer) return notFound(c);
     if (container.scope === 'sandbox' && !isProducer) return notFound(c);
     const body = grantAppointmentBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
@@ -490,13 +501,20 @@ export function containerRoutes(deps: { db: Db }) {
       .where(eq(s.deliverableReviewers.id, grantId))
       .limit(1);
     if (!grant || grant.revokedAt) return notFound(c);
-    const scopedCtx = await scoped(c, grant.containerId);
-    if (!scopedCtx) return notFound(c);
-    const { container, slice } = scopedCtx;
+    // not scoped() — see the reviewer-grant handler above (the lead may sit
+    // outside planVisible's owner/producer pair)
+    const container = await loadContainer(deps.db, grant.containerId);
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice) return notFound(c);
     const isOwner = slice.membershipRole === 'owner';
     const proposerRetractingProposal =
       !grant.confirmedAt && container.producingOrganisationId === slice.organisationId;
-    if (!isOwner && !proposerRetractingProposal) return notFound(c);
+    // ADR-0033 addendum (T-352): the live confirmed lead reviewer may revoke —
+    // revocation narrows access and is always wall-safe
+    const leadReviewer = (await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))
+      ?.isLead ?? false;
+    if (!isOwner && !proposerRetractingProposal && !leadReviewer) return notFound(c);
     await deps.db
       .update(s.deliverableReviewers)
       .set({ revokedAt: sql`now()` })
