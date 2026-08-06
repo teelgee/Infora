@@ -85,6 +85,31 @@ export function Button(props: {
   );
 }
 
+/** A 30px square icon-only button — send, close, overflow. The label is
+ * required: there is no visible text for a screen reader to fall back on. */
+export function IconButton(props: {
+  variant?: 'primary' | 'quiet';
+  disabled?: boolean;
+  onClick?: () => void;
+  title?: string;
+  'aria-label': string;
+  children: ReactNode;
+}) {
+  const classes = ['btn', 'icon-btn', props.variant].filter(Boolean).join(' ');
+  return (
+    <button
+      className={classes}
+      type="button"
+      onClick={props.onClick}
+      disabled={props.disabled}
+      aria-label={props['aria-label']}
+      title={props.title}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 /** Card-shaped content only (nested-card elevation) — for tabular data use
  * `Table` instead; the two are no longer the same visual role. */
 export function Card(props: { className?: string; children: ReactNode }) {

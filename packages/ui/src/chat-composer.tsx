@@ -10,6 +10,17 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Button } from './primitives';
 
+/** A chat turn. The user's message is a filled, shadowed bubble aligned
+ * right; the agent's reply is plain text — the asymmetry is deliberate, so
+ * replies read as content rather than as speech. */
+export function ChatBubble(props: { from?: 'user' | 'agent'; children: ReactNode }) {
+  return (props.from ?? 'user') === 'user' ? (
+    <div className="bubble mine">{props.children}</div>
+  ) : (
+    <div className="reply">{props.children}</div>
+  );
+}
+
 const MAX_HEIGHT = 168; // ~7 lines before the composer scrolls
 
 export type ChatComposerHandle = { insert: (snippet: string) => void };

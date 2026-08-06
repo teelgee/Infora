@@ -1,0 +1,53 @@
+<!-- @dsCard group="Components" viewport="700x230" name="Core" subtitle="Buttons, chips, badges, sources, labels" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Core</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="../../ds-boot.js"></script>
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .col { display:flex; flex-direction:column; gap:10px; }
+  .cap { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+  .onframe { background:var(--surface-frame); border-radius:var(--radius-md); padding:12px; }
+</style>
+<div id="root"></div>
+
+<script type="text/ds-babel">
+  const { Button, IconButton, Chip, Badge, SourceChip, SectionLabel } = window.DS;
+  const App = () => (
+    <div className="col">
+      <div className="row">
+        <Button variant="primary">Promote</Button>
+        <Button>Edit</Button>
+        <Button variant="quiet">Dismiss</Button>
+        <Button variant="danger">Reject</Button>
+        <Button variant="primary" disabled>Disabled</Button>
+        <Button size="sm">Small</Button>
+        <IconButton variant="primary" aria-label="Send">→</IconButton>
+      </div>
+      <div className="row">
+        <Badge tone="success">Current</Badge>
+        <Badge tone="warning">In review</Badge>
+        <Badge tone="danger">Rejected</Badge>
+        <Badge tone="info">Authority</Badge>
+        <Badge tone="neutral">Draft</Badge>
+        <Badge tone="neutral" pill>Member</Badge>
+        <Badge tone="success" pill>Owner</Badge>
+      </div>
+      <div className="row">
+        <Chip>📎 Files</Chip>
+        <Chip>▤ Sources</Chip>
+        <Chip disabled title="waits on the library sync">Library</Chip>
+        <SourceChip corpus="library">TMP v2 §4</SourceChip>
+        <SourceChip corpus="authority">PA 2008 s.47</SourceChip>
+        <SectionLabel>Your projects</SectionLabel>
+      </div>
+    </div>
+  );
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>dsBoot(['../../ds-preview.jsx'], '../../_ds_bundle.js');</script>

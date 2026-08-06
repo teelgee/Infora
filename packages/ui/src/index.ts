@@ -10,6 +10,7 @@ export {
   Card,
   Chip,
   CommandBar,
+  IconButton,
   MadeCard,
   OutChip,
   SectionLabel,
@@ -19,6 +20,8 @@ export {
 export type { BadgeTone } from './primitives';
 export { ProjectSwitcher, Rail, RailNav, RailSpacer, UserChip, WorkspaceZone } from './rail';
 export type { RailNavItem } from './rail';
+export { AppFrame, CollapseToggle, Pane, PaneHeader, ResizeGrip } from './app-frame';
+export { Prose } from './prose';
 export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 export { Modal, Drawer } from './dialog';
 export { Field, TextInput, TextArea, SelectInput, Combobox } from './form';
@@ -29,5 +32,5 @@ export { NumBadge, SuggestionCard } from './suggestion-card';
 export { RunTrace } from './run-trace';
 export { Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
-export { ChatComposer } from './chat-composer';
+export { ChatBubble, ChatComposer } from './chat-composer';
 export type { ChatComposerHandle } from './chat-composer';

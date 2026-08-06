@@ -1,0 +1,30 @@
+/* Spacing — every value a multiple of 4px. Never a bare pixel value in app code. */
+:root {
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --gap-tight: var(--space-1);
+  --gap-default: var(--space-2);
+  --gap-loose: var(--space-3);
+  --pane-gap: var(--space-3);
+  --pane-padding: var(--space-3);
+  --card-padding: var(--space-4);
+  --nested-card-padding: var(--space-3);
+  --section-gap: var(--space-6);
+  --page-padding: var(--space-6);
+
+  /* Shell geometry */
+  --rail-width: 216px;
+  --rail-width-collapsed: 64px;
+  --panel-width: 308px;
+  --prose-measure: 560px;
+}

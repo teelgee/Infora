@@ -1,0 +1,21 @@
+<!-- @dsCard group="Colors" viewport="700x110" name="Frame ramp" subtitle="The shell fill and the three states for controls sitting on it" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div class="grid">
+  <div class="sw" style="width:180px"><div class="chip-sw" style="background:#dedad0"></div><div class="nm">frame-base</div><div class="hx">#dedad0 · the app shell</div></div>
+  <div class="sw" style="width:180px"><div class="chip-sw" style="background:#e5e3dc"></div><div class="nm">frame-hover</div><div class="hx">#e5e3dc · nav hover · quiet blocks</div></div>
+  <div class="sw" style="width:180px"><div class="chip-sw" style="background:#c9c5b8"></div><div class="nm">frame-active</div><div class="hx">#c9c5b8 · nav selected</div></div>
+</div>

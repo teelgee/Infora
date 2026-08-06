@@ -1,0 +1,22 @@
+<!-- @dsCard group="Brand" viewport="700x120" name="Loading" subtitle="A shimmer, never a spinner — content is coming, not a percentage" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div class="stack" style="max-width:420px">
+  <div class="skeleton" style="width:40%;height:12px"></div>
+  <div class="skeleton" style="width:92%;height:12px"></div>
+  <div class="skeleton" style="width:86%;height:12px"></div>
+  <div class="skeleton" style="width:60%;height:12px"></div>
+</div>

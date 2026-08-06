@@ -1,0 +1,87 @@
+/* Colour. Monochrome warm-grey base; hue is reserved for status and tracked
+   changes only. There is no separate brand hue — the accent IS near-black. */
+:root {
+  /* --- Neutral ramp (light) --- */
+  --neutral-0: #ffffff;
+  --neutral-50: #faf9f7;
+  --neutral-100: #f2f1ed;
+  --neutral-150: #efeeeb;
+  --neutral-200: #ececea;
+  --neutral-300: #e0ded8;
+  --neutral-400: #c7c5be;
+  --neutral-500: #78766f;
+  --neutral-600: #57564f;
+  --neutral-900: #1c1b18;
+
+  /* --- Frame ramp: the app shell and anything sitting directly on it --- */
+  --frame-base: #dedad0;
+  --frame-hover: #e5e3dc;
+  --frame-active: #c9c5b8;
+
+  /* --- Status hues (closed set of five) --- */
+  --green-500: #2f9e52;
+  --green-600: #1a7a3a;
+  --green-tint: #e8f5ea;
+  --red-500: #b23b34;
+  --red-tint: #fbeceb;
+  --amber-500: #c4901f;
+  --amber-600: #8a5a12;
+  --amber-tint: #f8efdd;
+  --slate-500: #274a6d;
+  --slate-tint: #e9eff6;
+
+  /* --- Semantic surfaces --- */
+  --surface-frame: var(--frame-base);
+  --surface-pane: var(--neutral-0);
+  --surface-sunken: var(--neutral-150);
+  --surface-hover: var(--neutral-150);
+  --surface-active: var(--neutral-200);
+  --surface-row-hover: var(--neutral-50);
+  /* Controls sitting ON the frame — the pane-tuned fills vanish there. */
+  --surface-frame-hover: var(--frame-hover);
+  --surface-frame-active: var(--frame-active);
+  --surface-frame-sunken: var(--frame-hover);
+
+  /* --- Borders --- */
+  --border-default: var(--neutral-200);
+  --border-subtle: var(--neutral-100);
+
+  /* --- Text --- */
+  --text-primary: var(--neutral-900);
+  --text-secondary: var(--neutral-600);
+  --text-muted: var(--neutral-500);
+  --text-faint: var(--neutral-400); /* decorative only — 1.73:1, never meaningful text */
+  --text-prose: #2c2b28; /* long-form document body in the editor canvas */
+  --text-on-accent: var(--neutral-0);
+
+  /* --- Actions --- */
+  --action-primary-bg: var(--neutral-900);
+  --action-primary-bg-hover: #000000;
+  --action-primary-text: var(--neutral-0);
+  --action-secondary-bg: var(--neutral-0);
+  --action-secondary-border: var(--neutral-200);
+  --action-secondary-text: var(--neutral-600);
+  --action-disabled-opacity: 0.35;
+
+  --focus-ring: #cfcac0;
+
+  /* --- Feedback --- */
+  --feedback-success-text: var(--green-600);
+  --feedback-success-dot: var(--green-500);
+  --feedback-success-tint: var(--green-tint);
+  --feedback-danger-text: var(--red-500);
+  --feedback-danger-tint: var(--red-tint);
+  --feedback-warning-text: var(--amber-600);
+  --feedback-warning-dot: var(--amber-500);
+  --feedback-warning-tint: var(--amber-tint);
+  --feedback-info-text: var(--slate-500);
+  --feedback-info-tint: var(--slate-tint);
+  --feedback-neutral-dot: var(--neutral-400);
+
+  /* --- Tracked changes (editor prose only) --- */
+  --tracked-insert-text: var(--green-600);
+  --tracked-insert-bg: var(--green-tint);
+  --tracked-insert-border: var(--green-500);
+  --tracked-delete-text: var(--red-500);
+  --tracked-delete-bg: var(--red-tint);
+}
