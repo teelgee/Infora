@@ -64,6 +64,7 @@ test.beforeAll(async () => {
     content: 'The ground model is built from twelve boreholes and the regional solid geology.',
   });
   const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
+  await rachel.post(`/rounds/${promoted.roundId}/acknowledge`, {}); // the ADR-0051 gate
 
   // the lead reviewer comments, sets a revise verdict, and issues the round
   // back to the authors — the pen returns to the authoring side

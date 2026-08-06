@@ -91,7 +91,12 @@ export const reviewCycles = pgTable(
 );
 
 // ── Rounds ─────────────────────────────────────────────────────────────────
-export const roundState = pgEnum('round_state', ['open', 'issued', 'responded']);
+// ADR-0051: a project-scope round is created 'submitted' and opens for review
+// only when a Participant of the owner organisation acknowledges the
+// submission transmittal. A sandbox-scope round is created 'open' — the
+// org-private cycle has no owner in the loop, so no gate. The DB default
+// stays 'open'; the promotion path sets 'submitted' explicitly.
+export const roundState = pgEnum('round_state', ['submitted', 'open', 'issued', 'responded']);
 
 export const rounds = pgTable(
   'rounds',
@@ -106,6 +111,16 @@ export const rounds = pgTable(
       .notNull()
       .references(() => versions.id),
     state: roundState('state').notNull().default('open'),
+    // ADR-0051: the owner organisation's receipt of the submission — the one
+    // act that moves a project-scope round submitted → open, recorded who/
+    // when. On the ROUND, not the transmittal: transmittals are append-only
+    // by trigger (the ADR-0009/0010 record discipline), and the round is the
+    // thing the act transitions. A migration CHECK binds the pair together.
+    // Stores a named Participant — personal-data.md, retained per ADR-0050.
+    acknowledgedByParticipantId: uuid('acknowledged_by_participant_id').references(
+      () => participants.id,
+    ),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
     // guides — reminders and overdue — never gates (ADR-0005)
     reviewPeriodTarget: timestamp('review_period_target', { withTimezone: true }),
     // the lead reviewer's authoritative per-round verdict, suggested from the

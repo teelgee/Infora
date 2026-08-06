@@ -201,6 +201,23 @@ export async function readCycle(
     .where(eq(s.acceptanceCodes.projectId, container.projectId));
   const codeById = new Map(codeRows.map((r) => [r.id, r]));
 
+  // the ADR-0051 acknowledger's name, where a submission has been acknowledged
+  const ackParticipantIds = [
+    ...new Set(
+      roundRows
+        .map((r) => r.round.acknowledgedByParticipantId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+  const ackNameRows = ackParticipantIds.length
+    ? await db
+        .select({ participantId: s.participants.id, name: s.users.name })
+        .from(s.participants)
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.participants.id, ackParticipantIds))
+    : [];
+  const ackNameById = new Map(ackNameRows.map((r) => [r.participantId, r.name]));
+
   const responseByComment = new Map<string, ReviewResponseRecord>();
   for (const r of responseRows) {
     responseByComment.set(r.response.commentId, {
@@ -257,6 +274,13 @@ export async function readCycle(
       versionId: round.versionId,
       versionReference,
       state: round.state,
+      acknowledgedBy: round.acknowledgedByParticipantId
+        ? {
+            participantId: round.acknowledgedByParticipantId,
+            name: ackNameById.get(round.acknowledgedByParticipantId) ?? '',
+          }
+        : null,
+      acknowledgedAt: round.acknowledgedAt?.toISOString() ?? null,
       reviewPeriodTarget: round.reviewPeriodTarget?.toISOString() ?? null,
       deliverableCode: deliverableCode ? toAcceptanceCode(deliverableCode) : null,
       comments,
@@ -727,9 +751,11 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         cycleId = cycle!.id;
         roundNumber = 1;
       }
+      // ADR-0051: a project-scope round is created 'submitted' — it opens for
+      // review only when the owner organisation acknowledges the submission
       const [round] = await tx
         .insert(s.rounds)
-        .values({ cycleId, number: roundNumber, versionId: version!.id })
+        .values({ cycleId, number: roundNumber, versionId: version!.id, state: 'submitted' })
         .returning();
       // the promotion IS the transmittal to review (ADR-0010/0014)
       const [transmittal] = await tx
@@ -782,6 +808,36 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!slice || !(await canSeeContainer(deps.db, slice, row.container))) return null;
     return { ...row, slice };
   }
+
+  // ADR-0051 — the owner organisation acknowledges a submission, opening the
+  // round for review. Any Participant of the owner organisation may fire it
+  // (routine coordination, not the elevated tier); recorded who/when on the
+  // round — the transmittal is append-only (ADR-0009/0010), and the round is
+  // the thing the act transitions. Sandbox-scope rounds are created 'open'
+  // and never pass through here.
+  app.post('/rounds/:roundId/acknowledge', async (c) => {
+    const scope = await roundScope(c, c.req.param('roundId'));
+    if (!scope) return notFound(c);
+    const { round, container, slice } = scope;
+    if (round.state !== 'submitted') return conflict(c, 'round_not_submitted');
+    const [project] = await deps.db
+      .select({ ownerOrganisationId: s.projects.ownerOrganisationId })
+      .from(s.projects)
+      .where(eq(s.projects.id, container.projectId))
+      .limit(1);
+    if (project?.ownerOrganisationId !== slice.organisationId) {
+      return forbidden(c, 'owner_organisation_only');
+    }
+    await deps.db
+      .update(s.rounds)
+      .set({
+        state: 'open',
+        acknowledgedByParticipantId: slice.participantId,
+        acknowledgedAt: sql`now()`,
+      })
+      .where(eq(s.rounds.id, round.id));
+    return c.json(await readCycle(deps.db, container, slice));
+  });
 
   // Reviewers comment while the round is open (ADR-0007/0014); comments are
   // live and cross-organisation within the group.

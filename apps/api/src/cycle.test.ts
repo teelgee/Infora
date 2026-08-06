@@ -193,8 +193,10 @@ describe('promotion (T-120)', () => {
     expect(cycle.state).toBe('active');
     expect(cycle.editLockHolder).toBe('reviewing'); // the reviewers hold the pen
     expect(cycle.rounds).toHaveLength(1);
-    expect(cycle.rounds[0]!.state).toBe('open');
+    // ADR-0051: a project-scope round awaits the owner's acknowledgement
+    expect(cycle.rounds[0]!.state).toBe('submitted');
     expect(cycle.rounds[0]!.transmittals).toHaveLength(1); // promotion IS the transmittal
+    expect(cycle.rounds[0]!.acknowledgedBy).toBeNull();
 
     // the work item moved by the event, not a hand (ADR-0032 addendum)
     const [workItem] = await db
@@ -202,6 +204,47 @@ describe('promotion (T-120)', () => {
       .from(s.workItems)
       .where(eq(s.workItems.containerId, containerId));
     expect(workItem!.status).toBe('in_review');
+  });
+
+  it('the submission acknowledgement gate: no comment lands until the owner acknowledges (ADR-0051)', async () => {
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    const roundId = cycle.rounds[0]!.id;
+
+    // a submitted round takes no comment — even from a confirmed reviewer
+    const early = await app.request(`/rounds/${roundId}/comments`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ body: 'too early' }),
+    });
+    expect(early.status).toBe(409);
+    expect(((await early.json()) as { detail?: string }).detail).toBe('round_not_open');
+
+    // only the owner organisation acknowledges — the producing side may not
+    const byAuthor = await app.request(`/rounds/${roundId}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(byAuthor.status).toBe(403);
+
+    const ack = await app.request(`/rounds/${roundId}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(ack.status).toBe(200);
+    const opened = (await ack.json()) as ReviewCycle;
+    expect(opened.rounds[0]!.state).toBe('open');
+    // recorded who/when, on the round (transmittals are append-only)
+    expect(opened.rounds[0]!.acknowledgedBy?.participantId).toBe(ownerParticipantId);
+    expect(opened.rounds[0]!.acknowledgedAt).not.toBeNull();
+
+    // acknowledging twice is a conflict, not a silent no-op
+    const again = await app.request(`/rounds/${roundId}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(again.status).toBe(409);
   });
 
   it('a second promotion while the round is open is refused — one round, one lock (ADR-0014)', async () => {
@@ -387,7 +430,17 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
     ).json()) as ReviewCycle;
     expect(cycle.editLockHolder).toBe('reviewing');
-    expect(cycle.rounds.map((r) => r.state)).toEqual(['responded', 'open']);
+    // round 2 restarts at the gate (ADR-0051) — the owner acknowledges it open
+    expect(cycle.rounds.map((r) => r.state)).toEqual(['responded', 'submitted']);
+    const ack = await app.request(`/rounds/${cycle.rounds[1]!.id}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(ack.status).toBe(200);
+    expect(((await ack.json()) as ReviewCycle).rounds.map((r) => r.state)).toEqual([
+      'responded',
+      'open',
+    ]);
   });
 
   it('an accepting verdict closes the cycle: work item accepted, the version admitted to grounding (T-126)', async () => {

@@ -228,9 +228,10 @@ decline. ADR-0035 adds the acknowledgement gate and per-participant narrowing
 on the same substrate. **ADR-0051 (ruled 2026-08-06, builds with T-346) adds
 a second acknowledgement one level up:** a project-scope round is created
 `submitted` and opens for review only when a Participant of the owner
-organisation acknowledges the submission transmittal — two nullable columns
-on the review-kind transmittal row, one new initial `round_state` value;
-sandbox-scope rounds are exempt and created `open`. **At most one open round
+organisation acknowledges the submission — two nullable columns **on the
+round** (the transmittal is append-only by trigger, ADR-0051 §2), one new
+initial `round_state` value; sandbox-scope rounds are exempt and created
+`open`. **At most one open round
 per cycle is a partial unique index** — the load-bearing invariant held by
 the schema, not by convention.
 Comments freeze at issue (trigger), responses must link the addressing change

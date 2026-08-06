@@ -727,7 +727,14 @@ export type Round = {
   number: number;
   versionId: Id;
   versionReference: string;
-  state: 'open' | 'issued' | 'responded';
+  // 'submitted' (ADR-0051): awaiting the owner organisation's acknowledgement —
+  // project scope only; a sandbox-scope round is created 'open'
+  state: 'submitted' | 'open' | 'issued' | 'responded';
+  // ADR-0051: the owner organisation's receipt of the submission — set by the
+  // acknowledge act that opens the round; null until then, and always null on
+  // a sandbox-scope round
+  acknowledgedBy: { participantId: Id; name: string } | null;
+  acknowledgedAt: string | null;
   reviewPeriodTarget: string | null; // guides, never gates (ADR-0005)
   deliverableCode: AcceptanceCode | null;
   comments: ReviewComment[];

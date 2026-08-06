@@ -706,6 +706,8 @@
           <tr><td class="col">number</td><td class="type">integer</td><td class="notes"></td></tr>
           <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
           <tr><td class="col">state</td><td class="type">round_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">acknowledged_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">acknowledged_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
           <tr><td class="col">review_period_target</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
           <tr><td class="col">deliverable_code_id</td><td class="type">uuid</td><td class="notes">→ acceptance_codes.id · nullable</td></tr>
         </tbody></table>

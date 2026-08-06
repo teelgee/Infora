@@ -128,7 +128,11 @@ test('3 — promotion takes the QA-accepted frozen version and opens round 1 to 
   expect(result.versionReference).toBe('P01'); // issued for review (ADR-0041)
   expect(result.roundNumber).toBe(1);
 
-  cycle = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!;
+  // ADR-0051: the submission awaits the owner's acknowledgement, then opens
+  const submitted = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!;
+  expect(submitted.rounds[0]!.state).toBe('submitted');
+  cycle = await rachel.post<ReviewCycle>(`/rounds/${result.roundId}/acknowledge`, {});
+  expect(cycle.rounds[0]!.state).toBe('open');
   expect(cycle.editLockHolder).toBe('reviewing');
 
   // the open round is hidden from the authoring side (ADR-0014)
@@ -166,6 +170,7 @@ test('4 — issue, respond, and the transmittal back; then acceptance admits the
   const v2 = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
   expect(v2.versionReference).toBe('P02');
   expect(v2.roundNumber).toBe(2);
+  await rachel.post(`/rounds/${v2.roundId}/acknowledge`, {}); // the ADR-0051 gate, round 2
 
   // round 2: the accepting verdict closes the cycle
   const round2 = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!.rounds[1]!;

@@ -92,6 +92,7 @@ test.beforeAll(async () => {
   await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: CONTENT });
   const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${doc.id}/promotion`, {});
   roundId = promoted.roundId;
+  await rachel.post(`/rounds/${roundId}/acknowledge`, {}); // the ADR-0051 gate
 
   const codes = await rachel.get<{ items: Array<{ id: string; isAccepting: boolean }> }>(
     `/projects/${projectId}/acceptance-codes`,
