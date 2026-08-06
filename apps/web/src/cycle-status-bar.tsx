@@ -14,7 +14,7 @@
 import type { CSSProperties } from 'react';
 import { Check } from 'lucide-react';
 import type { ReviewCycle, Round } from '@infora/contracts';
-import { Badge, Button, Card } from '@infora/ui';
+import { Badge, Button } from '@infora/ui';
 import { formatDate } from './screens/shared';
 
 type StepState = 'done' | 'active' | 'future';
@@ -112,7 +112,9 @@ export function CycleStatusBar(props: {
         : { tone: 'info' as const, label: 'Cycle active' };
 
   return (
-    <Card>
+    // a primary surface on the pane, not a nested card — pane elevation, so
+    // the bar reads as a card rather than a tint (owner note, 2026-08-06)
+    <div className="card" style={{ boxShadow: 'var(--level2-pane)' }}>
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <span
@@ -142,7 +144,9 @@ export function CycleStatusBar(props: {
                         height: 2,
                         flex: 1,
                         margin: '0 6px',
-                        background: steps[i] === 'done' ? 'var(--text-faint, var(--border-default))' : 'var(--border-default)',
+                        // neutral-300/400, NOT border-default — the border
+                        // tone vanishes against the sunken card fill
+                        background: steps[i] === 'done' ? 'var(--text-faint)' : 'var(--primitive-neutral-300)',
                       }}
                     />
                   )}
@@ -201,6 +205,6 @@ export function CycleStatusBar(props: {
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

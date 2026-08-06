@@ -20,7 +20,7 @@ import type {
   TransmittalHistoryRow,
 } from '@infora/contracts';
 import { X } from 'lucide-react';
-import { Badge, Button, Card, SectionLabel, Skeleton } from '@infora/ui';
+import { Badge, Button, Skeleton } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
@@ -179,18 +179,16 @@ export function DeliverableStatusScreen() {
           }
         />
       ) : (
-        <Card>
-          <div style={{ padding: 18, color: 'var(--text-muted)', fontSize: 13 }}>
+        <StatusCard>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             Not yet promoted — the review cycle launches when the lead author promotes the first
             version from the sandbox draft.
           </div>
-        </Card>
+        </StatusCard>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-        <Card>
-          <div style={{ padding: '12px 16px' }}>
-            <SectionLabel>Reviewers</SectionLabel>
+        <StatusCard label="Reviewers">
             {liveReviewers.length === 0 && (
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
                 No reviewers appointed yet.
@@ -215,12 +213,9 @@ export function DeliverableStatusScreen() {
                 )}
               </PersonRow>
             ))}
-          </div>
-        </Card>
+        </StatusCard>
 
-        <Card>
-          <div style={{ padding: '12px 16px' }}>
-            <SectionLabel>{`Authors — ${row.producingOrganisationName}`}</SectionLabel>
+        <StatusCard label={`Authors — ${row.producingOrganisationName}`}>
             {liveAuthors.length === 0 && (
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
                 No authors appointed yet.
@@ -231,12 +226,9 @@ export function DeliverableStatusScreen() {
                 {g.isLead && <Badge tone="neutral">Lead author</Badge>}
               </PersonRow>
             ))}
-          </div>
-        </Card>
+        </StatusCard>
 
-        <Card>
-          <div style={{ padding: '12px 16px' }}>
-            <SectionLabel>Deliverable</SectionLabel>
+        <StatusCard label="Deliverable">
             <MetaRow k="Reference">
               <span style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.documentReference}</span>
             </MetaRow>
@@ -251,12 +243,9 @@ export function DeliverableStatusScreen() {
               <MetaRow k="Verdict">{`${row.deliverableCode.code} — ${row.deliverableCode.description}`}</MetaRow>
             )}
             {row.documentOwner && <MetaRow k="Document owner">{row.documentOwner.name}</MetaRow>}
-          </div>
-        </Card>
+        </StatusCard>
 
-        <Card>
-          <div style={{ padding: '12px 16px' }}>
-            <SectionLabel>Documents</SectionLabel>
+        <StatusCard label="Documents">
             {!cycle && (
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
                 No versions yet — nothing has been promoted.
@@ -281,8 +270,7 @@ export function DeliverableStatusScreen() {
                   ) : null}
                 </MetaRow>
               )}
-          </div>
-        </Card>
+        </StatusCard>
 
         {/* T-350 — the transmittal & acknowledgement history. The rows arrive
             already cut three ways by the server (ADR-0035 addendum): the owner
@@ -291,9 +279,7 @@ export function DeliverableStatusScreen() {
             organisation sees that issues occurred, recipients withheld. */}
         {transmittals.length > 0 && (
           <div style={{ gridColumn: '1 / -1' }}>
-            <Card>
-              <div style={{ padding: '12px 16px' }}>
-                <SectionLabel>Transmittals and acknowledgements</SectionLabel>
+            <StatusCard label="Transmittals and acknowledgements">
                 <table style={{ marginTop: 8 }}>
                   <thead>
                     <tr>
@@ -316,11 +302,27 @@ export function DeliverableStatusScreen() {
                     ? 'The full distribution record — every recipient organisation and its acknowledgement state.'
                     : 'Your organisation’s view of the record; the owner holds the full distribution list.'}
                 </p>
-              </div>
-            </Card>
+            </StatusCard>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A primary card on the status page: pane elevation (the nested-card popout
+ * shadow reads as a tint here, not a card — owner note 2026-08-06) and a
+ * tight in-card label (`.section-label`'s own 34px top margin is page
+ * rhythm, wrong inside a card). */
+function StatusCard(props: { label?: string; children: ReactNode }) {
+  return (
+    <div className="card" style={{ boxShadow: 'var(--level2-pane)', padding: '14px 16px' }}>
+      {props.label && (
+        <div className="section-label" style={{ margin: '0 0 8px' }}>
+          {props.label}
+        </div>
+      )}
+      {props.children}
     </div>
   );
 }
