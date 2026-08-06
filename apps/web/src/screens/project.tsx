@@ -15,6 +15,7 @@ import {
   Badge,
   CommandBar,
   ProjectSwitcher,
+  AppFrame,
   Rail,
   RailNav,
   RailSpacer,
@@ -117,12 +118,8 @@ export function ProjectShell() {
     return {};
   };
 
-  return (
-    <>
-      {sourceOpen !== null && (
-        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
-      )}
-      <Rail>
+  const rail = (
+    <Rail>
         <WorkspaceZone
           organisation={me.organisationName}
           action={
@@ -169,8 +166,15 @@ export function ProjectShell() {
           org={`${me.organisationName} — ${role === 'Owner' ? 'Owner' : 'Consultant'}`}
           onClick={() => void navigate('/settings')}
         />
-      </Rail>
+    </Rail>
+  );
 
+  return (
+    <>
+      {sourceOpen !== null && (
+        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
+      )}
+      <AppFrame rail={rail}>
       <div className="main">
         <div className="topbar">
           <span className="crumb">
@@ -183,6 +187,7 @@ export function ProjectShell() {
         </div>
         <Outlet context={{ participant } satisfies ShellContext} />
       </div>
+      </AppFrame>
     </>
   );
 }

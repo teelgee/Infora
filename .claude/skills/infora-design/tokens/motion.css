@@ -1,0 +1,20 @@
+/* Motion — short, opacity/colour-based. Nothing bounces. */
+:root {
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 300ms;
+  --easing: ease;
+  --transition-hover: var(--duration-base) var(--easing);
+  --transition-press: var(--duration-fast) var(--easing);
+  --transition-panel: var(--duration-slow) var(--easing);
+  --shimmer-duration: 1.4s;
+}
+
+@keyframes infora-shimmer {
+  0% { background-position: -240px 0; }
+  100% { background-position: 360px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --shimmer-duration: 0s; }
+}

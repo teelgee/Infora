@@ -76,7 +76,10 @@ export function Rail(props: { children: ReactNode }) {
         {collapsed ? '»' : '«'}
       </button>
       <div className="wordmark" title="Infora">
-        In<span>fora</span>
+        <span className="mark" />
+        <span className="word">
+          In<span>fora</span>
+        </span>
       </div>
       {props.children}
       {!collapsed && (

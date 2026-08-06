@@ -1,0 +1,23 @@
+<!-- @dsCard group="Colors" viewport="700x150" name="Text colours" subtitle="Measured contrast on a white pane — faint is decorative only" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div class="stack">
+  <div class="row"><span style="color:#1c1b18;font-size:13px;font-weight:600;min-width:180px">text-primary</span><span class="hx">#1c1b18</span><span class="hx">17.2:1</span></div>
+  <div class="row"><span style="color:#57564f;font-size:13px;font-weight:600;min-width:180px">text-secondary</span><span class="hx">#57564f</span><span class="hx">7.4:1</span></div>
+  <div class="row"><span style="color:#78766f;font-size:13px;font-weight:600;min-width:180px">text-muted</span><span class="hx">#78766f</span><span class="hx">4.5:1</span></div>
+  <div class="row"><span style="color:#2c2b28;font-size:13px;font-weight:600;min-width:180px">text-prose</span><span class="hx">#2c2b28</span><span class="hx">13.1:1</span></div>
+  <div class="row"><span style="color:#c7c5be;font-size:13px;font-weight:600;min-width:180px">text-faint</span><span class="hx">#c7c5be</span><span class="hx">1.7:1 — decorative only</span></div>
+</div>

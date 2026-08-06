@@ -1,0 +1,16 @@
+/* Type families.
+
+   Source Serif 4 (Google Fonts, SIL Open Font Licence) is the primary serif on
+   every platform. Iowan Old Style — the Apple system face the product used
+   originally — stays in the stack after it, but it is no longer what most users
+   see: it has no webfont binary, so leading with it made non-Apple platforms
+   fall through inconsistently. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
+
+:root {
+  /* Serif — wordmark, the two largest headings, project titles, document prose. */
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  /* Sans — all UI chrome. The document body is serif. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Menlo, Consolas, monospace;
+}

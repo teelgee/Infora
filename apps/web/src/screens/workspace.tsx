@@ -7,6 +7,7 @@
 import { useNavigate, useParams } from 'react-router';
 import { Archive, BookOpen, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
+  AppFrame,
   Badge,
   Card,
   CommandBar,
@@ -113,8 +114,7 @@ export function WorkspaceSection() {
   if (entry === undefined) return null;
 
   return (
-    <>
-      <WorkspaceRail active={section as SectionKey} />
+    <AppFrame rail={<WorkspaceRail active={section as SectionKey} />}>
       <div className="main">
         <div className="topbar">
           <span className="crumb">
@@ -129,7 +129,7 @@ export function WorkspaceSection() {
           <p className="page-sub">{entry.note}</p>
         </div>
       </div>
-    </>
+    </AppFrame>
   );
 }
 
@@ -138,9 +138,7 @@ export function WorkspaceLanding() {
   const navigate = useNavigate();
 
   return (
-    <>
-      <WorkspaceRail active="home" />
-
+    <AppFrame rail={<WorkspaceRail active="home" />}>
       <div className="main">
         <div className="topbar">
           <span className="crumb">
@@ -195,6 +193,6 @@ export function WorkspaceLanding() {
           )}
         </div>
       </div>
-    </>
+    </AppFrame>
   );
 }

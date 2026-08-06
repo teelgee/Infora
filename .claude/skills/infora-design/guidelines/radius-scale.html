@@ -1,0 +1,23 @@
+<!-- @dsCard group="Spacing" viewport="700x130" name="Radius scale" subtitle="Hierarchical: bigger surface, bigger radius" -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; padding:16px; background:var(--surface-pane); font-family:var(--font-sans); color:var(--text-primary); }
+  .grid { display:flex; gap:10px; flex-wrap:wrap; }
+  .sw { width:104px; }
+  .chip-sw { height:44px; border-radius:var(--radius-sm); border:1px solid var(--border-default); }
+  .nm { font-size:10.5px; font-weight:700; margin-top:6px; color:var(--text-primary); }
+  .hx { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); }
+  .stack { display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .lbl { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:var(--text-muted); font-weight:700; min-width:64px; }
+  
+</style>
+<div class="grid">
+  <div class="sw" style="width:126px"><div style="height:56px;background:var(--surface-sunken);border:1px solid var(--border-default);border-radius:4px"></div><div class="nm">xs · 4px</div><div class="hx">tags, dots</div></div>
+  <div class="sw" style="width:126px"><div style="height:56px;background:var(--surface-sunken);border:1px solid var(--border-default);border-radius:8px"></div><div class="nm">sm · 8px</div><div class="hx">controls</div></div>
+  <div class="sw" style="width:126px"><div style="height:56px;background:var(--surface-sunken);border:1px solid var(--border-default);border-radius:12px"></div><div class="nm">md · 12px</div><div class="hx">nested cards, panes</div></div>
+  <div class="sw" style="width:126px"><div style="height:56px;background:var(--surface-sunken);border:1px solid var(--border-default);border-radius:16px"></div><div class="nm">lg · 16px</div><div class="hx">frame, bubbles</div></div>
+  <div class="sw" style="width:126px"><div style="height:56px;background:var(--surface-sunken);border:1px solid var(--border-default);border-radius:999px"></div><div class="nm">full · 999px</div><div class="hx">pills</div></div>
+</div>
