@@ -225,8 +225,14 @@ a surface shows and what the AI grounds on cannot drift. Reviewer
 appointments are propose-then-confirm, and confirmation is where ADR-0015
 bites: a reviewer whose organisation lacks the share forces share-first or
 decline. ADR-0035 adds the acknowledgement gate and per-participant narrowing
-on the same substrate. **At most one open round per cycle is a partial unique
-index** — the load-bearing invariant held by the schema, not by convention.
+on the same substrate. **ADR-0051 (ruled 2026-08-06, builds with T-346) adds
+a second acknowledgement one level up:** a project-scope round is created
+`submitted` and opens for review only when a Participant of the owner
+organisation acknowledges the submission transmittal — two nullable columns
+on the review-kind transmittal row, one new initial `round_state` value;
+sandbox-scope rounds are exempt and created `open`. **At most one open round
+per cycle is a partial unique index** — the load-bearing invariant held by
+the schema, not by convention.
 Comments freeze at issue (trigger), responses must link the addressing change
 or state no-change with a reason (ADR-0004), and **acceptance codes are
 copied per project and retired, never redefined** — a code ever referenced is

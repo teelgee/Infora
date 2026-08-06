@@ -12,7 +12,7 @@ Companion to `design-tokens.json`. Every token referenced below exists in that f
 
 **Not yet mocked up — explicit out-of-scope, not ambiguity. Design these before building, using the patterns already defined:**
 - Ask screen (chat-first, no document) — reuse `component.askBar` + message list.
-- Review/cycle screens (DRR, comment threads, acceptance codes) — reuse `table`, `badge.status`, `suggestionCallout` as a starting point.
+- Review/cycle screens (DRR, comment threads, acceptance codes) — reuse `table`, `badge.status`, `suggestionCallout` as a starting point. **Partly covered 2026-08-06:** `mockups/deliverable-status-page.html` (owner-approved) mocks the deliverable status page, the four-state cycle status bar (ADR-0051 states), and the status bar sitting over the review round tray. Still unmocked: the review schedule table itself.
 - Settings, History, Source panel/modal — reuse `pane` + `table`/`dropdownMenu`.
 - Dark mode for Workspace landing, Library, and Sandbox — every semantic color already has a `dark` value (§ tokens file), so this is mechanical once someone applies it — just hasn't been visually verified screen-by-screen yet.
 - Mobile/narrow layout — everything was designed at a fixed ~1280px desktop width; no breakpoint set exists (§C).
