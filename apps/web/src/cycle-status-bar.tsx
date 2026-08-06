@@ -97,12 +97,12 @@ export function CycleStatusBar(props: {
 
   const target = current.reviewPeriodTarget;
   // display marker only — the target guides, reminds and marks overdue, and
-  // never gates or closes anything (ADR-0005)
-  const overdue =
-    target !== null &&
-    (current.state === 'submitted' || current.state === 'open') &&
-    cycle.state === 'active' &&
-    new Date(target).getTime() < Date.now();
+  // never gates or closes anything (ADR-0005). The countdown is display math
+  // on a stored date, not a timer driving state.
+  const targetLive =
+    target !== null && (current.state === 'submitted' || current.state === 'open') && cycle.state === 'active';
+  const daysLeft = target ? Math.ceil((new Date(target).getTime() - Date.now()) / 86_400_000) : 0;
+  const overdue = targetLive && daysLeft < 0;
 
   const cycleBadge =
     cycle.state === 'accepted'
@@ -112,9 +112,9 @@ export function CycleStatusBar(props: {
         : { tone: 'info' as const, label: 'Cycle active' };
 
   return (
-    // a primary surface on the pane, not a nested card — pane elevation, so
-    // the bar reads as a card rather than a tint (owner note, 2026-08-06)
-    <div className="card" style={{ boxShadow: 'var(--level2-pane)' }}>
+    // the design system's nested-card treatment, exactly as the approved
+    // mockup renders it (owner-ruled 2026-08-06 after trying pane elevation)
+    <div className="card">
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <span
@@ -167,8 +167,13 @@ export function CycleStatusBar(props: {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none', marginTop: 1 }}>
             {target && cycle.state === 'active' && (
-              <span style={{ fontSize: 11.5, color: overdue ? 'var(--feedback-danger-text, var(--text-primary))' : 'var(--text-muted)' }}>
-                {overdue ? `Review period target ${formatDate(target)} — overdue` : `Review period target ${formatDate(target)}`}
+              <span style={{ fontSize: 11.5, color: overdue ? 'var(--feedback-danger-text)' : 'var(--text-muted)' }}>
+                {`Review period target ${formatDate(target)}`}
+                {overdue
+                  ? ' — overdue'
+                  : targetLive && daysLeft >= 0
+                    ? ` — ${daysLeft === 0 ? 'due today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}`
+                    : ''}
               </span>
             )}
             <Badge tone={cycleBadge.tone}>{cycleBadge.label}</Badge>

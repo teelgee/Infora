@@ -16,6 +16,7 @@ import type {
   Rendition,
   ReviewCycle,
   ReviewerGrant,
+  RosterEntry,
   SandboxDocument,
   TransmittalHistoryRow,
 } from '@infora/contracts';
@@ -37,6 +38,7 @@ export function DeliverableStatusScreen() {
   const [draft, setDraft] = useState<SandboxDocument | null>(null);
   const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
   const [transmittals, setTransmittals] = useState<TransmittalHistoryRow[]>([]);
+  const [orgByParticipant, setOrgByParticipant] = useState<Map<string, string>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,18 +46,24 @@ export function DeliverableStatusScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs, history] = await Promise.all([
+      const [plan, cycleRead, docs, history, roster] = await Promise.all([
         api.plan(me.projectId),
         api.cycle(containerId),
         api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
         // the server applies the ADR-0035-addendum three-way distribution cut
         api.containerTransmittals(containerId).catch(() => ({ items: [] as TransmittalHistoryRow[] })),
+        // the roster is visible by design — the wall hides work, never
+        // presence (ADR-0033); it supplies each person's organisation
+        api.participants(me.projectId).catch(() => ({ items: [] as RosterEntry[] })),
       ]);
       const planRow = plan.items.find((r) => r.containerId === containerId) ?? null;
       setRow(planRow);
       setCycle(cycleRead);
       setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
       setTransmittals(history.items);
+      setOrgByParticipant(
+        new Map(roster.items.map((r) => [r.participantId, r.organisationName])),
+      );
       setLoaded(true);
       // renditions for every reviewed version, plus the current version when it
       // is a fresh issue outside the rounds (the accepted C revision, ADR-0041)
@@ -195,10 +203,18 @@ export function DeliverableStatusScreen() {
               </p>
             )}
             {liveReviewers.map((g) => (
-              <PersonRow key={g.id} grant={g}>
-                {g.isLead && <Badge tone="neutral">Lead reviewer</Badge>}
-                {g.confirmedAt === null ? (
+              <PersonRow key={g.id} grant={g} organisationName={orgByParticipant.get(g.participantId)}>
+                {/* one badge per row: the lead's title subsumes "confirmed";
+                    a proposed row states that plus the owner's act */}
+                {g.confirmedAt !== null ? (
+                  g.isLead ? (
+                    <Badge tone="neutral">Lead reviewer</Badge>
+                  ) : (
+                    <Badge tone="success">Confirmed</Badge>
+                  )
+                ) : (
                   <>
+                    {g.isLead && <Badge tone="neutral">Lead reviewer</Badge>}
                     <Badge tone="warning">Proposed</Badge>
                     {/* confirmation is the owner's act, and access follows
                         confirmation, never proposal (ADR-0033, T-133) */}
@@ -208,21 +224,19 @@ export function DeliverableStatusScreen() {
                       </Button>
                     )}
                   </>
-                ) : (
-                  <Badge tone="success">Confirmed</Badge>
                 )}
               </PersonRow>
             ))}
         </StatusCard>
 
-        <StatusCard label={`Authors — ${row.producingOrganisationName}`}>
+        <StatusCard label="Authors">
             {liveAuthors.length === 0 && (
               <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
                 No authors appointed yet.
               </p>
             )}
             {liveAuthors.map((g) => (
-              <PersonRow key={g.id} grant={g}>
+              <PersonRow key={g.id} grant={g} organisationName={orgByParticipant.get(g.participantId)}>
                 {g.isLead && <Badge tone="neutral">Lead author</Badge>}
               </PersonRow>
             ))}
@@ -237,7 +251,18 @@ export function DeliverableStatusScreen() {
               <Badge tone={containerState.tone}>{containerState.label}</Badge>
             </MetaRow>
             {row.currentVersion && (
-              <MetaRow k="Current revision">{row.currentVersion.versionReference}</MetaRow>
+              <MetaRow k="Current revision">
+                {row.currentVersion.versionReference}
+                {(() => {
+                  // the revision with its context, per the mockup: which round
+                  // holds it, or that it is the accepted contractual issue
+                  const inRound = cycle?.rounds.find((r) => r.versionId === row.currentVersion!.versionId);
+                  if (inRound) return ` — round ${inRound.number} ${statusBadge(inRound.state).label.toLowerCase()}`;
+                  if (cycle?.state === 'accepted' && row.currentVersion!.versionReference.startsWith('C'))
+                    return ' — issued on acceptance';
+                  return '';
+                })()}
+              </MetaRow>
             )}
             {row.deliverableCode && (
               <MetaRow k="Verdict">{`${row.deliverableCode.code} — ${row.deliverableCode.description}`}</MetaRow>
@@ -310,13 +335,14 @@ export function DeliverableStatusScreen() {
   );
 }
 
-/** A primary card on the status page: pane elevation (the nested-card popout
- * shadow reads as a tint here, not a card — owner note 2026-08-06) and a
- * tight in-card label (`.section-label`'s own 34px top margin is page
- * rhythm, wrong inside a card). */
+/** A card on the status page: the design system's nested-card treatment
+ * exactly as the approved mockup renders it (owner-ruled 2026-08-06, after a
+ * pane-elevation experiment was reverted), with a tight in-card label
+ * (`.section-label`'s own 34px top margin is page rhythm, wrong inside a
+ * card). */
 function StatusCard(props: { label?: string; children: ReactNode }) {
   return (
-    <div className="card" style={{ boxShadow: 'var(--level2-pane)', padding: '14px 16px' }}>
+    <div className="card" style={{ padding: '14px 16px' }}>
       {props.label && (
         <div className="section-label" style={{ margin: '0 0 8px' }}>
           {props.label}
@@ -340,9 +366,11 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
     if (row.kind === 'review') {
       if (row.direction !== 'return') return <Badge tone="neutral">Not required</Badge>;
       if (row.submissionAcknowledged) {
+        // "for <organisation>" is the audit fact — on whose behalf (ADR-0051)
         return (
           <Badge tone="success">
-            Acknowledged — {row.submissionAcknowledged.by.name}, {formatDate(row.submissionAcknowledged.at)}
+            Acknowledged — {row.submissionAcknowledged.by.name} for{' '}
+            {row.submissionAcknowledged.by.organisationName}, {formatDate(row.submissionAcknowledged.at)}
           </Badge>
         );
       }
@@ -392,10 +420,14 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
   );
 }
 
-function PersonRow(props: { grant: AppointmentGrant | ReviewerGrant; children?: ReactNode }) {
+function PersonRow(props: {
+  grant: AppointmentGrant | ReviewerGrant;
+  organisationName?: string;
+  children?: ReactNode;
+}) {
   const { grant } = props;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-subtle, var(--border-default))' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border-subtle)' }}>
       <span
         aria-hidden
         style={{
@@ -414,7 +446,16 @@ function PersonRow(props: { grant: AppointmentGrant | ReviewerGrant; children?: 
       >
         {initialsOf(grant.name)}
       </span>
-      <span style={{ fontSize: 12.5, fontWeight: 600 }}>{grant.name}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600 }}>{grant.name}</span>
+        {/* the organisation, always — a cross-organisation review group is
+            the point of the page (per the approved mockup) */}
+        {props.organisationName && (
+          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-muted)' }}>
+            {props.organisationName}
+          </span>
+        )}
+      </span>
       <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>{props.children}</span>
     </div>
   );

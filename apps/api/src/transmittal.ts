@@ -526,11 +526,16 @@ export function transmittalRoutes(deps: { db: Db }) {
       roundAckerIds.length
         ? (
             await deps.db
-              .select({ participantId: s.participants.id, name: s.users.name })
+              .select({
+                participantId: s.participants.id,
+                name: s.users.name,
+                organisationName: s.organisations.name,
+              })
               .from(s.participants)
               .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+              .innerJoin(s.organisations, eq(s.users.organisationId, s.organisations.id))
               .where(inArray(s.participants.id, roundAckerIds))
-          ).map((r) => [r.participantId, r.name])
+          ).map((r) => [r.participantId, { name: r.name, organisationName: r.organisationName }])
         : [],
     );
 
@@ -549,7 +554,14 @@ export function transmittalRoutes(deps: { db: Db }) {
         recipientsWithheld: false,
         submissionAcknowledged:
           transmittal.direction === 'return' && ackBy && ackAt
-            ? { by: { participantId: ackBy, name: roundAckerNames.get(ackBy) ?? '' }, at: ackAt.toISOString() }
+            ? {
+                by: {
+                  participantId: ackBy,
+                  name: roundAckerNames.get(ackBy)?.name ?? '',
+                  organisationName: roundAckerNames.get(ackBy)?.organisationName ?? '',
+                },
+                at: ackAt.toISOString(),
+              }
             : null,
       })),
       ...issueRows.flatMap(({ transmittal, versionReference, senderName }) => {

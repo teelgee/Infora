@@ -613,8 +613,12 @@ export type TransmittalHistoryRow = {
   issuedAt: string;
   recipientOrganisations: TransmittalHistoryRecipient[]; // non_review only, cut per viewer
   recipientsWithheld: boolean; // the producing organisation's view of a non_review row
-  // ADR-0051 — the owner's receipt of a review submission (return-direction rows)
-  submissionAcknowledged: { by: { participantId: Id; name: string }; at: string } | null;
+  // ADR-0051 — the receipt of a review submission (return-direction rows);
+  // organisationName is whose behalf the receipt was on — the audit fact
+  submissionAcknowledged: {
+    by: { participantId: Id; name: string; organisationName: string };
+    at: string;
+  } | null;
 };
 export type ListContainerTransmittalsResponse = { items: TransmittalHistoryRow[] };
 
