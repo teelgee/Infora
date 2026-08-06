@@ -357,3 +357,17 @@ The first hardening pass and the docs catch-up, batched: small, mostly independe
 - **T-230** — `window.prompt` / `window.alert` purged from the editor
 - **T-231/T-232** — closed rounds collapse, comment-answered progress, cycle activity trail (+ a follow-up fix: newest round expanded by number, not array order)
 - **T-233** — consistency sweep: dates + status chips
+
+---
+
+## Sidequest — Slice UI (`slice-ui-redesign`): the design-system re-skin *(✅ closed 2026-08-06)*
+
+**Separate from the build slices** — a visual/UI sidequest, not part of the wedge roadmap; it changed no contracts, no data model, no permissions path. Built and merged as one slice on branch `slice-ui-redesign`. Source of truth: `docs/design/` (rules + tokens); reference kit: `.claude/skills/infora-design/` (mirrored from the "Infora Design System" claude.ai/design project via DesignSync — sync notes in the slice commits). Steps were slice-internal (no `T-###` minted — owner ruling 2026-08-05: keep it as its own slice).
+
+- **UI-1 — Skill install + audit** ✅ 2026-08-05. Skill committed; class-by-class chrome audit and export-inventory audit run (record: the audit in this slice's session; design-rules §E demoted to precedent).
+- **UI-2 — Two-way sync** ✅ 2026-08-05. Live design project re-fetched (serif document body, Source Serif 4-first stack); docs/design absorbed the compiled system, keeping repo-side additions; merged rules/tokens/readme pushed back to the design project. Radius scale ruled by the owner same day: **4/8/8/10 final** (the 12/16 scale in some copies rejected as too big); mappings: panes/nested cards → md (8), frame/composer/bubbles → lg (10).
+- **UI-3 — Components** ✅ 2026-08-05. The 8 missing exports into `packages/ui/src` (AppFrame, Pane, PaneHeader, CollapseToggle, ResizeGrip, IconButton, Prose, ChatBubble) + Source Serif 4 webfont load + tests (25/25).
+- **UI-4 — Shell** ✅ 2026-08-05. Two layers, not three: WorkspaceLanding/WorkspaceSection/ProjectShell wrap Rail + `.main` in AppFrame; rail flush (transparent, frame-tuned fills — fixes the invisible hover); `#root` hands frame duties to `.app-frame`; safety-net inset for bare-`.main` screens (settings, 404).
+- **UI-5 — Screens** ✅ 2026-08-05. §G render check against the live app (workspace, library, sandbox, editor incl. open document): the four approved screens were already on-system from the T-223–T-233 polish pass and render correctly in the new shell — no per-screen rebuild needed. Residual §G catches fixed at kit level: wordmark gains its near-black square mark, user chip becomes the frame-sunken block (rail carries no hairlines). Out of scope untouched: the 11 screens with no approved mockup.
+- **Acceptance:** the four screens compose `@infora/ui` components inside the new shell; `pnpm run check` green (13/13); e2e 51/51 UI tests green against the new shell (1 pre-existing API smoke failure from dev-DB seed drift, not this slice).
+- **Known residuals, deferred:** composer source chips still use unicode glyphs (the readme's flagged Lucide substitution, deferred with the format bar per the rules' self-check); dark mode visually verified on the Editor only.
