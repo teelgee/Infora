@@ -38,6 +38,8 @@ export function statusBadge(status: string): { tone: BadgeTone; label: string } 
     planned: 'neutral',
     in_production: 'success',
     in_review: 'info',
+    // a round awaiting the owner's acknowledgement (ADR-0051)
+    submitted: 'warning',
     responding: 'warning',
     accepted: 'success',
     rejected: 'danger',

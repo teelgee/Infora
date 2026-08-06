@@ -24,6 +24,7 @@ import { ChevronDown, ChevronRight, Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
+import { CycleStatusBar } from '../cycle-status-bar';
 import { formatDate, formatDateTime, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
@@ -191,6 +192,24 @@ export function CycleScreen() {
           )}
         </div>
       </div>
+
+      {/* T-347 — the four-state status bar (ADR-0051; approved mockup). Prior
+          rounds are hidden here: the RoundSummary rows below already carry
+          them. The acknowledge act surfaces only to the owner organisation. */}
+      {cycle && (
+        <CycleStatusBar
+          cycle={cycle}
+          showPriorRounds={false}
+          onAcknowledge={
+            me.membershipRole === 'owner'
+              ? () => {
+                  const newest = [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1);
+                  if (newest) void act(() => api.acknowledgeRound(newest.id));
+                }
+              : undefined
+          }
+        />
+      )}
 
       {cycle?.state === 'closed_rejected' && (
         <div className="banner" style={{ marginBottom: 8 }}>

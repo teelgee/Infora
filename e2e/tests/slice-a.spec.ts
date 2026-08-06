@@ -247,6 +247,8 @@ test('browser — the accepted deliverable reads on the Review plan table', asyn
   await page.goto(`/projects/${projectId}/review`);
   await expect(page.getByText(REFERENCE, { exact: true })).toBeVisible();
   await page.getByText(REFERENCE, { exact: true }).click();
+  // T-347 — the status bar reads the accepted cycle: all four steps stand done
+  await expect(page.getByText('Complete', { exact: true })).toBeVisible();
   await expect(page.getByText('Round 2 · P02')).toBeVisible();
   await expect(page.getByText('A — Accepted', { exact: false }).first()).toBeVisible();
 });

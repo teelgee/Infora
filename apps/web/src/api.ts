@@ -203,6 +203,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(reason !== undefined ? { reason } : {}),
     }),
+  // ADR-0051 (T-346) — the owner organisation acknowledges a submission,
+  // opening the round for review
+  acknowledgeRound: (roundId: string) =>
+    request<ReviewCycle>(`/rounds/${roundId}/acknowledge`, { method: 'POST' }),
   addReviewComment: (roundId: string, body: CreateReviewCommentBody) =>
     request<ReviewComment>(`/rounds/${roundId}/comments`, {
       method: 'POST',
