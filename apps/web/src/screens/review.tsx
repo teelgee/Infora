@@ -2,13 +2,16 @@
 // The deliverable plan and the live status tracker are the same object
 // (ADR-0008): a member sees its own organisation's plan (the TIDP) and adds
 // rows to it; the owner sees every organisation's rows — the MIDP
-// consolidation — and confirms proposed reviewers (ADR-0033). Rounds and the
-// DRR open from each row as the cycle tickets land (T-123+).
+// consolidation. A row opens the deliverable's STATUS page (T-348), where
+// reviewer confirmation now lives — the schedule shows proposal state but
+// no longer carries the act (T-349). Restyled onto the @infora/ui
+// primitives in the same pass: the raw inputs and retired token names were
+// the last pre-kit styling on a review screen.
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
-import type { MeResponse, PlanRow, ReviewerGrant, RosterEntry } from '@infora/contracts';
-import { Badge, Button, Card, SectionLabel } from '@infora/ui';
+import type { MeResponse, PlanRow } from '@infora/contracts';
+import { Badge, Button, Card, SectionLabel, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { statusBadge } from './shared';
 
@@ -19,7 +22,6 @@ export function ReviewScreen() {
   const navigate = useNavigate();
   const isOwner = participant.membershipRole === 'owner';
   const [rows, setRows] = useState<PlanRow[] | null>(null);
-  const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [adding, setAdding] = useState(false);
   const [reference, setReference] = useState('');
   const [title, setTitle] = useState('');
@@ -31,8 +33,7 @@ export function ReviewScreen() {
 
   useEffect(() => {
     void reload();
-    void api.participants(participant.projectId).then((res) => setRoster(res.items));
-  }, [participant.projectId, reload]);
+  }, [reload]);
 
   async function addRow(event: FormEvent) {
     event.preventDefault();
@@ -49,12 +50,7 @@ export function ReviewScreen() {
     }
   }
 
-  async function confirmReviewer(grant: ReviewerGrant) {
-    await api.confirmReviewer(grant.id);
-    await reload();
-  }
-
-  const liveNames = (grants: ReviewerGrant[] | PlanRow['authors']) =>
+  const liveNames = (grants: PlanRow['reviewers'] | PlanRow['authors']) =>
     grants
       .filter((g) => g.revokedAt === null)
       .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}`)
@@ -65,7 +61,7 @@ export function ReviewScreen() {
       <h1 className="page">Review</h1>
       <p className="page-sub">
         {isOwner
-          ? 'Every organisation’s deliverable plan, consolidated — the live MIDP view. Confirm proposed reviewers here; access follows confirmation, never proposal.'
+          ? 'Every organisation’s deliverable plan, consolidated — the live MIDP view. A deliverable opens on its status page; proposed reviewers are confirmed there.'
           : 'Your organisation’s deliverable plan — the schedule of deliverables you will produce, each a waiting container with its work item.'}
       </p>
 
@@ -81,19 +77,19 @@ export function ReviewScreen() {
 
       {adding && (
         <Card>
-          <form onSubmit={addRow} style={{ padding: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              placeholder="Document reference (e.g. WA-ENV-ECO-001)"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              style={fieldStyle}
-            />
-            <input
-              placeholder="Deliverable title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              style={{ ...fieldStyle, flex: 1 }}
-            />
+          <form onSubmit={addRow} style={{ padding: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ width: 280 }}>
+              <TextInput
+                value={reference}
+                onChange={setReference}
+                placeholder="Document reference (e.g. WA-ENV-ECO-001)"
+                mono
+                autoFocus
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <TextInput value={title} onChange={setTitle} placeholder="Deliverable title" />
+            </div>
             <Button size="sm" variant="primary" type="submit">
               Add to the plan
             </Button>
@@ -105,7 +101,7 @@ export function ReviewScreen() {
         </Card>
       )}
 
-      <Card>
+      <Table>
         <table>
           <thead>
             <tr>
@@ -131,7 +127,7 @@ export function ReviewScreen() {
                   style={{ cursor: 'pointer' }}
                   onClick={() => void navigate(`/projects/${participant.projectId}/review/${row.containerId}`)}
                 >
-                  <td style={{ fontFamily: 'var(--mono, monospace)', fontSize: 12 }}>
+                  <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>
                     {row.documentReference}
                   </td>
                   <td>
@@ -141,26 +137,22 @@ export function ReviewScreen() {
                   <td>
                     <Badge tone={status.tone}>{status.label}</Badge>
                   </td>
-                  <td style={{ color: 'var(--muted)' }}>
+                  <td style={{ color: 'var(--text-muted)' }}>
                     {row.currentVersion?.versionReference ?? 'not produced'}
                   </td>
                   <td>{row.deliverableCode?.code ?? '—'}</td>
                   <td style={{ fontSize: 12 }}>{liveNames(row.authors) || '—'}</td>
                   <td style={{ fontSize: 12 }}>
                     {liveNames(row.reviewers.filter((g) => g.confirmedAt !== null)) || '—'}
+                    {/* proposal state reads here; the confirm act lives on the
+                        status page (T-348) — access follows confirmation,
+                        never proposal (ADR-0033) */}
                     {proposed.length > 0 && (
                       <div style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {proposed.map((g) => (
-                          <span key={g.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                            <Badge tone="warning">proposed: {g.name}</Badge>
-                            {isOwner && (
-                              <span onClick={(e) => e.stopPropagation()}>
-                                <Button size="sm" variant="quiet" onClick={() => void confirmReviewer(g)}>
-                                  Confirm
-                                </Button>
-                              </span>
-                            )}
-                          </span>
+                          <Badge key={g.id} tone="warning">
+                            proposed: {g.name}
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -170,28 +162,18 @@ export function ReviewScreen() {
             })}
             {rows !== null && rows.length === 0 && (
               <tr>
-                <td colSpan={isOwner ? 8 : 7} style={{ color: 'var(--muted)' }}>
+                <td colSpan={isOwner ? 8 : 7} style={{ color: 'var(--text-muted)' }}>
                   Nothing planned yet — add the first deliverable to the plan.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </Card>
-      <p style={{ color: 'var(--muted)', fontSize: 12 }}>
-        {roster.length > 0 &&
-          'Appointments are made per deliverable from the project roster; reviewer proposals confer no access until the owner confirms.'}
+      </Table>
+      <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+        Appointments are made per deliverable from the project roster; reviewer proposals confer no
+        access until the owner confirms — on the deliverable’s status page.
       </p>
     </div>
   );
 }
-
-const fieldStyle = {
-  font: 'inherit',
-  fontSize: 13,
-  border: '1px solid var(--hairline)',
-  borderRadius: 6,
-  padding: '7px 10px',
-  background: 'var(--panel)',
-  color: 'var(--ink)',
-} as const;
