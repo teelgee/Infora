@@ -627,14 +627,33 @@ function FolderStructureModal(props: {
 }
 
 // ── Bind: a searchable picker of the accessible unbound deliverables ─────────
+// T-366 (S8, ADR-0038 addendum) — bind is a CONFIRMATION CARD: it shows what
+// the draft is about to wear (reference, the row's title, its schema metadata,
+// the appointments) and states the consequence before an explicit confirm.
+// When the draft sits in a plan-locked deliverable folder, that container
+// arrives pre-selected — never silently bound.
 function BindModal(props: {
   document: SandboxDocument;
   candidates: PlanRow[];
+  preselectContainerId?: string | null;
+  scheme: NamingScheme | null;
   onSubmit: (containerId: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [choice, setChoice] = useState<string | null>(null);
+  const labelFor = (key: string) => props.scheme?.fields.find((f) => f.key === key)?.label ?? key;
+  const preselected =
+    props.preselectContainerId != null &&
+    props.candidates.some((p) => p.containerId === props.preselectContainerId)
+      ? props.preselectContainerId
+      : null;
+  const [choice, setChoice] = useState<string | null>(preselected);
   const [busy, setBusy] = useState(false);
+  const chosen = props.candidates.find((p) => p.containerId === choice) ?? null;
+  const names = (grants: Array<{ name: string; isLead: boolean; revokedAt: string | null }>) =>
+    grants
+      .filter((g) => g.revokedAt === null)
+      .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}`)
+      .join(', ') || '—';
   return (
     <Modal
       open
@@ -654,14 +673,18 @@ function BindModal(props: {
               await props.onSubmit(choice!);
             }}
           >
-            Bind deliverable
+            {chosen ? `Bind to ${chosen.documentReference}` : 'Bind deliverable'}
           </Button>
         </>
       }
     >
       <Field
         label="Planned deliverable"
-        hint="Binding is one-way — the document takes on this deliverable’s coded reference and identity"
+        hint={
+          preselected
+            ? 'Pre-selected from the deliverable folder this draft sits in — confirm it, or pick another.'
+            : 'Binding is one-way — the document takes on this deliverable’s coded reference and identity'
+        }
       >
         {props.candidates.length === 0 ? (
           <div className="field-hint">
@@ -681,6 +704,39 @@ function BindModal(props: {
           />
         )}
       </Field>
+      {chosen && (
+        <div
+          style={{
+            border: '1px solid var(--border-default)',
+            borderRadius: 8,
+            padding: '10px 14px',
+            marginTop: 10,
+            display: 'grid',
+            gap: 4,
+            fontSize: 13,
+          }}
+        >
+          <div>
+            <span className="mono" style={{ fontWeight: 600 }}>{chosen.documentReference}</span>
+            {'  '}
+            <span>{chosen.workItem?.title ?? ''}</span>
+          </div>
+          {Object.entries(chosen.metadata)
+            .filter(([, v]) => typeof v === 'string' && v !== '')
+            .map(([k, v]) => (
+              <div key={k} style={{ color: 'var(--text-muted)' }}>
+                {labelFor(k)}: {String(v)}
+              </div>
+            ))}
+          <div style={{ color: 'var(--text-muted)' }}>Authors: {names(chosen.authors)}</div>
+          <div style={{ color: 'var(--text-muted)' }}>Reviewers: {names(chosen.reviewers)}</div>
+          <div style={{ marginTop: 4 }}>
+            On bind, this draft becomes the deliverable’s working draft: it wears the reference and
+            shows the plan row’s title and metadata by reference — the title is then edited on the
+            plan row, not here. Binding is one-way; promotion is a later, separate act.
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -815,6 +871,9 @@ function AccessModal(props: {
 function DocActions(props: {
   doc: SandboxDocument;
   projectId: string;
+  /** T-366 — what the row visibly says: a bound doc's plan-row title, so the
+   * accessible names match the name on screen */
+  displayTitle?: string;
   onMetadata: (d: SandboxDocument) => void;
   onBind: (d: SandboxDocument) => void;
   onMove: (d: SandboxDocument) => void;
@@ -825,22 +884,23 @@ function DocActions(props: {
 }) {
   const navigate = useNavigate();
   const { doc } = props;
+  const title = props.displayTitle ?? doc.title;
   // Two visible quick actions (freeze/release + promote) and a kebab for the
   // rest (T-227) — so every row is one line and the action column aligns
   // regardless of the document's state.
   return (
     <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
       {doc.headLocked ? (
-        <Button size="sm" variant="quiet" onClick={() => void release(doc, props.reload, props.setNote)} aria-label={`Release ${doc.title}`}>
+        <Button size="sm" variant="quiet" onClick={() => void release(doc, props.reload, props.setNote)} aria-label={`Release ${title}`}>
           <LockOpen size={13} strokeWidth={2} /> Release
         </Button>
       ) : (
-        <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)} aria-label={`Freeze ${doc.title}`}>
+        <Button size="sm" variant="quiet" onClick={() => void freeze(doc, props.reload, props.setNote)} aria-label={`Freeze ${title}`}>
           <Lock size={13} strokeWidth={2} /> Freeze
         </Button>
       )}
       {doc.containerId && (
-        <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)} aria-label={`Promote ${doc.title}`}>
+        <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)} aria-label={`Promote ${title}`}>
           <Send size={13} strokeWidth={2} /> Promote
         </Button>
       )}
@@ -848,7 +908,7 @@ function DocActions(props: {
         align="end"
         fixed
         trigger={(toggle) => (
-          <Button size="sm" variant="quiet" onClick={toggle} aria-label={`More actions for ${doc.title}`} title="More actions">
+          <Button size="sm" variant="quiet" onClick={toggle} aria-label={`More actions for ${title}`} title="More actions">
             <MoreHorizontal size={15} strokeWidth={2} />
           </Button>
         )}
@@ -984,8 +1044,24 @@ export function SandboxScreen() {
     () => (selected ? docs.filter((d) => d.sandboxId === selected) : docs),
     [docs, selected],
   );
-  const unboundPlan = useMemo(() => plan.filter((p) => p.workItem && p.currentVersion === null), [plan]);
+  // bind candidates (T-366): live rows only (a withdrawn row is not a target —
+  // and must never arrive pre-selected), not yet promoted, and not already
+  // carrying a bound draft (one working draft per deliverable)
+  const unboundPlan = useMemo(() => {
+    const alreadyBound = new Set(docs.map((d) => d.containerId).filter(Boolean));
+    return plan.filter(
+      (p) =>
+        p.workItem && p.state === 'live' && p.currentVersion === null && !alreadyBound.has(p.containerId),
+    );
+  }, [plan, docs]);
   const planByContainer = useMemo(() => new Map(plan.map((p) => [p.containerId, p])), [plan]);
+  // T-366 (ADR-0038 addendum) — one naming rule for every surface on this
+  // screen: a bound document reads its plan row's title through the link
+  const displayTitleOf = useCallback(
+    (d: SandboxDocument): string =>
+      (d.containerId ? planByContainer.get(d.containerId)?.workItem?.title : undefined) ?? d.title,
+    [planByContainer],
+  );
   const selectedSandbox = sandboxes.find((s) => s.id === selected) ?? null;
 
   // T-363 (S6) — the no-model plan seed: the owning org's live plan rows'
@@ -1028,9 +1104,26 @@ export function SandboxScreen() {
       arr.push(d);
       m.set(d.folderId, arr);
     }
-    for (const arr of m.values()) arr.sort((a, b) => a.title.localeCompare(b.title));
+    for (const arr of m.values()) arr.sort((a, b) => displayTitleOf(a).localeCompare(displayTitleOf(b)));
     return m;
-  }, [shown]);
+  }, [shown, displayTitleOf]);
+
+  // T-366 (ADR-0038/0040 addenda) — the container whose working folder holds
+  // this doc: filing a draft in a deliverable's folder pre-selects the bind
+  // target wherever binding is offered; nothing ever binds silently
+  const nearestDeliverableContainer = useCallback(
+    (folderId: string | null): string | null => {
+      let cursor = folderId;
+      for (let depth = 0; cursor !== null && depth < 50; depth++) {
+        const folder = folderById.get(cursor);
+        if (!folder) return null;
+        if (folder.kind === 'deliverable' && folder.containerId) return folder.containerId;
+        cursor = folder.parentFolderId;
+      }
+      return null;
+    },
+    [folderById],
+  );
 
   // T-365 — is this folder inside (or itself) a deliverable's working folder?
   // The plan-locked mode's boundary for hand-made folders.
@@ -1217,6 +1310,10 @@ export function SandboxScreen() {
 
   const docRow = (doc: SandboxDocument, depth: number) => {
     const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
+    // T-366 (ADR-0038 addendum): a bound document READS THE ROW THROUGH — it
+    // displays its plan row's title over the container_id link, never a copy;
+    // the working title stays dormant beneath the binding
+    const displayTitle = displayTitleOf(doc);
     return (
       <tr
         key={`d-${doc.id}`}
@@ -1238,7 +1335,7 @@ export function SandboxScreen() {
               onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
               title="Open in the Editor"
             >
-              {doc.title}
+              {displayTitle}
             </button>
             {doc.workingRevision && (
               <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
@@ -1269,9 +1366,10 @@ export function SandboxScreen() {
           <DocActions
             doc={doc}
             projectId={projectId}
+            displayTitle={displayTitle}
             onMetadata={setMetaDoc}
             onBind={setBindDoc}
-            onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: d.title })}
+            onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
             onRename={setRenameDoc}
             onReplace={setReplaceDoc}
             reload={loadDocs}
@@ -1428,7 +1526,7 @@ export function SandboxScreen() {
             } catch {
               // the only refusal here is a bound document — its name is the
               // container's plan-owned reference (ADR-0038)
-              setNote('Rename refused — a bound document keeps its deliverable’s reference.', 'error');
+              setNote('Rename refused — a bound draft shows its plan row’s title; retitle it on the Plan page (ADR-0038).', 'error');
             }
             setRenameDoc(null);
           }}
@@ -1460,6 +1558,8 @@ export function SandboxScreen() {
         <BindModal
           document={bindDoc}
           candidates={unboundPlan}
+          preselectContainerId={nearestDeliverableContainer(bindDoc.folderId)}
+          scheme={scheme}
           onClose={() => setBindDoc(null)}
           onSubmit={async (containerId) => {
             try {
@@ -1479,10 +1579,10 @@ export function SandboxScreen() {
           const issued = boundRow?.currentVersion?.versionReference;
           return (
             <MetadataModal
-              title={`Metadata — ${metaDoc.title}`}
+              title={`Metadata — ${displayTitleOf(metaDoc)}`}
               editable
               identity={[
-                { label: 'Title', value: metaDoc.title },
+                { label: 'Title', value: displayTitleOf(metaDoc) },
                 {
                   label: 'Deliverable',
                   value: boundRow ? (
@@ -1758,7 +1858,8 @@ export function SandboxScreen() {
                           onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
                           title="Open in the Editor"
                         >
-                          {doc.title}
+                          {/* T-366 — a bound doc reads its row's title through */}
+                          {row?.workItem?.title ?? doc.title}
                         </button>
                         {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
                         <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
@@ -1783,9 +1884,10 @@ export function SandboxScreen() {
                         <DocActions
                           doc={doc}
                           projectId={projectId}
+                          displayTitle={row?.workItem?.title ?? doc.title}
                           onMetadata={setMetaDoc}
                           onBind={setBindDoc}
-                          onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: d.title })}
+                          onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
                           onRename={setRenameDoc}
                           onReplace={setReplaceDoc}
                           reload={loadDocs}

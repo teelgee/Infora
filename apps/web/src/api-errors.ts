@@ -12,6 +12,7 @@ const MESSAGES: Record<string, string> = {
   super_user_required: 'This needs an elevated super-user — switch on the elevated tier, or ask an owner.',
   row_edit_not_permitted:
     'Editing this row is for the producing organisation’s super users and its lead author (T-362).',
+  already_bound: 'That deliverable already has a bound working draft — one draft per row.',
   super_user_only: 'Only a super-user can do this.',
   elevated_required: 'This is a protected action — switch on the elevated (super-user) tier first.',
   controller_only: 'Only the document controller can do this in controller mode.',

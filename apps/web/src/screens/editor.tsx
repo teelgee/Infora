@@ -11,6 +11,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   MeResponse,
+  PlanRow,
   ReviewComment,
   ReviewCycle,
   Round,
@@ -230,6 +231,7 @@ export function EditorScreen() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [comments, setComments] = useState<SandboxComment[]>([]); // T-112
   const [cycle, setCycle] = useState<ReviewCycle | null>(null); // T-132: the review to answer
+  const [boundRow, setBoundRow] = useState<PlanRow | null>(null); // T-366: the read-through row
   const [panelTab, setPanelTab] = useState<'chat' | 'comments' | 'review'>('chat');
   const reviewDefaulted = useRef(false);
   const [draftAnchor, setDraftAnchor] = useState<string | null>(null); // captured canvas selection
@@ -270,7 +272,15 @@ export function EditorScreen() {
       ? await api.cycle(document.containerId).catch(() => null)
       : null;
     setCycle(cyc);
-  }, [documentId]);
+    // T-366 (ADR-0038 addendum): a bound draft READS THE ROW THROUGH — the
+    // chrome shows the plan row's reference and title over the container link
+    if (document.containerId) {
+      const plan = await api.plan(participant.projectId).catch(() => null);
+      setBoundRow(plan?.items.find((r) => r.containerId === document.containerId) ?? null);
+    } else {
+      setBoundRow(null);
+    }
+  }, [documentId, participant.projectId]);
 
   useEffect(() => {
     void load();
@@ -530,7 +540,17 @@ export function EditorScreen() {
             <Archive size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
             {me.organisationName} — project sandbox
           </a>{' '}
-          / <b>{doc.title}</b>
+          /{' '}
+          {boundRow ? (
+            <>
+              <span className="mono" style={{ marginRight: 6 }}>{boundRow.documentReference}</span>
+              <b title="A bound draft shows its plan row’s title — retitle it on the plan (ADR-0038)">
+                {boundRow.workItem?.title ?? doc.title}
+              </b>
+            </>
+          ) : (
+            <b>{doc.title}</b>
+          )}
         </span>
         <div className="right">
           {documentId !== undefined && <Presence documentId={documentId} />}

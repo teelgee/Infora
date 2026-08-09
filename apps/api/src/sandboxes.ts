@@ -535,15 +535,28 @@ export function sandboxRoutes2(deps: { db: Db }) {
       .from(s.containers)
       .where(eq(s.containers.id, parsed.data.containerId))
       .limit(1);
-    // the container must be a planned library row of the producer's own org
+    // the container must be a planned library row of the producer's own org —
+    // and LIVE: a withdrawn (or superseded/rejected) row is off the plan and
+    // takes no new draft (T-366 review; restore first if it was a mistake)
     if (
       !container ||
       container.projectId !== doc.projectId ||
       container.scope !== 'library' ||
-      container.producingOrganisationId !== slice.organisationId
+      container.producingOrganisationId !== slice.organisationId ||
+      container.state !== 'live'
     ) {
       return invalid(c);
     }
+    // one bound working draft per deliverable (T-366 review): a second draft
+    // binding to the same row would give the container two "the" drafts. The
+    // bin counts — a deleted bound draft still owns the row until purged, so
+    // restore can never collide.
+    const [existingDraft] = await deps.db
+      .select({ id: s.sandboxDocuments.id })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.containerId, container.id))
+      .limit(1);
+    if (existingDraft) return conflict(c, 'already_bound');
     await deps.db.transaction(async (tx) => {
       await tx
         .update(s.sandboxDocuments)

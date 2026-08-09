@@ -205,7 +205,8 @@ const doc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, {
 await eleanorApi.patch(`/sandbox-documents/${doc.id}`, { content: DRAFT_V1 });
 
 await e.goto(`${WEB}/projects/${projectId}/sandbox`);
-await e.getByText('Land Quality scoping method statement').first().waitFor();
+// T-366 read-through: the bound draft shows its plan row's title in the list
+await e.getByText('EIA Scoping Method Statement', { exact: false }).first().waitFor();
 await shot(e, '03-sandbox');
 
 await e.goto(`${WEB}/projects/${projectId}/editor/${doc.id}`);

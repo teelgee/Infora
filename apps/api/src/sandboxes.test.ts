@@ -362,6 +362,41 @@ describe('bind — the one-way transition (T-153, ADR-0038)', () => {
     });
     expect(wrong.status).toBe(400);
   });
+
+  it('refuses a withdrawn row, and a second draft binding to an already-drafted row (T-366)', async () => {
+    const [withdrawn] = await db
+      .insert(s.containers)
+      .values({ projectId, producingOrganisationId: orgB, documentReference: `T366-W-${stamp}`, state: 'withdrawn' })
+      .returning();
+    const [liveRow] = await db
+      .insert(s.containers)
+      .values({ projectId, producingOrganisationId: orgB, documentReference: `T366-L-${stamp}` })
+      .returning();
+    const mkDoc = async (title: string) =>
+      (
+        await db
+          .insert(s.sandboxDocuments)
+          .values({ projectId, organisationId: orgB, sandboxId: bSandbox, title, createdByParticipantId: bParticipant })
+          .returning()
+      )[0]!;
+    const bind = (docId: string, containerId: string) =>
+      app.request(`/sandbox-documents/${docId}/binding`, {
+        method: 'POST',
+        headers: asJson(bCookie),
+        body: JSON.stringify({ containerId }),
+      });
+
+    // a withdrawn row is off the plan — it takes no new draft (restore first)
+    const offPlan = await bind((await mkDoc('to a withdrawn row')).id, withdrawn!.id);
+    expect(offPlan.status).toBe(400);
+
+    // one bound working draft per deliverable
+    const first = await bind((await mkDoc('first draft')).id, liveRow!.id);
+    expect(first.status).toBe(200);
+    const second = await bind((await mkDoc('second draft')).id, liveRow!.id);
+    expect(second.status).toBe(409);
+    expect(((await second.json()) as { detail?: string }).detail).toBe('already_bound');
+  });
 });
 
 describe('document presence (T-175, ADR-0039)', () => {

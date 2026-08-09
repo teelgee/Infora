@@ -76,11 +76,15 @@ test('the Bind dialog picks a deliverable from a searchable list; the bound code
   await expect(bind).toBeVisible();
   await bind.getByPlaceholder(/Search your deliverables/).fill(`UI e2e ${stamp}`);
   await bind.getByText(DELIVERABLE_TITLE).click();
-  await bind.getByRole('button', { name: 'Bind deliverable' }).click();
+  // T-366: the confirmation card names the target and states the consequence
+  await expect(bind.getByText('one-way', { exact: false })).toBeVisible();
+  await bind.getByRole('button', { name: /Bind to / }).click();
   await expect(bind).toBeHidden();
 
-  // the bound document now shows its coded reference (navigable), no longer Unbound
-  const boundRow = page.getByRole('row').filter({ hasText: docTitle });
+  // T-366 read-through: the bound row now shows its PLAN ROW's title, with the
+  // coded reference (navigable) and no Unbound badge — the working title is dormant
+  const boundRow = page.getByRole('row').filter({ hasText: DELIVERABLE_TITLE });
   await expect(boundRow.getByText('Unbound')).toHaveCount(0);
   await expect(boundRow.locator('.mono')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: docTitle })).toHaveCount(0);
 });
