@@ -36,7 +36,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
-import { isLiveConfirmedReviewer } from './cycle';
+import { isLiveAuthor, isLiveConfirmedReviewer } from './cycle';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
@@ -79,6 +79,21 @@ async function loadContainer(db: Db, containerId: string): Promise<ContainerRow 
   if (!isUuid(containerId)) return null;
   const [row] = await db.select().from(s.containers).where(eq(s.containers.id, containerId)).limit(1);
   return row ?? null;
+}
+
+/** T-362 (ADR-0033 addendum, 2026-08-09): row-scoped edit rights are the
+ * producing organisation's super users PLUS that row's live lead author —
+ * title, metadata, the authoring team, reviewer proposals. Excluded and still
+ * elevated/super acts: withdraw, lead-author reassignment, the reference, the
+ * document owner. An ordinary producing-org member holds nothing. */
+async function canEditRowMetadata(
+  db: Db,
+  slice: EntitledSlice,
+  container: ContainerRow,
+): Promise<boolean> {
+  if (container.producingOrganisationId !== slice.organisationId) return false;
+  if (canEditPlan(slice)) return true;
+  return (await isLiveAuthor(db, container.id, slice.participantId))?.isLead === true;
 }
 
 /** Assemble PlanRows for a set of containers (batched — no N+1). */
@@ -505,8 +520,10 @@ export function containerRoutes(deps: { db: Db }) {
     const { container, slice } = scopedCtx;
     // metadata is a producing-organisation act — even the owner edits only its own rows
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
-    // editing plan metadata is a super-user capability (T-176)
-    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    // a super-user capability (T-176), delegated to the row's live lead author (T-362)
+    if (!(await canEditRowMetadata(deps.db, slice, container))) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
     const body = patchContainerBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     const [updated] = await deps.db
@@ -548,7 +565,11 @@ export function containerRoutes(deps: { db: Db }) {
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
-    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    // super-user, or the row's live lead author (T-362) — title is row metadata;
+    // the coded reference is not (a naming-scheme act, no endpoint edits it)
+    if (!(await canEditRowMetadata(deps.db, slice, container))) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
     const body = setPlanTitleBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     await deps.db
@@ -629,8 +650,16 @@ export function containerRoutes(deps: { db: Db }) {
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
     if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    // the author set is row metadata: super-user or the row's live lead author
+    // (T-362) — an ordinary member holds nothing ("another member cannot", S5)
+    if (!(await canEditRowMetadata(deps.db, slice, container))) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
     const body = grantAppointmentBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
+    // lead authorship is assigned by the super user only — the delegation
+    // cannot pass itself on (ADR-0033 addendum)
+    if (body.data.isLead && !canEditPlan(slice)) return forbidden(c, 'super_user_required');
     const target = await liveParticipant(deps.db, body.data.participantId, container.projectId);
     if (!target) return notFound(c);
     if (body.data.isLead) {
@@ -669,6 +698,19 @@ export function containerRoutes(deps: { db: Db }) {
       ?.isLead ?? false;
     if (!isOwner && !isProducer && !leadReviewer) return notFound(c);
     if (container.scope === 'sandbox' && !isProducer) return notFound(c);
+    // on the producing side a PLAN row's proposal is row metadata: super-user
+    // or the row's live lead author (T-362) — never an ordinary member. The
+    // owner and the confirmed lead reviewer keep their own standing (ADR-0033
+    // + T-352). A sandbox-scope (freeze) container is exempt: internal-cycle
+    // initiation is open to anyone in the team (ADR-0032), org-private, no wall.
+    if (
+      container.scope !== 'sandbox' &&
+      !isOwner &&
+      !leadReviewer &&
+      !(await canEditRowMetadata(deps.db, slice, container))
+    ) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
     const body = grantAppointmentBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     const target = await liveParticipant(deps.db, body.data.participantId, container.projectId);
@@ -710,6 +752,12 @@ export function containerRoutes(deps: { db: Db }) {
     if (scopedCtx.container.producingOrganisationId !== scopedCtx.slice.organisationId) {
       return notFound(c);
     }
+    // super-user or the row's live lead author (T-362) — but revoking the LEAD
+    // author row is reassignment, which stays the super user's act
+    if (!(await canEditRowMetadata(deps.db, scopedCtx.slice, scopedCtx.container))) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
+    if (grant.isLead && !canEditPlan(scopedCtx.slice)) return forbidden(c, 'super_user_required');
     await deps.db
       .update(s.deliverableAuthors)
       .set({ revokedAt: sql`now()` })

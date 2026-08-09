@@ -229,6 +229,12 @@ function AppointmentEditor(props: {
   roster: RosterEntry[];
   showProposed?: boolean;
   canEdit: boolean;
+  /** whether the Lead checkbox is offered — lead (re)assignment can be a
+   * narrower right than adding members (T-362) */
+  allowLead?: boolean;
+  /** per-grant removal right — a delegated editor may add but not remove a
+   * lead row (T-362) */
+  canRemoveGrant?: (grant: Grant) => boolean;
   canConfirm?: boolean;
   onConfirm?: (grantId: string) => Promise<void>;
   onAdd: (participantId: string, isLead: boolean) => Promise<void>;
@@ -257,7 +263,7 @@ function AppointmentEditor(props: {
               Confirm
             </button>
           )}
-          {props.canEdit && (
+          {props.canEdit && (props.canRemoveGrant?.(g) ?? true) && (
             <button className="linklike" onClick={() => void props.onRemove(g.id)}>
               Remove
             </button>
@@ -273,9 +279,11 @@ function AppointmentEditor(props: {
             options={candidates.map((r) => ({ value: r.participantId, label: r.name, sub: r.organisationName }))}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
-              <input type="checkbox" checked={lead} onChange={(e) => setLead(e.target.checked)} /> Lead
-            </label>
+            {(props.allowLead ?? true) && (
+              <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                <input type="checkbox" checked={lead} onChange={(e) => setLead(e.target.checked)} /> Lead
+              </label>
+            )}
             <Button
               size="sm"
               variant="quiet"
@@ -307,12 +315,17 @@ function DeliverableDetail(props: {
   row: PlanRow;
   projectId: string;
   roster: RosterEntry[];
-  canEdit: boolean; // producing super-user: authors, owner, metadata, remove
+  canEdit: boolean; // producing super-user: everything, incl. remove + lead reassignment
+  // T-362 (ADR-0033 addendum) — the row's live lead author: title, metadata,
+  // other authors, reviewer proposals. NOT withdraw, NOT lead reassignment,
+  // NOT the document owner.
+  isLeadAuthor: boolean;
   isOwnerSuper: boolean; // owner super-user: appoints/confirms reviewers directly
   onChanged: (updated: PlanRow) => void;
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const canEditDelegated = props.canEdit || props.isLeadAuthor;
   const [row, setRow] = useState<PlanRow>(props.row);
   const [removing, setRemoving] = useState(false);
   const [reason, setReason] = useState('');
@@ -372,7 +385,7 @@ function DeliverableDetail(props: {
         </div>
       )}
       <div style={{ display: 'grid', gap: 6 }}>
-        {props.canEdit && row.workItem ? (
+        {canEditDelegated && row.workItem ? (
           <div style={{ display: 'grid', gap: 4 }}>
             <span className="field-label">Title</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -424,7 +437,11 @@ function DeliverableDetail(props: {
         memberLabel="Author"
         grants={authors}
         roster={props.roster.filter((p) => p.organisationId === row.producingOrganisationId)}
-        canEdit={props.canEdit}
+        canEdit={canEditDelegated}
+        // lead reassignment stays the super user's act (T-362): a lead author
+        // may neither crown a lead nor remove one
+        allowLead={props.canEdit}
+        canRemoveGrant={(g) => props.canEdit || !g.isLead}
         onAdd={(pid, lead) => api.grantAuthor(row.containerId, pid, lead).then(reload)}
         onRemove={(gid) => api.revokeAuthor(gid).then(reload)}
       />
@@ -437,8 +454,10 @@ function DeliverableDetail(props: {
         roster={props.roster}
         showProposed
         // the producer proposes; the owner appoints directly (auto-confirmed) and
-        // may confirm a proposal — either can set the reviewer up (ADR-0033, T-193)
-        canEdit={props.canEdit || props.isOwnerSuper}
+        // may confirm a proposal — either can set the reviewer up (ADR-0033,
+        // T-193). The row's lead author proposes too (T-362), never confirms.
+        canEdit={canEditDelegated || props.isOwnerSuper}
+        canRemoveGrant={() => props.canEdit || props.isOwnerSuper}
         canConfirm={props.isOwnerSuper}
         onConfirm={(gid) => api.confirmReviewer(gid).then(reload)}
         onAdd={(pid, lead) => api.grantReviewer(row.containerId, pid, lead).then(reload)}
@@ -465,7 +484,7 @@ function DeliverableDetail(props: {
 
       {/* T-243 — the project ontology: classification + typed relationships
           (ADR-0045). Read-only for non-producers; editable when canEdit. */}
-      <OntologyPanel containerId={row.containerId} projectId={props.projectId} editable={props.canEdit} />
+      <OntologyPanel containerId={row.containerId} projectId={props.projectId} editable={canEditDelegated} />
 
       {props.canEdit && (
         <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12, marginTop: 4 }}>
@@ -615,6 +634,16 @@ export function PlanScreen() {
   const isSuper = participant.elevated; // owner-super or guest-super may edit the plan (T-176)
   const navigate = useNavigate();
 
+  // T-362 (ADR-0033 addendum) — row-scoped delegation: the row's live lead
+  // author edits its metadata alongside the producing org's super users
+  const isRowLeadAuthor = (r: PlanRow) =>
+    r.producingOrganisationId === me.organisationId &&
+    r.authors.some(
+      (a) => a.isLead && a.revokedAt === null && a.participantId === participant.participantId,
+    );
+  const canEditRow = (r: PlanRow) =>
+    (isSuper && r.producingOrganisationId === me.organisationId) || isRowLeadAuthor(r);
+
   const [rows, setRows] = useState<PlanRow[] | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
@@ -713,7 +742,7 @@ export function PlanScreen() {
       {metaRow && (
         <MetadataModal
           title={`Metadata — ${metaRow.documentReference ?? 'deliverable'}`}
-          editable={isSuper && metaRow.producingOrganisationId === me.organisationId}
+          editable={canEditRow(metaRow)}
           identity={[
             { label: 'Reference', value: <span className="mono">{metaRow.documentReference}</span> },
             { label: 'Producer', value: metaRow.producingOrganisationName },
@@ -757,6 +786,7 @@ export function PlanScreen() {
           projectId={projectId}
           roster={roster}
           canEdit={isSuper && detailRow.producingOrganisationId === me.organisationId}
+          isLeadAuthor={isRowLeadAuthor(detailRow)}
           isOwnerSuper={isSuper && isOwner}
           onChanged={() => load()}
           onClose={() => setDetailRow(null)}

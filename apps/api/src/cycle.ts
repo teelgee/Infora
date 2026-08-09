@@ -7,7 +7,7 @@
 // comments are omitted for the authoring side; issued rounds are permanent.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createReviewCommentBody,
@@ -119,6 +119,9 @@ export async function isLiveAuthor(db: Db, containerId: string, participantId: s
         isNull(s.deliverableAuthors.revokedAt),
       ),
     )
+    // a participant can hold a lead row AND a plain row (nothing dedupes the
+    // pair) — prefer the lead, or limit(1) answers "is lead?" nondeterministically
+    .orderBy(desc(s.deliverableAuthors.isLead))
     .limit(1);
   return row ?? null;
 }
