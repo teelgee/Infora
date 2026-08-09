@@ -324,6 +324,16 @@ export function SchemaScreen() {
         <Link to={`/projects/${projectId}/plan`}>← Back to the plan</Link>
       </p>
 
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '4px 0 10px' }}>
+        <Button variant="quiet" size="sm" onClick={() => void api.downloadPlanTemplate(projectId)}>
+          Download Excel template
+        </Button>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          One column per field below — teams draft the deliverables list in Excel; references are
+          generated when the plan imports it, never in the sheet.
+        </span>
+      </div>
+
       <SectionLabel>Fields</SectionLabel>
       <Table>
         <table>

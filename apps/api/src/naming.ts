@@ -28,6 +28,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
+import { buildXlsx } from './xlsx';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
@@ -77,9 +78,55 @@ export async function loadSchemeOrDefault(
     : defaultDeliverableSchema();
 }
 
+// T-358 — the columns a plan spreadsheet carries, in template order: Title, then
+// the scheme's non-serial code fields, then its plain metadata fields. Deliberate
+// exclusions, both S3 rulings: no reference/serial column (numbering is never
+// drafted in Excel — references are generated at import), and no role columns
+// (appointments are propose/confirm acts, never a spreadsheet side-effect).
+export function templateFields(scheme: { fields: NamingSchemeField[] }): NamingSchemeField[] {
+  // serial and role exclusion applies whichever way the field is flagged: an
+  // isSerial flag, a bare type:'serial', or a role field forced inCode — none
+  // of them earns a column. A scheme's own 'title' key folds into the
+  // synthetic Title column rather than duplicating it.
+  const isSerialish = (f: NamingSchemeField) => !!f.isSerial || f.type === 'serial';
+  const eligible = scheme.fields.filter((f) => !isSerialish(f) && !f.role && f.key !== 'title');
+  return [
+    { key: 'title', label: 'Title' },
+    ...eligible.filter(isCodeField),
+    ...eligible.filter((f) => !isCodeField(f)),
+  ];
+}
+
 export function namingRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
+
+  // T-358 — the fillable plan template: one header row of schema attribute
+  // fields, a Codes legend sheet, dropdowns where the allowed set fits Excel's
+  // inline-list cap. Any participant may download it — it restates the scheme,
+  // which the scheme read already shows every participant.
+  app.get('/projects/:projectId/naming-scheme/template', project, async (c) => {
+    const slice = c.get('slice');
+    const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
+    const fields = templateFields(scheme);
+    const legend: (string | null)[][] = [['Field', 'Code', 'Description']];
+    for (const f of fields) {
+      for (const v of f.allowedValues ?? []) legend.push([f.label, v, f.allowedValueLabels?.[v] ?? null]);
+    }
+    const bytes = buildXlsx([
+      {
+        name: 'Deliverables',
+        rows: [fields.map((f) => f.label)],
+        validations: fields.flatMap((f, column) =>
+          f.allowedValues && f.allowedValues.length > 0 ? [{ column, values: f.allowedValues }] : [],
+        ),
+      },
+      { name: 'Codes', rows: legend },
+    ]);
+    c.header('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    c.header('content-disposition', 'attachment; filename="deliverables-plan-template.xlsx"');
+    return c.body(new Uint8Array(bytes));
+  });
 
   app.get('/projects/:projectId/naming-scheme', project, async (c) => {
     const slice = c.get('slice');

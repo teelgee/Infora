@@ -6,8 +6,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GenerateReferenceResponse, GetNamingSchemeResponse } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
-import { composeReference } from './naming';
+import { composeReference, templateFields } from './naming';
 import { fakeRouter } from './test-router';
+import { parseXlsx } from './xlsx';
 
 const { db, pool } = createDb();
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
@@ -179,5 +180,46 @@ describe('the naming scheme + code-builder API (T-152, ADR-0008)', () => {
     const list = await app.request(`/projects/${projectId}/naming-scheme/proposals`, { headers: asJson(ownerCookie) });
     const { items } = (await list.json()) as { items: Array<{ id: string; status: string }> };
     expect(items.find((p) => p.id === id)?.status).toBe('accepted');
+  });
+});
+
+describe('the fillable plan template (T-358, S2)', () => {
+  it('serves an .xlsx whose header row is the schema attribute fields — no reference, no serial, no roles', async () => {
+    const res = await app.request(`/projects/${projectId}/naming-scheme/template`, {
+      headers: { cookie: consultCookie },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('spreadsheetml');
+    const bytes = Buffer.from(await res.arrayBuffer());
+    expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    const rows = parseXlsx(bytes)!;
+    // this project saved the 4-field test scheme above: Title + its non-serial
+    // code fields, and never the serial (numbering is generated at import, S3)
+    expect(rows[0]).toEqual(['Title', 'Project', 'Originator', 'Discipline']);
+  });
+
+  it('is a participant read, not a super-user act — but never crosses the wall', async () => {
+    const member = await app.request(`/projects/${projectId}/naming-scheme/template`, {
+      headers: { cookie: otherCookie },
+    });
+    expect(member.status).toBe(200);
+    const outsider = await app.request(`/projects/${crypto.randomUUID()}/naming-scheme/template`, {
+      headers: { cookie: otherCookie },
+    });
+    expect(outsider.status).toBe(404);
+  });
+});
+
+describe('templateFields (pure, T-358)', () => {
+  it('never leaks a serial, role or duplicate-title column, whichever way the field is flagged', () => {
+    const fields = [
+      { key: 'project', label: 'Project', inCode: true },
+      { key: 'seq', label: 'Sequence', type: 'serial' as const }, // bare type, no isSerial flag
+      { key: 'authors', label: 'Author(s)', role: 'author' as const, inCode: true }, // role forced inCode
+      { key: 'title', label: 'Document title' }, // folds into the synthetic Title
+      { key: 'suitability', label: 'Suitability' },
+    ];
+    const out = templateFields({ fields });
+    expect(out.map((f) => f.key)).toEqual(['title', 'project', 'suitability']);
   });
 });

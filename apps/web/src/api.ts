@@ -91,6 +91,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+// A binary GET — fetched (never navigated: browser navigations carry
+// Accept: text/html and the dev proxy hands those the SPA shell, T-358), then
+// saved through a transient object-URL anchor.
+async function downloadFile(path: string): Promise<void> {
+  const res = await fetch(path, { credentials: 'same-origin' });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as ApiError | null;
+    throw new RequestError(res.status, body);
+  }
+  const filename =
+    res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
+  const url = URL.createObjectURL(await res.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 // A multipart POST — the browser sets the multipart/form-data boundary itself,
 // so (unlike request) we never declare a content type (T-122/T-220 uploads).
 async function requestForm<T>(path: string, form: FormData): Promise<T> {
@@ -369,6 +388,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ values }),
     }),
+  // T-358 — the fillable plan template (S2): a fetch-then-save, never a
+  // navigation (the dev proxy hands navigations the SPA shell)
+  downloadPlanTemplate: (projectId: string) =>
+    downloadFile(`/projects/${projectId}/naming-scheme/template`),
   namingProposals: (projectId: string) =>
     request<ListNamingProposalsResponse>(`/projects/${projectId}/naming-scheme/proposals`),
   proposeNaming: (projectId: string, body: string) =>
