@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as Re
 import { useNavigate, useOutletContext } from 'react-router';
 import type {
   MeResponse,
+  NamingScheme,
   PlanRow,
   RosterEntry,
   Sandbox,
@@ -18,6 +19,7 @@ import type {
   SandboxFolder,
   SandboxScopeGrantView,
 } from '@infora/contracts';
+import { optionLabel } from '@infora/contracts';
 import {
   Building2,
   ChevronDown,
@@ -471,12 +473,22 @@ const toStructure = (nodes: BuilderNode[]): StructureNode[] =>
 
 function FolderStructureModal(props: {
   intoName: string | null;
+  /** T-363 (S6) — the no-model seed: candidate root folders derived from the
+   * owning org's plan-row disciplines. Prefills the builder for the super user
+   * to edit and confirm; the existing deterministic endpoint executes. */
+  planSeed?: string[];
   onSubmit: (nodes: StructureNode[]) => Promise<void>;
   onClose: () => void;
 }) {
   const [nodes, setNodes] = useState<BuilderNode[]>([blankNode()]);
   const [focusId, setFocusId] = useState<string | null>(nodes[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
+
+  const proposeFromPlan = () => {
+    if (!props.planSeed || props.planSeed.length === 0) return;
+    setNodes(props.planSeed.map((name) => ({ id: crypto.randomUUID(), name, children: [] })));
+    setFocusId(null);
+  };
 
   const total = countBuilder(nodes);
   const blank = anyBlank(nodes);
@@ -562,6 +574,16 @@ function FolderStructureModal(props: {
         <Button size="sm" variant="quiet" onClick={addRoot}>
           <Plus size={13} strokeWidth={2} /> Add folder
         </Button>
+        {props.planSeed && props.planSeed.length > 0 && (
+          <Button
+            size="sm"
+            variant="quiet"
+            title="Replace the builder with one folder per discipline on the owning organisation’s plan — edit before creating"
+            onClick={proposeFromPlan}
+          >
+            <FolderTree size={13} strokeWidth={2} /> Propose from the plan’s disciplines
+          </Button>
+        )}
         {blank && <span className="field-hint" style={{ marginLeft: 8 }}>Name every folder, or remove it.</span>}
         {total > 200 && (
           <span className="field-hint" style={{ marginLeft: 8, color: 'var(--feedback-danger-text)' }}>
@@ -845,6 +867,7 @@ export function SandboxScreen() {
   const [folders, setFolders] = useState<SandboxFolder[]>([]);
   const [docs, setDocs] = useState<SandboxDocument[]>([]);
   const [plan, setPlan] = useState<PlanRow[]>([]);
+  const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   // a toned, dismissible notice (T-228): success auto-dismisses, errors persist
   const [note, setNoteState] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
@@ -913,6 +936,7 @@ export function SandboxScreen() {
     void loadDocs();
     void api.plan(projectId).then((r) => setPlan(r.items));
     void api.participants(projectId).then((r) => setRoster(r.items));
+    void api.namingScheme(projectId).then(setScheme); // T-363 — discipline labels for the seed
   }, [loadSandboxes, loadDocs, projectId]);
 
   const loadSandbox = useCallback((id: string) => {
@@ -932,6 +956,21 @@ export function SandboxScreen() {
   const unboundPlan = useMemo(() => plan.filter((p) => p.workItem && p.currentVersion === null), [plan]);
   const planByContainer = useMemo(() => new Map(plan.map((p) => [p.containerId, p])), [plan]);
   const selectedSandbox = sandboxes.find((s) => s.id === selected) ?? null;
+
+  // T-363 (S6) — the no-model plan seed: the owning org's live plan rows'
+  // distinct disciplines, labelled off the scheme, as candidate root folders
+  const planSeed = useMemo(() => {
+    if (!selectedSandbox) return [];
+    const disciplineField = scheme?.fields.find((f) => f.key === 'discipline');
+    const codes = new Set<string>();
+    for (const r of plan) {
+      if (r.producingOrganisationId !== selectedSandbox.owningOrganisationId) continue;
+      if (r.state !== 'live' || !r.workItem) continue;
+      const code = r.metadata['discipline'];
+      if (typeof code === 'string' && code.trim() !== '') codes.add(code.trim());
+    }
+    return [...codes].sort().map((code) => optionLabel(code, disciplineField?.allowedValueLabels));
+  }, [plan, selectedSandbox, scheme]);
   const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
   const orgNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -1240,6 +1279,7 @@ export function SandboxScreen() {
       {modal === 'structure' && selected && (
         <FolderStructureModal
           intoName={currentFolderId ? (crumbs.at(-1)?.name ?? null) : null}
+          planSeed={planSeed}
           onClose={() => setModal(null)}
           onSubmit={async (nodes) => {
             try {

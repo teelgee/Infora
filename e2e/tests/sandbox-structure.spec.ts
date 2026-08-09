@@ -3,7 +3,7 @@
 // folder, a subfolder button to nest, no whitespace to manage) and creates the
 // whole structure at once (ADR-0040). Templates are a deliberate follow-up.
 import { expect, test } from '@playwright/test';
-import { SEEDED } from './support/api';
+import { ApiSession, SEEDED } from './support/api';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -53,4 +53,44 @@ test('a super-user builds a nested folder structure with the interactive builder
   await expect(page.getByRole('button', { name: 'Engineering', exact: true })).toBeVisible();
   await page.getByRole('row').filter({ hasText: 'Environmental' }).getByRole('button', { name: 'Expand folder' }).click();
   await expect(page.getByRole('button', { name: 'Ecology', exact: true })).toBeVisible();
+});
+
+// T-363 (S6) — the no-model plan seed: "Propose from the plan's disciplines"
+// prefills the builder from the org's own plan rows; the super user edits and
+// confirms; the same deterministic endpoint executes.
+test('the builder proposes a structure from the plan’s disciplines — editable before creating', async ({ page }) => {
+  // the seed derives from the org's own disciplined plan rows — make one
+  const stamp = Date.now();
+  const eleanor = await ApiSession.login(SEEDED.consultant);
+  const me = await eleanor.get<{ participants: Array<{ projectId: string }> }>('/me');
+  const projectId = me.participants[0]!.projectId;
+  await eleanor.post(`/projects/${projectId}/plan`, {
+    documentReference: `T363-${stamp}`,
+    title: 'Seed source row',
+    metadata: { discipline: 'ECV' },
+  });
+  await eleanor.dispose();
+
+  await loginAs(page, SEEDED.consultant);
+  await page.getByRole('link', { name: /Sandbox/ }).click();
+
+  await page.getByRole('button', { name: 'Sandbox' }).click();
+  const sb = page.getByRole('dialog');
+  await sb.getByPlaceholder('e.g. Ecology working area').fill(`Seed e2e ${Date.now()}`);
+  await sb.getByRole('button', { name: 'Next' }).click();
+  await sb.getByRole('button', { name: 'Create sandbox' }).click();
+  await expect(sb).toBeHidden();
+
+  await page.getByRole('button', { name: /Folder structure/ }).click();
+  const builder = page.getByRole('dialog');
+  await builder.getByRole('button', { name: /Propose from the plan/ }).click();
+
+  // the disciplined row created above surfaces as a labelled candidate folder
+  const names = builder.getByPlaceholder('Folder name');
+  // controlled inputs carry the value as a DOM property — assert via toHaveValue
+  await expect(names.first()).toHaveValue(/ECV/);
+  await expect(builder.getByRole('button', { name: /Create \d+ folder/ })).toBeEnabled();
+  // still an editable proposal, not an act — cancel leaves nothing behind
+  await builder.getByRole('button', { name: 'Cancel' }).click();
+  await expect(builder).toBeHidden();
 });
