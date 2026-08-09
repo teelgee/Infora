@@ -167,8 +167,18 @@ test('4 — issue, respond, and the transmittal back; then acceptance admits the
   await eleanor.patch(`/sandbox-documents/${documentId}`, {
     content: 'The ecology chapter, survey methodology expanded.',
   });
+  // the QA gate holds for EVERY promotion (T-355, ADR-0032 addendum): v2 runs
+  // its own internal pass — one freeze now opens the round (the lead stands),
+  // and acceptance re-arms promotion with the v2 frozen content
+  await eleanor.post(`/sandbox-documents/${documentId}/freeze`, {});
+  const qa2 = (await eleanor.get<ReviewCycle | null>(`/containers/${freezeContainerId}/cycle`))!;
+  const qaRound2 = qa2.rounds.at(-1)!;
+  const qaAccepting = codes.items.find((c) => c.isAccepting)!.id;
+  await eleanor.post(`/rounds/${qaRound2.id}/deliverable-code`, { acceptanceCodeId: qaAccepting });
+  await eleanor.post(`/rounds/${qaRound2.id}/issue`, {});
   const v2 = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
   expect(v2.versionReference).toBe('P02');
+  expect(v2.source).toBe('qa_accepted_frozen'); // never the drifted head
   expect(v2.roundNumber).toBe(2);
   await rachel.post(`/rounds/${v2.roundId}/acknowledge`, {}); // the ADR-0051 gate, round 2
 
@@ -211,6 +221,9 @@ test('5 — the rejected pathway: an abandoned deliverable stands as a record an
     containerId: abandoned.containerId,
   });
   await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: 'never to be finished' });
+  // the deliberate act the T-355 gate models: this scrap of a deliverable
+  // skips internal QA, so the super user turns the sandbox's gate off
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
   await eleanor.post(`/sandbox-documents/${doc.id}/promotion`, {});
 
   const active = (await eleanor.get<ReviewCycle | null>(`/containers/${abandoned.containerId}/cycle`))!;

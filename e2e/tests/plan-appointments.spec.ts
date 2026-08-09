@@ -21,7 +21,10 @@ test('a producer appoints the team and promotion unblocks once the owner confirm
     documentReference: `T190-${stamp}`,
     title: 'Promote-flow test',
   });
-  const doc = await eleanor.post<{ id: string }>(`/projects/${projectId}/sandbox-documents`, { title: 'T190 draft' });
+  const doc = await eleanor.post<{ id: string; sandboxId: string }>(`/projects/${projectId}/sandbox-documents`, { title: 'T190 draft' });
+  // this spec exercises the appointment gates, not internal QA — the super
+  // user turns the T-355 gate off deliberately
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
   await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: 'ready' });
   await eleanor.post(`/sandbox-documents/${doc.id}/binding`, { containerId: row.containerId });
 

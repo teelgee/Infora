@@ -217,6 +217,8 @@ export const api = {
     request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
+  // T-355 — the freeze container's row read (org-private internal QA)
+  qaRow: (containerId: string) => request<PlanRow>(`/containers/${containerId}/qa-row`),
   // T-120–T-126 — promotion, the freeze and the round loop (ADR-0032)
   cycle: (containerId: string) => request<ReviewCycle | null>(`/containers/${containerId}/cycle`),
   acceptanceCodes: (projectId: string) =>
@@ -429,7 +431,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   sandbox: (sandboxId: string) => request<GetSandboxResponse>(`/sandboxes/${sandboxId}`),
-  updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean; planLocked?: boolean }) =>
+  updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean; planLocked?: boolean; promotionRequiresQa?: boolean }) =>
     request<Sandbox>(`/sandboxes/${sandboxId}/settings`, {
       method: 'PATCH',
       body: JSON.stringify(body),

@@ -227,6 +227,10 @@ export type SandboxDocument = {
   // the current working revision in the sandbox, ISO 19650 v0.x (ADR-0041);
   // present on list/read where the ambient count is resolved
   workingRevision?: string;
+  // the org-private freeze-series container, once a freeze has created it
+  // (ADR-0032; T-355) — the internal QA cycle's id, previously returned only
+  // by POST /freeze and unreachable from any read. Present on list/read.
+  freezeContainerId?: Id | null;
   updatedAt: string;
 };
 
@@ -514,7 +518,10 @@ export type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null }; /
 
 export type PlanRow = {
   containerId: Id;
-  documentReference: string;
+  // null for a sandbox-scope (freeze-series) container — the org-private
+  // internal QA series carries no coded reference and no plan row (ADR-0032);
+  // T-355's qa-row read serves those through the same shape
+  documentReference: string | null;
   producingOrganisationId: Id;
   producingOrganisationName: string;
   metadata: Record<string, unknown>;
@@ -739,6 +746,10 @@ export type PromotionResult = {
   cycleId: Id;
   roundId: Id;
   roundNumber: number;
+  // which legal source promoted (ADR-0032; T-355 states it rather than
+  // implying it): the live head snapshot, or the QA-accepted frozen version —
+  // never a post-QA drifted head
+  source: 'head' | 'qa_accepted_frozen';
 };
 export type FreezeResult = { versionId: Id; versionReference: string; containerId: Id };
 
@@ -923,6 +934,10 @@ export type Sandbox = {
   // working folder per deliverable, system-owned. Composes with
   // allowMemberFolderCreate, which governs INSIDE a deliverable's folder.
   planLocked: boolean;
+  // the QA gate (ADR-0032 addendum 2026-08-09, T-355): promotion's live-head
+  // source is disabled while on — the QA-accepted frozen version is the only
+  // legal source. Default on for project sandboxes; off for personal ones.
+  promotionRequiresQa: boolean;
   // whether the requester may configure this sandbox's settings (a super-user of
   // the owning org, or the owner-super) — a self fact, decided server-side
   canConfigure: boolean;
@@ -938,6 +953,7 @@ export type Sandbox = {
 export const updateSandboxSettingsBody = z.object({
   allowMemberFolderCreate: z.boolean().optional(),
   planLocked: z.boolean().optional(),
+  promotionRequiresQa: z.boolean().optional(),
 });
 export type UpdateSandboxSettingsBody = z.infer<typeof updateSandboxSettingsBody>;
 export type SandboxScopeGrantView = {

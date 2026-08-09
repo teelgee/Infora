@@ -107,6 +107,9 @@ async function ensurePersonalSandbox(db: Db, slice: EntitledSlice): Promise<void
         owningOrganisationId: slice.organisationId,
         createdByParticipantId: slice.participantId,
         isPersonal: true,
+        // the QA gate defaults ON here too (T-355): scratch work is unbound and
+        // cannot promote at all, so an exempt personal sandbox bought nothing
+        // and opened a create-here → bind → promote route around the team's gate
       })
       .returning();
     await db.insert(s.sandboxScopeGrants).values({
@@ -134,6 +137,7 @@ const toSandbox = (r: typeof s.sandboxes.$inferSelect, slice: EntitledSlice): Sa
   owningOrganisationId: r.owningOrganisationId,
   allowMemberFolderCreate: r.allowMemberFolderCreate,
   planLocked: r.planLocked,
+  promotionRequiresQa: r.promotionRequiresQa,
   canConfigure: canConfigureSandbox(slice, r),
   isPersonal: r.isPersonal,
 });
@@ -279,6 +283,9 @@ export function sandboxRoutes2(deps: { db: Db }) {
           allowMemberFolderCreate: parsed.data.allowMemberFolderCreate,
         }),
         ...(parsed.data.planLocked !== undefined && { planLocked: parsed.data.planLocked }),
+        ...(parsed.data.promotionRequiresQa !== undefined && {
+          promotionRequiresQa: parsed.data.promotionRequiresQa,
+        }),
       })
       .where(eq(s.sandboxes.id, ctx.sandbox.id))
       .returning();

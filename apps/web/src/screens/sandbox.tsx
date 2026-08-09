@@ -40,6 +40,7 @@ import {
   Plus,
   Send,
   Settings,
+  Snowflake,
   Upload,
   User,
   Users,
@@ -395,15 +396,22 @@ function MoveModal(props: {
 // two settings compose — ADR-0040 addendum).
 function SettingsModal(props: {
   sandbox: Sandbox;
-  onSave: (body: { allowMemberFolderCreate: boolean; planLocked: boolean }) => Promise<void>;
+  onSave: (body: {
+    allowMemberFolderCreate: boolean;
+    planLocked: boolean;
+    promotionRequiresQa: boolean;
+  }) => Promise<void>;
   onClose: () => void;
 }) {
   const [allow, setAllow] = useState(props.sandbox.allowMemberFolderCreate);
   const [planLocked, setPlanLocked] = useState(props.sandbox.planLocked);
+  const [requireQa, setRequireQa] = useState(props.sandbox.promotionRequiresQa);
   const [busy, setBusy] = useState(false);
   const mode = planLocked ? 'plan' : allow ? 'anyone' : 'super';
   const dirty =
-    allow !== props.sandbox.allowMemberFolderCreate || planLocked !== props.sandbox.planLocked;
+    allow !== props.sandbox.allowMemberFolderCreate ||
+    planLocked !== props.sandbox.planLocked ||
+    requireQa !== props.sandbox.promotionRequiresQa;
   return (
     <Modal
       open
@@ -420,7 +428,11 @@ function SettingsModal(props: {
             disabled={busy || !dirty}
             onClick={async () => {
               setBusy(true);
-              await props.onSave({ allowMemberFolderCreate: allow, planLocked });
+              await props.onSave({
+                allowMemberFolderCreate: allow,
+                planLocked,
+                promotionRequiresQa: requireQa,
+              });
             }}
           >
             Save settings
@@ -464,6 +476,23 @@ function SettingsModal(props: {
           />
         </Field>
       )}
+      <Field
+        label="Promotion"
+        hint={
+          requireQa
+            ? 'What promotes is the QA-accepted frozen version — never the head as it has drifted since QA (ADR-0032). Turning this off is a deliberate, visible governance act.'
+            : 'The gate is off: promotion may snapshot the live head with no internal QA. The default for project sandboxes is on.'
+        }
+      >
+        <SelectInput
+          value={requireQa ? 'qa' : 'head'}
+          onChange={(v) => setRequireQa(v === 'qa')}
+          options={[
+            { value: 'qa', label: 'Promotion requires QA acceptance' },
+            { value: 'head', label: 'Promotion may take the live head' },
+          ]}
+        />
+      </Field>
     </Modal>
   );
 }
@@ -916,6 +945,16 @@ function DocActions(props: {
         <DropdownMenuItem onClick={() => navigate(`/projects/${props.projectId}/editor/${doc.id}`)}>
           <FileText size={13} strokeWidth={2} /> Open in Editor
         </DropdownMenuItem>
+        {/* T-355 — the org-private internal QA cycle, reachable at last: staff
+            it and run the round from the same status/cycle screens the project
+            review uses; the wall is untouched (the container is org-private) */}
+        {doc.freezeContainerId && (
+          <DropdownMenuItem
+            onClick={() => navigate(`/projects/${props.projectId}/review/${doc.freezeContainerId}`)}
+          >
+            <Snowflake size={13} strokeWidth={2} /> Internal QA…
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => props.onMove(doc)}>
           <FolderInput size={13} strokeWidth={2} /> Move…
         </DropdownMenuItem>
@@ -1947,9 +1986,14 @@ async function promote(
   setNote: (text: string, tone?: 'success' | 'error') => void,
 ) {
   try {
-    await api.promoteDocument(doc.id);
+    const result = await api.promoteDocument(doc.id);
     await reload();
-    setNote('Promoted into the container — the project review cycle is open.');
+    // the drift notice (ADR-0032 addendum, T-355): promotion states its source
+    setNote(
+      result.source === 'qa_accepted_frozen'
+        ? `Promoted the QA-accepted frozen version as ${result.versionReference} — later head edits stayed in the sandbox.`
+        : `Promoted the live head as ${result.versionReference} — the project review cycle is open.`,
+    );
   } catch (error) {
     setNote(`Promote failed — ${describeApiError(errorCode(error))}`, 'error');
   }

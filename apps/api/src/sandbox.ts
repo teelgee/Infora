@@ -163,8 +163,22 @@ export function sandboxRoutes(deps: { db: Db }) {
           .groupBy(s.sandboxDocumentVersions.sandboxDocumentId)
       : [];
     const countByDoc = new Map(counts.map((r) => [r.docId, Number(r.n)]));
+    // the freeze-series container per document (T-355): one batched lookup —
+    // org-private machinery, and these are already the org's own documents
+    const freezeRows = rows.length
+      ? await deps.db
+          .select({ id: s.containers.id, sandboxDocumentId: s.containers.sandboxDocumentId })
+          .from(s.containers)
+          .where(
+            and(
+              inArray(s.containers.sandboxDocumentId, rows.map((r) => r.id)),
+              eq(s.containers.scope, 'sandbox'),
+            ),
+          )
+      : [];
+    const freezeByDoc = new Map(freezeRows.map((r) => [r.sandboxDocumentId!, r.id]));
     return c.json({
-      items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0)),
+      items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0, freezeByDoc.get(r.id) ?? null)),
     } satisfies ListSandboxDocumentsResponse);
   });
 
@@ -176,7 +190,12 @@ export function sandboxRoutes(deps: { db: Db }) {
       .from(s.sandboxDocuments)
       .where(eq(s.sandboxDocuments.id, c.req.param('id')))
       .limit(1);
-    return c.json(toSandboxDocument(row!));
+    const [freeze] = await deps.db
+      .select({ id: s.containers.id })
+      .from(s.containers)
+      .where(and(eq(s.containers.sandboxDocumentId, row!.id), eq(s.containers.scope, 'sandbox')))
+      .limit(1);
+    return c.json(toSandboxDocument(row!, undefined, freeze?.id ?? null));
   });
 
   // T-082: the document's Suggestions, newest first (contracts, 2026-07-08)
@@ -402,6 +421,7 @@ export function sandboxRoutes(deps: { db: Db }) {
 export function toSandboxDocument(
   row: typeof s.sandboxDocuments.$inferSelect,
   ambientCount?: number,
+  freezeContainerId?: string | null,
 ): SandboxDocument {
   return {
     id: row.id,
@@ -418,6 +438,9 @@ export function toSandboxDocument(
     authoringMetadata: (row.authoringMetadata ?? {}) as Record<string, unknown>,
     headLocked: row.headLocked,
     ...(ambientCount !== undefined && { workingRevision: `v0.${Math.max(1, ambientCount)}` }),
+    // T-355: the internal QA cycle's container, resolved on list/read — the
+    // freeze endpoint was the only place this id ever surfaced before
+    ...(freezeContainerId !== undefined && { freezeContainerId }),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

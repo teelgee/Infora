@@ -57,10 +57,17 @@ export function DeliverableStatusScreen() {
         // presence (ADR-0033); it supplies each person's organisation
         api.participants(me.projectId).catch(() => ({ items: [] as RosterEntry[] })),
       ]);
-      const planRow = plan.items.find((r) => r.containerId === containerId) ?? null;
+      // T-355: a sandbox-scope (internal QA) container resolves through the
+      // dedicated qa-row read — producer-org only, never on the plan
+      const planRow =
+        (plan.items.find((r) => r.containerId === containerId) ?? null) ||
+        (await api.qaRow(containerId).catch(() => null));
       setRow(planRow);
       setCycle(cycleRead);
-      setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
+      setDraft(
+        docs.items.find((d) => d.containerId === containerId || d.freezeContainerId === containerId) ??
+          null,
+      );
       setTransmittals(history.items);
       setOrgByParticipant(
         new Map(roster.items.map((r) => [r.participantId, r.organisationName])),
@@ -158,11 +165,13 @@ export function DeliverableStatusScreen() {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
-            {row.documentReference}
+            {row.documentReference ?? 'Internal QA'}
           </h1>
           <p className="page-sub" style={{ margin: 0 }}>
-            {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
-            <Badge tone={status.tone}>{status.label}</Badge>
+            {row.documentReference === null
+              ? `${draft?.title ?? 'Working draft'} · org-private internal review — the record never crosses the wall (ADR-0032)`
+              : `${row.workItem?.title ?? 'Reference material'} · produced by ${row.producingOrganisationName}`}{' '}
+            · <Badge tone={status.tone}>{status.label}</Badge>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
@@ -317,7 +326,7 @@ export function DeliverableStatusScreen() {
 
         <StatusCard label="Deliverable">
             <MetaRow k="Reference">
-              <span style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.documentReference}</span>
+              <span style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.documentReference ?? "Internal QA — no coded reference"}</span>
             </MetaRow>
             <MetaRow k="Producing organisation">{row.producingOrganisationName}</MetaRow>
             <MetaRow k="State">

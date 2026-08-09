@@ -190,7 +190,7 @@ export function OntologyPanel(props: { containerId: string; projectId: string; e
                   value={newTarget}
                   onChange={setNewTarget}
                   placeholder="Choose a deliverable…"
-                  options={targets.map((t) => ({ value: t.containerId, label: t.documentReference }))}
+                  options={targets.map((t) => ({ value: t.containerId, label: t.documentReference ?? '(no reference)' }))}
                 />
               </div>
               <Button size="sm" variant="primary" disabled={busy || !newTarget} onClick={() => void propose()}>

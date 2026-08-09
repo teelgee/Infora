@@ -13,6 +13,10 @@ const MESSAGES: Record<string, string> = {
   row_edit_not_permitted:
     'Editing this row is for the producing organisation’s super users and its lead author (T-362).',
   already_bound: 'That deliverable already has a bound working draft — one draft per row.',
+  qa_acceptance_required:
+    'This sandbox requires QA acceptance before promotion — freeze the draft and run the internal review, or a super-user turns the gate off in sandbox Settings.',
+  qa_acceptance_stale:
+    'The last QA acceptance was already issued as a revision — freeze this draft again and run a fresh internal review before promoting the next one.',
   super_user_only: 'Only a super-user can do this.',
   elevated_required: 'This is a protected action — switch on the elevated (super-user) tier first.',
   controller_only: 'Only the document controller can do this in controller mode.',

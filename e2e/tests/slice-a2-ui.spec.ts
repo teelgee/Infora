@@ -77,7 +77,7 @@ test('the Bind dialog picks a deliverable from a searchable list; the bound code
   await bind.getByPlaceholder(/Search your deliverables/).fill(`UI e2e ${stamp}`);
   await bind.getByText(DELIVERABLE_TITLE).click();
   // T-366: the confirmation card names the target and states the consequence
-  await expect(bind.getByText('one-way', { exact: false })).toBeVisible();
+  await expect(bind.getByText('On bind, this draft becomes')).toBeVisible();
   await bind.getByRole('button', { name: /Bind to / }).click();
   await expect(bind).toBeHidden();
 

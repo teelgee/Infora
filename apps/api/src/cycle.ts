@@ -108,6 +108,22 @@ export async function isLiveConfirmedReviewer(db: Db, containerId: string, parti
   return row ?? null;
 }
 
+/** The authoring side of a container's cycle. At sandbox scope (the org-private
+ * internal QA series) the authors are the LIBRARY row's authors — the freeze
+ * container carries no appointments of its own, and it is the same people on
+ * the same side of the wall producing the same deliverable. Without this an
+ * internal "revise" verdict was a dead end (T-355): nobody could answer the
+ * comments, so the head could never be re-frozen and never promoted. */
+export async function authoringContainerId(db: Db, container: ContainerRow): Promise<string> {
+  if (container.scope !== 'sandbox' || !container.sandboxDocumentId) return container.id;
+  const [doc] = await db
+    .select({ containerId: s.sandboxDocuments.containerId })
+    .from(s.sandboxDocuments)
+    .where(eq(s.sandboxDocuments.id, container.sandboxDocumentId))
+    .limit(1);
+  return doc?.containerId ?? container.id;
+}
+
 export async function isLiveAuthor(db: Db, containerId: string, participantId: string) {
   const [row] = await db
     .select({ id: s.deliverableAuthors.id, isLead: s.deliverableAuthors.isLead })
@@ -704,6 +720,9 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
     // version — never a head drifting past an active internal cycle
     let sourceContent = doc.content;
+    let source: 'head' | 'qa_accepted_frozen' = 'head';
+    // an accepted QA cycle whose frozen version has already been issued
+    let qaAcceptanceSpent = false;
     const [freezeContainer] = await deps.db
       .select()
       .from(s.containers)
@@ -714,7 +733,9 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .select()
         .from(s.reviewCycles)
         .where(eq(s.reviewCycles.containerId, freezeContainer.id))
-        .orderBy(sql`${s.reviewCycles.launchedAt} desc`)
+        // id breaks a launchedAt tie: two cycles in the same tick must still
+        // order deterministically, or "the latest QA pass" is a coin toss
+        .orderBy(sql`${s.reviewCycles.launchedAt} desc, ${s.reviewCycles.id} desc`)
         .limit(1);
       if (latestFreezeCycle?.state === 'active') return conflict(c, 'internal_cycle_active');
       if (latestFreezeCycle?.state === 'accepted') {
@@ -725,7 +746,43 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           .where(eq(s.rounds.cycleId, latestFreezeCycle.id))
           .orderBy(sql`${s.rounds.number} desc`)
           .limit(1);
-        if (acceptedRound) sourceContent = acceptedRound.content;
+        // ONE promotion per QA acceptance (T-355): a version already issued on
+        // this container after the QA cycle closed consumed that acceptance.
+        // Without this the next revision would silently re-issue the same
+        // frozen content — identical to the last, while the responses claim
+        // changes. A new revision needs a fresh freeze and a fresh QA pass.
+        const [lastIssued] = await deps.db
+          .select({ createdAt: s.versions.createdAt })
+          .from(s.versions)
+          .where(eq(s.versions.containerId, container.id))
+          .orderBy(desc(s.versions.createdAt))
+          .limit(1);
+        qaAcceptanceSpent =
+          lastIssued !== undefined &&
+          latestFreezeCycle.closedAt !== null &&
+          lastIssued.createdAt >= latestFreezeCycle.closedAt;
+        if (acceptedRound && !qaAcceptanceSpent) {
+          sourceContent = acceptedRound.content;
+          source = 'qa_accepted_frozen';
+        }
+      }
+    }
+    // the QA gate (ADR-0032 addendum 2026-08-09, T-355): with the sandbox's
+    // "promotion requires QA acceptance" on — the default for project
+    // sandboxes — the live-head source is disabled. What promotes is the
+    // QA-accepted frozen version, never the head as it has drifted since QA.
+    if (source === 'head') {
+      const [sandbox] = await deps.db
+        .select({ promotionRequiresQa: s.sandboxes.promotionRequiresQa })
+        .from(s.sandboxes)
+        .where(eq(s.sandboxes.id, doc.sandboxId))
+        .limit(1);
+      // fails CLOSED: a governance gate must refuse on an impossible state
+      // (no sandbox row) rather than admit — hence !== false, not truthiness
+      if (sandbox?.promotionRequiresQa !== false) {
+        // named apart so the surface can say which it is: never assured, or
+        // assured for a revision already issued
+        return conflict(c, qaAcceptanceSpent ? 'qa_acceptance_stale' : 'qa_acceptance_required');
       }
     }
 
@@ -825,6 +882,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         cycleId,
         roundId: round!.id,
         roundNumber,
+        source,
       } satisfies PromotionResult;
     });
     // the record's renditions, generated beside the version (T-121, ADR-0034)
@@ -1167,7 +1225,12 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     const scope = await roundScope(c, comment.roundId);
     if (!scope) return notFound(c);
     const { round, container, slice } = scope;
-    const author = await isLiveAuthor(deps.db, container.id, slice.participantId);
+    // at sandbox scope the deliverable's own authors answer internal QA (T-355)
+    const author = await isLiveAuthor(
+      deps.db,
+      await authoringContainerId(deps.db, container),
+      slice.participantId,
+    );
     if (!author) return forbidden(c, 'authors_only');
     if (round.state !== 'issued') return conflict(c, 'round_not_in_respond_phase');
     const body = createReviewResponseBody.safeParse(await c.req.json().catch(() => null));

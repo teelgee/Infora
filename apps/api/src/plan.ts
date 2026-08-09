@@ -76,6 +76,21 @@ function planVisible(slice: EntitledSlice, container: ContainerRow): boolean {
   return slice.membershipRole === 'owner' || container.producingOrganisationId === slice.organisationId;
 }
 
+/** The library container whose authoring team owns a freeze container's cycle
+ * (T-355) — null when the container is not a freeze series or its document is
+ * unbound. Mirrors cycle.ts's authoringContainerId, at row grain. */
+async function authoringContainer(db: Db, container: ContainerRow): Promise<ContainerRow | null> {
+  if (container.scope !== 'sandbox' || !container.sandboxDocumentId) return null;
+  const [doc] = await db
+    .select({ containerId: s.sandboxDocuments.containerId })
+    .from(s.sandboxDocuments)
+    .where(eq(s.sandboxDocuments.id, container.sandboxDocumentId))
+    .limit(1);
+  if (!doc?.containerId) return null;
+  const [row] = await db.select().from(s.containers).where(eq(s.containers.id, doc.containerId)).limit(1);
+  return row ?? null;
+}
+
 async function loadContainer(db: Db, containerId: string): Promise<ContainerRow | null> {
   if (!isUuid(containerId)) return null;
   const [row] = await db.select().from(s.containers).where(eq(s.containers.id, containerId)).limit(1);
@@ -193,7 +208,7 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
     const version = versionByContainer.get(container.id);
     return {
       containerId: container.id,
-      documentReference: container.documentReference!, // library scope always carries one (ADR-0032)
+      documentReference: container.documentReference, // null only at sandbox scope (ADR-0032)
       producingOrganisationId: container.producingOrganisationId,
       producingOrganisationName: orgName.get(container.producingOrganisationId) ?? '',
       metadata: (container.metadata ?? {}) as Record<string, unknown>,
@@ -520,6 +535,30 @@ export function containerRoutes(deps: { db: Db }) {
     if (!slice || !planVisible(slice, container)) return null;
     return { container, slice };
   }
+
+  // T-355 — the freeze container's row, in the plan-row shape: the QA cycle
+  // screen resolves its deliverable here instead of GET /plan (which filters
+  // scope='library'). planVisible admits a sandbox-scope container to its
+  // producing organisation ONLY — the wall is untouched; the owner never
+  // reaches an org's internal QA machinery (ADR-0032).
+  app.get('/containers/:containerId/qa-row', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container } = scopedCtx;
+    if (container.scope !== 'sandbox') return notFound(c);
+    const [row] = await toPlanRows(deps.db, [container]);
+    // the freeze container carries the internal cycle's REVIEWERS but no
+    // authors of its own — the authoring side of an internal QA round is the
+    // deliverable's own authoring team (T-355, and the same rule the response
+    // handler enforces). Surfacing them here is what makes an internal
+    // "revise" answerable from the screen rather than a dead end.
+    const authoring = await authoringContainer(deps.db, container);
+    if (authoring) {
+      const [libraryRow] = await toPlanRows(deps.db, [authoring]);
+      return c.json({ ...row!, authors: libraryRow?.authors ?? [] });
+    }
+    return c.json(row!);
+  });
 
   app.patch('/containers/:containerId', async (c) => {
     const scopedCtx = await scoped(c, c.req.param('containerId'));

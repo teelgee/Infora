@@ -34,7 +34,9 @@ test('a super-user configures a sandbox to lock its folder structure', async ({ 
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByRole('dialog');
   await expect(settings).toBeVisible();
-  await settings.getByRole('combobox').selectOption({ label: 'Members work within the existing structure' });
+  // the folder-creation select is the first: the QA gate (T-355) sits below it,
+  // and in plan-locked mode a third (inside-a-deliverable) select appears between
+  await settings.getByRole('combobox').first().selectOption({ label: 'Members work within the existing structure' });
   await settings.getByRole('button', { name: 'Save settings' }).click();
   await expect(settings).toBeHidden();
 

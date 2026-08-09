@@ -1,0 +1,13 @@
+-- 0045 — T-355 (S9, ADR-0032 addendum 2026-08-09): the QA gate becomes policy.
+-- "Promotion requires QA acceptance" is a per-sandbox setting, DEFAULT ON —
+-- with the gate on, promotion's live-head source is disabled and the
+-- QA-accepted frozen version is the only legal source; a team turns it off
+-- deliberately (visible governance, on the ADR-0040 settings substrate).
+--
+-- On for EVERY sandbox, personal ones included. A first cut exempted the
+-- personal workspace as "scratch space, not a pipeline" and that was a hole:
+-- nothing binds a plan row's draft to the team's sandbox, so create-in-personal
+-- → bind → promote walked around the project sandbox's gate with no elevation
+-- and no visible act. Genuine scratch work is unbound and cannot promote at
+-- all, so gating the personal sandbox costs nothing it was ever for.
+ALTER TABLE "sandboxes" ADD COLUMN "promotion_requires_qa" boolean NOT NULL DEFAULT true;

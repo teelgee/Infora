@@ -63,6 +63,9 @@ test.beforeAll(async () => {
   await eleanor.patch(`/sandbox-documents/${documentId}`, {
     content: 'The ground model is built from twelve boreholes and the regional solid geology.',
   });
+  // this spec drives the review round from the editor, not internal QA — the
+  // T-355 gate is turned off deliberately
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
   const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
   await rachel.post(`/rounds/${promoted.roundId}/acknowledge`, {}); // the ADR-0051 gate
 

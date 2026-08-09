@@ -122,12 +122,21 @@ beforeAll(async () => {
     },
   ]);
 
+  // this suite exercises the pre-gate live-head promotion paths — the QA gate
+  // (T-355, default on) is turned off for the suite's sandbox as the deliberate
+  // act the ruling models; the gate's own behaviour is qa-gate.test.ts's job
+  const suiteSandboxId = await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId);
+  await db
+    .update(s.sandboxes)
+    .set({ promotionRequiresQa: false })
+    .where(eq(s.sandboxes.id, suiteSandboxId));
+
   const [doc] = await db
     .insert(s.sandboxDocuments)
     .values({
       projectId,
       organisationId: consultOrg,
-      sandboxId: await ensureDefaultSandbox(db, projectId, consultOrg, leadAuthorParticipantId),
+      sandboxId: suiteSandboxId,
       title: 't120 draft',
       content: 'The drafted statement, ready for round one.',
       containerId,

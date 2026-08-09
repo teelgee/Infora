@@ -63,10 +63,16 @@ export function CycleScreen() {
         api.acceptanceCodes(me.projectId).catch(() => ({ items: [] as AcceptanceCode[] })),
         api.sandboxDocuments(me.projectId).catch(() => ({ items: [] as SandboxDocument[] })),
       ]);
-      setRow(plan.items.find((r) => r.containerId === containerId) ?? null);
+      // T-355: a sandbox-scope (internal QA) container is not on the plan —
+      // its row comes from the dedicated qa-row read, producer-org only
+      const planRow = plan.items.find((r) => r.containerId === containerId) ?? null;
+      setRow(planRow ?? (await api.qaRow(containerId).catch(() => null)));
       setCycle(cycleRead);
       setCodes(codeList.items.filter((c) => c.retiredAt === null));
-      setDraft(docs.items.find((d) => d.containerId === containerId) ?? null);
+      setDraft(
+        docs.items.find((d) => d.containerId === containerId || d.freezeContainerId === containerId) ??
+          null,
+      );
       setLoaded(true);
       if (cycleRead) {
         const wanted = cycleRead.rounds.map((r) => r.versionId);
@@ -134,16 +140,21 @@ export function CycleScreen() {
       }`
     : null;
 
+  // T-355: no reference means the org-private internal QA series (ADR-0032)
+  const isInternalQa = row.documentReference === null;
+
   return (
     <div className="content">
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
-            {row.documentReference}
+            {row.documentReference ?? 'Internal QA'}
           </h1>
           <p className="page-sub" style={{ margin: 0 }}>
-            {row.workItem?.title ?? 'Reference material'} · produced by {row.producingOrganisationName} ·{' '}
-            <Badge tone={status.tone}>{status.label}</Badge>
+            {isInternalQa
+              ? `${draft?.title ?? 'Working draft'} · org-private internal review — the record never crosses the wall`
+              : `${row.workItem?.title ?? 'Reference material'} · produced by ${row.producingOrganisationName}`}{' '}
+            · <Badge tone={status.tone}>{status.label}</Badge>
             {cycle && cycle.state === 'active' && (
               <>
                 {' '}
@@ -169,7 +180,10 @@ export function CycleScreen() {
               Open the draft in the Editor
             </Button>
           )}
-          {draft && myAuthor?.isLead && cycle?.state === 'active' && (
+          {/* never on the internal QA screen: promotion targets the LIBRARY
+              container, so offering it beside an open internal round only ever
+              answers internal_cycle_active (T-355) */}
+          {draft && myAuthor?.isLead && cycle?.state === 'active' && !isInternalQa && (
             <Button size="sm" variant="primary" onClick={() => void act(() => api.promoteDocument(draft.id))}>
               Promote the next version
             </Button>

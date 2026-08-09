@@ -228,6 +228,21 @@ are not recorded here.
   `ack_mode` — and putting it anywhere near `users.preferences` would invite
   the per-user override the owner explicitly refused. Null means the default
   set, so a project that never configures columns pays nothing.
+- **2026-08-09 (T-355) — promotion says which legal source it took, and the
+  internal QA series became addressable.** `PromotionResult.source` exists
+  because the gate's whole point is that what promotes is the QA-accepted
+  frozen version, never the drifted head — and a surface cannot state that
+  honestly if the API only implies it. `SandboxDocument.freezeContainerId`
+  exists because `POST /freeze` was the only place the freeze container's id
+  ever surfaced, which is precisely why the org-private QA cycle was
+  API-complete yet unreachable from any screen. `PlanRow.documentReference`
+  widened to `string | null` rather than minting a parallel QA-row type: a
+  sandbox-scope container genuinely has no coded reference (ADR-0032), and
+  the qa-row read serves it through the same shape so the cycle and status
+  screens need one renderer, not two. `Sandbox.promotionRequiresQa` rides the
+  ADR-0040 settings substrate — default on for project sandboxes, off for
+  personal ones, and every e2e spec that promotes bare-headed now performs
+  the deliberate gate-off act the ruling models instead of inheriting silence.
 - **2026-08-09 (T-365) — a folder says what owns it.** `SandboxFolder` gained
   `kind` and `containerId` because the plan-locked mode makes some folders the
   *plan's*, not a person's, and the surface must be able to tell without

@@ -36,7 +36,7 @@ test.beforeAll(async () => {
 
   const plan = await consultant.get<GetPlanResponse>(`/projects/${projectId}/plan`);
   myContainerId = plan.items[0]!.containerId; // the consultant produces its own plan rows
-  myRef = plan.items[0]!.documentReference;
+  myRef = plan.items[0]!.documentReference!; // library rows always carry one
 
   const scheme = await consultant.get<ClassificationSchemeResponse>(
     `/projects/${projectId}/classification-scheme`,

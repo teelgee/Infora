@@ -21,7 +21,10 @@ test('the owner confirms a proposed reviewer on the deliverable card, and promot
     documentReference: `T193-${stamp}`,
     title: 'Owner confirm test',
   });
-  const doc = await eleanor.post<{ id: string }>(`/projects/${projectId}/sandbox-documents`, { title: `T193 doc ${stamp}` });
+  const doc = await eleanor.post<{ id: string; sandboxId: string }>(`/projects/${projectId}/sandbox-documents`, { title: `T193 doc ${stamp}` });
+  // reviewer confirmation is the gate under test — the T-355 QA gate is
+  // turned off deliberately
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
   await eleanor.post(`/sandbox-documents/${doc.id}/binding`, { containerId: row.containerId });
   await eleanor.post(`/containers/${row.containerId}/authors`, { participantId: myPid, isLead: true });
   await eleanor.post(`/containers/${row.containerId}/reviewers`, { participantId: rachelPid, isLead: true }); // proposed

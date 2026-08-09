@@ -258,6 +258,12 @@ export const sandboxes = pgTable('sandboxes', {
   // created and tracking their row. Composes with allowMemberFolderCreate,
   // which still governs member freedom INSIDE a deliverable's folder.
   planLocked: boolean('plan_locked').notNull().default(false),
+  // the QA gate (ADR-0032 addendum 2026-08-09, T-355): with this on, the
+  // live-head promotion source is disabled — the QA-accepted frozen version is
+  // the only legal source. Default ON for EVERY sandbox, personal included:
+  // scratch work is unbound and cannot promote, so exempting the personal
+  // workspace only opened a route around the team's gate.
+  promotionRequiresQa: boolean('promotion_requires_qa').notNull().default(true),
   // the auto-provisioned personal workspace every participant has in a project
   // (ADR-0036 refinement, T-186): named_user scope, granted only to its owner,
   // server-created (never through the super-user-gated create path). One per

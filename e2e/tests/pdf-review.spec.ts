@@ -90,6 +90,9 @@ test.beforeAll(async () => {
     containerId,
   });
   await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: CONTENT });
+  // the PDF review path is under test, not internal QA — the T-355 gate is
+  // turned off deliberately
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
   const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${doc.id}/promotion`, {});
   roundId = promoted.roundId;
   await rachel.post(`/rounds/${roundId}/acknowledge`, {}); // the ADR-0051 gate
