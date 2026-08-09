@@ -12,6 +12,7 @@
     --frame: #dedad0;
     --consultant: #6d5dd3;
     --reviewer: #159a74;
+    --internal: #b8622f;
     --gap-tint: #f3ede0;
     --gap-edge: #d8c9a4;
     --serif: 'Source Serif 4', 'Iowan Old Style', 'Times New Roman', Georgia, serif;
@@ -64,6 +65,7 @@
   .shot-lane { font-weight: 600; }
   .shot--consultant .shot-lane { color: var(--consultant); }
   .shot--reviewer .shot-lane { color: var(--reviewer); }
+  .shot--internal .shot-lane { color: var(--internal); }
   .shot-lane::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: currentColor; vertical-align: 1px; }
   .shot-screen { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
   .shot img { display: block; width: 100%; height: auto; }
@@ -96,33 +98,38 @@
 <div class="page">
   <header class="mast">
     <span class="mark"></span><span class="word">Infora</span>
-    <span class="doc">docs/architecture · captured 2026-08-09</span>
+    <span class="doc">docs/architecture · recaptured 2026-08-09</span>
   </header>
 
   <h1>The document management journey, on screen</h1>
   <div class="intro">
-    <p>This is <a href="user-stories.md">user-stories.md</a> rendered as the built product: the consultant who produces
-    a Land Quality method statement and gets it accepted, and the client lead reviewer who runs the review and accepts it.
+    <p>This is <a href="user-stories.md">user-stories.md</a> rendered as the built product: the owner who decides what a
+    deliverable is described by, the consultant who produces a Land Quality method statement, the colleague who checks it
+    before it leaves the office, and the client lead reviewer who runs the review and accepts it.
     Every screenshot is the real application, driven live through the whole cycle on the seeded Wrenfield world — nothing
-    is a mockup. Where the written story runs ahead of the build, the beat is flagged
-    <em>designed, not yet surfaced</em> and points at its ticket.</p>
-    <p class="prov">Captured 2026-08-09 against the e2e substrate (deterministic model providers, seeded corpus).
-    The companion piece <a href="user-stories-graphic.html">user-stories-graphic.html</a> tells the same two journeys as a
+    is a mockup, and nothing was staged for the photograph. Where the written story runs ahead of the build, the beat is
+    flagged <em>designed, not yet surfaced</em> and points at its ticket.</p>
+    <p class="prov">Recaptured 2026-08-09 against the e2e substrate (deterministic model providers, seeded corpus).
+    The companion piece <a href="user-stories-graphic.html">user-stories-graphic.html</a> tells the same journeys as a
     decision map; this page shows them as screens.</p>
   </div>
 
   <div class="cast">
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--consultant)"></span>Eleanor Price</div>
-      <p>Environmental consultant and lead author at Calder &amp; Hale, the appointed consultancy. Drafts, promotes, answers the review.</p>
+      <p>Environmental consultant and lead author at Calder &amp; Hale, the appointed consultancy — and its super-user on this project. Sets the sandbox up, drafts, promotes, answers the review.</p>
+    </div>
+    <div class="card">
+      <div class="who"><span class="dot" style="background:var(--internal)"></span>Owen Vance</div>
+      <p>Colleague of Eleanor’s at Calder &amp; Hale. Checks her work in the organisation’s own QA round, before anything crosses the wall.</p>
     </div>
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--reviewer)"></span>Rachel Bowen</div>
-      <p>Lead reviewer at Trentmoor Energy, the owner. Runs the review group, moderates, and holds the accepting code.</p>
+      <p>Owner super-user at Trentmoor Energy: defines the project schema, then runs the review group as lead reviewer and holds the accepting code.</p>
     </div>
     <div class="card">
       <div class="who"><span class="ref">WA-EIA-MST-001</span></div>
-      <p>EIA Scoping Method Statement — Land Quality, on the Wrenfield–Ashcombe 400kV Connection. Planned, produced, reviewed and accepted below.</p>
+      <p>EIA Scoping Method Statement — Land Quality, on the Wrenfield–Ashcombe 400kV Connection. Planned, produced, QA’d, reviewed and accepted below.</p>
     </div>
   </div>
 
@@ -137,9 +144,21 @@
   </header>
   
 <figure class="beat">
+  <div class="shot shot--reviewer">
+    <div class="shot-bar"><span class="shot-lane">Rachel Bowen — owner super-user, Trentmoor Energy</span><span class="shot-screen">Plan · deliverable schema</span></div>
+    <img src="user-story-screens/00-schema.png" alt="Before the plan, someone decides what a plan records — Plan · deliverable schema screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Before the plan, someone decides what a plan records</h3>
+    <p>The journey does not open on a deliverable. It opens on Rachel Bowen defining the project’s schema for Trentmoor Energy: which fields make up a document’s coded reference and in what order, which are metadata carried beside it, and which are appointment roles filled per deliverable. Everything downstream — the reference, the plan’s columns, the folder tree, the bind card — reads off this one definition. The schema also exports as a fillable Excel workbook whose header row is the schema’s own attribute fields — the coded and metadata ones, not the appointment roles, because appointments are explicit acts and never a spreadsheet side effect — and which carries no reference column at all: teams draft the deliverables list in a spreadsheet, and the numbering is generated when the plan imports it, never typed in the sheet.</p>
+    <p class="tags"><span class="tag">ADR-0008</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Workspace</span></div>
-    <img src="user-story-screens/00-workspace.png" alt="One project, behind its wall — Workspace screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Workspace</span></div>
+    <img src="user-story-screens/01-workspace.png" alt="One project, behind its wall — Workspace screen" loading="lazy">
   </div>
   <figcaption>
     <h3>One project, behind its wall</h3>
@@ -150,24 +169,24 @@
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Plan</span></div>
-    <img src="user-story-screens/01-plan.png" alt="The deliverable already exists as a row — Plan screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Plan</span></div>
+    <img src="user-story-screens/02-plan.png" alt="The deliverable already exists as a row — Plan screen" loading="lazy">
   </div>
   <figcaption>
     <h3>The deliverable already exists as a row</h3>
-    <p>WA-EIA-MST-001 — EIA Scoping Method Statement, Land Quality. The reference was generated from the project’s naming rules the moment the row was created, and the reviewers were named on it. Eleanor did not invent a name and does not decide who reviews her work; that was settled in the plan.</p>
-    <p class="tags"><span class="tag">ADR-0008</span></p>
+    <p>WA-EIA-MST-001 — EIA Scoping Method Statement, Land Quality. The reference came from the project’s naming rules the moment the row was created, and the reviewers were named on it. Eleanor did not invent a name and does not decide who reviews her work; that was settled in the plan. The columns beside the title — discipline, suitability, security classification — are Calder &amp; Hale’s organisation standard, set once by its super user for every member: there are no personal column layouts to drift apart.</p>
+    <p class="tags"><span class="tag">ADR-0008</span><span class="tag">ADR-0033</span></p>
   </figcaption>
 </figure>
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Plan · deliverable detail</span></div>
-    <img src="user-story-screens/02-plan-drawer.png" alt="Appointments carried on the container — Plan · deliverable detail screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Plan · deliverable detail</span></div>
+    <img src="user-story-screens/03-plan-detail.png" alt="The row’s detail, on a card — Plan · deliverable detail screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>Appointments carried on the container</h3>
-    <p>The row’s detail: producer, discipline, revision state, the authoring team, and the review group. Rachel Bowen was proposed as lead reviewer by the producing side and confirmed by the owner — and access follows confirmation, never proposal.</p>
+    <h3>The row’s detail, on a card</h3>
+    <p>Producer, discipline, revision state, the authoring team, the review group. Rachel Bowen is the confirmed lead reviewer, and access follows that confirmation — a proposal on its own confers nothing. Eleanor sees the full editing set here because she is Calder &amp; Hale’s super user on this project, withdrawal and lead-author reassignment included. The narrower right this card also carries is the one the walkthrough session added: a row’s live lead author, super user or not, may edit the title, the classification and the authoring team, and may propose reviewers — never confirm them, never reassign the lead, never touch the coded reference.</p>
     <p class="tags"><span class="tag">ADR-0008</span><span class="tag">ADR-0033</span></p>
   </figcaption>
 </figure>
@@ -185,20 +204,68 @@
   
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Sandbox</span></div>
-    <img src="user-story-screens/03-sandbox.png" alt="The draft, bound to the waiting container — Sandbox screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — super-user, Calder &amp; Hale</span><span class="shot-screen">Sandbox · create folder structure</span></div>
+    <img src="user-story-screens/04-structure.png" alt="A folder tree, asked for in words — Sandbox · create folder structure screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>The draft, bound to the waiting container</h3>
-    <p>Eleanor drafts in Calder &amp; Hale’s sandbox. The working document is bound to the container that has been waiting for it since the plan was built, so promotion later carries no retyping — the metadata and the reference are already on the container.</p>
-    <p class="tags"><span class="tag">ADR-0036</span><span class="tag">ADR-0041</span><span class="tag">ADR-0002</span></p>
+    <h3>A folder tree, asked for in words</h3>
+    <p>Before anyone drafts, the sandbox needs a shape. Eleanor describes the one she wants and an assistant fills the builder with a candidate tree — or, with no model call at all, she seeds it from the disciplines already on her organisation’s plan. Either way nothing has been created: the proposal lands in an editable builder and only the confirm button writes. That split is structural rather than polite — there is no apply endpoint for the assistant to call, so the only writer is the deterministic one.</p>
+    <p class="tags"><span class="tag">ADR-0027</span><span class="tag">ADR-0040</span></p>
   </figcaption>
 </figure>
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Editor</span></div>
-    <img src="user-story-screens/04-editor.png" alt="Grounded drafting beside the draft — Editor screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — super-user, Calder &amp; Hale</span><span class="shot-screen">Sandbox · settings</span></div>
+    <img src="user-story-screens/05-settings.png" alt="Three decisions a team records about itself — Sandbox · settings screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Three decisions a team records about itself</h3>
+    <p>Who may create folders, whether that still holds inside a deliverable’s own folder, and whether promotion demands QA acceptance first. These are per-sandbox settings a super user sets deliberately, not preferences that drift: the third one is a governance gate, and turning it off is a visible act with a name attached.</p>
+    <p class="tags"><span class="tag">ADR-0040</span><span class="tag">ADR-0032</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Sandbox · plan-locked</span></div>
+    <img src="user-story-screens/06-plan-locked.png" alt="The tree the plan already implies — Sandbox · plan-locked screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The tree the plan already implies</h3>
+    <p>In plan-locked mode nobody names folders at all: a folder per discipline, a working folder per deliverable, derived from Calder &amp; Hale’s own plan rows and appearing as rows are created. A retitled row renames its folder. A withdrawn row keeps its folder, badged off-plan — nothing is deleted and no work is orphaned, which is the same never-delete instinct that keeps the coded reference immutable. One open question rides this mode: in a sandbox shared across organisations, folder names derived from the whole plan would disclose the shape of the TIDP to everyone granted access. Raised, not yet settled (Q-039).</p>
+    <p class="tags"><span class="tag">ADR-0040</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Sandbox · bind</span></div>
+    <img src="user-story-screens/07-bind.png" alt="Binding is a confirmation, never a side effect — Sandbox · bind screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Binding is a confirmation, never a side effect</h3>
+    <p>The draft sits in WA-EIA-MST-001’s folder, so that deliverable arrives pre-selected — pre-selected, not silently bound. The card shows exactly what the draft is about to wear: the coded reference, the plan row’s title, its schema metadata, the appointments already made on it, and the consequence stated in a sentence before Eleanor commits to it. Binding is one-way.</p>
+    <p class="tags"><span class="tag">ADR-0038</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Sandbox</span></div>
+    <img src="user-story-screens/08-sandbox.png" alt="The draft wears the plan row’s title — Sandbox screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The draft wears the plan row’s title</h3>
+    <p>The working title is now dormant: the bound draft displays its plan row’s title and metadata by reference, so retitling on the plan retitles the draft and the two can never disagree. The rename control has simply gone from the row’s menu — there is nothing to rename here any more, and the API refuses it too, pointing at the plan row where the title actually lives. The container has been waiting for this document since the plan was built, so promotion later carries no retyping.</p>
+    <p class="tags"><span class="tag">ADR-0038</span><span class="tag">ADR-0036</span><span class="tag">ADR-0002</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Editor</span></div>
+    <img src="user-story-screens/09-editor.png" alt="Grounded drafting beside the draft — Editor screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Grounded drafting beside the draft</h3>
@@ -207,12 +274,6 @@
   </figcaption>
 </figure>
   
-<aside class="gap">
-  <span class="gap-flag">Designed, not yet surfaced</span>
-  <h4>The internal QA round — built below the surface</h4>
-  <p>In the written story, Eleanor freezes the draft and an org-private internal QA round runs before anything crosses the wall. The API runs this whole path today and the e2e suite proves it end to end — but no screen can reach it: the QA cycle’s page resolves its deliverable against the library-scope plan and answers “not on a plan you can see”. Ticketed T-355.</p>
-</aside>
-
 <aside class="gap">
   <span class="gap-flag">Designed, not yet surfaced</span>
   <h4>Ambient version history — API only</h4>
@@ -224,6 +285,82 @@
   <header class="act-head">
     <span class="act-num">III</span>
     <div>
+      <h2>The organisation checks its own work first</h2>
+      <p class="lede">Internal QA used to be optional ceremony. It is now what this team has decided its work goes through: the gate is on by default for a project sandbox, and with it on, promotion has exactly one legal source — the version internal QA accepted. Read against the ISO 19650 common-data-environment states, this act is Content Check and Approve for Sharing, and it all happens inside Calder &amp; Hale. Nothing here crosses the wall.</p>
+    </div>
+  </header>
+  
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Sandbox</span></div>
+    <img src="user-story-screens/10-gate-refused.png" alt="The gate, refusing — Sandbox screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The gate, refusing</h3>
+    <p>Eleanor promotes, and Infora declines. The live head is not a legal source in this sandbox until the draft has been through internal QA; the refusal says so and names the two ways out — run the review, or have a super user turn the gate off. The rule fails closed: it refuses on any state it cannot read as an explicit exemption. The personal workspace is gated too, so drafting round the back of it buys nothing.</p>
+    <p class="tags"><span class="tag">ADR-0032</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Editor</span></div>
+    <img src="user-story-screens/11-frozen.png" alt="Freeze stops the head moving — Editor screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Freeze stops the head moving</h3>
+    <p>Freezing snapshots the working head into Calder &amp; Hale’s own org-private container and locks it: v0.1 in the internal series, and the thing being checked cannot drift while it is being checked. Nobody outside the organisation can see any of this — that container is org-private by scope, not by a filter on the way out. Once the internal reviewer is in place, a second freeze issues the internal revision and opens the round on it.</p>
+    <p class="tags"><span class="tag">ADR-0041</span><span class="tag">ADR-0032</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--internal">
+    <div class="shot-bar"><span class="shot-lane">Owen Vance — internal QA reviewer, Calder &amp; Hale</span><span class="shot-screen">Internal QA · review cycle</span></div>
+    <img src="user-story-screens/12-qa-round.png" alt="The same review machinery, pointed inward — Internal QA · review cycle screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The same review machinery, pointed inward</h3>
+    <p>Owen Vance checks his colleague’s work on exactly the screen the client’s reviewers will use later: the same anchored comments on the same rendered PDF, the same coded scheme, the same record. The page states what it is — an org-private internal review whose record never crosses the wall — and it carries no coded reference, because an internal check is not a revision of anything the project has seen.</p>
+    <p class="tags"><span class="tag">ADR-0032</span><span class="tag">ADR-0006</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--internal">
+    <div class="shot-bar"><span class="shot-lane">Owen Vance — internal QA reviewer, Calder &amp; Hale</span><span class="shot-screen">Internal QA · review cycle</span></div>
+    <img src="user-story-screens/13-qa-verdict.png" alt="An internal verdict, on the organisation’s own record — Internal QA · review cycle screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>An internal verdict, on the organisation’s own record</h3>
+    <p>Owen closes the round with a verdict. Accept, and the frozen version becomes what may be promoted; ask for revision, and it goes back to the authors — who can answer, because the internal container carries the plan row’s authors as well as its reviewers. One thing visible in this shot is wrong, and is left in rather than cropped out: the modal still speaks the project review’s language, promising that the code “enters the project library”. Nothing of the sort happens here — an internal acceptance only unlocks promotion. The mechanism is right for an org-private round; that sentence is not.</p>
+    <p class="tags"><span class="tag">ADR-0032</span><span class="tag">ADR-0003</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Sandbox</span></div>
+    <img src="user-story-screens/14-promoted.png" alt="What promotes is what QA accepted — Sandbox screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>What promotes is what QA accepted</h3>
+    <p>Promotion succeeds now, and says which of the two legal sources it took: the QA-accepted frozen version, not the head as it has drifted since. That distinction is the whole point of the gate — the client receives the version that was checked. One acceptance buys exactly one revision, so version two below runs its own internal pass rather than quietly re-issuing the same content under a new number.</p>
+    <p class="tags"><span class="tag">ADR-0032</span><span class="tag">ADR-0002</span></p>
+  </figcaption>
+</figure>
+  
+<aside class="gap">
+  <span class="gap-flag">Designed, not yet surfaced</span>
+  <h4>Staffing the internal round — API only</h4>
+  <p>A freeze opens an internal round only once the frozen container has a confirmed lead reviewer, and no screen can appoint the first one: the reviewer control on the internal QA status page is gated to the owner or an existing lead, and grants non-lead. So two acts in this act were driven through the API — appointing Owen, and the second freeze that opens the round once he is in place, which the Editor cannot offer while the head is already locked. The round itself, its comment, its verdict and its issue are clicks on the screens above.</p>
+</aside>
+</section>
+
+<section class="act">
+  <header class="act-head">
+    <span class="act-num">IV</span>
+    <div>
       <h2>Promotion opens the round</h2>
       <p class="lede">Promotion freezes an immutable P-revision, generates the PDF that will be reviewed, keeps the native file in the same container, and opens the round. From that moment the review belongs to the review group — and the authoring side sees none of it until the lead issues.</p>
     </div>
@@ -231,8 +368,8 @@
   
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Review · deliverable status</span></div>
-    <img src="user-story-screens/05-submitted.png" alt="P01 submitted, awaiting acknowledgement — Review · deliverable status screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Review · deliverable status</span></div>
+    <img src="user-story-screens/15-submitted.png" alt="P01 submitted, awaiting acknowledgement — Review · deliverable status screen" loading="lazy">
   </div>
   <figcaption>
     <h3>P01 submitted, awaiting acknowledgement</h3>
@@ -244,7 +381,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review · deliverable status</span></div>
-    <img src="user-story-screens/06-acknowledge.png" alt="The submission is acknowledged into review — Review · deliverable status screen" loading="lazy">
+    <img src="user-story-screens/16-acknowledge.png" alt="The submission is acknowledged into review — Review · deliverable status screen" loading="lazy">
   </div>
   <figcaption>
     <h3>The submission is acknowledged into review</h3>
@@ -256,7 +393,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review cycle</span></div>
-    <img src="user-story-screens/07-commenting.png" alt="Comments are made where the document is read — Review cycle screen" loading="lazy">
+    <img src="user-story-screens/17-commenting.png" alt="Comments are made where the document is read — Review cycle screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Comments are made where the document is read</h3>
@@ -268,7 +405,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review cycle</span></div>
-    <img src="user-story-screens/08-round-open.png" alt="One shared, live review record — Review cycle screen" loading="lazy">
+    <img src="user-story-screens/18-round-open.png" alt="One shared, live review record — Review cycle screen" loading="lazy">
   </div>
   <figcaption>
     <h3>One shared, live review record</h3>
@@ -279,8 +416,8 @@
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Review cycle</span></div>
-    <img src="user-story-screens/09-wall.png" alt="The same round, from the authoring side: nothing — Review cycle screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Review cycle</span></div>
+    <img src="user-story-screens/19-wall.png" alt="The same round, from the authoring side: nothing — Review cycle screen" loading="lazy">
   </div>
   <figcaption>
     <h3>The same round, from the authoring side: nothing</h3>
@@ -292,7 +429,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review · deliverable status</span></div>
-    <img src="user-story-screens/10-completion.png" alt="Each reviewer states their pass is done — Review · deliverable status screen" loading="lazy">
+    <img src="user-story-screens/20-completion.png" alt="Each reviewer states their pass is done — Review · deliverable status screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Each reviewer states their pass is done</h3>
@@ -316,7 +453,7 @@
 
 <section class="act">
   <header class="act-head">
-    <span class="act-num">IV</span>
+    <span class="act-num">V</span>
     <div>
       <h2>Issue, then answer every comment</h2>
       <p class="lede">Closing the round is a verdict, not a timeout. The record is issued to the consultant, and version two cannot leave until every comment carries a response — a change declared in the next revision, or an explicit no-change with a reason. There is no third state.</p>
@@ -326,7 +463,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review cycle · close &amp; issue</span></div>
-    <img src="user-story-screens/11-issue-modal.png" alt="One authoritative code closes the round — Review cycle · close &amp; issue screen" loading="lazy">
+    <img src="user-story-screens/21-issue-modal.png" alt="One authoritative code closes the round — Review cycle · close &amp; issue screen" loading="lazy">
   </div>
   <figcaption>
     <h3>One authoritative code closes the round</h3>
@@ -337,20 +474,20 @@
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Review cycle · respond</span></div>
-    <img src="user-story-screens/12-respond.png" alt="Point at the change, or say no change and why — Review cycle · respond screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Review cycle · respond</span></div>
+    <img src="user-story-screens/22-respond.png" alt="Point at the change, or say no change and why — Review cycle · respond screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Point at the change, or say no change and why</h3>
-    <p>For each comment Eleanor writes a response and declares the revised passage that answers it. The version that passage lands in does not exist yet — promotion is gated on the responses — so the link is declared now and the system stamps the version id when promotion creates it (T-354, fixed during this review).</p>
+    <p>For each comment Eleanor writes a response and declares the revised passage that answers it. The version that passage lands in does not exist yet — promotion is gated on the responses — so the link is declared now and the system stamps the version id when promotion creates it.</p>
     <p class="tags"><span class="tag">ADR-0004</span></p>
   </figcaption>
 </figure>
 
 <figure class="beat">
   <div class="shot shot--consultant">
-    <div class="shot-bar"><span class="shot-lane">Eleanor Price — consultant, Calder &amp; Hale</span><span class="shot-screen">Review cycle · respond</span></div>
-    <img src="user-story-screens/13-responses.png" alt="Three comments, three answers, no silence — Review cycle · respond screen" loading="lazy">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Review cycle · respond</span></div>
+    <img src="user-story-screens/23-responses.png" alt="Three comments, three answers, no silence — Review cycle · respond screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Three comments, three answers, no silence</h3>
@@ -374,7 +511,7 @@
 
 <section class="act">
   <header class="act-head">
-    <span class="act-num">V</span>
+    <span class="act-num">VI</span>
     <div>
       <h2>Acceptance makes it true</h2>
       <p class="lede">An accepting code is the contractual act: the work item closes, the accepted revision becomes the controlled record, and the deliverable passes into the project library — from now on it is part of what the project treats as true, and retrieval grounds on it.</p>
@@ -384,11 +521,11 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review cycle · round 2</span></div>
-    <img src="user-story-screens/14-round2.png" alt="Version two arrives already reconciled — Review cycle · round 2 screen" loading="lazy">
+    <img src="user-story-screens/24-round2.png" alt="Version two arrives already reconciled — Review cycle · round 2 screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Version two arrives already reconciled</h3>
-    <p>Rachel does not go hunting for what changed. Each response sits beside her comment in the same record, stamped “Changed in P02” with the passage that answers it; the no-change answer states its reason. Round 1 stands as the record it was; round 2 opens on the new version.</p>
+    <p>Rachel does not go hunting for what changed. Each response sits beside her comment in the same record, stamped “Changed in P02” with the passage that answers it; the no-change answer states its reason. Round 1 stands as the record it was; round 2 opens on the new version — which took the same road as the first, through its own internal QA pass, because one QA acceptance buys exactly one revision.</p>
     <p class="tags"><span class="tag">ADR-0009</span></p>
   </figcaption>
 </figure>
@@ -396,7 +533,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review cycle · close &amp; issue</span></div>
-    <img src="user-story-screens/15-accept-modal.png" alt="The accepting code, stated in full — Review cycle · close &amp; issue screen" loading="lazy">
+    <img src="user-story-screens/25-accept-modal.png" alt="The accepting code, stated in full — Review cycle · close &amp; issue screen" loading="lazy">
   </div>
   <figcaption>
     <h3>The accepting code, stated in full</h3>
@@ -408,7 +545,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Project library</span></div>
-    <img src="user-story-screens/16-library.png" alt="The controlled record, in the corpus it came from — Project library screen" loading="lazy">
+    <img src="user-story-screens/26-library.png" alt="The controlled record, in the corpus it came from — Project library screen" loading="lazy">
   </div>
   <figcaption>
     <h3>The controlled record, in the corpus it came from</h3>
@@ -420,7 +557,7 @@
 <figure class="beat">
   <div class="shot shot--reviewer">
     <div class="shot-bar"><span class="shot-lane">Rachel Bowen — lead reviewer, Trentmoor Energy</span><span class="shot-screen">Review · deliverable status</span></div>
-    <img src="user-story-screens/17-accepted-status.png" alt="Complete — Review · deliverable status screen" loading="lazy">
+    <img src="user-story-screens/27-accepted-status.png" alt="Complete — Review · deliverable status screen" loading="lazy">
   </div>
   <figcaption>
     <h3>Complete</h3>
@@ -432,12 +569,22 @@
 </section>
 
   <footer class="prov-foot">
-    <p><strong>Provenance.</strong> Captured 2026-08-09 from the running application: e2e API substrate with deterministic
-    model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for both personas.
+    <p><strong>Provenance.</strong> Recaptured 2026-08-09 from the running application: e2e API substrate with deterministic
+    model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas.
     The one beat Playwright cannot photograph — the library modal’s embedded PDF pane — is represented by the library
     table instead.</p>
-    <p><strong>Fixed on the way.</strong> The respond form could not declare ADR-0004’s change link before this capture —
-    every response was recorded as “no change made”. T-354 (2026-08-09) added the declaration and the promotion-time stamp;
-    the round-2 screenshot shows the result.</p>
+    <p><strong>What was driven through the API rather than clicked.</strong> Setting up the world: four plan rows beside
+    the seeded one and their schema metadata, the organisation’s column standard, the draft and its text, and filing that
+    draft into its deliverable folder. Running the cycle: appointing the internal reviewer and the re-freeze that opens the
+    QA round (both explained in Act III’s gap card), the owner’s acknowledgement of each submission, and version two’s
+    internal QA pass and promotion, which repeat Act III’s road and are narrated rather than re-photographed. Everything a
+    screenshot on this page shows being done was done on that screen.</p>
+    <p><strong>What moved under the last capture.</strong> An owner-directed walk of the previous version of this page
+    produced nine rulings, built the same day as tickets T-355 and T-358–T-366. Five of them are new beats here: the schema
+    screen the story now opens on, the structure builder and its assistant, the three-way folder mode beside the promotion
+    gate, the plan-locked tree, and the bind confirmation card. The sixth changed how this page is captured at all — the QA
+    gate is on by default, so promotion of a live head is refused, and the capture runs the real freeze → staff → review →
+    accept → promote path rather than turning the gate off. The internal QA round was flagged
+    <em>designed, not yet surfaced</em> on the previous version of this page; it is Act III now.</p>
   </footer>
 </div>
