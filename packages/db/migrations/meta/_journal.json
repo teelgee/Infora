@@ -302,6 +302,20 @@
       "when": 1786204800000,
       "tag": "0042_plan-columns",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786291200000,
+      "tag": "0043_plan-locked-folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786291200000,
+      "tag": "0044_discipline-folder-unique",
+      "breakpoints": true
     }
   ]
 }

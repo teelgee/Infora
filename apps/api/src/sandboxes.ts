@@ -40,10 +40,12 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
+import { syncPlanLockedFolders, withinDeliverableFolder } from './plan-locked';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
-const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
+const conflict = (c: Context, detail?: string) =>
+  c.json({ error: 'conflict', ...(detail && { detail }) } satisfies ApiError, 409);
 const forbidden = (c: Context, detail?: string) =>
   c.json({ error: 'forbidden', ...(detail && { detail }) } satisfies ApiError, 403);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
@@ -131,8 +133,18 @@ const toSandbox = (r: typeof s.sandboxes.$inferSelect, slice: EntitledSlice): Sa
   scope: r.scope,
   owningOrganisationId: r.owningOrganisationId,
   allowMemberFolderCreate: r.allowMemberFolderCreate,
+  planLocked: r.planLocked,
   canConfigure: canConfigureSandbox(slice, r),
   isPersonal: r.isPersonal,
+});
+
+const toFolder = (r: typeof s.sandboxFolders.$inferSelect): SandboxFolder => ({
+  id: r.id,
+  sandboxId: r.sandboxId,
+  parentFolderId: r.parentFolderId,
+  name: r.name,
+  kind: r.kind,
+  containerId: r.containerId,
 });
 
 export function sandboxRoutes2(deps: { db: Db }) {
@@ -266,9 +278,20 @@ export function sandboxRoutes2(deps: { db: Db }) {
         ...(parsed.data.allowMemberFolderCreate !== undefined && {
           allowMemberFolderCreate: parsed.data.allowMemberFolderCreate,
         }),
+        ...(parsed.data.planLocked !== undefined && { planLocked: parsed.data.planLocked }),
       })
       .where(eq(s.sandboxes.id, ctx.sandbox.id))
       .returning();
+    // turning plan-locked on derives the tree from the plan as it stands
+    // (T-365); turning it off deletes nothing — the derived folders remain
+    if (parsed.data.planLocked === true) {
+      await syncPlanLockedFolders(
+        deps.db,
+        updated!.projectId,
+        updated!.owningOrganisationId,
+        ctx.slice.participantId,
+      );
+    }
     return c.json(toSandbox(updated!, ctx.slice));
   });
 
@@ -333,13 +356,7 @@ export function sandboxRoutes2(deps: { db: Db }) {
       .select()
       .from(s.sandboxFolders)
       .where(eq(s.sandboxFolders.sandboxId, ctx.sandbox.id));
-    const items: SandboxFolder[] = rows.map((r) => ({
-      id: r.id,
-      sandboxId: r.sandboxId,
-      parentFolderId: r.parentFolderId,
-      name: r.name,
-    }));
-    return c.json({ items } satisfies ListFoldersResponse);
+    return c.json({ items: rows.map(toFolder) } satisfies ListFoldersResponse);
   });
 
   app.post('/sandboxes/:sandboxId/folders', async (c) => {
@@ -362,6 +379,12 @@ export function sandboxRoutes2(deps: { db: Db }) {
         .limit(1);
       if (!parent || parent.sandboxId !== ctx.sandbox.id) return invalid(c);
     }
+    // plan-locked (T-365): the derived levels are system-owned — for EVERYONE,
+    // super users included; hand-made folders live only inside a deliverable's
+    // working folder, where the member toggle above already had its say
+    if (ctx.sandbox.planLocked && !(await withinDeliverableFolder(deps.db, parsed.data.parentFolderId ?? null))) {
+      return forbidden(c, 'plan_locked_structure');
+    }
     const [folder] = await deps.db
       .insert(s.sandboxFolders)
       .values({
@@ -371,13 +394,7 @@ export function sandboxRoutes2(deps: { db: Db }) {
         createdByParticipantId: ctx.slice.participantId,
       })
       .returning();
-    const body: SandboxFolder = {
-      id: folder!.id,
-      sandboxId: folder!.sandboxId,
-      parentFolderId: folder!.parentFolderId,
-      name: folder!.name,
-    };
-    return c.json(body, 201);
+    return c.json(toFolder(folder!), 201);
   });
 
   // create-folder-structure (ADR-0040, T-182): a super-user lays out a whole
@@ -388,6 +405,9 @@ export function sandboxRoutes2(deps: { db: Db }) {
     const ctx = await resolveSandbox(deps.db, c.get('user'), c.req.param('sandboxId'));
     if (!ctx) return notFound(c);
     if (!canConfigureSandbox(ctx.slice, ctx.sandbox)) return forbidden(c, 'super_user_only');
+    // in plan-locked mode the plan IS the structure — the builder has nothing
+    // to lay out at the system-owned levels (T-365; the free modes keep it)
+    if (ctx.sandbox.planLocked) return conflict(c, 'plan_locked');
     const parsed = createFolderStructureBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     // guard against an unbounded tree — a builder mistake, not a real structure
@@ -437,6 +457,9 @@ export function sandboxRoutes2(deps: { db: Db }) {
     if (!folder) return notFound(c);
     const ctx = await resolveSandbox(deps.db, c.get('user'), folder.sandboxId);
     if (!ctx) return notFound(c);
+    // a derived folder is the plan's, not a person's — it neither moves nor
+    // nests anywhere else (T-365); renames come from the row, moves from nobody
+    if (folder.kind !== 'manual') return forbidden(c, 'system_folder');
     const parsed = moveFolderBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     if (parsed.data.parentFolderId) {
@@ -447,6 +470,11 @@ export function sandboxRoutes2(deps: { db: Db }) {
         .where(eq(s.sandboxFolders.id, parsed.data.parentFolderId))
         .limit(1);
       if (!parent || parent.sandboxId !== folder.sandboxId) return invalid(c);
+    }
+    // in plan-locked mode a hand-made folder lives inside a deliverable's
+    // working folder — moving one to the system-owned levels is refused
+    if (ctx.sandbox.planLocked && !(await withinDeliverableFolder(deps.db, parsed.data.parentFolderId ?? null))) {
+      return forbidden(c, 'plan_locked_structure');
     }
     await deps.db
       .update(s.sandboxFolders)

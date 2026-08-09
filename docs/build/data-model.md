@@ -136,7 +136,14 @@ one-way transition, trigger-enforced), and `head_locked` is the freeze's
 check-out lock (ADR-0032 addendum: every freeze locks the head; one
 mechanism, two triggers). The full sandbox model around it — sandboxes at
 four scopes, folders, scope grants, per-sandbox settings, checkout events,
-ambient history — landed with Slices A2.x (ADR-0036/0040/0041).
+ambient history — landed with Slices A2.x (ADR-0036/0040/0041). The
+2026-08-09 walkthrough session grew the settings and the folders (T-365,
+migration 0043): `sandboxes.plan_locked` is the third folder mode — the tree
+**derived** from the owning org's own plan rows, so folders gained a `kind`
+(`manual` / system-owned `discipline` / `deliverable`) and a deliverable
+folder carries its `container_id`, unique per (sandbox, container) so the
+derivation is idempotent, renames track the row, and a withdrawn row's
+folder is kept, never deleted (ADR-0040 addendum).
 
 **Elevated refusal** (T-301, migration 0038) records a destructive lifecycle
 action refused for want of the elevated tier — the gate existed (T-174/T-176),

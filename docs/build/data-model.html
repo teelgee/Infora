@@ -333,6 +333,8 @@
           <tr><td class="col">sandbox_id</td><td class="type">uuid</td><td class="notes">→ sandboxes.id</td></tr>
           <tr><td class="col">parent_folder_id</td><td class="type">uuid</td><td class="notes">→ sandbox_folders.id · nullable</td></tr>
           <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">kind</td><td class="type">sandbox_folder_kind</td><td class="notes">default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
           <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
         </tbody></table>
@@ -360,6 +362,7 @@
           <tr><td class="col">owning_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
           <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">allow_member_folder_create</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">plan_locked</td><td class="type">boolean</td><td class="notes">default</td></tr>
           <tr><td class="col">is_personal</td><td class="type">boolean</td><td class="notes">default</td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
         </tbody></table>

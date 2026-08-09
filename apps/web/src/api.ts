@@ -429,7 +429,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   sandbox: (sandboxId: string) => request<GetSandboxResponse>(`/sandboxes/${sandboxId}`),
-  updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean }) =>
+  updateSandboxSettings: (sandboxId: string, body: { allowMemberFolderCreate?: boolean; planLocked?: boolean }) =>
     request<Sandbox>(`/sandboxes/${sandboxId}/settings`, {
       method: 'PATCH',
       body: JSON.stringify(body),

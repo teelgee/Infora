@@ -389,13 +389,21 @@ function MoveModal(props: {
 }
 
 // ── Settings: the super-user's per-sandbox configuration (ADR-0040) ──────────
+// T-365 (S7) adds the third folder mode — plan-locked: the tree is derived from
+// the owning org's own plan rows. The member toggle survives inside it: within
+// a deliverable's working folder, allowMemberFolderCreate still governs (the
+// two settings compose — ADR-0040 addendum).
 function SettingsModal(props: {
   sandbox: Sandbox;
-  onSave: (body: { allowMemberFolderCreate: boolean }) => Promise<void>;
+  onSave: (body: { allowMemberFolderCreate: boolean; planLocked: boolean }) => Promise<void>;
   onClose: () => void;
 }) {
   const [allow, setAllow] = useState(props.sandbox.allowMemberFolderCreate);
+  const [planLocked, setPlanLocked] = useState(props.sandbox.planLocked);
   const [busy, setBusy] = useState(false);
+  const mode = planLocked ? 'plan' : allow ? 'anyone' : 'super';
+  const dirty =
+    allow !== props.sandbox.allowMemberFolderCreate || planLocked !== props.sandbox.planLocked;
   return (
     <Modal
       open
@@ -409,10 +417,10 @@ function SettingsModal(props: {
           </Button>
           <Button
             variant="primary"
-            disabled={busy || allow === props.sandbox.allowMemberFolderCreate}
+            disabled={busy || !dirty}
             onClick={async () => {
               setBusy(true);
-              await props.onSave({ allowMemberFolderCreate: allow });
+              await props.onSave({ allowMemberFolderCreate: allow, planLocked });
             }}
           >
             Save settings
@@ -422,17 +430,40 @@ function SettingsModal(props: {
     >
       <Field
         label="Folder creation"
-        hint="When members work within the structure, only a super-user of this sandbox may add or nest folders."
+        hint={
+          mode === 'plan'
+            ? 'The tree is derived from this organisation’s deliverables plan — a folder per discipline, a working folder per deliverable, appearing as rows are created and renaming as they do. Those levels are system-owned.'
+            : 'When members work within the structure, only a super-user of this sandbox may add or nest folders.'
+        }
       >
         <SelectInput
-          value={allow ? 'anyone' : 'super'}
-          onChange={(v) => setAllow(v === 'anyone')}
+          value={mode}
+          onChange={(v) => {
+            setPlanLocked(v === 'plan');
+            if (v !== 'plan') setAllow(v === 'anyone');
+          }}
           options={[
             { value: 'anyone', label: 'Anyone in the sandbox may create folders' },
             { value: 'super', label: 'Members work within the existing structure' },
+            { value: 'plan', label: 'Locked to the plan — the tree follows the deliverables' },
           ]}
         />
       </Field>
+      {mode === 'plan' && (
+        <Field
+          label="Inside a deliverable’s folder"
+          hint="The one place hand-made folders live in this mode."
+        >
+          <SelectInput
+            value={allow ? 'anyone' : 'super'}
+            onChange={(v) => setAllow(v === 'anyone')}
+            options={[
+              { value: 'anyone', label: 'Anyone may create folders there' },
+              { value: 'super', label: 'Only a super-user may' },
+            ]}
+          />
+        </Field>
+      )}
     </Modal>
   );
 }
@@ -1001,6 +1032,22 @@ export function SandboxScreen() {
     return m;
   }, [shown]);
 
+  // T-365 — is this folder inside (or itself) a deliverable's working folder?
+  // The plan-locked mode's boundary for hand-made folders.
+  const inDeliverableSubtree = useCallback(
+    (folderId: string | null): boolean => {
+      let cursor = folderId;
+      for (let depth = 0; cursor !== null && depth < 50; depth++) {
+        const folder = folderById.get(cursor);
+        if (!folder) return false;
+        if (folder.kind === 'deliverable') return true;
+        cursor = folder.parentFolderId;
+      }
+      return false;
+    },
+    [folderById],
+  );
+
   // the set of a folder's own descendants — a folder cannot move into its subtree
   const descendantsOf = useCallback(
     (folderId: string) => {
@@ -1058,20 +1105,26 @@ export function SandboxScreen() {
 
   const performMove = useCallback(
     async (item: DragItem, targetFolderId: string | null) => {
-      if (item.type === 'folder') {
-        if (item.id === targetFolderId) return;
-        if (targetFolderId && descendantsOf(item.id).has(targetFolderId)) {
-          setNote('A folder can’t be moved inside one of its own subfolders.', 'error');
-          return;
+      try {
+        if (item.type === 'folder') {
+          if (item.id === targetFolderId) return;
+          if (targetFolderId && descendantsOf(item.id).has(targetFolderId)) {
+            setNote('A folder can’t be moved inside one of its own subfolders.', 'error');
+            return;
+          }
+          await api.moveFolder(item.id, targetFolderId);
+          if (selected) loadSandbox(selected);
+        } else {
+          await api.moveDocument(item.id, targetFolderId);
+          await loadDocs();
         }
-        await api.moveFolder(item.id, targetFolderId);
-        if (selected) loadSandbox(selected);
-      } else {
-        await api.moveDocument(item.id, targetFolderId);
-        await loadDocs();
+      } catch {
+        // T-365: in a plan-locked sandbox the derived levels refuse moves —
+        // say so instead of failing silently
+        setNote('That move was refused — the plan-locked levels are set by the plan.', 'error');
       }
     },
-    [descendantsOf, loadDocs, loadSandbox, selected],
+    [descendantsOf, loadDocs, loadSandbox, selected, setNote],
   );
 
   const onDropInto = (targetFolderId: string | null, targetKey: string | 'root') => (e: ReactDragEvent) => {
@@ -1099,11 +1152,18 @@ export function SandboxScreen() {
       // a folder is not a valid drop for itself, its descendants, or the dragged doc's move-to-self
       const validTarget =
         !drag || (drag.type === 'folder' ? drag.id !== folder.id && !descendantsOf(drag.id).has(folder.id) : true);
+      // T-365 — a derived (plan-owned) folder neither drags nor moves; a
+      // deliverable folder whose row left the plan is badged, never deleted
+      const systemFolder = folder.kind !== 'manual';
+      const offPlan =
+        folder.kind === 'deliverable' &&
+        folder.containerId !== null &&
+        planByContainer.get(folder.containerId)?.state === 'withdrawn';
       rows.push(
         <tr
           key={`f-${folder.id}`}
-          draggable
-          onDragStart={() => setDrag({ type: 'folder', id: folder.id })}
+          draggable={!systemFolder}
+          onDragStart={() => !systemFolder && setDrag({ type: 'folder', id: folder.id })}
           onDragEnd={() => {
             setDrag(null);
             setDropTarget(null);
@@ -1130,17 +1190,20 @@ export function SandboxScreen() {
               <button type="button" className="tree-name" onClick={() => setCurrentFolderId(folder.id)}>
                 {folder.name}
               </button>
+              {offPlan && <Badge tone="neutral">Off plan</Badge>}
             </span>
           </td>
           <td style={{ textAlign: 'right' }}>
-            <Button
-              size="sm"
-              variant="quiet"
-              onClick={() => setMoveItem({ type: 'folder', id: folder.id, name: folder.name })}
-              aria-label={`Move ${folder.name}`}
-            >
-              <FolderInput size={13} strokeWidth={2} /> Move
-            </Button>
+            {!systemFolder && (
+              <Button
+                size="sm"
+                variant="quiet"
+                onClick={() => setMoveItem({ type: 'folder', id: folder.id, name: folder.name })}
+                aria-label={`Move ${folder.name}`}
+              >
+                <FolderInput size={13} strokeWidth={2} /> Move
+              </Button>
+            )}
           </td>
         </tr>,
       );
@@ -1335,7 +1398,12 @@ export function SandboxScreen() {
           destinations={
             moveItem.type === 'folder'
               ? folderDestinations.filter(
-                  (d) => d.value !== moveItem.id && !descendantsOf(moveItem.id).has(d.value),
+                  (d) =>
+                    d.value !== moveItem.id &&
+                    !descendantsOf(moveItem.id).has(d.value) &&
+                    // T-365: in a plan-locked sandbox a hand-made folder only
+                    // lives inside a deliverable's working folder
+                    (!selectedSandbox?.planLocked || inDeliverableSubtree(d.value)),
                 )
               : folderDestinations
           }
@@ -1565,12 +1633,15 @@ export function SandboxScreen() {
           <Button size="sm" variant="quiet" onClick={() => setModal('access')}>
             <Users size={13} strokeWidth={2} /> Manage access
           </Button>
-          {(selectedSandbox.allowMemberFolderCreate || selectedSandbox.canConfigure) && (
-            <Button size="sm" variant="quiet" onClick={() => setModal('folder')}>
-              <FolderPlus size={13} strokeWidth={2} /> New folder
-            </Button>
-          )}
-          {selectedSandbox.canConfigure && (
+          {(selectedSandbox.allowMemberFolderCreate || selectedSandbox.canConfigure) &&
+            // in plan-locked mode hand-made folders live only inside a
+            // deliverable's working folder (T-365) — everyone, supers included
+            (!selectedSandbox.planLocked || inDeliverableSubtree(currentFolderId)) && (
+              <Button size="sm" variant="quiet" onClick={() => setModal('folder')}>
+                <FolderPlus size={13} strokeWidth={2} /> New folder
+              </Button>
+            )}
+          {selectedSandbox.canConfigure && !selectedSandbox.planLocked && (
             <Button size="sm" variant="quiet" onClick={() => setModal('structure')}>
               <FolderTree size={13} strokeWidth={2} /> Folder structure
             </Button>
@@ -1580,10 +1651,16 @@ export function SandboxScreen() {
               <Settings size={13} strokeWidth={2} /> Settings
             </Button>
           )}
-          {!selectedSandbox.allowMemberFolderCreate && (
+          {selectedSandbox.planLocked ? (
             <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-              Locked structure — folders are set by a super-user
+              Locked to the plan — the tree follows the deliverables
             </span>
+          ) : (
+            !selectedSandbox.allowMemberFolderCreate && (
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                Locked structure — folders are set by a super-user
+              </span>
+            )
           )}
         </div>
       )}

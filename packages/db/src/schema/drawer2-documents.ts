@@ -252,6 +252,12 @@ export const sandboxes = pgTable('sandboxes', {
   // default (the current self-serve behaviour); a super-user of the owning org (or
   // the owner-super) turns it off. The seed of a per-sandbox settings surface.
   allowMemberFolderCreate: boolean('allow_member_folder_create').notNull().default(true),
+  // the third folder mode (ADR-0040 addendum 2026-08-09, T-365): the tree is
+  // DERIVED from the owning org's own plan rows — discipline folders over a
+  // working folder per deliverable, system-owned, appearing as rows are
+  // created and tracking their row. Composes with allowMemberFolderCreate,
+  // which still governs member freedom INSIDE a deliverable's folder.
+  planLocked: boolean('plan_locked').notNull().default(false),
   // the auto-provisioned personal workspace every participant has in a project
   // (ADR-0036 refinement, T-186): named_user scope, granted only to its owner,
   // server-created (never through the super-user-gated create path). One per
@@ -303,6 +309,8 @@ export const sandboxScopeGrants = pgTable(
 // folder organises the view only — it is never an access object; scope stays
 // the sandbox's (a document's access is its sandbox's grant set, ADR-0036),
 // so nest/move never change who can see a document, only where it sits.
+export const sandboxFolderKind = pgEnum('sandbox_folder_kind', ['manual', 'discipline', 'deliverable']);
+
 export const sandboxFolders = pgTable(
   'sandbox_folders',
   {
@@ -314,12 +322,32 @@ export const sandboxFolders = pgTable(
       onDelete: 'cascade',
     }),
     name: text('name').notNull(),
+    // T-365 (ADR-0040 addendum): 'discipline' and 'deliverable' folders are
+    // system-derived from the plan in a plan-locked sandbox — system-owned
+    // (never hand-created, hand-renamed or hand-moved), named by their row,
+    // kept (badged off-plan) when the row is withdrawn. 'manual' is every
+    // folder a person made.
+    kind: sandboxFolderKind('kind').notNull().default('manual'),
+    // the plan container a 'deliverable' folder works for — how renames track
+    // the row, and how the bind target pre-selects (ADR-0038 addendum)
+    containerId: uuid('container_id').references(() => containers.id),
     createdByParticipantId: uuid('created_by_participant_id')
       .notNull()
       .references(() => participants.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('sandbox_folders_sandbox_idx').on(t.sandboxId)],
+  (t) => [
+    index('sandbox_folders_sandbox_idx').on(t.sandboxId),
+    // one derived working folder per (sandbox, container) — the sync's idempotency
+    uniqueIndex('sandbox_folders_deliverable_unique')
+      .on(t.sandboxId, t.containerId)
+      .where(sql`${t.containerId} IS NOT NULL`),
+    // and one discipline folder per (sandbox, name) — concurrent syncs race on
+    // the same discipline, and a duplicate system folder is permanent (0044)
+    uniqueIndex('sandbox_folders_discipline_unique')
+      .on(t.sandboxId, t.name)
+      .where(sql`${t.kind} = 'discipline'`),
+  ],
 );
 
 // Deliberately mutable — the uncontrolled working area (draft-location

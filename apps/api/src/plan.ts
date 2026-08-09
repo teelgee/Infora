@@ -42,6 +42,7 @@ import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
 import { composeReference, loadSchemeOrDefault, templateFields } from './naming';
 import { parseXlsx } from './xlsx';
+import { syncPlanLockedFolders } from './plan-locked';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
@@ -313,6 +314,9 @@ export function planRoutes(deps: { db: Db }) {
         status: 'planned',
         containerId: container!.id,
       });
+      // plan-locked sandboxes derive their tree from the rows — folders appear
+      // as rows are created (T-365, ADR-0040 addendum)
+      await syncPlanLockedFolders(deps.db, slice.projectId, slice.organisationId, slice.participantId);
       const [row] = await toPlanRows(deps.db, [container!]);
       return c.json(row!, 201);
     } catch (error) {
@@ -490,6 +494,9 @@ export function planRoutes(deps: { db: Db }) {
       throw error;
     }
 
+    // one reconcile for the whole batch — the plan-locked tree gains its
+    // folders in batch, exactly as the rows appeared (T-365 / S7)
+    await syncPlanLockedFolders(deps.db, slice.projectId, slice.organisationId, slice.participantId);
     const items = await toPlanRows(deps.db, created);
     return c.json({ created: created.length, items, ignoredColumns } satisfies PlanImportResult, 201);
   });
@@ -576,6 +583,8 @@ export function containerRoutes(deps: { db: Db }) {
       .update(s.workItems)
       .set({ title: body.data.title })
       .where(eq(s.workItems.containerId, container.id));
+    // a plan-locked working folder's name tracks its row (T-365)
+    await syncPlanLockedFolders(deps.db, container.projectId, slice.organisationId, slice.participantId);
     const [row] = await toPlanRows(deps.db, [container]);
     return c.json(row!);
   });
@@ -640,6 +649,10 @@ export function containerRoutes(deps: { db: Db }) {
       .update(s.workItems)
       .set({ status: 'planned' })
       .where(eq(s.workItems.containerId, container.id));
+    // back on the plan, back in the derived tree: a row withdrawn before the
+    // mode was ever on has no folder yet, and a retitle-while-withdrawn left
+    // the kept folder's name stale — the restore reconciles both (T-365)
+    await syncPlanLockedFolders(deps.db, container.projectId, slice.organisationId, slice.participantId);
     const [row] = await toPlanRows(deps.db, [updated!]);
     return c.json(row!);
   });

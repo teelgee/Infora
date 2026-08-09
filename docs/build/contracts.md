@@ -228,3 +228,14 @@ are not recorded here.
   `ack_mode` — and putting it anywhere near `users.preferences` would invite
   the per-user override the owner explicitly refused. Null means the default
   set, so a project that never configures columns pays nothing.
+- **2026-08-09 (T-365) — a folder says what owns it.** `SandboxFolder` gained
+  `kind` and `containerId` because the plan-locked mode makes some folders the
+  *plan's*, not a person's, and the surface must be able to tell without
+  guessing from names: a `discipline`/`deliverable` folder neither drags nor
+  moves nor renames by hand — its name comes from its row — and `containerId`
+  is what lets a draft filed in a working folder pre-select its bind target
+  (ADR-0038 addendum) rather than the surface string-matching folder names to
+  references. `Sandbox.planLocked` sits beside `allowMemberFolderCreate`
+  rather than replacing it with a three-state enum, because the ruling is that
+  the two *compose*: inside a deliverable's folder the member toggle still
+  governs, and one enum could not say that.

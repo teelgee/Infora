@@ -918,6 +918,11 @@ export type Sandbox = {
   owningOrganisationId: Id;
   // per-sandbox settings (ADR-0040, T-181); more settings accrue here
   allowMemberFolderCreate: boolean;
+  // the third folder mode (ADR-0040 addendum 2026-08-09, T-365): the tree is
+  // derived from the owning org's own plan rows — discipline folders over a
+  // working folder per deliverable, system-owned. Composes with
+  // allowMemberFolderCreate, which governs INSIDE a deliverable's folder.
+  planLocked: boolean;
   // whether the requester may configure this sandbox's settings (a super-user of
   // the owning org, or the owner-super) — a self fact, decided server-side
   canConfigure: boolean;
@@ -932,6 +937,7 @@ export type Sandbox = {
 // optional; only what is present changes.
 export const updateSandboxSettingsBody = z.object({
   allowMemberFolderCreate: z.boolean().optional(),
+  planLocked: z.boolean().optional(),
 });
 export type UpdateSandboxSettingsBody = z.infer<typeof updateSandboxSettingsBody>;
 export type SandboxScopeGrantView = {
@@ -965,7 +971,18 @@ export const grantSandboxScopeBody = z
 export type GrantSandboxScopeBody = z.infer<typeof grantSandboxScopeBody>;
 
 // Folders (ADR-0036 drawer, T-153) — a view object, never an access object
-export type SandboxFolder = { id: Id; sandboxId: Id; parentFolderId: Id | null; name: string };
+// kind + containerId (T-365): 'discipline'/'deliverable' folders are derived
+// from the plan in a plan-locked sandbox — system-owned, renamed by their row;
+// a deliverable folder names the container drafts inside it bind to.
+export type SandboxFolderKind = 'manual' | 'discipline' | 'deliverable';
+export type SandboxFolder = {
+  id: Id;
+  sandboxId: Id;
+  parentFolderId: Id | null;
+  name: string;
+  kind: SandboxFolderKind;
+  containerId: Id | null;
+};
 export type ListFoldersResponse = { items: SandboxFolder[] };
 export const createFolderBody = z.object({ name: z.string().min(1), parentFolderId: id.optional() });
 export type CreateFolderBody = z.infer<typeof createFolderBody>;
