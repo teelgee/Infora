@@ -74,6 +74,7 @@ board is **[plan.md](../build/plan.md)**.
 | **2** | **The checker (2026-08-01)** — `Q-007` + `Q-008`, ruled together | **0048** | ✅ Ruled — T-308/T-310/T-311 unblocked |
 | **3** | **Notifications + the promotion gate (2026-08-01)** — `Q-012` and its rider | **0049** | ✅ Ruled — T-329–T-332 minted |
 | **4** | **The privacy programme (2026-08-03)** — `Q-032` + `Q-033`, ruled together | **0050** | ✅ Ruled — the DPA unblocked; T-339–T-342 minted; `Q-035` raised |
+| **DMS** | **The document-management walkthrough (2026-08-09)** — comment-directed on the built product, S1–S9 | addenda to **0032**, **0033**, **0038**, **0040** | ✅ Ruled **and built** same day — Slice Walkthrough (T-358–T-366, T-368; T-355 grown); `Q-039` raised |
 
 Full session records in [grill-history.md](grill-history.md).
 
