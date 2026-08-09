@@ -757,6 +757,24 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       if (existingCycle) {
         cycleId = existingCycle.id;
         roundNumber = latestRound!.number + 1;
+        // ADR-0004's link target now exists: the change each response declared
+        // lives in the version this promotion creates, so stamp it (no-change
+        // responses stay unlinked by definition)
+        await tx
+          .update(s.responses)
+          .set({ nextVersionId: version!.id })
+          .where(
+            and(
+              inArray(
+                s.responses.commentId,
+                tx
+                  .select({ id: s.reviewComments.id })
+                  .from(s.reviewComments)
+                  .where(eq(s.reviewComments.roundId, latestRound!.id)),
+              ),
+              isNull(s.responses.noChangeReason),
+            ),
+          );
         await tx
           .update(s.rounds)
           .set({ state: 'responded' })
@@ -1158,7 +1176,6 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           commentId: comment.id,
           authorParticipantId: slice.participantId,
           body: body.data.body,
-          nextVersionId: body.data.nextVersionId ?? null,
           nextVersionAnchor: body.data.nextVersionAnchor ?? null,
           noChangeReason: body.data.noChangeReason ?? null,
         })

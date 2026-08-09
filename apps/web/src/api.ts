@@ -228,10 +228,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({}),
     }),
-  respondToComment: (commentId: string, body: string, noChangeReason: string) =>
+  // ADR-0004 — exactly one of the two: the revised passage that answers the
+  // comment (the version id is stamped at promotion), or an explicit no-change
+  respondToComment: (
+    commentId: string,
+    body: string,
+    outcome: { changeQuote: string } | { noChangeReason: string },
+  ) =>
     request<ReviewResponseRecord>(`/review-comments/${commentId}/response`, {
       method: 'POST',
-      body: JSON.stringify({ body, noChangeReason }),
+      body: JSON.stringify(
+        'changeQuote' in outcome
+          ? { body, nextVersionAnchor: { quote: outcome.changeQuote } }
+          : { body, noChangeReason: outcome.noChangeReason },
+      ),
     }),
   closeRejected: (cycleId: string, reason: string) =>
     request<ReviewCycle>(`/cycles/${cycleId}/close-rejected`, {

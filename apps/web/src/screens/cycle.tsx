@@ -300,6 +300,10 @@ export function CycleScreen() {
       {cycle &&
         (() => {
           const newestNumber = Math.max(...cycle.rounds.map((r) => r.number));
+          // response → next-version pointers resolve to a revision reference
+          const versionRefById = Object.fromEntries(
+            cycle.rounds.map((r) => [r.versionId, r.versionReference]),
+          );
           return [...cycle.rounds].sort((a, b) => a.number - b.number).reverse().map((round) => {
             // only the newest round is expanded by default; earlier rounds collapse
             // to a one-line summary and expand on click (T-231). The API returns
@@ -316,6 +320,7 @@ export function CycleScreen() {
               canComment={round.state === 'open' && !!myReviewer && cycle.state === 'active'}
               canModerate={round.state === 'open' && (myReviewer?.isLead ?? false)}
               canRespond={round.state === 'issued' && !!myAuthor && cycle.state === 'active'}
+              versionRefById={versionRefById}
               collapsible={!isNewest}
               onCollapse={() =>
                 setExpandedRounds((s) => {
@@ -451,6 +456,7 @@ function RoundCard(props: {
   canComment: boolean;
   canModerate: boolean;
   canRespond: boolean;
+  versionRefById: Record<string, string>;
   collapsible?: boolean;
   onCollapse?: () => void;
   act: (action: () => Promise<unknown>) => Promise<void>;
@@ -580,6 +586,7 @@ function RoundCard(props: {
                     act={props.act}
                     hovered={hovered === comment.id}
                     onHover={setHovered}
+                    versionRefById={props.versionRefById}
                   />
                 ))}
               </div>
@@ -734,11 +741,14 @@ function CommentRow(props: {
   act: (action: () => Promise<unknown>) => Promise<void>;
   hovered: boolean;
   onHover: (id: string | null) => void;
+  versionRefById: Record<string, string>;
 }) {
   const { comment, hovered, onHover } = props;
   const [responding, setResponding] = useState(false);
   const [body, setBody] = useState('');
-  const [reason, setReason] = useState('addressed in the next revision');
+  const [noChange, setNoChange] = useState(false);
+  const [quote, setQuote] = useState('');
+  const [reason, setReason] = useState('');
 
   return (
     <div
@@ -769,8 +779,17 @@ function CommentRow(props: {
       {comment.response && (
         <div style={{ background: 'var(--surface-sunken)', borderRadius: 'var(--primitive-radius-xs)', padding: '6px 10px' }}>
           <b>Response</b> · {comment.response.body}
-          {comment.response.noChangeReason && (
-            <span style={{ color: 'var(--text-muted)' }}> — {comment.response.noChangeReason}</span>
+          {comment.response.noChangeReason ? (
+            <span style={{ color: 'var(--text-muted)' }}> — no change: {comment.response.noChangeReason}</span>
+          ) : (
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
+              {comment.response.nextVersionId && props.versionRefById[comment.response.nextVersionId]
+                ? `Changed in ${props.versionRefById[comment.response.nextVersionId]}`
+                : 'Change prepared for the next revision'}
+              {comment.response.nextVersionAnchor?.quote && (
+                <> — <i>“{comment.response.nextVersionAnchor.quote}”</i></>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -789,14 +808,44 @@ function CommentRow(props: {
             onChange={(e) => setBody(e.target.value)}
             style={{ ...field, minHeight: 44 }}
           />
+          {/* ADR-0004 — the response points at the change, or says explicitly
+              that none was made; there is no third state */}
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            <input
+              type="checkbox"
+              checked={noChange}
+              onChange={(e) => setNoChange(e.target.checked)}
+            />
+            No change was made
+          </label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} style={{ ...field, flex: 1 }} />
+            {noChange ? (
+              <input
+                placeholder="Why no change was made…"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                style={{ ...field, flex: 1 }}
+              />
+            ) : (
+              <input
+                placeholder="The revised passage that answers it — the link into the next version…"
+                value={quote}
+                onChange={(e) => setQuote(e.target.value)}
+                style={{ ...field, flex: 1 }}
+              />
+            )}
             <Button
               size="sm"
               variant="primary"
-              disabled={!body.trim() || !reason.trim()}
+              disabled={!body.trim() || (noChange ? !reason.trim() : !quote.trim())}
               onClick={() =>
-                void props.act(() => api.respondToComment(comment.id, body.trim(), reason.trim()))
+                void props.act(() =>
+                  api.respondToComment(
+                    comment.id,
+                    body.trim(),
+                    noChange ? { noChangeReason: reason.trim() } : { changeQuote: quote.trim() },
+                  ),
+                )
               }
             >
               Record the response

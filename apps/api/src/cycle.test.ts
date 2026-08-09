@@ -433,14 +433,23 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     const both = await app.request(`/review-comments/${commentId}/response`, {
       method: 'POST',
       headers: asJson(leadAuthorCookie),
-      body: JSON.stringify({ body: 'x', noChangeReason: 'y', nextVersionId: commentId }),
+      body: JSON.stringify({
+        body: 'x',
+        noChangeReason: 'y',
+        nextVersionAnchor: { quote: 'z' },
+      }),
     });
     expect(both.status).toBe(400); // the zod refine
 
+    // the change link is declared as the revised passage; the version id is
+    // stamped when the promotion creates vN+1 (asserted in the next test)
     const res = await app.request(`/review-comments/${commentId}/response`, {
       method: 'POST',
       headers: asJson(leadAuthorCookie),
-      body: JSON.stringify({ body: 'Assumption clarified in §3.2 of the next revision.', noChangeReason: 'section updated in v2' }),
+      body: JSON.stringify({
+        body: 'Assumption clarified in §3.2 of the next revision.',
+        nextVersionAnchor: { quote: 'The drainage assumption is clarified in §3.2.' },
+      }),
     });
     expect(res.status).toBe(201);
 
@@ -487,6 +496,13 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
     ).json()) as ReviewCycle;
     expect(cycle.editLockHolder).toBe('reviewing');
+    // promotion stamped ADR-0004's link target on the change-declared response
+    // (the no-change ones stay unlinked by definition)
+    const round1 = cycle.rounds[0]!;
+    const linked = round1.comments.find((cm) => cm.response?.nextVersionAnchor?.quote);
+    expect(linked?.response?.nextVersionId).toBe(result.versionId);
+    const noChange = round1.comments.find((cm) => cm.response?.noChangeReason);
+    expect(noChange?.response?.nextVersionId).toBeNull();
     // round 2 restarts at the gate (ADR-0051) — and this time a CONFIRMED
     // third-org reviewer acknowledges it open (the addendum: the review group
     // receives the submission; proposal alone would confer nothing)

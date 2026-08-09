@@ -990,7 +990,9 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
   const { comment } = props;
   const [responding, setResponding] = useState(false);
   const [body, setBody] = useState('');
-  const [reason, setReason] = useState('addressed in the next revision');
+  const [noChange, setNoChange] = useState(false);
+  const [quote, setQuote] = useState('');
+  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -998,7 +1000,11 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
     setBusy(true);
     setError(null);
     try {
-      await api.respondToComment(comment.id, body.trim(), reason.trim());
+      await api.respondToComment(
+        comment.id,
+        body.trim(),
+        noChange ? { noChangeReason: reason.trim() } : { changeQuote: quote.trim() },
+      );
       props.onResponded();
     } catch (e) {
       setError(describeApiError(errorCode(e)));
@@ -1024,8 +1030,14 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
       {comment.response ? (
         <div className="review-response">
           <b>Your response</b> · {comment.response.body}
-          {comment.response.noChangeReason && (
-            <span style={{ color: 'var(--text-muted)' }}> — {comment.response.noChangeReason}</span>
+          {comment.response.noChangeReason ? (
+            <span style={{ color: 'var(--text-muted)' }}> — no change: {comment.response.noChangeReason}</span>
+          ) : (
+            comment.response.nextVersionAnchor?.quote && (
+              <span style={{ color: 'var(--text-muted)' }}>
+                {' '}— change: <i>“{comment.response.nextVersionAnchor.quote}”</i>
+              </span>
+            )
           )}
         </div>
       ) : responding ? (
@@ -1037,18 +1049,36 @@ function ReviewCommentResponse(props: { comment: ReviewComment; onResponded: () 
             onChange={(e) => setBody(e.target.value)}
             style={{ ...refField, minHeight: 44 }}
           />
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. expanded in v2 §3"
-            style={refField}
-          />
+          {/* ADR-0004 — point at the change, or say explicitly none was made */}
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11.5, color: 'var(--text-muted)' }}>
+            <input
+              type="checkbox"
+              checked={noChange}
+              onChange={(e) => setNoChange(e.target.checked)}
+            />
+            No change was made
+          </label>
+          {noChange ? (
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Why no change was made…"
+              style={refField}
+            />
+          ) : (
+            <input
+              value={quote}
+              onChange={(e) => setQuote(e.target.value)}
+              placeholder="The revised passage that answers it — the link into the next version…"
+              style={refField}
+            />
+          )}
           {error && <Badge tone="danger">{error}</Badge>}
           <div style={{ display: 'flex', gap: 6 }}>
             <Button
               size="sm"
               variant="primary"
-              disabled={busy || !body.trim() || !reason.trim()}
+              disabled={busy || !body.trim() || (noChange ? !reason.trim() : !quote.trim())}
               onClick={() => void record()}
             >
               Record the response

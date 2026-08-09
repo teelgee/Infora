@@ -829,15 +829,18 @@ export const issueRoundBody = z.object({
 export type IssueRoundBody = z.infer<typeof issueRoundBody>;
 export type IssueRoundResponse = { transmittalId: Id; cycle: ReviewCycle };
 
+// The change link is declared as an anchor (the revised passage, at minimum
+// its quote) — never as a version id: vN+1 does not exist while the respond
+// phase runs (promotion is gated on the responses), so nextVersionId is
+// stamped by the promotion that creates it, not sent by the client.
 export const createReviewResponseBody = z
   .object({
     body: z.string().min(1),
-    nextVersionId: id.optional(),
     nextVersionAnchor: commentAnchorSchema.optional(),
     noChangeReason: z.string().min(1).optional(),
   })
-  .refine((b) => (b.nextVersionId ? !b.noChangeReason : !!b.noChangeReason), {
-    message: 'exactly one of nextVersionId or noChangeReason', // ADR-0004
+  .refine((b) => (b.nextVersionAnchor?.quote ? !b.noChangeReason : !!b.noChangeReason), {
+    message: 'exactly one of nextVersionAnchor.quote or noChangeReason', // ADR-0004
   });
 export type CreateReviewResponseBody = z.infer<typeof createReviewResponseBody>;
 

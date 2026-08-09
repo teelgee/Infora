@@ -161,7 +161,7 @@ test('4 — issue, respond, and the transmittal back; then acceptance admits the
   for (const comment of revealed.rounds[0]!.comments) {
     await eleanor.post(`/review-comments/${comment.id}/response`, {
       body: 'Methodology section expanded in the next revision.',
-      noChangeReason: 'expanded in v2 §3',
+      nextVersionAnchor: { quote: 'survey methodology expanded' },
     });
   }
   await eleanor.patch(`/sandbox-documents/${documentId}`, {

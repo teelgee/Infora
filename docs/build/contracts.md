@@ -198,3 +198,13 @@ are not recorded here.
   reviewer-side positioning and returning it to the authoring side during
   an open round would leak through a different door what the comment
   phasing walls off.
+- **2026-08-09 (T-354) — the change link is declared as an anchor, never
+  sent as a version id.** `createReviewResponseBody`'s XOR moved from
+  `nextVersionId` to `nextVersionAnchor.quote`, because the id was
+  unobtainable by design: the respond phase runs *before* vN+1 exists —
+  promotion is gated on the responses — so a contract demanding the next
+  version's id at respond time could only ever be satisfied by the
+  no-change half, which is exactly what both forms did. The consultant
+  declares the revised passage; the promotion that creates vN+1 stamps
+  `nextVersionId` on the change-declared responses in the same
+  transaction. No-change responses stay unlinked by definition.
