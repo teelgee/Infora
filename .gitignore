@@ -21,3 +21,7 @@ docs/architecture/diagrams/*.png
 
 # local worktrees (never commit)
 .claude/worktrees/
+
+# raw walkthrough captures (scripts/user-story-walkthrough/capture.mjs; the
+# downscaled, committed views live in docs/architecture/user-story-screens/)
+scripts/user-story-walkthrough/shots/

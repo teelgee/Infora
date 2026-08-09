@@ -100,9 +100,13 @@ test('the editor enters review-response mode: the version under review, the comm
   // the reviewer's comment (Drawer 5) is here to answer
   await expect(page.getByText('State the borehole depths and the ground investigation dates.')).toBeVisible();
 
-  // record a response in place; it sticks on the record
+  // record a response in place; it sticks on the record. ADR-0004 (T-354):
+  // the response declares the revised passage — the change link's anchor
   await page.getByRole('button', { name: 'Respond' }).first().click();
   await page.getByPlaceholder('How is the comment addressed?').fill('Borehole depths and dates added in §1.');
+  await page
+    .getByPlaceholder('The revised passage that answers it — the link into the next version…')
+    .fill('Boreholes BH-01 to BH-04, drilled March 2026, depths stated in §1');
   await page.getByRole('button', { name: 'Record the response' }).click();
   await expect(page.getByText('Your response', { exact: false })).toBeVisible();
 

@@ -50,8 +50,14 @@ export default defineConfig({
         prefix,
         {
           target: apiTarget,
-          bypass: (req: { headers: { accept?: string } }) =>
-            req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
+          // /renditions has no SPA route, and the library modal's <object>
+          // embed navigates with Accept: text/html — bypassing it to
+          // index.html renders the router's 404 inside the PDF frame
+          bypass:
+            prefix === '/renditions'
+              ? undefined
+              : (req: { headers: { accept?: string } }) =>
+                  req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
         },
       ]),
     ),
