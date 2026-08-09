@@ -1,4 +1,4 @@
-// T-193 — the owner sets up the review side from the deliverable drawer: confirm
+// T-193 — the owner sets up the review side from the deliverable card: confirm
 // a producer's proposed reviewer, or appoint one directly (auto-confirmed). Before
 // T-193 the owner could only confirm from the separate Review table, so the whole
 // team set-up was split across two screens/parties.
@@ -7,7 +7,7 @@ import { ApiSession, SEEDED } from './support/api';
 
 const PROJECT = 'Wrenfield–Ashcombe 400kV Connection';
 
-test('the owner confirms a proposed reviewer in the drawer, and promotion unblocks', async ({ page }) => {
+test('the owner confirms a proposed reviewer on the deliverable card, and promotion unblocks', async ({ page }) => {
   const eleanor = await ApiSession.login(SEEDED.consultant);
   const me = await eleanor.get<{ participants: Array<{ projectId: string; participantId: string }> }>('/me');
   const projectId = me.participants[0]!.projectId;
@@ -27,7 +27,7 @@ test('the owner confirms a proposed reviewer in the drawer, and promotion unbloc
   await eleanor.post(`/containers/${row.containerId}/reviewers`, { participantId: rachelPid, isLead: true }); // proposed
   await eleanor.dispose();
 
-  // the owner opens the deliverable and confirms the reviewer in the drawer
+  // the owner opens the deliverable and confirms the reviewer on the card
   await page.goto('/');
   await page.getByLabel('Email').fill(SEEDED.owner);
   await page.getByLabel('Password').fill(SEEDED.password);

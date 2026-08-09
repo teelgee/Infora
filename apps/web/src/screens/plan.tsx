@@ -20,7 +20,7 @@ import type {
 } from '@infora/contracts';
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
 import { Columns3, FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
@@ -350,10 +350,14 @@ function DeliverableDetail(props: {
   };
 
   return (
-    <Drawer
+    // T-361 (S4) — the row's detail is the design system's modal-card
+    // treatment, as the plan's metadata view already is; drawers stay for
+    // genuinely lateral context elsewhere.
+    <Modal
       open
       onClose={props.onClose}
       title={row.documentReference ?? 'Deliverable'}
+      size="lg"
       footer={
         row.workItem && !isWithdrawn ? (
           <Button variant="primary" onClick={() => navigate(`/projects/${props.projectId}/work-items/${row.workItem!.id}`)}>
@@ -381,15 +385,17 @@ function DeliverableDetail(props: {
         ) : (
           <DetailRow label="Title">{row.workItem?.title ?? 'Reference material'}</DetailRow>
         )}
-        <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
-        <DetailRow label="Discipline">{String(row.metadata['discipline'] ?? '—')}</DetailRow>
-        <DetailRow label="Status">
-          <Badge tone={st.tone}>{st.label}</Badge>
-        </DetailRow>
-        <DetailRow label="Revision">{row.currentVersion?.versionReference ?? '—'}</DetailRow>
-        <DetailRow label="Issued">
-          {row.currentVersion ? formatDate(row.currentVersion.createdAt) : '—'}
-        </DetailRow>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 18, rowGap: 6 }}>
+          <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
+          <DetailRow label="Discipline">{String(row.metadata['discipline'] ?? '—')}</DetailRow>
+          <DetailRow label="Status">
+            <Badge tone={st.tone}>{st.label}</Badge>
+          </DetailRow>
+          <DetailRow label="Revision">{row.currentVersion?.versionReference ?? '—'}</DetailRow>
+          <DetailRow label="Issued">
+            {row.currentVersion ? formatDate(row.currentVersion.createdAt) : '—'}
+          </DetailRow>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
@@ -513,7 +519,7 @@ function DeliverableDetail(props: {
           )}
         </div>
       )}
-    </Drawer>
+    </Modal>
   );
 }
 
