@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent, type ReactNode } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type {
+  FolderStructureNode,
   MeResponse,
   NamingScheme,
   PlanRow,
@@ -537,18 +538,54 @@ function FolderStructureModal(props: {
    * owning org's plan-row disciplines. Prefills the builder for the super user
    * to edit and confirm; the existing deterministic endpoint executes. */
   planSeed?: string[];
+  /** T-364 (S6) — the agent half: a free-form ask proposes a candidate tree
+   * into this same builder. Propose-confirm (ADR-0027) — nothing is created
+   * until the super user confirms below. */
+  sandboxId?: string;
   onSubmit: (nodes: StructureNode[]) => Promise<void>;
   onClose: () => void;
 }) {
   const [nodes, setNodes] = useState<BuilderNode[]>([blankNode()]);
   const [focusId, setFocusId] = useState<string | null>(nodes[0]?.id ?? null);
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [agentNote, setAgentNote] = useState<string | null>(null);
 
   const proposeFromPlan = () => {
     if (!props.planSeed || props.planSeed.length === 0) return;
     setNodes(props.planSeed.map((name) => ({ id: crypto.randomUUID(), name, children: [] })));
     setFocusId(null);
   };
+
+  // the agent proposes into the builder; it never creates a folder
+  const toBuilder = (proposed: FolderStructureNode[]): BuilderNode[] =>
+    proposed.map((n) => ({
+      id: crypto.randomUUID(),
+      name: n.name,
+      children: toBuilder(n.children ?? []),
+    }));
+  async function askAgent() {
+    if (!props.sandboxId || ask.trim() === '' || asking) return;
+    setAsking(true);
+    setAgentNote(null);
+    try {
+      const proposal = await api.proposeFolderStructure(props.sandboxId, ask.trim());
+      if (proposal.nodes.length > 0) {
+        setNodes(toBuilder(proposal.nodes));
+        setFocusId(null);
+        setAgentNote(
+          proposal.followUp ?? 'A proposal — edit anything before creating; nothing exists yet.',
+        );
+      } else {
+        setAgentNote(proposal.followUp ?? 'No structure proposed — try naming the disciplines.');
+      }
+    } catch {
+      setAgentNote('The assistant could not answer just now — lay the structure out by hand.');
+    } finally {
+      setAsking(false);
+    }
+  }
 
   const total = countBuilder(nodes);
   const blank = anyBlank(nodes);
@@ -629,6 +666,29 @@ function FolderStructureModal(props: {
         <FolderPlus size={12} strokeWidth={2} style={{ verticalAlign: -2 }} /> button to nest one inside.{' '}
         {props.intoName ? `Created inside ${props.intoName}.` : 'Created at the sandbox root.'}
       </p>
+
+      {/* T-364 — ask for a structure; the answer fills the builder below for
+          you to edit. Nothing is created until you confirm (ADR-0027). */}
+      {props.sandboxId && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '0 0 10px' }}>
+          <div style={{ flex: 1 }}>
+            <TextInput
+              value={ask}
+              onChange={setAsk}
+              placeholder="Describe the structure you want — e.g. one area per discipline, with survey and reporting inside each"
+              onEnter={() => void askAgent()}
+            />
+          </div>
+          <Button size="sm" variant="quiet" disabled={asking || ask.trim() === ''} onClick={() => void askAgent()}>
+            {asking ? 'Proposing…' : 'Propose'}
+          </Button>
+        </div>
+      )}
+      {agentNote && (
+        <p className="field-hint" style={{ marginTop: 0 }}>
+          {agentNote}
+        </p>
+      )}
       <div className="folder-builder">{rows(nodes, 0)}</div>
       <div style={{ marginTop: 8 }}>
         <Button size="sm" variant="quiet" onClick={addRoot}>
@@ -1480,6 +1540,7 @@ export function SandboxScreen() {
         <FolderStructureModal
           intoName={currentFolderId ? (crumbs.at(-1)?.name ?? null) : null}
           planSeed={planSeed}
+          sandboxId={selected}
           onClose={() => setModal(null)}
           onSubmit={async (nodes) => {
             try {

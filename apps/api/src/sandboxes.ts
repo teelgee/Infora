@@ -17,6 +17,7 @@ import {
   grantSandboxScopeBody,
   moveDocumentBody,
   moveFolderBody,
+  proposeFolderStructureBody,
   updateSandboxSettingsBody,
 } from '@infora/contracts';
 import type {
@@ -25,6 +26,7 @@ import type {
   GetSandboxResponse,
   ListFoldersResponse,
   ListSandboxesResponse,
+  ProposeFolderStructureResult,
   Sandbox,
   SandboxFolder,
   SandboxScopeGrantView,
@@ -38,9 +40,11 @@ import {
 } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Router } from '@infora/model';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 import { syncPlanLockedFolders, withinDeliverableFolder } from './plan-locked';
+import { planDisciplines, proposeStructure } from './structure-agent';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
@@ -151,7 +155,7 @@ const toFolder = (r: typeof s.sandboxFolders.$inferSelect): SandboxFolder => ({
   containerId: r.containerId,
 });
 
-export function sandboxRoutes2(deps: { db: Db }) {
+export function sandboxRoutes2(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -415,7 +419,16 @@ export function sandboxRoutes2(deps: { db: Db }) {
     // in plan-locked mode the plan IS the structure — the builder has nothing
     // to lay out at the system-owned levels (T-365; the free modes keep it)
     if (ctx.sandbox.planLocked) return conflict(c, 'plan_locked');
-    const parsed = createFolderStructureBody.safeParse(await c.req.json().catch(() => null));
+    // safeParse converts validation issues to a result but lets a host
+    // RangeError through, and this body is directly caller-controlled with no
+    // token ceiling — a deeply nested tree would 500 rather than 400
+    const parsed = await (async () => {
+      try {
+        return createFolderStructureBody.safeParse(await c.req.json().catch(() => null));
+      } catch {
+        return { success: false } as const;
+      }
+    })();
     if (!parsed.success) return invalid(c);
     // guard against an unbounded tree — a builder mistake, not a real structure
     const total = (function count(nodes: typeof parsed.data.nodes): number {
@@ -451,6 +464,27 @@ export function sandboxRoutes2(deps: { db: Db }) {
       await insertTree(parsed.data.nodes, parsed.data.parentFolderId ?? null);
     });
     return c.json({ ok: true, created } satisfies CreateFolderStructureResult, 201);
+  });
+
+  // T-364 (S6, ADR-0027 propose-confirm) — the builder's agent: a free-form ask
+  // becomes a CANDIDATE tree for the existing builder. Same gate as the builder
+  // it fills (canConfigureSandbox), refused in plan-locked mode for the same
+  // reason the builder is (the plan IS the structure). It writes nothing and
+  // reads no sandbox content — only the org's own plan disciplines.
+  app.post('/sandboxes/:sandboxId/folder-structure/proposal', async (c) => {
+    const ctx = await resolveSandbox(deps.db, c.get('user'), c.req.param('sandboxId'));
+    if (!ctx) return notFound(c);
+    if (!canConfigureSandbox(ctx.slice, ctx.sandbox)) return forbidden(c, 'super_user_only');
+    if (ctx.sandbox.planLocked) return conflict(c, 'plan_locked');
+    const parsed = proposeFolderStructureBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const disciplines = await planDisciplines(
+      deps.db,
+      ctx.sandbox.projectId,
+      ctx.sandbox.owningOrganisationId,
+    );
+    const proposal = await proposeStructure(deps.router, parsed.data.ask, disciplines);
+    return c.json(proposal satisfies ProposeFolderStructureResult);
   });
 
   app.post('/folders/:folderId/move', async (c) => {

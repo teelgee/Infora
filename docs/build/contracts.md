@@ -228,6 +228,17 @@ are not recorded here.
   `ack_mode` — and putting it anywhere near `users.preferences` would invite
   the per-user override the owner explicitly refused. Null means the default
   set, so a project that never configures columns pays nothing.
+- **2026-08-09 (T-364) — the agent's answer is a proposal, and its failure is
+  a question.** `ProposeFolderStructureResult` carries `nodes` *and* a nullable
+  `followUp` rather than either a bare tree or an error envelope, because an
+  assistive agent has three honest outcomes and only two of them are success:
+  it proposes, it asks, or it cannot help — and asking must not read as
+  failure to the surface. Unparseable model output is therefore mapped to a
+  question rather than a 500: the builder stays usable by hand either way,
+  which is what makes this shippable while `Q-020` (sandbox content in agent
+  context) is still open. There is deliberately no "apply" endpoint — the
+  existing deterministic `folder-structure` POST is still the only thing that
+  writes, so ADR-0027's propose-confirm split is structural, not a convention.
 - **2026-08-09 (T-355) — promotion says which legal source it took, and the
   internal QA series became addressable.** `PromotionResult.source` exists
   because the gate's whole point is that what promotes is the QA-accepted

@@ -41,6 +41,7 @@ import type {
   PatchMeBody,
   PlanImportResult,
   PlanRow,
+  ProposeFolderStructureResult,
   Resolution,
   ResolveSuggestionResponse,
   AppointmentGrant,
@@ -217,6 +218,13 @@ export const api = {
     request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
+  // T-364 — the structure builder's agent: propose a candidate tree from a
+  // free-form ask. Proposes only; the deterministic endpoint still writes.
+  proposeFolderStructure: (sandboxId: string, ask: string) =>
+    request<ProposeFolderStructureResult>(`/sandboxes/${sandboxId}/folder-structure/proposal`, {
+      method: 'POST',
+      body: JSON.stringify({ ask }),
+    }),
   // T-355 — the freeze container's row read (org-private internal QA)
   qaRow: (containerId: string) => request<PlanRow>(`/containers/${containerId}/qa-row`),
   // T-120–T-126 — promotion, the freeze and the round loop (ADR-0032)

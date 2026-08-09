@@ -1000,7 +1000,24 @@ export type SandboxFolder = {
   containerId: Id | null;
 };
 export type ListFoldersResponse = { items: SandboxFolder[] };
-export const createFolderBody = z.object({ name: z.string().min(1), parentFolderId: id.optional() });
+// A folder name is one line of human text. Trimmed (whitespace-only is empty,
+// not a name), bounded (T-364 made a NON-human the first thing that picks one,
+// and `sandbox_folders.name` is unbounded `text` so the database backstops
+// nothing), and free of control characters (a NUL byte is a Postgres error,
+// a newline is a folder list that lies about its own shape).
+export const folderName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  // a predicate rather than a regex: a control-character character class is
+  // exactly what eslint's no-control-regex exists to catch, and the intent
+  // reads better stated than encoded
+  .refine(
+    (value) => ![...value].some((ch) => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127),
+    'no control characters',
+  );
+export const createFolderBody = z.object({ name: folderName, parentFolderId: id.optional() });
 export type CreateFolderBody = z.infer<typeof createFolderBody>;
 export const moveFolderBody = z.object({ parentFolderId: id.nullable() });
 export type MoveFolderBody = z.infer<typeof moveFolderBody>;
@@ -1012,8 +1029,9 @@ export type MoveDocumentBody = z.infer<typeof moveDocumentBody>;
 // the structure is created under parentFolderId (or the sandbox root). Reusable
 // folder templates are a deliberate follow-up (build the free-form builder first).
 export type FolderStructureNode = { name: string; children?: FolderStructureNode[] };
+
 export const folderStructureNode: z.ZodType<FolderStructureNode> = z.lazy(() =>
-  z.object({ name: z.string().min(1), children: z.array(folderStructureNode).optional() }),
+  z.object({ name: folderName, children: z.array(folderStructureNode).optional() }),
 );
 export const createFolderStructureBody = z.object({
   parentFolderId: id.nullable().optional(),
@@ -1021,6 +1039,20 @@ export const createFolderStructureBody = z.object({
 });
 export type CreateFolderStructureBody = z.infer<typeof createFolderStructureBody>;
 export type CreateFolderStructureResult = { ok: true; created: number };
+
+// T-364 (S6, ADR-0027 propose-confirm) — the structure builder's agent: a
+// free-form ask becomes a CANDIDATE tree that fills the existing builder for a
+// super-user to edit and confirm. It proposes only: the deterministic
+// create-folder-structure endpoint above is still the one that writes, and the
+// agent reads no sandbox content (`Q-020` untouched) and writes nothing.
+export const proposeFolderStructureBody = z.object({ ask: z.string().min(1).max(2000) });
+export type ProposeFolderStructureBody = z.infer<typeof proposeFolderStructureBody>;
+// followUp carries the agent's question when the ask is too thin to shape a
+// tree from — an assistive agent may ask, and asking is not failing.
+export type ProposeFolderStructureResult = {
+  nodes: FolderStructureNode[];
+  followUp: string | null;
+};
 
 // Bind (ADR-0038, T-153) — the one-way transition; the API records a binding_event
 export const bindDocumentBody = z.object({ containerId: id });

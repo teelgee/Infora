@@ -15,6 +15,18 @@ const { db } = createDb();
 // every earlier spec sends no `lensId` and must keep the reply it was written
 // against.
 const router = fakeRouter((system) => {
+  // T-364 — the structure agent asks for JSON, not prose. Its system prompt is
+  // the tell, so the substrate can drive the propose-confirm path in a browser
+  // without a provider (the same reason the Lens branch below exists).
+  if (system.includes('folder structures')) {
+    return JSON.stringify({
+      nodes: [
+        { name: 'Environmental', children: [{ name: 'Ecology' }, { name: 'Noise' }] },
+        { name: 'Geotechnical', children: [{ name: 'Ground investigation' }] },
+      ],
+      followUp: null,
+    });
+  }
   const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
   const answer = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.';
   return reader === undefined ? answer : `${reader}. ${answer}`;

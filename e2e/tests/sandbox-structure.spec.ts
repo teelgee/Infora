@@ -94,3 +94,36 @@ test('the builder proposes a structure from the plan’s disciplines — editabl
   await builder.getByRole('button', { name: 'Cancel' }).click();
   await expect(builder).toBeHidden();
 });
+
+// T-364 (S6, ADR-0027 propose-confirm) — the agent half, driven in the browser
+// against the deterministic substrate: a free-form ask fills the SAME builder,
+// the super user edits it, and the existing deterministic endpoint creates it.
+test('the builder’s agent proposes a tree from a free-form ask; the super user edits then confirms', async ({ page }) => {
+  await loginAs(page, SEEDED.consultant);
+  await page.getByRole('link', { name: /Sandbox/ }).click();
+
+  await page.getByRole('button', { name: 'Sandbox' }).click();
+  const sb = page.getByRole('dialog');
+  await sb.getByPlaceholder('e.g. Ecology working area').fill(`Agent e2e ${Date.now()}`);
+  await sb.getByRole('button', { name: 'Next' }).click();
+  await sb.getByRole('button', { name: 'Create sandbox' }).click();
+  await expect(sb).toBeHidden();
+
+  await page.getByRole('button', { name: /Folder structure/ }).click();
+  const builder = page.getByRole('dialog');
+  await builder.getByPlaceholder(/Describe the structure/).fill('one area per discipline, survey and reporting inside each');
+  // exact: the plan-seed button (T-363) is also named 'Propose from the plan…'
+  await builder.getByRole('button', { name: 'Propose', exact: true }).click();
+
+  // proposed into the builder — nothing created yet, and it is editable
+  const names = builder.getByPlaceholder('Folder name');
+  await expect(names.first()).toHaveValue('Environmental');
+  await expect(page.getByRole('button', { name: 'Environmental', exact: true })).toHaveCount(0);
+  await names.first().fill('Environmental — renamed by hand');
+
+  await builder.getByRole('button', { name: /Create \d+ folders/ }).click();
+  await expect(builder).toBeHidden();
+  // the confirmed tree is what landed, edit and all
+  await expect(page.getByRole('button', { name: 'Environmental — renamed by hand', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Geotechnical', exact: true })).toBeVisible();
+});

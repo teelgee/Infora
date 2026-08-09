@@ -101,6 +101,18 @@ export function buildApp(deps: AppDeps) {
       key: (c) => c.get('user')?.id,
     }),
   );
+  // T-364's structure proposal invokes the same paid model call under the same
+  // economics, so it carries the same throttle — an embedded assistive agent is
+  // not a cheaper kind of run just because it has no Run record
+  app.use(
+    '/sandboxes/:sandboxId/folder-structure/proposal',
+    rateLimit({
+      limit: deps.rateLimits?.runsPerMinute ?? 30,
+      windowMs: 60_000,
+      methods: ['POST'],
+      key: (c) => c.get('user')?.id,
+    }),
+  );
 
   // Liveness probe (T-219) — sessionless, DB-pinging
   app.route('/', healthRoutes(deps));
@@ -147,8 +159,9 @@ export function buildApp(deps: AppDeps) {
   // (ADR-0018): create/list/open (T-051), suggestions read + manual PATCH (T-082)
   app.route('/', sandboxRoutes(deps));
 
-  // Sandboxes, participant scope, folders, bind (Slice A2, ADR-0036/0038) — T-153
-  app.route('/', sandboxRoutes2(deps));
+  // Sandboxes, participant scope, folders, bind (Slice A2, ADR-0036/0038) — T-153.
+  // Carries the router for T-364's structure-proposal agent (propose only).
+  app.route('/', sandboxRoutes2({ db: deps.db, router: deps.router }));
 
   // Attached-source working set on a conversation (Slice A2, ADR-0022) — T-154
   app.route('/', attachedSourceRoutes(deps));
