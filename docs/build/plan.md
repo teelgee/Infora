@@ -538,3 +538,5 @@ restated.
 **Breadth surfaces** *(key: Slice G)* *(bucket A, reference-decidable).* Workspace home vs project home layout, the owner/client portfolio "control tower", programme views, mobile scope.
 
 **Connectors** *(key: Slice H)* *(deferred until the wedge is proven).* Integrate-configuration handover to an incumbent DMS; spatial/CAD/BIM by reference.
+
+**Organisation-level sandbox structure templates** *(deferred 2026-08-09, the DMS walkthrough session, S6; gate: its own design pass).* Save a confirmed folder tree as the organisation's reusable template and offer it on the next project — the ProjectWise standard practice. Deliberately not ticketed with the structure-builder agent: a template is **org-context knowledge, not sandbox configuration**, and where templates live, who edits them and how they travel between projects deserves its own pass before anything is built. Design context: ADR-0040's 2026-08-09 addendum names the deferral; the builder agent and the plan-discipline seed ship without it.
