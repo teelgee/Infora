@@ -208,3 +208,15 @@ are not recorded here.
   declares the revised passage; the promotion that creates vN+1 stamps
   `nextVersionId` on the change-declared responses in the same
   transaction. No-change responses stay unlinked by definition.
+- **2026-08-09 (T-359) — the import's verdict is whole-file, and its error
+  names the Excel row.** `PlanImportResult` / `PlanImportError` exist because
+  a batch-create act needs a batch-shaped answer: one failing row refuses the
+  lot (`failures[{row, problem}]`, the 1-based row the user sees on screen),
+  because a partial import would silently renumber everything after the bad
+  row — file order *is* numbering order (S3). `ignoredColumns` is in the
+  success shape so dropped role and reference-like columns are stated, never
+  silent — appointments must stay propose/confirm acts (ADR-0033), and saying
+  so beats a spreadsheet column quietly doing nothing. There is deliberately
+  no import body schema: the input is a file, transient by rule
+  (personal-data.md — its author/reviewer columns carry named people), so
+  no persisted contract type may carry its contents.

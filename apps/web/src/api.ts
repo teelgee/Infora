@@ -39,6 +39,7 @@ import type {
   ListWorkItemsResponse,
   MeResponse,
   PatchMeBody,
+  PlanImportResult,
   PlanRow,
   Resolution,
   ResolveSuggestionResponse,
@@ -392,6 +393,13 @@ export const api = {
   // navigation (the dev proxy hands navigations the SPA shell)
   downloadPlanTemplate: (projectId: string) =>
     downloadFile(`/projects/${projectId}/naming-scheme/template`),
+  // T-359 — the batch import off the template (S3): create-only, references
+  // generated in file order, whole-file verdict
+  importPlan: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm<PlanImportResult>(`/projects/${projectId}/plan/import`, form);
+  },
   namingProposals: (projectId: string) =>
     request<ListNamingProposalsResponse>(`/projects/${projectId}/naming-scheme/proposals`),
   proposeNaming: (projectId: string, body: string) =>

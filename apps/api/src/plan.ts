@@ -11,6 +11,7 @@ import { z } from 'zod';
 import {
   createPlanRowBody,
   grantAppointmentBody,
+  isCodeField,
   patchContainerBody,
   setDocumentOwnerBody,
   setPlanTitleBody,
@@ -22,6 +23,9 @@ import type {
   AppointmentGrant,
   DeliverableShare,
   GetPlanResponse,
+  PlanImportError,
+  PlanImportFailure,
+  PlanImportResult,
   PlanRow,
   ReviewerGrant,
 } from '@infora/contracts';
@@ -33,10 +37,13 @@ import { isLiveConfirmedReviewer } from './cycle';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
+import { composeReference, loadSchemeOrDefault, templateFields } from './naming';
+import { parseXlsx } from './xlsx';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
-const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
+const invalid = (c: Context, detail?: string) =>
+  c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
 const forbidden = (c: Context, detail: string) =>
   c.json({ error: 'forbidden', detail } satisfies ApiError, 403);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
@@ -252,6 +259,179 @@ export function planRoutes(deps: { db: Db }) {
       if (isUniqueViolation(error)) return conflict(c);
       throw error;
     }
+  });
+
+  // T-359 (S3) — batch-create from the T-358 template: create-only (adds rows,
+  // never amends or deletes), references generated in file order by the naming
+  // scheme, a reference-like column ignored, role columns dropped with a stated
+  // notice (appointments are propose/confirm acts, ADR-0033), and a whole-file
+  // verdict — one bad row refuses the lot, each failure naming its Excel row.
+  // The file is transient: parsed here, persisted nowhere, no run record
+  // (personal-data.md — its author/reviewer columns carry named people).
+  app.post('/projects/:projectId/plan/import', project, async (c) => {
+    const slice = c.get('slice');
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const body = await c.req.parseBody().catch(() => null);
+    const file = body?.file;
+    if (!(file instanceof File)) return invalid(c, 'file_required');
+    if (file.size > 5 * 1024 * 1024) return invalid(c, 'file_too_large');
+    const grid = parseXlsx(Buffer.from(await file.arrayBuffer()));
+    if (!grid || grid.length === 0) return invalid(c, 'unreadable_file');
+
+    const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
+    const fields = templateFields(scheme);
+    const roleFields = scheme.fields.filter((f) => f.role);
+    const norm = (v: string) => v.replace(/\u00a0/g, ' ').trim().toLowerCase();
+    const byHeader = new Map<string, (typeof fields)[number]>();
+    for (const f of fields) {
+      // first field wins: the synthetic Title heads the list, so a metadata
+      // field merely labelled "Title" cannot hijack the title mapping
+      if (!byHeader.has(norm(f.label))) byHeader.set(norm(f.label), f);
+      if (!byHeader.has(norm(f.key))) byHeader.set(norm(f.key), f);
+    }
+
+    const header = grid[0]!;
+    const columns: ({ kind: 'field'; field: (typeof fields)[number] } | { kind: 'ignored' })[] = [];
+    const ignoredColumns: string[] = [];
+    const mappedKeys = new Set<string>();
+    for (const cell of header) {
+      const name = norm(cell);
+      const field = name ? byHeader.get(name) : undefined;
+      if (field) {
+        // two columns mapping to one field is ambiguous, not a last-wins race
+        if (mappedKeys.has(field.key)) return invalid(c, 'duplicate_columns');
+        mappedKeys.add(field.key);
+        columns.push({ kind: 'field', field });
+      } else {
+        columns.push({ kind: 'ignored' });
+        if (name) {
+          const role = roleFields.find((f) => norm(f.label) === name || norm(f.key) === name);
+          ignoredColumns.push(
+            role ? `${cell.trim()} (appointments are made on the plan, never imported)` : cell.trim(),
+          );
+        }
+      }
+    }
+    if (!mappedKeys.has('title')) return invalid(c, 'title_column_required');
+
+    // validate every data row before creating anything — the batch is one act
+    const codeFields = scheme.fields.filter((f) => isCodeField(f) && !f.isSerial && f.type !== 'serial');
+    const failures: PlanImportFailure[] = [];
+    const parsedRows: { excelRow: number; title: string; values: Record<string, string>; metadata: Record<string, string> }[] = [];
+    grid.slice(1).forEach((cells, i) => {
+      const excelRow = i + 2; // 1-based, after the header — the row Excel shows
+      if (cells.every((v) => v === '' || v === undefined)) return; // blank rows are not rows
+      let title = '';
+      const values: Record<string, string> = {};
+      const metadata: Record<string, string> = {};
+      columns.forEach((col, columnIndex) => {
+        if (col.kind !== 'field') return;
+        const value = (cells[columnIndex] ?? '').trim();
+        if (col.field.key === 'title') title = value;
+        else if (value !== '') {
+          values[col.field.key] = value;
+          if (!isCodeField(col.field)) metadata[col.field.key] = value;
+          // discipline is a code field but also surfaced at-a-glance (T-178) —
+          // the single-create path copies it into metadata, so the import must too
+          if (col.field.key === 'discipline') metadata['discipline'] = value;
+        }
+      });
+      if (title === '') failures.push({ row: excelRow, problem: 'Title is empty' });
+      for (const f of codeFields) {
+        const v = values[f.key];
+        if (v === undefined) failures.push({ row: excelRow, problem: `${f.label} is empty` });
+        else if (f.allowedValues && f.allowedValues.length > 0 && !f.allowedValues.includes(v)) {
+          failures.push({ row: excelRow, problem: `${f.label}: "${v}" is not one of the scheme's codes` });
+        }
+      }
+      for (const f of fields) {
+        if (isCodeField(f) || f.key === 'title') continue;
+        const v = metadata[f.key];
+        if (f.required && v === undefined) {
+          failures.push({ row: excelRow, problem: `${f.label} is required` });
+        }
+        // the scheme's enums bind metadata exactly as they bind code values —
+        // the template advertises the dropdown, so the import enforces it
+        if (v !== undefined && f.allowedValues && f.allowedValues.length > 0 && !f.allowedValues.includes(v)) {
+          failures.push({ row: excelRow, problem: `${f.label}: "${v}" is not one of the scheme's codes` });
+        }
+      }
+      parsedRows.push({ excelRow, title, values, metadata });
+    });
+    if (failures.length > 0) {
+      return c.json({ error: 'invalid', detail: 'rows', failures } satisfies PlanImportError, 400);
+    }
+    if (parsedRows.length === 0) return invalid(c, 'no_rows');
+
+    // create in file order — file order IS numbering order (S3). Serials are
+    // allocated per series up front, each series' row touched once in sorted
+    // order (two concurrent imports touching the same series pair cannot
+    // deadlock on opposite orderings), then assigned to rows in file order.
+    const seriesCount = new Map<string, number>();
+    const rowSeries = parsedRows.map((row) => {
+      const { seriesKey } = composeReference(scheme, row.values, 0);
+      seriesCount.set(seriesKey, (seriesCount.get(seriesKey) ?? 0) + 1);
+      return seriesKey;
+    });
+    let created: ContainerRow[];
+    try {
+      created = await deps.db.transaction(async (tx) => {
+        const nextInSeries = new Map<string, number>();
+        for (const seriesKey of [...seriesCount.keys()].sort()) {
+          const count = seriesCount.get(seriesKey)!;
+          const [allocated] = await tx
+            .insert(s.namingSerials)
+            .values({
+              projectId: slice.projectId,
+              organisationId: slice.organisationId,
+              seriesKey,
+              nextSerial: 1 + count,
+            })
+            .onConflictDoUpdate({
+              target: [s.namingSerials.projectId, s.namingSerials.organisationId, s.namingSerials.seriesKey],
+              set: { nextSerial: sql`${s.namingSerials.nextSerial} + ${count}` },
+            })
+            .returning({ next: s.namingSerials.nextSerial });
+          nextInSeries.set(seriesKey, allocated!.next - count);
+        }
+        const containers: ContainerRow[] = [];
+        for (const [i, row] of parsedRows.entries()) {
+          const seriesKey = rowSeries[i]!;
+          const serial = nextInSeries.get(seriesKey)!;
+          nextInSeries.set(seriesKey, serial + 1);
+          const { reference } = composeReference(scheme, row.values, serial);
+          const [container] = await tx
+            .insert(s.containers)
+            .values({
+              projectId: slice.projectId,
+              producingOrganisationId: slice.organisationId,
+              documentReference: reference,
+              metadata: row.metadata,
+            })
+            .returning();
+          await tx.insert(s.workItems).values({
+            projectId: slice.projectId,
+            type: 'document_production',
+            title: row.title,
+            status: 'planned',
+            containerId: container!.id,
+          });
+          containers.push(container!);
+        }
+        return containers;
+      });
+    } catch (error) {
+      // a hand-created row can already hold a reference this import composes
+      // (references are free strings on the single-create path) — a conflict,
+      // not an unreadable file; serials roll back with the transaction
+      if (isUniqueViolation(error)) {
+        return c.json({ error: 'conflict', detail: 'reference_exists' } satisfies ApiError, 409);
+      }
+      throw error;
+    }
+
+    const items = await toPlanRows(deps.db, created);
+    return c.json({ created: created.length, items, ignoredColumns } satisfies PlanImportResult, 201);
   });
 
   return app;

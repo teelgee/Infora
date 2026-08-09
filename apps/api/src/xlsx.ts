@@ -86,7 +86,13 @@ function unzipEntry(zip: Buffer, wanted: string): Buffer | null {
       const localExtraLength = zip.readUInt16LE(localOffset + 28);
       const dataStart = localOffset + 30 + localNameLength + localExtraLength;
       const payload = zip.subarray(dataStart, dataStart + compressedSize);
-      return method === 8 ? inflateRawSync(payload) : Buffer.from(payload);
+      if (method !== 8) return Buffer.from(payload);
+      try {
+        // bounded inflate: a crafted entry must not balloon KBs into GBs
+        return inflateRawSync(payload, { maxOutputLength: 32 * 1024 * 1024 });
+      } catch {
+        return null;
+      }
     }
     offset += 46 + nameLength + extraLength + commentLength;
   }
@@ -230,8 +236,10 @@ export function parseXlsx(bytes: Buffer): string[][] | null {
   const rows: string[][] = [];
   for (const rowMatch of sheet.toString('utf8').matchAll(/<row\s([^>]*)>([\s\S]*?)<\/row>/g)) {
     // honour the row's r attribute: Excel omits blank rows from the XML, and
-    // collapsing them would misnumber every row beneath one
+    // collapsing them would misnumber every row beneath one. A row reference
+    // beyond any plausible plan refuses the file rather than densifying to it.
     const rowRef = rowMatch[1]!.match(/r="(\d+)"/);
+    if (rowRef && Number(rowRef[1]) > 100_000) return null;
     if (rowRef) while (rows.length < Number(rowRef[1]) - 1) rows.push([]);
     const cells: string[] = [];
     for (const cellMatch of rowMatch[2]!.matchAll(/<c\s([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g)) {

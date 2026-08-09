@@ -21,6 +21,7 @@ import type {
 } from './shared';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
+import type { ApiError } from './errors';
 
 const id = z.uuid();
 
@@ -543,6 +544,18 @@ export const patchContainerBody = z.object({
   metadata: z.record(z.string(), z.unknown()),
 });
 export type PatchContainerBody = z.infer<typeof patchContainerBody>;
+
+// T-359 (S3) — the plan batch import: a create-only act off the T-358 template.
+// References are generated in file order, never read from the file; a whole-file
+// verdict — any failing row refuses the lot, each failure naming the Excel row
+// the user sees. Role-mapped and unrecognised columns are dropped and named.
+export type PlanImportFailure = { row: number; problem: string };
+export type PlanImportResult = {
+  created: number;
+  items: PlanRow[];
+  ignoredColumns: string[];
+};
+export type PlanImportError = ApiError & { failures?: PlanImportFailure[] };
 
 // the planned deliverable's title (a work-item field) — a producing-org
 // super-user act, amendable at any time (T-201)

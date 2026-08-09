@@ -6,14 +6,23 @@
 // a planned container; status is event-driven. Grounded in the ISO-19650 CDE
 // register pattern and the ProjectWise friction map (B1 no-wizard, B4 attributes
 // surfaced without manual column config).
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
-import type { AppointmentGrant, MeResponse, NamingScheme, PlanRow, RosterEntry } from '@infora/contracts';
+import type {
+  AppointmentGrant,
+  MeResponse,
+  NamingScheme,
+  PlanImportError,
+  PlanImportFailure,
+  PlanImportResult,
+  PlanRow,
+  RosterEntry,
+} from '@infora/contracts';
 import { isCodeField, optionLabel } from '@infora/contracts';
-import { FileCog, FileText, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
@@ -523,6 +532,41 @@ export function PlanScreen() {
   const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
   const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
   const [query, setQuery] = useState('');
+  // T-359 — the batch import off the T-358 template (create-only, whole-file verdict)
+  const importInput = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<PlanImportResult | null>(null);
+  const [importFailures, setImportFailures] = useState<PlanImportFailure[] | null>(null);
+  const [importProblem, setImportProblem] = useState<string | null>(null);
+
+  async function importFile(file: File) {
+    if (importing) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportFailures(null);
+    setImportProblem(null);
+    try {
+      const result = await api.importPlan(projectId, file);
+      setImportResult(result);
+      load();
+    } catch (e) {
+      const body = e instanceof RequestError ? (e.body as PlanImportError | null) : null;
+      if (body?.failures?.length) setImportFailures(body.failures);
+      else if (body?.detail === 'title_column_required')
+        setImportProblem('The file has no Title column — start from the schema’s Excel template.');
+      else if (body?.detail === 'duplicate_columns')
+        setImportProblem('Two columns map to the same field — remove the duplicate and try again.');
+      else if (body?.detail === 'no_rows') setImportProblem('The file has no deliverable rows.');
+      else if (body?.detail === 'reference_exists')
+        setImportProblem('A composed reference already exists on this project — nothing was added.');
+      else if (body?.detail === 'file_too_large') setImportProblem('The file is over 5 MB.');
+      else if (e instanceof RequestError && e.status === 403)
+        setImportProblem('Importing the plan is a super-user act.');
+      else setImportProblem('That file could not be read as a plan spreadsheet.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const load = useCallback(() => void api.plan(projectId).then((res) => setRows(res.items)), [projectId]);
   useEffect(load, [load]);
@@ -631,11 +675,77 @@ export function PlanScreen() {
           <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
         </Button>
         {isSuper && (
-          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-            <Plus size={14} strokeWidth={2} /> New deliverable
-          </Button>
+          <>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".xlsx"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void importFile(file);
+              }}
+            />
+            <Button
+              variant="quiet"
+              size="sm"
+              disabled={importing}
+              onClick={() => importInput.current?.click()}
+            >
+              <FileUp size={14} strokeWidth={2} /> {importing ? 'Importing…' : 'Import from Excel'}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+              <Plus size={14} strokeWidth={2} /> New deliverable
+            </Button>
+          </>
         )}
       </div>
+
+      {importResult && (
+        <p className="page-sub" style={{ margin: '0 0 10px' }}>
+          <Badge tone="success">Imported</Badge>{' '}
+          {importResult.created} deliverable{importResult.created === 1 ? '' : 's'} added — references
+          generated in file order.
+          {importResult.ignoredColumns.length > 0 &&
+            ` Ignored columns: ${importResult.ignoredColumns.join(', ')}.`}
+        </p>
+      )}
+      {importProblem && (
+        <p className="page-sub" style={{ margin: '0 0 10px' }}>
+          <Badge tone="danger">Import refused</Badge> {importProblem}
+        </p>
+      )}
+      {importFailures && (
+        <Modal
+          open
+          onClose={() => setImportFailures(null)}
+          title="Import refused — nothing was added"
+          footer={<Button variant="primary" onClick={() => setImportFailures(null)}>Close</Button>}
+        >
+          <p style={{ marginTop: 0 }}>
+            Every row must pass before any row is created. Fix these and import the file again:
+          </p>
+          <Table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  <th>Problem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importFailures.map((f, i) => (
+                  <tr key={i}>
+                    <td className="mono">{f.row}</td>
+                    <td>{f.problem}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Table>
+        </Modal>
+      )}
 
       <Table>
         <table>
