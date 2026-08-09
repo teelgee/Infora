@@ -1,8 +1,8 @@
 # S10 — The agent action model: three task natures (ruled 2026-08-09, executes after the DMS build)
 
-> Continuation of the 2026-08-09 DMS directed session (S1–S9 in
-> [2026-08-09-dms-walkthrough-session.md](2026-08-09-dms-walkthrough-session.md)),
-> ruled after that file was cut for execution. **Deliberately NOT part of the
+> Continuation of the 2026-08-09 DMS directed session (S1–S9, whose record
+> now lives in [grill-history.md](grill-history.md) — the standalone session
+> file was absorbed on execution), ruled after that file was cut. **Deliberately NOT part of the
 > S1–S9 execution passes** — this executes as its own ADR-0027 revision once
 > the current build lands. Until then it binds nothing; T-337 and the S6
 > builder stand exactly as ruled.
