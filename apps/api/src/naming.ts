@@ -11,6 +11,7 @@ import {
   defaultDeliverableSchema,
   generateReferenceBody,
   isCodeField,
+  isColumnableField,
   proposeNamingAdditionBody,
   resolveNamingProposalBody,
   upsertNamingSchemeBody,
@@ -84,12 +85,10 @@ export async function loadSchemeOrDefault(
 // drafted in Excel — references are generated at import), and no role columns
 // (appointments are propose/confirm acts, never a spreadsheet side-effect).
 export function templateFields(scheme: { fields: NamingSchemeField[] }): NamingSchemeField[] {
-  // serial and role exclusion applies whichever way the field is flagged: an
-  // isSerial flag, a bare type:'serial', or a role field forced inCode — none
-  // of them earns a column. A scheme's own 'title' key folds into the
-  // synthetic Title column rather than duplicating it.
-  const isSerialish = (f: NamingSchemeField) => !!f.isSerial || f.type === 'serial';
-  const eligible = scheme.fields.filter((f) => !isSerialish(f) && !f.role && f.key !== 'title');
+  // isColumnableField is the shared exclusion (contracts): serial either way it
+  // is flagged, role slots, and a scheme's own 'title' key (which folds into
+  // the synthetic Title column rather than duplicating it).
+  const eligible = scheme.fields.filter(isColumnableField);
   return [
     { key: 'title', label: 'Title' },
     ...eligible.filter(isCodeField),

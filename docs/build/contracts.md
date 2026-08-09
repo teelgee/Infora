@@ -220,3 +220,11 @@ are not recorded here.
   no import body schema: the input is a file, transient by rule
   (personal-data.md — its author/reviewer columns carry named people), so
   no persisted contract type may carry its contents.
+- **2026-08-09 (T-360) — the plan read carries the organisation's column
+  standard, not the user's.** `GetPlanResponse.planColumns` rides the plan
+  read rather than a preferences read because the ruling is *org-standard,
+  locked, no personal overrides* (S3): the value is a fact about the
+  requester's membership — the (organisation, project) grain, stored beside
+  `ack_mode` — and putting it anywhere near `users.preferences` would invite
+  the per-user override the owner explicitly refused. Null means the default
+  set, so a project that never configures columns pays nothing.

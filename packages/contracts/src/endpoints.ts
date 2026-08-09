@@ -531,7 +531,31 @@ export type PlanRow = {
   // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers
   sharedWith: Array<{ organisationId: Id; organisationName: string }>;
 };
-export type GetPlanResponse = { items: PlanRow[] };
+// planColumns is the requester organisation's org-standard extra column set
+// (T-360, S3): schema field keys, fixed by that org's super user for everyone
+// in the organisation — locked, no personal overrides; null = the default set
+// (an empty selection is normalised to null, never stored as []).
+export type GetPlanResponse = { items: PlanRow[]; planColumns: string[] | null };
+
+// One predicate for "may this schema field be a plan column" — shared by the
+// template export, the column write's legal set and the config surface, so the
+// three cannot drift: never a role slot, never a serial (either flagging), and
+// never a second Title.
+export function isColumnableField(f: NamingSchemeField): boolean {
+  return !f.role && !f.isSerial && f.type !== 'serial' && f.key !== 'title';
+}
+
+export const updatePlanColumnsBody = z.object({
+  columns: z
+    .array(z.string().min(1))
+    .max(12)
+    .nullable()
+    .refine((cols) => cols === null || new Set(cols).size === cols.length, {
+      message: 'duplicate column keys',
+    }),
+});
+export type UpdatePlanColumnsBody = z.infer<typeof updatePlanColumnsBody>;
+export type UpdatePlanColumnsResponse = { columns: string[] | null };
 
 export const createPlanRowBody = z.object({
   documentReference: z.string().min(1),

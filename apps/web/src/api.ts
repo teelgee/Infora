@@ -168,6 +168,12 @@ export const api = {
     request<ListRosterResponse>(`/projects/${projectId}/participants`),
   // T-118/T-119 — the deliverable plan (ADR-0008/0033)
   plan: (projectId: string) => request<GetPlanResponse>(`/projects/${projectId}/plan`),
+  // T-360 — the org-standard plan columns (locked; null = default set)
+  setPlanColumns: (projectId: string, columns: string[] | null) =>
+    request<{ columns: string[] | null }>(`/projects/${projectId}/plan/columns`, {
+      method: 'PUT',
+      body: JSON.stringify({ columns }),
+    }),
   createPlanRow: (
     projectId: string,
     documentReference: string,

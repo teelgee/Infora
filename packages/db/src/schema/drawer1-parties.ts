@@ -291,6 +291,11 @@ export const memberships = pgTable(
       (): AnyPgColumn => participants.id,
     ),
     addedByParticipantId: uuid('added_by_participant_id').references(() => participants.id),
+    // the org-standard plan column set (T-360, S3): schema field keys shown as
+    // extra plan-table columns for every member of this organisation on this
+    // project — locked, no personal overrides; null = the default set. Per
+    // (organisation, project) exactly like ack_mode.
+    planColumns: jsonb('plan_columns').$type<string[]>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -59,7 +59,11 @@ recurring disciplines, used throughout and worth naming once:
 **Shape:** [drawer1-parties.ts](../../packages/db/src/schema/drawer1-parties.ts)
 
 The access spine — Organisation, User, Project, Membership, Participant — with
-three decisions carried in its shape. **A Participant is an interval, never a
+three decisions carried in its shape. The Membership row is also where
+per-organisation, project-scoped configuration lives — `ack_mode` (ADR-0035)
+and the org-standard plan column set (`plan_columns`, T-360): settings one
+organisation's super user fixes for that organisation on that project, which
+is exactly the (organisation, project) grain and never a personal preference. **A Participant is an interval, never a
 deleted row**: removal closes `removed_at`, auto-revoking live grants from that
 moment while past rounds keep their attribution (ADR-0033). **The roster is
 project-visible** — the wall hides work, never presence. And **the user

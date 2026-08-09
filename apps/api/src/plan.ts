@@ -12,10 +12,12 @@ import {
   createPlanRowBody,
   grantAppointmentBody,
   isCodeField,
+  isColumnableField,
   patchContainerBody,
   setDocumentOwnerBody,
   setPlanTitleBody,
   shareDeliverableBody,
+  updatePlanColumnsBody,
   withdrawContainerBody,
 } from '@infora/contracts';
 import type {
@@ -28,6 +30,7 @@ import type {
   PlanImportResult,
   PlanRow,
   ReviewerGrant,
+  UpdatePlanColumnsResponse,
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -224,7 +227,49 @@ export function planRoutes(deps: { db: Db }) {
       .from(s.containers)
       .where(and(...where))
       .orderBy(asc(s.containers.documentReference));
-    return c.json({ items: await toPlanRows(deps.db, rows) } satisfies GetPlanResponse);
+    // the requester's organisation's column standard rides the plan read —
+    // org-standard and locked (T-360), so it is the membership's, never the user's
+    const [membership] = await deps.db
+      .select({ planColumns: s.memberships.planColumns })
+      .from(s.memberships)
+      .where(
+        and(
+          eq(s.memberships.projectId, slice.projectId),
+          eq(s.memberships.organisationId, slice.organisationId),
+        ),
+      )
+      .limit(1);
+    return c.json({
+      items: await toPlanRows(deps.db, rows),
+      planColumns: membership?.planColumns ?? null,
+    } satisfies GetPlanResponse);
+  });
+
+  // T-360 (S3) — the org-standard plan columns: set by the organisation's super
+  // user for that organisation on this project; every key must be a real,
+  // non-role schema field. Null restores the default set.
+  app.put('/projects/:projectId/plan/columns', project, async (c) => {
+    const slice = c.get('slice');
+    if (!canEditPlan(slice)) return forbidden(c, 'super_user_required');
+    const body = updatePlanColumnsBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    // an empty selection means the default set — one representation, null
+    const columns = body.data.columns && body.data.columns.length > 0 ? body.data.columns : null;
+    if (columns) {
+      const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
+      const legal = new Set(scheme.fields.filter(isColumnableField).map((f) => f.key));
+      if (columns.some((key) => !legal.has(key))) return invalid(c, 'unknown_column');
+    }
+    await deps.db
+      .update(s.memberships)
+      .set({ planColumns: columns })
+      .where(
+        and(
+          eq(s.memberships.projectId, slice.projectId),
+          eq(s.memberships.organisationId, slice.organisationId),
+        ),
+      );
+    return c.json({ columns } satisfies UpdatePlanColumnsResponse);
   });
 
   // A producing-organisation act (ADR-0033): the planned container + its

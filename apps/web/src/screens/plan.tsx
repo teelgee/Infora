@@ -18,8 +18,8 @@ import type {
   PlanRow,
   RosterEntry,
 } from '@infora/contracts';
-import { isCodeField, optionLabel } from '@infora/contracts';
-import { FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
+import { Columns3, FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Drawer, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
 import type { BadgeTone } from '@infora/ui';
 import { api, RequestError } from '../api';
@@ -517,6 +517,90 @@ function DeliverableDetail(props: {
   );
 }
 
+// T-360 (S3) — the org-standard plan columns: which schema fields ride the plan
+// table as extra columns for EVERY member of this organisation. Locked by
+// design — there is no personal override, which is why the control is
+// super-user-only and the copy says who it binds.
+function PlanColumnsModal(props: {
+  projectId: string;
+  scheme: NamingScheme | null;
+  current: string[] | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const available = props.scheme?.fields.filter(isColumnableField) ?? [];
+  const [selected, setSelected] = useState<Set<string>>(new Set(props.current ?? []));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(columns: string[] | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setPlanColumns(props.projectId, columns);
+      props.onSaved();
+    } catch {
+      setError('Could not save the columns — the schema may have changed; reload and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title="Plan columns — organisation standard"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button variant="quiet" disabled={busy} onClick={() => void save(null)}>
+            Reset to default
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy}
+            onClick={() => {
+              // scheme order, not click order — the table reads like the schema
+              const columns = available.filter((f) => selected.has(f.key)).map((f) => f.key);
+              void save(columns.length > 0 ? columns : null);
+            }}
+          >
+            Save for the organisation
+          </Button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0, color: 'var(--text-muted)', fontSize: 13 }}>
+        Extra columns shown to everyone in your organisation on this project — the standard is set
+        here and applies to all members; there are no personal overrides.
+      </p>
+      {available.map((f) => (
+        <label key={f.key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0' }}>
+          <input
+            type="checkbox"
+            checked={selected.has(f.key)}
+            onChange={(e) => {
+              const next = new Set(selected);
+              if (e.target.checked) next.add(f.key);
+              else next.delete(f.key);
+              setSelected(next);
+            }}
+          />
+          <span>{f.label}</span>
+          <span className="mono" style={{ color: 'var(--text-faint)', fontSize: 12 }}>
+            {f.key}
+          </span>
+        </label>
+      ))}
+      {available.length === 0 && <p>No schema fields available to show.</p>}
+      {error && <p style={{ color: 'var(--danger, #b3261e)', fontSize: 13 }}>{error}</p>}
+    </Modal>
+  );
+}
+
 export function PlanScreen() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
@@ -568,7 +652,18 @@ export function PlanScreen() {
     }
   }
 
-  const load = useCallback(() => void api.plan(projectId).then((res) => setRows(res.items)), [projectId]);
+  // T-360 — the org-standard extra columns (schema field keys; null = default)
+  const [planColumns, setPlanColumns] = useState<string[] | null>(null);
+  const [editingColumns, setEditingColumns] = useState(false);
+
+  const load = useCallback(
+    () =>
+      void api.plan(projectId).then((res) => {
+        setRows(res.items);
+        setPlanColumns(res.planColumns);
+      }),
+    [projectId],
+  );
   useEffect(load, [load]);
   useEffect(() => void api.namingScheme(projectId).then(setScheme), [projectId]);
   useEffect(() => void api.participants(projectId).then((r) => setRoster(r.items)), [projectId]);
@@ -583,6 +678,18 @@ export function PlanScreen() {
         (r.workItem?.title ?? '').toLowerCase().includes(q),
     );
   }, [rows, query]);
+
+  // the extra columns the org standard names, resolved against the schema —
+  // an unknown key (schema edited since) renders nothing rather than breaking
+  const extraFields = useMemo(
+    () =>
+      (planColumns ?? []).flatMap((key) => {
+        const field = scheme?.fields.find((f) => f.key === key);
+        return field ? [field] : [];
+      }),
+    [planColumns, scheme],
+  );
+  const baseCols = (isOwner ? 7 : 6) + extraFields.length;
 
   return (
     <div className="content">
@@ -675,6 +782,11 @@ export function PlanScreen() {
           <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
         </Button>
         {isSuper && (
+          <Button variant="quiet" size="sm" onClick={() => setEditingColumns(true)}>
+            <Columns3 size={14} strokeWidth={2} /> Columns
+          </Button>
+        )}
+        {isSuper && (
           <>
             <input
               ref={importInput}
@@ -716,6 +828,18 @@ export function PlanScreen() {
           <Badge tone="danger">Import refused</Badge> {importProblem}
         </p>
       )}
+      {editingColumns && (
+        <PlanColumnsModal
+          projectId={projectId}
+          scheme={scheme}
+          current={planColumns}
+          onClose={() => setEditingColumns(false)}
+          onSaved={() => {
+            setEditingColumns(false);
+            load();
+          }}
+        />
+      )}
       {importFailures && (
         <Modal
           open
@@ -753,6 +877,9 @@ export function PlanScreen() {
             <tr>
               <th>Reference</th>
               <th>Title</th>
+              {extraFields.map((f) => (
+                <th key={f.key}>{f.label}</th>
+              ))}
               {isOwner && <th>Producer</th>}
               <th>Status</th>
               <th>Revision</th>
@@ -764,7 +891,7 @@ export function PlanScreen() {
             {rows === null &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={`sk-${i}`}>
-                  <td colSpan={isOwner ? 7 : 6}>
+                  <td colSpan={baseCols}>
                     <Skeleton height={18} />
                   </td>
                 </tr>
@@ -782,6 +909,15 @@ export function PlanScreen() {
                   <span className="mono">{r.documentReference}</span>
                 </td>
                 <td>{r.workItem?.title ?? <span style={{ color: 'var(--text-muted)' }}>Reference material</span>}</td>
+                {extraFields.map((f) => {
+                  const raw = r.metadata[f.key];
+                  const value = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : null;
+                  return (
+                    <td key={f.key} title={value !== null ? optionLabel(value, f.allowedValueLabels) : undefined}>
+                      {value ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}
+                    </td>
+                  );
+                })}
                 {isOwner && <td style={{ color: 'var(--text-muted)' }}>{r.producingOrganisationName}</td>}
                 <td>
                   {(() => {
@@ -802,7 +938,7 @@ export function PlanScreen() {
             ))}
             {rows !== null && filtered.length === 0 && (
               <tr>
-                <td colSpan={isOwner ? 7 : 6} style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={baseCols} style={{ color: 'var(--text-muted)' }}>
                   {rows.length === 0 ? 'No deliverables planned yet — add the first one.' : 'No matches.'}
                 </td>
               </tr>
