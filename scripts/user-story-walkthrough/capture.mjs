@@ -3,7 +3,10 @@
 // docs/architecture/user-stories.md against the running e2e substrate,
 // screenshotting each beat into ./shots/ (gitignored, full-res @2x).
 //
-// Prerequisites (see docs/architecture/user-stories-walkthrough.html footer):
+// Prerequisites (see docs/architecture/user-stories-walkthrough.html footer).
+// SEED FIRST, THEN START THE API — in that order, every time: the e2e server
+// builds an index at boot, so an API left running across a reseed serves a
+// stale one and this script fails in ways that look like selector rot.
 //   pnpm --filter @infora/db run seed                 # fresh world — the run mutates it
 //   PORT=3210 pnpm --filter @infora/api run start:e2e
 //   API_PROXY_TARGET=http://localhost:3210 pnpm --filter @infora/web exec vite --port 5273 --strictPort
@@ -12,6 +15,13 @@
 //   for f in scripts/user-story-walkthrough/shots/*.png; do
 //     sips --resampleWidth 1440 "$f" --out "docs/architecture/user-story-screens/$(basename $f)"; done
 // And rebuild the page:  node scripts/user-story-walkthrough/build.mjs
+//
+// AFTERWARDS: this run mutates the seeded world (it plans rows, plan-locks the
+// org sandbox, promotes and accepts a deliverable), so the e2e suite must be
+// re-run on a fresh seed with the API restarted before it means anything — the
+// same seed-then-start order as above. Every iteration of the capture needs the
+// same reset; re-running it against a world it has already been through fails
+// on the second bind.
 //
 // Slice Walkthrough (T-355, T-358–T-366) moved the product under the previous
 // capture, so this run also drives: the owner's schema screen (S1), the
