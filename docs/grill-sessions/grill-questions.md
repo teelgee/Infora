@@ -18,6 +18,17 @@ readable inside it.
 > [grill-history.md](grill-history.md) in the same commit**, leaving a one-line
 > pointer here. A ruling written out in full in this file is a bug.
 
+**A third file joined this folder on 2026-08-17: [parking-lot.md](parking-lot.md)
+(`P-###`).** It holds proposals that cannot be built **without amending an
+accepted ADR** — which is why they are not open questions and are not listed
+here: a `Q` is a gap the *current* model owes an answer to (two accepted ADRs
+disagreeing counts), while a `P` is a change *to* the model that nobody has
+agreed to make. ⚠ **Do not open it during a grill session unless the owner has
+named it.** Every entry is, by construction, a description of rules it would
+break, so reading one mid-session contaminates the session with positions the
+decision record does not hold. Nothing there may be cited, built against, or
+used to soften an ADR.
+
 The five artefacts divide the labour: `CONTEXT.md` is the **language**, the
 [overview](../architecture/infora-overview.md) is the **vision**, the component
 docs are the **structure**, `docs/architecture/adr/` holds the **decisions** — and this doc
@@ -25,7 +36,7 @@ is the **process log**.
 
 ## How to read an entry
 
-`Q-###` — title. **Next free number: Q-040** — **derive it, don't trust it:
+`Q-###` — title. **Next free number: Q-041** — **derive it, don't trust it:
 `pnpm run check:questions -- --next`** (T-343) scans this tracker,
 [grill-history.md](grill-history.md) *and* `git log`, and prints the next free
 number. Bump this line in the same commit that claims one; `pnpm run check`
@@ -144,6 +155,8 @@ this group that a ticket found by trying to build the thing.
 
 - ~~**Q-007 — The rulebook's channel.**~~ ✅ **Ruled 2026-08-01** → [ADR-0048](../architecture/adr/0048-the-checker-findings-not-prose.md): the rulebook guides in its entirety, and a finding may quote it **verbatim without citing it**. Record in [grill-history.md](grill-history.md).
 - **Q-029 — What an unentitled user is told, and whether it can be anything.** **[B]** · *Blocks: PERM-01's second half; the honesty half of every refusal a user meets.* Raised 2026-08-01 while authoring the eval seed set (T-259). The seed table specifies PERM-01 as *"a user with no Participant gets nothing, **and is told the question cannot be answered from what they can reach**"* — and the second half **cannot be built as written**. Denial and nonexistence read identically (contracts principle 4), so an unentitled requester gets `404`, and telling them "this cannot be answered from what you can reach" distinguishes a project they cannot reach from one that does not exist. That is the leak principle 4 exists to close, and it is not a small one on a platform whose product is a wall between competing consultancies: "which schemes does this firm work on" is commercially valuable and is exactly what the message would leak. **The fork is real in both directions.** A user who asks a reasonable question and gets a bare "not found" experiences a broken system, and the refusal-must-be-actionable principle applies everywhere else in the build (T-249's label refusal names both labels; T-246's grant refusal names the exclusion). **Candidate shapes to weigh:** (a) accept the bare refusal and carry the explanation in the *surface's* empty state, which knows only that this user has no projects and leaks nothing; (b) distinguish "you are a Participant of nothing at all" — which is an account fact the user already knows — from "you cannot reach *this* project", which is not; (c) an owner-configurable disclosure, which is how the underlying question is really "whose secret is it". **Stress test:** if (b) is admitted, a user removed from one project of several still learns the difference between the two cases the moment they compare, so the boundary is between *account-level* and *project-level* facts and not between phrasings. *(PERM-01 ships today asserting the refusal itself, which is the half that is buildable; the case file records why the other half is absent rather than dropping it silently.)*
+
+- **Q-040 — Issuing a document to someone with no Infora account.** **[A/B]** · *Blocks: the external-issue tickets, unminted per the Q/T boundary; [v1.md](../build/v1.md) now names the capability **in scope for the pilot**, so this is the only V1 capability whose shape is still open.* Raised 2026-08-17 (owner). **The user situation:** the project needs to issue a promoted deliverable to a party who is not on the project and never will be — a landowner, a consultation respondent, a supplier engaged for one piece of work. **Today there is no path at all:** ADR-0035 issues to an *organisation* holding a Membership, and ADR-0016's default-deny means no Membership is no visibility, full stop. **What the owner would see:** pick the deliverable, choose "issue externally", type an email address; the recipient receives a link and the file, and sees nothing else of the project — no roster, no library, no sandbox. **Recommendation:** a **third transmittal kind**, not a second issue-event — the audit facts are identical (sender, deliverable, version, purpose code, date), and forking the record would cost the single place "who was this issued to" is answerable. The recipient is a **recipient record** (name + email), never an Organisation or a Participant, so no Membership is created and no clause of the wall changes. The link serves **one named version** and expires; there is **no acknowledgement gate** — the download *is* the receipt, recorded — and supersede does not retract an issued link, because an issued document is a snapshot, which is the ISO 19650 position. **Personal data:** the recipient record is the first place the platform names a person who has no account — it lands in [personal-data.md](../build/personal-data.md) at ruling. **Stress test:** the recipient forwards the link, so "who received this" becomes a claim about who was *sent* it rather than who read it — is that weaker than the emailed PDF this replaces, which has the same property, or does hosting the file make Infora answerable for the difference? And on the producing side, ADR-0035's addendum shows a producer only that issues *occurred*, without the recipient list — so Org B would learn its deliverable had left the platform and never to whom.
 
 - ~~**Q-008 — The checker's output shape.**~~ ✅ **Ruled 2026-08-01** → [ADR-0048](../architecture/adr/0048-the-checker-findings-not-prose.md): **checking, not generative** — structured anchored findings, with an optional fix that rides the existing Suggestion mechanism and is never auto-applied. Record in [grill-history.md](grill-history.md).
 

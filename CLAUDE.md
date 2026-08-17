@@ -21,6 +21,15 @@ ethical wall, with grounded, cited AI drafting.
 `docs/build/plan-history.md` (closed slices) and
 `docs/grill-sessions/grill-history.md` (completed sessions, closed rulings).
 
+**Never load unless the owner names it** — `docs/grill-sessions/parking-lot.md`
+(`P-###`): proposals that cannot be built without **amending an accepted ADR**.
+Every entry contradicts the decision record by construction — that is its entry
+criterion — so an agent that reads one during a grill or a build session will
+produce work conflicting with both the ADRs and the built system, while
+sounding well-informed because it can cite a real file. It is not backlog, not
+design, and never a citation. Don't open it to "check if something is related";
+if a task seems to need it, stop and ask.
+
 ## Working rules
 
 - `pnpm run check` mirrors CI exactly (dep rules + lint + typecheck + tests).
@@ -46,6 +55,9 @@ ethical wall, with grounded, cited AI drafting.
   questions — never resolved inline. Derive the number with
   `pnpm run check:questions -- --next`, never by reading the counter line
   (T-343); `pnpm run check:tickets -- --next` is its equivalent for `T-###`.
+  A proposal that cannot be built **without amending an accepted ADR** is not
+  an open question — it is parked (`P-###`, `pnpm run check:parking -- --next`),
+  and only on the owner's instruction. Never park something to avoid ruling it.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
   Cite them, don't re-argue them.
 - One commit per ticket, `T-xxx: summary` style.
