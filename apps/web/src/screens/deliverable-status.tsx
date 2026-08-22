@@ -261,8 +261,11 @@ export function DeliverableStatusScreen() {
         <CycleStatusBar
           cycle={cycle}
           onAcknowledge={
-            // owner organisation, or a live confirmed reviewer (ADR-0051 addendum)
-            (isOwner || myConfirmedReviewer) && newestRound
+            // T-374 (ADR-0051 addendum, 2026-08-22, superseding T-351's): the
+            // LEAD reviewer, or the owner organisation's SUPER USER when the
+            // lead is away. Not a non-lead reviewer signing for a submission
+            // they do not run, and not an owner participant who is not elevated.
+            (myLeadReviewer || (isOwner && me.elevated)) && newestRound
               ? () => void act(() => api.acknowledgeRound(newestRound.id))
               : undefined
           }
@@ -273,7 +276,9 @@ export function DeliverableStatusScreen() {
             acknowledgementBlocked
               ? awaitingALead
                 ? 'No lead reviewer stands on this deliverable'
-                : 'The lead reviewer has not accepted the appointment yet'
+                : myAppointmentAnswerable
+                  ? 'Accept the lead reviewer appointment above first'
+                  : 'The lead reviewer has not accepted the appointment yet'
               : undefined
           }
         />

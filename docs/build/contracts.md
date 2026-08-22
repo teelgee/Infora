@@ -290,3 +290,13 @@ are not recorded here.
   `AppointmentGrant.grantedBy` came along because the undertaking card asks a
   named person to take on a duty, and a request to do that should say who is
   asking; the fact was already stored and merely unexposed.
+- **2026-08-22 (T-374) — the receipt's refusal names a role, not an
+  organisation.** `owner_organisation_or_reviewer_only` became
+  `lead_reviewer_or_owner_super_user_only`, and the rename is the whole ruling
+  in one string: the act is no longer decided by which organisation you belong
+  to but by whether you hold the live lead grant, with the elevated tier as the
+  away-lead fallback. Keeping the old code would have left every client
+  rendering a sentence about the owner organisation for a gate that no longer
+  consults it. No new type: the narrowing is entirely a guard, because the facts
+  it reads — `ReviewerGrant.isLead`, `acceptedAt`, and the requester's own
+  `elevated` — were all already on the wire.

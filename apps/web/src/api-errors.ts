@@ -34,6 +34,10 @@ const MESSAGES: Record<string, string> = {
   no_document_owner: 'The schema requires a document owner — set one on the Plan before promoting.',
   no_reviewer: 'The schema requires a confirmed reviewer — propose one on the Plan, then the owner confirms it.',
   no_lead_reviewer: 'This deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it.',
+  // T-374 — the receipt narrows to a single accountable receiver (ADR-0051
+  // addendum, 2026-08-22, superseding the 2026-08-06 widening)
+  lead_reviewer_or_owner_super_user_only:
+    'Only the lead reviewer acknowledges a submission — or a super user of the owner organisation, when the lead is away.',
   // T-372 — the appointee's own answer (ADR-0033 addendum §2)
   lead_reviewer_has_not_accepted:
     'The lead reviewer hasn’t accepted the appointment yet — nobody can acknowledge the submission until they do. If they’re away, name a different lead reviewer.',

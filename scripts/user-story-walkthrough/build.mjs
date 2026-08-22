@@ -244,8 +244,8 @@ const acts = [
         screen: 'Review · deliverable status',
         title: 'The submission is acknowledged into review',
         prose:
-          'Rachel was named lead reviewer in the plan, so the submission arrives to her. Acknowledging it opens the round for the review group — a recorded receipt with a name on it, not a formality. Who may fire it is wider than it looks and was deliberately made so: an addendum of 2026-08-06 extended the act from the owner organisation to any live confirmed reviewer, on the reasoning that gating on the owner alone would park a round behind a firm with no stake in its pace. The 2026-08-19 walk narrowed it again — to the lead reviewer alone, or the owner’s super user when the lead is away — which answers that reasoning rather than discarding it, because the lead reviewer may sit outside the owner organisation and fires the receipt in the ordinary case.',
-        adrs: ['ADR-0051'],
+          'Rachel was named lead reviewer in the plan and has accepted the appointment, so the submission is hers to receive. Acknowledging it opens the round for the review group — a recorded receipt with a name on it, not a formality. Who may fire it is narrower than the shot suggests, and deliberately so: the act belongs to the lead reviewer alone, or to a super user of the owner organisation when the lead is away. It was briefly wider — an addendum of 2026-08-06 extended it from the owner organisation to any live confirmed reviewer, because gating on the owner alone would park a round behind a firm with no stake in its pace — and the narrowing of 2026-08-22 answers that reasoning rather than discarding it: it does not gate on the owner organisation either, but on the lead reviewer, who may sit outside it and who fires the receipt in the ordinary case. What went is a non-lead reviewer signing for a submission they do not run. The override covers the receipt and never the undertaking: until a lead has accepted, nobody may acknowledge at all, the super user included, and their move in the face of an absent lead is to re-appoint.',
+        adrs: ['ADR-0051', 'ADR-0033'],
       },
       {
         img: '17-commenting',

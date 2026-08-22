@@ -239,8 +239,9 @@ export function CycleScreen() {
           showPriorRounds={false}
           acknowledgeBlockedReason={acknowledgeBlockedReason}
           onAcknowledge={
-            // owner organisation, or a live confirmed reviewer (ADR-0051 addendum)
-            me.membershipRole === 'owner' || myReviewer
+            // T-374 (ADR-0051 addendum, 2026-08-22): the lead reviewer, or the
+            // owner organisation's super user when the lead is away
+            (myReviewer?.isLead ?? false) || (me.membershipRole === 'owner' && me.elevated)
               ? () => {
                   const newest = [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1);
                   if (newest) void act(() => api.acknowledgeRound(newest.id));

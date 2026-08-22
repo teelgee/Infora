@@ -997,14 +997,40 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     return { ...row, slice };
   }
 
-  // ADR-0051 — acknowledging a submission opens the round for review. Any
-  // Participant of the owner organisation, or a live CONFIRMED reviewer of
-  // the deliverable (the addendum — the review group is who receives the
-  // submission into review; proposal confers nothing, ADR-0033), may fire
-  // it: routine coordination, not the elevated tier. Recorded who/when on
-  // the round — the transmittal is append-only (ADR-0009/0010), and the
-  // round is the thing the act transitions. Sandbox-scope rounds are
+  // ADR-0051 — acknowledging a submission opens the round for review, recorded
+  // who/when on the round (the transmittal is append-only, ADR-0009/0010, and
+  // the round is the thing the act transitions). Sandbox-scope rounds are
   // created 'open' and never pass through here.
+  //
+  // WHO MAY FIRE IT, narrowed 2026-08-22 (T-374, the ADR-0051 addendum of that
+  // date, which SUPERSEDES the 2026-08-06 one): the LEAD REVIEWER alone, or the
+  // owner organisation's SUPER USER when the lead is away. §3 anticipated
+  // exactly this — "if a pilot firm wants a single accountable receiver, the
+  // controller-mode narrowing ADR-0035 defines is the natural extension and is
+  // deliberately not built until asked for" — and the owner has asked. It is
+  // role-derived (whoever holds the live lead grant) rather than ADR-0035's
+  // separately-named controller, and buys the same single accountable receiver.
+  //
+  // THIS SUPERSEDES T-351, WHICH WAS NOT A BUG. T-351 widened the act on
+  // 2026-08-06 for a real reason: gating on the OWNER ORGANISATION alone would
+  // park every round behind a firm with no stake in its pace, on a project whose
+  // lead reviewer is not owner-side. That argument is answered rather than
+  // discarded — this does not gate on the owner organisation, it gates on the
+  // lead reviewer, who MAY sit outside it and who fires the receipt in the
+  // ordinary case. What goes is a non-lead reviewer signing for a submission
+  // they do not run, and an owner participant who is not elevated.
+  //
+  // §3's own reasoning is half-reversed and it is worth saying so: receipt was
+  // placed BELOW the elevated tier as routine coordination, and the routine act
+  // is now the lead reviewer's while the FALLBACK is elevated. No elevated
+  // refusal is recorded for a rejected attempt — that register (T-301) holds
+  // destructive lifecycle acts, and a receipt is not one.
+  //
+  // And the act is gated on an ACCEPTED appointment (T-372): until a lead has
+  // accepted, nobody may acknowledge, the super user included, because the
+  // override covers the RECEIPT and never the UNDERTAKING. A super user facing
+  // an absent lead who never accepted re-appoints; they do not acknowledge in
+  // that person's name.
   app.post('/rounds/:roundId/acknowledge', async (c) => {
     const scope = await roundScope(c, c.req.param('roundId'));
     if (!scope) return notFound(c);
@@ -1015,17 +1041,18 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       .from(s.projects)
       .where(eq(s.projects.id, container.projectId))
       .limit(1);
-    const isOwnerOrg = project?.ownerOrganisationId === slice.organisationId;
-    if (!isOwnerOrg && !(await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))) {
-      return forbidden(c, 'owner_organisation_or_reviewer_only');
-    }
-    // T-372 (ADR-0033/0051 addenda, 2026-08-22) — the receipt waits on an
-    // ACCEPTED appointment. Until a lead reviewer has accepted, NOBODY may
-    // acknowledge: the submission stalls visibly and indefinitely, with no
-    // clock (ADR-0005's refusal to let time move a cycle), and the way out is
-    // re-appointment rather than an override — an override here would be one
-    // person giving an undertaking in another's name.
     const lead = await liveLeadReviewer(deps.db, container.id);
+    const isLead = lead?.participantId === slice.participantId;
+    // the fallback tier: the owner organisation's super user, for when the lead
+    // is away. Elevated, not merely owner-side — that is the whole narrowing.
+    const isOwnerSuperUser =
+      project?.ownerOrganisationId === slice.organisationId && slice.elevated;
+    if (!isLead && !isOwnerSuperUser) {
+      return forbidden(c, 'lead_reviewer_or_owner_super_user_only');
+    }
+    // the undertaking comes first, for everyone — checked AFTER the who-gate so
+    // a bystander is told the act is not theirs rather than being handed the
+    // state of an appointment they have no part in
     if (!lead) return conflict(c, 'no_lead_reviewer');
     if (!lead.acceptedAt) return conflict(c, 'lead_reviewer_has_not_accepted');
     await deps.db

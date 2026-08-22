@@ -27,6 +27,8 @@ let leadAuthorParticipantId: string;
 let colleagueParticipantId: string;
 let ownerParticipantId: string;
 let thirdOrgReviewerParticipantId: string;
+let ownerPlainCookie: string; // owner org, NOT elevated (T-374)
+let ownerSuperCookie: string; // owner org super user — the away-lead fallback
 let thirdOrg: string;
 
 async function makeUser(name: string, organisationId: string, elevated = false) {
@@ -81,6 +83,11 @@ beforeAll(async () => {
   const colleague = await makeUser('t120-cole', consultOrg);
   const owner = await makeUser('t120-opal', ownerOrg);
   const thirdReviewer = await makeUser('t120-thea', thirdOrg);
+  // T-374's two owner-side foils: an ordinary participant of the owner
+  // organisation (who may NOT acknowledge) and its super user (who may, as the
+  // fallback for when the lead reviewer is away)
+  const ownerPlain = await makeUser('t120-orla', ownerOrg);
+  const ownerSuper = await makeUser('t120-oskar', ownerOrg, true);
   leadAuthorParticipantId = lead.participant.id;
   colleagueParticipantId = colleague.participant.id;
   ownerParticipantId = owner.participant.id;
@@ -89,6 +96,8 @@ beforeAll(async () => {
   colleagueCookie = await session(colleague.user.email);
   ownerCookie = await session(owner.user.email);
   thirdOrgReviewerCookie = await session(thirdReviewer.user.email);
+  ownerPlainCookie = await session(ownerPlain.user.email);
+  ownerSuperCookie = await session(ownerSuper.user.email);
 
   const [container] = await db
     .insert(s.containers)
@@ -290,6 +299,54 @@ describe('promotion (T-120)', () => {
     });
     expect(again.status).toBe(409);
     expect(((await again.json()) as { detail?: string }).detail).toBe('already_accepted');
+  });
+
+  it('the super user’s override covers the receipt, never the undertaking (T-372/T-374)', async () => {
+    // The one people will otherwise get wrong. A super user of the owner
+    // organisation is the away-lead fallback for the RECEIPT — but they cannot
+    // acknowledge in an unaccepted lead's name, because that would be one
+    // person giving an undertaking in another's. Their move is re-appointment.
+    // Proven here on a fresh deliverable, since this container's lead has
+    // already accepted above.
+    const [other] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: consultOrg,
+        documentReference: `T374-DEL-${stamp}`,
+        inLibrary: false,
+      })
+      .returning();
+    const [cycleRow] = await db
+      .insert(s.reviewCycles)
+      .values({ containerId: other!.id })
+      .returning();
+    const [version] = await db
+      .insert(s.versions)
+      .values({ containerId: other!.id, versionReference: 'P01', content: 'awaiting a yes', isCurrent: true })
+      .returning();
+    const [round] = await db
+      .insert(s.rounds)
+      .values({ cycleId: cycleRow!.id, number: 1, versionId: version!.id, state: 'submitted' })
+      .returning();
+    // a confirmed lead who has never answered
+    await db.insert(s.deliverableReviewers).values({
+      containerId: other!.id,
+      participantId: ownerParticipantId,
+      isLead: true,
+      grantedByParticipantId: ownerParticipantId,
+      confirmedByParticipantId: ownerParticipantId,
+      confirmedAt: new Date(),
+    });
+
+    const bySuperUser = await app.request(`/rounds/${round!.id}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(ownerSuperCookie),
+    });
+    expect(bySuperUser.status).toBe(409);
+    expect(((await bySuperUser.json()) as { detail?: string }).detail).toBe(
+      'lead_reviewer_has_not_accepted',
+    );
   });
 
   it('the submission acknowledgement gate: no comment lands until the owner acknowledges (ADR-0051)', async () => {
@@ -580,9 +637,14 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     expect(linked?.response?.nextVersionId).toBe(result.versionId);
     const noChange = round1.comments.find((cm) => cm.response?.noChangeReason);
     expect(noChange?.response?.nextVersionId).toBeNull();
-    // round 2 restarts at the gate (ADR-0051) — and this time a CONFIRMED
-    // third-org reviewer acknowledges it open (the addendum: the review group
-    // receives the submission; proposal alone would confer nothing)
+    // Round 2 restarts at the gate (ADR-0051), and T-374 narrowed WHO clears it.
+    // This block used to prove T-351's widening — a confirmed third-org reviewer
+    // acknowledging — and now proves its supersession. T-351 was not a bug: it
+    // widened the act because gating on the OWNER ORGANISATION alone parks every
+    // round behind a firm with no stake in its pace. The narrowing answers that
+    // rather than discarding it — it gates on the LEAD REVIEWER, who may sit
+    // outside the owner organisation, with the owner's super user as the
+    // away-lead fallback.
     expect(cycle.rounds.map((r) => r.state)).toEqual(['responded', 'submitted']);
     await db.insert(s.deliverableShares).values({
       containerId,
@@ -596,10 +658,25 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       confirmedByParticipantId: ownerParticipantId,
       confirmedAt: new Date(),
     });
-    const ack = await app.request(`/rounds/${cycle.rounds[1]!.id}/acknowledge`, {
-      method: 'POST',
-      headers: asJson(thirdOrgReviewerCookie),
-    });
+    const roundTwo = cycle.rounds[1]!.id;
+    const ackAttempt = (cookie: string) =>
+      app.request(`/rounds/${roundTwo}/acknowledge`, { method: 'POST', headers: asJson(cookie) });
+
+    // gone: a non-lead reviewer signing for a submission they do not run
+    const byNonLead = await ackAttempt(thirdOrgReviewerCookie);
+    expect(byNonLead.status).toBe(403);
+    expect(((await byNonLead.json()) as { detail?: string }).detail).toBe(
+      'lead_reviewer_or_owner_super_user_only',
+    );
+    // gone: an owner participant who is not elevated
+    expect((await ackAttempt(ownerPlainCookie)).status).toBe(403);
+    // and never the producing side, which was never in scope
+    expect((await ackAttempt(leadAuthorCookie)).status).toBe(403);
+
+    // the fallback for an away lead: the owner organisation's SUPER USER. §3's
+    // reasoning is half-reversed — the routine act is the lead's, the fallback
+    // is elevated.
+    const ack = await ackAttempt(ownerSuperCookie);
     expect(ack.status).toBe(200);
     expect(((await ack.json()) as ReviewCycle).rounds.map((r) => r.state)).toEqual([
       'responded',
