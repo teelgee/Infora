@@ -12,6 +12,7 @@ import { PlanScreen } from './screens/plan';
 import { SchemaScreen } from './screens/schema';
 import { CycleScreen } from './screens/cycle';
 import { DeliverableStatusScreen } from './screens/deliverable-status';
+import { ReviewRecordScreen } from './screens/review-record';
 import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
 import { SettingsScreen } from './screens/settings';
@@ -38,6 +39,10 @@ const router = createBrowserRouter([
       // round tray (the review itself) is one deliberate step deeper
       { path: 'review/:containerId', element: <DeliverableStatusScreen /> },
       { path: 'review/:containerId/cycle', element: <CycleScreen /> },
+      // T-375 — the review record: one appended table spanning every round, a
+      // place you can send someone rather than a view of a screen. Drawn as its
+      // own pane in the approved mockup; the placement fork it raised is Q-041.
+      { path: 'review/:containerId/record', element: <ReviewRecordScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
       { path: 'history', element: <HistoryScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemScreen /> },

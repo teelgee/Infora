@@ -268,7 +268,7 @@ const acts = [
         {
           title: 'The DRR as a table',
           prose:
-            'The component doc has always named this surface — “the DRR table interface” — and the build drew round cards instead: comments in a div grid, the round’s code as a badge in its header. Ruled on 2026-08-19: one continuous table either side can open, every comment in order with its code, its author and its response, each round closed off by the deliverable code it concluded with, appended to as rounds open. The wall still shapes it — the authoring side reads every round but the open one. Nothing is ever issued out of it: ADR-0009 dropped the DRN and it stays dropped.',
+            'The component doc has always named this surface — “the DRR table interface” — and the build drew round cards instead: comments in a div grid, the round’s code as a badge in its header. Ruled on 2026-08-19: one continuous table either side can open, every comment in order with its code, its author and its response, each round closed off by the deliverable code it concluded with, appended to as rounds open. The wall still shapes it — the authoring side reads every round but the open one. Nothing is ever issued out of it: ADR-0009 dropped the DRN and it stays dropped. Built as T-375, on its own Review pane with “Open the round” as the way through to the PDF; the wall arrives as a stated withheld notice rather than an empty round, enforced in the server’s read the way ADR-0014 already is. The one fork the mockup left open — pane or tab — is carried as Q-041.',
           mockup: 'review-log.html',
         },
         ],

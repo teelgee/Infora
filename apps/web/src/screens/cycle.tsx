@@ -20,13 +20,13 @@ import type {
   Round,
   SandboxDocument,
 } from '@infora/contracts';
-import { ChevronDown, ChevronRight, Download, X } from 'lucide-react';
+import { ChevronDown, Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
 import { PromotionWindow } from '../promotion-window';
-import { formatDate, formatDateTime, statusBadge } from './shared';
+import { formatDateTime, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
 // chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
@@ -198,6 +198,19 @@ export function CycleScreen() {
           <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}`)}>
             Back to status
           </Button>
+          {/* T-375 — the whole review history as one appended table, every
+              round in order. This screen is the WORKING surface (the PDF beside
+              the composer) for the round under review; the record is where the
+              chapter's history reads in one scroll. */}
+          {cycle && (
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}/record`)}
+            >
+              Review record
+            </Button>
+          )}
           {draft && myAuthor && (
             <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${me.projectId}/editor/${draft.id}`)}>
               Open the draft in the Editor
@@ -348,12 +361,16 @@ export function CycleScreen() {
             cycle.rounds.map((r) => [r.versionId, r.versionReference]),
           );
           return [...cycle.rounds].sort((a, b) => a.number - b.number).reverse().map((round) => {
-            // only the newest round is expanded by default; earlier rounds collapse
-            // to a one-line summary and expand on click (T-231). The API returns
-            // rounds newest-first, so key expansion on the round number, not order.
+            // T-375 — only the round under review renders its tray here. The
+            // earlier rounds used to collapse to a one-line summary and expand
+            // into a second sheet, which is the per-round rendering the review
+            // record replaces: their comments, codes and responses read in one
+            // continuous table on the record, in order, rather than a sheet
+            // apiece. This screen keeps the round that is actually being worked.
             const isNewest = round.number === newestNumber;
             const expanded = isNewest || expandedRounds.has(round.id);
-          return expanded ? (
+            if (!expanded) return null;
+          return (
             <RoundCard
               key={round.id}
               round={round}
@@ -374,12 +391,6 @@ export function CycleScreen() {
               }
               act={act}
             />
-          ) : (
-            <RoundSummary
-              key={round.id}
-              round={round}
-              onExpand={() => setExpandedRounds((s) => new Set(s).add(round.id))}
-            />
           );
           });
         })()}
@@ -396,54 +407,26 @@ export function CycleScreen() {
         />
       )}
 
+      {/* the rounds this screen no longer draws a sheet for — they are in the
+          record, which is one table rather than a stack of them */}
+      {cycle && cycle.rounds.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)' }}>
+          <span>
+            {cycle.rounds.length - 1} earlier round{cycle.rounds.length === 2 ? '' : 's'} on this
+            deliverable.
+          </span>
+          <Button
+            size="sm"
+            variant="quiet"
+            onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}/record`)}
+          >
+            Read the review record
+          </Button>
+        </div>
+      )}
+
       {cycle && <ActivityTrail cycle={cycle} />}
     </div>
-  );
-}
-
-// A closed round collapsed to one line — number, revision, state, verdict,
-// answered-progress and the issue date; clicking expands it (T-231).
-function RoundSummary(props: { round: Round; onExpand: () => void }) {
-  const { round } = props;
-  const st = statusBadge(round.state);
-  const issued = round.transmittals.find((t) => t.direction === 'issue');
-  const answered = round.comments.filter((c) => c.response !== null).length;
-  return (
-    <button
-      type="button"
-      onClick={props.onExpand}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        width: '100%',
-        textAlign: 'left',
-        padding: '10px 2px',
-        marginBottom: 4,
-        background: 'none',
-        border: 'none',
-        borderBottom: '1px solid var(--border-default)',
-        cursor: 'pointer',
-        font: 'inherit',
-        color: 'var(--text-primary)',
-      }}
-      title="Expand this round"
-    >
-      <ChevronRight size={14} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-      <b>Round {round.number}</b>
-      <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 12 }}>{round.versionReference}</span>
-      <Badge tone={st.tone}>{st.label}</Badge>
-      {round.deliverableCode && (
-        <Badge tone={round.deliverableCode.isAccepting ? 'success' : 'warning'}>{round.deliverableCode.code}</Badge>
-      )}
-      {round.comments.length > 0 && (
-        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-          {answered} of {round.comments.length} answered
-        </span>
-      )}
-      <span style={{ flex: 1 }} />
-      {issued && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(issued.issuedAt)}</span>}
-    </button>
   );
 }
 

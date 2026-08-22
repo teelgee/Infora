@@ -373,6 +373,9 @@ export async function readCycle(
           }
         : null,
       acknowledgedAt: round.acknowledgedAt?.toISOString() ?? null,
+      // T-375 — say that the withholding happened, rather than leaving an empty
+      // list to be misread as an empty round
+      commentsWithheld: hideComments && round.state === 'open',
       reviewerCompletions: hideComments
         ? []
         : completionRows

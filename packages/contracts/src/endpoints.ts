@@ -880,6 +880,13 @@ export type Round = {
   // state, withheld from the authoring side while the round is open (the
   // ADR-0014 rule, applied server-side alongside the comments)
   reviewerCompletions: Array<{ participantId: Id; name: string; completedAt: string }>;
+  // T-375 — the wall is a DIFFERENT RECORD, not a hidden column. The authoring
+  // side does not receive the open round's comments (ADR-0014, applied
+  // server-side), and `comments: []` alone cannot tell "none were written" from
+  // "these are not yours to read yet" — silence would read as absence, which is
+  // a different and wrong fact. This says which it is, so the surface can state
+  // that content exists and why it is out of reach.
+  commentsWithheld: boolean;
   reviewPeriodTarget: string | null; // guides, never gates (ADR-0005)
   deliverableCode: AcceptanceCode | null;
   comments: ReviewComment[];

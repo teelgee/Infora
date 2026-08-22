@@ -238,6 +238,17 @@ export function DeliverableStatusScreen() {
               Open the draft in the Editor
             </Button>
           )}
+          {/* T-375 — the record is a place you can send someone: the chapter's
+              whole review history in one table, either side. */}
+          {cycle && (
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => void navigate(`/projects/${me.projectId}/review/${containerId}/record`)}
+            >
+              Review record
+            </Button>
+          )}
           <Button
             size="sm"
             variant="primary"

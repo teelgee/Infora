@@ -314,3 +314,12 @@ are not recorded here.
   edits are the *existing* acts on their own audited endpoints, which the window
   fires before it promotes, so the window sequences acts rather than becoming a
   composite write that could smuggle a wall-crossing grant past confirmation.
+- **2026-08-22 (T-375) — the wall says it is a wall.** `Round.commentsWithheld`
+  exists because `comments: []` cannot tell "none were written" from "these are
+  not yours to read yet", and the review record has to say which. That is the
+  house rule stated in a field: silence would read as absence, and absence is a
+  different and wrong fact. It is computed in the same server-side phasing that
+  already drops the comments (ADR-0014), so a surface can never disagree with
+  the read that fed it — and the surface's own counts are taken off what
+  arrived, never off the whole record, because a header claiming five comments
+  beside three visible rows would leak the shape of what the wall withholds.
