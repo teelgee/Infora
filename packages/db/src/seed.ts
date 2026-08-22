@@ -120,11 +120,20 @@ await db.insert(s.deliverableAuthors).values({
   isLead: true,
   grantedByParticipantId: consultant!.id,
 });
+// propose-then-confirm as the model actually runs it (ADR-0033): the PRODUCING
+// organisation proposes the lead reviewer at planning ("where known"), and the
+// owner confirms — which is where ADR-0015's share-first invariant bites and
+// where access begins. Seeding it granted-by-the-owner made the appointment
+// read as the owner proposing themselves, which is a shape the plan screen
+// cannot produce.
+// Deliberately NOT accepted (T-372): acceptance is the appointee's own act, and
+// a seed that pre-accepted it would fabricate an undertaking nobody gave —
+// exactly what the ADR forbids. Rachel accepts on screen, which is the point.
 await db.insert(s.deliverableReviewers).values({
   containerId: plannedContainer!.id,
   participantId: ownerParticipant!.id,
   isLead: true,
-  grantedByParticipantId: ownerParticipant!.id,
+  grantedByParticipantId: consultant!.id,
   confirmedByParticipantId: ownerParticipant!.id,
   confirmedAt: sql`now()`,
 });

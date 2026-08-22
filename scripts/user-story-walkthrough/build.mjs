@@ -46,6 +46,15 @@ const acts = [
         adrs: ['ADR-0008'],
       },
       {
+        img: '00a-review-period',
+        lane: OWNER,
+        screen: 'Deliverable schema',
+        title: 'How long a review is expected to take',
+        prose:
+          'Beside the schema and deliberately not inside it: ten working days, the project’s default review period. ADR-0005 had always given a round “a configurable review period” without saying who configures it, and the cost showed in the build — the status bar rendered a target date and an overdue state off a column nothing ever set. It sits here rather than as a schema field because the schema’s fields are the header row of the deliverables template teams fill in Excel, and a review period would have arrived there as a column nobody should be completing. Working days are Monday to Friday: no holiday calendar is modelled anywhere in the system, and picking one would quietly pick a jurisdiction.',
+        adrs: ['ADR-0005'],
+      },
+      {
         img: '01-workspace',
         lane: CONSULTANT,
         screen: 'Workspace',
@@ -152,10 +161,10 @@ const acts = [
       {
         img: '10-gate-refused',
         lane: CONSULTANT,
-        screen: 'Sandbox',
-        title: 'The gate, refusing',
+        screen: 'Sandbox · promote',
+        title: 'The gate refuses, and says so before the click lands',
         prose:
-          'Eleanor promotes, and Infora declines. The live head is not a legal source in this sandbox until the draft has been through internal QA; the refusal says so and names the two ways out — run the review, or have a super user turn the gate off. The rule fails closed: it refuses on any state it cannot read as an explicit exemption. The personal workspace is gated too, so drafting round the back of it buys nothing.',
+          'Promote opens a window rather than firing an act, and the window has already asked the server what this click would do. The answer here is a refusal: this sandbox requires internal QA acceptance before anything is promoted, so the source is not legal and Promote is disabled with the reason stated beside it. The gate is a recorded choice rather than a rule of the product — a team turns it off deliberately, and the deliverable below that skips QA does exactly that.',
         adrs: ['ADR-0032'],
       },
       {
@@ -184,6 +193,15 @@ const acts = [
         prose:
           'Owen closes the round with a verdict. Accept, and the frozen version becomes what may be promoted; ask for revision, and it goes back to the authors — who can answer, because the internal container carries the plan row’s authors as well as its reviewers. One thing visible in this shot is wrong, and is left in rather than cropped out: the modal still speaks the project review’s language, promising that the code “enters the project library”. Nothing of the sort happens here — an internal acceptance only unlocks promotion. The mechanism is right for an org-private round; that sentence is not.',
         adrs: ['ADR-0032', 'ADR-0003'],
+      },
+      {
+        img: '13a-promotion-window',
+        lane: CONSULTANT,
+        screen: 'Sandbox · promote to review',
+        title: 'The window reconfirms; it does not compose',
+        prose:
+          'ADR-0008 made promotion a near-empty hand-off on purpose, because a form filled in the moment is a form filled wrong. This window survives that objection by splitting the fields rather than by tone. What promotes is named and read-only — the version internal QA accepted, and who accepted it, because the whole point of the gate is that the client receives the version that was checked. The plan-owned identity is shown and locked, so a thoughtless confirm produces exactly the plan’s state. Only what is already Eleanor’s to set takes input: the authoring metadata, the review group with its lead, and the review period. Every reviewer control writes a proposal — naming someone in another organisation proposes them and nothing more, because confirmation stays owner-side, and that is why a producing organisation cannot open the wall from this window. It reopens at every promotion, which earns its place at round two more than round one: six months and a staffing change later, the alternative is silently inheriting a review group named at planning and never looked at since.',
+        adrs: ['ADR-0008', 'ADR-0038', 'ADR-0033'],
       },
       {
         img: '14-promoted',
@@ -215,28 +233,17 @@ const acts = [
         screen: 'Review · deliverable status',
         title: 'P01 submitted, awaiting acknowledgement',
         prose:
-          'This is promotion as it stands today, and the 2026-08-19 walk replaced it: one click, no form. Infora freezes P01, renders the review PDF beside the native file, and submits round 1 to the owner side. The four-state bar says exactly where the deliverable stands; the pen is with the review group. What goes in front of that click — and what it asks before anything is committed — is the card immediately below.',
+          'The submission, from the producing side: Infora froze P01 out of the window above, rendered the review PDF beside the native file, and sent round 1 to Trentmoor. The four-state bar says exactly where the deliverable stands — submitted, and not yet in review, because the round does not open on the promoter’s click. It opens when the lead reviewer accepts the appointment and acknowledges the submission, which is the next two beats and neither of them is Eleanor’s to make.',
         adrs: ['ADR-0034', 'ADR-0041', 'ADR-0051'],
-        gapAfter: [
-        {
-          title: 'The promotion window',
-          prose:
-            'Promotion is one click today. The 2026-08-19 walk replaced it with a window that reconfirms rather than composes: the coded reference and the plan-owned identity metadata shown and locked, authoring metadata editable, the review group listed by name with the lead reviewer swappable by the lead author or a producing super user, and the review period prefilled. It reappears at every promotion, so a version two six months later is reviewed by the team that exists then rather than the one named at planning. Nothing in it confers access — naming a reviewer proposes them, and confirmation stays owner-side, which is where the share-first invariant bites. Built as T-373, and reached from all three places promotion was ever fired — the sandbox row, the Editor and the cycle screen’s next-version act — because a window that only guarded one of them would guard nothing. What promotes is read from the same decision the click runs, so the window cannot promise a source the act does not take.',
-          mockup: 'promotion-window.html',
-        },
-        {
-          title: 'The review period gains an owner',
-          prose:
-            'The status bar renders a target date and an overdue state, and nothing has ever set the target — the chrome was ready and permanently idle. Ruled on 2026-08-19: the project carries a default of ten working days, set on the schema screen as project configuration rather than as a schema field, because a schema field would arrive as a column in the exported deliverables template; the lead author may adjust it for a particular submission in the promotion window. Working days are Monday to Friday, with no holiday calendar — none is modelled anywhere. The reminders that chase the date still ride the V1 notifications work. Built as T-371: the project default is set on the schema screen and every round now opens with a real target date, so the bar’s overdue state finally has something to be overdue against; the per-submission adjustment arrives with the promotion window above.',
-          mockup: 'promotion-window.html',
-        },
-        {
-          title: 'Accepting the appointment',
-          prose:
-            'A named lead reviewer has no way to say yes. The appointment is confirmed by the owner about them, never by them; no act anywhere has a person state they will run this review, and there is no way to decline one. Ruled on 2026-08-19: acceptance becomes the appointee’s own act, and where they sit in the owner organisation it doubles as the ADR-0033 confirmation, so appointment and access are one click. Acknowledgement then waits on it. The same act fills the hole Act III names — no screen can appoint the first internal QA lead reviewer either. Notifications stay deferred (owner, 2026-08-22), so an appointed reviewer is told nothing and finds out by opening the deliverable — the gate holds, the submission just waits longer. Built as T-372: the undertaking card, Accept and Decline-with-a-reason, and the receipt gated on the acceptance — a declined appointment leaves the deliverable visibly awaiting a lead reviewer, and the refusal’s reason stays inside the owner organisation.',
-          mockup: 'appointment-acceptance.html',
-        },
-        ],
+      },
+      {
+        img: '15a-appointment',
+        lane: REVIEWER,
+        screen: 'Review · deliverable status',
+        title: 'The person named says yes for themselves',
+        prose:
+          'Appointment used to be something two organisations did about a person: Calder & Hale proposed Rachel, Trentmoor confirmed her, and nowhere in the model did Rachel say anything at all. But a lead reviewer holds the deliverable’s contractual verdict, and nobody can give that undertaking on someone else’s behalf. So the card states the duty in four lines — the code on every round, the close that only she can make, the accepting code, the review group — and asks. Nothing about tables or grants: a professional undertaking should be readable by the person giving it. Until she accepts, the Acknowledge button above is disabled for everyone, a Trentmoor super user included, because the override covers the receipt and never the undertaking. Nobody told her: notifications are deferred, so she finds this by opening the deliverable, and the submission simply waits longer.',
+        adrs: ['ADR-0033', 'ADR-0051'],
       },
       {
         img: '16-acknowledge',
@@ -264,14 +271,6 @@ const acts = [
         prose:
           'Three comments, each pinned to the exact place it refers to, each coded, all landing in one record the whole review group sees as it is written — across organisations. Nobody is assembling a spreadsheet, and nobody is guessing what “page three, paragraph four” refers to. The openness is bounded rather than general: it runs to the appointed review group and stops at its edge — open across organisations inside the group, invisible to the project outside it.',
         adrs: ['ADR-0007'],
-        gapAfter: [
-        {
-          title: 'The DRR as a table',
-          prose:
-            'The component doc has always named this surface — “the DRR table interface” — and the build drew round cards instead: comments in a div grid, the round’s code as a badge in its header. Ruled on 2026-08-19: one continuous table either side can open, every comment in order with its code, its author and its response, each round closed off by the deliverable code it concluded with, appended to as rounds open. The wall still shapes it — the authoring side reads every round but the open one. Nothing is ever issued out of it: ADR-0009 dropped the DRN and it stays dropped. Built as T-375, on its own Review pane with “Open the round” as the way through to the PDF; the wall arrives as a stated withheld notice rather than an empty round, enforced in the server’s read the way ADR-0014 already is. The one fork the mockup left open — pane or tab — is carried as Q-041.',
-          mockup: 'review-log.html',
-        },
-        ],
       },
       {
         img: '19-wall',
@@ -281,6 +280,15 @@ const acts = [
         prose:
           'While the round is open, Eleanor sees the round exists and nothing of its content. The open round’s comments are reviewer-side state, withheld until the lead issues — enforced in the server’s read, not by the client hiding fields. What she is blind to is exactly one round, and that is a guarantee rather than a coincidence: a deliverable carries one controlled revision in flight at a time, so only one round is ever open, and every round but this one stays permanently readable to her. Writing alternates with it — while the round is open only reviewers may write, and the pen crosses back at the transmittal.',
         adrs: ['ADR-0014', 'ADR-0002'],
+      },
+      {
+        img: '19a-record-wall',
+        lane: CONSULTANT,
+        screen: 'Review record',
+        title: 'The wall is a different record, not a hidden column',
+        prose:
+          'The same review record Rachel is writing into, opened by Eleanor. Round one is present as a band — the round is not hidden, and its existence was never the secret — but it has no rows, and the notice says content exists and why it is out of reach. That is the house rule rather than a stylistic choice: greying the rows out would leak how many there are, and rendering an empty round would say something false, because silence reads as absence and absence is a different fact from “not yours yet”. Even the header counts only what Eleanor can actually read. The withholding is applied in the server’s read, so no client can undo it.',
+        adrs: ['ADR-0014', 'ADR-0009'],
       },
       {
         img: '20-completion',
@@ -366,6 +374,15 @@ const acts = [
         prose:
           'Rachel does not go hunting for what changed. Each response sits beside her comment in the same record, stamped “Changed in P02” with the passage that answers it; the no-change answer states its reason. Round 1 stands as the record it was; round 2 opens on the new version — which took the same road as the first, through its own internal QA pass, because one QA acceptance buys exactly one revision.',
         adrs: ['ADR-0009'],
+      },
+      {
+        img: '24a-record',
+        lane: REVIEWER,
+        screen: 'Review record',
+        title: 'One table, appended to — not a sheet per round',
+        prose:
+          'The chapter’s whole review history in one scroll: every comment in order with where it sits, its code, its author and the response that answered it, round one closed off by the deliverable code it concluded with, round two appended to the same table rather than opening a new one. This is what the Excel review notice could never do, and the reason ADR-0009 refused to materialise a second artifact from the record. Each response either points at the change — “Changed in P02”, with the passage — or states explicitly that none was made and why; there is no third state and no blank cell. Round two carries a band saying it has no code yet, because an open round with no verdict is a state rather than a gap, and no count of comments will ever fill it. There is no download, no “issue the record”, no print button anywhere on this screen: the DRN was dropped and a button here would quietly reinstate it.',
+        adrs: ['ADR-0009', 'ADR-0004', 'ADR-0005'],
       },
       {
         img: '25-accept-modal',
@@ -561,13 +578,15 @@ function build(srcFor) {
     Every screenshot is the real application, driven live through the whole cycle on the seeded Wrenfield world — nothing
     is a mockup, and nothing was staged for the photograph. Where the written story runs ahead of the build, the beat is
     flagged <em>designed, not yet surfaced</em> and points at its ticket, or at the session that ruled it where the ticket is not yet minted.</p>
-    <p class="prov">Recaptured 2026-08-09 against the e2e substrate (deterministic model providers, seeded corpus).
+    <p class="prov">Recaptured 2026-08-22 against the e2e substrate (deterministic model providers, seeded corpus).
     This page is now the single rendering of the two journeys: the companion decision map
     (<code>user-stories-graphic.html</code>) was deleted on 2026-08-18, its accurate content absorbed into the beats and
     gap cards below — it had been built from ADRs 0001–0012 and predated the sandbox, binding, internal-QA and
-    acknowledgement decisions this page is captured against. A second owner-directed walk on 2026-08-19 produced the
-    four rulings flagged in Act IV; the screenshots still show the build as it stood on 2026-08-09, and are recaptured
-    once those are built.</p>
+    acknowledgement decisions this page is captured against. The second owner-directed walk (2026-08-19 → 22) produced
+    four rulings which were carried here as gap cards and are now beats: the review period’s owner, the promotion
+    window, the appointment the named person accepts for themselves, and the review record as one appended table
+    (T-371–T-375). The drawings that proposed them have been deleted, which is what a mockup is for — the capture is the
+    record now, and their reasoning lives in the ADR addenda of the same date.</p>
   </div>
 
   <div class="cast">

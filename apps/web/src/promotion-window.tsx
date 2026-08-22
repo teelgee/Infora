@@ -1,5 +1,7 @@
-// T-373 — the promotion window (approved mockup:
-// docs/design/mockups/promotion-window.html; ADR-0008 addendum, 2026-08-22).
+// T-373 — the promotion window (ADR-0008 addendum, 2026-08-22). Drawn first as
+// docs/design/mockups/promotion-window.html and ruled there; that drawing was
+// deleted when this screen was photographed into the walkthrough, which is what
+// a mockup is for — the capture is the record and the reasoning is in the ADR.
 //
 // Promotion was one click and no form at all, which was ADR-0008's deliberate
 // design: a form filled in the moment is a form filled wrong. The walk kept the
@@ -266,6 +268,11 @@ export function PromotionWindow(props: {
         </>
       }
     >
+      {/* .modal-body is a grid, and a `.card` (which clips its own overflow) as
+          a grid item gets squeezed rather than sized by its content in a
+          height-constrained modal. One flow-root child sidesteps that: the
+          window lays itself out in ordinary block flow and the body scrolls. */}
+      <div style={{ display: 'flow-root' }}>
       {loadError && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{loadError}</p>}
       {!loadError && !preflight && (
         <div style={{ display: 'grid', gap: 10 }}>
@@ -540,6 +547,7 @@ export function PromotionWindow(props: {
           </p>
         </>
       )}
+      </div>
     </Modal>
   );
 }

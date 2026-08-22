@@ -1,5 +1,5 @@
-// T-375 — the review record as one appended table (approved mockup:
-// docs/design/mockups/review-log.html; component-5's "DRR table interface").
+// T-375 — the review record as one appended table (component-5's "DRR table
+// interface"; drawn as review-log.html, deleted at capture).
 //
 // Two screens, one record. What this run proves is the pair of properties the
 // ruling turns on:
@@ -179,4 +179,7 @@ test('the authoring side reads the same record, and the open round is absent rat
   ).toBeVisible();
   // and never the misleading alternative: an open round drawn as empty
   await expect(table.getByText('No comments yet — the round is open to the review group.')).toHaveCount(0);
+  // nor a COUNT that says zero where the honest answer is "not yours to know":
+  // the header counts what this reader can actually read, and says so
+  await expect(page.getByText(/1 round issued/)).toBeVisible();
 });

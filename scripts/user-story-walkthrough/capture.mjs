@@ -282,6 +282,10 @@ await r.goto(`${WEB}/projects/${projectId}/plan/scheme`);
 await r.getByText('Deliverable schema').first().waitFor();
 await r.getByRole('button', { name: 'Download Excel template' }).waitFor();
 await shot(r, '00-schema');
+// T-371 — the review period's project default, its own settings section beside
+// the schema and deliberately not a field inside it
+await r.getByText('Review period', { exact: true }).scrollIntoViewIfNeeded();
+await shot(r, '00a-review-period');
 
 console.log('consultant lane —');
 await signIn(e, ELEANOR);
@@ -382,9 +386,12 @@ console.log('internal QA lane —');
 // draft has been through internal QA
 await openOrgSandbox(e);
 await enterDeliverableFolder(e);
+// T-373 — Promote opens the reconfirming window, and the window states the
+// refusal beside a disabled Promote rather than letting it arrive on the click
 await e.getByRole('button', { name: `Promote ${planTitle}` }).click();
 await e.locator('.banner--error').waitFor();
 await shot(e, '10-gate-refused');
+await e.keyboard.press('Escape');
 
 // freeze from the Editor — the head locks into the org-private series
 await e.goto(`${WEB}/projects/${projectId}/editor/${doc.id}`);
@@ -432,10 +439,23 @@ for (let i = 0; i < 60; i++) {
   await o.waitForTimeout(500);
 }
 
-// promotion now succeeds — and says which of the two legal sources promoted
+// promotion now succeeds — through the window that reconfirms it (T-373):
+// what promotes and who accepted it, the plan's identity locked, the review
+// group with its lead, the review period prefilled from the project
 await openOrgSandbox(e);
 await enterDeliverableFolder(e);
 await e.getByRole('button', { name: `Promote ${planTitle}` }).click();
+const promoteWindow = e.getByRole('dialog');
+await promoteWindow.getByText('What promotes').waitFor();
+// the window is taller than the standard viewport and the modal scrolls its own
+// body, so the beat would otherwise be photographed with its lower half cut off.
+// A taller viewport for this one shot captures the whole surface — every other
+// beat stays on the 1440×900 the rest of the page is composed at.
+await e.setViewportSize({ width: 1440, height: 1180 });
+await shot(e, '13a-promotion-window');
+await e.setViewportSize({ width: 1440, height: 900 });
+
+await promoteWindow.getByRole('button', { name: 'Promote', exact: true }).click();
 await e.locator('.banner--success').waitFor();
 await shot(e, '14-promoted');
 
@@ -448,7 +468,15 @@ await e.getByText('Submitted', { exact: false }).first().waitFor();
 await shot(e, '15-submitted');
 
 console.log('reviewer lane —');
+// T-372 — the appointment is Rachel's to take. Nobody has been notified
+// (notifications are deferred, owner 2026-08-22): she finds it by opening the
+// deliverable, and until she accepts, NOBODY may acknowledge the submission.
 await r.goto(`${WEB}/projects/${projectId}/review/${containerId}`);
+await r.getByText('You have been named lead reviewer').waitFor();
+await shot(r, '15a-appointment');
+await r.getByRole('button', { name: 'Accept the appointment' }).click();
+await r.getByText('You have been named lead reviewer').waitFor({ state: 'detached' });
+
 await r.getByRole('button', { name: 'Acknowledge submission' }).waitFor();
 await shot(r, '16-acknowledge');
 await r.getByRole('button', { name: 'Acknowledge submission' }).click();
@@ -498,6 +526,14 @@ await e.goto(`${WEB}/projects/${projectId}/review/${containerId}/cycle`);
 await e.locator('.review-pdf canvas').first().waitFor();
 await shot(e, '19-wall');
 
+// T-375 — the same wall on the review record, which is where it is a design
+// decision rather than a side-effect: the open round's rows are ABSENT, under a
+// notice saying content exists and why it is out of reach. Silence would read as
+// absence, and absence is a different and wrong fact.
+await e.goto(`${WEB}/projects/${projectId}/review/${containerId}/record`);
+await e.getByText('Its comments are withheld', { exact: false }).waitFor();
+await shot(e, '19a-record-wall');
+
 // per-reviewer completion on the status page
 await r.goto(`${WEB}/projects/${projectId}/review/${containerId}`);
 await r.getByRole('button', { name: 'Mark my review complete' }).click();
@@ -515,8 +551,10 @@ await shot(r, '21-issue-modal');
 await r.getByRole('button', { name: 'Issue for revision' }).click();
 await r.getByText('Issued', { exact: false }).first().waitFor().catch(() => {});
 
-// the consultant answers — the ADR-0004 two-way choice
-await e.reload();
+// the consultant answers — the ADR-0004 two-way choice. Navigate rather than
+// reload: this page was last on the review record (the walled read above), and
+// a reload would land back there rather than on the round.
+await e.goto(`${WEB}/projects/${projectId}/review/${containerId}/cycle`);
 await e.locator('.review-pdf canvas').first().waitFor();
 await e.getByRole('button', { name: 'Respond' }).first().waitFor();
 await e.getByRole('button', { name: 'Respond' }).first().click();
@@ -565,18 +603,27 @@ const p2 = await eleanorApi.post(`/sandbox-documents/${doc.id}/promotion`);
 console.log(`promoted ${p2.versionReference} from ${p2.source}, round ${p2.roundNumber}`);
 await rachelApi.post(`/rounds/${p2.roundId}/acknowledge`);
 
+// T-375 — the cycle screen now carries only the round under review; the
+// earlier rounds are not a stack of collapsed sheets here but bands in the one
+// record, which is the next shot
 await r.goto(`${WEB}/projects/${projectId}/review/${containerId}/cycle`);
 await r.locator('.review-pdf canvas').first().waitFor();
-// expand the collapsed round 1 and bring its stamped response into view
-await r.getByText('Round 1', { exact: false }).first().click();
-await r.getByText('Changed in P02', { exact: false }).first().waitFor();
-await r.getByText('Changed in P02', { exact: false }).first().scrollIntoViewIfNeeded();
+await r.getByText('Round 2', { exact: false }).first().waitFor();
 await shot(r, '24-round2');
+
+// the record itself: two rounds in ONE appended table, round one closed off by
+// the deliverable code it concluded with, each response pointing at the change
+// in P02 that answered it
+await r.goto(`${WEB}/projects/${projectId}/review/${containerId}/record`);
+await r.getByText('Round 1 closed', { exact: false }).waitFor();
+await r.getByText('Changed in P02', { exact: false }).first().scrollIntoViewIfNeeded();
+await shot(r, '24a-record');
 
 // acceptance — after the click, wait on the RECORD (the API), not on page
 // text: "Accepted" also matches the verdict select's own label, and
-// navigating early aborts the in-flight issue call
-await r.reload();
+// navigating early aborts the in-flight issue call. Navigate rather than
+// reload: this page was last on the review record, not the round.
+await r.goto(`${WEB}/projects/${projectId}/review/${containerId}/cycle`);
 await r.locator('.review-pdf canvas').first().waitFor();
 await r.getByText('Deliverable verdict').waitFor();
 await r.locator('.review-drr select').last().selectOption(acceptingCode.id);

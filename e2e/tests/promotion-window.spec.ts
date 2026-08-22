@@ -1,5 +1,5 @@
-// T-373 — the promotion window, driven in the browser (approved mockup:
-// docs/design/mockups/promotion-window.html; ADR-0008 addendum, 2026-08-22).
+// T-373 — the promotion window, driven in the browser (ADR-0008 addendum,
+// 2026-08-22; drawn as promotion-window.html, deleted at capture).
 //
 // Promotion was one click and no form at all. What this run proves is that the
 // window put in front of it RECONFIRMS rather than composes: the plan-owned

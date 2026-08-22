@@ -1,5 +1,6 @@
-// T-375 — the review record: the DRR as ONE APPENDED TABLE (approved mockup:
-// docs/design/mockups/review-log.html).
+// T-375 — the review record: the DRR as ONE APPENDED TABLE. Drawn first as
+// docs/design/mockups/review-log.html and ruled there; that drawing was deleted
+// when this screen was photographed into the walkthrough (docs/design/README.md).
 //
 // No ADR changed here. component-5 has named "the DRR table interface" as this
 // surface since it was written, and the build drew round cards instead —
@@ -130,10 +131,19 @@ export function ReviewRecordScreen() {
             {rounds.length > 0 && (
               <>
                 {' · '}
+                {/* Counting is a wall question, not a formatting one. A count is
+                    only stated where it is TRUE for the reader: on the authoring
+                    side the comments of an open round are not zero, they are
+                    unknown, and printing "0 comments" beside a withheld notice
+                    is precisely the absence the notice exists to deny. So the
+                    authoring side is told how many rounds it can READ, and the
+                    comment counts appear only once there is something to
+                    count. */}
                 {authoringSide
-                  ? `${issuedRounds} round${issuedRounds === 1 ? '' : 's'} issued`
-                  : `${rounds.length} round${rounds.length === 1 ? '' : 's'}`}
-                {` · ${visible.length} comment${visible.length === 1 ? '' : 's'} · ${answered} answered`}
+                  ? issuedRounds === 0
+                    ? 'no round issued yet'
+                    : `${issuedRounds} round${issuedRounds === 1 ? '' : 's'} issued · ${visible.length} comment${visible.length === 1 ? '' : 's'} · ${answered} answered`
+                  : `${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${visible.length} comment${visible.length === 1 ? '' : 's'} · ${answered} answered`}
               </>
             )}
           </p>
@@ -169,8 +179,15 @@ export function ReviewRecordScreen() {
               </tr>
             </thead>
             <tbody>
-              {rounds.map((round) => (
-                <RoundBand key={round.id} round={round} versionRefById={versionRefById} />
+              {rounds.map((round, i) => (
+                <RoundBand
+                  key={round.id}
+                  round={round}
+                  versionRefById={versionRefById}
+                  hasIssuedRoundAbove={rounds
+                    .slice(0, i)
+                    .some((r) => r.state === 'issued' || r.state === 'responded')}
+                />
               ))}
             </tbody>
           </table>
@@ -182,7 +199,13 @@ export function ReviewRecordScreen() {
 
 /** One round as a band inside the record: an opening band, its comment rows,
  * and the verdict band that closes it. */
-function RoundBand(props: { round: Round; versionRefById: Record<string, string> }) {
+function RoundBand(props: {
+  round: Round;
+  versionRefById: Record<string, string>;
+  /** whether an issued round precedes this one — the withheld notice promises
+   * permanence, and must not promise it about rounds that do not exist yet */
+  hasIssuedRoundAbove: boolean;
+}) {
   const { round } = props;
   const submitted = round.transmittals.find((t) => t.direction === 'return');
   const issued = round.transmittals.find((t) => t.direction === 'issue');
@@ -216,7 +239,10 @@ function RoundBand(props: { round: Round; versionRefById: Record<string, string>
             <div className="withheld" style={{ margin: 0 }}>
               Round {round.number} is open. Its comments are withheld until the lead reviewer closes
               the round and issues it — reviewer-side positioning is never live to the authoring
-              side. Every issued round above stays readable here permanently.
+              side.
+              {props.hasIssuedRoundAbove
+                ? ' Every issued round above stays readable here permanently.'
+                : ' When it is issued, it stays readable here permanently.'}
             </div>
           </td>
         </tr>
