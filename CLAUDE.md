@@ -17,6 +17,10 @@ ethical wall, with grounded, cited AI drafting.
    the gates.
 5. `docs/grill-sessions/grill-questions.md` — the open-questions index (`Q-###`).
 
+**For UI work** — the visual spec is `docs/design/` (rules, tokens, and
+`mockups/`); read [docs/design/README.md](docs/design/README.md) for the mockup
+lifecycle before drawing one. `.claude/skills/infora-design/` is the mirrored kit.
+
 **Don't load by default** — precedent and record, not backlog:
 `docs/build/plan-history.md` (closed slices) and
 `docs/grill-sessions/grill-history.md` (completed sessions, closed rulings).
@@ -60,6 +64,15 @@ if a task seems to need it, stop and ask.
   and only on the owner's instruction. Never park something to avoid ruling it.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
   Cite them, don't re-argue them.
+- **A surface is not finished when it merges.** Anything built that the user
+  stories describe is captured in its final form in
+  `docs/architecture/user-stories.md` **and** the walkthrough (narrative in
+  `scripts/user-story-walkthrough/build.mjs`, screenshots via its `capture.mjs`
+  — never hand-edit the HTML). The mockup that proposed it is **deleted** at
+  that point, so its reasoning must already be in the ADR before it goes.
+  Built work **outside** that one journey belongs in its component doc and is
+  never forced into the walkthrough; a beat that cannot be photographed stays
+  a card saying so.
 - One commit per ticket, `T-xxx: summary` style.
 
 ## Diagrams (`.tldr` files) — do not read as text

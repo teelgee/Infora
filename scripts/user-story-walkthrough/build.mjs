@@ -1,5 +1,10 @@
 // Builds docs/architecture/user-stories-walkthrough.html from one narrative
 // source and the committed screenshots in docs/architecture/user-story-screens/.
+// This page is the record of what EXISTS: every beat is the real application.
+// Anything built that the user stories describe is captured here in its final
+// form, and the mockup that proposed it is then deleted (docs/design/README.md).
+// A design that is ruled but unbuilt is a gap card, never a beat — and it
+// carries `mockup` so the drawing and the story can be read against each other.
 // Pass --inline <path> to also emit a self-contained variant (data URIs) for
 // publishing outside the repo. Capture/refresh the screenshots first with
 // capture.mjs in this directory.
@@ -210,8 +215,28 @@ const acts = [
         screen: 'Review · deliverable status',
         title: 'P01 submitted, awaiting acknowledgement',
         prose:
-          'Promotion is almost nothing for Eleanor — one act, no form. Infora freezes P01, renders the review PDF beside the native file, and submits round 1 to the owner side. The four-state bar says exactly where the deliverable stands; the pen is with the review group.',
+          'This is promotion as it stands today, and the 2026-08-19 walk replaced it: one click, no form. Infora freezes P01, renders the review PDF beside the native file, and submits round 1 to the owner side. The four-state bar says exactly where the deliverable stands; the pen is with the review group. What goes in front of that click — and what it asks before anything is committed — is the card immediately below.',
         adrs: ['ADR-0034', 'ADR-0041', 'ADR-0051'],
+        gapAfter: [
+        {
+          title: 'The promotion window',
+          prose:
+            'Promotion is one click today. The 2026-08-19 walk replaced it with a window that reconfirms rather than composes: the coded reference and the plan-owned identity metadata shown and locked, authoring metadata editable, the review group listed by name with the lead reviewer swappable by the lead author or a producing super user, and the review period prefilled. It reappears at every promotion, so a version two six months later is reviewed by the team that exists then rather than the one named at planning. Nothing in it confers access — naming a reviewer proposes them, and confirmation stays owner-side, which is where the share-first invariant bites. Ruled, not yet ticketed.',
+          mockup: 'promotion-window.html',
+        },
+        {
+          title: 'The review period gains an owner',
+          prose:
+            'The status bar renders a target date and an overdue state, and nothing has ever set the target — the chrome was ready and permanently idle. Ruled on 2026-08-19: the project carries a default of ten working days, set on the schema screen as project configuration rather than as a schema field, because a schema field would arrive as a column in the exported deliverables template; the lead author may adjust it for a particular submission in the promotion window. Working days are Monday to Friday, with no holiday calendar — none is modelled anywhere. The reminders that chase the date still ride the V1 notifications work.',
+          mockup: 'promotion-window.html',
+        },
+        {
+          title: 'Accepting the appointment',
+          prose:
+            'A named lead reviewer has no way to say yes. The appointment is confirmed by the owner about them, never by them; no act anywhere has a person state they will run this review, and there is no way to decline one. Ruled on 2026-08-19: acceptance becomes the appointee’s own act, and where they sit in the owner organisation it doubles as the ADR-0033 confirmation, so appointment and access are one click. Acknowledgement then waits on it. The same act fills the hole Act III names — no screen can appoint the first internal QA lead reviewer either. Notifications stay deferred (owner, 2026-08-22), so an appointed reviewer is told nothing and finds out by opening the deliverable — the gate holds, the submission just waits longer.',
+          mockup: 'appointment-acceptance.html',
+        },
+        ],
       },
       {
         img: '16-acknowledge',
@@ -219,7 +244,7 @@ const acts = [
         screen: 'Review · deliverable status',
         title: 'The submission is acknowledged into review',
         prose:
-          'Rachel was named lead reviewer in the plan, so the submission arrives to her. Acknowledging it opens the round for the review group — a recorded receipt with a name on it, not a formality, and any confirmed reviewer of the deliverable can fire it.',
+          'Rachel was named lead reviewer in the plan, so the submission arrives to her. Acknowledging it opens the round for the review group — a recorded receipt with a name on it, not a formality. Who may fire it is wider than it looks and was deliberately made so: an addendum of 2026-08-06 extended the act from the owner organisation to any live confirmed reviewer, on the reasoning that gating on the owner alone would park a round behind a firm with no stake in its pace. The 2026-08-19 walk narrowed it again — to the lead reviewer alone, or the owner’s super user when the lead is away — which answers that reasoning rather than discarding it, because the lead reviewer may sit outside the owner organisation and fires the receipt in the ordinary case.',
         adrs: ['ADR-0051'],
       },
       {
@@ -237,8 +262,16 @@ const acts = [
         screen: 'Review cycle',
         title: 'One shared, live review record',
         prose:
-          'Three comments, each pinned to the exact place it refers to, each coded, all landing in one record the whole review group sees as it is written — across organisations. Nobody is assembling a spreadsheet, and nobody is guessing what “page three, paragraph four” refers to.',
+          'Three comments, each pinned to the exact place it refers to, each coded, all landing in one record the whole review group sees as it is written — across organisations. Nobody is assembling a spreadsheet, and nobody is guessing what “page three, paragraph four” refers to. The openness is bounded rather than general: it runs to the appointed review group and stops at its edge — open across organisations inside the group, invisible to the project outside it.',
         adrs: ['ADR-0007'],
+        gapAfter: [
+        {
+          title: 'The DRR as a table',
+          prose:
+            'The component doc has always named this surface — “the DRR table interface” — and the build drew round cards instead: comments in a div grid, the round’s code as a badge in its header. Ruled on 2026-08-19: one continuous table either side can open, every comment in order with its code, its author and its response, each round closed off by the deliverable code it concluded with, appended to as rounds open. The wall still shapes it — the authoring side reads every round but the open one. Nothing is ever issued out of it: ADR-0009 dropped the DRN and it stays dropped.',
+          mockup: 'review-log.html',
+        },
+        ],
       },
       {
         img: '19-wall',
@@ -246,8 +279,8 @@ const acts = [
         screen: 'Review cycle',
         title: 'The same round, from the authoring side: nothing',
         prose:
-          'While the round is open, Eleanor sees the round exists and nothing of its content. The open round’s comments are reviewer-side state, withheld until the lead issues — enforced in the server’s read, not by the client hiding fields.',
-        adrs: ['ADR-0014'],
+          'While the round is open, Eleanor sees the round exists and nothing of its content. The open round’s comments are reviewer-side state, withheld until the lead issues — enforced in the server’s read, not by the client hiding fields. What she is blind to is exactly one round, and that is a guarantee rather than a coincidence: a deliverable carries one controlled revision in flight at a time, so only one round is ever open, and every round but this one stays permanently readable to her. Writing alternates with it — while the round is open only reviewers may write, and the pen crosses back at the transmittal.',
+        adrs: ['ADR-0014', 'ADR-0002'],
       },
       {
         img: '20-completion',
@@ -265,11 +298,6 @@ const acts = [
         prose:
           'The story’s lead reviewer “moderates in the open”: edits comments and codes, resolves duplicates, shapes the group position before it goes back. The PATCH endpoint exists; no control on the cycle screen calls it. Ticketed T-356.',
       },
-      {
-        title: 'The review period’s clock has no hands',
-        prose:
-          'The status bar renders a target date and an overdue state, but nothing ever sets the target and no reminder subsystem exists — the chrome is ready and permanently idle. Rides the V1 notifications work.',
-      },
     ],
   },
   {
@@ -284,8 +312,8 @@ const acts = [
         screen: 'Review cycle · close & issue',
         title: 'One authoritative code closes the round',
         prose:
-          'Rachel sets the deliverable verdict — C, revise and resubmit — and closes the round. The review snapshot freezes on the record, the transmittal issues it to the authoring side, and only now does Calder & Hale see the comments.',
-        adrs: ['ADR-0003', 'ADR-0005', 'ADR-0009'],
+          'Rachel sets the deliverable verdict — C, revise and resubmit — and closes the round. The review snapshot freezes on the record, the transmittal issues it to the authoring side, and only now does Calder & Hale see the comments. Nothing is sent anywhere: the transmittal is an event record — who issued which version to whom, and when — and no file moves on the platform, because both organisations were always reading the one record.',
+        adrs: ['ADR-0003', 'ADR-0005', 'ADR-0009', 'ADR-0010'],
       },
       {
         img: '22-respond',
@@ -293,8 +321,8 @@ const acts = [
         screen: 'Review cycle · respond',
         title: 'Point at the change, or say no change and why',
         prose:
-          'For each comment Eleanor writes a response and declares the revised passage that answers it. The version that passage lands in does not exist yet — promotion is gated on the responses — so the link is declared now and the system stamps the version id when promotion creates it.',
-        adrs: ['ADR-0004'],
+          'For each comment Eleanor writes a response and declares the revised passage that answers it. The version that passage lands in does not exist yet — promotion is gated on the responses — so the link is declared now and the system stamps the version id when promotion creates it. Nor is this Eleanor’s alone: the pen passes to the authoring side the plan named, lead author and authors together, so several of Calder & Hale can work the returned comments at once.',
+        adrs: ['ADR-0004', 'ADR-0017'],
       },
       {
         img: '23-responses',
@@ -302,11 +330,16 @@ const acts = [
         screen: 'Review cycle · respond',
         title: 'Three comments, three answers, no silence',
         prose:
-          'Two changes declared, one explicit no-change with its reason on the record — the route-section point is reconciled by hand, not merged silently. Promote refuses while any comment is unanswered; the mandatory-response rule bites the transmittal back, not a dialog.',
-        adrs: ['ADR-0004', 'ADR-0002'],
+          'Two changes declared, one explicit no-change with its reason on the record — the route-section point is reconciled by hand, not merged silently. Promote refuses while any comment is unanswered; the mandatory-response rule bites the transmittal back, not a dialog. The rule pays twice over: every comment now leaves the round paired with the response that resolved it, and that pairing — not the prose either side wrote — is the comment-to-resolution material the moat distils.',
+        adrs: ['ADR-0004', 'ADR-0002', 'ADR-0032'],
       },
     ],
     gaps: [
+      {
+        title: 'The coding scheme’s unbuilt half',
+        prose:
+          'ADR-0003 gives the scheme two behaviours the built product does not have. The system is meant to suggest the deliverable code from the comment codes, for the lead reviewer to confirm or override — Rachel picks hers from the list unaided, and the suggestion survives only as a note in the schema. And whether a comment’s code blocks acceptance is meant to be a property of that code in the project’s scheme, not hard-wired; the stored scheme carries a level and an is_accepting flag and nothing that blocks. Neither half carries a ticket yet.',
+      },
       {
         title: 'The response’s jump into P02',
         prose:
@@ -385,11 +418,14 @@ function beatHtml(beat, src) {
 }
 
 function gapHtml(gap) {
+  const drawn = gap.mockup
+    ? `\n  <p class="gap-mockup">Drawn: <a href="../design/mockups/${gap.mockup}">${gap.mockup}</a></p>`
+    : '';
   return `
 <aside class="gap">
   <span class="gap-flag">Designed, not yet surfaced</span>
   <h4>${esc(gap.title)}</h4>
-  <p>${esc(gap.prose)}</p>
+  <p>${esc(gap.prose)}</p>${drawn}
 </aside>`;
 }
 
@@ -405,7 +441,7 @@ function build(srcFor) {
       <p class="lede">${esc(act.lede)}</p>
     </div>
   </header>
-  ${act.beats.map((b) => beatHtml(b, srcFor(b.img))).join('\n')}
+  ${act.beats.map((b) => [beatHtml(b, srcFor(b.img)), ...(b.gapAfter ?? []).map(gapHtml)].join('\n')).join('\n')}
   ${(act.gaps ?? []).map(gapHtml).join('\n')}
 </section>`,
     )
@@ -492,7 +528,10 @@ function build(srcFor) {
   .gap { background: var(--gap-tint); border: 1px dashed var(--gap-edge); border-radius: 8px; padding: 14px 18px; margin: 0 0 18px; max-width: 76ch; }
   .gap-flag { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #8a6d1f; font-weight: 600; }
   .gap h4 { font-family: var(--serif); font-size: 15.5px; margin: 6px 0 4px; }
+
   .gap p { margin: 0; color: var(--ink); font-size: 13.5px; }
+  .gap-mockup { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .gap-mockup a { color: var(--internal); }
 
   /* provenance footer */
   .prov-foot { margin-top: 70px; border-top: 1px solid var(--hairline); padding-top: 18px; color: var(--muted); font-size: 12.5px; max-width: 76ch; }
@@ -521,10 +560,14 @@ function build(srcFor) {
     before it leaves the office, and the client lead reviewer who runs the review and accepts it.
     Every screenshot is the real application, driven live through the whole cycle on the seeded Wrenfield world — nothing
     is a mockup, and nothing was staged for the photograph. Where the written story runs ahead of the build, the beat is
-    flagged <em>designed, not yet surfaced</em> and points at its ticket.</p>
+    flagged <em>designed, not yet surfaced</em> and points at its ticket, or at the session that ruled it where the ticket is not yet minted.</p>
     <p class="prov">Recaptured 2026-08-09 against the e2e substrate (deterministic model providers, seeded corpus).
-    The companion piece <a href="user-stories-graphic.html">user-stories-graphic.html</a> tells the same journeys as a
-    decision map; this page shows them as screens.</p>
+    This page is now the single rendering of the two journeys: the companion decision map
+    (<code>user-stories-graphic.html</code>) was deleted on 2026-08-18, its accurate content absorbed into the beats and
+    gap cards below — it had been built from ADRs 0001–0012 and predated the sandbox, binding, internal-QA and
+    acknowledgement decisions this page is captured against. A second owner-directed walk on 2026-08-19 produced the
+    four rulings flagged in Act IV; the screenshots still show the build as it stood on 2026-08-09, and are recaptured
+    once those are built.</p>
   </div>
 
   <div class="cast">
