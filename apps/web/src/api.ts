@@ -219,6 +219,15 @@ export const api = {
     request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
+  // T-372 (ADR-0033 addendum §2) — the appointee's own answer. Only ever their
+  // own grant: there is no participant parameter because there is no override.
+  acceptAppointment: (grantId: string) =>
+    request<ReviewerGrant>(`/reviewers/${grantId}/acceptance`, { method: 'POST' }),
+  declineAppointment: (grantId: string, reason: string) =>
+    request<ReviewerGrant>(`/reviewers/${grantId}/declination`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
   // T-364 — the structure builder's agent: propose a candidate tree from a
   // free-form ask. Proposes only; the deterministic endpoint still writes.
   proposeFolderStructure: (sandboxId: string, ask: string) =>

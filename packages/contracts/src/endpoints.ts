@@ -511,10 +511,38 @@ export type AppointmentGrant = {
   participantId: Id;
   name: string;
   isLead: boolean;
+  // who made the appointment (T-372) — stored since ADR-0033 and surfaced now
+  // because the undertaking card asks a named person to take on a duty, and a
+  // request to do that should say who is asking
+  grantedBy: { participantId: Id; name: string };
   grantedAt: string;
   revokedAt: string | null;
 };
-export type ReviewerGrant = AppointmentGrant & { confirmedAt: string | null }; // null = proposed, no access
+// T-372 (ADR-0033 addendum §2, 2026-08-22) — a reviewer grant now carries three
+// answers, not one. `confirmedAt` is the OWNER's act (access begins there,
+// where ADR-0015's share-first invariant bites); `acceptedAt` / `declinedAt` are
+// the APPOINTEE's own, because a lead reviewer holds the deliverable's
+// contractual verdict and nobody can give that undertaking on someone else's
+// behalf. Only a lead grant is ever accepted or declined — a plain reviewer's
+// appointment carries no undertaking to give.
+//
+// `declineReason` is a named person's stated refusal (personal-data.md) and is
+// **owner-organisation-private**: the server nulls it for every other reader
+// except the person who wrote it, so the producing side learns only that a lead
+// reviewer is awaited, never why.
+export type ReviewerGrant = AppointmentGrant & {
+  confirmedAt: string | null; // null = proposed, no access
+  acceptedAt: string | null;
+  declinedAt: string | null;
+  declineReason: string | null; // withheld unless you are owner-side or the decliner
+};
+
+// POST /reviewers/:grantId/acceptance — the appointee's own act, no body.
+// POST /reviewers/:grantId/declination — the same, with the reason it needs.
+// There is no override on either: a super user facing an absent lead
+// re-appoints; they do not accept in that person's name.
+export const declineAppointmentBody = z.object({ reason: z.string().trim().min(1) });
+export type DeclineAppointmentBody = z.infer<typeof declineAppointmentBody>;
 
 export type PlanRow = {
   containerId: Id;

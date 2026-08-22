@@ -106,15 +106,49 @@ async function canSeeContainer(db: Db, slice: EntitledSlice, container: Containe
   return share !== undefined;
 }
 
+/** T-372 — a DECLINED appointment is not a live grant to act on. The row stays
+ * (nothing here is ever deleted, ADR-0033) and the surface still shows the
+ * refusal, because that is why the deliverable is visibly waiting; but the
+ * person who said no cannot comment, acknowledge or set a verdict on the
+ * strength of an appointment they refused. */
 export async function isLiveConfirmedReviewer(db: Db, containerId: string, participantId: string) {
   const [row] = await db
-    .select({ id: s.deliverableReviewers.id, isLead: s.deliverableReviewers.isLead })
+    .select({
+      id: s.deliverableReviewers.id,
+      isLead: s.deliverableReviewers.isLead,
+      acceptedAt: s.deliverableReviewers.acceptedAt,
+    })
     .from(s.deliverableReviewers)
     .where(
       and(
         eq(s.deliverableReviewers.containerId, containerId),
         eq(s.deliverableReviewers.participantId, participantId),
         isNull(s.deliverableReviewers.revokedAt),
+        isNull(s.deliverableReviewers.declinedAt),
+        sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** The deliverable's live, confirmed, un-declined LEAD reviewer, with their own
+ * answer to the appointment — the fact ADR-0051's addendum gates the receipt
+ * on (T-372/T-374). Null when no lead stands at all. */
+export async function liveLeadReviewer(db: Db, containerId: string) {
+  const [row] = await db
+    .select({
+      id: s.deliverableReviewers.id,
+      participantId: s.deliverableReviewers.participantId,
+      acceptedAt: s.deliverableReviewers.acceptedAt,
+    })
+    .from(s.deliverableReviewers)
+    .where(
+      and(
+        eq(s.deliverableReviewers.containerId, containerId),
+        eq(s.deliverableReviewers.isLead, true),
+        isNull(s.deliverableReviewers.revokedAt),
+        isNull(s.deliverableReviewers.declinedAt),
         sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
       ),
     )
@@ -447,6 +481,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         and(
           eq(s.deliverableReviewers.containerId, freezeContainer!.id),
           isNull(s.deliverableReviewers.revokedAt),
+          // a refused appointment is not a lead to open a round against (T-372)
+          isNull(s.deliverableReviewers.declinedAt),
           sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
         ),
       );
@@ -689,9 +725,19 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         and(
           eq(s.deliverableReviewers.containerId, container.id),
           isNull(s.deliverableReviewers.revokedAt),
+          // T-372 — a declined appointment leaves the deliverable awaiting a
+          // lead reviewer, which is exactly the state this guard names
+          isNull(s.deliverableReviewers.declinedAt),
           sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
         ),
       );
+    // A CONFIRMED lead is still what promotion needs — not an accepted one.
+    // ADR-0033's "the precondition now reads accepted" is about what opens a
+    // ROUND, and since ADR-0051 that is the acknowledgement, not the promotion:
+    // both approved mockups show P01 promoting and then sitting unacknowledged
+    // while the appointment is unanswered ("the submission just waits longer").
+    // Refusing the promotion instead would erase that state rather than surface
+    // it, and leave the authoring side nothing to look at.
     if (!reviewers.some((r) => r.isLead)) return conflict(c, 'no_lead_reviewer');
 
     // schema-required appointment roles must be filled before promotion (T-198).
@@ -973,6 +1019,15 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!isOwnerOrg && !(await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))) {
       return forbidden(c, 'owner_organisation_or_reviewer_only');
     }
+    // T-372 (ADR-0033/0051 addenda, 2026-08-22) — the receipt waits on an
+    // ACCEPTED appointment. Until a lead reviewer has accepted, NOBODY may
+    // acknowledge: the submission stalls visibly and indefinitely, with no
+    // clock (ADR-0005's refusal to let time move a cycle), and the way out is
+    // re-appointment rather than an override — an override here would be one
+    // person giving an undertaking in another's name.
+    const lead = await liveLeadReviewer(deps.db, container.id);
+    if (!lead) return conflict(c, 'no_lead_reviewer');
+    if (!lead.acceptedAt) return conflict(c, 'lead_reviewer_has_not_accepted');
     await deps.db
       .update(s.rounds)
       .set({

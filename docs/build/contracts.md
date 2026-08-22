@@ -275,3 +275,18 @@ are not recorded here.
   round creation — because a project row that held dates would have to be
   rewritten every time a round opened, and changing the default would silently
   move a round already under way.
+- **2026-08-22 (T-372) — a reviewer grant carries three answers, not one.**
+  `ReviewerGrant` gained `acceptedAt` / `declinedAt` / `declineReason` beside
+  `confirmedAt` because they are answers to different questions by different
+  people: confirmation is the **owner's** act and is where access begins
+  (ADR-0015's share-first invariant bites there), while acceptance is the
+  **appointee's** and is where the undertaking begins. Collapsing them into one
+  field would have made the very thing this ADR exists to end — an appointment
+  recorded as agreed when the named person never agreed — unrepresentable to
+  read but still true in fact. `declineReason` is the first field in the
+  contract that is **nulled by reader rather than by state**: it reaches the
+  owner organisation and the person who wrote it, and nobody else, so the
+  producing side learns *that* a lead reviewer is awaited and never *why*.
+  `AppointmentGrant.grantedBy` came along because the undertaking card asks a
+  named person to take on a duty, and a request to do that should say who is
+  asking; the fact was already stored and merely unexposed.

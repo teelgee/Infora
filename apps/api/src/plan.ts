@@ -10,6 +10,7 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createPlanRowBody,
+  declineAppointmentBody,
   grantAppointmentBody,
   isCodeField,
   isColumnableField,
@@ -45,7 +46,11 @@ import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
-const conflict = (c: Context) => c.json({ error: 'conflict' } satisfies ApiError, 409);
+// T-372 widened this with an optional detail (cycle.ts's shape): the appointee's
+// two acts have several distinct refusals — declined, revoked, already answered,
+// not yet confirmed — and a bare 409 leaves the surface guessing which.
+const conflict = (c: Context, detail?: string) =>
+  c.json({ error: 'conflict', ...(detail && { detail }) } satisfies ApiError, 409);
 const invalid = (c: Context, detail?: string) =>
   c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
 const forbidden = (c: Context, detail: string) =>
@@ -112,8 +117,19 @@ async function canEditRowMetadata(
   return (await isLiveAuthor(db, container.id, slice.participantId))?.isLead === true;
 }
 
+/** Who is reading a plan row — the one fact the assembly needs beyond the rows
+ * themselves, because T-372's decline reason is owner-organisation-private: a
+ * named person's stated refusal reaches the owner side and the person who wrote
+ * it, and nobody else. The producing side learns only that a lead reviewer is
+ * awaited. */
+type PlanReader = Pick<EntitledSlice, 'membershipRole' | 'participantId'>;
+
 /** Assemble PlanRows for a set of containers (batched — no N+1). */
-async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]> {
+async function toPlanRows(
+  db: Db,
+  containers: ContainerRow[],
+  reader: PlanReader,
+): Promise<PlanRow[]> {
   if (containers.length === 0) return [];
   const ids = containers.map((c) => c.id);
 
@@ -188,20 +204,50 @@ async function toPlanRows(db: Db, containers: ContainerRow[]): Promise<PlanRow[]
     .where(inArray(s.deliverableReviewers.containerId, ids))
     .orderBy(asc(s.deliverableReviewers.grantedAt));
 
+  // who made each appointment (T-372) — one batched lookup, no N+1
+  const granterIds = [
+    ...new Set([
+      ...authorRows.map((r) => r.grant.grantedByParticipantId),
+      ...reviewerRows.map((r) => r.grant.grantedByParticipantId),
+    ]),
+  ];
+  const granterRows = granterIds.length
+    ? await db
+        .select({ participantId: s.participants.id, name: s.users.name })
+        .from(s.participants)
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.participants.id, granterIds))
+    : [];
+  const granterName = new Map(granterRows.map((r) => [r.participantId, r.name]));
+
   const toAuthor = (r: (typeof authorRows)[number]): AppointmentGrant => ({
     id: r.grant.id,
     containerId: r.grant.containerId,
     participantId: r.grant.participantId,
     name: r.name,
     isLead: r.grant.isLead,
+    grantedBy: {
+      participantId: r.grant.grantedByParticipantId,
+      name: granterName.get(r.grant.grantedByParticipantId) ?? '',
+    },
     grantedAt: r.grant.grantedAt.toISOString(),
     revokedAt: r.grant.revokedAt?.toISOString() ?? null,
   });
-  const toReviewer = (r: (typeof reviewerRows)[number]): ReviewerGrant => ({
-    ...toAuthor(r as (typeof authorRows)[number]),
-    confirmedAt:
-      (r.grant as typeof s.deliverableReviewers.$inferSelect).confirmedAt?.toISOString() ?? null,
-  });
+  const toReviewer = (r: (typeof reviewerRows)[number]): ReviewerGrant => {
+    const g = r.grant as typeof s.deliverableReviewers.$inferSelect;
+    // the refusal's REASON, not its existence, is what stays inside the owner
+    // organisation (T-372): every side sees that the appointment was declined,
+    // because that is why the deliverable is visibly waiting
+    const mayReadReason =
+      reader.membershipRole === 'owner' || reader.participantId === g.participantId;
+    return {
+      ...toAuthor(r as (typeof authorRows)[number]),
+      confirmedAt: g.confirmedAt?.toISOString() ?? null,
+      acceptedAt: g.acceptedAt?.toISOString() ?? null,
+      declinedAt: g.declinedAt?.toISOString() ?? null,
+      declineReason: mayReadReason ? g.declineReason : null,
+    } satisfies ReviewerGrant;
+  };
 
   return containers.map((container) => {
     const workItem = workItemByContainer.get(container.id);
@@ -271,7 +317,7 @@ export function planRoutes(deps: { db: Db }) {
       )
       .limit(1);
     return c.json({
-      items: await toPlanRows(deps.db, rows),
+      items: await toPlanRows(deps.db, rows, slice),
       planColumns: membership?.planColumns ?? null,
     } satisfies GetPlanResponse);
   });
@@ -332,7 +378,7 @@ export function planRoutes(deps: { db: Db }) {
       // plan-locked sandboxes derive their tree from the rows — folders appear
       // as rows are created (T-365, ADR-0040 addendum)
       await syncPlanLockedFolders(deps.db, slice.projectId, slice.organisationId, slice.participantId);
-      const [row] = await toPlanRows(deps.db, [container!]);
+      const [row] = await toPlanRows(deps.db, [container!], slice);
       return c.json(row!, 201);
     } catch (error) {
       if (isUniqueViolation(error)) return conflict(c);
@@ -512,7 +558,7 @@ export function planRoutes(deps: { db: Db }) {
     // one reconcile for the whole batch — the plan-locked tree gains its
     // folders in batch, exactly as the rows appeared (T-365 / S7)
     await syncPlanLockedFolders(deps.db, slice.projectId, slice.organisationId, slice.participantId);
-    const items = await toPlanRows(deps.db, created);
+    const items = await toPlanRows(deps.db, created, slice);
     return c.json({ created: created.length, items, ignoredColumns } satisfies PlanImportResult, 201);
   });
 
@@ -546,7 +592,7 @@ export function containerRoutes(deps: { db: Db }) {
     if (!scopedCtx) return notFound(c);
     const { container } = scopedCtx;
     if (container.scope !== 'sandbox') return notFound(c);
-    const [row] = await toPlanRows(deps.db, [container]);
+    const [row] = await toPlanRows(deps.db, [container], scopedCtx.slice);
     // the freeze container carries the internal cycle's REVIEWERS but no
     // authors of its own — the authoring side of an internal QA round is the
     // deliverable's own authoring team (T-355, and the same rule the response
@@ -554,7 +600,7 @@ export function containerRoutes(deps: { db: Db }) {
     // "revise" answerable from the screen rather than a dead end.
     const authoring = await authoringContainer(deps.db, container);
     if (authoring) {
-      const [libraryRow] = await toPlanRows(deps.db, [authoring]);
+      const [libraryRow] = await toPlanRows(deps.db, [authoring], scopedCtx.slice);
       return c.json({ ...row!, authors: libraryRow?.authors ?? [] });
     }
     return c.json(row!);
@@ -577,7 +623,7 @@ export function containerRoutes(deps: { db: Db }) {
       .set({ metadata: body.data.metadata })
       .where(eq(s.containers.id, container.id))
       .returning();
-    const [row] = await toPlanRows(deps.db, [updated!]);
+    const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
   });
 
@@ -600,7 +646,7 @@ export function containerRoutes(deps: { db: Db }) {
       .set({ documentOwnerParticipantId: body.data.participantId })
       .where(eq(s.containers.id, container.id))
       .returning();
-    const [row] = await toPlanRows(deps.db, [updated!]);
+    const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
   });
 
@@ -624,7 +670,7 @@ export function containerRoutes(deps: { db: Db }) {
       .where(eq(s.workItems.containerId, container.id));
     // a plan-locked working folder's name tracks its row (T-365)
     await syncPlanLockedFolders(deps.db, container.projectId, slice.organisationId, slice.participantId);
-    const [row] = await toPlanRows(deps.db, [container]);
+    const [row] = await toPlanRows(deps.db, [container], slice);
     return c.json(row!);
   });
 
@@ -658,7 +704,7 @@ export function containerRoutes(deps: { db: Db }) {
       .update(s.workItems)
       .set({ status: 'withdrawn' })
       .where(eq(s.workItems.containerId, container.id));
-    const [row] = await toPlanRows(deps.db, [updated!]);
+    const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
   });
 
@@ -692,7 +738,7 @@ export function containerRoutes(deps: { db: Db }) {
     // mode was ever on has no folder yet, and a retitle-while-withdrawn left
     // the kept folder's name stale — the restore reconciles both (T-365)
     await syncPlanLockedFolders(deps.db, container.projectId, slice.organisationId, slice.participantId);
-    const [row] = await toPlanRows(deps.db, [updated!]);
+    const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
   });
 
@@ -785,7 +831,7 @@ export function containerRoutes(deps: { db: Db }) {
         confirmedAt: autoConfirm ? sql`now()` : null,
       })
       .returning();
-    return c.json(await grantRead(deps.db, 'reviewers', grant!.id), 201);
+    return c.json(await grantRead(deps.db, 'reviewers', grant!.id, slice), 201);
   });
 
   // Interval closes (ADR-0033): the producing side its authors; the owner —
@@ -844,7 +890,7 @@ export function containerRoutes(deps: { db: Db }) {
       .update(s.deliverableReviewers)
       .set({ revokedAt: sql`now()` })
       .where(eq(s.deliverableReviewers.id, grant.id));
-    return c.json(await grantRead(deps.db, 'reviewers', grant.id));
+    return c.json(await grantRead(deps.db, 'reviewers', grant.id, slice));
   });
 
   // T-119 — the owner confirms a proposed reviewer, and ADR-0015 bites here:
@@ -885,7 +931,92 @@ export function containerRoutes(deps: { db: Db }) {
       .update(s.deliverableReviewers)
       .set({ confirmedByParticipantId: scopedCtx.slice.participantId, confirmedAt: sql`now()` })
       .where(eq(s.deliverableReviewers.id, grant.id));
-    return c.json(await grantRead(deps.db, 'reviewers', grant.id));
+    return c.json(await grantRead(deps.db, 'reviewers', grant.id, scopedCtx.slice));
+  });
+
+  // ── The appointee's own answer (T-372, ADR-0033 addendum §2) ─────────────
+  //
+  // Propose-then-confirm is two ORGANISATIONS acting about a person. A lead
+  // reviewer holds the deliverable's contractual verdict, and nobody can give
+  // that undertaking on someone else's behalf — so the named person answers for
+  // themselves, and there is no override anywhere on either act. A super user
+  // facing an absent lead re-appoints; they do not accept in that person's name.
+  //
+  // Deliberately LEAD-ONLY: a plain reviewer's appointment carries no
+  // undertaking to give, which is why the mockup's review group shows the other
+  // two as simply confirmed.
+  async function ownAppointment(c: Context, grantId: string) {
+    if (!isUuid(grantId)) return null;
+    const [grant] = await deps.db
+      .select()
+      .from(s.deliverableReviewers)
+      .where(eq(s.deliverableReviewers.id, grantId))
+      .limit(1);
+    if (!grant) return null;
+    const container = await loadContainer(deps.db, grant.containerId);
+    if (!container) return null;
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    // not scoped()/planVisible: a lead reviewer may sit outside the owner/
+    // producer pair, and their own grant is their standing here (T-352)
+    if (!slice || grant.participantId !== slice.participantId) return null;
+    return { grant, container, slice };
+  }
+
+  app.post('/reviewers/:grantId/acceptance', async (c) => {
+    const own = await ownAppointment(c, c.req.param('grantId'));
+    if (!own) return notFound(c);
+    const { grant, slice } = own;
+    if (!grant.isLead) return conflict(c, 'lead_appointment_only');
+    if (grant.revokedAt) return conflict(c, 'appointment_revoked');
+    if (grant.declinedAt) return conflict(c, 'appointment_declined');
+    if (grant.acceptedAt) return conflict(c, 'already_accepted');
+
+    // Where the appointee is OWNER-SIDE, acceptance IS the confirmation: a
+    // proposal is non-confirming "unless the proposer is owner-side" (ADR-0033
+    // addendum, 2026-08-06) and they are — so appointment and access collapse
+    // into one click. Where they sit OUTSIDE the owner organisation, which a
+    // lead reviewer may, the owner confirms first, because confirmation is
+    // where ADR-0015's share-first invariant runs and access begins. There is
+    // nothing to accept until it has.
+    const ownerSide = slice.membershipRole === 'owner';
+    if (!grant.confirmedAt && !ownerSide) return conflict(c, 'confirmation_required');
+
+    await deps.db
+      .update(s.deliverableReviewers)
+      .set({
+        acceptedAt: sql`now()`,
+        ...(grant.confirmedAt
+          ? {}
+          : { confirmedByParticipantId: slice.participantId, confirmedAt: sql`now()` }),
+      })
+      .where(eq(s.deliverableReviewers.id, grant.id));
+    return c.json(await grantRead(deps.db, 'reviewers', grant.id, slice));
+  });
+
+  // A decline is a STATE, not an error: nothing is lost, the version stays
+  // frozen, and the deliverable opens for review as soon as a lead reviewer
+  // accepts. The reason is mandatory — it is the whole reason a refusal is
+  // recorded rather than merely revoked — and is a named person's stated
+  // refusal (personal-data.md), read by the owner side and its author alone.
+  app.post('/reviewers/:grantId/declination', async (c) => {
+    const own = await ownAppointment(c, c.req.param('grantId'));
+    if (!own) return notFound(c);
+    const { grant, slice } = own;
+    if (!grant.isLead) return conflict(c, 'lead_appointment_only');
+    if (grant.revokedAt) return conflict(c, 'appointment_revoked');
+    if (grant.acceptedAt) return conflict(c, 'already_accepted');
+    if (grant.declinedAt) return conflict(c, 'already_declined');
+    const body = declineAppointmentBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    // the interval stays OPEN — a declined grant is not a live lead (the
+    // one-live-lead index excludes it), so a replacement can be named at once
+    // while the refusal stands on the record, which is what the append-only
+    // interval discipline is for (ADR-0033)
+    await deps.db
+      .update(s.deliverableReviewers)
+      .set({ declinedAt: sql`now()`, declineReason: body.data.reason })
+      .where(eq(s.deliverableReviewers.id, grant.id));
+    return c.json(await grantRead(deps.db, 'reviewers', grant.id, slice));
   });
 
   // The owner's share is the only thing that opens a deliverable across the
@@ -989,12 +1120,23 @@ async function liveParticipant(db: Db, participantId: string, projectId: string)
   return row ?? null;
 }
 
+/** The live lead grant that would collide with a new one — the application-side
+ * twin of the one-live-lead partial unique index, and it must carry the index's
+ * exact rule or the two disagree. T-372: a DECLINED reviewer appointment is not
+ * a live lead, so a refusal never blocks the replacement it exists to ask for. */
 async function liveLead(db: Db, side: 'authors' | 'reviewers', containerId: string) {
   const table = side === 'authors' ? s.deliverableAuthors : s.deliverableReviewers;
   const [row] = await db
     .select({ id: table.id })
     .from(table)
-    .where(and(eq(table.containerId, containerId), eq(table.isLead, true), isNull(table.revokedAt)))
+    .where(
+      and(
+        eq(table.containerId, containerId),
+        eq(table.isLead, true),
+        isNull(table.revokedAt),
+        ...(side === 'reviewers' ? [isNull(s.deliverableReviewers.declinedAt)] : []),
+      ),
+    )
     .limit(1);
   return row ?? null;
 }
@@ -1003,6 +1145,7 @@ async function grantRead(
   db: Db,
   side: 'authors' | 'reviewers',
   grantId: string,
+  reader?: PlanReader,
 ): Promise<AppointmentGrant | ReviewerGrant> {
   const table = side === 'authors' ? s.deliverableAuthors : s.deliverableReviewers;
   const [row] = await db
@@ -1012,18 +1155,36 @@ async function grantRead(
     .innerJoin(s.users, eq(s.participants.userId, s.users.id))
     .where(eq(table.id, grantId))
     .limit(1);
+  const [granter] = await db
+    .select({ name: s.users.name })
+    .from(s.participants)
+    .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+    .where(eq(s.participants.id, row!.grant.grantedByParticipantId))
+    .limit(1);
   const base: AppointmentGrant = {
     id: row!.grant.id,
     containerId: row!.grant.containerId,
     participantId: row!.grant.participantId,
     name: row!.name,
     isLead: row!.grant.isLead,
+    grantedBy: { participantId: row!.grant.grantedByParticipantId, name: granter?.name ?? '' },
     grantedAt: row!.grant.grantedAt.toISOString(),
     revokedAt: row!.grant.revokedAt?.toISOString() ?? null,
   };
   if (side === 'reviewers') {
     const r = row!.grant as typeof s.deliverableReviewers.$inferSelect;
-    return { ...base, confirmedAt: r.confirmedAt?.toISOString() ?? null } satisfies ReviewerGrant;
+    // the decline REASON is owner-organisation-private (T-372); with no reader
+    // supplied it is withheld, because a read that cannot say who is asking has
+    // no business handing out a named person's refusal
+    const mayReadReason =
+      reader?.membershipRole === 'owner' || reader?.participantId === r.participantId;
+    return {
+      ...base,
+      confirmedAt: r.confirmedAt?.toISOString() ?? null,
+      acceptedAt: r.acceptedAt?.toISOString() ?? null,
+      declinedAt: r.declinedAt?.toISOString() ?? null,
+      declineReason: mayReadReason ? r.declineReason : null,
+    } satisfies ReviewerGrant;
   }
   return base;
 }

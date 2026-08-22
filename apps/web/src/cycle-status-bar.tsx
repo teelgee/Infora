@@ -87,6 +87,11 @@ export function CycleStatusBar(props: {
   /** Present only when the viewer may acknowledge (owner organisation,
    * ADR-0051 §3) — renders the act beside the bar while a round is submitted. */
   onAcknowledge?: () => void;
+  /** T-372 — why the receipt cannot be given yet (ADR-0033/0051 addenda: it
+   * waits on the lead reviewer's own acceptance). Disables the act rather than
+   * removing it: the viewer holds it, it is simply not available, and hiding
+   * the button would make an ordered gate look like a missing permission. */
+  acknowledgeBlockedReason?: string;
 }) {
   const { cycle } = props;
   const rounds = [...cycle.rounds].sort((a, b) => a.number - b.number);
@@ -178,7 +183,13 @@ export function CycleStatusBar(props: {
             )}
             <Badge tone={cycleBadge.tone}>{cycleBadge.label}</Badge>
             {props.onAcknowledge && current.state === 'submitted' && cycle.state === 'active' && (
-              <Button size="sm" variant="primary" onClick={props.onAcknowledge}>
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={props.acknowledgeBlockedReason !== undefined}
+                title={props.acknowledgeBlockedReason}
+                onClick={props.onAcknowledge}
+              >
                 Acknowledge submission
               </Button>
             )}

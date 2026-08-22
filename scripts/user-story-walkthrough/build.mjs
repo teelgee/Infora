@@ -199,7 +199,7 @@ const acts = [
       {
         title: 'Staffing the internal round — API only',
         prose:
-          'A freeze opens an internal round only once the frozen container has a confirmed lead reviewer, and no screen can appoint the first one: the reviewer control on the internal QA status page is gated to the owner or an existing lead, and grants non-lead. So two acts in this act were driven through the API — appointing Owen, and the second freeze that opens the round once he is in place, which the Editor cannot offer while the head is already locked. The round itself, its comment, its verdict and its issue are clicks on the screens above.',
+          'A freeze opens an internal round only once the frozen container has a confirmed lead reviewer, and no screen could appoint the first one: the reviewer control on the internal QA status page was gated to the owner or an existing lead, and granted non-lead. So two acts in this act were driven through the API — appointing Owen, and the second freeze that opens the round once he is in place, which the Editor cannot offer while the head is already locked. T-372 closed the first half: the producing organisation now staffs its own internal QA from that page, lead reviewer included, because an org-private container has no owner in the loop and no lead to inherit the right from. The second freeze is still an API act here. The round itself, its comment, its verdict and its issue are clicks on the screens above.',
       },
     ],
   },
@@ -233,7 +233,7 @@ const acts = [
         {
           title: 'Accepting the appointment',
           prose:
-            'A named lead reviewer has no way to say yes. The appointment is confirmed by the owner about them, never by them; no act anywhere has a person state they will run this review, and there is no way to decline one. Ruled on 2026-08-19: acceptance becomes the appointee’s own act, and where they sit in the owner organisation it doubles as the ADR-0033 confirmation, so appointment and access are one click. Acknowledgement then waits on it. The same act fills the hole Act III names — no screen can appoint the first internal QA lead reviewer either. Notifications stay deferred (owner, 2026-08-22), so an appointed reviewer is told nothing and finds out by opening the deliverable — the gate holds, the submission just waits longer.',
+            'A named lead reviewer has no way to say yes. The appointment is confirmed by the owner about them, never by them; no act anywhere has a person state they will run this review, and there is no way to decline one. Ruled on 2026-08-19: acceptance becomes the appointee’s own act, and where they sit in the owner organisation it doubles as the ADR-0033 confirmation, so appointment and access are one click. Acknowledgement then waits on it. The same act fills the hole Act III names — no screen can appoint the first internal QA lead reviewer either. Notifications stay deferred (owner, 2026-08-22), so an appointed reviewer is told nothing and finds out by opening the deliverable — the gate holds, the submission just waits longer. Built as T-372: the undertaking card, Accept and Decline-with-a-reason, and the receipt gated on the acceptance — a declined appointment leaves the deliverable visibly awaiting a lead reviewer, and the refusal’s reason stays inside the owner organisation.',
           mockup: 'appointment-acceptance.html',
         },
         ],

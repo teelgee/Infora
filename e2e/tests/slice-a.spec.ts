@@ -34,6 +34,7 @@ let row: PlanRow;
 let documentId: string;
 let freezeContainerId: string;
 let cycle: ReviewCycle;
+let leadGrantId: string;
 
 test.beforeAll(async () => {
   eleanor = await ApiSession.login(SEEDED.consultant);
@@ -73,7 +74,16 @@ test('1 — the consultant plans the deliverable; the owner sees it on the MIDP 
   const midp = await rachel.get<{ items: PlanRow[] }>(`/projects/${projectId}/plan`);
   const consolidated = midp.items.find((r) => r.containerId === row.containerId)!;
   expect(consolidated.producingOrganisationName).toBe('Calder & Hale');
-  await rachel.post(`/reviewers/${proposal.id}/confirmation`, {});
+  const confirmed = await rachel.post<ReviewerGrant>(`/reviewers/${proposal.id}/confirmation`, {});
+  expect(confirmed.confirmedAt).not.toBeNull(); // access begins here (ADR-0015)
+
+  // T-372 — and the appointment is still only two organisations agreeing ABOUT
+  // Rachel. She holds the deliverable's contractual verdict, so she says yes
+  // herself; nobody, the owner's super user included, can do it for her. Until
+  // she does, the submission that follows cannot be acknowledged at all.
+  leadGrantId = proposal.id;
+  const accepted = await rachel.post<ReviewerGrant>(`/reviewers/${leadGrantId}/acceptance`, {});
+  expect(accepted.acceptedAt).not.toBeNull();
 });
 
 test('2 — the draft, the freeze, and the org-private internal QA round', async () => {
@@ -123,7 +133,52 @@ test('2 — the draft, the freeze, and the org-private internal QA round', async
   expect(afterQa.headLocked).toBe(false); // the pen is back
 });
 
-test('3 — promotion takes the QA-accepted frozen version and opens round 1 to the reviewers', async () => {
+test('3 — the appointment gate: an unaccepted lead stalls the submission, visibly and indefinitely', async () => {
+  // T-372/T-374 — a second planned deliverable whose lead reviewer is confirmed
+  // but has never answered. It promotes (the version is real and frozen) and
+  // then stops: the receipt waits on the undertaking, and the override covers
+  // the receipt and never the undertaking, so even Rachel — owner-side, super
+  // user, and the named lead — cannot sign for an appointment she has not taken.
+  const stalled = await eleanor.post<PlanRow>(`/projects/${projectId}/plan`, {
+    documentReference: `${REFERENCE}-S`,
+    title: 'Stalled chapter',
+  });
+  const roster = await eleanor.get<ListRosterResponse>(`/projects/${projectId}/participants`);
+  const eleanorEntry = roster.items.find((r: RosterEntry) => r.name === 'Eleanor Price')!;
+  const rachelEntry = roster.items.find((r: RosterEntry) => r.name === 'Rachel Bowen')!;
+  await eleanor.post(`/containers/${stalled.containerId}/authors`, {
+    participantId: eleanorEntry.participantId,
+    isLead: true,
+  });
+  const proposal = await eleanor.post<ReviewerGrant>(`/containers/${stalled.containerId}/reviewers`, {
+    participantId: rachelEntry.participantId,
+    isLead: true,
+  });
+  await rachel.post(`/reviewers/${proposal.id}/confirmation`, {});
+
+  const doc = await eleanor.post<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
+    title: 'Stalled draft',
+    containerId: stalled.containerId,
+  });
+  await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: 'awaiting a lead reviewer' });
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
+  // promotion SUCCEEDS — the version exists and the submission is real; what
+  // waits is the round opening, which is the state the surface has to show
+  const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${doc.id}/promotion`, {});
+  const stalledCycle = (await rachel.get<ReviewCycle | null>(`/containers/${stalled.containerId}/cycle`))!;
+  expect(stalledCycle.rounds[0]!.state).toBe('submitted');
+
+  const refused = await rachel.raw('post', `/rounds/${promoted.roundId}/acknowledge`, {});
+  expect(refused.status()).toBe(409);
+  expect(((await refused.json()) as { detail?: string }).detail).toBe('lead_reviewer_has_not_accepted');
+
+  // the way out is the undertaking itself, never an override
+  await rachel.post(`/reviewers/${proposal.id}/acceptance`, {});
+  const opened = await rachel.post<ReviewCycle>(`/rounds/${promoted.roundId}/acknowledge`, {});
+  expect(opened.rounds[0]!.state).toBe('open');
+});
+
+test('3b — promotion takes the QA-accepted frozen version and opens round 1 to the reviewers', async () => {
   const result = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
   expect(result.versionReference).toBe('P01'); // issued for review (ADR-0041)
   expect(result.roundNumber).toBe(1);
@@ -131,6 +186,9 @@ test('3 — promotion takes the QA-accepted frozen version and opens round 1 to 
   // ADR-0051: the submission awaits the owner's acknowledgement, then opens
   const submitted = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!;
   expect(submitted.rounds[0]!.state).toBe('submitted');
+  // T-371 — and it carries a real target date at last, computed from the
+  // promotion moment off the project's working-day default
+  expect(submitted.rounds[0]!.reviewPeriodTarget).not.toBeNull();
   cycle = await rachel.post<ReviewCycle>(`/rounds/${result.roundId}/acknowledge`, {});
   expect(cycle.rounds[0]!.state).toBe('open');
   expect(cycle.editLockHolder).toBe('reviewing');

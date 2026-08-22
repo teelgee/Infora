@@ -315,13 +315,30 @@ export const deliverableReviewers = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     confirmedByParticipantId: uuid('confirmed_by_participant_id').references(() => participants.id),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    // T-372 (ADR-0033 addendum §2, 2026-08-22) — the THIRD party to the
+    // handshake: the appointee themselves. Propose-then-confirm is two
+    // organisations acting about a person; a lead reviewer holds the
+    // deliverable's contractual verdict, and nobody can give that undertaking
+    // on someone else's behalf. Set only by the appointee, never overridable —
+    // a super user facing an absent lead re-appoints rather than signing for
+    // them. Where the appointee is owner-side, acceptance IS the confirmation
+    // (a proposal is non-confirming "unless the proposer is owner-side"), so
+    // appointment and access collapse into one click.
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    declinedAt: timestamp('declined_at', { withTimezone: true }),
+    // a named person's stated refusal, in free text (personal-data.md).
+    // Owner-organisation-private: the producing side learns only that a lead
+    // reviewer is awaited, never why.
+    declineReason: text('decline_reason'),
   },
   (t) => [
     index('deliverable_reviewers_container_idx').on(t.containerId),
-    // exactly one live lead reviewer per deliverable (ADR-0017)
+    // exactly one live lead reviewer per deliverable (ADR-0017) — and a
+    // DECLINED appointment is not one, so a refusal never blocks the
+    // replacement it exists to ask for (T-372)
     uniqueIndex('deliverable_reviewers_one_live_lead')
       .on(t.containerId)
-      .where(sql`${t.isLead} = true AND ${t.revokedAt} IS NULL`),
+      .where(sql`${t.isLead} = true AND ${t.revokedAt} IS NULL AND ${t.declinedAt} IS NULL`),
   ],
 );
 

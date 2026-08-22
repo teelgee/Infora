@@ -247,7 +247,18 @@ as one SQL predicate in the library reads *and* the grounding query, so what
 a surface shows and what the AI grounds on cannot drift. Reviewer
 appointments are propose-then-confirm, and confirmation is where ADR-0015
 bites: a reviewer whose organisation lacks the share forces share-first or
-decline. ADR-0035 adds the acknowledgement gate and per-participant narrowing
+decline. **T-372 (ADR-0033 addendum, 2026-08-22) adds the third party to that
+handshake — the appointee.** Appointment was two organisations acting *about* a
+person, with no act anywhere in which the named person said yes; a lead reviewer
+holds the deliverable's contractual verdict, and nobody can give that
+undertaking on someone else's behalf. The grant therefore carries `accepted_at`,
+`declined_at` and `decline_reason`, set only by the appointee and never
+overridable. **A declined appointment is not a live lead**: the one-live-lead
+partial unique index excludes it, so a replacement can be named without
+revoking the refusal, which stays on the record as the interval discipline
+requires. The decline reason is a named person's stated refusal
+([personal-data.md](personal-data.md)) and is owner-organisation-private — the
+producing side learns only that a lead reviewer is awaited. ADR-0035 adds the acknowledgement gate and per-participant narrowing
 on the same substrate. **ADR-0051 (ruled 2026-08-06, builds with T-346) adds
 a second acknowledgement one level up:** a project-scope round is created
 `submitted` and opens for review only when a Participant of the owner

@@ -21,16 +21,20 @@ import type {
   TransmittalHistoryRow,
 } from '@infora/contracts';
 import { X } from 'lucide-react';
-import { Badge, Button, SelectInput, Skeleton } from '@infora/ui';
+import { Badge, Button, Field, Modal, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
+import { useMe } from '../session';
 import { formatDate, initialsOf, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
 export function DeliverableStatusScreen() {
   const { participant: me } = useOutletContext<ShellContext>();
+  // the requester's own organisation — the internal QA staffing surface needs
+  // it, and the shell context carries only the project participant (T-372)
+  const account = useMe();
   const { containerId } = useParams();
   const navigate = useNavigate();
   const [row, setRow] = useState<PlanRow | null>(null);
@@ -43,6 +47,14 @@ export function DeliverableStatusScreen() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // T-372 — the decline flow asks for a reason before anything is recorded
+  const [declining, setDeclining] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+  const [declineBusy, setDeclineBusy] = useState(false);
+  // whether a reviewer added from the roster is being named LEAD — only offered
+  // where no live lead stands (a decline, or an internal QA round with nobody
+  // appointed yet, which is T-355's named staffing residual)
+  const [addAsLead, setAddAsLead] = useState(false);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -127,23 +139,69 @@ export function DeliverableStatusScreen() {
   }
 
   const isOwner = me.membershipRole === 'owner';
+  // T-372 — a DECLINED appointment confers nothing. It stays on the row (the
+  // refusal is why the deliverable is visibly waiting) but the person who said
+  // no is not a reviewer of this deliverable any more.
   const myConfirmedReviewer = row.reviewers.some(
-    (g) => g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null,
+    (g) =>
+      g.participantId === me.participantId &&
+      g.revokedAt === null &&
+      g.declinedAt === null &&
+      g.confirmedAt !== null,
   );
   const myLeadReviewer = row.reviewers.some(
     (g) =>
-      g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null && g.isLead,
+      g.participantId === me.participantId &&
+      g.revokedAt === null &&
+      g.declinedAt === null &&
+      g.confirmedAt !== null &&
+      g.isLead,
   );
   // ADR-0033 addendum (T-352): the owner and the confirmed lead reviewer
   // manage the group from here; a lead-reviewer proposal is non-confirming
   // unless owner-side, and revocation is always wall-safe
-  const canManageReviewers = isOwner || myLeadReviewer;
+  // T-355's named staffing residual, closed by T-372: the org-private internal
+  // QA container has no owner in the loop and no lead to inherit the right
+  // from, so its own producing organisation staffs it — which is what the
+  // grant endpoint already permits at sandbox scope and no screen ever offered.
+  const isInternalQa = row.documentReference === null;
+  const isProducerSide = row.producingOrganisationId === account.organisationId;
+  const canManageReviewers = isOwner || myLeadReviewer || (isInternalQa && isProducerSide);
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
   const status = statusBadge(row.workItem?.status ?? row.state);
   const containerState = statusBadge(row.state);
   const liveAuthors = row.authors.filter((g) => g.revokedAt === null);
   const liveReviewers = row.reviewers.filter((g) => g.revokedAt === null);
   const newestRound = cycle ? [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1) : null;
+
+  // ── The appointment, from the appointee's side (T-372) ────────────────────
+  // My own live lead-reviewer grant, whatever state it is in. Confirmation is
+  // the owner's act and acceptance is mine, so a grant can be unconfirmed (a
+  // proposal about me), confirmed-unanswered (mine to answer), accepted or
+  // declined — and my row on the roster reads differently in each.
+  const myLeadGrant =
+    row.reviewers.find(
+      (g) => g.participantId === me.participantId && g.revokedAt === null && g.isLead,
+    ) ?? null;
+  // owner-side appointees may accept an unconfirmed proposal, because acceptance
+  // IS the confirmation for them (ADR-0033 addendum §2); everyone else waits
+  const myAppointmentAnswerable =
+    myLeadGrant !== null &&
+    myLeadGrant.acceptedAt === null &&
+    myLeadGrant.declinedAt === null &&
+    (isOwner || myLeadGrant.confirmedAt !== null);
+  // the deliverable's own lead, and whether anyone has taken the undertaking
+  const leadGrant =
+    row.reviewers.find((g) => g.revokedAt === null && g.declinedAt === null && g.isLead) ?? null;
+  const declinedLead =
+    row.reviewers.find((g) => g.revokedAt === null && g.declinedAt !== null && g.isLead) ?? null;
+  const awaitingAcceptance = leadGrant !== null && leadGrant.acceptedAt === null;
+  const awaitingALead = leadGrant === null;
+  // ADR-0051 addendum via T-372: until a lead reviewer has accepted, NOBODY may
+  // acknowledge — the owner's super user included, because the override covers
+  // the receipt and never the undertaking
+  const acknowledgementBlocked =
+    !isInternalQa && newestRound?.state === 'submitted' && (awaitingALead || awaitingAcceptance);
 
   const renditionLinks = (versionId: string) => {
     const items = renditionsByVersion[versionId] ?? [];
@@ -208,6 +266,16 @@ export function DeliverableStatusScreen() {
               ? () => void act(() => api.acknowledgeRound(newestRound.id))
               : undefined
           }
+          // T-372 — the receipt waits on the undertaking (ADR-0033/0051
+          // addenda). Disabled rather than hidden: the act is the viewer's to
+          // fire, it is simply not available yet, and the card below says why.
+          acknowledgeBlockedReason={
+            acknowledgementBlocked
+              ? awaitingALead
+                ? 'No lead reviewer stands on this deliverable'
+                : 'The lead reviewer has not accepted the appointment yet'
+              : undefined
+          }
         />
       ) : (
         <StatusCard>
@@ -216,6 +284,170 @@ export function DeliverableStatusScreen() {
             version from the sandbox draft.
           </div>
         </StatusCard>
+      )}
+
+      {/* T-372 (ADR-0033 addendum §2) — the undertaking. It states the DUTY,
+          not the mechanism: nothing about tables or grants, because a
+          professional undertaking should be readable by the person giving it.
+          The plain sunken card, deliberately untinted — this is a decision
+          asked of you, not a warning about a failure, and hue stays reserved
+          for status (which is why the badge on your own row carries it and
+          this card does not). */}
+      {myAppointmentAnswerable && myLeadGrant && (
+        <StatusCard>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+            You have been named lead reviewer
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+            {`Proposed by ${myLeadGrant.grantedBy.name}`}
+            {orgByParticipant.get(myLeadGrant.grantedBy.participantId)
+              ? `, ${orgByParticipant.get(myLeadGrant.grantedBy.participantId)}`
+              : ''}
+            {` — ${formatDate(myLeadGrant.grantedAt)}`}
+          </div>
+          <ul style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.7 }}>
+            <li>You set the authoritative deliverable code on every round.</li>
+            <li>Only you close a round. No count of comments closes it.</li>
+            <li>You hold the accepting code that makes this a contractual revision.</li>
+            <li>You may propose and revoke reviewers on this deliverable.</li>
+          </ul>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void act(() => api.acceptAppointment(myLeadGrant.id))}
+            >
+              Accept the appointment
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => {
+                setDeclineReason('');
+                setDeclining(myLeadGrant.id);
+              }}
+            >
+              Decline
+            </Button>
+          </div>
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 }}>
+            {myLeadGrant.confirmedAt === null
+              ? 'Accepting also confirms your access, because you are in the owner organisation.'
+              : 'Your access was confirmed by the owner organisation; this is the undertaking itself.'}{' '}
+            Declining asks for a reason and leaves the deliverable waiting for someone else to be
+            named.
+          </p>
+        </StatusCard>
+      )}
+
+      {/* A decline is a STATE, not an error — it says what happened, who did
+          it, and what happens next, and ends on nothing being lost. The reason
+          stays inside the owner organisation: the server withholds it from
+          every other reader, so this renders only what arrived. */}
+      {declinedLead && (
+        <StatusCard>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+            The appointment was declined
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+            {`Declined by ${declinedLead.name}`}
+            {orgByParticipant.get(declinedLead.participantId)
+              ? `, ${orgByParticipant.get(declinedLead.participantId)}`
+              : ''}
+            {` · ${formatDate(declinedLead.declinedAt!)}`}
+          </div>
+          {declinedLead.declineReason && (
+            <MetaRow k="Reason given">
+              <span style={{ fontStyle: 'italic' }}>“{declinedLead.declineReason}”</span>
+            </MetaRow>
+          )}
+          <MetaRow k="What happens now">
+            {isProducerSide
+              ? 'The submission stays with the owner organisation, unacknowledged, and no reviewer can comment. This deliverable is awaiting a lead reviewer.'
+              : 'The submission stays here, unacknowledged, and no reviewer can comment until a new lead reviewer is named and accepts. The producing organisation sees that a lead reviewer is awaited — not the reason, which stays inside this organisation.'}
+          </MetaRow>
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 }}>
+            Nothing is lost and nothing has failed. The version stays frozen and opens for review as
+            soon as a lead reviewer accepts.
+          </p>
+        </StatusCard>
+      )}
+
+      {/* The submission card the gate explains itself in: shown exactly while
+          a round is submitted, which is exactly when the acknowledgement is
+          the next act and may be blocked. */}
+      {cycle && newestRound?.state === 'submitted' && !isInternalQa && (
+        <StatusCard label="Submission">
+          <MetaRow k="Version">{newestRound.versionReference}</MetaRow>
+          {(() => {
+            const submitted = newestRound.transmittals.find((tr) => tr.direction === 'return');
+            return submitted ? (
+              <MetaRow k="Submitted">
+                {formatDate(submitted.issuedAt)} · {submitted.sender.name}
+              </MetaRow>
+            ) : null;
+          })()}
+          {newestRound.reviewPeriodTarget && (
+            <MetaRow k="Review period">
+              {`target ${formatDate(newestRound.reviewPeriodTarget)}`}
+            </MetaRow>
+          )}
+          <MetaRow k="Round state">Submitted, not yet open</MetaRow>
+          {acknowledgementBlocked && (
+            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 }}>
+              {awaitingALead
+                ? 'Nobody can acknowledge this submission until a lead reviewer has been named and has accepted — a super user of the owner organisation included.'
+                : 'Nobody can acknowledge this submission until the lead reviewer has accepted the appointment — a super user of the owner organisation included. If they are away, name a different lead reviewer rather than acknowledging in their place.'}
+            </p>
+          )}
+        </StatusCard>
+      )}
+
+      {/* T-372 — the decline's reason, asked for before anything is recorded.
+          It is a named person's stated refusal (personal-data.md), so the form
+          says where it goes. */}
+      {declining && (
+        <Modal
+          open
+          onClose={() => setDeclining(null)}
+          title="Decline the lead reviewer appointment"
+          size="sm"
+          footer={
+            <>
+              <Button variant="quiet" disabled={declineBusy} onClick={() => setDeclining(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                disabled={declineBusy || declineReason.trim() === ''}
+                onClick={async () => {
+                  setDeclineBusy(true);
+                  await act(() => api.declineAppointment(declining, declineReason.trim()));
+                  setDeclineBusy(false);
+                  setDeclining(null);
+                }}
+              >
+                Decline the appointment
+              </Button>
+            </>
+          }
+        >
+          <p style={{ fontSize: 13, lineHeight: 1.5, marginTop: 0 }}>
+            The deliverable stays where it is and waits for a lead reviewer to be named. Nothing is
+            lost — the submitted version stays frozen.
+          </p>
+          <Field
+            label="Reason"
+            hint="Recorded against the appointment and read inside this organisation only — the producing side learns that a lead reviewer is awaited, never why."
+          >
+            <TextArea
+              value={declineReason}
+              onChange={setDeclineReason}
+              rows={3}
+              placeholder="e.g. I am the approving officer for the land purchase on this section and should not also be the reviewer of record."
+            />
+          </Field>
+        </Modal>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
@@ -260,29 +492,46 @@ export function DeliverableStatusScreen() {
                   </Button>
                 )}
                 {/* one badge per row: the lead's title subsumes "confirmed";
-                    a proposed row states that plus the owner's act */}
-                {g.confirmedAt !== null ? (
-                  g.isLead ? (
-                    <Badge tone="neutral">Lead reviewer</Badge>
-                  ) : (
-                    <Badge tone="success">Confirmed</Badge>
-                  )
+                    a proposed row states that plus the owner's act. T-372 adds
+                    the third fact — the appointee's own answer, which only a
+                    LEAD grant carries, because only a lead reviewer gives an
+                    undertaking. Your own row reads differently from everyone
+                    else's: "awaiting your acceptance", not "awaiting". */}
+                {g.isLead && g.declinedAt !== null ? (
+                  <Badge tone="danger">Declined</Badge>
+                ) : g.confirmedAt !== null ? (
+                  <>
+                    {g.isLead ? (
+                      <Badge tone="neutral">Lead reviewer</Badge>
+                    ) : (
+                      <Badge tone="success">Confirmed</Badge>
+                    )}
+                    {g.isLead && g.acceptedAt !== null && <Badge tone="success">Accepted</Badge>}
+                    {g.isLead && g.acceptedAt === null && (
+                      <Badge tone="warning">
+                        {isSelf ? 'Awaiting your acceptance' : 'Awaiting acceptance'}
+                      </Badge>
+                    )}
+                  </>
                 ) : (
                   <>
                     {g.isLead && <Badge tone="neutral">Lead reviewer</Badge>}
                     <Badge tone="warning">Proposed</Badge>
                     {/* confirmation is the owner's act, and access follows
                         confirmation, never proposal (ADR-0033, T-133) */}
-                    {isOwner && (
+                    {isOwner && !isSelf && (
                       <Button size="sm" variant="quiet" onClick={() => void act(() => api.confirmReviewer(g.id))}>
                         Confirm
                       </Button>
                     )}
                   </>
                 )}
-                {/* remove, never on the lead's own row — a cycle cannot run
-                    without its lead reviewer (ADR-0005/0008) */}
-                {canManageReviewers && !g.isLead && (
+                {/* remove, never on a standing lead's own row — a cycle cannot
+                    run without its lead reviewer (ADR-0005/0008). A DECLINED
+                    lead is not one, so its row is removable: that is how the
+                    owner clears a refusal that has been answered by naming
+                    someone else (T-372). */}
+                {canManageReviewers && (!g.isLead || g.declinedAt !== null) && (
                   <Button size="sm" variant="quiet" onClick={() => void act(() => api.revokeReviewer(g.id))}>
                     Remove
                   </Button>
@@ -294,17 +543,52 @@ export function DeliverableStatusScreen() {
               <div style={{ marginTop: 10 }}>
                 <SelectInput
                   value=""
-                  placeholder="Add a reviewer from the roster…"
+                  placeholder={
+                    addAsLead ? 'Name a lead reviewer from the roster…' : 'Add a reviewer from the roster…'
+                  }
                   options={roster
-                    .filter((r) => !liveReviewers.some((g) => g.participantId === r.participantId))
+                    .filter(
+                      (r) =>
+                        !liveReviewers.some(
+                          (g) => g.participantId === r.participantId && g.declinedAt === null,
+                        ),
+                    )
                     .map((r) => ({ value: r.participantId, label: `${r.name} — ${r.organisationName}` }))}
                   onChange={(participantId) => {
-                    if (participantId) void act(() => api.grantReviewer(containerId, participantId, false));
+                    if (participantId) {
+                      void act(() => api.grantReviewer(containerId, participantId, addAsLead)).then(() =>
+                        setAddAsLead(false),
+                      );
+                    }
                   }}
                 />
-                {!isOwner && (
+                {/* Naming a LEAD is offered only where none stands — after a
+                    decline, or on an internal QA container nobody has staffed
+                    (T-355's residual, closed here). Swapping a live lead is the
+                    promotion window's act (T-373), not this card's. */}
+                {awaitingALead && (
+                  <label
+                    style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11.5, margin: '8px 0 0', color: 'var(--text-secondary)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={addAsLead}
+                      onChange={(e) => setAddAsLead(e.target.checked)}
+                    />
+                    Name them lead reviewer
+                    {!isInternalQa && ' — they accept the appointment themselves before the round opens'}
+                  </label>
+                )}
+                {!isOwner && !isInternalQa && (
                   <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '6px 0 0' }}>
                     Your addition is a proposal — access follows the owner’s confirmation.
+                  </p>
+                )}
+                {isInternalQa && (
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                    An internal QA appointment confirms itself — the organisation is appointing its
+                    own people and no wall is crossed. Freeze the draft again once a lead stands, and
+                    the internal round opens.
                   </p>
                 )}
               </div>

@@ -116,9 +116,29 @@ export function CycleScreen() {
 
   // the requester's sides, read off the plan row's live grants
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
+  // T-372 — a declined appointment confers nothing: the person who refused the
+  // undertaking is not a reviewer of this deliverable any more
   const myReviewer = row.reviewers.find(
-    (g) => g.participantId === me.participantId && g.revokedAt === null && g.confirmedAt !== null,
+    (g) =>
+      g.participantId === me.participantId &&
+      g.revokedAt === null &&
+      g.declinedAt === null &&
+      g.confirmedAt !== null,
   );
+  // the deliverable's own lead, and their answer — the receipt waits on it
+  // (ADR-0033/0051 addenda). The status page carries the undertaking itself;
+  // here it is only why the acknowledge act is not yet available.
+  const leadGrant = row.reviewers.find(
+    (g) => g.revokedAt === null && g.declinedAt === null && g.isLead,
+  );
+  const acknowledgeBlockedReason =
+    row.documentReference === null
+      ? undefined
+      : leadGrant === undefined
+        ? 'No lead reviewer stands on this deliverable'
+        : leadGrant.acceptedAt === null
+          ? 'The lead reviewer has not accepted the appointment yet'
+          : undefined;
   const status = statusBadge(row.workItem?.status ?? row.state);
 
   async function act(action: () => Promise<unknown>) {
@@ -217,6 +237,7 @@ export function CycleScreen() {
         <CycleStatusBar
           cycle={cycle}
           showPriorRounds={false}
+          acknowledgeBlockedReason={acknowledgeBlockedReason}
           onAcknowledge={
             // owner organisation, or a live confirmed reviewer (ADR-0051 addendum)
             me.membershipRole === 'owner' || myReviewer

@@ -54,6 +54,8 @@ test.beforeAll(async () => {
     isLead: true,
   });
   await rachel.post(`/reviewers/${proposal.id}/confirmation`, {});
+  // T-372 — the appointee's own act; the receipt below waits on it
+  await rachel.post(`/reviewers/${proposal.id}/acceptance`, {});
 
   const doc = await eleanor.post<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
     title: 'Geology chapter draft',

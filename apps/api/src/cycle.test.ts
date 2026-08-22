@@ -2,7 +2,7 @@
 // near-empty hand-off launching the cycle (ADR-0002/0008/0014/0017/0032),
 // then the round loop as its tickets land.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { PromotionResult, ReviewCycle } from '@infora/contracts';
+import type { PlanRow, PromotionResult, ReviewCycle, ReviewerGrant } from '@infora/contracts';
 import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -240,6 +240,56 @@ describe('promotion (T-120)', () => {
     const calendarDays = Math.round((at.getTime() - Date.now()) / 86_400_000);
     expect(calendarDays).toBeGreaterThanOrEqual(13); // 10 working days spans ≥ 2 weekends
     expect(calendarDays).toBeLessThanOrEqual(16);
+  });
+
+  it('the lead reviewer accepts the appointment before anyone can acknowledge (T-372)', async () => {
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    const roundId = cycle.rounds[0]!.id;
+
+    // the receipt waits on the UNDERTAKING, and the override covers the receipt
+    // and never the undertaking — so nobody may acknowledge yet, the owner
+    // organisation's own participant included (ADR-0033/0051 addenda)
+    const early = await app.request(`/rounds/${roundId}/acknowledge`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(early.status).toBe(409);
+    expect(((await early.json()) as { detail?: string }).detail).toBe(
+      'lead_reviewer_has_not_accepted',
+    );
+
+    const plan = (await (
+      await app.request(`/projects/${projectId}/plan`, { headers: { cookie: ownerCookie } })
+    ).json()) as { items: PlanRow[] };
+    const grant = plan.items
+      .find((r) => r.containerId === containerId)!
+      .reviewers.find((g) => g.isLead && g.revokedAt === null)!;
+    expect(grant.acceptedAt).toBeNull();
+
+    // ONLY the appointee: nobody can give the undertaking on their behalf, so
+    // there is no override and no participant parameter to point at someone else
+    const byAuthor = await app.request(`/reviewers/${grant.id}/acceptance`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+    });
+    expect(byAuthor.status).toBe(404);
+
+    const accepted = await app.request(`/reviewers/${grant.id}/acceptance`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(accepted.status).toBe(200);
+    expect(((await accepted.json()) as ReviewerGrant).acceptedAt).not.toBeNull();
+
+    // answered once, one way
+    const again = await app.request(`/reviewers/${grant.id}/acceptance`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(again.status).toBe(409);
+    expect(((await again.json()) as { detail?: string }).detail).toBe('already_accepted');
   });
 
   it('the submission acknowledgement gate: no comment lands until the owner acknowledges (ADR-0051)', async () => {

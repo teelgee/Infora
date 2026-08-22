@@ -34,6 +34,16 @@ const MESSAGES: Record<string, string> = {
   no_document_owner: 'The schema requires a document owner — set one on the Plan before promoting.',
   no_reviewer: 'The schema requires a confirmed reviewer — propose one on the Plan, then the owner confirms it.',
   no_lead_reviewer: 'This deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it.',
+  // T-372 — the appointee's own answer (ADR-0033 addendum §2)
+  lead_reviewer_has_not_accepted:
+    'The lead reviewer hasn’t accepted the appointment yet — nobody can acknowledge the submission until they do. If they’re away, name a different lead reviewer.',
+  confirmation_required:
+    'The owner organisation confirms the appointment before you can accept it — that is where access begins.',
+  lead_appointment_only: 'Only a lead-reviewer appointment is accepted or declined.',
+  appointment_revoked: 'That appointment has been withdrawn.',
+  appointment_declined: 'That appointment was declined — a new lead reviewer is named instead.',
+  already_accepted: 'You have already accepted this appointment.',
+  already_declined: 'You have already declined this appointment.',
 
   // review-cycle state
   round_open: 'A review round is already open.',

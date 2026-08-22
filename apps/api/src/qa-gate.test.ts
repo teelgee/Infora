@@ -106,6 +106,10 @@ beforeAll(async () => {
     isLead: true,
     grantedByParticipantId: eleanorParticipantId,
     confirmedAt: new Date(),
+    // T-372 — the receipt waits on the appointee's own acceptance. This suite
+    // is about the QA SOURCE gate, so the appointment arrives already answered
+    // rather than re-testing what cycle.test.ts proves.
+    acceptedAt: new Date(),
   });
 
   // a project (single_org) sandbox — created through the API, so the gate
@@ -178,6 +182,8 @@ describe('the QA gate (T-355, ADR-0032 addendum)', () => {
       isLead: true,
       grantedByParticipantId: eleanorParticipantId,
       confirmedAt: new Date(),
+      acceptedAt: new Date(), // T-372 — see above; this suite tests the QA gate
+
     });
     const inPersonal = await post(eleanorCookie, `/projects/${projectId}/sandbox-documents`, {
       title: 'drafted in my own workspace',
@@ -332,6 +338,8 @@ describe('the QA gate (T-355, ADR-0032 addendum)', () => {
       isLead: true,
       grantedByParticipantId: eleanorParticipantId,
       confirmedAt: new Date(),
+      acceptedAt: new Date(), // T-372 — see above; this suite tests the QA gate
+
     });
     const doc2 = await post(eleanorCookie, `/projects/${projectId}/sandbox-documents`, {
       title: 'ungated draft',
