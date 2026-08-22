@@ -9,7 +9,17 @@ const WEB_URL = 'http://localhost:5273';
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: false, // suites share the seeded database
+  // T-369 — the suites share ONE seeded world, including mutable project-wide
+  // configuration: slice-a2 replaces the project's coding scheme while
+  // slice-a2-ui is driving the New-deliverable modal against it, and
+  // sandbox-structure derives folder candidates from a plan any other file can
+  // grow. `fullyParallel: false` does NOT buy that safety — it only serialises
+  // tests WITHIN a file, and files still distribute across workers, which is
+  // what this comment used to claim and did not deliver. One worker is the
+  // honest version of the same intent; the whole suite runs in well under a
+  // minute, so the parallelism was never paying for the flakes it caused.
+  fullyParallel: false,
+  workers: 1,
   retries: process.env['CI'] ? 1 : 0,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: { baseURL: WEB_URL },

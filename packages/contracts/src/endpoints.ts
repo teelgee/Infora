@@ -1149,7 +1149,16 @@ export type NamingSchemeField = {
   width?: number;
 };
 export type NamingScheme = { projectId: Id; separator: string; fields: NamingSchemeField[] };
-export type GetNamingSchemeResponse = NamingScheme | null;
+// T-376 — NOT nullable, and the difference is load-bearing rather than tidy.
+// The read never returns null: `loadSchemeOrDefault` serves the Infora default
+// when no scheme has been saved (T-188), so a project always has one. While the
+// type said otherwise, `null` on the client meant BOTH "this project has no
+// scheme" and "the scheme has not arrived yet" — and the plan screen rendered
+// the same manual reference field for both, which turned a slow or failed read
+// into an invitation to hand-type a reference. ADR-0008's rule is that the
+// reference is generated, never invented; a nullable type that is never null is
+// what let that be reopened by accident.
+export type GetNamingSchemeResponse = NamingScheme;
 
 // T-371 (ADR-0005 addendum, 2026-08-22) — the review period's project-level
 // default, in WORKING DAYS (Monday to Friday; no holiday calendar is modelled

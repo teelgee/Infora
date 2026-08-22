@@ -35,16 +35,16 @@ test('the New-deliverable modal creates a row in the register (no prompt)', asyn
   await expect(dialog).toBeVisible();
 
   await dialog.getByPlaceholder('e.g. EIA Scoping Method Statement').fill(DELIVERABLE_TITLE);
-  // fill whichever reference control the modal shows: the manual field when no
-  // scheme is defined, or the scheme's coded dropdowns when one is
-  const manual = dialog.getByPlaceholder('WA-BB-GEO-004');
-  if (await manual.count()) {
-    await manual.fill(`WA-UIQ-ECO-${stamp}`);
-  } else {
-    const fields = dialog.getByRole('combobox');
-    for (let i = 0; i < (await fields.count()); i++) {
-      await fields.nth(i).selectOption({ index: 1 }); // the first real value (index 0 is the "—" placeholder)
-    }
+  // T-376 — there is ONE reference control, because there is one state. This
+  // used to branch on whether a manual reference field was present, which was a
+  // race against the scheme read rather than a real fork: the read always
+  // returns a scheme, so the manual field only ever appeared mid-load and then
+  // detached under the test. Deleting the branch was the fix to the product;
+  // the test simply stopped needing it.
+  await expect(dialog.getByPlaceholder('WA-BB-GEO-004')).toHaveCount(0);
+  const fields = dialog.getByRole('combobox');
+  for (let i = 0; i < (await fields.count()); i++) {
+    await fields.nth(i).selectOption({ index: 1 }); // the first real value (index 0 is the "—" placeholder)
   }
   await dialog.getByRole('button', { name: 'Create deliverable' }).click();
 

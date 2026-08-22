@@ -323,3 +323,17 @@ are not recorded here.
   the read that fed it — and the surface's own counts are taken off what
   arrived, never off the whole record, because a header claiming five comments
   beside three visible rows would leak the shape of what the wall withholds.
+- **2026-08-22 (T-376) — a nullable type that was never null reopened invented
+  references.** `GetNamingSchemeResponse` stopped being `NamingScheme | null`,
+  and the reason is what the nullability was costing rather than what it was
+  saying. The read has never returned null — `loadSchemeOrDefault` serves the
+  Infora default when nothing is saved (T-188) — so on the client `null` meant
+  only "not arrived yet" or "the read failed", while the plan screen took it to
+  mean *this project has no coding scheme* and offered a hand-typed reference
+  field. A slow read therefore flashed a control that vanished under the user,
+  and a failed read silently degraded to inventing references, which is the
+  exact thing ADR-0008 exists to prevent. The three states are the client's, not
+  the wire's, and they are now held there (loading / ready / failed) with
+  creation refused rather than degraded. The lesson worth keeping is general:
+  an optional type is a claim that the absent case is *reachable and meaningful*
+  — where it is neither, some surface will eventually invent a meaning for it.

@@ -193,11 +193,11 @@ export function SchemaScreen() {
 
   const loadProposals = () => void api.namingProposals(projectId).then((r) => setProposals(r.items));
   useEffect(() => {
+    // T-376 — no null branch: the read always returns a scheme (the Infora
+    // default when none has been saved, T-188)
     void api.namingScheme(projectId).then((s) => {
-      if (s) {
-        setSeparator(s.separator);
-        setFields(s.fields);
-      }
+      setSeparator(s.separator);
+      setFields(s.fields);
     });
     void api.reviewPeriod(projectId).then((r) => {
       setSavedPeriod(r.defaultDays);

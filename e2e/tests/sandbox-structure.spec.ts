@@ -85,10 +85,23 @@ test('the builder proposes a structure from the plan’s disciplines — editabl
   const builder = page.getByRole('dialog');
   await builder.getByRole('button', { name: /Propose from the plan/ }).click();
 
-  // the disciplined row created above surfaces as a labelled candidate folder
+  // T-369 — the disciplined row created above surfaces as a labelled candidate
+  // folder, SOMEWHERE in the list. This used to assert on `.first()`, which is a
+  // position this test does not own: the seed derives one candidate per distinct
+  // discipline on the whole organisation's plan, ordered, so any sibling suite
+  // that plans a discipline sorting ahead of ECV — `slice-a2-ui.spec.ts` plans a
+  // CCA row, and CCA leads the default scheme's list — displaced it. The
+  // assertion was the defect, not the ordering: pinning execution order would
+  // only hide the same fragility in the next test that seeds a discipline.
+  // Controlled inputs carry the value as a DOM property, hence toHaveValue.
   const names = builder.getByPlaceholder('Folder name');
-  // controlled inputs carry the value as a DOM property — assert via toHaveValue
-  await expect(names.first()).toHaveValue(/ECV/);
+  await expect
+    .poll(async () =>
+      (await names.evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value))).some((v) =>
+        /ECV/.test(v),
+      ),
+    )
+    .toBe(true);
   await expect(builder.getByRole('button', { name: /Create \d+ folder/ })).toBeEnabled();
   // still an editable proposal, not an act — cancel leaves nothing behind
   await builder.getByRole('button', { name: 'Cancel' }).click();

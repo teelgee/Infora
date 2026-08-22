@@ -50,25 +50,31 @@ function previewReference(scheme: NamingScheme, values: Record<string, string>):
     .join(scheme.separator);
 }
 
+/** T-376 — the scheme is REQUIRED, not nullable. This modal used to take
+ * `NamingScheme | null` and render a hand-typed reference field for the null
+ * case, which had no reachable state: the read always returns a scheme, so null
+ * only ever meant "not loaded yet" or "the read failed". Both of those are the
+ * screen's business, and the screen now refuses to open this at all until it
+ * holds one — because the alternative was offering to invent a reference, which
+ * is precisely what ADR-0008's generated-never-invented rule exists to stop. */
 function NewDeliverableModal(props: {
   projectId: string;
-  scheme: NamingScheme | null;
+  scheme: NamingScheme;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [metaValues, setMetaValues] = useState<Record<string, string>>({});
-  const [manualRef, setManualRef] = useState('');
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const scheme = props.scheme;
   // the code inputs: the code fields, minus the auto-serial (T-188)
-  const nonSerial = scheme?.fields.filter((f) => isCodeField(f) && !f.isSerial) ?? [];
+  const nonSerial = scheme.fields.filter((f) => isCodeField(f) && !f.isSerial);
   // schema-driven metadata: fields that are neither code nor role slots (T-189)
-  const metaFields = scheme?.fields.filter((f) => !isCodeField(f) && !f.role) ?? [];
-  const preview = scheme ? previewReference(scheme, values) : manualRef || 'WA-BB-GEO-004';
+  const metaFields = scheme.fields.filter((f) => !isCodeField(f) && !f.role);
+  const preview = previewReference(scheme, values);
   const setValue = (key: string, v: string) => setValues((s) => ({ ...s, [key]: v }));
   const setMeta = (key: string, v: string) => setMetaValues((s) => ({ ...s, [key]: v }));
 
@@ -76,18 +82,13 @@ function NewDeliverableModal(props: {
     setBusy(true);
     setError(null);
     try {
-      let reference = manualRef.trim();
-      if (scheme) reference = (await api.generateReference(props.projectId, values)).reference;
-      if (!reference) {
-        setError('A reference is required.');
-        setBusy(false);
-        return;
-      }
+      // the reference is generated from the scheme, always (ADR-0008)
+      const reference = (await api.generateReference(props.projectId, values)).reference;
       const metadata: Record<string, string> = {};
       // the schema's metadata fields (T-189)
       for (const [k, v] of Object.entries(metaValues)) if (v) metadata[k] = v;
       // discipline is a code field but also surfaced at-a-glance (T-178)
-      const disc = scheme ? values['discipline'] : undefined;
+      const disc = values['discipline'];
       if (disc) metadata['discipline'] = disc;
       await api.createPlanRow(props.projectId, reference, title.trim(), metadata);
       props.onCreated();
@@ -100,7 +101,7 @@ function NewDeliverableModal(props: {
   const canCreate =
     !busy &&
     title.trim() !== '' &&
-    (scheme ? nonSerial.every((f) => values[f.key]) : manualRef.trim() !== '') &&
+    nonSerial.every((f) => values[f.key]) &&
     metaFields.every((f) => !f.required || (metaValues[f.key] ?? '') !== '');
 
   return (
@@ -124,8 +125,7 @@ function NewDeliverableModal(props: {
         <TextInput value={title} onChange={setTitle} placeholder="e.g. EIA Scoping Method Statement" autoFocus />
       </Field>
 
-      {scheme ? (
-        <div>
+      <div>
           <span className="field-label">Coded reference</span>
           <div
             style={{
@@ -155,15 +155,7 @@ function NewDeliverableModal(props: {
             <span className="mono">{preview}</span>
             <span className="field-hint">the serial is allocated on create</span>
           </div>
-        </div>
-      ) : (
-        <Field
-          label="Reference"
-          hint="No coding scheme defined yet — enter a reference by hand, or define a scheme first"
-        >
-          <TextInput value={manualRef} onChange={setManualRef} placeholder="WA-BB-GEO-004" mono />
-        </Field>
-      )}
+      </div>
 
       {metaFields.length > 0 && (
         <div style={{ marginTop: 12, borderTop: '1px solid var(--border-default)', paddingTop: 10 }}>
@@ -700,7 +692,18 @@ export function PlanScreen() {
     [projectId],
   );
   useEffect(load, [load]);
-  useEffect(() => void api.namingScheme(projectId).then(setScheme), [projectId]);
+  // T-376 — the read never returns null, so the three states are the CLIENT's:
+  // not yet arrived, arrived, and failed. They used to collapse into one `null`,
+  // and the New-deliverable modal read that null as "this project has no coding
+  // scheme" and offered to hand-type a reference — which meant a slow read
+  // flashed a control that then vanished, and a FAILED read silently reopened
+  // inventing references (ADR-0008's generated-never-invented rule). Creation
+  // now waits, and refuses rather than degrades.
+  const [schemeFailed, setSchemeFailed] = useState(false);
+  useEffect(() => {
+    setSchemeFailed(false);
+    void api.namingScheme(projectId).then(setScheme, () => setSchemeFailed(true));
+  }, [projectId]);
   useEffect(() => void api.participants(projectId).then((r) => setRoster(r.items)), [projectId]);
 
   const filtered = useMemo(() => {
@@ -728,7 +731,7 @@ export function PlanScreen() {
 
   return (
     <div className="content">
-      {creating && (
+      {creating && scheme && (
         <NewDeliverableModal
           projectId={projectId}
           scheme={scheme}
@@ -843,12 +846,35 @@ export function PlanScreen() {
             >
               <FileUp size={14} strokeWidth={2} /> {importing ? 'Importing…' : 'Import from Excel'}
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+            {/* fails CLOSED: with no scheme in hand there is no compliant
+                reference to generate, and the honest answer is "not yet" or
+                "not until this loads" — never a text box (T-376) */}
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={scheme === null}
+              title={
+                schemeFailed
+                  ? 'The project’s coding scheme could not be read — a deliverable cannot be planned without it.'
+                  : scheme === null
+                    ? 'Loading the project’s coding scheme…'
+                    : undefined
+              }
+              onClick={() => setCreating(true)}
+            >
               <Plus size={14} strokeWidth={2} /> New deliverable
             </Button>
           </>
         )}
       </div>
+
+      {schemeFailed && (
+        <div className="banner banner--error">
+          The project’s coding scheme could not be read, so no deliverable can be planned right now —
+          every reference is generated from it, never typed by hand. Reload the page; if it persists,
+          the scheme read is failing rather than the scheme being missing.
+        </div>
+      )}
 
       {importResult && (
         <p className="page-sub" style={{ margin: '0 0 10px' }}>

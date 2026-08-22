@@ -113,11 +113,15 @@ describe('the deliverable schema default (T-188)', () => {
     // this project has no saved scheme yet (the PUT describe runs after)
     const res = await app.request(`/projects/${projectId}/naming-scheme`, { headers: asJson(ownerCookie) });
     const body = (await res.json()) as GetNamingSchemeResponse;
+    // T-376 — this assertion is what makes GetNamingSchemeResponse non-nullable
+    // true rather than merely declared. A project ALWAYS has a scheme; while the
+    // type allowed null, the plan screen read null as "no scheme defined" and
+    // offered to hand-type a reference, which is the one thing ADR-0008 forbids.
     expect(body).not.toBeNull();
-    expect(body!.fields.some((f) => f.role === 'document_owner')).toBe(true);
-    expect(body!.fields.some((f) => f.role === 'lead_reviewer')).toBe(true);
+    expect(body.fields.some((f) => f.role === 'document_owner')).toBe(true);
+    expect(body.fields.some((f) => f.role === 'lead_reviewer')).toBe(true);
     // the codes carry human descriptions (T-197)
-    const disc = body!.fields.find((f) => f.key === 'discipline');
+    const disc = body.fields.find((f) => f.key === 'discipline');
     expect(disc?.allowedValueLabels?.['ECV']).toBe('Engineering – Civils');
     // and a producer can generate a reference straight off the default
     const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', zone: 'Z1', elr: 'OXD', type: 'DRG', discipline: 'ECV' });
