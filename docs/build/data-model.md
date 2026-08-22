@@ -63,7 +63,19 @@ three decisions carried in its shape. The Membership row is also where
 per-organisation, project-scoped configuration lives — `ack_mode` (ADR-0035)
 and the org-standard plan column set (`plan_columns`, T-360): settings one
 organisation's super user fixes for that organisation on that project, which
-is exactly the (organisation, project) grain and never a personal preference. **A Participant is an interval, never a
+is exactly the (organisation, project) grain and never a personal preference.
+The **Project** row carries the other half of that pattern — configuration the
+whole project runs on, fixed by the owner super user: `conflict_attestation_
+required` (ADR-0046 §8) and, from T-371, `review_period_default_days`. The
+review period was ADR-0005's one unowned attribute — the round stored a target,
+the status bar rendered it and its overdue state, and nothing anywhere set the
+value. It defaults to **ten working days** and sits on the project rather than
+in the deliverable schema deliberately (ADR-0005 addendum, 2026-08-22): the
+schema's fields are the header row of the fillable deliverables template
+(T-337/T-359), so a review period modelled as one would arrive as a column
+nobody should be filling in. The stored *target* stays on the round, computed at
+round creation — the project row holds the default, never the dates. **A
+Participant is an interval, never a
 deleted row**: removal closes `removed_at`, auto-revoking live grants from that
 moment while past rounds keep their attribution (ADR-0033). **The roster is
 project-visible** — the wall hides work, never presence. And **the user

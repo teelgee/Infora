@@ -1083,6 +1083,20 @@ export type NamingSchemeField = {
 export type NamingScheme = { projectId: Id; separator: string; fields: NamingSchemeField[] };
 export type GetNamingSchemeResponse = NamingScheme | null;
 
+// T-371 (ADR-0005 addendum, 2026-08-22) — the review period's project-level
+// default, in WORKING DAYS (Monday to Friday; no holiday calendar is modelled
+// anywhere, and a per-jurisdiction one is a separate job). It sits BESIDE the
+// deliverable schema, not in it: the schema's fields are the header row of the
+// fillable deliverables template (T-337/T-359), so a review period modelled as a
+// schema attribute would arrive as a column nobody should be filling in.
+// The value is a guide with no power over state (ADR-0005) — it computes each
+// round's target at round creation, chases and flags overdue, and never closes
+// a round.
+export type ReviewPeriodSettings = { projectId: Id; defaultDays: number };
+export type GetReviewPeriodResponse = ReviewPeriodSettings;
+export const setReviewPeriodBody = z.object({ defaultDays: z.number().int().min(1).max(365) });
+export type SetReviewPeriodBody = z.infer<typeof setReviewPeriodBody>;
+
 // A field composes the coded reference when inCode is set, or — for schemes that
 // predate the flag (T-188) — when it is a plain code-ish field (no role, a
 // text/select/serial type). Roles and date/person fields are metadata, never code.

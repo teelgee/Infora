@@ -265,3 +265,13 @@ are not recorded here.
   rather than replacing it with a three-state enum, because the ruling is that
   the two *compose*: inside a deliverable's folder the member toggle still
   governs, and one enum could not say that.
+- **2026-08-22 (T-371) — the review period's default got a home, and it is not
+  the schema.** `ReviewPeriodSettings` is its own read/write pair on the project
+  rather than a `NamingSchemeField`, and the reason is downstream: the schema's
+  fields are the header row of the fillable deliverables template (T-337/T-359),
+  so a review period modelled as a schema attribute would have shipped as a
+  spreadsheet column nobody should be filling in. The type carries a count of
+  working days and no dates at all — the *target* stays on `Round`, computed at
+  round creation — because a project row that held dates would have to be
+  rewritten every time a round opened, and changing the default would silently
+  move a round already under way.

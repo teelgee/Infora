@@ -185,6 +185,11 @@ export function SchemaScreen() {
   const [proposalText, setProposalText] = useState('');
   const [saved, setSaved] = useState(false);
   const [editingOptions, setEditingOptions] = useState<number | null>(null);
+  // T-371 — the review period's project default, in working days. Its own
+  // section below, deliberately NOT a row in the field table above.
+  const [reviewPeriodDays, setReviewPeriodDays] = useState('');
+  const [savedPeriod, setSavedPeriod] = useState<number | null>(null);
+  const [periodSaved, setPeriodSaved] = useState(false);
 
   const loadProposals = () => void api.namingProposals(projectId).then((r) => setProposals(r.items));
   useEffect(() => {
@@ -193,6 +198,10 @@ export function SchemaScreen() {
         setSeparator(s.separator);
         setFields(s.fields);
       }
+    });
+    void api.reviewPeriod(projectId).then((r) => {
+      setSavedPeriod(r.defaultDays);
+      setReviewPeriodDays(String(r.defaultDays));
     });
     loadProposals();
   }, [projectId]);
@@ -216,6 +225,16 @@ export function SchemaScreen() {
     } catch {
       setPreviewSerial('rejected — check values against the scheme');
     }
+  }
+
+  async function saveReviewPeriod() {
+    const days = Number.parseInt(reviewPeriodDays, 10);
+    if (!Number.isFinite(days) || days < 1) return;
+    const saved = await api.setReviewPeriod(projectId, days);
+    setSavedPeriod(saved.defaultDays);
+    setReviewPeriodDays(String(saved.defaultDays));
+    setPeriodSaved(true);
+    setTimeout(() => setPeriodSaved(false), 1500);
   }
 
   async function propose() {
@@ -423,6 +442,50 @@ export function SchemaScreen() {
           </div>
         </div>
       )}
+
+      {/* T-371 (ADR-0005 addendum, 2026-08-22) — the review period's project
+          default. Its OWN section and deliberately not a field in the table
+          above: the schema's fields are the header row of the fillable
+          deliverables template (T-337/T-359), so a review period modelled as one
+          would arrive as a column nobody should be filling in. */}
+      <SectionLabel>Review period</SectionLabel>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 8px', maxWidth: 640, lineHeight: 1.5 }}>
+        How long a review round is expected to take, in working days — Monday to Friday, with no
+        holiday calendar. Each round’s target date is computed from it when the deliverable is
+        promoted, and the lead author may adjust it for a single submission. It chases the review
+        group and marks a round overdue; it never closes a round, which stays the lead reviewer’s
+        act. Project configuration, not a schema attribute.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 4 }}>
+        <div style={{ width: 160 }}>
+          <Field label="Default per round">
+            <TextInput
+              value={reviewPeriodDays}
+              onChange={setReviewPeriodDays}
+              disabled={!canEdit}
+              placeholder="10"
+              onEnter={() => void saveReviewPeriod()}
+            />
+          </Field>
+        </div>
+        <span style={{ fontSize: 12.5, color: 'var(--text-muted)', paddingBottom: 10 }}>working days</span>
+        {canEdit && (
+          <>
+            <Button
+              size="sm"
+              disabled={
+                reviewPeriodDays.trim() === '' ||
+                Number.parseInt(reviewPeriodDays, 10) === savedPeriod ||
+                !(Number.parseInt(reviewPeriodDays, 10) >= 1)
+              }
+              onClick={() => void saveReviewPeriod()}
+            >
+              Save
+            </Button>
+            {periodSaved && <Badge tone="success">Saved</Badge>}
+          </>
+        )}
+      </div>
 
       <SectionLabel>Scheme additions</SectionLabel>
       {canPropose && (

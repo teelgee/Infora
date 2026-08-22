@@ -1,6 +1,6 @@
 // Drawer 1 — parties & access (data-model.md; ADR-0015–0018, ADR-0033).
 // Every other table is scoped by these.
-import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -117,6 +117,16 @@ export const projects = pgTable('projects', {
   // not enforcement: a client cannot inspect a supplier's internal wall, and a
   // control pretending otherwise would be theatre.
   conflictAttestationRequired: boolean('conflict_attestation_required').notNull().default(false),
+  // T-371 (ADR-0005 addendum, 2026-08-22) — the review period's project-level
+  // owner. ADR-0005 gave a round "a configurable review period" and never said
+  // who configures it: rounds.review_period_target shipped, the status bar
+  // rendered a target and an overdue state, and nothing ever set the value.
+  // Ten working days by default, set by the owner super user BESIDE the
+  // deliverable schema and deliberately not IN it — the schema's fields are the
+  // header row of the fillable deliverables template (T-337/T-359), so a review
+  // period modelled as one would arrive as a column nobody should be filling
+  // in. The stored target lives on the round; this row holds only the default.
+  reviewPeriodDefaultDays: integer('review_period_default_days').notNull().default(10),
 });
 
 // A Participant is an interval, never a deleted row: removal closes

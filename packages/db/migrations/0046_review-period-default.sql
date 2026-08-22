@@ -1,0 +1,22 @@
+-- 0046 — T-371 (ADR-0005 addendum, 2026-08-22): the review period gains an owner.
+-- ADR-0005 gave a round "a configurable review period" and never said who
+-- configures it or when. The cost showed in the build: rounds.review_period_target
+-- shipped with migration 0010, the status bar rendered a target date AND an
+-- overdue state, and nothing anywhere ever set the value — chrome ready and
+-- permanently idle.
+--
+-- The default is PROJECT configuration, beside the deliverable schema and
+-- deliberately not inside it: the schema's fields are the header row of the
+-- fillable deliverables template (T-337/T-359), so a review period modelled as a
+-- schema attribute would arrive as a column nobody should be filling in. Ten
+-- working days, Monday to Friday, no holiday calendar — none is modelled
+-- anywhere in the system and a per-jurisdiction one is a separate job, not an
+-- implementation guess.
+--
+-- Nothing about the period's POWER changes (ADR-0005): it chases and flags
+-- overdue, and only the lead reviewer closes a round. That is exactly why the
+-- producing side may set it — a guide carries no access consequence.
+-- Hand-written per the standing rule; drawn in data-model.md drawer 1.
+ALTER TABLE "projects" ADD COLUMN "review_period_default_days" integer NOT NULL DEFAULT 10;--> statement-breakpoint
+-- a period is a positive count of working days; zero or negative is not a guide
+ALTER TABLE "projects" ADD CONSTRAINT "projects_review_period_default_days_positive" CHECK ("review_period_default_days" > 0);

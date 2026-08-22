@@ -3,7 +3,11 @@
 // per-org serial; propose-then-fold; the wall (a member cannot edit the scheme
 // or resolve a proposal). ADR-0008 homed.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { GenerateReferenceResponse, GetNamingSchemeResponse } from '@infora/contracts';
+import type {
+  GenerateReferenceResponse,
+  GetNamingSchemeResponse,
+  GetReviewPeriodResponse,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { composeReference, templateFields } from './naming';
@@ -119,6 +123,52 @@ describe('the deliverable schema default (T-188)', () => {
     const gen = await genReference(consultCookie, { project: '133735', originator: 'MWJ', zone: 'Z1', elr: 'OXD', type: 'DRG', discipline: 'ECV' });
     expect(gen.status).toBe(200);
     expect(((await gen.json()) as GenerateReferenceResponse).reference).toMatch(/^133735-MWJ-Z1-OXD-DRG-ECV-\d{6}$/);
+  });
+});
+
+// T-371 (ADR-0005 addendum, 2026-08-22) — the review period's project-level
+// default. Its own endpoints beside the scheme, never a field inside it.
+describe('the review-period default (T-371)', () => {
+  const read = (cookie: string) =>
+    app.request(`/projects/${projectId}/review-period`, { headers: asJson(cookie) });
+  const days = async (res: Response) => ((await res.json()) as GetReviewPeriodResponse).defaultDays;
+  const write = (cookie: string, body: unknown) =>
+    app.request(`/projects/${projectId}/review-period`, {
+      method: 'PATCH',
+      headers: asJson(cookie),
+      body: JSON.stringify(body),
+    });
+
+  it('starts at ten working days without anyone setting it', async () => {
+    const res = await read(ownerCookie);
+    expect(res.status).toBe(200);
+    expect(await days(res)).toBe(10);
+  });
+
+  it('is read by every participant — the status bar renders a date computed from it', async () => {
+    for (const cookie of [consultCookie, otherCookie]) {
+      const res = await read(cookie);
+      expect(res.status).toBe(200);
+      expect(await days(res)).toBe(10);
+    }
+  });
+
+  it('is set by the owner super-user, and by nobody else', async () => {
+    expect((await write(consultCookie, { defaultDays: 30 })).status).toBe(404); // guest super-user
+    expect((await write(otherCookie, { defaultDays: 30 })).status).toBe(404); // ordinary participant
+    const ok = await write(ownerCookie, { defaultDays: 15 });
+    expect(ok.status).toBe(200);
+    expect(await days(ok)).toBe(15);
+    expect(await days(await read(consultCookie))).toBe(15);
+  });
+
+  it('refuses a period that is not a positive count of days', async () => {
+    expect((await write(ownerCookie, { defaultDays: 0 })).status).toBe(400);
+    expect((await write(ownerCookie, { defaultDays: -5 })).status).toBe(400);
+    expect((await write(ownerCookie, { defaultDays: 2.5 })).status).toBe(400);
+    // and the refused writes left the stored value alone
+    expect(await days(await read(ownerCookie))).toBe(15);
+    await write(ownerCookie, { defaultDays: 10 }); // back to the default for later suites
   });
 });
 

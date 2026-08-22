@@ -224,6 +224,24 @@ describe('promotion (T-120)', () => {
     expect(workItem!.status).toBe('in_review');
   });
 
+  it('the round carries a review-period target, computed at creation (T-371, ADR-0005 addendum)', async () => {
+    // rounds.review_period_target shipped with migration 0010 and nothing ever
+    // set it — the status bar rendered a date and an overdue state off a column
+    // that was permanently null. Promotion is what fills it now.
+    const cycle = (await (
+      await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
+    ).json()) as ReviewCycle;
+    const target = cycle.rounds[0]!.reviewPeriodTarget;
+    expect(target).not.toBeNull();
+    // ten working days on from the promotion moment, and never a weekend
+    const at = new Date(target!);
+    expect(at.getUTCDay()).not.toBe(0);
+    expect(at.getUTCDay()).not.toBe(6);
+    const calendarDays = Math.round((at.getTime() - Date.now()) / 86_400_000);
+    expect(calendarDays).toBeGreaterThanOrEqual(13); // 10 working days spans ≥ 2 weekends
+    expect(calendarDays).toBeLessThanOrEqual(16);
+  });
+
   it('the submission acknowledgement gate: no comment lands until the owner acknowledges (ADR-0051)', async () => {
     const cycle = (await (
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })

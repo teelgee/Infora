@@ -227,7 +227,7 @@ const acts = [
         {
           title: 'The review period gains an owner',
           prose:
-            'The status bar renders a target date and an overdue state, and nothing has ever set the target — the chrome was ready and permanently idle. Ruled on 2026-08-19: the project carries a default of ten working days, set on the schema screen as project configuration rather than as a schema field, because a schema field would arrive as a column in the exported deliverables template; the lead author may adjust it for a particular submission in the promotion window. Working days are Monday to Friday, with no holiday calendar — none is modelled anywhere. The reminders that chase the date still ride the V1 notifications work.',
+            'The status bar renders a target date and an overdue state, and nothing has ever set the target — the chrome was ready and permanently idle. Ruled on 2026-08-19: the project carries a default of ten working days, set on the schema screen as project configuration rather than as a schema field, because a schema field would arrive as a column in the exported deliverables template; the lead author may adjust it for a particular submission in the promotion window. Working days are Monday to Friday, with no holiday calendar — none is modelled anywhere. The reminders that chase the date still ride the V1 notifications work. Built as T-371: the project default is set on the schema screen and every round now opens with a real target date, so the bar’s overdue state finally has something to be overdue against; the per-submission adjustment arrives with the promotion window above.',
           mockup: 'promotion-window.html',
         },
         {

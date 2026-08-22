@@ -51,6 +51,7 @@ import type {
   SandboxComment,
   SandboxDocument,
   GetNamingSchemeResponse,
+  GetReviewPeriodResponse,
   UpsertNamingSchemeBody,
   GenerateReferenceResponse,
   ListNamingProposalsResponse,
@@ -399,6 +400,15 @@ export const api = {
     request<{ ok: true }>(`/projects/${projectId}/naming-scheme`, {
       method: 'PUT',
       body: JSON.stringify(body),
+    }),
+  // T-371 (ADR-0005 addendum) — the review period's project-level default, in
+  // working days. Beside the schema, never inside it.
+  reviewPeriod: (projectId: string) =>
+    request<GetReviewPeriodResponse>(`/projects/${projectId}/review-period`),
+  setReviewPeriod: (projectId: string, defaultDays: number) =>
+    request<GetReviewPeriodResponse>(`/projects/${projectId}/review-period`, {
+      method: 'PATCH',
+      body: JSON.stringify({ defaultDays }),
     }),
   generateReference: (projectId: string, values: Record<string, string>) =>
     request<GenerateReferenceResponse>(`/projects/${projectId}/naming-scheme/references`, {

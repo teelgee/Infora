@@ -14,12 +14,14 @@ import {
   isColumnableField,
   proposeNamingAdditionBody,
   resolveNamingProposalBody,
+  setReviewPeriodBody,
   upsertNamingSchemeBody,
 } from '@infora/contracts';
 import type {
   ApiError,
   GenerateReferenceResponse,
   GetNamingSchemeResponse,
+  GetReviewPeriodResponse,
   ListNamingProposalsResponse,
   NamingProposal,
   NamingSchemeField,
@@ -28,6 +30,7 @@ import { canEditScheme, canProposeScheme } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
+import { DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import type { AppEnv } from './requester';
 import { buildXlsx } from './xlsx';
 
@@ -149,6 +152,45 @@ export function namingRoutes(deps: { db: Db }) {
         set: { separator: parsed.data.separator, fields: parsed.data.fields, updatedAt: sql`now()` },
       });
     return c.json({ ok: true });
+  });
+
+  // T-371 (ADR-0005 addendum) — the review period's project-level default.
+  // Its own pair of endpoints beside the scheme rather than a field inside it:
+  // the scheme's fields are the header row of the fillable deliverables
+  // template (T-337/T-359), and a review period modelled as one would arrive as
+  // a column nobody should be filling in. Every participant reads it — the
+  // number is what the status bar's target and overdue state are computed from,
+  // so hiding it would make the date on screen unexplainable.
+  app.get('/projects/:projectId/review-period', project, async (c) => {
+    const slice = c.get('slice');
+    const [row] = await deps.db
+      .select({ defaultDays: s.projects.reviewPeriodDefaultDays })
+      .from(s.projects)
+      .where(eq(s.projects.id, slice.projectId))
+      .limit(1);
+    return c.json({
+      projectId: slice.projectId,
+      defaultDays: row?.defaultDays ?? DEFAULT_REVIEW_PERIOD_DAYS,
+    } satisfies GetReviewPeriodResponse);
+  });
+
+  // The owner super-user sets it — project configuration, the same tier that
+  // owns the scheme (canEditScheme). Safe in the producing side's hands at
+  // promotion for the same reason it is safe here: a guide carries no access or
+  // state consequence, unlike the review group sitting in the same window.
+  app.patch('/projects/:projectId/review-period', project, async (c) => {
+    const slice = c.get('slice');
+    if (!canEditScheme(slice)) return notFound(c);
+    const parsed = setReviewPeriodBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    await deps.db
+      .update(s.projects)
+      .set({ reviewPeriodDefaultDays: parsed.data.defaultDays })
+      .where(eq(s.projects.id, slice.projectId));
+    return c.json({
+      projectId: slice.projectId,
+      defaultDays: parsed.data.defaultDays,
+    } satisfies GetReviewPeriodResponse);
   });
 
   // a producer self-generates a compliant reference; the serial is allocated

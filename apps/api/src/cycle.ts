@@ -43,6 +43,7 @@ import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { generateRenditions } from './renditions';
 import { refuseElevated } from './elevated';
+import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import { loadSchemeOrDefault } from './naming';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
@@ -63,6 +64,19 @@ const nextRevision = (existingRefs: readonly string[], prefix: 'P' | 'C'): strin
   `${prefix}${String(existingRefs.filter((r) => r.startsWith(prefix)).length + 1).padStart(2, '0')}`;
 
 type ContainerRow = typeof s.containers.$inferSelect;
+
+/** T-371 (ADR-0005 addendum) — the project's review-period default, in working
+ * days. Read at round creation and turned into a stored target date; the
+ * project row holds the default, never the dates, so changing it never rewrites
+ * a round already under way. */
+async function reviewPeriodTargetFor(db: Db, projectId: string): Promise<Date> {
+  const [row] = await db
+    .select({ defaultDays: s.projects.reviewPeriodDefaultDays })
+    .from(s.projects)
+    .where(eq(s.projects.id, projectId))
+    .limit(1);
+  return addWorkingDays(new Date(), row?.defaultDays ?? DEFAULT_REVIEW_PERIOD_DAYS);
+}
 
 /** producer | owner | live share — who may see the deliverable and its DRR.
  * A sandbox-scope (freeze-series) container is org-private machinery: the
@@ -485,6 +499,11 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       versionReference = `v0.${Math.max(1, ambient.length)}`;
     }
 
+    // T-371 — read outside the transaction: the project default is settings, not
+    // part of the atomic unit, and an extra query inside a transaction buys
+    // nothing but a longer lock
+    const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, doc.projectId);
+
     const result = await deps.db.transaction(async (tx) => {
       await tx
         .update(s.versions)
@@ -520,7 +539,15 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         }
         const [round] = await tx
           .insert(s.rounds)
-          .values({ cycleId, number: roundNumber, versionId: version!.id })
+          .values({
+            cycleId,
+            number: roundNumber,
+            versionId: version!.id,
+            // T-371 — the internal QA round is the same workflow at the
+            // org-private scope (ADR-0032), so it gets the same guide: the
+            // status bar renders one target and one overdue state for both
+            reviewPeriodTarget,
+          })
           .returning();
         const [transmittal] = await tx
           .insert(s.transmittals)
@@ -795,6 +822,9 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .where(eq(s.versions.containerId, container.id))
     ).map((r) => r.ref);
     const versionReference = nextRevision(existingRefs, 'P');
+    // T-371 — the submission's target date, computed now from the project's
+    // working-day default (ADR-0005 addendum)
+    const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, container.projectId);
 
     const result = await deps.db.transaction(async (tx) => {
       // currency moves to the new version (the 0013 carve-out)
@@ -855,7 +885,18 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       // review only when the owner organisation acknowledges the submission
       const [round] = await tx
         .insert(s.rounds)
-        .values({ cycleId, number: roundNumber, versionId: version!.id, state: 'submitted' })
+        .values({
+          cycleId,
+          number: roundNumber,
+          versionId: version!.id,
+          state: 'submitted',
+          // T-371 (ADR-0005 addendum) — the target is computed HERE, at round
+          // creation from the promotion moment, and stored. rounds.review_period_target
+          // shipped with migration 0010 and nothing ever set it; this is the
+          // line that ends that. It guides and flags overdue; it never closes
+          // a round, which stays the lead reviewer's act.
+          reviewPeriodTarget,
+        })
         .returning();
       // the promotion IS the transmittal to review (ADR-0010/0014)
       const [transmittal] = await tx
