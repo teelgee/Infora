@@ -6,7 +6,13 @@
 // its own organisation only (the wall untouched).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { FreezeResult, PlanRow, PromotionResult, Sandbox } from '@infora/contracts';
+import type {
+  FreezeResult,
+  PlanRow,
+  PromotionPreflight,
+  PromotionResult,
+  Sandbox,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
@@ -282,6 +288,17 @@ describe('the QA gate (T-355, ADR-0032 addendum)', () => {
     const stale = await post(eleanorCookie, `/sandbox-documents/${docId}/promotion`);
     expect(stale.status).toBe(409);
     expect(((await stale.json()) as { detail: string }).detail).toBe('qa_acceptance_stale');
+
+    // T-373 — and the promotion WINDOW says so before the click. The preflight
+    // and the act share resolvePromotion, which is the point: a window promising
+    // a different source from the one the POST takes would be worse than none.
+    const stalePre = (await (
+      await app.request(`/sandbox-documents/${docId}/promotion-preflight`, {
+        headers: { cookie: eleanorCookie },
+      })
+    ).json()) as PromotionPreflight;
+    expect(stalePre.blocker).toBe('qa_acceptance_stale');
+    expect(stalePre.reviewPeriodDefaultDays).toBe(10);
 
     // a fresh freeze + QA pass re-arms it, and the NEW frozen content promotes
     await post(eleanorCookie, `/sandbox-documents/${docId}/freeze`);

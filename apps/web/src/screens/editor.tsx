@@ -55,6 +55,7 @@ import { ComposerSources } from '../composer-sources';
 import { Presence } from '../presence';
 import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
+import { PromotionWindow } from '../promotion-window';
 import { SourceModal } from '../source-modal';
 import { formatDate, formatDateTime } from './shared';
 
@@ -220,6 +221,8 @@ export function EditorScreen() {
   const [dirty, setDirty] = useState(false);
   // toned, dismissible notices in place of window.alert (T-230/T-228)
   const [note, setNoteState] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
+  // T-373 — the promotion window, opened rather than the act fired bare
+  const [promoting, setPromoting] = useState(false);
   const setNote = useCallback((text: string, tone: 'success' | 'error' = 'success') => setNoteState({ text, tone }), []);
   useEffect(() => {
     if (note?.tone !== 'success') return;
@@ -519,6 +522,19 @@ export function EditorScreen() {
 
   return (
     <>
+      {promoting && (
+        <PromotionWindow
+          document={doc}
+          projectId={participant.projectId}
+          onClose={() => setPromoting(false)}
+          onPromoted={(r) => {
+            setPromoting(false);
+            void navigate(`/projects/${participant.projectId}/review/${doc.containerId}/cycle`, {
+              state: { promoted: r.versionReference },
+            });
+          }}
+        />
+      )}
       {sourceOpen !== null && (
         <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
       )}
@@ -596,24 +612,10 @@ export function EditorScreen() {
             </Button>
             </span>
           )}
+          {/* T-373 — the reconfirming window, not a bare act (ADR-0008 addendum) */}
           {doc.containerId && !doc.headLocked && (
-            <span title="Promote into the waiting container — the near-empty hand-off (ADR-0008)">
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() =>
-                void api
-                  .promoteDocument(doc.id)
-                  .then((r) =>
-                    navigate(`/projects/${participant.projectId}/review/${doc.containerId}/cycle`, {
-                      state: { promoted: r.versionReference },
-                    }),
-                  )
-                  .catch((error: unknown) => {
-                    setNote(`Promotion refused — ${describeApiError(errorCode(error))}`, 'error');
-                  })
-              }
-            >
+            <span title="Promote into the waiting container — reconfirm what is about to happen (ADR-0008)">
+            <Button size="sm" variant="primary" onClick={() => setPromoting(true)}>
               <ArrowUpFromLine size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
               Promote
             </Button>

@@ -64,6 +64,7 @@ import {
 import { api } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
+import { PromotionWindow } from '../promotion-window';
 import { useMe } from '../session';
 import { formatDate } from './shared';
 
@@ -965,6 +966,7 @@ function DocActions(props: {
   displayTitle?: string;
   onMetadata: (d: SandboxDocument) => void;
   onBind: (d: SandboxDocument) => void;
+  onPromote: (d: SandboxDocument) => void;
   onMove: (d: SandboxDocument) => void;
   onRename: (d: SandboxDocument) => void;
   onReplace: (d: SandboxDocument) => void;
@@ -988,8 +990,10 @@ function DocActions(props: {
           <Lock size={13} strokeWidth={2} /> Freeze
         </Button>
       )}
+      {/* T-373 — Promote opens the reconfirming window (ADR-0008 addendum); it
+          is no longer a bare act, and it reopens at EVERY promotion */}
       {doc.containerId && (
-        <Button size="sm" variant="quiet" onClick={() => void promote(doc, props.reload, props.setNote)} aria-label={`Promote ${title}`}>
+        <Button size="sm" variant="quiet" onClick={() => props.onPromote(doc)} aria-label={`Promote ${title}`}>
           <Send size={13} strokeWidth={2} /> Promote
         </Button>
       )}
@@ -1080,6 +1084,8 @@ export function SandboxScreen() {
   >(null);
   const [bindDoc, setBindDoc] = useState<SandboxDocument | null>(null);
   const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
+  // T-373 — the document whose promotion window is open (ADR-0008 addendum)
+  const [promoteDoc, setPromoteDoc] = useState<SandboxDocument | null>(null);
   const [renameDoc, setRenameDoc] = useState<SandboxDocument | null>(null);
   const [replaceDoc, setReplaceDoc] = useState<SandboxDocument | null>(null);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
@@ -1468,6 +1474,7 @@ export function SandboxScreen() {
             displayTitle={displayTitle}
             onMetadata={setMetaDoc}
             onBind={setBindDoc}
+            onPromote={setPromoteDoc}
             onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
             onRename={setRenameDoc}
             onReplace={setReplaceDoc}
@@ -1673,6 +1680,27 @@ export function SandboxScreen() {
           }}
         />
       )}
+      {/* T-373 — promotion reconfirms rather than composes, and the window
+          reopens at EVERY promotion: six months and a staffing change later,
+          the alternative is silently inheriting a review group named at
+          planning and never looked at since (ADR-0008 addendum). */}
+      {promoteDoc && (
+        <PromotionWindow
+          document={promoteDoc}
+          projectId={projectId}
+          onClose={() => setPromoteDoc(null)}
+          onPromoted={(result) => {
+            setPromoteDoc(null);
+            void loadDocs();
+            setNote(
+              result.source === 'qa_accepted_frozen'
+                ? `Promoted the QA-accepted frozen version as ${result.versionReference} — later head edits stayed in the sandbox. The round opens when the lead reviewer accepts and acknowledges.`
+                : `Promoted the live head as ${result.versionReference}. The round opens when the lead reviewer accepts and acknowledges.`,
+            );
+          }}
+        />
+      )}
+
       {metaDoc &&
         (() => {
           const boundRow = metaDoc.containerId ? planByContainer.get(metaDoc.containerId) : undefined;
@@ -1987,6 +2015,7 @@ export function SandboxScreen() {
                           displayTitle={row?.workItem?.title ?? doc.title}
                           onMetadata={setMetaDoc}
                           onBind={setBindDoc}
+                          onPromote={setPromoteDoc}
                           onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
                           onRename={setRenameDoc}
                           onReplace={setReplaceDoc}
@@ -2041,21 +2070,3 @@ async function release(
   }
 }
 
-async function promote(
-  doc: SandboxDocument,
-  reload: () => Promise<unknown>,
-  setNote: (text: string, tone?: 'success' | 'error') => void,
-) {
-  try {
-    const result = await api.promoteDocument(doc.id);
-    await reload();
-    // the drift notice (ADR-0032 addendum, T-355): promotion states its source
-    setNote(
-      result.source === 'qa_accepted_frozen'
-        ? `Promoted the QA-accepted frozen version as ${result.versionReference} — later head edits stayed in the sandbox.`
-        : `Promoted the live head as ${result.versionReference} — the project review cycle is open.`,
-    );
-  } catch (error) {
-    setNote(`Promote failed — ${describeApiError(errorCode(error))}`, 'error');
-  }
-}

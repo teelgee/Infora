@@ -19,6 +19,7 @@ import type {
   IssueRoundResponse,
   ListAcceptanceCodesResponse,
   ListRenditionsResponse,
+  PromotionPreflight,
   PromotionResult,
   ReviewComment,
   ReviewCycle,
@@ -241,8 +242,15 @@ export const api = {
   cycle: (containerId: string) => request<ReviewCycle | null>(`/containers/${containerId}/cycle`),
   acceptanceCodes: (projectId: string) =>
     request<ListAcceptanceCodesResponse>(`/projects/${projectId}/acceptance-codes`),
-  promoteDocument: (documentId: string) =>
-    request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, { method: 'POST' }),
+  // T-373 — what the promotion window states before the click, off the same
+  // decision the act runs
+  promotionPreflight: (documentId: string) =>
+    request<PromotionPreflight>(`/sandbox-documents/${documentId}/promotion-preflight`),
+  promoteDocument: (documentId: string, reviewPeriodDays?: number) =>
+    request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {
+      method: 'POST',
+      body: JSON.stringify(reviewPeriodDays !== undefined ? { reviewPeriodDays } : {}),
+    }),
   freezeDocument: (documentId: string) =>
     request<FreezeResult>(`/sandbox-documents/${documentId}/freeze`, { method: 'POST' }),
   releaseDocument: (documentId: string, reason?: string) =>

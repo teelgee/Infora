@@ -300,3 +300,17 @@ are not recorded here.
   consults it. No new type: the narrowing is entirely a guard, because the facts
   it reads — `ReviewerGrant.isLead`, `acceptedAt`, and the requester's own
   `elevated` — were all already on the wire.
+- **2026-08-22 (T-373) — the promotion window reads the act's own decision.**
+  `PromotionPreflight` exists because the window has to state what the click
+  will do *before* it happens — which version promotes and who accepted it, what
+  revision it becomes, and any refusal it would answer with. The type is served
+  from `resolvePromotion`, the single function the POST also runs, and that
+  sharing is the entire design: a preflight computed separately from the act is
+  a preflight that will eventually lie about the act, which is worse than no
+  window at all. Its `blocker` is **data, not a status** — the window renders it
+  beside a disabled Promote, and a 409 on the read would leave the window with
+  nothing to draw. `promoteDocumentBody` takes only `reviewPeriodDays`, and that
+  narrowness is the ADR-0008 answer in the contract: the reviewer and metadata
+  edits are the *existing* acts on their own audited endpoints, which the window
+  fires before it promotes, so the window sequences acts rather than becoming a
+  composite write that could smuggle a wall-crossing grant past confirmation.

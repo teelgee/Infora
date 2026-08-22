@@ -25,6 +25,7 @@ import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton,
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
+import { PromotionWindow } from '../promotion-window';
 import { formatDate, formatDateTime, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
@@ -53,6 +54,8 @@ export function CycleScreen() {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectBusy, setRejectBusy] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
+  // T-373 — the promotion window for the next version
+  const [promoting, setPromoting] = useState(false);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -203,8 +206,12 @@ export function CycleScreen() {
           {/* never on the internal QA screen: promotion targets the LIBRARY
               container, so offering it beside an open internal round only ever
               answers internal_cycle_active (T-355) */}
+          {/* T-373 — the reconfirming window (ADR-0008 addendum). Round two is
+              where it earns its place most: six months and a staffing change
+              later, the alternative is silently inheriting a review group named
+              at planning and never looked at since. */}
           {draft && myAuthor?.isLead && cycle?.state === 'active' && !isInternalQa && (
-            <Button size="sm" variant="primary" onClick={() => void act(() => api.promoteDocument(draft.id))}>
+            <Button size="sm" variant="primary" onClick={() => setPromoting(true)}>
               Promote the next version
             </Button>
           )}
@@ -376,6 +383,18 @@ export function CycleScreen() {
           );
           });
         })()}
+
+      {promoting && draft && (
+        <PromotionWindow
+          document={draft}
+          projectId={me.projectId}
+          onClose={() => setPromoting(false)}
+          onPromoted={() => {
+            setPromoting(false);
+            void reload();
+          }}
+        />
+      )}
 
       {cycle && <ActivityTrail cycle={cycle} />}
     </div>

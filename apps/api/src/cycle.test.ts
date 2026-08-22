@@ -2,7 +2,13 @@
 // near-empty hand-off launching the cycle (ADR-0002/0008/0014/0017/0032),
 // then the round loop as its tickets land.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { PlanRow, PromotionResult, ReviewCycle, ReviewerGrant } from '@infora/contracts';
+import type {
+  PlanRow,
+  PromotionPreflight,
+  PromotionResult,
+  ReviewCycle,
+  ReviewerGrant,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -199,6 +205,38 @@ describe('promotion (T-120)', () => {
     expect(((await blocked.json()) as { detail?: string }).detail).toBe('no_document_owner');
     // clear the requirement so the shared document can promote normally below
     await db.delete(s.projectNamingSchemes).where(eq(s.projectNamingSchemes.projectId, projectId));
+  });
+
+  it('the window states what the click will do before it happens (T-373)', async () => {
+    // read from the SAME decision the act runs, so the two cannot drift: what
+    // revision this becomes, which of ADR-0032's two sources it takes, and the
+    // project's review-period default the window prefills from (T-371)
+    const res = await app.request(`/sandbox-documents/${documentId}/promotion-preflight`, {
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(res.status).toBe(200);
+    const pre = (await res.json()) as PromotionPreflight;
+    expect(pre.blocker).toBeNull();
+    expect(pre.versionReference).toBe('P01');
+    expect(pre.roundNumber).toBe(1);
+    expect(pre.source).toBe('head'); // this suite's sandbox has the QA gate off
+    expect(pre.reviewPeriodDefaultDays).toBe(10);
+
+    // it is the lead author's window, and nobody else's — the same guard the
+    // act carries, so the window cannot be opened where the click would fail
+    const byColleague = await app.request(
+      `/sandbox-documents/${documentId}/promotion-preflight`,
+      { headers: { cookie: colleagueCookie } },
+    );
+    expect(((await byColleague.json()) as PromotionPreflight).blocker).toBe('lead_author_only');
+    // and never across the wall
+    expect(
+      (
+        await app.request(`/sandbox-documents/${documentId}/promotion-preflight`, {
+          headers: { cookie: ownerCookie },
+        })
+      ).status,
+    ).toBe(404);
   });
 
   it('the first promotion snapshots the head, launches the cycle and opens round 1', async () => {
@@ -620,7 +658,14 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       .update(s.sandboxDocuments)
       .set({ content: 'The drafted statement, drainage assumption clarified.' })
       .where(eq(s.sandboxDocuments.id, documentId));
-    const res = await promote(leadAuthorCookie);
+    // T-373 — the lead author sets the period for THIS submission from the
+    // window. It rides the computed target and is never written back to the
+    // project: round three is the project default again unless overridden too.
+    const res = await app.request(`/sandbox-documents/${documentId}/promotion`, {
+      method: 'POST',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ reviewPeriodDays: 3 }),
+    });
     expect(res.status).toBe(201);
     const result = (await res.json()) as PromotionResult;
     expect(result.versionReference).toBe('P02');
@@ -630,6 +675,17 @@ describe('the round loop (T-123/T-124/T-126)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: ownerCookie } })
     ).json()) as ReviewCycle;
     expect(cycle.editLockHolder).toBe('reviewing');
+    // three working days out, not the project's ten — and the project row is
+    // untouched, which is what "for this submission only" has to mean
+    const roundTwoTarget = new Date(cycle.rounds[1]!.reviewPeriodTarget!);
+    const calendarDays = Math.round((roundTwoTarget.getTime() - Date.now()) / 86_400_000);
+    expect(calendarDays).toBeLessThanOrEqual(6); // 3 working days spans at most one weekend
+    expect(calendarDays).toBeGreaterThanOrEqual(2);
+    const [projectRow] = await db
+      .select({ defaultDays: s.projects.reviewPeriodDefaultDays })
+      .from(s.projects)
+      .where(eq(s.projects.id, projectId));
+    expect(projectRow!.defaultDays).toBe(10);
     // promotion stamped ADR-0004's link target on the change-declared response
     // (the no-change ones stay unlinked by definition)
     const round1 = cycle.rounds[0]!;

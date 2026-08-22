@@ -15,6 +15,7 @@ import {
   closeRejectedBody,
   issueRoundBody,
   patchReviewCommentBody,
+  promoteDocumentBody,
   releaseCheckoutBody,
   setDeliverableCodeBody,
 } from '@infora/contracts';
@@ -23,6 +24,7 @@ import type {
   ApiError,
   GetCycleResponse,
   ListAcceptanceCodesResponse,
+  PromotionPreflight,
   PromotionResult,
   ReviewComment,
   ReviewCycle,
@@ -66,10 +68,20 @@ const nextRevision = (existingRefs: readonly string[], prefix: 'P' | 'C'): strin
 type ContainerRow = typeof s.containers.$inferSelect;
 
 /** T-371 (ADR-0005 addendum) — the project's review-period default, in working
- * days. Read at round creation and turned into a stored target date; the
- * project row holds the default, never the dates, so changing it never rewrites
- * a round already under way. */
-async function reviewPeriodTargetFor(db: Db, projectId: string): Promise<Date> {
+ * days, turned into this round's stored target date. The project row holds the
+ * default and never the dates, so changing it cannot rewrite a round already
+ * under way.
+ *
+ * T-373 adds `overrideDays`: the lead author may set the period for ONE
+ * submission from the promotion window. It rides the computed target and is
+ * never written back to the project — the next submission is the project's
+ * default again unless it is overridden too. */
+async function reviewPeriodTargetFor(
+  db: Db,
+  projectId: string,
+  overrideDays?: number,
+): Promise<Date> {
+  if (overrideDays !== undefined) return addWorkingDays(new Date(), overrideDays);
   const [row] = await db
     .select({ defaultDays: s.projects.reviewPeriodDefaultDays })
     .from(s.projects)
@@ -410,6 +422,236 @@ export async function snapshotState(db: Db, roundId: string) {
   return { comments, responses };
 }
 
+/** A refusal the promotion would answer with, in the shape the route maps to a
+ * status. Named as data rather than returned as a Response so the PREFLIGHT can
+ * state the same refusal without firing the act. */
+type PromotionRefusal =
+  | { status: 400; detail: string }
+  | { status: 403; detail: string }
+  | { status: 409; detail: string };
+
+/** Everything the promotion is about to do, decided before anything is written. */
+type PromotionPlan = {
+  reviewers: Array<{ id: string; isLead: boolean; participantId: string }>;
+  existingCycle: typeof s.reviewCycles.$inferSelect | undefined;
+  latestRound: typeof s.rounds.$inferSelect | undefined;
+  /** ADR-0032's two legal sources (T-355 states which rather than implying it) */
+  source: 'head' | 'qa_accepted_frozen';
+  sourceContent: string;
+  /** the frozen revision being taken, and who accepted it — null on a head
+   * promotion, where there is no QA pass to name */
+  sourceVersionReference: string | null;
+  qaAcceptedBy: { participantId: string; name: string } | null;
+  qaAcceptedAt: string | null;
+  /** the P revision this promotion would issue, and the round it would open */
+  versionReference: string;
+  roundNumber: number;
+};
+
+/**
+ * T-373 — the promotion's whole decision, in one place, because the promotion
+ * WINDOW has to state what the click will do before it happens: which version
+ * promotes and who accepted it, what revision it becomes, and any refusal it
+ * would answer with. A preflight computed separately from the act is a preflight
+ * that will eventually lie, so both read this.
+ *
+ * Decides only. Writes nothing.
+ */
+async function resolvePromotion(
+  db: Db,
+  doc: typeof s.sandboxDocuments.$inferSelect,
+  container: ContainerRow,
+  slice: EntitledSlice,
+): Promise<{ ok: true; plan: PromotionPlan } | { ok: false; refusal: PromotionRefusal }> {
+  const refuse = (status: 400 | 403 | 409, detail: string) =>
+    ({ ok: false as const, refusal: { status, detail } as PromotionRefusal });
+
+  // only the lead author promotes (ADR-0017)
+  const author = await isLiveAuthor(db, container.id, slice.participantId);
+  if (!author?.isLead) return refuse(403, 'lead_author_only');
+
+  // a cycle cannot run without its lead reviewer (ADR-0005/0008)
+  const reviewers = await db
+    .select({ id: s.deliverableReviewers.id, isLead: s.deliverableReviewers.isLead, participantId: s.deliverableReviewers.participantId })
+    .from(s.deliverableReviewers)
+    .where(
+      and(
+        eq(s.deliverableReviewers.containerId, container.id),
+        isNull(s.deliverableReviewers.revokedAt),
+        // T-372 — a declined appointment leaves the deliverable awaiting a
+        // lead reviewer, which is exactly the state this guard names
+        isNull(s.deliverableReviewers.declinedAt),
+        sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
+      ),
+    );
+  // A CONFIRMED lead is what promotion needs — not an accepted one. ADR-0033's
+  // "the precondition now reads accepted" is about what opens a ROUND, and since
+  // ADR-0051 that is the acknowledgement, not the promotion: both approved
+  // mockups show P01 promoting and then sitting unacknowledged while the
+  // appointment is unanswered ("the submission just waits longer"). Refusing the
+  // promotion instead would erase that state rather than surface it.
+  if (!reviewers.some((r) => r.isLead)) return refuse(409, 'no_lead_reviewer');
+
+  // schema-required appointment roles must be filled before promotion (T-198).
+  // The lead reviewer is always mandatory (above); the owner's schema can also
+  // make author / document owner / reviewer required. Opt-in — the default
+  // marks none required, so this adds no gate unless the owner sets one.
+  const scheme = await loadSchemeOrDefault(db, doc.projectId);
+  const requiredRoles = new Set(scheme.fields.filter((f) => f.role && f.required).map((f) => f.role));
+  if (requiredRoles.has('author')) {
+    const [anyAuthor] = await db
+      .select({ id: s.deliverableAuthors.id })
+      .from(s.deliverableAuthors)
+      .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)))
+      .limit(1);
+    if (!anyAuthor) return refuse(409, 'no_author');
+  }
+  if (requiredRoles.has('document_owner') && !container.documentOwnerParticipantId) {
+    return refuse(409, 'no_document_owner');
+  }
+  if (requiredRoles.has('reviewer') && reviewers.length === 0) return refuse(409, 'no_reviewer');
+
+  const [existingCycle] = await db
+    .select()
+    .from(s.reviewCycles)
+    .where(and(eq(s.reviewCycles.containerId, container.id), eq(s.reviewCycles.state, 'active')))
+    .limit(1);
+
+  const priorRounds = existingCycle
+    ? await db
+        .select()
+        .from(s.rounds)
+        .where(eq(s.rounds.cycleId, existingCycle.id))
+        .orderBy(asc(s.rounds.number))
+    : [];
+  const latestRound = priorRounds.at(-1);
+  if (existingCycle) {
+    // transmittal back happens from the respond phase only (ADR-0014)
+    if (!latestRound || latestRound.state !== 'issued') {
+      return refuse(409, 'round_not_in_respond_phase');
+    }
+    // every comment answered before vN+1 (ADR-0004's mandatory response)
+    const [unanswered] = await db
+      .select({ id: s.reviewComments.id })
+      .from(s.reviewComments)
+      .leftJoin(s.responses, eq(s.responses.commentId, s.reviewComments.id))
+      .where(and(eq(s.reviewComments.roundId, latestRound.id), isNull(s.responses.id)))
+      .limit(1);
+    if (unanswered) return refuse(409, 'unanswered_comments');
+  }
+
+  // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
+  // version — never a head drifting past an active internal cycle
+  let sourceContent = doc.content;
+  let source: 'head' | 'qa_accepted_frozen' = 'head';
+  let sourceVersionReference: string | null = null;
+  let qaAcceptedBy: { participantId: string; name: string } | null = null;
+  let qaAcceptedAt: string | null = null;
+  // an accepted QA cycle whose frozen version has already been issued
+  let qaAcceptanceSpent = false;
+  const [freezeContainer] = await db
+    .select()
+    .from(s.containers)
+    .where(eq(s.containers.sandboxDocumentId, doc.id))
+    .limit(1);
+  if (freezeContainer) {
+    const [latestFreezeCycle] = await db
+      .select()
+      .from(s.reviewCycles)
+      .where(eq(s.reviewCycles.containerId, freezeContainer.id))
+      // id breaks a launchedAt tie: two cycles in the same tick must still
+      // order deterministically, or "the latest QA pass" is a coin toss
+      .orderBy(sql`${s.reviewCycles.launchedAt} desc, ${s.reviewCycles.id} desc`)
+      .limit(1);
+    if (latestFreezeCycle?.state === 'active') return refuse(409, 'internal_cycle_active');
+    if (latestFreezeCycle?.state === 'accepted') {
+      const [acceptedRound] = await db
+        .select({ content: s.versions.content, versionReference: s.versions.versionReference })
+        .from(s.rounds)
+        .innerJoin(s.versions, eq(s.rounds.versionId, s.versions.id))
+        .where(eq(s.rounds.cycleId, latestFreezeCycle.id))
+        .orderBy(sql`${s.rounds.number} desc`)
+        .limit(1);
+      // ONE promotion per QA acceptance (T-355): a version already issued on
+      // this container after the QA cycle closed consumed that acceptance.
+      // Without this the next revision would silently re-issue the same
+      // frozen content — identical to the last, while the responses claim
+      // changes. A new revision needs a fresh freeze and a fresh QA pass.
+      const [lastIssued] = await db
+        .select({ createdAt: s.versions.createdAt })
+        .from(s.versions)
+        .where(eq(s.versions.containerId, container.id))
+        .orderBy(desc(s.versions.createdAt))
+        .limit(1);
+      qaAcceptanceSpent =
+        lastIssued !== undefined &&
+        latestFreezeCycle.closedAt !== null &&
+        lastIssued.createdAt >= latestFreezeCycle.closedAt;
+      if (acceptedRound && !qaAcceptanceSpent) {
+        sourceContent = acceptedRound.content;
+        source = 'qa_accepted_frozen';
+        // T-373 — the window says which version it is taking AND who accepted
+        // it, because the whole point of the gate is that the client receives
+        // the version that was checked
+        sourceVersionReference = acceptedRound.versionReference;
+        qaAcceptedAt = latestFreezeCycle.closedAt?.toISOString() ?? null;
+        if (latestFreezeCycle.closedByParticipantId) {
+          const [acceptor] = await db
+            .select({ participantId: s.participants.id, name: s.users.name })
+            .from(s.participants)
+            .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+            .where(eq(s.participants.id, latestFreezeCycle.closedByParticipantId))
+            .limit(1);
+          qaAcceptedBy = acceptor ?? null;
+        }
+      }
+    }
+  }
+  // the QA gate (ADR-0032 addendum 2026-08-09, T-355): with the sandbox's
+  // "promotion requires QA acceptance" on — the default for project
+  // sandboxes — the live-head source is disabled. What promotes is the
+  // QA-accepted frozen version, never the head as it has drifted since QA.
+  if (source === 'head') {
+    const [sandbox] = await db
+      .select({ promotionRequiresQa: s.sandboxes.promotionRequiresQa })
+      .from(s.sandboxes)
+      .where(eq(s.sandboxes.id, doc.sandboxId))
+      .limit(1);
+    // fails CLOSED: a governance gate must refuse on an impossible state
+    // (no sandbox row) rather than admit — hence !== false, not truthiness
+    if (sandbox?.promotionRequiresQa !== false) {
+      // named apart so the surface can say which it is: never assured, or
+      // assured for a revision already issued
+      return refuse(409, qaAcceptanceSpent ? 'qa_acceptance_stale' : 'qa_acceptance_required');
+    }
+  }
+
+  // promotion issues a P revision (issued for review, or promoted without
+  // review) — the working v0.x series stays in the sandbox (ADR-0041)
+  const existingRefs = (
+    await db
+      .select({ ref: s.versions.versionReference })
+      .from(s.versions)
+      .where(eq(s.versions.containerId, container.id))
+  ).map((r) => r.ref);
+
+  return {
+    ok: true,
+    plan: {
+      reviewers,
+      existingCycle,
+      latestRound,
+      source,
+      sourceContent,
+      sourceVersionReference,
+      qaAcceptedBy,
+      qaAcceptedAt,
+      versionReference: nextRevision(existingRefs, 'P'),
+      roundNumber: existingCycle ? latestRound!.number + 1 : 1,
+    },
+  };
+}
+
 export function cycleRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -687,190 +929,123 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     return c.json({ ok: true });
   });
 
-  // T-120 — Promote: the lead author's near-empty hand-off (ADR-0008/0017).
-  app.post('/sandbox-documents/:id/promotion', async (c) => {
-    const id = c.req.param('id');
-    if (!isUuid(id)) return notFound(c);
+  /** Resolve the document + its planned container for a promotion act or read. */
+  async function promotionScope(c: Context, id: string) {
+    if (!isUuid(id)) return null;
     const [doc] = await deps.db
       .select()
       .from(s.sandboxDocuments)
       .where(eq(s.sandboxDocuments.id, id))
       .limit(1);
-    if (!doc) return notFound(c);
+    if (!doc) return null;
     const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
     // the document lives in its organisation's private sandbox
-    if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
-    if (!doc.containerId) {
-      return c.json(
-        { error: 'invalid', detail: 'unplanned_document' } satisfies ApiError,
-        400,
-      );
-    }
+    if (!slice || doc.organisationId !== slice.organisationId) return null;
+    if (!doc.containerId) return { doc, slice, container: null as ContainerRow | null };
     const [container] = await deps.db
       .select()
       .from(s.containers)
       .where(eq(s.containers.id, doc.containerId))
       .limit(1);
-    if (!container || container.scope !== 'library') return notFound(c);
+    if (!container || container.scope !== 'library') return null;
+    return { doc, slice, container };
+  }
 
-    // only the lead author promotes (ADR-0017)
-    const author = await isLiveAuthor(deps.db, container.id, slice.participantId);
-    if (!author?.isLead) return forbidden(c, 'lead_author_only');
-
-    // a cycle cannot run without its lead reviewer (ADR-0005/0008)
-    const reviewers = await deps.db
-      .select({ id: s.deliverableReviewers.id, isLead: s.deliverableReviewers.isLead, participantId: s.deliverableReviewers.participantId })
-      .from(s.deliverableReviewers)
-      .where(
-        and(
-          eq(s.deliverableReviewers.containerId, container.id),
-          isNull(s.deliverableReviewers.revokedAt),
-          // T-372 — a declined appointment leaves the deliverable awaiting a
-          // lead reviewer, which is exactly the state this guard names
-          isNull(s.deliverableReviewers.declinedAt),
-          sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
-        ),
-      );
-    // A CONFIRMED lead is still what promotion needs — not an accepted one.
-    // ADR-0033's "the precondition now reads accepted" is about what opens a
-    // ROUND, and since ADR-0051 that is the acknowledgement, not the promotion:
-    // both approved mockups show P01 promoting and then sitting unacknowledged
-    // while the appointment is unanswered ("the submission just waits longer").
-    // Refusing the promotion instead would erase that state rather than surface
-    // it, and leave the authoring side nothing to look at.
-    if (!reviewers.some((r) => r.isLead)) return conflict(c, 'no_lead_reviewer');
-
-    // schema-required appointment roles must be filled before promotion (T-198).
-    // The lead reviewer is always mandatory (above); the owner's schema can also
-    // make author / document owner / reviewer required. Opt-in — the default
-    // marks none required, so this adds no gate unless the owner sets one.
-    const scheme = await loadSchemeOrDefault(deps.db, doc.projectId);
-    const requiredRoles = new Set(scheme.fields.filter((f) => f.role && f.required).map((f) => f.role));
-    if (requiredRoles.has('author')) {
-      const [anyAuthor] = await deps.db
-        .select({ id: s.deliverableAuthors.id })
-        .from(s.deliverableAuthors)
-        .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)))
-        .limit(1);
-      if (!anyAuthor) return conflict(c, 'no_author');
+  // T-373 — what the promotion window states before the click (ADR-0008
+  // addendum, 2026-08-22). Read-only, and computed by the SAME function the act
+  // runs: a preflight resolved separately from the act is a preflight that will
+  // eventually lie about what the click does.
+  app.get('/sandbox-documents/:id/promotion-preflight', async (c) => {
+    const scope = await promotionScope(c, c.req.param('id'));
+    if (!scope) return notFound(c);
+    const { doc, slice, container } = scope;
+    if (!container) {
+      return c.json({ error: 'invalid', detail: 'unplanned_document' } satisfies ApiError, 400);
     }
-    if (requiredRoles.has('document_owner') && !container.documentOwnerParticipantId) {
-      return conflict(c, 'no_document_owner');
-    }
-    if (requiredRoles.has('reviewer') && reviewers.length === 0) {
-      return conflict(c, 'no_reviewer');
-    }
-
-    const [existingCycle] = await deps.db
-      .select()
-      .from(s.reviewCycles)
-      .where(and(eq(s.reviewCycles.containerId, container.id), eq(s.reviewCycles.state, 'active')))
+    const [project] = await deps.db
+      .select({ defaultDays: s.projects.reviewPeriodDefaultDays })
+      .from(s.projects)
+      .where(eq(s.projects.id, container.projectId))
       .limit(1);
-
-    const priorRounds = existingCycle
-      ? await deps.db
-          .select()
-          .from(s.rounds)
-          .where(eq(s.rounds.cycleId, existingCycle.id))
-          .orderBy(asc(s.rounds.number))
-      : [];
-    const latestRound = priorRounds.at(-1);
-    if (existingCycle) {
-      // transmittal back happens from the respond phase only (ADR-0014)
-      if (!latestRound || latestRound.state !== 'issued') {
-        return conflict(c, 'round_not_in_respond_phase');
-      }
-      // every comment answered before vN+1 (ADR-0004's mandatory response)
-      const [unanswered] = await deps.db
-        .select({ id: s.reviewComments.id })
-        .from(s.reviewComments)
-        .leftJoin(s.responses, eq(s.responses.commentId, s.reviewComments.id))
-        .where(and(eq(s.reviewComments.roundId, latestRound.id), isNull(s.responses.id)))
-        .limit(1);
-      if (unanswered) return conflict(c, 'unanswered_comments');
-    }
-
-    // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
-    // version — never a head drifting past an active internal cycle
-    let sourceContent = doc.content;
-    let source: 'head' | 'qa_accepted_frozen' = 'head';
-    // an accepted QA cycle whose frozen version has already been issued
-    let qaAcceptanceSpent = false;
-    const [freezeContainer] = await deps.db
-      .select()
-      .from(s.containers)
-      .where(eq(s.containers.sandboxDocumentId, doc.id))
-      .limit(1);
-    if (freezeContainer) {
-      const [latestFreezeCycle] = await deps.db
-        .select()
-        .from(s.reviewCycles)
-        .where(eq(s.reviewCycles.containerId, freezeContainer.id))
-        // id breaks a launchedAt tie: two cycles in the same tick must still
-        // order deterministically, or "the latest QA pass" is a coin toss
-        .orderBy(sql`${s.reviewCycles.launchedAt} desc, ${s.reviewCycles.id} desc`)
-        .limit(1);
-      if (latestFreezeCycle?.state === 'active') return conflict(c, 'internal_cycle_active');
-      if (latestFreezeCycle?.state === 'accepted') {
-        const [acceptedRound] = await deps.db
-          .select({ content: s.versions.content })
-          .from(s.rounds)
-          .innerJoin(s.versions, eq(s.rounds.versionId, s.versions.id))
-          .where(eq(s.rounds.cycleId, latestFreezeCycle.id))
-          .orderBy(sql`${s.rounds.number} desc`)
-          .limit(1);
-        // ONE promotion per QA acceptance (T-355): a version already issued on
-        // this container after the QA cycle closed consumed that acceptance.
-        // Without this the next revision would silently re-issue the same
-        // frozen content — identical to the last, while the responses claim
-        // changes. A new revision needs a fresh freeze and a fresh QA pass.
-        const [lastIssued] = await deps.db
-          .select({ createdAt: s.versions.createdAt })
+    const reviewPeriodDefaultDays = project?.defaultDays ?? DEFAULT_REVIEW_PERIOD_DAYS;
+    const resolved = await resolvePromotion(deps.db, doc, container, slice);
+    if (!resolved.ok) {
+      // the blocker is DATA here, not a status: the window renders it beside the
+      // disabled Promote button, and a 409 would leave it with nothing to draw
+      const existingRefs = (
+        await deps.db
+          .select({ ref: s.versions.versionReference })
           .from(s.versions)
           .where(eq(s.versions.containerId, container.id))
-          .orderBy(desc(s.versions.createdAt))
-          .limit(1);
-        qaAcceptanceSpent =
-          lastIssued !== undefined &&
-          latestFreezeCycle.closedAt !== null &&
-          lastIssued.createdAt >= latestFreezeCycle.closedAt;
-        if (acceptedRound && !qaAcceptanceSpent) {
-          sourceContent = acceptedRound.content;
-          source = 'qa_accepted_frozen';
-        }
-      }
+      ).map((r) => r.ref);
+      return c.json({
+        containerId: container.id,
+        source: 'head',
+        sourceVersionReference: null,
+        qaAcceptedBy: null,
+        qaAcceptedAt: null,
+        versionReference: nextRevision(existingRefs, 'P'),
+        roundNumber: 0,
+        reviewPeriodDefaultDays,
+        blocker: resolved.refusal.detail,
+      } satisfies PromotionPreflight);
     }
-    // the QA gate (ADR-0032 addendum 2026-08-09, T-355): with the sandbox's
-    // "promotion requires QA acceptance" on — the default for project
-    // sandboxes — the live-head source is disabled. What promotes is the
-    // QA-accepted frozen version, never the head as it has drifted since QA.
-    if (source === 'head') {
-      const [sandbox] = await deps.db
-        .select({ promotionRequiresQa: s.sandboxes.promotionRequiresQa })
-        .from(s.sandboxes)
-        .where(eq(s.sandboxes.id, doc.sandboxId))
-        .limit(1);
-      // fails CLOSED: a governance gate must refuse on an impossible state
-      // (no sandbox row) rather than admit — hence !== false, not truthiness
-      if (sandbox?.promotionRequiresQa !== false) {
-        // named apart so the surface can say which it is: never assured, or
-        // assured for a revision already issued
-        return conflict(c, qaAcceptanceSpent ? 'qa_acceptance_stale' : 'qa_acceptance_required');
-      }
+    const { plan } = resolved;
+    return c.json({
+      containerId: container.id,
+      source: plan.source,
+      sourceVersionReference: plan.sourceVersionReference,
+      qaAcceptedBy: plan.qaAcceptedBy,
+      qaAcceptedAt: plan.qaAcceptedAt,
+      versionReference: plan.versionReference,
+      roundNumber: plan.roundNumber,
+      reviewPeriodDefaultDays,
+      blocker: null,
+    } satisfies PromotionPreflight);
+  });
+
+  // T-120 — Promote: the lead author's near-empty hand-off (ADR-0008/0017),
+  // now opened by T-373's reconfirming window rather than fired bare.
+  app.post('/sandbox-documents/:id/promotion', async (c) => {
+    const scope = await promotionScope(c, c.req.param('id'));
+    if (!scope) return notFound(c);
+    const { doc, slice, container } = scope;
+    if (!container) {
+      return c.json(
+        { error: 'invalid', detail: 'unplanned_document' } satisfies ApiError,
+        400,
+      );
     }
 
-    // promotion issues a P revision (issued for review, or promoted without
-    // review) — the working v0.x series stays in the sandbox (ADR-0041)
-    const existingRefs = (
-      await deps.db
-        .select({ ref: s.versions.versionReference })
-        .from(s.versions)
-        .where(eq(s.versions.containerId, container.id))
-    ).map((r) => r.ref);
-    const versionReference = nextRevision(existingRefs, 'P');
-    // T-371 — the submission's target date, computed now from the project's
-    // working-day default (ADR-0005 addendum)
-    const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, container.projectId);
+    // T-373 — one decision function, shared with the preflight the promotion
+    // window reads, so what the window promises and what the click does cannot
+    // drift apart
+    const resolved = await resolvePromotion(deps.db, doc, container, slice);
+    if (!resolved.ok) {
+      const { status, detail } = resolved.refusal;
+      return c.json({ error: status === 403 ? 'forbidden' : status === 400 ? 'invalid' : 'conflict', detail } satisfies ApiError, status);
+    }
+    const {
+      reviewers,
+      existingCycle,
+      latestRound,
+      source,
+      sourceContent,
+      versionReference,
+    } = resolved.plan;
+
+    // T-371/T-373 — the submission's target date. The project default (ADR-0005
+    // addendum), or the lead author's override for THIS submission alone, which
+    // is the promotion window's one editable schedule field. The override rides
+    // the computed target and is never stored on the project: it changes one
+    // round, not the next one.
+    const body = promoteDocumentBody.safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    const reviewPeriodTarget = await reviewPeriodTargetFor(
+      deps.db,
+      container.projectId,
+      body.data.reviewPeriodDays,
+    );
 
     const result = await deps.db.transaction(async (tx) => {
       // currency moves to the new version (the 0013 carve-out)

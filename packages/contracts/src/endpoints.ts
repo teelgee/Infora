@@ -781,6 +781,39 @@ export type PromotionResult = {
 };
 export type FreezeResult = { versionId: Id; versionReference: string; containerId: Id };
 
+// T-373 (ADR-0008 addendum, 2026-08-22) — the promotion window. ADR-0008 made
+// promotion a near-empty hand-off on purpose, because a form filled in the
+// moment is a form filled wrong; the window survives that objection by
+// RECONFIRMING rather than composing. The plan-owned identity metadata is shown
+// and LOCKED (ADR-0038 §2), so a thoughtless confirm produces exactly the plan's
+// state, and the only thing the promotion itself takes is the review period for
+// this one submission — the reviewer and metadata edits are the existing acts,
+// each audited on its own endpoint, which the window fires before it promotes.
+export const promoteDocumentBody = z.object({
+  // working days, for THIS submission only; omitted = the project default
+  reviewPeriodDays: z.number().int().min(1).max(365).optional(),
+});
+export type PromoteDocumentBody = z.infer<typeof promoteDocumentBody>;
+
+// What the window states BEFORE the click, read from the same decision the act
+// runs (they cannot drift): which of ADR-0032's two legal sources would promote
+// and — with the QA gate on — which frozen revision it is and who accepted it,
+// what revision the promotion becomes, and the refusal it would answer with if
+// it is not currently legal at all.
+export type PromotionPreflight = {
+  containerId: Id;
+  source: 'head' | 'qa_accepted_frozen';
+  sourceVersionReference: string | null;
+  qaAcceptedBy: { participantId: Id; name: string } | null;
+  qaAcceptedAt: string | null;
+  versionReference: string; // the P revision this promotion would issue
+  roundNumber: number;
+  reviewPeriodDefaultDays: number;
+  // the detail code the POST would refuse with, or null when it would succeed —
+  // so the window states the blocker instead of the user finding it on the click
+  blocker: string | null;
+};
+
 // Release ("check in") — the audited unlock of a standalone check-out (ADR-0032
 // addendum, T-180). An optional reason records the early-release note.
 export const releaseCheckoutBody = z.object({ reason: z.string().optional() });

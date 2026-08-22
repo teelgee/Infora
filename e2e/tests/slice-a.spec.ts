@@ -12,6 +12,7 @@ import type {
   GetLibraryResponse,
   ListRosterResponse,
   PlanRow,
+  PromotionPreflight,
   PromotionResult,
   ReviewComment,
   ReviewCycle,
@@ -179,6 +180,17 @@ test('3 — the appointment gate: an unaccepted lead stalls the submission, visi
 });
 
 test('3b — promotion takes the QA-accepted frozen version and opens round 1 to the reviewers', async () => {
+  // T-373 — the promotion window reads this before the click, and it is the
+  // same decision the act runs: which version is promoting and who accepted it
+  const pre = await eleanor.get<PromotionPreflight>(
+    `/sandbox-documents/${documentId}/promotion-preflight`,
+  );
+  expect(pre.blocker).toBeNull();
+  expect(pre.source).toBe('qa_accepted_frozen');
+  expect(pre.versionReference).toBe('P01');
+  expect(pre.qaAcceptedBy?.name).toBe('Eleanor Price'); // who ran the internal pass
+  expect(pre.reviewPeriodDefaultDays).toBeGreaterThan(0);
+
   const result = await eleanor.post<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {});
   expect(result.versionReference).toBe('P01'); // issued for review (ADR-0041)
   expect(result.roundNumber).toBe(1);
