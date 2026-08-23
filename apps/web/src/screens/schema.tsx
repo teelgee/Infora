@@ -191,14 +191,24 @@ export function SchemaScreen() {
   const [savedPeriod, setSavedPeriod] = useState<number | null>(null);
   const [periodSaved, setPeriodSaved] = useState(false);
 
+  // T-378 — the editor holds three states, exactly as T-376 gave the plan
+  // screen: loading / ready / failed. Without it, a failed read left an EMPTY
+  // field table wearing the costume of the project's configuration — and Save
+  // would have written that emptiness back, wiping the real scheme.
+  const [schemeState, setSchemeState] = useState<'loading' | 'ready' | 'failed'>('loading');
+
   const loadProposals = () => void api.namingProposals(projectId).then((r) => setProposals(r.items));
   useEffect(() => {
-    // T-376 — no null branch: the read always returns a scheme (the Infora
-    // default when none has been saved, T-188)
-    void api.namingScheme(projectId).then((s) => {
-      setSeparator(s.separator);
-      setFields(s.fields);
-    });
+    // T-376 — no null branch: a SUCCESSFUL read always returns a scheme (the
+    // Infora default when none has been saved, T-188); only failure is special
+    api
+      .namingScheme(projectId)
+      .then((s) => {
+        setSeparator(s.separator);
+        setFields(s.fields);
+        setSchemeState('ready');
+      })
+      .catch(() => setSchemeState('failed'));
     void api.reviewPeriod(projectId).then((r) => {
       setSavedPeriod(r.defaultDays);
       setReviewPeriodDays(String(r.defaultDays));
@@ -207,6 +217,9 @@ export function SchemaScreen() {
   }, [projectId]);
 
   async function save() {
+    // saving is refused, not degraded, until the real scheme has arrived —
+    // writing the initial empty state would destroy the project's scheme
+    if (schemeState !== 'ready') return;
     await api.putNamingScheme(projectId, { separator, fields });
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
@@ -406,8 +419,16 @@ export function SchemaScreen() {
             Separator
             <input className="field-input mono" value={separator} onChange={(e) => setSeparator(e.target.value)} style={{ width: 40 }} />
           </label>
-          <Button onClick={() => void save()}>Save schema</Button>
+          <Button onClick={() => void save()} disabled={schemeState !== 'ready'}>
+            Save schema
+          </Button>
           {saved && <Badge tone="success">Saved</Badge>}
+          {schemeState === 'failed' && (
+            <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+              The scheme could not be loaded — reload the page before editing. Saving is disabled so
+              the stored scheme cannot be overwritten with this empty view.
+            </span>
+          )}
         </div>
       )}
 

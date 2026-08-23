@@ -1132,7 +1132,9 @@ export function SandboxScreen() {
     void loadDocs();
     void api.plan(projectId).then((r) => setPlan(r.items));
     void api.participants(projectId).then((r) => setRoster(r.items));
-    void api.namingScheme(projectId).then(setScheme); // T-363 — discipline labels for the seed
+    // T-363 — discipline labels for the seed; cosmetic here, so a failed read
+    // just leaves raw codes (the fallback the labels already have) — T-378
+    void api.namingScheme(projectId).then(setScheme).catch(() => {});
   }, [loadSandboxes, loadDocs, projectId]);
 
   const loadSandbox = useCallback((id: string) => {
