@@ -195,13 +195,21 @@ export function DeliverableStatusScreen() {
     row.reviewers.find((g) => g.revokedAt === null && g.declinedAt === null && g.isLead) ?? null;
   const declinedLead =
     row.reviewers.find((g) => g.revokedAt === null && g.declinedAt !== null && g.isLead) ?? null;
-  const awaitingAcceptance = leadGrant !== null && leadGrant.acceptedAt === null;
+  // T-377 — a proposed lead is now an ordinary state (the promotion window's
+  // swap writes one), so the two waits are distinguished: confirmation is the
+  // OWNER's missing act, acceptance the APPOINTEE's — blaming the wrong party
+  // sends the chaser to the wrong desk
+  const awaitingConfirmation = leadGrant !== null && leadGrant.confirmedAt === null;
+  const awaitingAcceptance =
+    leadGrant !== null && leadGrant.confirmedAt !== null && leadGrant.acceptedAt === null;
   const awaitingALead = leadGrant === null;
   // ADR-0051 addendum via T-372: until a lead reviewer has accepted, NOBODY may
   // acknowledge — the owner's super user included, because the override covers
   // the receipt and never the undertaking
   const acknowledgementBlocked =
-    !isInternalQa && newestRound?.state === 'submitted' && (awaitingALead || awaitingAcceptance);
+    !isInternalQa &&
+    newestRound?.state === 'submitted' &&
+    (awaitingALead || awaitingConfirmation || awaitingAcceptance);
 
   const renditionLinks = (versionId: string) => {
     const items = renditionsByVersion[versionId] ?? [];
@@ -287,9 +295,11 @@ export function DeliverableStatusScreen() {
             acknowledgementBlocked
               ? awaitingALead
                 ? 'No lead reviewer stands on this deliverable'
-                : myAppointmentAnswerable
-                  ? 'Accept the lead reviewer appointment above first'
-                  : 'The lead reviewer has not accepted the appointment yet'
+                : awaitingConfirmation
+                  ? 'The proposed lead reviewer awaits the owner organisation’s confirmation'
+                  : myAppointmentAnswerable
+                    ? 'Accept the lead reviewer appointment above first'
+                    : 'The lead reviewer has not accepted the appointment yet'
               : undefined
           }
         />
@@ -413,7 +423,9 @@ export function DeliverableStatusScreen() {
             <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 }}>
               {awaitingALead
                 ? 'Nobody can acknowledge this submission until a lead reviewer has been named and has accepted — a super user of the owner organisation included.'
-                : 'Nobody can acknowledge this submission until the lead reviewer has accepted the appointment — a super user of the owner organisation included. If they are away, name a different lead reviewer rather than acknowledging in their place.'}
+                : awaitingConfirmation
+                  ? 'The proposed lead reviewer awaits the owner organisation’s confirmation — access begins there, and they accept the appointment for themselves after it.'
+                  : 'Nobody can acknowledge this submission until the lead reviewer has accepted the appointment — a super user of the owner organisation included. If they are away, name a different lead reviewer rather than acknowledging in their place.'}
             </p>
           )}
         </StatusCard>
@@ -483,7 +495,11 @@ export function DeliverableStatusScreen() {
                   ? newestRound?.reviewerCompletions.find((rc) => rc.participantId === g.participantId)
                   : undefined;
               const roundOpen = newestRound?.state === 'open' && cycle?.state === 'active';
-              const showLiveState = roundOpen && (myConfirmedReviewer || isOwner);
+              // T-379 — when the completions were WITHHELD from this reader,
+              // an empty list means "not yours to know", never "nobody has
+              // finished" — so no live state is asserted from it.
+              const showLiveState =
+                roundOpen && (myConfirmedReviewer || isOwner) && !newestRound?.completionsWithheld;
               const isSelf = g.participantId === me.participantId;
               return (
               <PersonRow key={g.id} grant={g} organisationName={orgByParticipant.get(g.participantId)}>

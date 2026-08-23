@@ -72,6 +72,7 @@ describe('principle 3 — the requester is resolved, never supplied', () => {
       createSandboxBody: ['organisationIds', 'participantIds'], // the initial scope set (T-187)
       enrolParticipantBody: ['userId'], // the colleague being enrolled (ADR-0015 level two)
       grantAppointmentBody: ['participantId'], // the author/reviewer being appointed
+      nameLeadReviewerBody: ['participantId'], // the replacement lead being named (T-377)
       grantParticipantBody: ['participantId'], // the ADR-0035 §3 narrowing grantee
       grantSandboxScopeBody: ['organisationId', 'participantId'], // the scope being widened to
       issueTransmittalBody: ['organisationIds'], // the recipients of the issue

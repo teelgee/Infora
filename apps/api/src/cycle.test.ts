@@ -166,7 +166,7 @@ afterAll(async () => {
 });
 
 describe('promotion (T-120)', () => {
-  it('cannot launch without a confirmed lead reviewer (ADR-0005/0008)', async () => {
+  it('cannot launch without a lead reviewer named at all (ADR-0005/0008; T-377 relaxed the gate to a NAMED lead — proposed is enough, the confirmed-and-accepted gates sit on the acknowledgement)', async () => {
     const res = await promote(leadAuthorCookie);
     expect(res.status).toBe(409);
     expect(((await res.json()) as { detail?: string }).detail).toBe('no_lead_reviewer');
@@ -475,6 +475,12 @@ describe('the cycle read is phased (ADR-0014)', () => {
       await app.request(`/containers/${containerId}/cycle`, { headers: { cookie: leadAuthorCookie } })
     ).json()) as ReviewCycle;
     expect(asAuthor.rounds[0]!.comments).toHaveLength(0); // hidden until issued
+    // T-375/T-379 — and the withholding is STATED, so an empty list can never
+    // be read as an empty round; the reviewer's own read carries no such flag
+    expect(asAuthor.rounds[0]!.commentsWithheld).toBe(true);
+    expect(asAuthor.rounds[0]!.completionsWithheld).toBe(true);
+    expect(asReviewer.rounds[0]!.commentsWithheld).toBe(false);
+    expect(asReviewer.rounds[0]!.completionsWithheld).toBe(false);
   });
 });
 

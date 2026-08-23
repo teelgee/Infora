@@ -183,3 +183,23 @@ test('the authoring side reads the same record, and the open round is absent rat
   // the header counts what this reader can actually read, and says so
   await expect(page.getByText(/1 round issued/)).toBeVisible();
 });
+
+// T-379 — the wall is one discipline, not one screen's. The audit that closed
+// T-375 found the cycle screen, one click from the record, rendering the exact
+// sentence the record forbids: "No comments yet" to the walled side. The
+// withheld notice must follow the round wherever its comments could render.
+test('the cycle screen states the wall too — never "no comments yet" to the walled side', async ({
+  page,
+}) => {
+  await loginAs(page, SEEDED.consultant);
+  await page.goto(`/projects/${projectId}/review/${containerId}/cycle`);
+
+  // the open round's tray states the withholding…
+  await expect(
+    page.getByText(/Its comments are withheld until the lead reviewer closes the round/),
+  ).toBeVisible();
+  // …and never asserts the absence the withholding denies — as a sentence or
+  // as a zero
+  await expect(page.getByText('No comments yet — the round is open to the review group.')).toHaveCount(0);
+  await expect(page.getByText(/\b0 comments?\b/)).toHaveCount(0);
+});

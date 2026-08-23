@@ -126,3 +126,78 @@ test('the window reconfirms: the plan is locked, the group is named, and a strai
   const after = plan.items.find((r) => r.containerId === containerId)!;
   expect(after.reviewers.filter((g) => g.revokedAt === null && g.isLead)).toHaveLength(1);
 });
+
+// State B of the deleted promotion-window mockup — the half no run ever drove,
+// which is how the swap shipped broken (T-377): the window used to fire the
+// swap as revoke-then-grant, and the revoke was refused for the producing
+// side, so the drawn scenario could not be performed at all. The swap is now
+// ONE transactional act, and the promotion proceeds with the PROPOSED lead —
+// ADR-0033 §1: "replacing the lead stalls that round"; it does not refuse it.
+test('State B — the lead swap commits as one act and the promotion proceeds; the round stalls with the proposed lead (T-377)', async ({
+  page,
+}) => {
+  const TITLE2 = `Promotion window swap e2e ${stamp}`;
+  const row = await eleanor.post<PlanRow>(`/projects/${projectId}/plan`, {
+    documentReference: `WA-PWX-EC2-${stamp}`,
+    title: TITLE2,
+    metadata: { discipline: 'ecology' },
+  });
+  const roster = await eleanor.get<{ items: RosterEntry[] }>(`/projects/${projectId}/participants`);
+  const el = roster.items.find((r) => r.name === 'Eleanor Price')!;
+  const rb = roster.items.find((r) => r.name === 'Rachel Bowen')!;
+  await eleanor.post(`/containers/${row.containerId}/authors`, {
+    participantId: el.participantId,
+    isLead: true,
+  });
+  const proposal = await eleanor.post<ReviewerGrant>(`/containers/${row.containerId}/reviewers`, {
+    participantId: rb.participantId,
+    isLead: true,
+  });
+  await rachel.post(`/reviewers/${proposal.id}/confirmation`, {});
+  await rachel.post(`/reviewers/${proposal.id}/acceptance`, {}); // confirmed AND accepted — the hard case
+  const doc = await eleanor.post<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
+    title: `${TITLE2} draft`,
+    containerId: row.containerId,
+  });
+  await eleanor.patch(`/sandbox-documents/${doc.id}`, { content: 'The second chapter.' });
+  await eleanor.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
+
+  await page.goto('/');
+  await page.getByLabel('Email').fill(SEEDED.consultant);
+  await page.getByLabel('Password').fill(SEEDED.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByText(PROJECT).first().click();
+  await page.goto(`/projects/${projectId}/sandbox`);
+
+  await page.getByRole('button', { name: `Promote ${TITLE2}` }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('Rachel Bowen')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Change' }).click();
+  const leadSelect = dialog.locator('select:has(option:has-text("Name the lead reviewer"))');
+  await leadSelect.selectOption({ label: 'Owen Vance — Calder & Hale' });
+
+  // the consequence is stated BEFORE it is committed (the ruling itself)
+  await expect(dialog.getByText('This round will wait')).toBeVisible();
+  await expect(dialog.getByText(/sits outside Trentmoor Energy/)).toBeVisible();
+  await expect(dialog.getByText(/Leaving Rachel Bowen as lead reviewer avoids the wait/)).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Promote' }).click();
+  await expect(dialog).toBeHidden();
+
+  // the swap held together: exactly one live lead, the new one, a bare
+  // proposal — the wall stayed shut — and the old interval closed
+  const plan = await eleanor.get<{ items: PlanRow[] }>(`/projects/${projectId}/plan`);
+  const after = plan.items.find((r) => r.containerId === row.containerId)!;
+  const live = after.reviewers.filter((g) => g.revokedAt === null && g.declinedAt === null);
+  const lead = live.find((g) => g.isLead)!;
+  expect(live.filter((g) => g.isLead)).toHaveLength(1);
+  expect(lead.name).toBe('Owen Vance');
+  expect(lead.confirmedAt).toBeNull();
+  expect(after.reviewers.find((g) => g.name === 'Rachel Bowen')!.revokedAt).not.toBeNull();
+
+  // and the promotion PROCEEDED: the round exists, submitted, waiting on the
+  // appointment — stalled, exactly as drawn, rather than refused
+  const cycle = (await rachel.get<ReviewCycle | null>(`/containers/${row.containerId}/cycle`))!;
+  expect(cycle.rounds).toHaveLength(1);
+  expect(cycle.rounds[0]!.state).toBe('submitted');
+});

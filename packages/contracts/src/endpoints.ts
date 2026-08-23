@@ -544,6 +544,22 @@ export type ReviewerGrant = AppointmentGrant & {
 export const declineAppointmentBody = z.object({ reason: z.string().trim().min(1) });
 export type DeclineAppointmentBody = z.infer<typeof declineAppointmentBody>;
 
+// POST /containers/:containerId/lead-reviewer — name the lead reviewer,
+// REPLACING the standing one in a single transaction (T-377, ADR-0008/0033
+// addenda 2026-08-22: the lead author "may amend the review group, the lead
+// reviewer included"). One act, not a revoke-then-grant sequence, because the
+// one-live-lead invariant makes the pair inseparable: fired separately, a
+// failure between them strands the deliverable with no lead at all — the
+// half-applied state the promotion window audit reproduced. Both interval rows
+// still land on the record; the new grant follows the ordinary confirmation
+// rules (a producing-side naming is a proposal and confers nothing).
+export const nameLeadReviewerBody = z.object({ participantId: id });
+export type NameLeadReviewerBody = z.infer<typeof nameLeadReviewerBody>;
+export type LeadReviewerReplacement = {
+  grant: ReviewerGrant; // the new lead appointment (proposed, or auto-confirmed owner-side)
+  revoked: ReviewerGrant | null; // the standing lead it displaced; null when none stood
+};
+
 export type PlanRow = {
   containerId: Id;
   // null for a sandbox-scope (freeze-series) container — the org-private
@@ -792,6 +808,13 @@ export type FreezeResult = { versionId: Id; versionReference: string; containerI
 export const promoteDocumentBody = z.object({
   // working days, for THIS submission only; omitted = the project default
   reviewPeriodDays: z.number().int().min(1).max(365).optional(),
+  // T-382 — the window's "what promotes is named" made honest under
+  // concurrency: the source version the caller was SHOWN (null = the live
+  // head). If a QA acceptance landed or was spent between the preflight and
+  // the click, the answer changed and the POST refuses (409
+  // promotion_state_changed) instead of promoting content nobody confirmed.
+  // Omitted = no check, for callers that never stated a source.
+  expectedSourceVersionReference: z.string().nullable().optional(),
 });
 export type PromoteDocumentBody = z.infer<typeof promoteDocumentBody>;
 
@@ -887,6 +910,10 @@ export type Round = {
   // a different and wrong fact. This says which it is, so the surface can state
   // that content exists and why it is out of reach.
   commentsWithheld: boolean;
+  // T-379 — the completion signals are walled exactly as the comments are
+  // (ADR-0052 §4), and an empty `reviewerCompletions` alone cannot tell
+  // "nobody has finished" from "not yours to know while the round is open"
+  completionsWithheld: boolean;
   reviewPeriodTarget: string | null; // guides, never gates (ADR-0005)
   deliverableCode: AcceptanceCode | null;
   comments: ReviewComment[];

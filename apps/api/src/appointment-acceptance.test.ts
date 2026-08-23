@@ -302,3 +302,70 @@ describe('only a lead appointment carries an undertaking', () => {
     );
   });
 });
+
+// T-377 — the lead swap is ONE transactional act (ADR-0008/0033 addenda,
+// 2026-08-22: the lead author "may amend the review group, the lead reviewer
+// included"). Fired as a separate revoke and grant, a failure between the two
+// strands the deliverable with no lead at all — the half-applied state the
+// promotion-window audit reproduced. The fixture arrives here with otto
+// (outside org) as the confirmed-and-accepted lead.
+describe('naming a lead reviewer replaces the standing one in one act (T-377)', () => {
+  it('the producing side swaps the lead: the old grant closes and the new one is a bare proposal, atomically', async () => {
+    const before = await leadGrant(consultCookie); // otto, confirmed + accepted
+    expect(before.confirmedAt).not.toBeNull();
+
+    const res = await post(consultCookie, `/containers/${containerId}/lead-reviewer`, {
+      participantId: ownerReviewerParticipantId,
+    });
+    expect(res.status).toBe(201);
+    const swap = (await res.json()) as { grant: ReviewerGrant; revoked: ReviewerGrant | null };
+    // the displaced lead's interval closed in the same act…
+    expect(swap.revoked?.id).toBe(before.id);
+    expect(swap.revoked?.revokedAt).not.toBeNull();
+    // …and the naming is a PROPOSAL: the proposer is producing-side, so the
+    // wall stays shut — confirmation remains the owner's act (ADR-0033)
+    expect(swap.grant.isLead).toBe(true);
+    expect(swap.grant.confirmedAt).toBeNull();
+    expect(swap.grant.acceptedAt).toBeNull();
+
+    // exactly one live lead stands — the one-live-lead invariant held through
+    // the swap because it never existed half-applied
+    const rows = await db
+      .select()
+      .from(s.deliverableReviewers)
+      .where(eq(s.deliverableReviewers.containerId, containerId));
+    const liveLeads = rows.filter((r) => r.isLead && r.revokedAt === null && r.declinedAt === null);
+    expect(liveLeads).toHaveLength(1);
+    expect(liveLeads[0]!.participantId).toBe(ownerReviewerParticipantId);
+  });
+
+  it('naming the standing lead again is refused, not silently re-granted', async () => {
+    expect(
+      await detail(
+        await post(consultCookie, `/containers/${containerId}/lead-reviewer`, {
+          participantId: ownerReviewerParticipantId,
+        }),
+      ),
+    ).toBe('already_lead_reviewer');
+  });
+
+  it('a bystander organisation cannot fire it', async () => {
+    // otto's lead grant was revoked above; his organisation is neither owner
+    // nor producer, so the act reads as nonexistence (the wall, silent)
+    const res = await post(outsideCookie, `/containers/${containerId}/lead-reviewer`, {
+      participantId: outsideParticipantId,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('an owner-side swap auto-confirms the new lead, exactly as an owner grant does', async () => {
+    const res = await post(ownerCookie, `/containers/${containerId}/lead-reviewer`, {
+      participantId: consultParticipantId,
+    });
+    expect(res.status).toBe(201);
+    const swap = (await res.json()) as { grant: ReviewerGrant; revoked: ReviewerGrant | null };
+    expect(swap.revoked?.revokedAt).not.toBeNull(); // opal's proposal closed
+    expect(swap.grant.confirmedAt).not.toBeNull(); // owner naming confirms
+    expect(swap.grant.acceptedAt).toBeNull(); // the undertaking stays the appointee's own
+  });
+});

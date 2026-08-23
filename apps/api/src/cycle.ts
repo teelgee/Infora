@@ -376,6 +376,9 @@ export async function readCycle(
       // T-375 — say that the withholding happened, rather than leaving an empty
       // list to be misread as an empty round
       commentsWithheld: hideComments && round.state === 'open',
+      // T-379 — same discipline for the completion signals: an empty withheld
+      // list must not be readable as "nobody has finished" (ADR-0052 §4)
+      completionsWithheld: hideComments && round.state === 'open',
       reviewerCompletions: hideComments
         ? []
         : completionRows
@@ -435,7 +438,7 @@ type PromotionRefusal =
 
 /** Everything the promotion is about to do, decided before anything is written. */
 type PromotionPlan = {
-  reviewers: Array<{ id: string; isLead: boolean; participantId: string }>;
+  reviewers: Array<{ id: string; isLead: boolean; participantId: string; confirmedAt: Date | null }>;
   existingCycle: typeof s.reviewCycles.$inferSelect | undefined;
   latestRound: typeof s.rounds.$inferSelect | undefined;
   /** ADR-0032's two legal sources (T-355 states which rather than implying it) */
@@ -475,7 +478,7 @@ async function resolvePromotion(
 
   // a cycle cannot run without its lead reviewer (ADR-0005/0008)
   const reviewers = await db
-    .select({ id: s.deliverableReviewers.id, isLead: s.deliverableReviewers.isLead, participantId: s.deliverableReviewers.participantId })
+    .select({ id: s.deliverableReviewers.id, isLead: s.deliverableReviewers.isLead, participantId: s.deliverableReviewers.participantId, confirmedAt: s.deliverableReviewers.confirmedAt })
     .from(s.deliverableReviewers)
     .where(
       and(
@@ -484,15 +487,14 @@ async function resolvePromotion(
         // T-372 — a declined appointment leaves the deliverable awaiting a
         // lead reviewer, which is exactly the state this guard names
         isNull(s.deliverableReviewers.declinedAt),
-        sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
       ),
     );
-  // A CONFIRMED lead is what promotion needs — not an accepted one. ADR-0033's
-  // "the precondition now reads accepted" is about what opens a ROUND, and since
-  // ADR-0051 that is the acknowledgement, not the promotion: both approved
-  // mockups show P01 promoting and then sitting unacknowledged while the
-  // appointment is unanswered ("the submission just waits longer"). Refusing the
-  // promotion instead would erase that state rather than surface it.
+  // A NAMED lead is what promotion needs — proposed is enough (T-377). ADR-0033's
+  // promotion-window addendum says "replacing the lead stalls that round": the
+  // submission EXISTS and waits, so a merely-proposed lead cannot refuse the
+  // promotion — the confirmed-and-accepted gates live on the acknowledgement
+  // (ADR-0051 addendum), which is what actually opens the round. What promotion
+  // still refuses is a deliverable with no un-declined lead named at all.
   if (!reviewers.some((r) => r.isLead)) return refuse(409, 'no_lead_reviewer');
 
   // schema-required appointment roles must be filled before promotion (T-198).
@@ -512,7 +514,11 @@ async function resolvePromotion(
   if (requiredRoles.has('document_owner') && !container.documentOwnerParticipantId) {
     return refuse(409, 'no_document_owner');
   }
-  if (requiredRoles.has('reviewer') && reviewers.length === 0) return refuse(409, 'no_reviewer');
+  // the schema's "reviewer required" means a CONFIRMED one — access exists —
+  // while the lead gate above tolerates a proposal (T-377)
+  if (requiredRoles.has('reviewer') && !reviewers.some((r) => r.confirmedAt !== null)) {
+    return refuse(409, 'no_reviewer');
+  }
 
   const [existingCycle] = await db
     .select()
@@ -1044,6 +1050,16 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // round, not the next one.
     const body = promoteDocumentBody.safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    // T-382 — the window states WHICH version promotes; if a fresh QA acceptance
+    // (or a spent one) changed the answer between the preflight and this click,
+    // refuse rather than silently promote content the user was never shown.
+    // Optional: a bare POST (no window, tests, scripts) skips the check.
+    if (
+      body.data.expectedSourceVersionReference !== undefined &&
+      body.data.expectedSourceVersionReference !== resolved.plan.sourceVersionReference
+    ) {
+      return c.json({ error: 'conflict', detail: 'promotion_state_changed' } satisfies ApiError, 409);
+    }
     const reviewPeriodTarget = await reviewPeriodTargetFor(
       deps.db,
       container.projectId,
@@ -1106,7 +1122,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         roundNumber = 1;
       }
       // ADR-0051: a project-scope round is created 'submitted' — it opens for
-      // review only when the owner organisation acknowledges the submission
+      // review only on the acknowledgement, which since T-374 is the lead
+      // reviewer's act (or the owner's super user when the lead is away)
       const [round] = await tx
         .insert(s.rounds)
         .values({
@@ -1122,14 +1139,16 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           reviewPeriodTarget,
         })
         .returning();
-      // the promotion IS the transmittal to review (ADR-0010/0014)
+      // the promotion IS the transmittal to review (ADR-0010/0014). Recipients
+      // are the CONFIRMED group: a proposed reviewer has no access yet (T-377),
+      // and a transmittal naming them would record a delivery that never ran.
       const [transmittal] = await tx
         .insert(s.transmittals)
         .values({
           roundId: round!.id,
           direction: 'return',
           senderParticipantId: slice.participantId,
-          recipients: reviewers.map((r) => r.participantId),
+          recipients: reviewers.filter((r) => r.confirmedAt !== null).map((r) => r.participantId),
         })
         .returning();
       await tx.insert(s.reviewSnapshots).values({

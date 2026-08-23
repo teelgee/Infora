@@ -179,12 +179,15 @@ export function PromotionWindow(props: {
     const days = Number.parseInt(periodDays, 10);
     if (!Number.isFinite(days) || days < 1) return null;
     // display math only — the server computes and stores the authoritative
-    // target at round creation (ADR-0005: a guide, never a timer driving state)
+    // target at round creation (ADR-0005: a guide, never a timer driving state).
+    // T-381: the walk MUST be in UTC, mirroring addWorkingDays exactly — a
+    // local-time walk shows a different calendar day than the server will
+    // store whenever the local clock and UTC disagree on what day it is.
     const at = new Date();
     let remaining = days;
     while (remaining > 0) {
-      at.setDate(at.getDate() + 1);
-      const weekday = at.getDay();
+      at.setUTCDate(at.getUTCDate() + 1);
+      const weekday = at.getUTCDay();
       if (weekday !== 0 && weekday !== 6) remaining -= 1;
     }
     return at.toISOString();
@@ -193,21 +196,40 @@ export function PromotionWindow(props: {
   const periodChanged =
     preflight !== null && Number.parseInt(periodDays, 10) !== preflight.reviewPeriodDefaultDays;
 
+  // The one blocker the window itself can clear: "no lead reviewer" plus a
+  // staged lead means the swap act below will create one before the promotion
+  // runs. Every other blocker stays a disabled Promote (T-373/T-377).
+  const promoteEnabled =
+    preflight !== null &&
+    (preflight.blocker === null || (preflight.blocker === 'no_lead_reviewer' && stagedLead !== null));
+
   async function promote() {
-    if (!preflight || preflight.blocker) return;
+    if (!preflight || !promoteEnabled) return;
+    if (leadIsBeingReplaced && !stagedLead) {
+      setError('Name the replacement lead reviewer before promoting.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      // Order matters and is the ruling's, not convenience: REVOKE BEFORE
-      // GRANT, so replacing the lead never collides with the one-live-lead
-      // invariant (ADR-0017) that a swap has to pass through.
-      for (const r of removals) await api.revokeReviewer(r.grantId);
-      for (const a of additions) await api.grantReviewer(doc.containerId!, a.participantId, a.isLead);
+      // T-377 — the lead swap is ONE transactional act on the server, never a
+      // revoke followed by a grant: fired separately, a failure between the two
+      // strands the deliverable with no lead at all. The other edits stay their
+      // own audited acts, so the window still sequences rather than composes.
+      for (const r of removals.filter((x) => x.grantId !== standingLead?.id)) {
+        await api.revokeReviewer(r.grantId);
+      }
+      if (stagedLead) await api.nameLeadReviewer(doc.containerId!, stagedLead.participantId);
+      for (const a of additions.filter((x) => !x.isLead)) {
+        await api.grantReviewer(doc.containerId!, a.participantId, false);
+      }
       await api.setSandboxMetadata(doc.id, authoring);
       const days = Number.parseInt(periodDays, 10);
       const result = await api.promoteDocument(
         doc.id,
         periodChanged && Number.isFinite(days) && days >= 1 ? days : undefined,
+        // T-382 — promote exactly what this window said would promote, or refuse
+        preflight.sourceVersionReference,
       );
       props.onPromoted(result);
     } catch (err) {
@@ -260,7 +282,7 @@ export function PromotionWindow(props: {
           </Button>
           <Button
             variant="primary"
-            disabled={busy || preflight === null || preflight.blocker !== null}
+            disabled={busy || !promoteEnabled}
             onClick={() => void promote()}
           >
             {busy ? 'Promoting…' : 'Promote'}
@@ -284,17 +306,28 @@ export function PromotionWindow(props: {
 
       {preflight && (
         <>
-          <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: '0 0 4px', color: 'var(--text-secondary)' }}>
-            Promoting freezes {preflight.versionReference}
-            {preflight.source === 'qa_accepted_frozen'
-              ? ' from the version internal QA accepted'
-              : ' from the live head'}
-            , renders the PDF the review runs on, and submits it to {ownerOrganisationName}.{' '}
-            <b>
-              The round opens when the lead reviewer accepts the appointment and acknowledges the
-              submission — not on this click.
-            </b>
-          </p>
+          {/* T-380 — a refused preflight carries no real source decision (the
+              API fills source: 'head' as a placeholder), so the window must not
+              assert which version promotes or whether the QA gate is on. State
+              the refusal; say nothing the refusal makes unknowable. */}
+          {preflight.blocker === null ? (
+            <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: '0 0 4px', color: 'var(--text-secondary)' }}>
+              Promoting freezes {preflight.versionReference}
+              {preflight.source === 'qa_accepted_frozen'
+                ? ' from the version internal QA accepted'
+                : ' from the live head'}
+              , renders the PDF the review runs on, and submits it to {ownerOrganisationName}.{' '}
+              <b>
+                The round opens when the lead reviewer accepts the appointment and acknowledges the
+                submission — not on this click.
+              </b>
+            </p>
+          ) : (
+            <p style={{ fontSize: 12.5, lineHeight: 1.55, margin: '0 0 4px', color: 'var(--text-secondary)' }}>
+              Promotion would issue {preflight.versionReference}, but it is currently refused — the
+              reason is stated below.
+            </p>
+          )}
 
           {error && <div className="banner banner--error">{error}</div>}
           {preflight.blocker && (
@@ -302,28 +335,32 @@ export function PromotionWindow(props: {
           )}
 
           {/* ── What promotes ───────────────────────────────────────────── */}
-          <SectionLabel>What promotes</SectionLabel>
-          <div className="card" style={{ padding: '10px 12px' }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-              {preflight.source === 'qa_accepted_frozen'
-                ? `Source version ${preflight.sourceVersionReference ?? ''} — accepted by internal QA`
-                : 'The live head, as it stands in the sandbox'}
-            </div>
-            {preflight.qaAcceptedBy && (
-              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
-                {`Accepted by ${preflight.qaAcceptedBy.name}`}
-                {orgOf.get(preflight.qaAcceptedBy.participantId)
-                  ? `, ${orgOf.get(preflight.qaAcceptedBy.participantId)}`
-                  : ''}
-                {preflight.qaAcceptedAt ? ` · ${formatDate(preflight.qaAcceptedAt)}` : ''}
+          {preflight.blocker === null && (
+            <>
+              <SectionLabel>What promotes</SectionLabel>
+              <div className="card" style={{ padding: '10px 12px' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+                  {preflight.source === 'qa_accepted_frozen'
+                    ? `Source version ${preflight.sourceVersionReference ?? ''} — accepted by internal QA`
+                    : 'The live head, as it stands in the sandbox'}
+                </div>
+                {preflight.qaAcceptedBy && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {`Accepted by ${preflight.qaAcceptedBy.name}`}
+                    {orgOf.get(preflight.qaAcceptedBy.participantId)
+                      ? `, ${orgOf.get(preflight.qaAcceptedBy.participantId)}`
+                      : ''}
+                    {preflight.qaAcceptedAt ? ` · ${formatDate(preflight.qaAcceptedAt)}` : ''}
+                  </div>
+                )}
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                  {preflight.source === 'qa_accepted_frozen'
+                    ? 'The gate is on for this sandbox, so promotion takes the version QA accepted — never the head as it has drifted since.'
+                    : 'The QA gate is off for this sandbox, so promotion takes the head as it stands. Nothing has assured this revision internally.'}
+                </p>
               </div>
-            )}
-            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
-              {preflight.source === 'qa_accepted_frozen'
-                ? 'The gate is on for this sandbox, so promotion takes the version QA accepted — never the head as it has drifted since.'
-                : 'The QA gate is off for this sandbox, so promotion takes the head as it stands. Nothing has assured this revision internally.'}
-            </p>
-          </div>
+            </>
+          )}
 
           {/* ── From the plan · locked (ADR-0038 §2) ────────────────────── */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

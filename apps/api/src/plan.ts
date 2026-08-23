@@ -13,6 +13,7 @@ import {
   declineAppointmentBody,
   grantAppointmentBody,
   isCodeField,
+  nameLeadReviewerBody,
   isColumnableField,
   patchContainerBody,
   setDocumentOwnerBody,
@@ -26,6 +27,7 @@ import type {
   AppointmentGrant,
   DeliverableShare,
   GetPlanResponse,
+  LeadReviewerReplacement,
   PlanImportError,
   PlanImportFailure,
   PlanImportResult,
@@ -834,6 +836,73 @@ export function containerRoutes(deps: { db: Db }) {
     return c.json(await grantRead(deps.db, 'reviewers', grant!.id, slice), 201);
   });
 
+  // T-377 — name the lead reviewer, REPLACING the standing one in one
+  // transaction (ADR-0008/0033 addenda, 2026-08-22: the lead author "may amend
+  // the review group, the lead reviewer included"). The one-live-lead invariant
+  // makes revoke-and-grant inseparable: fired as two acts, a failure between
+  // them strands the deliverable with no lead at all — the half-applied state
+  // the promotion-window audit reproduced. Both interval rows still land on the
+  // record; the naming follows the ordinary confirmation rules, so a
+  // producing-side swap writes a PROPOSAL and the wall stays shut here.
+  app.post('/containers/:containerId/lead-reviewer', async (c) => {
+    // standing mirrors the reviewer-grant handler above, because this IS that
+    // act plus the amendment half of it
+    const container = await loadContainer(deps.db, c.req.param('containerId'));
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice) return notFound(c);
+    const isOwner = slice.membershipRole === 'owner';
+    const isProducer = container.producingOrganisationId === slice.organisationId;
+    const callerIsLeadReviewer =
+      (await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))?.isLead ?? false;
+    if (!isOwner && !isProducer && !callerIsLeadReviewer) return notFound(c);
+    if (container.scope === 'sandbox' && !isProducer) return notFound(c);
+    if (
+      container.scope !== 'sandbox' &&
+      !isOwner &&
+      !callerIsLeadReviewer &&
+      !(await canEditRowMetadata(deps.db, slice, container))
+    ) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
+    const body = nameLeadReviewerBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    const target = await liveParticipant(deps.db, body.data.participantId, container.projectId);
+    if (!target) return notFound(c);
+    const standing = await liveLead(deps.db, 'reviewers', container.id);
+    if (standing?.participantId === target.id) return conflict(c, 'already_lead_reviewer');
+    const autoConfirm = isOwner || container.scope === 'sandbox';
+    const newGrantId = await deps.db.transaction(async (tx) => {
+      if (standing) {
+        await tx
+          .update(s.deliverableReviewers)
+          .set({ revokedAt: sql`now()` })
+          .where(eq(s.deliverableReviewers.id, standing.id));
+      }
+      const [grant] = await tx
+        .insert(s.deliverableReviewers)
+        .values({
+          containerId: container.id,
+          participantId: target.id,
+          isLead: true,
+          grantedByParticipantId: slice.participantId,
+          confirmedByParticipantId: autoConfirm ? slice.participantId : null,
+          confirmedAt: autoConfirm ? sql`now()` : null,
+        })
+        .returning();
+      return grant!.id;
+    });
+    return c.json(
+      {
+        grant: (await grantRead(deps.db, 'reviewers', newGrantId, slice)) as ReviewerGrant,
+        revoked: standing
+          ? ((await grantRead(deps.db, 'reviewers', standing.id, slice)) as ReviewerGrant)
+          : null,
+      } satisfies LeadReviewerReplacement,
+      201,
+    );
+  });
+
   // Interval closes (ADR-0033): the producing side its authors; the owner —
   // or the proposer while still unconfirmed — a reviewer row.
   app.post('/authors/:grantId/revocation', async (c) => {
@@ -885,7 +954,18 @@ export function containerRoutes(deps: { db: Db }) {
     // revocation narrows access and is always wall-safe
     const leadReviewer = (await isLiveConfirmedReviewer(deps.db, container.id, slice.participantId))
       ?.isLead ?? false;
-    if (!isOwner && !proposerRetractingProposal && !leadReviewer) return notFound(c);
+    // T-377 (ADR-0008 addendum, 2026-08-22): the lead author "reconfirms — and
+    // may amend — the review group", which the promotion window's Remove
+    // control fires. Amendment includes removing a CONFIRMED reviewer, so the
+    // producing side's row-editors (super user or live lead author, T-362) may
+    // revoke here too — wall-safe for the same reason the lead reviewer's
+    // revocation is: it only ever narrows access.
+    const producerRowEditor =
+      container.producingOrganisationId === slice.organisationId &&
+      (await canEditRowMetadata(deps.db, slice, container));
+    if (!isOwner && !proposerRetractingProposal && !leadReviewer && !producerRowEditor) {
+      return notFound(c);
+    }
     await deps.db
       .update(s.deliverableReviewers)
       .set({ revokedAt: sql`now()` })
@@ -1127,7 +1207,7 @@ async function liveParticipant(db: Db, participantId: string, projectId: string)
 async function liveLead(db: Db, side: 'authors' | 'reviewers', containerId: string) {
   const table = side === 'authors' ? s.deliverableAuthors : s.deliverableReviewers;
   const [row] = await db
-    .select({ id: table.id })
+    .select({ id: table.id, participantId: table.participantId })
     .from(table)
     .where(
       and(

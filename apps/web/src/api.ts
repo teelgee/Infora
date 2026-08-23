@@ -17,6 +17,7 @@ import type {
   CreateSandboxCommentBody,
   FreezeResult,
   IssueRoundResponse,
+  LeadReviewerReplacement,
   ListAcceptanceCodesResponse,
   ListRenditionsResponse,
   PromotionPreflight,
@@ -218,6 +219,13 @@ export const api = {
     }),
   revokeReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
+  // T-377 — name the lead reviewer, replacing the standing one in a single
+  // transaction; never fired as a revoke-then-grant pair (see contracts)
+  nameLeadReviewer: (containerId: string, participantId: string) =>
+    request<LeadReviewerReplacement>(`/containers/${containerId}/lead-reviewer`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId }),
+    }),
   confirmReviewer: (grantId: string) =>
     request<ReviewerGrant>(`/reviewers/${grantId}/confirmation`, { method: 'POST' }),
   // T-372 (ADR-0033 addendum §2) — the appointee's own answer. Only ever their
@@ -246,10 +254,21 @@ export const api = {
   // decision the act runs
   promotionPreflight: (documentId: string) =>
     request<PromotionPreflight>(`/sandbox-documents/${documentId}/promotion-preflight`),
-  promoteDocument: (documentId: string, reviewPeriodDays?: number) =>
+  promoteDocument: (
+    documentId: string,
+    reviewPeriodDays?: number,
+    // T-382 — the source version the caller was shown (null = the live head);
+    // the POST refuses if the answer changed since. Omit to skip the check.
+    expectedSourceVersionReference?: string | null,
+  ) =>
     request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {
       method: 'POST',
-      body: JSON.stringify(reviewPeriodDays !== undefined ? { reviewPeriodDays } : {}),
+      body: JSON.stringify({
+        ...(reviewPeriodDays !== undefined ? { reviewPeriodDays } : {}),
+        ...(expectedSourceVersionReference !== undefined
+          ? { expectedSourceVersionReference }
+          : {}),
+      }),
     }),
   freezeDocument: (documentId: string) =>
     request<FreezeResult>(`/sandbox-documents/${documentId}/freeze`, { method: 'POST' }),

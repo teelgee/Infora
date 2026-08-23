@@ -33,7 +33,12 @@ const MESSAGES: Record<string, string> = {
   no_author: 'The schema requires an author — appoint one on the Plan before promoting.',
   no_document_owner: 'The schema requires a document owner — set one on the Plan before promoting.',
   no_reviewer: 'The schema requires a confirmed reviewer — propose one on the Plan, then the owner confirms it.',
-  no_lead_reviewer: 'This deliverable needs a confirmed lead reviewer — propose one on the Plan, then the owner confirms it.',
+  // T-377 — a NAMED lead is enough to promote (proposed included); the
+  // confirmed-and-accepted gates sit on the acknowledgement (ADR-0051)
+  no_lead_reviewer: 'This deliverable needs a lead reviewer — name one here or on the Plan.',
+  already_lead_reviewer: 'They are already the lead reviewer.',
+  promotion_state_changed:
+    'What would promote has changed since this window opened — close it and reopen to see the current state.',
   // T-374 — the receipt narrows to a single accountable receiver (ADR-0051
   // addendum, 2026-08-22, superseding the 2026-08-06 widening)
   lead_reviewer_or_owner_super_user_only:

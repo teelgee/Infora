@@ -139,9 +139,13 @@ export function CycleScreen() {
       ? undefined
       : leadGrant === undefined
         ? 'No lead reviewer stands on this deliverable'
-        : leadGrant.acceptedAt === null
-          ? 'The lead reviewer has not accepted the appointment yet'
-          : undefined;
+        : leadGrant.confirmedAt === null
+          ? // T-377 — a proposed lead is an ordinary state now; the missing act
+            // is the owner's confirmation, not the appointee's acceptance
+            'The proposed lead reviewer awaits the owner organisation’s confirmation'
+          : leadGrant.acceptedAt === null
+            ? 'The lead reviewer has not accepted the appointment yet'
+            : undefined;
   const status = statusBadge(row.workItem?.status ?? row.state);
 
   async function act(action: () => Promise<unknown>) {
@@ -251,8 +255,9 @@ export function CycleScreen() {
       </div>
 
       {/* T-347 — the four-state status bar (ADR-0051; approved mockup). Prior
-          rounds are hidden here: the RoundSummary rows below already carry
-          them. The acknowledge act surfaces only to the owner organisation. */}
+          rounds are hidden here: the review record (T-375) carries them. The
+          acknowledge act surfaces to the lead reviewer, or the owner's super
+          user when the lead is away (T-374). */}
       {cycle && (
         <CycleStatusBar
           cycle={cycle}
@@ -609,12 +614,24 @@ function RoundCard(props: {
                   alignContent: 'start',
                 }}
               >
-                {round.comments.length === 0 && (
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    {round.state === 'open'
-                      ? 'No comments yet — the round is open to the review group.'
-                      : 'No comments were recorded in this round.'}
-                  </span>
+                {/* T-379 — the wall states itself here exactly as the record
+                    does: withheld is a different fact from empty, and "no
+                    comments yet" to the walled side would assert the very
+                    absence the withholding denies (ADR-0014, T-375). */}
+                {round.commentsWithheld ? (
+                  <div className="withheld" style={{ margin: 0 }}>
+                    The round is open. Its comments are withheld until the lead reviewer closes the
+                    round and issues it — reviewer-side positioning is never live to the authoring
+                    side.
+                  </div>
+                ) : (
+                  round.comments.length === 0 && (
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      {round.state === 'open'
+                        ? 'No comments yet — the round is open to the review group.'
+                        : 'No comments were recorded in this round.'}
+                    </span>
+                  )
                 )}
                 {round.comments.map((comment) => (
                   <CommentRow
