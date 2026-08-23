@@ -6,6 +6,7 @@
 // it (one-way) → freezes for internal review (head locked) → promotes → opens a
 // document-bound multiplayer thread and pins an attached-source working set.
 import { expect, test } from '@playwright/test';
+import { defaultDeliverableSchema } from '@infora/contracts';
 import type {
   AttachedSource,
   CreateConversationResponse,
@@ -38,6 +39,13 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  // T-369's audit: `workers: 1` orders the scheme replacement below, but it
+  // does not UNDO it — the mutation outlives the process, so a second local
+  // run of any suite would meet the WA/BB-CC/GEO-ENV scheme instead of the
+  // seeded default. Put the default back before leaving.
+  if (rachel && projectId) {
+    await rachel.raw('put', `/projects/${projectId}/naming-scheme`, defaultDeliverableSchema());
+  }
   await Promise.all([eleanor, rachel].filter(Boolean).map((s) => s.dispose()));
 });
 

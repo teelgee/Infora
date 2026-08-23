@@ -34,9 +34,14 @@ test.beforeAll(async () => {
   const me = await consultant.get<{ participants: Array<{ projectId: string }> }>('/me');
   projectId = me.participants[0]!.projectId;
 
+  // T-369's sibling, swept here too: never `items[0]` on a list ordered by
+  // documentReference — sibling specs plant `T190-`/`T363-` rows that sort
+  // ahead of the seeded one, so the position holds only by file order. Name
+  // the seeded row instead.
   const plan = await consultant.get<GetPlanResponse>(`/projects/${projectId}/plan`);
-  myContainerId = plan.items[0]!.containerId; // the consultant produces its own plan rows
-  myRef = plan.items[0]!.documentReference!; // library rows always carry one
+  const seededRow = plan.items.find((r) => r.documentReference === 'WA-EIA-MST-001')!;
+  myContainerId = seededRow.containerId;
+  myRef = seededRow.documentReference!;
 
   const scheme = await consultant.get<ClassificationSchemeResponse>(
     `/projects/${projectId}/classification-scheme`,
@@ -45,9 +50,11 @@ test.beforeAll(async () => {
   facetId = discipline.id;
   termId = discipline.terms[0]!.id;
 
-  // an owner library deliverable, visible to the consultant via share + ack
+  // an owner library deliverable, visible to the consultant via share + ack —
+  // named, not positional: the list is ordered by reference and grows as
+  // sibling suites plant rows (the T-369 sweep's rule)
   const library = await consultant.get<GetLibraryResponse>(`/projects/${projectId}/library`);
-  targetContainerId = library.items[0]!.containerId;
+  targetContainerId = library.items.find((i) => i.documentReference === 'WA-CON-SCC-002')!.containerId;
 });
 
 test.afterAll(async () => {
