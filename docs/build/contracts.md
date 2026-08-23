@@ -337,3 +337,29 @@ are not recorded here.
   creation refused rather than degraded. The lesson worth keeping is general:
   an optional type is a claim that the absent case is *reachable and meaningful*
   — where it is neither, some surface will eventually invent a meaning for it.
+- **2026-08-22 (T-377) — the lead swap became one act because the invariant
+  made two acts inseparable.** `POST /containers/:id/lead-reviewer`
+  (`nameLeadReviewerBody` → `LeadReviewerReplacement`) exists because the
+  promotion window fired the swap as revoke-then-grant, and the one-live-lead
+  invariant means any failure between the two strands the deliverable with no
+  lead at all — the audit reproduced exactly that. A composite write is
+  normally the thing this contract avoids, but a swap is not a composite: it is
+  one decision whose two rows are meaningless apart, which is the test for
+  fusing them. Both interval rows still land on the record, and the naming
+  follows the ordinary confirmation rules, so nothing about the wall moved.
+  The same ticket relaxed the promotion gate to a *named* lead — proposed is
+  enough — because ADR-0033 §1 says a replaced lead *stalls* the round, and a
+  stall requires the submission to exist.
+- **2026-08-22 (T-379) — `Round.completionsWithheld`, for the same reason
+  `commentsWithheld` exists.** The completions array was already withheld
+  server-side, but an empty array alone cannot tell "nobody has finished" from
+  "not yours to know while the round is open" — and a surface duly invented
+  the wrong meaning, badging every reviewer "Reviewing" off data it was never
+  sent. Same phasing, same field shape, same house rule.
+- **2026-08-22 (T-382) — the promotion body carries what the caller was
+  shown.** `promoteDocumentBody.expectedSourceVersionReference` exists because
+  the preflight and the act share one decision function, which pins the gates
+  but not the *statements*: a QA acceptance landing between window and click
+  changed which content promoted with no re-confirmation. The field is the
+  caller's quoted answer, not a lock — omitted means no check, so callers that
+  never stated a source are untouched.

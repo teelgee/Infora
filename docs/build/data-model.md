@@ -258,7 +258,12 @@ partial unique index excludes it, so a replacement can be named without
 revoking the refusal, which stays on the record as the interval discipline
 requires. The decline reason is a named person's stated refusal
 ([personal-data.md](personal-data.md)) and is owner-organisation-private — the
-producing side learns only that a lead reviewer is awaited. ADR-0035 adds the acknowledgement gate and per-participant narrowing
+producing side learns only that a lead reviewer is awaited. **Migration 0047
+deliberately does not backfill `accepted_at`:** a backfill would manufacture an
+undertaking nobody gave, so every lead confirmed before the migration blocks
+acknowledgement until that named person clicks Accept — and with notifications
+deferred (Slice V1-N) nobody is told; an operator upgrading an in-flight
+project should expect submitted rounds to wait on that click. ADR-0035 adds the acknowledgement gate and per-participant narrowing
 on the same substrate. **ADR-0051 (ruled 2026-08-06, builds with T-346) adds
 a second acknowledgement one level up:** a project-scope round is created
 `submitted` and opens for review only when a Participant of the owner

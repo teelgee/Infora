@@ -200,7 +200,7 @@ const acts = [
         screen: 'Sandbox · promote to review',
         title: 'The window reconfirms; it does not compose',
         prose:
-          'ADR-0008 made promotion a near-empty hand-off on purpose, because a form filled in the moment is a form filled wrong. This window survives that objection by splitting the fields rather than by tone. What promotes is named and read-only — the version internal QA accepted, and who accepted it, because the whole point of the gate is that the client receives the version that was checked. The plan-owned identity is shown and locked, so a thoughtless confirm produces exactly the plan’s state. Only what is already Eleanor’s to set takes input: the authoring metadata, the review group with its lead, and the review period. Every reviewer control writes a proposal — naming someone in another organisation proposes them and nothing more, because confirmation stays owner-side, and that is why a producing organisation cannot open the wall from this window. It reopens at every promotion, which earns its place at round two more than round one: six months and a staffing change later, the alternative is silently inheriting a review group named at planning and never looked at since.',
+          'ADR-0008 made promotion a near-empty hand-off on purpose, because a form filled in the moment is a form filled wrong. This window survives that objection by splitting the fields rather than by tone. What promotes is named and read-only — the version internal QA accepted, and who accepted it, because the whole point of the gate is that the client receives the version that was checked. The plan-owned identity is shown and locked, so a thoughtless confirm produces exactly the plan’s state. Only what is already Eleanor’s to set takes input: the authoring metadata, the review group with its lead, and the review period. From the producing side every reviewer control writes a proposal — naming someone in another organisation proposes them and nothing more, because confirmation stays owner-side (an owner-side naming confirms outright, as owner grants always have), and that is why a producing organisation cannot open the wall from this window. Changing the lead reviewer is one act, not a remove-then-name pair — the swap either happens whole or not at all, and the window states the wait it buys before the click commits it. It reopens at every promotion, which earns its place at round two more than round one: six months and a staffing change later, the alternative is silently inheriting a review group named at planning and never looked at since.',
         adrs: ['ADR-0008', 'ADR-0038', 'ADR-0033'],
       },
       {
@@ -233,7 +233,7 @@ const acts = [
         screen: 'Review · deliverable status',
         title: 'P01 submitted, awaiting acknowledgement',
         prose:
-          'The submission, from the producing side: Infora froze P01 out of the window above, rendered the review PDF beside the native file, and sent round 1 to Trentmoor. The four-state bar says exactly where the deliverable stands — submitted, and not yet in review, because the round does not open on the promoter’s click. It opens when the lead reviewer accepts the appointment and acknowledges the submission, which is the next two beats and neither of them is Eleanor’s to make.',
+          'The submission, from the producing side: Infora froze P01 out of the window above, rendered the review PDF beside the native file, and sent round 1 to Trentmoor. The four-state bar says exactly where the deliverable stands — submitted, and not yet in review, because the round does not open on the promoter’s click. It opens when the lead reviewer accepts the appointment and acknowledges the submission — or, with the lead away, when a Trentmoor super user acknowledges in their stead — which is the next two beats and neither of them is Eleanor’s to make.',
         adrs: ['ADR-0034', 'ADR-0041', 'ADR-0051'],
       },
       {
@@ -372,7 +372,7 @@ const acts = [
         screen: 'Review cycle · round 2',
         title: 'Version two arrives already reconciled',
         prose:
-          'Rachel does not go hunting for what changed. Each response sits beside her comment in the same record, stamped “Changed in P02” with the passage that answers it; the no-change answer states its reason. Round 1 stands as the record it was; round 2 opens on the new version — which took the same road as the first, through its own internal QA pass, because one QA acceptance buys exactly one revision.',
+          'Version two arrives and the working screen stays on the round under review: round 2, freshly acknowledged, no comments yet — the reconciliation Rachel will read sits in the record one click away, which is the next beat. P02 took the same road as the first version, through its own internal QA pass, because one QA acceptance buys exactly one revision; and round 2 opened the way every round now opens, on acceptance and acknowledgement, not on the promoter’s click.',
         adrs: ['ADR-0009'],
       },
       {
@@ -381,7 +381,7 @@ const acts = [
         screen: 'Review record',
         title: 'One table, appended to — not a sheet per round',
         prose:
-          'The chapter’s whole review history in one scroll: every comment in order with where it sits, its code, its author and the response that answered it, round one closed off by the deliverable code it concluded with, round two appended to the same table rather than opening a new one. This is what the Excel review notice could never do, and the reason ADR-0009 refused to materialise a second artifact from the record. Each response either points at the change — “Changed in P02”, with the passage — or states explicitly that none was made and why; there is no third state and no blank cell. Round two carries a band saying it has no code yet, because an open round with no verdict is a state rather than a gap, and no count of comments will ever fill it. There is no download, no “issue the record”, no print button anywhere on this screen: the DRN was dropped and a button here would quietly reinstate it.',
+          'The chapter’s whole review history in one scroll: every comment in order with where it sits, its code, its author and the response that answered it, round one closed off by the deliverable code it concluded with, round two appended to the same table rather than opening a new one. This is what the Excel review notice could never do, and the reason ADR-0009 refused to materialise a second artifact from the record. Each answered comment’s response either points at the change — “Changed in P02”, with the passage — or states explicitly that none was made and why; a response written before its promotion reads “change prepared for the next revision” until the stamp lands (ADR-0004’s declare-now, stamp-later). Round two carries a band saying it has no code yet, because an open round with no verdict is a state rather than a gap, and no count of comments will ever fill it. There is no download, no “issue the record”, no print button anywhere on this screen: the DRN was dropped and a button here would quietly reinstate it.',
         adrs: ['ADR-0009', 'ADR-0004', 'ADR-0005'],
       },
       {
@@ -567,7 +567,7 @@ function build(srcFor) {
 <div class="page">
   <header class="mast">
     <span class="mark"></span><span class="word">Infora</span>
-    <span class="doc">docs/architecture · recaptured 2026-08-09</span>
+    <span class="doc">docs/architecture · recaptured 2026-08-22</span>
   </header>
 
   <h1>The document management journey, on screen</h1>
@@ -611,16 +611,16 @@ function build(srcFor) {
   ${actsHtml}
 
   <footer class="prov-foot">
-    <p><strong>Provenance.</strong> Recaptured 2026-08-09 from the running application: e2e API substrate with deterministic
+    <p><strong>Provenance.</strong> Recaptured 2026-08-22 from the running application: e2e API substrate with deterministic
     model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas.
     The one beat Playwright cannot photograph — the library modal’s embedded PDF pane — is represented by the library
     table instead.</p>
     <p><strong>What was driven through the API rather than clicked.</strong> Setting up the world: four plan rows beside
     the seeded one and their schema metadata, the organisation’s column standard, the draft and its text, and filing that
     draft into its deliverable folder. Running the cycle: appointing the internal reviewer and the re-freeze that opens the
-    QA round (both explained in Act III’s gap card), the owner’s acknowledgement of each submission, and version two’s
-    internal QA pass and promotion, which repeat Act III’s road and are narrated rather than re-photographed. Everything a
-    screenshot on this page shows being done was done on that screen.</p>
+    QA round (both explained in Act III’s gap card), version two’s acknowledgement — round 1’s is the beat-16 click —
+    and version two’s internal QA pass and promotion, which repeat Act III’s road and are narrated rather than
+    re-photographed. Everything a screenshot on this page shows being done was done on that screen.</p>
     <p><strong>What moved under the last capture.</strong> An owner-directed walk of the previous version of this page
     produced nine rulings, built the same day as tickets T-355 and T-358–T-366. Five of them are new beats here: the schema
     screen the story now opens on, the structure builder and its assistant, the three-way folder mode beside the promotion
