@@ -47,7 +47,7 @@ The claim this licenses, and the only one that survives its first question, is *
 
 **6. What may be purged is decided by *whose material it is*, not by where it sits or how it arrived.** Two parties, two answers:
 
-- **The member organisation (Org B)** may require **complete deletion of its own material, wherever it lives** — sandbox and personal-sandbox documents, org context, drafts, its own **Runs** (producer-private by the 2026-07-12 liability ruling), its Signals, its cost attribution, its conflict register. Everything except what has been promoted into the library.
+- **The member organisation (Org B)** may require **complete deletion of its own material, wherever it lives** — sandbox and personal-sandbox documents, org context, drafts, its own **Runs** (producer-private by the 2026-07-12 liability ruling), its Signals, its cost attribution, its conflict register. Everything except what has been promoted into the library. *(Rider, 2026-08-26 — [ADR-0026](0026-distillation-egress-boundary.md)'s amendment: deleting its Signals removes the rows and any derived record still in the pipeline, but a craft observation already corroborated across several firms and written into a shipped Lens or checker rule **does not return**. That artefact is Infora's own authored, de-identified, multi-organisation work rather than the customer's material — the same reasoning that admits it in the first place. Recorded here so the deletion promise is never read wider than it is.)*
 - **The library owner (Org A)** **retains the deliverables and the review-cycle metadata, named individuals included.**
 
 This **corrects two recommendations**, and both corrections matter more than the position they replace.

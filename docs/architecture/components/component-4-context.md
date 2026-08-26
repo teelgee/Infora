@@ -60,7 +60,7 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 
 ## 5. Distillation and egress boundary (the moat write loop)
 
-**Responsibility.** Distil Knowledge from Sources and Signals; enforce the destination rule on what may feed portable org context (own material, client facts stripped); keep admission a deliberate curation act; ensure the moat compounds by retrieval and codified workflows, never by training on customer data.
+**Responsibility.** Distil Knowledge from Sources and Signals; enforce the destination rule on what may feed portable org context (own material, client facts stripped); keep admission a deliberate curation act; ensure the moat compounds by retrieval and codified workflows, never by training on customer data. **Added 2026-08-26 (ADR-0026 amended):** own the **craft path** too — the abstraction step that turns a Signal into a de-identified characterisation *inside* the customer's boundary, so that what crosses to Infora's own domain layer is what kind of change a person made and never the prose on either side of it. Two flywheels, one component: the firm's own portable layer, and Infora's shipped product.
 **Governing ADRs.** 0026, 0016 (visible ≠ distillable), 0027 (thinking-vs-doing, the compiled-rule improvement path).
 **Terms owned.** None uniquely; operates on Source, Knowledge, Precedent, Signal.
 **Depends on.** Assembly environment (§4, the structural mechanism); the Signal sink in document management (component 5, where Signals are captured). **Largely open** — the distillation *engine* and Signal *sink* are not yet grilled (Sessions 4 and 7); see the grill doc.

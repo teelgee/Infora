@@ -32,6 +32,8 @@ Other sectors show the shape of the answer: a vertical platform, not another mod
 
 Planning and construction has no such platform. That is the gap Infora fills — first by doing the document-production work itself (the wedge), then by becoming the layer on which firms build and run their own AI for the sector (the long-term vision).
 
+**Context is what fills it, and it answers all three causes at once.** Infora assembles what an agent knows, per request, from the project's owner-curated record, the published authority the sector runs on, and the firm's own private know-how — so nobody rebuilds context at a handoff, the intelligence layer exists, and expert time returns to judgement. And a firm's material cannot reach another organisation **by construction rather than by policy**: the assembly call carries no parameter by which anyone can ask for more. That is why competing consultancies can run their own agents on one project at all, and it is a claim a single-firm tool structurally cannot make. Infora ships that context configured and capable; a firm then builds its **own layer** on top — its standards, its precedents, its tools — which travels with it to every project it works on and never crosses the wall.
+
 ### The wedge and the long-term vision
 
 The **wedge** is AI-driven document management and AI document production: agents that accelerate the manual production and review tasks a project already has — drafting sections or whole documents, running assurance, analysing documents to generate other outputs — inside the controlled project environment. It is sticky because project knowledge and the AI compound the longer a project runs: the more a team works in Infora, the better its per-project knowledge, its codified workflows, and its per-document guidance get, so output improves with use. That "gets better the more you use it" is knowledge, workflows and guidance compounding behind the interface and improving the prompts and guardrails per document.
@@ -76,9 +78,9 @@ The governed, agentic end-to-end processes Infora ships. **Document production i
 
 The full controlled-document lifecycle, and the substrate that makes the AI trustworthy. Teams draft freely in a sandbox; promotion snapshots a working copy into an immutable controlled revision; every deliverable is planned up front as a coded container. The **human review-and-assurance cycle** runs on the PDF in a native viewer — anchored comments, two-level acceptance coding, one live append-only review record (the DRR) per deliverable, and transmittal as an on-platform event. Accepted deliverables enter the project library, the curated corpus the AI grounds on.
 
-### Build-your-own workflows & agents (custom)
+### Build-your-own workflows & agents (custom) *(later)*
 
-Organisations build their own workflows and agents, held in their private, portable org context and deployable to any project they work on. This is the build-your-own-agentic-systems layer of the long-term vision, and a reason to adopt Infora independent of any client mandate. A deployed custom workflow runs exactly as an Infora-built one does — same engine, same governance envelope, inheriting the project owner's rails — differing only in provenance and deployment.
+Organisations *will* build their own workflows and agents, held in their private, portable org context and deployable to any project they work on. **Deferred, and marked so:** the builder, the org-context store this depends on and the org-built agent are all in [the deferred register](../build/plan.md), gated on the moat sessions — none of it ships in the first pilot. This is the build-your-own-agentic-systems layer of the long-term vision, and a reason to adopt Infora independent of any client mandate. A deployed custom workflow runs exactly as an Infora-built one does — same engine, same governance envelope, inheriting the project owner's rails — differing only in provenance and deployment.
 
 ### Project chat / Ask
 
@@ -88,9 +90,9 @@ Conversational, grounded question-answering over a project: ask anything and get
 
 Many organisations working together on one project under a single owner, with controlled sharing and **ethical walls as the standing default**: by default each organisation sees only its own work, what the owner has shared with it, and the shared spaces it has joined. The owner opens cross-organisation visibility deliberately. This is the user-facing face of the access model.
 
-### Compounding knowledge
+### Compounding knowledge *(capture is live; the loop is later)*
 
-Infora captures how an organisation's experts work — the **Signals** from accepting, editing and rejecting AI output — and feeds them back as retrievable knowledge, codified workflows and per-document guidance, so output improves the more the platform is used. Improvements accrue to the organisation's own context and are never shared across customers. This is the moat, and the user-facing face of the context layer.
+Infora captures how experts work — the **Signals** from accepting, editing and rejecting AI output — and feeds them back along **two separate paths** (ADR-0026). *The organisation's own:* a firm's Signals improve that firm's own portable layer — its knowledge, codified workflows and per-document guidance — and reach no other organisation, ever. *Infora's:* a de-identified characterisation of what people changed, collated across several customers, improves the **shipped product** for everyone — the Lens definitions, checker rules and workflow definitions Infora releases. What crosses is the craft, never the content: no scheme, no figure, no firm, no person, and never a customer's own configuration. This is the moat, and the user-facing face of the context layer. **Honestly marked:** Signal capture is built; both compounding paths are deferred behind the moat sessions, and the cross-customer one cannot begin until there is more than one customer to collate across.
 
 ### Spatial & model referencing *(later)*
 
