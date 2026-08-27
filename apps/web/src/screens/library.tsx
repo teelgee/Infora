@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import type { LibraryItem, MeResponse, PendingTransmittal, Rendition, RosterEntry } from '@infora/contracts';
-import { Download, FileText, Inbox, Send } from 'lucide-react';
+import { BookOpen, Download, FileText, Inbox, Send } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
@@ -179,6 +179,17 @@ export function LibraryScreen() {
     if (isOwner) void api.participants(projectId).then((r) => setRoster(r.items));
   }, [isOwner, projectId]);
 
+  // T-304 — the produced record and the material this project received are two
+  // lists, split on the server's derived `kind` rather than on anything this
+  // screen infers. Kept null-vs-empty apart so "still loading" and "none" stay
+  // distinguishable, which is what lets the reference section be absent
+  // entirely on a project that has loaded none.
+  const deliverables = useMemo(
+    () => items?.filter((item) => item.kind === 'deliverable') ?? null,
+    [items],
+  );
+  const reference = useMemo(() => items?.filter((item) => item.kind === 'reference') ?? null, [items]);
+
   // distinct organisations on the project, excluding the owner's own
   const otherOrgs = useMemo(() => {
     const seen = new Map<string, string>();
@@ -270,7 +281,7 @@ export function LibraryScreen() {
             </tr>
           </thead>
           <tbody>
-            {(items ?? []).map((item) => (
+            {(deliverables ?? []).map((item) => (
               <tr
                 key={item.containerId}
                 onClick={() => setOpenItem(item)}
@@ -303,7 +314,7 @@ export function LibraryScreen() {
                 </td>
               </tr>
             ))}
-            {items !== null && items.length === 0 && (
+            {deliverables !== null && deliverables.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ color: 'var(--text-muted)' }}>
                   No live deliverables in this project&apos;s library.
@@ -313,6 +324,68 @@ export function LibraryScreen() {
           </tbody>
         </table>
       </Table>
+
+      {/* T-304 — reference material is listed APART from the produced record,
+          not merely badged inside it. Both ground and both are cited the same
+          way; the difference is that nobody here produced these, and a
+          consultee response sitting in a table headed "Live deliverables"
+          is the corpus laundering itself into the record it is supposed to
+          support. The columns differ for the same reason: there is no
+          Suitability, no Discipline and no Transmit for a document this
+          project received, and "Producer" would be a lie — the organisation
+          named is the one that HOLDS it. */}
+      {reference !== null && reference.length > 0 && (
+        <>
+          <SectionLabel>Reference material</SectionLabel>
+          <p className="page-sub" style={{ marginTop: -4 }}>
+            Received, not produced here — loaded into the library so the AI can ground and cite on
+            it. These carry no plan row and no review history.
+          </p>
+          <Table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Revision</th>
+                  <th>Held by</th>
+                  <th>Loaded</th>
+                  <th style={{ textAlign: 'right' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {reference.map((item) => (
+                  <tr
+                    key={item.containerId}
+                    onClick={() => setOpenItem(item)}
+                    style={{ cursor: 'pointer' }}
+                    title="Open this document"
+                  >
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <BookOpen
+                          size={14}
+                          strokeWidth={2}
+                          style={{ color: 'var(--text-muted)', flexShrink: 0 }}
+                        />
+                        <span style={refStyle}>{item.documentReference}</span>
+                        <Badge tone="neutral">Reference</Badge>
+                      </span>
+                    </td>
+                    <td><span className="mono">{item.revision}</span></td>
+                    <td>{item.producerName}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
+                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <Button size="sm" variant="quiet" onClick={() => setOpenItem(item)}>
+                        Open
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Table>
+        </>
+      )}
     </div>
   );
 }

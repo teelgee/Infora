@@ -33,6 +33,11 @@ export function libraryRoutes(deps: { db: Db }) {
         metadata: s.containers.metadata,
         producerName: s.organisations.name,
         title: s.workItems.title,
+        // T-304 — the absence IS the marker: a reference-material container has
+        // no work item (the 2026-07-31 ruling), so the left join answering null
+        // is the whole distinguishing fact. Nothing is stored and nothing has
+        // to be kept in step.
+        workItemId: s.workItems.id,
       })
       .from(s.containers)
       .innerJoin(s.versions, eq(s.versions.containerId, s.containers.id))
@@ -67,6 +72,7 @@ export function libraryRoutes(deps: { db: Db }) {
         producerName: row.producerName,
         issuedAt: row.issuedAt.toISOString(),
         state: 'live',
+        kind: row.workItemId === null ? 'reference' : 'deliverable',
       };
     });
     return c.json({ items } satisfies GetLibraryResponse);

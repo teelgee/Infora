@@ -397,9 +397,9 @@ const acts = [
         img: '26-library',
         lane: REVIEWER,
         screen: 'Project library',
-        title: 'The controlled record, in the corpus it came from',
+        title: 'The controlled record, apart from the material it was drawn from',
         prose:
-          'WA-EIA-MST-001, revision C01, live in the project library beside the ground investigation and baseline reports it was drafted from. It is now project knowledge: the drafting assistant grounds on it, citations resolve into it, and the wall still decides who reaches it.',
+          'WA-EIA-MST-001, revision C01, live in the project library. It is now project knowledge: the drafting assistant grounds on it, citations resolve into it, and the wall still decides who reaches it. The ground investigation and baseline reports it was drafted from are on the same page and in a different table — Reference material, received rather than produced here. Both ground and both are cited the same way; only one of them is this project’s record of its own work, and listing them together would let a corpus quietly launder itself into the record it exists to support.',
         adrs: ['ADR-0011'],
       },
       {

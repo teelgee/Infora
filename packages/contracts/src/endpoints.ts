@@ -386,6 +386,17 @@ export type LibraryItem = {
   producerName: string; // the producing organisation
   issuedAt: string; // ISO timestamp of the current version
   state: 'live';
+  // T-304 — produced record, or received material? **Derived, never stored:**
+  // a reference-material container is one with no work item (the 2026-07-31
+  // ruling — the distinguishing fact is an absence, and ADR-0032's addendum
+  // already says these carry none), so this field is that absence read out
+  // rather than a flag some writer has to remember to set.
+  //
+  // It is on the wire because the surface has to be able to tell them apart:
+  // a loaded consultee response listed indistinguishably beside an accepted
+  // deliverable is the corpus quietly laundering itself into the produced
+  // record. Both ground; only one was produced here.
+  kind: 'deliverable' | 'reference';
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
