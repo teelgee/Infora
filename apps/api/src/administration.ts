@@ -5,21 +5,24 @@
 // to every Participant — the wall hides work, never presence.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { addMembershipBody, enrolParticipantBody } from '@infora/contracts';
+import { addMembershipBody, enrolParticipantBody, purgeRequestBody } from '@infora/contracts';
 import type {
   ApiError,
   ListOrgUsersResponse,
   ListRosterResponse,
   MembershipRecord,
   RosterEntry,
+  ListPurgesResponse,
+  PurgeResponse,
 } from '@infora/contracts';
 import { CONFLICT_REFUSAL, conflictBlocks } from '@infora/governance';
 import type { ConflictExclusion } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope } from './requester';
+import { purgeSandboxDocument } from './purge';
 import type { AppEnv, UserRow } from './requester';
 
 /**
@@ -90,6 +93,8 @@ async function adminSeat(db: Db, user: UserRow, projectId: string) {
     .limit(1);
   return membership ?? null;
 }
+
+export { adminSeat };
 
 async function rosterEntry(db: Db, participantId: string): Promise<RosterEntry> {
   const [row] = await db
@@ -368,6 +373,92 @@ export function administrationRoutes(deps: { db: Db }) {
       .where(eq(s.organisations.id, row.organisationId))
       .limit(1);
     return c.json(toMembership(updated!, organisation!.name));
+  });
+
+  // T-340 — Purge (ADR-0050 §5–§6): the second deletion act. Org-admin only,
+  // behind a typed confirmation, recorded with a name against it.
+  //
+  // **On the administration surface rather than beside Delete**, deliberately.
+  // Delete is self-service and lives with the document; purge is an
+  // organisation-level act with a different tier, a different blast radius and
+  // no undo, and putting the two buttons side by side is how the wrong one
+  // gets pressed. The tier is the same `adminSeat` every other act on this
+  // surface uses: an admin of an organisation holding an active seat.
+  //
+  // The typed confirmation is enforced HERE, not only in the browser. A
+  // client-side-only confirmation is a speed bump for a person and nothing at
+  // all for a script, and this is the one act with no undo.
+  app.post('/projects/:projectId/purges', async (c) => {
+    const user = c.get('user');
+    const projectId = c.req.param('projectId');
+    const seat = await adminSeat(deps.db, user, projectId);
+    if (!seat) return notFound(c);
+    const body = purgeRequestBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+
+    const [document] = await deps.db
+      .select({ title: s.sandboxDocuments.title })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, body.data.sandboxDocumentId))
+      .limit(1);
+    if (!document) return notFound(c);
+    // the confirmation is the document's own title, typed: a phrase the person
+    // has to read the row to know, rather than a word they can reflex past
+    if (body.data.confirmation.trim() !== document.title.trim()) {
+      return c.json(
+        {
+          error: 'invalid',
+          detail: 'confirmation_mismatch',
+          hint: `type the document's title exactly: ${document.title}`,
+        } satisfies ApiError,
+        400,
+      );
+    }
+
+    const result = await purgeSandboxDocument(deps.db, {
+      documentId: body.data.sandboxDocumentId,
+      projectId,
+      organisationId: user.organisationId,
+      userId: user.id,
+    });
+    // "not yours" and "not there" look the same from outside (principle 4)
+    if (result === null) return notFound(c);
+    return c.json({ purgeId: result.eventId, reached: result.reach } satisfies PurgeResponse);
+  });
+
+  // The record of what has been purged — its own organisation's only. A control
+  // nobody can see operating is a control nobody can audit (the same reasoning
+  // as `elevated_refusals`, T-301), and here it is sharper: the subject is gone,
+  // so this row is the only evidence the act ever happened.
+  app.get('/projects/:projectId/purges', async (c) => {
+    const user = c.get('user');
+    const seat = await adminSeat(deps.db, user, c.req.param('projectId'));
+    if (!seat) return notFound(c);
+    const rows = await deps.db
+      .select({
+        id: s.purgeEvents.id,
+        subjectKind: s.purgeEvents.subjectKind,
+        subjectTitle: s.purgeEvents.subjectTitle,
+        reached: s.purgeEvents.reached,
+        purgedAt: s.purgeEvents.purgedAt,
+        purgedByName: s.users.name,
+      })
+      .from(s.purgeEvents)
+      .innerJoin(s.users, eq(s.users.id, s.purgeEvents.purgedByUserId))
+      .where(
+        and(
+          eq(s.purgeEvents.projectId, c.req.param('projectId')),
+          eq(s.purgeEvents.organisationId, user.organisationId),
+        ),
+      )
+      .orderBy(desc(s.purgeEvents.purgedAt));
+    return c.json({
+      items: rows.map((row) => ({
+        ...row,
+        reached: row.reached as PurgeResponse['reached'],
+        purgedAt: row.purgedAt.toISOString(),
+      })),
+    } satisfies ListPurgesResponse);
   });
 
   return app;

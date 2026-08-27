@@ -15,7 +15,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { organisations, participants, projects } from './drawer1-parties.js';
+import { organisations, participants, projects, users } from './drawer1-parties.js';
 
 // rejected: the cycle was closed-rejected and never resubmitted — the document
 // stays in the library as a record and never grounds (ADR-0013/0032)
@@ -611,3 +611,42 @@ export const namingSchemeProposals = pgTable('naming_scheme_proposals', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+
+// T-340 — the purge record (ADR-0050 §5–§6; migration 0049). Delete is T-128's
+// bin, restorable and self-service; **Purge is the second act** — it genuinely
+// erases, including the derived stores, which is the half that makes it real.
+//
+// Append-only by trigger, deliberately: the whole value of this row is that it
+// survives the act it describes, and a purge record a super-user could quietly
+// delete is worth nothing.
+//
+// The subject is kept as TEXT rather than as a foreign key. The document is
+// gone — that is the point — so a reference would dangle, and a record that
+// cannot be read answers nothing.
+export const purgeEvents = pgTable(
+  'purge_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    // User grain rather than Participant: purge is an ORG ADMIN act, and org
+    // administration is an account capability rather than a project one
+    purgedByUserId: uuid('purged_by_user_id')
+      .notNull()
+      .references((): AnyPgColumn => users.id),
+    subjectKind: text('subject_kind').notNull(),
+    subjectId: uuid('subject_id').notNull(),
+    subjectTitle: text('subject_title').notNull(),
+    // counts of what it reached, STORED rather than recomputed for the obvious
+    // reason: afterwards there is nothing left to count. This is what makes the
+    // row answer "was it actually erased, and how much of it" rather than
+    // merely "somebody pressed the button".
+    reached: jsonb('reached').notNull().default({}),
+    purgedAt: timestamp('purged_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('purge_events_org_idx').on(t.organisationId, t.purgedAt)],
+);

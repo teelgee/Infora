@@ -5,7 +5,7 @@
 // infra session's converter. The blob substrate is a dev directory
 // (INFORA_BLOB_DIR, default .blobs/) — real object storage is the infra
 // session's decision; content_ref stays a pointer either way.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deflateRawSync } from 'node:zlib';
@@ -30,6 +30,28 @@ export function putBlob(bytes: Buffer, extension: string): string {
   const name = `${randomUUID()}.${extension}`;
   writeFileSync(join(blobDir(), name), bytes);
   return `blob:${name}`;
+}
+
+/**
+ * T-340 — erase a blob. The dev substrate is a directory, so this is an
+ * `unlink`; the **object-store** version is the seam the ticket names and
+ * cannot close: S3 versioning is on (ADR-0047 §3), a delete writes a
+ * delete-marker rather than erasing, and real erasure needs a version-level
+ * purge. That belongs with Slice V1-I, which is parked, so this function is
+ * where it goes and the ticket says so rather than implying it is done.
+ *
+ * A missing file is not an error: purge is idempotent by intent, and a blob
+ * already gone is the state purge is trying to reach.
+ */
+export function deleteBlob(contentRef: string): void {
+  if (!contentRef.startsWith('blob:')) return;
+  const name = contentRef.slice('blob:'.length);
+  if (name.includes('/') || name.includes('..')) return;
+  try {
+    rmSync(join(blobDir(), name), { force: true });
+  } catch {
+    // an unreferenced file left on disk is named in the purge record's counts
+  }
 }
 
 export function getBlob(contentRef: string): Buffer | null {

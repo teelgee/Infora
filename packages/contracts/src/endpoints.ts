@@ -1671,3 +1671,57 @@ export type ListConflictAttestationsResponse = {
 // PATCH /projects/:projectId/conflict-attestation — owner sets the requirement
 export const setAttestationRequirementBody = z.object({ required: z.boolean() });
 export type SetAttestationRequirementBody = z.infer<typeof setAttestationRequirementBody>;
+
+// ── Purge (T-340, ADR-0050 §5–§6) ──────────────────────────────────────────
+//
+// POST /projects/:projectId/purges   — erase a sandbox document and everything
+//                                      derived from it. Org-admin only, typed
+//                                      confirmation, recorded with a name.
+// GET  /projects/:projectId/purges   — the organisation's own purge record.
+//
+// **Delete and Purge are two acts.** Delete is T-128's bin — restorable,
+// self-service, and unchanged. Purge has no undo, reaches the derived stores,
+// and is bounded by *whose material it is*: an organisation's own working
+// material, and **never** anything promoted into the library, which is the
+// owner's record and the owner's act to remove from (§7).
+//
+// The confirmation is the document's **own title**, typed. A phrase the person
+// has to read the row to know is a different thing from a word they can reflex
+// past, and it is checked **server-side** — a client-side-only confirmation is
+// a speed bump for a person and nothing at all for a script.
+export const purgeRequestBody = z.object({
+  sandboxDocumentId: z.uuid(),
+  confirmation: z.string().min(1),
+});
+export type PurgeRequestBody = z.infer<typeof purgeRequestBody>;
+
+/**
+ * What the purge reached, counted while there was still something to count.
+ * It is on the wire because "it worked" is not an answer to "was this actually
+ * erased" — the numbers are what a firm can hold Infora to.
+ */
+export type PurgeReach = {
+  ambientVersions: number;
+  comments: number;
+  checkoutEvents: number;
+  bindingEvents: number;
+  suggestions: number;
+  signals: number;
+  frozenVersions: number;
+  chunks: number;
+  renditions: number;
+  blobs: number;
+};
+export type PurgeResponse = { purgeId: Id; reached: PurgeReach };
+
+export type PurgeRecord = {
+  id: Id;
+  subjectKind: string;
+  // the title outlives the document deliberately: a record naming only a uuid
+  // answers "something was erased" and nothing else
+  subjectTitle: string;
+  reached: PurgeReach;
+  purgedAt: string;
+  purgedByName: string;
+};
+export type ListPurgesResponse = { items: PurgeRecord[] };

@@ -142,6 +142,32 @@ paragraph, over `chr(12)` instead of `E'\n'`. A version with no form feed
 anywhere has no pages and reports none, which is every docx, because a Word
 file contains no page boundaries at all.
 
+**Purge** (T-340, migration 0049; ADR-0050 §5–§6) is the **second deletion
+act**, beside T-128's bin rather than replacing it — Delete stays restorable
+and self-service, because recovery-without-a-helpdesk-ticket is a product
+virtue being kept. Two pieces land in the schema and both are small, because
+the ticket's weight is in *reach* rather than in structure.
+
+**`purge_events`** records the act: who purged, which document, when, and the
+**counts of what it reached**, append-only on the T-008 trigger. The counts are
+stored rather than recomputed for the obvious reason — after a purge there is
+nothing left to count — and they are what makes the record answer *"was this
+actually erased, and how much of it"* rather than merely *"someone pressed the
+button"*. A **named person on a destructive act**, so it is registered in
+[personal-data.md](personal-data.md).
+
+**`forbid_mutation()` gains one carve-out**, and it is the interesting half.
+`versions`, `signals` and `comments` are append-only *by trigger* (T-008), and
+purge must genuinely erase — a purge that deletes the row and leaves the
+derived copies has erased nothing. So the trigger admits `DELETE` when the
+transaction-local setting `infora.purge` is on, exactly as `withProjectScope`
+declares `infora.project_id`. **`UPDATE` stays forbidden unconditionally:**
+append-only exists to stop the record being *rewritten*, and nothing about
+erasure needs the ability to edit. The carve-out is deliberately visible in the
+trigger body rather than hidden behind a privileged role, because the place a
+reader looks to learn that a table is append-only should be the place they
+learn what the exception is.
+
 **`document_format` gained `pdf`** (T-305, migration 0048). An uploaded PDF is
 a canonical native file like the other three, with one difference that is a
 decision rather than an implementation detail: **its `content` holds the

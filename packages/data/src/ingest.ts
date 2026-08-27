@@ -14,7 +14,7 @@
 // survives as `ingestAllVersions` and is named so a caller cannot reach for it
 // by accident: it belongs to the dev CLI and the e2e substrate, which index a
 // seeded database from nothing, and to nothing on a request path.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -114,6 +114,32 @@ export async function isVersionIndexed(
       .limit(1),
   );
   return rows.length > 0;
+}
+
+/**
+ * T-340 — erase the index rows for a set of versions, as part of a Purge.
+ *
+ * It lives here because `version_chunks` has one reader and one writer by
+ * construction (`scripts/source-rules.mjs` RULE 1), and because "erase the
+ * derived copy" is the same knowledge as "write the derived copy" — the
+ * package that knows a chunk is not the document is the package that should
+ * know how to unmake one.
+ *
+ * **Takes a transaction, and does not open its own scope.** The caller has
+ * already declared `infora.project_id`, and it must: the index is under RLS and
+ * the policy fails CLOSED, so a DELETE outside the scope matches nothing and
+ * reports success while leaving the text exactly where it was — which is the
+ * precise failure Purge exists to prevent, arriving through the back door.
+ * Unlike ingest, this is deliberately NOT model-scoped: a purge erases every
+ * index built over the text, not the one the current router happens to name.
+ */
+export async function deleteChunksForVersions(tx: Db, versionIds: string[]): Promise<number> {
+  if (versionIds.length === 0) return 0;
+  const deleted = await tx
+    .delete(s.versionChunks)
+    .where(inArray(s.versionChunks.versionId, versionIds))
+    .returning({ id: s.versionChunks.id });
+  return deleted.length;
 }
 
 function assertIndexGeometry(router: Router): void {
