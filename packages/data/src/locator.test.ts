@@ -97,3 +97,52 @@ describe('resolveLocator (T-271)', () => {
     expect(locator.verbatim.replace(/\s+/g, ' ')).toBe(chunk.content.replace(/\s+/g, ' '));
   });
 });
+
+// T-305 — page, the locator a planner actually writes. It is the same
+// derivation as paragraph over a different separator, which is why it arrived
+// without a column: `pdfToText` terminates every page with a form feed, and the
+// store counts them the way it counts newlines.
+describe('resolveLocator — page (T-305)', () => {
+  // three pages, the way an extracted PDF reads: text, form feed, text
+  const PAGINATED =
+    'Chapter 12 Noise\nThis chapter describes the assessment.\f' +
+    '12.4 Assessment of effects. The level at R7 is 54 dB.\f' +
+    'Mitigation is a three metre barrier at chainage 4+200.\f';
+
+  const paginated = (chunk: { content: string; start: number; end: number }): StoredSpan => {
+    const before = PAGINATED.slice(0, chunk.start);
+    return {
+      startOffset: chunk.start,
+      endOffset: chunk.end,
+      content: chunk.content,
+      verbatim: PAGINATED.slice(chunk.start, chunk.end),
+      paragraph: before.length - before.replaceAll('\n', '').length,
+      page: PAGINATED.includes('\f')
+        ? before.length - before.replaceAll('\f', '').length + 1
+        : null,
+    };
+  };
+
+  it('reports the page a passage starts on, one-based', () => {
+    const chunks = chunkText(PAGINATED, 60);
+    const pages = chunks.map((chunk) => resolveLocator(paginated(chunk))!.page);
+    expect(pages[0]).toBe(1);
+    expect(pages.at(-1)).toBe(3);
+    // monotonic: a later passage is never on an earlier page
+    expect([...pages].sort((a, b) => a! - b!)).toEqual(pages);
+  });
+
+  it('reports NO page for a source that has none — a docx never invents one', () => {
+    // a Word file contains no page boundaries: pagination is the viewer's, so
+    // "page 14" from a docx would be fabricated
+    const locator = resolveLocator(stored(chunkText(SOURCE, 60)[0]!))!;
+    expect(locator.page).toBeUndefined();
+    expect(locator.paragraph).toBe(0); // and paragraph still resolves
+  });
+
+  it('withholds the page when the span itself no longer resolves', () => {
+    // page rides the same verification as everything else: no locator, no page
+    const chunk = chunkText(PAGINATED, 60)[0]!;
+    expect(resolveLocator({ ...paginated(chunk), verbatim: 'Different words.' })).toBeNull();
+  });
+});

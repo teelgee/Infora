@@ -203,7 +203,11 @@ export async function generateRenditions(
       await db.insert(s.renditions).values({
         versionId: version.id,
         kind: 'native',
-        format: doc.format as 'docx' | 'xlsx' | 'pptx',
+        // T-305 — an uploaded PDF's native rendition is the PDF itself, and
+        // it is deliberately still `native` rather than `pdf`: the `pdf` kind
+        // means the rendition Infora GENERATED as the review-and-record copy
+        // (ADR-0004), which is not what a client's own file is
+        format: doc.format as 'docx' | 'xlsx' | 'pptx' | 'pdf',
         contentRef: doc.fileRef,
       });
     }

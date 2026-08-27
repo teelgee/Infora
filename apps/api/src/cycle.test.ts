@@ -999,6 +999,126 @@ describe('upload & conversion (T-122, ADR-0034)', () => {
   });
 });
 
+// T-305 — the PDF input path. What matters here is not that a file lands: it is
+// that a PDF lands WITH ITS TEXT, because that text is what the corpus grounds
+// on and what every locator is an offset into — and that one which cannot be
+// read is refused by name while a person is still holding it.
+describe('PDF upload (T-305)', () => {
+  const upload = async (bytes: Buffer, name: string) => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(bytes)], name));
+    return app.request(`/projects/${projectId}/sandbox-uploads`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+  };
+
+  /** a scan: pages, size, an image, and no text layer. OCR is out of V1. */
+  const scannedPdf = (): Buffer =>
+    Buffer.from(
+      `%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >> endobj
+4 0 obj << /Length 30 >>
+stream
+q 595 0 0 842 0 0 cm /Im0 Do Q
+endstream
+endobj
+5 0 obj << /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /DCTDecode /Length 16 >>
+stream
+0000000000000000
+endstream
+endobj
+trailer << /Root 1 0 R >>
+%%EOF
+`,
+      'latin1',
+    );
+
+  it('a text PDF uploads with its text extracted and its pages marked', async () => {
+    const { textToPdf } = await import('./renditions.js');
+    const body = Array.from({ length: 90 }, (_, i) => `Paragraph ${i + 1} of the Decision Letter.`);
+    const res = await upload(textToPdf('Decision Letter', body.join('\n')), 'Decision Letter.pdf');
+    expect(res.status).toBe(201);
+    const doc = (await res.json()) as { id: string; origin: string; format: string; content: string };
+
+    // canonical stays the native file (ADR-0034), and the row stays uploaded —
+    // this is grounding text, not a second copy of the document
+    expect(doc.origin).toBe('uploaded');
+    expect(doc.format).toBe('pdf');
+    expect(doc.content).toContain('Paragraph 1 of the Decision Letter.');
+    expect(doc.content).toContain('Paragraph 90 of the Decision Letter.');
+    // the form feeds are the page locator's raw material, carried all the way
+    // into what a Version will hold
+    expect(doc.content).toContain('\f');
+    const [row] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, doc.id));
+    expect(row!.fileRef).not.toBeNull();
+    expect(row!.content).toBe(doc.content);
+  });
+
+  it('refuses a scanned PDF by name, one document at a time', async () => {
+    // the ruling: format coverage is text-extractable only, and an unsupported
+    // document fails loudly and per-document. Nothing is written — a scan does
+    // not sit in the sandbox as an opaque blob waiting to be missed.
+    const before = await db.select().from(s.sandboxDocuments);
+    const res = await upload(scannedPdf(), 'Advice Note (scanned).pdf');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid', detail: 'pdf_no_text' });
+    const after = await db.select().from(s.sandboxDocuments);
+    expect(after.length).toBe(before.length);
+  });
+
+  it('does not offer a PDF to the editor — it is the record, not a draft', async () => {
+    const { textToPdf } = await import('./renditions.js');
+    const res = await upload(textToPdf('Advice Note', 'The Inspectorate advises as follows.'), 'Advice Note.pdf');
+    const doc = (await res.json()) as { id: string };
+    const converted = await app.request(`/sandbox-documents/${doc.id}/conversion`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+    });
+    expect(converted.status).toBe(400);
+    expect(await converted.json()).toEqual({ error: 'invalid', detail: 'unsupported_conversion' });
+  });
+
+  it('re-extracts on replace, so the text never describes a file that is gone', async () => {
+    const { textToPdf } = await import('./renditions.js');
+    const first = await upload(textToPdf('Consultee response', 'The Environment Agency objects.'), 'Response.pdf');
+    const doc = (await first.json()) as { id: string };
+
+    const form = new FormData();
+    const replacement = textToPdf('Consultee response', 'The Environment Agency withdraws its objection.');
+    form.append('file', new File([new Uint8Array(replacement)], 'Response.pdf'));
+    const res = await app.request(`/sandbox-documents/${doc.id}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(200);
+    const updated = (await res.json()) as { content: string };
+    expect(updated.content).toContain('withdraws its objection');
+    expect(updated.content).not.toContain('objects.');
+  });
+
+  it('refuses a replacement it cannot read, rather than emptying the document', async () => {
+    const { textToPdf } = await import('./renditions.js');
+    const first = await upload(textToPdf('Screening Opinion', 'EIA is required.'), 'Screening.pdf');
+    const doc = (await first.json()) as { id: string; content: string };
+
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(scannedPdf())], 'Screening.pdf'));
+    const res = await app.request(`/sandbox-documents/${doc.id}/file`, {
+      method: 'POST',
+      headers: { cookie: leadAuthorCookie },
+      body: form,
+    });
+    expect(res.status).toBe(400);
+    const [row] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, doc.id));
+    expect(row!.content).toBe(doc.content); // the readable text is still there
+  });
+});
+
 describe('rename & replace the native file (T-220, ADR-0043 P1)', () => {
   let textToDocx: (text: string) => Buffer;
   const uploadDocx = async (text: string, name: string): Promise<string> => {

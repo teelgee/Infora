@@ -8,8 +8,19 @@
 > own tickets** and are not defects: the heading-number split is **T-307** —
 > the spike itself argues for a separate commit, because re-chunking moves
 > embeddings and the eval seed set should measure the change — and PDF input is
-> **T-305**. The findings below are the reasoning, kept as the record of *why*
-> offsets are stored rather than recovered.
+> **T-305, built 2026-08-27**. The findings below are the reasoning, kept as the
+> record of *why* offsets are stored rather than recovered.
+>
+> **T-305 settled the scope question this spike left open** (*"whether page is
+> worth having at all before a PDF path exists"*) by building the path, and it
+> vindicated the recommendation: page needed **no schema change**, because the
+> extractor writes a page separator into the text and page is then the same
+> derivation as paragraph. It also **diverged from this document in one place,
+> deliberately** — the PDF row below calls an extractor "a real dependency", and
+> the ticket hand-wrote one instead, following `upload.ts`'s zip reader and
+> `xlsx.ts`'s workbook reader rather than taking a rendering engine into a
+> deployable meant to run in a sovereign tier. The finding stands; the sourcing
+> judgement was the build's to make.
 >
 > **Status: findings, 2026-08-01. Research, not build.** T-270 is a spike: it
 > blocks nothing and produces findings, not code. It exists because

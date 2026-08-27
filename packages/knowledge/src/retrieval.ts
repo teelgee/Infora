@@ -19,6 +19,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { resolveLocator } from '@infora/data';
 import { deliverableVisibleSql } from './visibility';
+import { locatorColumns } from './locator-columns';
 
 export const GROUNDED_CHUNK_LIMIT = 8;
 
@@ -114,23 +115,14 @@ function classificationScopeSql(termIds: string[]): SQL {
       )}))`;
 }
 
-// T-271 — the locator's raw materials, resolved in the same query as the
-// passage. `verbatim` and `paragraph` are computed in SQL rather than by
-// selecting `versions.content`: a 200-page chapter's full text pulled back for
-// eight chunks would be the expensive way to read two small facts. Postgres
-// `substr` is 1-indexed, hence the +1; the paragraph count is newlines before
-// the span, which is the source document's own paragraph index because
-// `docxToText` emits exactly one `\n` per `<w:p>`.
+// T-271/T-305 — the locator's raw materials, resolved in the same query as the
+// passage; see locator-columns.ts for why they are computed in SQL and how
+// page falls out of the same derivation as paragraph.
 const chunkColumns = {
   chunkId: s.versionChunks.id,
   versionId: s.versionChunks.versionId,
   content: s.versionChunks.content,
-  startOffset: s.versionChunks.startOffset,
-  endOffset: s.versionChunks.endOffset,
-  verbatim: sql<string | null>`substr(${s.versions.content}, ${s.versionChunks.startOffset} + 1,
-    ${s.versionChunks.endOffset} - ${s.versionChunks.startOffset})`.as('verbatim'),
-  paragraph: sql<number | null>`length(left(${s.versions.content}, ${s.versionChunks.startOffset}))
-    - length(replace(left(${s.versions.content}, ${s.versionChunks.startOffset}), E'\n', ''))`.as('paragraph'),
+  ...locatorColumns,
 };
 
 function liveChunksByCode(

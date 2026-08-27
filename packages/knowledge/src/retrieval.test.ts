@@ -232,6 +232,46 @@ describe('grounded library retrieval (T-031)', () => {
     // paragraph is the source's own newline count before the span
     const before = content.slice(0, span.start);
     expect(paragraph).toBe(before.length - before.replaceAll('\n', '').length);
+    // and no page: this fixture has no page boundaries, and a docx never has
+    // any, so inventing one is the failure T-305 is careful about
+    expect(item!.locator!.page).toBeUndefined();
+  });
+
+  // T-305 — page, derived in the same query from the form feeds a PDF's
+  // extracted text carries. The fixture is shaped exactly as `pdfToText`
+  // leaves a document, because that is what lands in `versions.content`.
+  it('carries the page a passage sits on, for a source that has pages (T-305)', async () => {
+    const stamp = Date.now();
+    // every sentence carries the `gamma` basis keyword so this fixture ranks in
+    // its own bucket and does not crowd the eight-chunk budget the cases above
+    // depend on (test-router.ts)
+    const content =
+      'Gamma sedimentation heading.\nGamma page one discusses the settlement lagoon.\f' +
+      'Gamma page two reports the turbidity excursion at outfall nine.\f' +
+      'Gamma page three proposes a silt curtain during the works.\f';
+    const [versionId] = await addDocument({
+      projectId: slice.projectId,
+      reference: `T305-LIB-PAGE-${stamp}`,
+      versions: [{ current: true, content }],
+      chunkMaxChars: 60,
+    });
+
+    const items = await retrieve('gamma turbidity excursion outfall nine');
+    const mine = items.filter((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    expect(mine.length).toBeGreaterThan(1); // more than one page came back
+
+    for (const item of mine) {
+      expect(item.locator).toBeDefined();
+      const { span, page } = item.locator!;
+      // one-based, and it is the page the passage STARTS on
+      const before = content.slice(0, span.start);
+      expect(page).toBe(before.length - before.replaceAll('\f', '').length + 1);
+    }
+    // the three pages are told apart, which is the whole point of the locator
+    const turbidity = mine.find((i) => i.content.includes('turbidity excursion'))!;
+    expect(turbidity.locator!.page).toBe(2);
+    const curtain = mine.find((i) => i.content.includes('silt curtain'))!;
+    expect(curtain.locator!.page).toBe(3);
   });
 
   it('degrades to version grain for a chunk stored without a span (T-271)', async () => {

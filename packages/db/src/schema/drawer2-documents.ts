@@ -214,7 +214,18 @@ export const versionChunks = pgTable(
 // a differently-shaped authored document, not a rendition trick.
 export const documentOrigin = pgEnum('document_origin', ['authored', 'uploaded']);
 export const documentKind = pgEnum('document_kind', ['text', 'slides']);
-export const documentFormat = pgEnum('document_format', ['infora_text', 'docx', 'xlsx', 'pptx']);
+// T-305 added 'pdf' (migration 0048): PDF was on the output side only
+// (`rendition_format`, ADR-0004's record rendition) and had no input path at
+// all. An uploaded PDF is canonical like the other natives, and is the one
+// uploaded format whose grounding text is extracted the moment it arrives —
+// it has no conversion path by design, so it is text at upload or never.
+export const documentFormat = pgEnum('document_format', [
+  'infora_text',
+  'docx',
+  'xlsx',
+  'pptx',
+  'pdf',
+]);
 
 // ── Sandboxes (ADR-0036, T-145) — the participant-scoped working area ────────
 // A project holds an unlimited number of sandboxes, each scoped on a ladder

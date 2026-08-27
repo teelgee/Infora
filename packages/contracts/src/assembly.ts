@@ -28,8 +28,23 @@ export type Locator = {
   span: { start: number; end: number };
   // derived, not stored: the count of newlines before `span.start`.
   // `docxToText` emits exactly one `\n` per `<w:p>`, so this is the source
-  // document's own paragraph index and a reader can act on it.
+  // document's own paragraph index and a reader can act on it. From a
+  // paginated source it counts the extracted LINES, which is a coarser thing
+  // wearing the same name — and the reason `page` below is the locator that
+  // matters there.
   paragraph: number;
+  // T-305 — the locator a planner actually writes ("page 14"), present only
+  // where the source has pages. `pdfToText` terminates every page with a form
+  // feed, so this is the count of those before `span.start`, plus one — the
+  // same derivation as `paragraph`, over a different separator, which is why
+  // page needed no column of its own.
+  //
+  // **Absent for a docx, and that is not an omission.** A Word file contains
+  // no page boundaries at all: pagination is computed by the viewer from
+  // fonts, margins and printer metrics. Any "page 14" from a Word source would
+  // be an invention, and an invented locator is worse than none because it
+  // looks checkable.
+  page?: number;
   // the source text AS IT REALLY READS at that span — not the assembled
   // `content`, whose inter-sentence whitespace the chunker rewrote (T-270
   // finding 1). This is the half of non-negotiable 1 that says "either a

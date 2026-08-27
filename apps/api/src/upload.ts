@@ -6,6 +6,24 @@
 // on the row (file_ref) as the preserved original, and fidelity is honest:
 // complex Word formatting simplifies. docx converts; xlsx/pptx do not
 // pretend to (400 unsupported_conversion).
+//
+// T-305 — PDF joins the accepted formats, and enters differently from the
+// other three. Its text is extracted **at the moment its bytes arrive**, into
+// `content`, while the file stays canonical and the row stays `uploaded`:
+//
+//   * a PDF has no editor path to extract it later. Conversion turns a
+//     document into an editable one, which a PDF is not and should not become,
+//     so text taken at upload or never is the real choice;
+//   * versions are append-only (T-008), and `versions.content` is what the
+//     chunker indexes and what every locator is an offset INTO. Extraction has
+//     to precede the version, which means it cannot live in the ingest sweep;
+//   * and the refusal has to happen while a person is still holding the file.
+//     v1.md requires an unsupported document to fail loudly and per-document;
+//     a scanned PDF accepted here and found unreadable later is exactly the
+//     silent corpus gap that ruling exists to prevent.
+//
+// The extraction itself is bounded, one document's worth, and on no sweep —
+// what T-302 kept off the request path is the corpus-wide walk, not this.
 import { inflateRawSync } from 'node:zlib';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -14,6 +32,7 @@ import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { putBlob, getBlob } from './renditions';
+import { pdfToText } from './pdf-text';
 import { ensureDefaultSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -22,7 +41,27 @@ import { toSandboxDocument } from './sandbox';
 const invalid = (c: Context, detail?: string) =>
   c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
 
-const formats = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx' } as const;
+const formats = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx', pdf: 'pdf' } as const;
+
+/**
+ * The grounding text an uploaded file contributes, and the reason it does not.
+ *
+ * Only PDF answers with text today: it is the format whose corpus is real
+ * (issued deliverables, Advice Notes, Decision Letters, consultee responses)
+ * and the only one with a page. docx keeps the answer it has always had — `''`
+ * here and its text taken at conversion — and xlsx/pptx are T-306.
+ */
+function extractOnUpload(
+  format: keyof typeof formats,
+  bytes: Buffer,
+): { ok: true; content: string } | { ok: false; detail: string } {
+  if (format !== 'pdf') return { ok: true, content: '' };
+  const extracted = pdfToText(bytes);
+  // the refusal carries WHICH failure, because "we could not read it" and
+  // "this is a scan and Infora does not do OCR" are different things to the
+  // person holding the document, and only one of them is worth re-exporting
+  return extracted.ok ? { ok: true, content: extracted.text } : { ok: false, detail: extracted.reason };
+}
 
 // ── A minimal zip reader (central directory walk) for docx extraction ──────
 function unzipEntry(zip: Buffer, wanted: string): Buffer | null {
@@ -91,6 +130,10 @@ export function uploadRoutes(deps: { db: Db }) {
     const format = formats[extension as keyof typeof formats];
     if (!format) return invalid(c, 'unsupported_format');
     const bytes = Buffer.from(await file.arrayBuffer());
+    // refused before anything is written: a document that cannot ground is not
+    // quietly parked in the sandbox as an opaque blob (T-305)
+    const extracted = extractOnUpload(format, bytes);
+    if (!extracted.ok) return invalid(c, extracted.detail);
     const fileRef = putBlob(bytes, format);
     const sandboxId = await ensureDefaultSandbox(
       deps.db,
@@ -108,8 +151,11 @@ export function uploadRoutes(deps: { db: Db }) {
         origin: 'uploaded',
         kind: 'text',
         format,
-        content: '', // the native file is canonical (ADR-0034); T-122 keeps
-        // content NOT NULL as '' until the format decision's relaxation
+        // the native file stays canonical (ADR-0034) — this is the grounding
+        // text, not a second copy of the document. '' for every format whose
+        // text is taken elsewhere or not at all; a PDF's extracted text, page
+        // breaks and all, for the one format that has no editor path (T-305).
+        content: extracted.content,
         fileRef,
         createdByParticipantId: slice.participantId,
       })
@@ -152,10 +198,16 @@ export function uploadRoutes(deps: { db: Db }) {
     // same format family only — a docx is replaced by a docx (ADR-0034)
     if (format !== doc!.format) return invalid(c, 'format_mismatch');
     const bytes = Buffer.from(await file.arrayBuffer());
+    // T-305 — the replacement's text replaces the old text, or the row keeps
+    // grounding on a document that is no longer there. Refused on the same
+    // terms as a first upload: a scan swapped in for a readable PDF is a
+    // refusal, not a silently emptied document.
+    const extracted = extractOnUpload(format, bytes);
+    if (!extracted.ok) return invalid(c, extracted.detail);
     const fileRef = putBlob(bytes, format);
     const [updated] = await deps.db
       .update(s.sandboxDocuments)
-      .set({ fileRef, updatedAt: sql`now()` })
+      .set({ fileRef, content: extracted.content, updatedAt: sql`now()` })
       .where(eq(s.sandboxDocuments.id, doc!.id))
       .returning();
     // the ambient snapshot marks the save boundary (ADR-0041) — content is the
@@ -176,6 +228,11 @@ export function uploadRoutes(deps: { db: Db }) {
       .where(eq(s.sandboxDocuments.id, c.req.param('id')))
       .limit(1);
     if (doc!.origin !== 'uploaded') return invalid(c, 'already_authored');
+    // still docx only, and PDF is a deliberate NO rather than an omission
+    // (T-305): conversion makes a document editable, and a PDF is the record
+    // rendition — ADR-0004's "never an editing surface". Its text is already
+    // extracted for grounding at upload, which is the thing conversion would
+    // have been reached for.
     if (doc!.format !== 'docx') return invalid(c, 'unsupported_conversion');
     // a checked-out head holds still for every format — conversion rewrites the
     // canonical content, so it is refused while locked (ADR-0032 addendum, T-180)

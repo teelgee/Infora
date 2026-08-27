@@ -91,6 +91,7 @@ const formatLabel: Record<SandboxDocument['format'], string> = {
   docx: 'DOCX',
   xlsx: 'XLSX',
   pptx: 'PPTX',
+  pdf: 'PDF',
 };
 // the accept filter for replace — the same family only (ADR-0034), so a docx is
 // replaced by a docx, never silently across formats
@@ -99,6 +100,7 @@ const acceptFor: Record<SandboxDocument['format'], string> = {
   docx: '.docx',
   xlsx: '.xlsx',
   pptx: '.pptx',
+  pdf: '.pdf',
 };
 
 const scopeLabel: Record<Sandbox['scope'], string> = {
@@ -1106,24 +1108,40 @@ export function SandboxScreen() {
   // it — and its Rename / Replace-file actions — is always visible.
   const uploadInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // T-305 — one verdict PER FILE, and the batch runs to the end. v1.md requires
+  // an unsupported document to fail loudly and per-document, and the failure it
+  // is guarding against is a selection of five hundred where the fortieth is a
+  // scan: stopping at it loses the other 460, and reporting "upload failed"
+  // without naming the file leaves nobody able to find the forty. So each file
+  // is reported by name, with what was wrong with it.
   const onUploadFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
       setUploading(true);
       const done: string[] = [];
-      try {
-        for (const file of Array.from(files)) {
+      const refused: string[] = [];
+      for (const file of Array.from(files)) {
+        try {
           await api.uploadSandboxFile(projectId, file);
           done.push(file.name);
+        } catch (error) {
+          refused.push(`${file.name} — ${describeApiError(errorCode(error))}`);
         }
+      }
+      if (done.length > 0) {
         setSelected(null);
         await loadDocs();
-        setNote(`Uploaded ${done.join(', ')} — the native file is kept as the canonical document.`);
-      } catch (error) {
-        setNote(`Upload failed — ${describeApiError(errorCode(error))}`, 'error');
-      } finally {
-        setUploading(false);
       }
+      setUploading(false);
+      if (refused.length === 0) {
+        setNote(`Uploaded ${done.join(', ')} — the native file is kept as the canonical document.`);
+        return;
+      }
+      const loaded = done.length > 0 ? `Uploaded ${done.join(', ')}. ` : '';
+      setNote(
+        `${loaded}${refused.length} file${refused.length === 1 ? '' : 's'} not loaded: ${refused.join('; ')}`,
+        'error',
+      );
     },
     [projectId, loadDocs, setNote],
   );
@@ -1765,7 +1783,7 @@ export function SandboxScreen() {
           <input
             ref={uploadInput}
             type="file"
-            accept=".docx,.xlsx,.pptx"
+            accept=".docx,.xlsx,.pptx,.pdf"
             multiple
             hidden
             onChange={(e) => {

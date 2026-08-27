@@ -9,7 +9,7 @@
 // Sources come from the run's own Step rows: `source_set` records the
 // access-resolved sources the run ACTUALLY admitted (ADR-0028 §7). Recomputing
 // what it might have seen would answer a different question.
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Locator } from '@infora/contracts';
 import { resolveLocator } from '@infora/data';
 import { schema as s, withProjectScope } from '@infora/db';
@@ -21,6 +21,7 @@ import {
   type Audience,
   type SourceAccessFacts,
 } from '@infora/governance';
+import { locatorColumns } from './locator-columns';
 
 /** The audience of everything a run's steps recorded seeing. */
 export async function runSourceAudience(db: Db, runId: string): Promise<Audience> {
@@ -180,16 +181,10 @@ export async function readChunkPassages(
         id: s.versionChunks.id,
         chunkIndex: s.versionChunks.chunkIndex,
         content: s.versionChunks.content,
-        // T-271 — the same span resolution the retrieval path does, so the
-        // evidence read says WHERE the model was looking and not only what it
-        // saw. Joined to versions for the slice; see retrieval.ts for why this
-        // is computed in SQL rather than by pulling the whole document back.
-        startOffset: s.versionChunks.startOffset,
-        endOffset: s.versionChunks.endOffset,
-        verbatim: sql<string | null>`substr(${s.versions.content}, ${s.versionChunks.startOffset} + 1,
-          ${s.versionChunks.endOffset} - ${s.versionChunks.startOffset})`.as('verbatim'),
-        paragraph: sql<number | null>`length(left(${s.versions.content}, ${s.versionChunks.startOffset}))
-          - length(replace(left(${s.versions.content}, ${s.versionChunks.startOffset}), E'\n', ''))`.as('paragraph'),
+        // T-271 — the same span resolution the retrieval path does, from the
+        // same expressions, so the evidence read says WHERE the model was
+        // looking and not only what it saw
+        ...locatorColumns,
       })
       .from(s.versionChunks)
       .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))

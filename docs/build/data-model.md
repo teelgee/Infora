@@ -135,6 +135,23 @@ own version (T-270 finding 1). The span is the only exact locator — paragraph,
 section and page are all views of a position — and a citation renders only
 when the stored span still resolves; older chunks carry null and degrade to
 version grain. Full reasoning: [spikes/spike-locators.md](spikes/spike-locators.md).
+**T-305 added the page locator and no column**, which is the spike's rule
+paying off: the PDF extractor terminates every page with a form feed, so page
+is *"count the separators before the span, plus one"* — the same derivation as
+paragraph, over `chr(12)` instead of `E'\n'`. A version with no form feed
+anywhere has no pages and reports none, which is every docx, because a Word
+file contains no page boundaries at all.
+
+**`document_format` gained `pdf`** (T-305, migration 0048). An uploaded PDF is
+a canonical native file like the other three, with one difference that is a
+decision rather than an implementation detail: **its `content` holds the
+extracted text**, taken at upload. The other uploaded formats keep `''` — a
+docx's text is taken at conversion, and xlsx/pptx have no extraction path yet
+(T-306) — but a PDF has no conversion path *by design* (ADR-0004: the PDF is
+the record rendition, never an editing surface), so text at upload or never is
+the real choice. `content` is still not a second copy of the document: the file
+stays canonical, and this is the grounding text every locator is an offset
+into.
 
 **Sandbox document** is the draft's home (owner-confirmed 2026-07-04): a real,
 freely-editable working copy with **no document controls** — manual editing

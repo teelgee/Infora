@@ -1,0 +1,18 @@
+-- T-305 — PDF as an uploaded document format (data-model.md Drawer 2).
+--
+-- PDF existed in this schema only on the OUTPUT side: `rendition_format`
+-- already carries it, because ADR-0004 makes the PDF the review-and-record
+-- rendition. There was no input side at all, and a real scheme's 100–500
+-- documents are overwhelmingly PDF — issued deliverables, Advice Notes,
+-- Decision Letters, consultee responses.
+--
+-- Nothing else moves. Page is the locator this unlocks and it needs no column:
+-- the extractor terminates every page with a form feed inside the text, so
+-- page derives from the span T-271 already stores (migration 0039), exactly as
+-- paragraph derives from newlines. The spike's rule — store the position,
+-- compute the view — is what makes that true.
+--
+-- Hand-written, and the journal entry appended by hand: `drizzle-kit generate`
+-- re-emits every migration from 0032 onward because its snapshot has drifted,
+-- and applying that output would be destructive (T-344).
+ALTER TYPE "public"."document_format" ADD VALUE 'pdf';

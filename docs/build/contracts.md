@@ -363,3 +363,23 @@ are not recorded here.
   changed which content promoted with no re-confirmation. The field is the
   caller's quoted answer, not a lock — omitted means no check, so callers that
   never stated a source are untouched.
+- **2026-08-27 (T-305) — `Locator.page`, and the format enum it needed instead
+  of a column.** T-271 recorded that page was *"absent rather than guessed"*
+  because a docx has no pages; the PDF input path is what changes the source
+  material rather than the rule. Page arrived as an **optional** field on the
+  existing type, derived exactly as paragraph is — count the separators before
+  the span — because the extractor terminates every page with a form feed and
+  `versions.content` therefore carries the boundaries. That is why a locator
+  gained a dimension and `version_chunks` gained no column: the spike's rule
+  (store the position, compute the view) is what made the second format free.
+  Absent still means absent — every docx reports no page, and always will.
+  `SandboxDocument.format` gained `'pdf'` on the same ticket, and the shape
+  worth noticing is that a PDF is the one uploaded format whose `content`
+  is populated at upload: it has no conversion path *by design* (ADR-0004 —
+  the PDF is the record rendition, never an editing surface), so its text is
+  taken when its bytes arrive or never. The refusals are typed too
+  (`pdf_no_text`, `pdf_encrypted`, `pdf_unreadable`, `pdf_unsupported_filter`)
+  rather than collapsed into `unreadable_file`, because "this is a scan and
+  Infora does not do OCR" and "this file is damaged" are different instructions
+  to the person holding the document, and v1.md requires the refusal to be
+  loud and per-document.

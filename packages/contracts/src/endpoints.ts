@@ -213,7 +213,10 @@ export type SandboxDocument = {
   // canonical format follows origin (ADR-0034, T-116)
   origin: 'authored' | 'uploaded';
   kind: 'text' | 'slides';
-  format: 'infora_text' | 'docx' | 'xlsx' | 'pptx';
+  // 'pdf' added by T-305 — an uploaded PDF is a first-class canonical format,
+  // never converted to an editable one, and the only uploaded format whose
+  // grounding text is extracted the moment it arrives
+  format: 'infora_text' | 'docx' | 'xlsx' | 'pptx' | 'pdf';
   content: string;
   // the intended plan row this draft is producing (ADR-0032's missing link)
   containerId: Id | null;

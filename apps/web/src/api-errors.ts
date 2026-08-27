@@ -73,6 +73,20 @@ const MESSAGES: Record<string, string> = {
   bound: 'This document is already bound to a deliverable.',
   no_current_version: 'This deliverable has no current version yet.',
   unknown_code: 'That acceptance code isn’t valid for this project.',
+
+  // uploads and format reach (T-305). Each says what to DO about it: a refused
+  // document is refused for a reason its owner can usually act on, and "upload
+  // failed" would send them back to the same file with the same result.
+  unsupported_format: 'Infora reads DOCX, XLSX, PPTX and PDF files.',
+  unsupported_conversion: 'Only a Word document opens in the editor.',
+  format_mismatch: 'A replacement must be the same format as the file it replaces.',
+  unreadable_file: 'That file couldn’t be read — it may be damaged.',
+  pdf_no_text:
+    'That PDF is a scan — a picture of a document, with no text to index. Infora doesn’t read scans; export or re-issue it as a text PDF.',
+  pdf_encrypted: 'That PDF is password-protected. Remove the protection and upload it again.',
+  pdf_unreadable: 'That PDF couldn’t be read — it may be damaged or incomplete.',
+  pdf_unsupported_filter:
+    'Infora couldn’t read all of that PDF, and won’t index part of a document. Re-export it and try again.',
   share_required: 'The receiving organisation must be shared with before it can be transmitted to.',
   reason_required: 'A reason is required.',
 
