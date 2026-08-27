@@ -195,6 +195,21 @@ a non-Anthropic route exists, not when T-320 merely lands.
 | `full` | nightly | every case bar hold-out, repeated 3× for flake |
 | `release` | pre-release | every case, hold-out included |
 
+**`smoke` is wired into CI (T-345, 2026-08-27)** — `.github/workflows/ci.yml`,
+after the test suites and before the e2e run — so "every change" is now the
+pipeline's behaviour and not only this table's intent. The step names **no
+case**: `selectCases` decides what a tier runs, so a permission case added
+tomorrow is in the mandatory set without anyone editing a workflow file, which
+is the whole reason selection is a function rather than a comment in a CI file.
+The step needs the migrated database and **not** the seed — a fixture brings its
+own organisations, users and project — and makes no provider call, so it costs
+nothing and needs no key.
+
+`full` and `release` are still run by hand. Scheduling the nightly tier is a
+different problem from wiring this one: it makes real model calls, so it needs
+provider credentials in CI and a spend it is worth deciding on deliberately, and
+it is where the `ungraded` cases live. Named here rather than left implied.
+
 **Permission cases are never thinned** — a regression in one is an incident, not
 a quality problem (§2), and "make smoke faster" is the change that would cross
 that line first. **A hold-out case is not run outside a release run**, not
@@ -307,5 +322,6 @@ a defect in the assertion.
 ## What is not here yet
 
 The report's per-worker breakdown (§4.1) waits for the registry (T-269); the
-per-Lens half landed with T-282. No CI workflow calls `eval:smoke` yet; the tier
-it needs now exists.
+per-Lens half landed with T-282. ~~No CI workflow calls `eval:smoke` yet~~ —
+**wired 2026-08-27 (T-345)**; the nightly `full` tier is not scheduled, and that
+is a credentials-and-spend decision rather than a missing mechanism.

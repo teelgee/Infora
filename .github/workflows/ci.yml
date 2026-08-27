@@ -60,6 +60,28 @@ jobs:
 
       - run: pnpm run test:tools
 
+      # T-345 — the eval smoke tier on every change (Wave 1: "smoke on every
+      # change, full nightly"). EVERY permission case runs, plus one per
+      # category and per Lens; the tier's own selection guarantees that, so this
+      # step never needs to name a case and never falls behind when one is added
+      # (evals/src/tiers.ts).
+      #
+      # A permission regression is an incident rather than a quality dip
+      # (evals/README.md §2), and this is the step that makes it fail the build
+      # rather than be noticed later. It is cheap enough to be unconditional:
+      # deterministic fake router, NO PROVIDER CALL and therefore no key and no
+      # spend, on the same seeded database the suites above already use. Model-
+      # graded cases are excluded by the tier itself, so the eleven `ungraded`
+      # cases the full tier carries cannot make this step red.
+      #
+      # It needs the MIGRATED database and not the seeded one — a fixture brings
+      # its own organisations, users and project (evals/README.md). It is placed
+      # before the e2e step rather than after because it is a gate on the same
+      # substrate as the suites above; it materialises its fixtures additively
+      # and truncates nothing, so the seeded subjects e2e depends on are
+      # untouched either way.
+      - run: pnpm --filter @infora/evals run eval:smoke
+
       - run: pnpm run build
 
       # the e2e harness (T-084): browser + API suites against the seeded DB
