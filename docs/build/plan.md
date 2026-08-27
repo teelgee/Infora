@@ -36,14 +36,40 @@ everything else derived — [spike-locators.md](spikes/spike-locators.md) closes
 refusal audit** landed (migration 0038); its supersede half did not — see below.
 Full records in each ticket's entry.
 
-**▶ The frontier right now** — [v1.md](v1.md)'s Waypoint A floor, because nothing a firm touches can precede it:
+**▶ The frontier moved 2026-08-27.** Waypoint A's floor and the corpus's format
+reach are **complete** — T-300 through T-307, plus T-337 and the T-276 spike, in
+two sessions. A pilot corpus can now be loaded, read in four formats, cited to a
+page, and told apart from the produced record. **What is unblocked today**, none
+of it waiting on anything:
 
-- **T-303 → T-304** — the bulk-load path, then the reference-material marker. **Unblocked by T-302** and the rest of the corpus chain hangs off them.
+- **T-341** — library removal, and the reason it is first: **T-340 is not
+  closable without it.** Two of purge's three Done-when clauses are T-341's, and
+  ADR-0050 §7 has ruled the shape (withdraw, then the *owner* organisation
+  removes, on the producing organisation's request). It is also the answer to the
+  realistic V1 incident — the first real corpus load is also the first real test.
+- **T-312** — size the eval fixture, sharpened by T-307: the seed set's graded
+  half is **ungraded for want of a configured grader**, so "run the evals either
+  side" measures access and recall and nothing about retrieval quality. Until
+  this lands, every re-chunking change ships on weaker evidence than it looks.
+- **T-344** — re-sync the drizzle snapshot. Migrations 0048 and 0049 were both
+  hand-written with hand-appended journal entries, which is now the convention
+  for eleven migrations running. The cost compounds.
+- **T-345** — wire the eval smoke tier into CI, and **T-315** — session
+  revocation on remove-user. Both small, both unblocked, both named gaps their
+  own tickets recorded rather than discovered.
+- **T-308** — the rulebook's home, and **T-328** — the finding schema: the two
+  Waypoint C items with no remaining dependency, and T-328 is minted ahead of
+  T-310/T-311 because neither can be specified without it.
+
+*What the frontier was until 2026-08-27* — [v1.md](v1.md)'s Waypoint A floor,
+because nothing a firm touches can precede it:
+
+- ~~**T-303 → T-304** — the bulk-load path, then the reference-material marker.~~ ✅ **Built 2026-08-27.** The load resumes on **indexed-ness**, not on a row existing — a container that committed while its embedding died is *in the library and answering nothing*, which is worse than absent. Reference material is listed **apart from** the produced record, off an absence that is derived and never stored. Both unblocked **T-306**, which landed the same day.
 - ~~**T-305** — PDF text extraction.~~ ✅ **Built 2026-08-27** (migration 0048). The input path exists, and **page is a locator**: the extractor marks page boundaries in the extracted text, so page derives from T-271's stored span with no column of its own. Two things it leaves behind for the tickets below: **T-303's bulk load calls the same extractor and inherits its refusals**, and **T-306's xlsx/pptx refusal path now has a worked pattern** to follow rather than invent.
 - ~~**T-307** — the chunker's heading-number split.~~ ✅ **Built 2026-08-27**, in its own commit as the spike asks. It also **found the limit of the instrument**: 11 of the seed set's 17 cases are ungraded for want of a configured grader, so "run the evals either side" currently measures access and recall and not retrieval quality — which sharpens **T-312**.
 - ~~**T-276** — the authority-corpus spike.~~ ✅ **Findings 2026-08-27** → [spikes/spike-authority-corpus.md](spikes/spike-authority-corpus.md). Its sharpest finding is a **guard rather than a design**: the authority corpus must not live in `version_chunks`, whose wall predicate is built for project material — a corpus that legitimately has no wall must not sit inside the table enforcing one.
-- **T-337** — schema import (Slice V1-S, added 2026-08-03). Unblocked, no migration, and its deterministic half needs no worker — it is onboarding work that lands in the pilot's first hour, so it sits with the Waypoint A floor rather than behind the agent waves.
-- **T-340** — Purge. ⚠ **Buildable but not closable while Slice V1-I is parked:** its acceptance names *"the S3 object has no recoverable version"* and there is no object store (T-317 → T-316). The blob substrate is a local directory, so the erase can be built with the S3 version-level purge as a named seam. Note also that two of its three Done-when clauses describe **T-341's** path — purge never reaches library material (ADR-0050 §6), and only library material is chunked.
+- ~~**T-337** — schema import (Slice V1-S).~~ ✅ **Built 2026-08-27.** Deterministic, therefore **no model call, therefore no Run** — which is how the personal-data constraint is met structurally rather than by remembering to strip a field. It returns **candidates**; the existing `PUT` still commits, and the endpoint's own acceptance test is that the scheme is byte-identical afterwards.
+- **T-340** — Purge. ⚠ **Built 2026-08-27 and deliberately NOT closed** (migration 0049), exactly as this line predicted: the derived half is done and tested both ways, the S3 clause cannot be met while Slice V1-I is parked (`deleteBlob` is the named seam), and the `unreconstructable` clause is **T-341's**. It stays on this list until those two close.
 - ~~**T-301 (part)** — only the **supersede** half remains, and it is 🌫 fog behind **`Q-036`**.~~ ✅ **`Q-036` ruled 2026-08-27**, and the remaining half is **absorbed into Slice Document Status** (T-383–T-391) rather than built under its old name: T-301's framing predates the record-state model and would have shipped a narrower thing — an owner state-set — where the ruling says supersession by a *different* document is a confirmed edge and only withdrawal is a state.
 - ~~**T-346 → T-350 — Slice Review Surface**~~ ✅ **Minted and built 2026-08-06, one day** — the first slice cut from direct owner UI feedback: ADR-0051's submission acknowledgement gate, the four-state cycle status bar, the deliverable status page between the schedule and the review, the schedule onto the UI kit, and the transmittal history with the ADR-0035-addendum distribution cut. Record in [plan-history.md](plan-history.md). **Follow-ups from the owner's render review, same day: T-351 (✅) · T-352 · T-353** — see the block below Slice V1-P.
 - ~~**T-358 → T-368 + T-355 — Slice Walkthrough**~~ ✅ **Closed 2026-08-09, one day** — the second owner-directed slice, and the first cut from a walk of the *built product*: the DMS walkthrough session's nine rulings (S1–S9) became the schema's Excel template and the plan's create-only batch import, org-standard plan columns, the row detail as a card, row-edit delegation to the lead author, the structure builder's plan seed and its agent, plan-locked sandboxes, the bind confirmation card with read-through titles, and the internal QA surface with the promotion-requires-QA gate — then **T-368** recaptured the walkthrough against all of it, so the page that provoked the session photographs the product again. Migrations 0042–0045; record in [plan-history.md](plan-history.md), session record in [grill-history.md](../grill-sessions/grill-history.md). **`Q-039` was raised by it** (a plan-locked shared sandbox discloses the whole TIDP's shape).
