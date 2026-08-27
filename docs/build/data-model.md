@@ -40,16 +40,35 @@ recurring disciplines, used throughout and worth naming once:
   (`revoked_at`, `withdrawn_at`, `retired_at`), never by deleting the row, so
   attribution survives departures and past events stay explicable.
 
-> ⚠ **Write migrations by hand — `drizzle-kit generate` is not safe in this
-> repo (found 2026-08-04, T-301).** The stored snapshot under
-> `migrations/meta/` has drifted from the applied migrations, because the
-> recent ones were hand-written rather than generated. `generate` therefore
-> re-emits **everything from 0032 onward** as one new file — `CREATE TABLE`
-> for tables that already exist, alongside the one change actually wanted.
-> Applying that output without reading it would be destructive. Both 0038 and
-> 0039 were written by hand, with their `_journal.json` entries appended by
-> hand, which is now the working convention. Re-syncing the snapshot so
-> `generate` is usable again is **T-344**.
+> ✅ **`drizzle-kit generate` is safe again — re-synced 2026-08-27 (T-344).**
+> From 2026-08-04 (T-301) until then the stored snapshot under
+> `migrations/meta/` stopped at `0031` while the migrations ran to `0049`, so
+> `generate` re-emitted **everything from 0032 onward** as one file — 193
+> lines, ten `CREATE TABLE`s for tables that already existed — and applying it
+> unread would have been destructive. `0049_snapshot.json` now records the
+> real schema, so `generate` emits nothing against an unchanged schema and
+> only the intended change otherwise. Migrations are still **drawn here
+> first**, and what `generate` writes is still **read before it is applied**.
+>
+> ⚠ **`drizzle-kit push` remains forbidden, and the re-sync does not change
+> that.** Push introspects the live database and diffs it against the schema
+> file, and this database carries objects the drizzle schema does not model.
+> Run against a throwaway copy of the migrated database (T-344's verification),
+> push offered to drop **fifteen `CHECK` constraints** — the invariants
+> `transmittals_kind_shape`, `conflict_exclusions_canonical_pair`,
+> `version_chunks_span_ordered` and the rest — and to
+> `DISABLE ROW LEVEL SECURITY` on `version_chunks` along with all four of
+> migration 0034's policies. Those are the guarantees, not decoration.
+>
+> That same run is what proves the re-sync honest: **no table, column or index
+> differed**. The only other things push reported were two of its own
+> introspection artefacts — Postgres truncating drizzle's foreign-key names at
+> 63 characters, and `'{}'` reading back as `'{}'::uuid[]` — neither of which
+> is a divergence between the schema and what the migrations applied.
+>
+> **Hand-write the unmodelled half.** A generated migration will never contain
+> a policy, a `CHECK`, a trigger or a backfill; add those to the generated file
+> by hand, as migrations 0032–0049 did throughout.
 
 ---
 

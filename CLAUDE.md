@@ -39,11 +39,15 @@ if a task seems to need it, stop and ask.
 - `pnpm run check` mirrors CI exactly (dep rules + lint + typecheck + tests).
 - Package dependency rules are enforced by `scripts/dep-rules.mjs` — surfaces
   depend only on `contracts` + `ui`.
-- Migrations are drawn in `docs/build/data-model.md` before being written, then
-  **written by hand** — `drizzle-kit generate` re-emits every migration from
-  0032 onward because its snapshot has drifted, and applying that output would
-  be destructive. Append the `migrations/meta/_journal.json` entry by hand too.
-  **The drawing is state-dependent:** an *unbuilt* drawer carries field lists
+- Migrations are drawn in `docs/build/data-model.md` before being written. The
+  snapshot under `migrations/meta/` was re-synced by T-344, so
+  `pnpm --filter @infora/db run generate` is safe again: it emits nothing
+  against an unchanged schema, and only the intended change otherwise. **Read
+  what it emits before applying it**, and hand-write anything drizzle does not
+  model — RLS policies, `CHECK` constraints, triggers, backfills — as its own
+  statements in the generated file. **`drizzle-kit push` is still forbidden**:
+  it does not see those objects and offers to drop them (see the note in
+  data-model.md). **The drawing is state-dependent:** an *unbuilt* drawer carries field lists
   (the drawing board); once built, `packages/db/src/schema` is the authority on
   the shape and the drawer keeps narrative + pointer only. After a schema
   change, regenerate the atlas (`pnpm --filter @infora/db run datamodel`) —
