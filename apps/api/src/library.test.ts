@@ -96,8 +96,12 @@ describe('T-086 — GET /projects/:projectId/library', () => {
   it('marks the seeded library as the received material it says it is', async () => {
     const res = await app.request(`/projects/${projectId}/library`, { headers: { cookie } });
     const { items } = (await res.json()) as GetLibraryResponse;
-    expect(items.length).toBeGreaterThan(0);
-    expect(items.every((item) => item.kind === 'reference')).toBe(true);
+    // named rows rather than "every row": other suites promote real
+    // deliverables into this project, so an every-row assertion would be
+    // pinning the order the test files happened to run in
+    for (const reference of ['WA-GEO-GIR-004', 'WA-ENV-BAS-003', 'WA-WAT-FRA-001']) {
+      expect(items.find((item) => item.documentReference === reference)?.kind).toBe('reference');
+    }
   });
 });
 

@@ -1,9 +1,14 @@
-// T-358/T-359 — a minimal .xlsx writer and reader, in the spirit of upload.ts's
-// minimal zip reader: the template export and the plan batch import need exactly
-// one workbook shape (a header row + data rows + a legend sheet), which does not
-// justify a workbook dependency. Entries are stored uncompressed; cells are
-// written as inline strings and read back from inline, shared or raw values.
-import { inflateRawSync } from 'node:zlib';
+// T-358/T-359 — a minimal .xlsx writer and reader: the template export and the
+// plan batch import need exactly one workbook shape (a header row + data rows +
+// a legend sheet), which does not justify a workbook dependency. Entries are
+// stored uncompressed; cells are written as inline strings and read back from
+// inline, shared or raw values.
+//
+// T-306 took the zip READER out to zip.ts — docx, xlsx and pptx all need it and
+// the copies had drifted — and generalised the sheet walk from "the first tab"
+// to "every tab, named", because corpus extraction wants all of them and two
+// walks of the same relationship graph would be two chances to disagree.
+import { unzipEntry } from './zip';
 
 // ── CRC-32 (the zip checksum) ───────────────────────────────────────────────
 const CRC_TABLE = (() => {
@@ -61,43 +66,6 @@ export function zipStore(entries: { name: string; data: Buffer }[]): Buffer {
   return Buffer.concat([...locals, ...centrals, eocd]);
 }
 
-function unzipEntry(zip: Buffer, wanted: string): Buffer | null {
-  let eocd = -1;
-  for (let i = zip.length - 22; i >= 0 && i >= zip.length - 22 - 65536; i--) {
-    if (zip.readUInt32LE(i) === 0x06054b50) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) return null;
-  const count = zip.readUInt16LE(eocd + 10);
-  let offset = zip.readUInt32LE(eocd + 16);
-  for (let n = 0; n < count; n++) {
-    if (zip.readUInt32LE(offset) !== 0x02014b50) return null;
-    const method = zip.readUInt16LE(offset + 10);
-    const compressedSize = zip.readUInt32LE(offset + 20);
-    const nameLength = zip.readUInt16LE(offset + 28);
-    const extraLength = zip.readUInt16LE(offset + 30);
-    const commentLength = zip.readUInt16LE(offset + 32);
-    const localOffset = zip.readUInt32LE(offset + 42);
-    const name = zip.subarray(offset + 46, offset + 46 + nameLength).toString();
-    if (name === wanted) {
-      const localNameLength = zip.readUInt16LE(localOffset + 26);
-      const localExtraLength = zip.readUInt16LE(localOffset + 28);
-      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
-      const payload = zip.subarray(dataStart, dataStart + compressedSize);
-      if (method !== 8) return Buffer.from(payload);
-      try {
-        // bounded inflate: a crafted entry must not balloon KBs into GBs
-        return inflateRawSync(payload, { maxOutputLength: 32 * 1024 * 1024 });
-      } catch {
-        return null;
-      }
-    }
-    offset += 46 + nameLength + extraLength + commentLength;
-  }
-  return null;
-}
 
 // ── writing ─────────────────────────────────────────────────────────────────
 const escapeXml = (value: string) =>
@@ -203,36 +171,48 @@ function textOf(cellXml: string): string {
   return v ? unescapeXml(v[1]!) : '';
 }
 
-/** The first worksheet in tab order, resolved through the workbook rels the way
- * Excel maps tabs to parts (a rebuilt tab can live in sheet2.xml). */
-function firstSheetXml(bytes: Buffer): Buffer | null {
+/** Every worksheet in TAB ORDER, with its name, resolved through the workbook
+ * rels the way Excel maps tabs to parts (a rebuilt tab can live in sheet2.xml,
+ * and a reordered workbook is not in file-name order at all).
+ *
+ * T-306 generalised this from "the first sheet" — the plan import wants one
+ * sheet and corpus extraction wants all of them, and two walks of the same
+ * relationship graph would be two chances to disagree about which tab is which. */
+function sheetParts(bytes: Buffer): Array<{ name: string; xml: Buffer }> {
   const workbook = unzipEntry(bytes, 'xl/workbook.xml')?.toString('utf8');
-  const relId = workbook?.match(/<sheet\s[^>]*r:id="([^"]+)"/)?.[1];
-  if (relId) {
-    const rels = unzipEntry(bytes, 'xl/_rels/workbook.xml.rels')?.toString('utf8');
+  const rels = unzipEntry(bytes, 'xl/_rels/workbook.xml.rels')?.toString('utf8');
+  const parts: Array<{ name: string; xml: Buffer }> = [];
+  for (const sheet of workbook?.matchAll(/<sheet\s[^>]*\/?>/g) ?? []) {
+    const relId = sheet[0].match(/r:id="([^"]+)"/)?.[1];
+    const name = unescapeXml(sheet[0].match(/name="([^"]*)"/)?.[1] ?? '');
+    if (!relId) continue;
     const target = rels
       ?.match(new RegExp(`<Relationship\\s[^>]*Id="${relId}"[^>]*/?>`))?.[0]
       ?.match(/Target="([^"]+)"/)?.[1];
-    if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
-      const entry = unzipEntry(bytes, path);
-      if (entry) return entry;
-    }
+    if (!target) continue;
+    const path = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+    const xml = unzipEntry(bytes, path);
+    if (xml) parts.push({ name, xml });
   }
-  return unzipEntry(bytes, 'xl/worksheets/sheet1.xml');
+  if (parts.length > 0) return parts;
+  // a workbook with no readable rels: the conventional first sheet, or nothing
+  const fallback = unzipEntry(bytes, 'xl/worksheets/sheet1.xml');
+  return fallback ? [{ name: '', xml: fallback }] : [];
 }
 
-/** First worksheet as trimmed string rows — the sparse grid densified in both
- * axes, so indices match Excel's on-screen row and column numbers (an import
- * error can then name the row the user sees). Returns null when the bytes are
- * not a readable workbook. */
-export function parseXlsx(bytes: Buffer): string[][] | null {
-  const sheet = firstSheetXml(bytes);
-  if (!sheet) return null;
+/** The workbook's shared string table, which cells of type `s` index into. */
+function sharedStrings(bytes: Buffer): string[] {
   const sharedXml = unzipEntry(bytes, 'xl/sharedStrings.xml');
-  const shared: string[] = sharedXml
+  return sharedXml
     ? [...sharedXml.toString('utf8').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => textOf(m[1]!))
     : [];
+}
+
+/** One worksheet as trimmed string rows — the sparse grid densified in both
+ * axes, so indices match Excel's on-screen row and column numbers (an import
+ * error can then name the row the user sees). Null when the sheet is not
+ * plausibly a document. */
+function parseSheet(sheet: Buffer, shared: string[]): string[][] | null {
   const rows: string[][] = [];
   for (const rowMatch of sheet.toString('utf8').matchAll(/<row\s([^>]*)>([\s\S]*?)<\/row>/g)) {
     // honour the row's r attribute: Excel omits blank rows from the XML, and
@@ -261,4 +241,24 @@ export function parseXlsx(bytes: Buffer): string[][] | null {
     rows.push(cells);
   }
   return rows;
+}
+
+/** Every sheet, named, in tab order — corpus extraction's view (T-306). */
+export function parseXlsxSheets(bytes: Buffer): Array<{ name: string; rows: string[][] }> | null {
+  const parts = sheetParts(bytes);
+  if (parts.length === 0) return null;
+  const shared = sharedStrings(bytes);
+  const sheets: Array<{ name: string; rows: string[][] }> = [];
+  for (const part of parts) {
+    const rows = parseSheet(part.xml, shared);
+    if (rows === null) return null;
+    sheets.push({ name: part.name, rows });
+  }
+  return sheets;
+}
+
+/** The first worksheet in tab order, as rows — the plan import's view (T-359).
+ * Returns null when the bytes are not a readable workbook. */
+export function parseXlsx(bytes: Buffer): string[][] | null {
+  return parseXlsxSheets(bytes)?.[0]?.rows ?? null;
 }

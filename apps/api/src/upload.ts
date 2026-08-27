@@ -45,17 +45,26 @@ const formats = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx', pdf: 'pdf' } as cons
 /**
  * The grounding text an uploaded file contributes, and the reason it does not.
  *
- * Only PDF answers with text today: it is the format whose corpus is real
- * (issued deliverables, Advice Notes, Decision Letters, consultee responses)
- * and the only one with a page. docx keeps the answer it has always had — `''`
- * here and its text taken at conversion — and xlsx/pptx are T-306.
+ * **The rule is: text arrives at upload when there is no other way to get it.**
+ * A PDF (T-305), a workbook and a deck (T-306) have no editor path — conversion
+ * makes a document editable, and none of the three should become an Infora text
+ * document — so it is text at upload or never, and until T-306 the last two sat
+ * in the sandbox as opaque blobs that never grounded.
+ *
+ * **A docx is the one exception, and it is not an oversight.** It has a
+ * conversion path, and that path makes the extracted text *canonical* rather
+ * than merely grounding. Extracting here as well would give `content` two
+ * meanings for one format, and the second would be the one nobody expected. So
+ * an uploaded docx keeps `''` until someone opens it in the editor (ADR-0034).
+ * The bulk load has no such exception: reference material never converts, so
+ * `extractText` there reads every format including docx.
  */
 function extractOnUpload(
   format: keyof typeof formats,
   bytes: Buffer,
 ): { ok: true; content: string } | { ok: false; detail: string } {
-  if (format !== 'pdf') return { ok: true, content: '' };
-  const extracted = extractText('pdf', bytes);
+  if (format === 'docx') return { ok: true, content: '' };
+  const extracted = extractText(format, bytes);
   // the refusal carries WHICH failure, because "we could not read it" and
   // "this is a scan and Infora does not do OCR" are different things to the
   // person holding the document, and only one of them is worth re-exporting

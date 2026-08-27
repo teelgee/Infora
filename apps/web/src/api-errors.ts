@@ -87,6 +87,11 @@ const MESSAGES: Record<string, string> = {
   pdf_unreadable: 'That PDF couldn’t be read — it may be damaged or incomplete.',
   pdf_unsupported_filter:
     'Infora couldn’t read all of that PDF, and won’t index part of a document. Re-export it and try again.',
+  docx_no_text: 'That Word document has no text in it.',
+  xlsx_no_text:
+    'That spreadsheet has no text to index — charts, images and formula results without values aren’t readable.',
+  pptx_no_text:
+    'That deck has no text on its slides — a set of images has nothing to index. Speaker notes aren’t read.',
   share_required: 'The receiving organisation must be shared with before it can be transmitted to.',
   reason_required: 'A reason is required.',
 

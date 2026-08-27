@@ -1101,6 +1101,57 @@ trailer << /Root 1 0 R >>
     expect(updated.content).not.toContain('objects.');
   });
 
+  it('a workbook and a deck now ground too, and keep their native file (T-306)', async () => {
+    // both uploaded before T-306 and neither converted, so they sat in the
+    // sandbox as opaque blobs that never grounded
+    const { buildXlsx } = await import('./xlsx.js');
+    const workbook = buildXlsx([
+      {
+        name: 'Consultation register',
+        rows: [
+          ['Reference', 'Respondent'],
+          ['WA-CON-001', 'Environment Agency'],
+        ],
+      },
+    ]);
+    const res = await upload(workbook, 'Consultation Register.xlsx');
+    expect(res.status).toBe(201);
+    const doc = (await res.json()) as { format: string; origin: string; content: string };
+    expect(doc.format).toBe('xlsx');
+    expect(doc.origin).toBe('uploaded'); // the native file stays canonical
+    expect(doc.content).toContain('WA-CON-001 | Environment Agency');
+    expect(doc.content).toContain('\f'); // the sheet separator, i.e. the locator
+  });
+
+  it('refuses a deck with no text on its slides, by name', async () => {
+    const { zipStore } = await import('./xlsx.js');
+    const empty = zipStore([
+      {
+        name: 'ppt/presentation.xml',
+        data: Buffer.from('<p:presentation><p:sldIdLst><p:sldId r:id="rId1"/></p:sldIdLst></p:presentation>'),
+      },
+      {
+        name: 'ppt/_rels/presentation.xml.rels',
+        data: Buffer.from('<Relationships><Relationship Id="rId1" Target="slides/slide1.xml"/></Relationships>'),
+      },
+      { name: 'ppt/slides/slide1.xml', data: Buffer.from('<p:sld><p:cSld><p:spTree/></p:cSld></p:sld>') },
+    ]);
+    const res = await upload(empty, 'Site Boards.pptx');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid', detail: 'pptx_no_text' });
+  });
+
+  it('a docx still waits for the editor, and that asymmetry is deliberate', async () => {
+    // a docx has a conversion path, and that path makes its text CANONICAL
+    // rather than merely grounding — extracting at upload too would give
+    // `content` two meanings for one format
+    const { textToDocx } = await import('./renditions.js');
+    const res = await upload(textToDocx('Drafted in Word.'), 'Method Statement.docx');
+    const doc = (await res.json()) as { format: string; content: string };
+    expect(doc.format).toBe('docx');
+    expect(doc.content).toBe('');
+  });
+
   it('refuses a replacement it cannot read, rather than emptying the document', async () => {
     const { textToPdf } = await import('./renditions.js');
     const first = await upload(textToPdf('Screening Opinion', 'EIA is required.'), 'Screening.pdf');

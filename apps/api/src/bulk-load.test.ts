@@ -15,6 +15,7 @@ import { isVersionIndexed } from '@infora/data';
 import { createDb, schema as s, withProjectScope } from '@infora/db';
 import { bulkLoad, describeReport, referenceFor } from './bulk-load';
 import { textToDocx, textToPdf } from './renditions';
+import { buildXlsx } from './xlsx';
 import { fakeRouter, FAKE_EMBED_MODEL } from './test-router';
 
 const { db, pool } = createDb();
@@ -175,10 +176,16 @@ describe('bulkLoad (T-303)', () => {
     write(`${stamp}-Consultation Register.xlsx`, Buffer.from('PK not really'));
     write(`${stamp}-Site Photos.zip`, Buffer.from('PK not a document'));
     write(`${stamp}-Late Response.pdf`, textToPdf('Late', 'Received after the deadline closed.'));
+    // T-306 — a real workbook loads now; it used to be refused for want of an
+    // extractor, and the corpus is the poorer for every register it missed
+    write(
+      `${stamp}-Requirements.xlsx`,
+      buildXlsx([{ name: 'Requirements', rows: [['R7', 'A three metre acoustic barrier']] }]),
+    );
 
     const report = await bulkLoad({ db, router }, { projectId, organisationId, directory });
-    // the readable one still lands, which is the whole point of per-document
-    expect(report.loaded).toBe(1);
+    // the readable ones still land, which is the whole point of per-document
+    expect(report.loaded).toBe(2);
     expect(report.refused).toBe(3);
 
     const reasons = Object.fromEntries(
@@ -187,7 +194,7 @@ describe('bulkLoad (T-303)', () => {
         .map((o) => [o.reference, o.status === 'refused' ? o.reason : '']),
     );
     expect(reasons[`${stamp}-Scanned Objection`]).toBe('pdf_no_text');
-    expect(reasons[`${stamp}-Consultation Register`]).toBe('xlsx_not_extractable');
+    expect(reasons[`${stamp}-Consultation Register`]).toBe('unreadable_file');
     expect(reasons[`${stamp}-Site Photos`]).toBe('unsupported_format');
   });
 
@@ -202,13 +209,13 @@ describe('bulkLoad (T-303)', () => {
       refused: 2,
       outcomes: [
         { file: 'a.pdf', status: 'refused', reference: 'a', reason: 'pdf_no_text' },
-        { file: 'b.xlsx', status: 'refused', reference: 'b', reason: 'xlsx_not_extractable' },
+        { file: 'b.xlsx', status: 'refused', reference: 'b', reason: 'xlsx_no_text' },
       ],
     });
     expect(summary).toContain('REFUSED 2');
     expect(summary).toContain('these documents are NOT in the corpus');
     expect(summary).toContain('a.pdf — pdf_no_text');
-    expect(summary).toContain('b.xlsx — xlsx_not_extractable');
+    expect(summary).toContain('b.xlsx — xlsx_no_text');
   });
 
   it('refuses a duplicate reference inside one load rather than picking one', async () => {
