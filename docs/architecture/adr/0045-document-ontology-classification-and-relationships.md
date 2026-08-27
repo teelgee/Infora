@@ -20,6 +20,14 @@
 
 **What this does *not* change.** The ontology is structure *about* documents; it does not touch the grounding invariant. The classification vocabulary and the edges are **metadata and structure, never a grounded corpus** — they filter, organise, and enable traversal, but they are not cited claims and do not enter the grounded channel (ADR-0021's privacy invariant governs grounding unchanged). What grounds is still the project library, within project material (ADR-0011). Edges may *inform* provenance (a citation can carry "this source supersedes an earlier version") without themselves being citeable.
 
+**Amended 2026-08-27 (the document-status session) — a confirmed `supersedes` edge now drives grounding, and the owner confirms it on a library container.** Two clauses of this ADR change.
+
+**1. "Never a grounded corpus — grounding is unchanged" no longer holds in full.** The ontology is still not a corpus and still grounds nothing itself. But a **confirmed, un-retired `supersedes` edge into a library container now sets that container's record state to `superseded`** (ADR-0013, as amended), which stops it grounding. The edge remains metadata; what changed is that one edge type has a *consequence* in the records lifecycle rather than only describing one. This is the mechanism for the case a version bump cannot express: a **different document** — not a newer revision — becoming the authoritative one. The schema anticipated it (*"`supersedes` records the link ADR-0013's supersede state implies"*); this wires it.
+
+**2. Confirmation on a library container is the owner's act.** Relationship writes were a producing-organisation act throughout. That stays true for **proposal** — either party may propose, and the agent still proposes on promotion — but once a container is published into the owner's library the record is the owner's, so **only the owner confirms** (ADR-0013 §2). Pre-publication containers are unchanged. The propose/confirm columns already exist and already carry the rule that *"confirmed_by_participant_id null = proposed and NOT yet live"*; only the authority check moves.
+
+**Unchanged, and worth stating because this amendment could be misread as widening the ontology:** classification is untouched, the other four edge types carry no lifecycle consequence, edges remain derived and interval-based (retired, never deleted), and edge visibility still rides both endpoints' deliverable visibility — so nothing here lets an edge reveal a container the requester could not already see.
+
 **Consequences:**
 
 - **ADR-0008's deferred per-project metadata schema is closed** — it is a classification vocabulary seeded from a Uniclass/19650 default, owner-owned, extended via the naming-scheme pattern. The naming scheme and the classification vocabulary are now siblings under one owner.

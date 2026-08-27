@@ -303,6 +303,16 @@ agent can see an edge into a container the wall hides.
 
 ---
 
+## Drawn 2026-08-27 — record state and the grounding rule (migration 0048)
+
+*The document-status session (ADR-0013/0003/0041/0045). Small, and deliberately so: the state machine already existed and what changed is who may write it and what reads it. **`container_state` needs no change** — `live` · `superseded` · `withdrawn` · `rejected` were all present from the start, and nothing ever set `superseded`.*
+
+**Drawer 5 — `acceptance_codes` gains two booleans.** `is_contractual` — an accepting code ends the cycle, but only a *contractual* one issues the `C` revision (ADR-0041), which is ISO's own preliminary/contractual split. `grounds` — whether a deliverable accepted under this code enters the AI's reach. Both default to `false`; the seeded scheme sets them from the **2021** UK National Annex, where `A1, An…` are contractual and ground, and the `S` codes are neither (they never reach the library at all). The scheme is per-project and copied at creation, so this is per-row configuration, not a platform constant.
+
+**Drawer 2 — `containers` gains `withdrawn_by_participant_id`.** Nullable, referencing `participants`. Today only `withdrawn_reason` is stored, so nothing records *which side* withdrew, and restoration cannot tell whether it is undoing its own act or the other party's. This is a **named person on a destructive act** and is registered in [personal-data.md](personal-data.md).
+
+**Nothing is drawn for context state**, deliberately: it is derived from library membership + record state + the code's `grounds` flag, computed in the same SQL pre-filter retrieval already runs, and storing it would create a second state machine that could disagree with the first.
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

@@ -14,6 +14,34 @@ Before anyone plans a deliverable, I define what a deliverable row *is* on this 
 
 ---
 
+## The owner: deciding what "accepted" means, and what the AI may rely on
+
+*As the project owner's super user, I want to define the project's acceptance codes and say which of them admit a deliverable to the AI's reach, so that "accepted" means what this project means by it, and the AI never answers from something we have not actually agreed.*
+
+The scheme is not blank when I arrive. The project was created with a copy of the ISO 19650 code set — `S0` to `S5` for work in progress and sharing, `A1, An…` for what is published and contractual — and because it is a copy, nothing I do here touches another project. I check the labels first: this client says *approve* where the default says *accept*, so I change the word and only the word, because the state underneath is fixed and everything downstream keys on what happened rather than on what we call it. Then the two properties that decide what a code *does*: whether it ends the cycle, which is what makes it an accepting code at all, and whether it is **contractual** — because that is what issues the C revision, and it is the whole difference between *we have agreed this* and *we have agreed most of this, with comments*.
+
+Beside them is the column I came for: whether a deliverable accepted under this code enters the AI's reach. It arrives set the way the revision column implies — contractual codes in, preliminary ones out — and most projects will never touch it. But I have to be able to, because the standard itself leaves the meaning of each published code to my project's information standard: `A4` means suitable for construction here only because we said so, and whether that grounds an answer is therefore my decision and not the platform's. I can see the consequence before I make it, because each row tells me how many live deliverables currently carry that code — turning one off is not a checkbox, it reads as *this will exclude forty-one deliverables from AI answers*, and I would rather know that now than meet it later as an answer that was quietly thin. There are things I cannot configure and the screen says so rather than letting me discover it: a deliverable that has been **superseded, withdrawn or rejected never feeds the AI**, whatever code got it there. That rule is the platform's, not my project's, which is why I can change this scheme without worrying I have opened a route back to something we withdrew.
+
+What I change here is recorded the way a rails change is — who, when and why — because I am deciding what the AI may rely on across a whole project, not adjusting my own view. And a code that has been used is never redefined: if it is wrong I retire it and add its replacement, so a deliverable coded last year still reads as what it meant last year. I come back rarely, and usually because a producing organisation has asked for a code the scheme does not carry — the same negotiation as the naming scheme, settled at the level of the scheme rather than per deliverable.
+
+*Decisions exercised: acceptance coding, the per-project copied scheme and retire-never-redefine (0003, and its 2026-08-27 amendment adding `is_contractual` and `grounds`); the 2021 UK National Annex as the seeded set and its stage-agnostic published codes ([iso-19650.md](../reference/iso-19650.md)); the contractual revision issued on acceptance (0041); library membership no longer sufficient for grounding (0011 rider, 0013 §6); configuration that changes what the AI may rely on is audited like a rails change (0030).*
+
+---
+
+## The owner and the consultant: ending a deliverable that is no longer current
+
+*As the project owner, I want to stop the AI relying on a deliverable that has been overtaken or found wanting; as the consultant who produced it, I want to propose that myself and to be told when it happens.*
+
+**The owner.** A consultant's drainage study sits in my library, accepted and live, and a newer study — a different document, not a new revision of this one — has overtaken it. I record that as a link between the two: the consultant proposes it or I do, and my confirmation is what makes it live. From that moment the old study reads as superseded, and the AI stops answering from it. A second case has no such link to draw: a study we now understand to be wrong, with nothing replacing it. I withdraw it, and I have to say why — the reason is not optional, because a deliverable that stops being relied on without an explanation is a decision nobody can audit. In neither case does the document leave the library or become unreadable; it stops being current, which is a different thing.
+
+**The consultant.** My firm produced that study, and I find out because Infora tells me — not the reason, which is not the sort of thing that belongs in an email leaving the platform, but the fact and a link. When I follow it I can read why, because the reason is visible to anyone who can see the deliverable it is about, and my firm authored it. If I think the owner is wrong I have somewhere to go: the withdrawal is reversible by the party that made it. What I cannot do is quietly restore it myself, which the platform used to allow — a document the owner has withdrawn and the consultant has restored, with neither act recording the other, is a disagreement the record cannot show.
+
+**And either of us can still use it deliberately.** Comparing the old assessment against the new one is ordinary work. I pin the superseded study to my question, the answer comes back marked as drawing on something I supplied and carrying the withdrawal reason, and nothing about it enters the shared record as a citation. What ended is the AI reaching for it silently — not anyone's ability to reach for it on purpose.
+
+*Decisions exercised: record state, the publication boundary and the reason's visibility (0013, 2026-08-27 amendment, closing `Q-036`); supersession as a confirmed edge (0045 amendment); the producing organisation notified by pointer and never content (0049 amendment); the attached source as the deliberate path (0022); nothing deleted, currency by state (0013).*
+
+---
+
 ## The consultant: producing and getting a chapter accepted
 
 *As an environmental consultant at the appointed consultancy, I want to draft my Land Quality chapter, put it through review, and resolve the client's comments, so that the chapter is accepted as a controlled deliverable without me ever maintaining a separate review spreadsheet or chasing a document controller.*
