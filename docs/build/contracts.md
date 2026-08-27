@@ -451,3 +451,20 @@ are not recorded here.
   argued in the type's own comment. Types only, no zod: what the checker's model
   call must return is a parse boundary that belongs to T-310, and inventing it
   here would specify that ticket ahead of itself.
+- **2026-08-27 (T-308) — `AssembledItem.source` becomes optional, and that is
+  the interesting half.** The rulebook endpoints (`RulebookRecord`,
+  `ListRulebooksResponse`) are ordinary; the change worth recording is one
+  question mark on the assembly contract. ADR-0048 §5 says a finding may quote
+  a house rule **verbatim and never cite it**, and `source` is defined as *what
+  a citation resolves to* — so a guiding item must not have one. Absent now
+  means **not citable**, which is exactly what the guiding channel has always
+  been (ADR-0021) and was previously true only by convention: every guiding
+  item was forced to carry a source identity it had no business having.
+  `sourcesOf` already skipped non-grounded channels, so nothing a run records
+  changes; what changes is that a rule can no longer be *made* into a source by
+  a later caller reaching for the field. The clause address a finding needs
+  lives in the new `rule` instead — `{ rulebookRef, clause, heading }`, pairing
+  with `RulebookEvidence` in finding.ts — deliberately outside `source` so it
+  cannot resolve like a source chip. The shape pin in
+  `packages/knowledge/src/wall.test.ts` fired on both changes, which is the
+  review it exists to force.

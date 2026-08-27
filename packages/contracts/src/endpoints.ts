@@ -515,6 +515,33 @@ export type RemoveOrgUserResponse = {
   participationsClosed: number;
 };
 
+// T-308 — the firm's rulebook, org context (ADR-0020, ADR-0048 §4). Org-admin
+// only and project-less: org context is portable to every project the
+// organisation touches, so there is no project in any of these shapes.
+//
+// POST   /organisation/rulebooks    multipart upload; extracted, parsed into
+//                                   clauses, bound to the organisation
+// GET    /organisation/rulebooks    the organisation's own, live first
+// DELETE /organisation/rulebooks/:id  retire — currency by state, never a delete
+export type RulebookRecord = {
+  id: Id;
+  title: string;
+  sourceFormat: string;
+  clauses: number;
+  /**
+   * how many clauses carry a number. **Reported, not assumed.** ADR-0048 §5
+   * lets a finding quote a rule *with its clause* — so a manual that parsed to
+   * one unlabelled clause is one whose rules can only ever be quoted anonymously,
+   * and the person who uploaded it should learn that now rather than from a
+   * finding that reads oddly six weeks later.
+   */
+  labelled: number;
+  loadedBy: { userId: Id; name: string };
+  loadedAt: string;
+  retiredAt: string | null;
+};
+export type ListRulebooksResponse = { items: RulebookRecord[] };
+
 export const enrolParticipantBody = z.object({ userId: id });
 export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;
 

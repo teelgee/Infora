@@ -37,6 +37,18 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 **Terms owned.** Context, Org context, Programme context, Project context, Source, Knowledge, Precedent.
 **Depends on.** Access model (component 2) for the project-context access resolution; document management (component 5) for the project library it grounds on.
 
+**Built 2026-08-27 (T-308, migration 0051, drawer 7): org context has a store.** The first of the three, and until then all three had none — `guiding` in the assembly gateway returned an empty array because there was nothing to return. What it holds is the firm's **rulebook**: a house drafting manual, which [ADR-0048](../adr/0048-the-checker-findings-not-prose.md) §4 rules guiding material in its entirety.
+
+**Org-private and project-less by construction.** The store's only key is the organisation: no `project_id`, no share, no acknowledgement, no wall predicate — because "portable to every project the organisation touches" *is* the query, and a project column would be a narrower thing wearing the same name. That is also why these rows are not in `version_chunks`: a store walled by a different rule must not sit inside the table whose purpose is enforcing the project one (the authority-corpus spike's Finding 4, applied a store early).
+
+**The stored unit is the CLAUSE, and that is a ruling rather than a convenience.** ADR-0048 §5 lets a finding quote a rule verbatim while never citing it — *"your Drafting Manual §4.2 says …"* — so the loader keeps the text as the manual really reads it, addressed by the manual's own number. The sentence-packing chunker would have satisfied the guiding channel perfectly and left §5 unimplementable, because its output is not a substring of its own source and carries no clause address at all. A clause with no number is stored with none rather than a guessed one: it still steers, it simply cannot be quoted with a reference.
+
+**Not citable, and the type says so.** A guiding item comes back with no `source` — `source` is what a citation resolves to, and guiding material is never cited as project fact. Nothing here enters a run's recorded source set, so no claim can be admitted against it by the ground-check.
+
+⚠ **`Q-046`** — the rulebook rides the channel *in its entirety* and is not retrieved against the question, so the token budget is the only thing that narrows it, and `mergeChannels` drops guiding before grounded. For an Ask answer that degrades tone; for a **checker**, whose silence is a claim, it changes what the output means. Raised, not answered here: it constrains T-310.
+
+**Programme and project context still have no store here**, and drawer 7 does not imply one.
+
 ## 2. Channels (grounded / guiding / informing)
 
 **Responsibility.** Classify every input into exactly one of three roles; hold the privacy invariant that only non-private corpora ground; carry the two grounded corpora (project library, authority corpus) and the two steering channels (project-scoped guiding, ownership-scoped informing).
@@ -98,4 +110,4 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 
 ## Repository mapping
 
-The stores, distillation and signal capture live in the `knowledge` package (the moat); the connectors, ingestion and retrieval live in `data` (pgvector); the physical schema and migrations in `db`. The context-assembly contract the orchestrator calls sits at the `knowledge`/`orchestration` boundary (ADR-0012; the v1 contract is ADR-0029). Access resolution is enforced in `governance` at the API boundary before any retrieval runs. See the overview's app-architecture diagram.
+The stores, distillation and signal capture live in the `knowledge` package (the moat); the connectors, ingestion and retrieval live in `data` (pgvector); the physical schema and migrations in `db`. **As built (T-308):** the org-context tables are drawer 7 (`packages/db/src/schema/drawer7-context.ts`), the rulebook loader is `packages/data/src/rulebook.ts` — deliberately beside the chunker it is not — the guiding channel's read is `packages/knowledge/src/guiding.ts`, and the org-admin door is `apps/api/src/rulebook.ts`. The context-assembly contract the orchestrator calls sits at the `knowledge`/`orchestration` boundary (ADR-0012; the v1 contract is ADR-0029). Access resolution is enforced in `governance` at the API boundary before any retrieval runs. See the overview's app-architecture diagram.

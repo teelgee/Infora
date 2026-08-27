@@ -12,3 +12,5 @@ export {
   sandboxDocumentAudience,
   versionsAudience,
 } from './label-facts';
+// T-308 — the guiding channel's org-context read (ADR-0020/0048 §4)
+export { guidingRules } from './guiding';

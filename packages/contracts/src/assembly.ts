@@ -53,10 +53,32 @@ export type Locator = {
   verbatim: string;
 };
 
+// T-308 — a guiding-channel rule, carried so a finding can quote it (ADR-0048
+// §5). Deliberately NOT part of `source` below: `source` is *what a citation
+// resolves to*, and the whole of §5 is that a quoted rule is **not a citation**
+// and must not render as a source chip. Putting the rulebook in `source` would
+// be the mistake the ruling exists to prevent, made in the one place the whole
+// pipeline reads.
+//
+// Pairs with `RulebookEvidence` in finding.ts: `clause` is the address the
+// manual gives the rule (`4.2`; the `§` is rendering), null where the manual
+// numbers nothing — steers, but cannot be quoted with a reference.
+export type AssembledRule = { rulebookRef: Id; clause: string | null; heading: string | null };
+
 export type AssembledItem = {
   channel: 'grounded' | 'guiding' | 'informing'; // ADR-0021
   corpus?: 'library' | 'authority'; // grounded only
-  source: { versionId: Id } | { authorityRef: string }; // what a citation resolves to
+  // what a citation resolves to.
+  //
+  // T-308 — OPTIONAL, and absent means **this item is not citable**. That is
+  // exactly true of guiding material (ADR-0021: guiding steers and is never
+  // cited as project fact), and making it a type rather than a convention is
+  // what stops a rule reaching the citation register: `sourcesOf` already skips
+  // every non-grounded channel, so a guiding item contributes nothing to the
+  // recorded source set and nothing the ground-check will admit a claim against.
+  source?: { versionId: Id } | { authorityRef: string };
+  /** T-308 — set on a guiding item that is a rulebook clause; never citable */
+  rule?: AssembledRule;
   // T-253 — the PASSAGE this item is, not just the document it came from
   // (finding F5). Chunk rows are immutable, so recording the id makes the
   // exact assembled text reconstructible without storing it twice. Absent on

@@ -31,6 +31,7 @@ import { sandboxRoutes } from './sandbox';
 import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
 import { transmittalRoutes } from './transmittal';
+import { rulebookRoutes } from './rulebook';
 import { uploadRoutes } from './upload';
 
 export type { AppDeps } from './requester';
@@ -195,6 +196,8 @@ export function buildApp(deps: AppDeps) {
   app.route('/', renditionRoutes(deps));
 
   // Upload + open-in-editor conversion (Slice A, ADR-0034) — T-122
+  // T-308 — the firm's rulebook in org context (ADR-0048 §4)
+  app.route('/', rulebookRoutes(deps));
   app.route('/', uploadRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053

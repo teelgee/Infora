@@ -114,12 +114,21 @@ describe('the wall through the gateway (T-033)', () => {
     }
   });
 
-  it('every returned item is annotated with channel and source identity', async () => {
+  it('every returned item is annotated with channel, and only a citable one carries a source', async () => {
     const { items } = await assemble(query(entitled));
     for (const item of items) {
       expect(['grounded', 'guiding', 'informing']).toContain(item.channel);
-      if (item.channel === 'grounded') expect(item.corpus).toBe('library');
-      expect('versionId' in item.source || 'authorityRef' in item.source).toBe(true);
+      if (item.channel === 'grounded') {
+        expect(item.corpus).toBe('library');
+        expect(item.source && ('versionId' in item.source || 'authorityRef' in item.source)).toBe(true);
+      } else {
+        // T-308 — a guiding item has NO source, and the absence is the
+        // guarantee rather than an omission: `source` is what a citation
+        // resolves to, and guiding material is never cited as project fact
+        // (ADR-0021, ADR-0048 §5). An item that could not be cited but carried
+        // a source anyway is a source chip waiting to be rendered.
+        expect(item.source).toBeUndefined();
+      }
     }
   });
 
@@ -148,9 +157,18 @@ describe('the wall through the gateway (T-033)', () => {
     // from a span the ingest path stored, on rows retrieval had already
     // returned. It is on the output side of the pre-filter, so it can no more
     // widen a slice than `chunkId` can.
+    // T-308 added `rule`, and made `source` optional, and this test firing is
+    // the review. `rule` carries the clause address a finding needs to quote a
+    // house rule (ADR-0048 §5) — an OUTPUT annotation on an item the guiding
+    // pipeline had already decided to return, exactly as `chunkId` and
+    // `locator` are on the grounded side. It cannot widen a slice because
+    // there is no slice to widen: the guiding read is keyed on the requester's
+    // own organisation and reaches no project, no share and no other party.
+    // `source` going optional narrows rather than widens — it is what says a
+    // guiding item is not citable.
     const itemShape: ExactKeys<
       AssembledItem,
-      'channel' | 'corpus' | 'source' | 'chunkId' | 'locator' | 'content'
+      'channel' | 'corpus' | 'source' | 'rule' | 'chunkId' | 'locator' | 'content'
     > = true;
 
     expect([requestShape, requesterShape, queryShape, itemShape]).toEqual([true, true, true, true]);
@@ -242,7 +260,7 @@ describe('the acknowledgement gate and intra-org narrowing (T-136, ADR-0035)', (
     versionId: string,
   ): Promise<boolean> {
     const { items } = await assemble(gammaQuery(requester));
-    return items.some((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    return items.some((i) => i.source && 'versionId' in i.source && i.source.versionId === versionId);
   }
 
   beforeAll(async () => {

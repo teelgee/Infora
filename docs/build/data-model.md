@@ -20,10 +20,12 @@
 >   only its **narrative** — what it is for, and the design decisions it
 >   embodies, which no schema file can state — plus the pointer.
 >
-> All six drawers are currently built, so no field list appears below; the
+> All seven drawers are currently built, so no field list appears below; the
 > next drawer drawn (notifications, T-329, is the first candidate) carries its
 > field lists here until its migration lands, then reduces to narrative like
-> the rest. This split preserves "migrations are drawn before being written"
+> the rest. **Drawer 7 was added 2026-08-27 (T-308)** and is the first store
+> behind [component 4](../architecture/components/component-4-context.md)'s
+> three scoped context stores, which until then had no tables at all. This split preserves "migrations are drawn before being written"
 > while removing the permanent sync obligation the old always-carry-fields
 > form imposed — a drawing that has done its job stops being a second copy.
 
@@ -375,6 +377,43 @@ agent-proposed and human-confirmed** — a proposed edge has no effect until a
 person confirms it, and a retired edge survives as a record. Edge visibility
 rides both endpoints' deliverable visibility, so neither a surface nor the
 agent can see an edge into a container the wall hides.
+
+## Drawer 7 — Context
+*The scoped context stores (ADR-0020, component 4) — drawn and built 2026-08-27
+(T-308, ADR-0048, migration 0051). **Org context only so far:** the firm's
+rulebook. Programme and project context have no tables here and are not
+implied by these two.*
+**Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
+
+**A rulebook is a house drafting manual, and it steers rather than grounds**
+(ADR-0048 §4). It is **org-private and project-less by construction** — org
+context is portable to every project the organisation touches (ADR-0020), so
+a project column would be a smaller thing wearing the same name. There is
+therefore **no `project_id` and no wall predicate here**: the only key is the
+organisation, which is what the spike's Finding 4 argues for the authority
+corpus too — a store walled by a *different* rule than `version_chunks`'
+must not sit inside the table enforcing that one.
+
+**Two tables, and the second is the whole point of the ticket.**
+`rulebook_clauses` is **not the chunker's output**, and that is deliberate:
+the sentence-packing chunker rejoins sentences with a single space and packs
+across boundaries, so a chunk is not a substring of its own source (T-271's
+spike finding). ADR-0048 §5 lets a finding quote a rule **verbatim** while
+never citing it, so the stored unit has to be the clause **as the manual
+really reads**, addressed by the number the manual gives it — *§4.2*, not
+"page 11". A clause therefore carries its **label**, its **heading**, its
+**verbatim text** and its **span** into the extracted document, and a rulebook
+chunked for steer alone would have satisfied the guiding channel and made the
+ruling unimplementable at the surface.
+
+**A label is nullable, and the null is honest.** Text before the first
+numbered heading, or a manual with no numbering at all, still steers — it just
+cannot be quoted *with a reference*. The same discipline as the locator: never
+a guessed address, because an invented one looks checkable.
+
+**Currency by state**: `retired_at` on the rulebook, never a delete, so a
+finding written against a rule that has since been withdrawn still resolves to
+the words it quoted.
 
 ---
 

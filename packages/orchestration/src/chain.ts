@@ -242,6 +242,10 @@ export function sourcesOf(retrieved: AssembledInput): SourceRef[] {
   const refs: SourceRef[] = [];
   for (const item of retrieved.items) {
     if (item.channel !== 'grounded') continue; // only grounded sources back claims (ADR-0021)
+    // T-308 — and a guiding item has no `source` at all, which is the same
+    // ruling stated as a type. Both are checked: the channel is the rule, the
+    // absence is what makes a rule impossible to record as a source.
+    if (item.source === undefined) continue;
     const ref: SourceRef =
       item.chunkId === undefined ? item.source : { ...item.source, chunkId: item.chunkId };
     // passage grain: two chunks of one version are two distinct sources seen

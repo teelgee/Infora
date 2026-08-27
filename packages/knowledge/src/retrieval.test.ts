@@ -180,7 +180,7 @@ describe('grounded library retrieval (T-031)', () => {
 
   it('never returns the superseded version — one live version per container', async () => {
     const items = await retrieve('beta exceedances');
-    const versionIds = items.map((i) => ('versionId' in i.source ? i.source.versionId : null));
+    const versionIds = items.map((i) => (i.source && 'versionId' in i.source ? i.source.versionId : null));
     expect(versionIds).toContain(currentBetaVersionId);
     expect(versionIds).not.toContain(supersededBetaVersionId);
     expect(items.map((i) => i.content).join(' ')).not.toContain('superseded');
@@ -219,7 +219,7 @@ describe('grounded library retrieval (T-031)', () => {
     });
 
     const items = await retrieve('dewatering perched horizon pathway');
-    const item = items.find((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    const item = items.find((i) => i.source && 'versionId' in i.source && i.source.versionId === versionId);
     expect(item).toBeDefined();
     expect(item!.locator).toBeDefined();
 
@@ -257,7 +257,7 @@ describe('grounded library retrieval (T-031)', () => {
     });
 
     const items = await retrieve('gamma turbidity excursion outfall nine');
-    const mine = items.filter((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    const mine = items.filter((i) => i.source && 'versionId' in i.source && i.source.versionId === versionId);
     expect(mine.length).toBeGreaterThan(1); // more than one page came back
 
     for (const item of mine) {
@@ -284,7 +284,7 @@ describe('grounded library retrieval (T-031)', () => {
       versions: [{ current: true, content: 'Spanless fixture about ballast fouling on the branch.' }],
     });
     const items = await retrieve('ballast fouling branch');
-    const item = items.find((i) => 'versionId' in i.source && i.source.versionId === versionId);
+    const item = items.find((i) => i.source && 'versionId' in i.source && i.source.versionId === versionId);
     expect(item).toBeDefined();
     expect(item!.locator).toBeUndefined();
     expect(item!.content).toContain('ballast fouling'); // still retrieved, still cited

@@ -12,6 +12,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
+import { guidingRules } from './guiding';
 import { mergeChannels } from './merge';
 import { groundedLibrary } from './retrieval';
 
@@ -23,16 +24,21 @@ export type GatewayDeps = { db: Db; router: Router };
 
 // Per-channel pipelines (ADR-0022): a separate pipeline per channel — and per
 // corpus within grounded — behind the one signature. The grounded library is
-// real (T-031); guiding and informing are present but empty in the skeleton
-// (their stores are post-MVP drawers), and the authority corpus arrives with
-// its slice.
+// real (T-031); the authority corpus arrives with its slice.
+//
+// T-308 — GUIDING IS REAL NOW: the requester's own organisation's rulebook
+// (drawer 7, ADR-0048 §4). Informing is still empty; its store is a later
+// drawer. Note what the guiding pipeline does NOT take — the request text.
+// A rulebook rides the channel in its entirety and is not retrieved against
+// the question, so the parameter is unused here on purpose rather than by
+// oversight.
 type Pipeline = (
   deps: GatewayDeps,
   slice: EntitledSlice,
   request: AssemblyRequest['request'],
 ) => Promise<AssembledItem[]>;
 
-const guiding: Pipeline = async () => [];
+const guiding: Pipeline = async (deps, slice) => guidingRules(deps.db, slice.organisationId);
 const informing: Pipeline = async () => [];
 
 const emptyInput = () => ({ items: [], budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 } });

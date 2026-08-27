@@ -90,7 +90,14 @@ export async function groundedDraft(
   input: { request: string; retrieved: AssembledInput; lens?: Lens | null },
   options: GroundedDraftOptions = {},
 ): Promise<GroundedDraftResult> {
-  const grounded = input.retrieved.items.filter((item) => item.channel === 'grounded');
+  // T-308 — a citable item is one with a `source`, and after guiding became
+  // real that is a narrower set than "grounded". Both halves of the test are
+  // kept: the channel is the ruling (ADR-0021 — only grounded backs a claim),
+  // and the source's presence is the type saying the same thing.
+  const grounded = input.retrieved.items.filter(
+    (item): item is typeof item & { source: NonNullable<typeof item.source> } =>
+      item.channel === 'grounded' && item.source !== undefined,
+  );
   const sourceByMarker = new Map(grounded.map((item, at) => [`S${at + 1}`, item.source]));
 
   const sourceBlock = grounded
