@@ -169,6 +169,8 @@
           <tr><td class="col">org_role</td><td class="type">org_role</td><td class="notes">default</td></tr>
           <tr><td class="col">external_identity</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">preferences</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">removed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">removed_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
         </tbody></table>
       </article>
     </section>

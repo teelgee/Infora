@@ -32,7 +32,13 @@ export function authRoutes(deps: { db: Db; sessionSecret: string; sessionPolicy:
       .select({ user: s.users, credential: s.userCredentials })
       .from(s.users)
       .leftJoin(s.userCredentials, eq(s.userCredentials.userId, s.users.id))
-      .where(eq(s.users.email, body.data.email))
+      // T-315 — a removed account cannot log back in. Filtered in the LOOKUP
+      // rather than checked afterwards, so a removed account is indistinguish-
+      // able from an unknown one: a separate "your account was removed" answer
+      // would be an account-probing oracle, and the 401 below already covers
+      // it. Revoking the sessions ends the ones that exist; this is what stops
+      // a new one being minted.
+      .where(and(eq(s.users.email, body.data.email), isNull(s.users.removedAt)))
       .limit(1);
 
     // one answer for unknown email and wrong password — no account probing

@@ -39,8 +39,24 @@ export const users = pgTable(
     // personal settings (T-092, 2026-07-09) — the user's own display choices,
     // e.g. { theme: 'dark' }; never an access or context fact
     preferences: jsonb('preferences').notNull().default({}),
+    // T-315 — the ACCOUNT-level interval, the twin of participants.removed_at
+    // and distinct from it on purpose. A Participant closing is one project
+    // engagement ending; this is the person leaving the organisation, which is
+    // what ends every live session. Currency by state like everything else in
+    // this drawer: the row survives, so every past attribution still resolves
+    // to a name. `removed_by_user_id` is at USER grain rather than Participant
+    // because org administration is an account capability, not a project one
+    // (the same grain purge_events chose, T-340). The pair is CHECK-enforced:
+    // a removal with nobody's name on it is not an audit record.
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+    removedByUserId: uuid('removed_by_user_id').references((): AnyPgColumn => users.id),
   },
-  (t) => [uniqueIndex('users_email_unique').on(t.email)],
+  (t) => [
+    uniqueIndex('users_email_unique').on(t.email),
+    // the enrol picker's read, and the roster's: "this organisation's people
+    // who are still of it"
+    index('users_org_live_idx').on(t.organisationId).where(sql`${t.removedAt} IS NULL`),
+  ],
 );
 
 // Skeleton-auth scaffolding (plan.md's recorded build-time decision, T-021):

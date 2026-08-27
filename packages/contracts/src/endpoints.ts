@@ -501,6 +501,20 @@ export type ListRosterResponse = { items: RosterEntry[] };
 export type OrgUser = { userId: Id; name: string; email: string; orgRole: 'admin' | 'member' };
 export type ListOrgUsersResponse = { items: OrgUser[] };
 
+// T-315 — DELETE /organisation/users/:userId. The ACCOUNT-level removal, and
+// the twin of removing a Participant rather than a synonym for it: this one
+// ends every live session, because the person has left the organisation.
+// The counts are returned because "when did they lose access, and how much of
+// it" is the question an incident asks, and a bare 204 answers neither.
+export type RemoveOrgUserResponse = {
+  userId: Id;
+  removedAt: string;
+  /** live sessions ended (T-251's `revokeUserSessions`, wired here at last) */
+  sessionsEnded: number;
+  /** live Participant intervals closed — the seat cannot outlive the person */
+  participationsClosed: number;
+};
+
 export const enrolParticipantBody = z.object({ userId: id });
 export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;
 

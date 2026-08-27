@@ -101,6 +101,19 @@ project-visible** — the wall hides work, never presence. And **the user
 credential is its own table**, not a column on User, so the skeleton-auth
 scaffold drops cleanly when production identity (Entra-first) replaces it.
 
+**The User row gained the same interval** — `removed_at` and
+`removed_by_user_id` (T-315, migration 0050) — and the pair is
+`CHECK`-enforced, because a removal with nobody's name on it is not an audit
+record. **The two intervals are different acts and the asymmetry is the
+design.** Removing a **Participant** is a *project* act: it ends one
+engagement and touches no session, because signing a consultant out of every
+project when one client's work ends is a bug, not a control. Removing a
+**User** is an *account* act: it ends every live session, and it closes every
+live Participant interval that user holds — a person who is no longer of the
+organisation cannot occupy the organisation's seat, since ADR-0033 staffs every
+Participant *from* that seat. It reuses the Participant closure rather than
+inventing a second one, so grants revoke exactly as they already did.
+
 **Session** (T-251, migration 0037) exists for one sentence: **a signed cookie
 cannot be revoked** — it is valid because it verifies. The cookie therefore
 carries an opaque random token, not the user id: a pointer to a row the server

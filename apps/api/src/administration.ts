@@ -17,6 +17,7 @@ import type {
   LibraryRemovalResponse,
   ListPurgesResponse,
   PurgeResponse,
+  RemoveOrgUserResponse,
 } from '@infora/contracts';
 import { CONFLICT_REFUSAL, conflictBlocks } from '@infora/governance';
 import type { ConflictExclusion } from '@infora/governance';
@@ -24,6 +25,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope } from './requester';
 import { purgeSandboxDocument, removeLibraryContainer } from './purge';
+import { revokeUserSessions } from './sessions';
 import type { AppEnv, UserRow } from './requester';
 
 /**
@@ -96,6 +98,33 @@ async function adminSeat(db: Db, user: UserRow, projectId: string) {
 }
 
 export { adminSeat };
+
+/**
+ * Close one Participant interval, revoking the live appointment grants that
+ * hang off it (ADR-0033). The row survives — attribution in past rounds does
+ * not depend on someone still being on the project.
+ *
+ * Extracted at T-315 rather than copied: removing a user from the organisation
+ * closes every Participant that user holds, and a second implementation of
+ * "what removal revokes" would drift silently — the copy nobody is looking at
+ * being exactly the one that forgets a grant table when the next one is added.
+ */
+async function closeParticipant(db: Db, participantId: string): Promise<void> {
+  await db
+    .update(s.participants)
+    .set({ removedAt: sql`now()` })
+    .where(eq(s.participants.id, participantId));
+  await db
+    .update(s.deliverableAuthors)
+    .set({ revokedAt: sql`now()` })
+    .where(and(eq(s.deliverableAuthors.participantId, participantId), isNull(s.deliverableAuthors.revokedAt)));
+  await db
+    .update(s.deliverableReviewers)
+    .set({ revokedAt: sql`now()` })
+    .where(
+      and(eq(s.deliverableReviewers.participantId, participantId), isNull(s.deliverableReviewers.revokedAt)),
+    );
+}
 
 async function rosterEntry(db: Db, participantId: string): Promise<RosterEntry> {
   const [row] = await db
@@ -185,7 +214,10 @@ export function administrationRoutes(deps: { db: Db }) {
         orgRole: s.users.orgRole,
       })
       .from(s.users)
-      .where(eq(s.users.organisationId, user.organisationId))
+      // T-315 — live only. The roster keeps removed *Participants* listed for
+      // attribution; this is a picker, and offering somebody who has left the
+      // organisation is offering an enrolment the next line would refuse.
+      .where(and(eq(s.users.organisationId, user.organisationId), isNull(s.users.removedAt)))
       .orderBy(asc(s.users.name));
     return c.json({ items: rows } satisfies ListOrgUsersResponse);
   });
@@ -198,11 +230,19 @@ export function administrationRoutes(deps: { db: Db }) {
     if (!seat) return notFound(c);
     const body = enrolParticipantBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
-    // the target must be the admin's own organisation's user — the ceiling binds
+    // the target must be the admin's own organisation's user — the ceiling
+    // binds — and must still be OF it (T-315): a removed account cannot be
+    // enrolled back onto a project by the back door.
     const [target] = await deps.db
       .select()
       .from(s.users)
-      .where(and(eq(s.users.id, body.data.userId), eq(s.users.organisationId, user.organisationId)))
+      .where(
+        and(
+          eq(s.users.id, body.data.userId),
+          eq(s.users.organisationId, user.organisationId),
+          isNull(s.users.removedAt),
+        ),
+      )
       .limit(1);
     if (!target) return notFound(c);
     const [live] = await deps.db
@@ -286,21 +326,79 @@ export function administrationRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (!row) return notFound(c);
-    await deps.db
-      .update(s.participants)
-      .set({ removedAt: sql`now()` })
-      .where(eq(s.participants.id, row.id));
-    await deps.db
-      .update(s.deliverableAuthors)
-      .set({ revokedAt: sql`now()` })
-      .where(and(eq(s.deliverableAuthors.participantId, row.id), isNull(s.deliverableAuthors.revokedAt)));
-    await deps.db
-      .update(s.deliverableReviewers)
-      .set({ revokedAt: sql`now()` })
-      .where(
-        and(eq(s.deliverableReviewers.participantId, row.id), isNull(s.deliverableReviewers.revokedAt)),
-      );
+    // T-315 — and NOTHING about sessions here, deliberately. This is a project
+    // act: one client engagement ended. Signing the consultant out of every
+    // other project they work would be conflating an account act with a
+    // project one, which is the mistake this ticket exists to avoid.
+    await closeParticipant(deps.db, row.id);
     return c.json(await rosterEntry(deps.db, row.id));
+  });
+
+  /**
+   * T-315 — the ACCOUNT act: an org admin removes one of their own
+   * organisation's users, and every live session of that user ends.
+   *
+   * T-251 built `revokeUserSessions` and called it from nothing on purpose,
+   * because which act should fire it is a decision. This is the answer, and
+   * the asymmetry is the whole of it. Project → account does not follow:
+   * leaving one project does not end a session. Account → project does:
+   * ADR-0033 staffs every Participant *from* the organisation's seat, so
+   * somebody who is no longer of the organisation cannot occupy that seat, and
+   * every live Participant interval closes with the same `closeParticipant`
+   * the narrower act uses.
+   *
+   * Audited by the interval, at both grains: `users.removed_at` with the
+   * removing admin's name beside it (CHECK-paired — a removal nobody signed is
+   * not an audit record), the Participant intervals it closed, and the
+   * `sessions` rows, whose `revoked_reason` already distinguishes a revocation
+   * from an expiry. "When did they lose access" is answerable afterwards.
+   *
+   * An admin cannot remove themselves. It is the one removal with nobody left
+   * to reverse it, and far more often a mis-click than an intention; `conflict`
+   * rather than `not_found` because the requester can plainly see themselves.
+   */
+  app.delete('/organisation/users/:userId', async (c) => {
+    const user = c.get('user');
+    const userId = c.req.param('userId');
+    if (user.orgRole !== 'admin' || !isUuid(userId)) return notFound(c);
+    if (userId === user.id) {
+      return c.json({ error: 'conflict', detail: 'cannot_remove_self' } satisfies ApiError, 409);
+    }
+    // the ceiling binds here exactly as it does on enrolment: an org admin
+    // reaches their OWN organisation's people and nobody else's. Another
+    // organisation's user is absence, not refusal (principle 4).
+    const [target] = await deps.db
+      .select({ id: s.users.id })
+      .from(s.users)
+      .where(
+        and(
+          eq(s.users.id, userId),
+          eq(s.users.organisationId, user.organisationId),
+          isNull(s.users.removedAt),
+        ),
+      )
+      .limit(1);
+    if (!target) return notFound(c);
+
+    const removedAt = new Date();
+    await deps.db
+      .update(s.users)
+      .set({ removedAt, removedByUserId: user.id })
+      .where(eq(s.users.id, target.id));
+
+    const live = await deps.db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .where(and(eq(s.participants.userId, target.id), isNull(s.participants.removedAt)));
+    for (const participant of live) await closeParticipant(deps.db, participant.id);
+
+    const sessionsEnded = await revokeUserSessions(deps.db, target.id);
+    return c.json({
+      userId: target.id,
+      removedAt: removedAt.toISOString(),
+      sessionsEnded,
+      participationsClosed: live.length,
+    } satisfies RemoveOrgUserResponse);
   });
 
   // The owner grants a seat (state active); a member proposes one (state

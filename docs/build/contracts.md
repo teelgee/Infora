@@ -416,3 +416,17 @@ are not recorded here.
   folding the second into the first would make `detail` unmappable. It carries
   only what the requester supplied, which is the rule that keeps it from
   becoming a leak wearing an error's clothes.
+- **2026-08-27 (T-315) — `RemoveOrgUserResponse`, and an act the API did not
+  have.** `DELETE /organisation/users/:userId` is new because the *removal* was
+  new: the API could enrol and remove a **Participant** and had no way to say a
+  person had left the **organisation** at all, which is why T-251's
+  `revokeUserSessions` had nothing to be called from. The response returns
+  counts — `sessionsEnded`, `participationsClosed` — rather than `204`, because
+  the question an incident asks is "when did they lose access, and how much of
+  it", and a bare no-content answers neither. The two endpoints stay separate
+  and their asymmetry is the contract: project → account does not follow (one
+  client engagement ending must not sign a consultant out of every project),
+  account → project does (ADR-0033 staffs a Participant *from* the
+  organisation's seat, so the seat cannot outlive the person). Self-removal is
+  `conflict`, not `not_found`, per errors.ts — the requester can plainly see
+  themselves, so existence is not what is being protected.
