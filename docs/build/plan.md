@@ -42,8 +42,8 @@ two sessions. A pilot corpus can now be loaded, read in four formats, cited to a
 page, and told apart from the produced record. **What is unblocked today**, none
 of it waiting on anything:
 
-- **T-341** — library removal, and the reason it is first: **T-340 is not
-  closable without it.** Two of purge's three Done-when clauses are T-341's, and
+- **T-341** — library removal, and it is now **next**: T-312 landed 2026-08-27,
+  and **T-340 is not closable without this one.** Two of purge's three Done-when clauses are T-341's, and
   ADR-0050 §7 has ruled the shape (withdraw, then the *owner* organisation
   removes, on the producing organisation's request). It is also the answer to the
   realistic V1 incident — the first real corpus load is also the first real test.
