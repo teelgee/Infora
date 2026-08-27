@@ -1,0 +1,47 @@
+# HAPPY-03 (T-312) — the case HAPPY-01 could not be.
+#
+# NOT HAPPY-02: that number is reserved for the deferred `expect_calls` case
+# (seed-set.test.ts), which needs a readable plan and a worker registry. The
+# gap is left rather than closed, because the reservation is a record of a case
+# that is planned and not yet authorable.
+#
+# HAPPY-01 asserts recall only, and says why in its own comment: against seven
+# documents retrieval fetches essentially the whole library, so precision scored
+# the same however it answered. This case is the same shape against 291
+# documents, of which 280 are reachable background that says nothing about
+# noise — so "did it pick the right ones" is now a question with an answer.
+#
+# The question is deliberately specific to ONE chunk of ONE document. A question
+# that could be answered from three documents would measure something real but
+# blunter, and blunter is what we already had.
+id: HAPPY-03
+category: happy
+description: >-
+  Against a corpus of nearly three hundred documents, a specific question about
+  construction working hours retrieves the noise chapter's own passage — and
+  mostly that, which is the half seven documents could never measure.
+fixture: hollowfield-reservoir-3
+acting_user: env_consultant
+question: >-
+  What do the noise chapter and the Code of Construction Practice record about
+  construction working hours at the northern compound?
+assertions:
+  must_cite:
+    - es_noise_v1
+  gold_passages:
+    - es_noise_v1#1 # the assessed 07:00-22:00, and the 22:00 stop
+    - cocp_v1#0 # the core hours and the Sunday commitment
+    - cocp_v1#1 # the two 24-hour operations
+  min_recall: 0.67
+  # PRECISION IS BOUNDED BY gold ÷ budget, and the first draft of this case got
+  # it wrong in a way worth recording. Retrieval admits eight chunks, so a case
+  # declaring ONE gold passage can score at most 0.125 however perfectly it
+  # answers — a floor of 0.25 was arithmetically unsatisfiable, and it failed
+  # for that reason rather than for anything about retrieval. `case.ts` now
+  # refuses such a threshold at authoring time.
+  #
+  # Three gold passages give a ceiling of 0.375. A floor of 0.25 therefore says
+  # "at least two of the three, inside the budget" — demanding enough that a
+  # scattergun across 291 documents fails it, and short of the ceiling so it is
+  # not pinned to a retrieval budget that is a tuning decision.
+  min_precision: 0.25

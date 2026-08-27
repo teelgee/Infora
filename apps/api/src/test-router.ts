@@ -37,6 +37,13 @@ export function fakeRouter(
     // and the numbered sources live in the user message, not the system one.
     | ((system: string, prompt: string) => string) = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
   embedModelId: string = FAKE_EMBED_MODEL,
+  // T-312 — an optional vectoriser. `fakeVector` has TWO basis vectors, which
+  // is right for a suite asking whether a document is reachable and useless for
+  // one asking which document is best: at three hundred documents every vector
+  // is identical and the top-N is the tie-break on chunk id. A caller that needs
+  // ranking brings its own (evals/src/embedding.ts) rather than re-tuning every
+  // suite that is happy as it is.
+  vectorise: (text: string) => number[] = fakeVector,
 ): Router {
   const chat: ChatAdapter = {
     modelId: 'fake-chat',
@@ -57,7 +64,7 @@ export function fakeRouter(
     attributes: SELF_HOSTED_UK,
     embed: (texts) =>
       Promise.resolve({
-        embeddings: texts.map(fakeVector),
+        embeddings: texts.map(vectorise),
         model: { id: embedModelId, version: FAKE_EMBED_VERSION },
       }),
   };

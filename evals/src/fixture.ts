@@ -20,6 +20,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { parse } from 'yaml';
+import { expandBackground } from './background';
 import { z } from 'zod';
 import { hashPassword, schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -102,6 +103,21 @@ export const fixtureSchema = z
     // carries more than one project
     subject_project: key.optional(),
     containers: z.array(containerSchema).default([]),
+    // T-312 — the corpus a case has to find its answer IN. Written documents
+    // carry meaning and are hand-authored above; these have no job but to be
+    // in the way, so the fixture declares a recipe and `expandBackground`
+    // produces them. Deterministic from `seed`, therefore still frozen (§3).
+    background: z
+      .object({
+        count: z.number().int().positive().max(2000),
+        seed: z.number().int().nonnegative(),
+        producer: key,
+        prefix: z.string().min(1),
+        // who can reach them — background nobody can see competes with nothing
+        shares: z.array(z.object({ organisation: key, granted_by: key })).default([]),
+        acknowledged_by: z.array(z.object({ organisation: key, participant: key })).default([]),
+      })
+      .optional(),
   })
   .strict();
 
@@ -128,7 +144,22 @@ export async function loadFixtureFile(path: string): Promise<Fixture> {
   if (!parsed.success) {
     throw new Error(`invalid fixture ${path}: ${parsed.error.message}`);
   }
-  return validate(parsed.data, path);
+  // T-312 — expand the background recipe BEFORE validation, so a generated
+  // container is held to exactly the same referential integrity as a written
+  // one. A generator that could produce a fixture the loader would reject is a
+  // generator nobody would trust.
+  return validate(withBackground(parsed.data), path);
+}
+
+function withBackground(fixture: Fixture): Fixture {
+  if (fixture.background === undefined) return fixture;
+  const { shares, acknowledged_by, ...recipe } = fixture.background;
+  const generated = expandBackground(recipe, {
+    project: fixture.subject_project ?? fixture.projects[0]!.key,
+    shares,
+    acknowledged_by,
+  });
+  return { ...fixture, containers: [...fixture.containers, ...generated] };
 }
 
 // Referential integrity of the declaration itself, checked at load: a fixture

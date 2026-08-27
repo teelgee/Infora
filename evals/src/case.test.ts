@@ -2,7 +2,7 @@
 // harness here: this is about what a file is allowed to say.
 import { describe, expect, it } from 'vitest';
 import { join } from 'node:path';
-import { caseSchema, declaredAssertions } from './case';
+import { caseSchema, RETRIEVAL_BUDGET, declaredAssertions } from './case';
 import { loadFixtureFile } from './fixture';
 import { FIXTURES_DIR, loadCases } from './suite';
 
@@ -66,5 +66,47 @@ describe('the fixture schema (evals/README.md)', () => {
     expect(shared.versions[0]!.acknowledged_by.map((a) => a.organisation)).toEqual(['ashcombe']);
     expect(unshared.shares).toEqual([]);
     expect(unshared.producer).not.toBe('ashcombe');
+  });
+});
+
+// T-312 — a precision floor above `gold ÷ budget` can only fail, and a case
+// that can only fail reports a defect in the system under test that is really a
+// defect in the assertion. Found by authoring one.
+describe('an unsatisfiable precision floor is refused at authoring time (T-312)', () => {
+  const base = {
+    id: 'X-01',
+    category: 'happy',
+    description: 'x',
+    fixture: 'f',
+    acting_user: 'u',
+    question: 'q',
+  };
+
+  it('refuses a floor above the ceiling, and names the arithmetic', () => {
+    const result = caseSchema.safeParse({
+      ...base,
+      assertions: { gold_passages: ['v1#0'], min_precision: 0.25 },
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toContain('unsatisfiable');
+    expect(result.error.message).toContain(`budget of ${RETRIEVAL_BUDGET}`);
+  });
+
+  it('admits a floor at or below the ceiling', () => {
+    // three gold passages in a budget of eight caps precision at 0.375
+    expect(
+      caseSchema.safeParse({
+        ...base,
+        assertions: { gold_passages: ['v1#0', 'v1#1', 'v2#0'], min_precision: 0.25 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('leaves a recall-only case alone — recall has no such ceiling', () => {
+    expect(
+      caseSchema.safeParse({ ...base, assertions: { gold_passages: ['v1#0'], min_recall: 1.0 } })
+        .success,
+    ).toBe(true);
   });
 });

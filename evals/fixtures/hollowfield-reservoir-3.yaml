@@ -1,0 +1,376 @@
+# T-312 — the seed set's SIZED fixture. A third fixture, not an edit of
+# `hollowfield-reservoir-2`: §3 makes a fixture immutable, and six cases are
+# pinned to that one and must keep meaning.
+#
+# v1.md states the obligation this closes: "the eval seed set must run against a
+# few hundred fixture documents, not five, or it proves nothing about the real
+# corpus." Two things were wrong at seven documents, and both are fixed here.
+#
+#   1. PRECISION HAD NOTHING TO MEAN. Retrieval fetches ~8 chunks; against seven
+#      documents that is essentially the whole library, so "did it pick the right
+#      ones" scored the same however it answered. HAPPY-01 says so in its own
+#      comment and asserts recall only.
+#   2. EIGHT OF THE TWELVE WORKED LENS EXCHANGES could not be asked at all
+#      (packages/lenses/definitions) — they are about noise chapters, Rochdale
+#      envelopes and Deadline 3, and there was nothing here to be about.
+#
+# TWO KINDS OF DOCUMENT, and the split is the design.
+#
+#   * The documents below are WRITTEN, and each carries a comment naming the
+#     exchange or case it exists to serve. They carry the meaning.
+#   * The `background:` recipe at the foot generates 280 more. They have no job
+#     but to be in the way, nobody reads them, and they are deterministic from
+#     their seed — so this fixture is frozen (§3) despite not listing them.
+#     `background.ts` guarantees none of them contains a term a case turns on.
+#
+# ⚠ ONE OF THE TWELVE STILL CANNOT BE EXPRESSED, and it is not a sizing problem.
+# The Planning Lens's "Can we rely on the 2021 NPS for this?" needs an NPS at a
+# stated in-force version — AUTHORITY-CORPUS material (ADR-0021/0023), which is
+# a different store and is beyond V1 (T-277). Writing a fake NPS into the
+# project library would model it in the wrong place and teach the fixture a lie
+# about where authority lives. So: eleven of twelve, and the twelfth is recorded
+# on T-277 rather than faked here.
+#
+# Fictional scheme, fictional organisations, fictional documents. Infora's own
+# case library never contains customer content, in either direction.
+#
+# IMMUTABLE (§3). Changing anything here — the recipe's seed included — creates
+# hollowfield-reservoir-4.
+id: hollowfield-reservoir-3
+version: 1
+description: >-
+  Hollowfield Reservoir at corpus scale: the scheme's own document set —
+  ES chapters, CoCP, REAC, design parameters, programme, representations —
+  written for the Lens exchanges, against 280 generated documents of background.
+embedding_model: eval-embed
+
+organisations:
+  - key: brackenmoor
+    name: Brackenmoor Water
+  - key: ashcombe
+    name: Ashcombe Environmental
+
+users:
+  - key: owner_lead
+    name: Diane Okafor
+    organisation: brackenmoor
+    org_role: admin
+  - key: env_consultant
+    name: Iris Kwan
+    organisation: ashcombe
+    org_role: admin
+
+projects:
+  - key: hollowfield
+    name: Hollowfield Reservoir Scheme
+    owner: brackenmoor
+    memberships:
+      - { organisation: brackenmoor, role: owner }
+      - { organisation: ashcombe, role: member }
+
+subject_project: hollowfield
+
+participants:
+  - { key: p_owner, user: owner_lead, project: hollowfield }
+  - { key: p_env, user: env_consultant, project: hollowfield }
+
+containers:
+  # ── Noise: the Planning exchange 1 and Communications exchange 1 ──────────
+  # "Does our noise chapter deal properly with the night-time construction at
+  # the northern compound?" turns on an INCONSISTENCY between two documents:
+  # the chapter assesses a 22:00 stop, the CoCP contemplates 24-hour working.
+  # Both must be reachable, and neither may state the contradiction itself —
+  # finding it is the work being measured.
+  - key: es_noise
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-NOI-012
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: es_noise_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Environmental Statement Chapter 12: Noise and Vibration. This chapter
+            assesses construction and operational noise for the scheme against
+            the significance criteria set out in the methodology appendix.
+          - >-
+            Construction working hours are assessed as 07:00 to 22:00 Monday to
+            Saturday, with no working on Sundays or bank holidays. The assessment
+            of the northern compound assumes a 22:00 stop on every working day.
+          - >-
+            The predicted level at the nearest receptor to the northern compound
+            is 54 dB LAeq,16h during the compound establishment phase, which the
+            assessment classifies as a significant adverse effect requiring
+            mitigation.
+        content: >-
+          Environmental Statement Chapter 12: Noise and Vibration. Construction
+          working hours are assessed as 07:00 to 22:00 Monday to Saturday, with
+          no working on Sundays or bank holidays, and the northern compound
+          assessment assumes a 22:00 stop on every working day. The predicted
+          level at the nearest receptor to the northern compound is 54 dB
+          LAeq,16h during compound establishment, a significant adverse effect.
+
+  # The other half of the inconsistency, and the source of the Sunday
+  # commitment Communications exchange 2 asks about ("A resident says we
+  # promised no work on Sundays. Did we?"). Quotable, with a locator.
+  - key: cocp
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-CIV-COC-020
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: cocp_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Code of Construction Practice, section 4: working hours. Core working
+            hours are 07:00 to 19:00 Monday to Friday and 07:00 to 13:00 on
+            Saturday. No construction activity will take place on Sundays or bank
+            holidays other than emergency works.
+          - >-
+            Section 4.7 provides that two operations require continuous 24-hour
+            working: the tunnel eye break-in at the northern compound, and the
+            concrete pour for the outfall headwall. Each is limited to a single
+            continuous period notified in advance.
+        content: >-
+          Code of Construction Practice, section 4: working hours. Core hours are
+          07:00 to 19:00 Monday to Friday and 07:00 to 13:00 Saturday, with no
+          construction on Sundays or bank holidays other than emergency works.
+          Section 4.7 provides that two operations require continuous 24-hour
+          working: the tunnel eye break-in at the northern compound, and the
+          concrete pour for the outfall headwall.
+
+  # ── Commitments: the Engineer exchange 1 ─────────────────────────────────
+  # "What are we committed to on hoarding at the northern compound?" needs the
+  # commitment itself (a REAC item, with a locator), its assessed duration, and
+  # a programme that disagrees with that duration.
+  - key: reac
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-RAC-030
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: reac_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Register of Environmental Actions and Commitments. Item NV-014: a 3
+            metre acoustic barrier will be erected along the northern and eastern
+            boundaries of the northern compound for the duration of the compound
+            works, secured through the Code of Construction Practice.
+          - >-
+            Item NV-015: hoarding to the western boundary of the northern
+            compound will be 2.4 metres, and is assessed for a duration of nine
+            months from compound establishment.
+        content: >-
+          Register of Environmental Actions and Commitments. Item NV-014: a 3
+          metre acoustic barrier along the northern and eastern boundaries of the
+          northern compound for the duration of the compound works. Item NV-015:
+          2.4 metre hoarding to the western boundary, assessed for nine months
+          from compound establishment.
+
+  # The disagreement the engineer answer is supposed to surface: the programme
+  # runs the compound three months longer than the REAC assessed.
+  - key: programme
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-PRG-CON-041
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: programme_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        content: >-
+          Construction programme, revision C. The northern compound is
+          established in month 4 and demobilised in month 16, a compound
+          occupation of twelve months. The tunnel eye break-in is programmed
+          across months 9 and 10.
+
+  # ── Design parameters: the Engineer exchange 2 ───────────────────────────
+  # "How much room do we have on the viaduct deck level?" needs a parameter
+  # RANGE (the Rochdale Envelope) and a design sitting inside it.
+  - key: design_parameters
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-DES-PAR-050
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: design_parameters_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Design parameters schedule, applying the Rochdale Envelope approach.
+            The assessed range is stated as a maximum and a minimum for each
+            parameter, and the detailed design may sit anywhere within it.
+          - >-
+            Viaduct deck level is assessed between 41.2 and 44.8 metres above
+            ordnance datum. Deck width is assessed between 18.0 and 22.5 metres.
+            Pier spacing is assessed between 28 and 36 metres.
+        content: >-
+          Design parameters schedule, applying the Rochdale Envelope approach.
+          Viaduct deck level is assessed between 41.2 and 44.8 metres above
+          ordnance datum, deck width between 18.0 and 22.5 metres, and pier
+          spacing between 28 and 36 metres.
+
+  # ── Drainage: the Engineer exchange 3 ────────────────────────────────────
+  # "Which standard governs the drainage attenuation sizing here?" needs a
+  # document naming a standard AND the version it relied on.
+  - key: drainage
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-CIV-DRA-060
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: drainage_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        content: >-
+          Drainage strategy. Attenuation storage is sized to the 1 in 100 year
+          event plus 40 per cent climate change allowance, following the CIRIA
+          SuDS Manual C753 as the governing standard. Discharge is restricted to
+          the greenfield runoff rate for the contributing catchment.
+
+  # ── Programme management: the Project Manager exchanges ──────────────────
+  # "What have we got outstanding for Deadline 3?" needs a schedule with items,
+  # SOME OF WHICH HAVE NO RECORDED OWNER — the absence is the finding.
+  - key: deadline_schedule
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-PRG-EXA-070
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: deadline_schedule_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Examination submission schedule, Deadline 3. Eleven items are
+            outstanding at the date of this schedule.
+          - >-
+            Items with a named owner: written summary of oral case (Okafor);
+            updated book of reference (Okafor); response to first written
+            questions (Kwan); revised outline management plan (Kwan); comments on
+            interested party submissions (Kwan); updated schedule of changes
+            (Okafor); errata sheet (Okafor); revised works plans (Okafor).
+          - >-
+            Items with no owner recorded: response on compulsory acquisition
+            objections; statement of common ground with the drainage board;
+            updated funding statement.
+        content: >-
+          Examination submission schedule, Deadline 3. Eleven items outstanding,
+          eight with a named owner and three with no owner recorded: response on
+          compulsory acquisition objections, statement of common ground with the
+          drainage board, and updated funding statement.
+
+  # "When do we need the RIES response back?" — a procedural date, in the
+  # document that actually carries one.
+  - key: rule_8_letter
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-PRG-RU8-071
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: rule_8_letter_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        content: >-
+          Rule 8 letter, examination timetable. The Report on the Implications
+          for European Sites will be published at Deadline 4, and comments on it
+          are required by Deadline 5, which falls on 14 November. No extension to
+          that period is offered.
+
+  # "Are we at risk on the habitats work?" — the risk and what drives it.
+  - key: hra
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-ENV-HRA-080
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: hra_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        content: >-
+          Habitats Regulations Assessment, Appropriate Assessment stage. The
+          conclusion of no adverse effect on integrity depends on the wintering
+          bird survey covering two full seasons. Only one season is complete at
+          the date of this report, and the second concludes after Deadline 4.
+
+  # ── Landscape representations: the Planning exchange 3 ───────────────────
+  # "Summarise the objections on landscape." Several parties, taking DIFFERENT
+  # points, so grouping-by-point is distinguishable from listing-by-party.
+  - key: representations
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-EXA-REP-090
+    shares: [{ organisation: ashcombe, granted_by: p_owner }]
+    versions:
+      - key: representations_v1
+        reference: v1
+        current: true
+        acknowledged_by: [{ organisation: ashcombe, participant: p_env }]
+        chunks:
+          - >-
+            Relevant representations, landscape and visual. The parish council
+            objects that the viaduct will be visible from the conservation area
+            and that the assessment understates winter visibility.
+          - >-
+            The county council objects that the assessment understates winter
+            visibility from the ridge path and that the proposed planting will
+            take fifteen years to establish.
+          - >-
+            Two individual respondents object to the loss of the field pattern
+            north of the ridge path, and one further respondent objects to the
+            height of the lighting columns.
+        content: >-
+          Relevant representations, landscape and visual. The parish council and
+          the county council both object that the assessment understates winter
+          visibility; the county council adds that proposed planting will take
+          fifteen years to establish. Two individual respondents object to loss
+          of the field pattern, and one to the height of lighting columns.
+
+  # ── The published / unpublished split: Communications exchange 3 ─────────
+  # "Draft a holding line for a press query on the habitats issue" turns on
+  # building ONLY from published material. This one is NOT in the library and
+  # is shared with nobody — an internal note that must never reach the answer.
+  - key: internal_habitats_note
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-INT-HAB-081
+    in_library: false
+    versions:
+      - key: internal_habitats_note_v1
+        reference: v1
+        current: true
+        content: >-
+          Internal note, not for publication. Counsel's provisional view is that
+          the wintering bird survey gap is the scheme's most significant
+          examination risk and may require a request to pause the timetable. This
+          position has not been shared with the Examining Authority.
+
+# ── Background: the corpus the answer has to be found IN ────────────────────
+# 280 generated documents, deterministic from the seed (background.ts), shared
+# and acknowledged so they are genuinely reachable — background the acting user
+# cannot see is filtered out before the vector comparison and competes with
+# nothing. None of them contains a term any case turns on, and the fixture's own
+# test proves it.
+background:
+  count: 280
+  seed: 312
+  producer: brackenmoor
+  prefix: HOL
+  shares: [{ organisation: ashcombe, granted_by: p_owner }]
+  acknowledged_by: [{ organisation: ashcombe, participant: p_env }]

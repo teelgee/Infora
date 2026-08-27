@@ -73,6 +73,18 @@ describe('T-259 — the seed set', () => {
     expect(ids).not.toContain('ROUTE-01');
   });
 
+  // T-312 — the two cases the seven-document fixture could not carry. Pinned
+  // here beside T-259's set rather than added to it: that list is the record of
+  // what T-259 shipped, and rewriting it would lose the distinction.
+  it('carries the sized-corpus cases, and still reserves HAPPY-02', async () => {
+    const ids = (await loadCases()).map((c) => c.id);
+    expect(ids).toContain('HAPPY-03'); // precision, measurable at last
+    expect(ids).toContain('TRAP-03'); // an inconsistency spanning two documents
+    // the reservation survives: HAPPY-02 is a planned `expect_calls` case, and
+    // a later ticket taking its number would quietly delete a plan
+    expect(ids).not.toContain('HAPPY-02');
+  });
+
   it('every permission case is decidable without a model', async () => {
     // T-258's rule, checked over the real files rather than trusted: permission
     // cases are mandatory in every smoke build, and smoke has no independent

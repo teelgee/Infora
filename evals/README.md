@@ -280,15 +280,29 @@ deliberately unsupported claim on every question and the assertion would fail
 for a reason unrelated to the behaviour under test. A red mark against an
 untested behaviour is worse than no mark.
 
-**The fixture is seven documents, and the seed set still needs more.**
-[v1.md](../docs/build/v1.md) states the obligation directly: *"the eval seed set
-must run against a few hundred fixture documents, not five, or it proves nothing
-about the real corpus."* `hollowfield-reservoir-2` is sized for the access
-conditions the permission cases need — an unentitled user, an unacknowledged
-share, a participant-narrowed share, a superseded version, a contradicting pair
-— and for nothing else. Eight of the twelve worked exchanges in the Lens
-definitions still cannot be expressed against it without contrivance. That is a
-fixture-sizing job and it is ticketed on the board.
+**The fixture is sized (T-312).** `hollowfield-reservoir-3` is 291 documents:
+eleven written, each carrying a comment naming the Lens exchange or case it
+serves, and 280 generated from a `background:` recipe that is deterministic from
+its seed — so the fixture is frozen (§3) without listing them. Background is
+**shared and acknowledged**, because background the acting user cannot see is
+filtered out before the vector comparison and competes with nothing; and it may
+never contain a term a case turns on (`RESERVED_TERMS`, asserted in
+`background.test.ts`), because a filler document mentioning phosphate would not
+make a case harder, it would make it ambiguous.
+
+**Sizing it exposed the substrate.** `fakeVector` has two basis vectors —
+"contains the word alpha", or not — which is right for suites asking whether a
+document is reachable, and useless for one asking which is best. At 291
+documents every vector was identical and the ranking was the tie-break on chunk
+id. The harness now uses its own hashed-bag-of-words vectoriser
+(`src/embedding.ts`), beside the pinned model id it already declared;
+`fakeVector` is unchanged for everyone else.
+
+**Precision is bounded by `gold ÷ budget`.** Retrieval admits eight chunks, so a
+case declaring one gold passage can score at most 0.125 however well it answers.
+`case.ts` refuses a `min_precision` above that ceiling at authoring time — a
+case that can only fail reports a defect in the system under test that is really
+a defect in the assertion.
 
 ## What is not here yet
 

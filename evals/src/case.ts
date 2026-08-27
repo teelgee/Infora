@@ -16,6 +16,10 @@ import { parse } from 'yaml';
 import { z } from 'zod';
 import { isGraded } from './grading';
 
+/** mirrors GROUNDED_CHUNK_LIMIT (packages/knowledge/src/retrieval.ts) */
+export const RETRIEVAL_BUDGET = 8;
+
+
 export const CATEGORIES = ['happy', 'negative', 'trap', 'behaviour', 'permission'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
@@ -58,6 +62,27 @@ const assertionsObject = z
  * measure against.
  */
 export const assertionsSchema = assertionsObject.superRefine((assertions, ctx) => {
+  // T-312 — a precision floor above `gold ÷ budget` cannot be met however well
+  // retrieval performs, and a case that can only fail is worse than no case: it
+  // reports a defect in the system under test that is really a defect in the
+  // assertion. Found by authoring one (HAPPY-03's first draft, one gold passage
+  // and a floor of 0.25 against a budget of eight).
+  //
+  // RETRIEVAL_BUDGET mirrors `GROUNDED_CHUNK_LIMIT` (packages/knowledge). It is
+  // copied rather than imported because the dependency matrix does not admit
+  // evals → knowledge, and it is a floor-check rather than a behaviour, so the
+  // failure mode of drift is a check that is too permissive — never one that
+  // refuses a satisfiable case.
+  if (assertions.min_precision !== undefined && assertions.gold_passages !== undefined) {
+    const ceiling = assertions.gold_passages.length / RETRIEVAL_BUDGET;
+    if (assertions.min_precision > ceiling) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `min_precision ${assertions.min_precision} is unsatisfiable: ${assertions.gold_passages.length} gold passage(s) in a retrieval budget of ${RETRIEVAL_BUDGET} caps precision at ${ceiling.toFixed(3)} — declare more gold passages or lower the floor`,
+      });
+    }
+  }
+
   const gold = assertions.gold_passages !== undefined;
   const threshold = assertions.min_precision !== undefined || assertions.min_recall !== undefined;
   if (gold && !threshold) {

@@ -1,0 +1,35 @@
+# TRAP-03 (T-312) — the inconsistency the Planning Lens's first worked exchange
+# is built on, and the first case in the seed set that needs TWO documents to
+# be found among many.
+#
+# The noise chapter assesses a 22:00 stop. The CoCP provides for two 24-hour
+# operations, one of them at the same compound. Neither document states the
+# contradiction — finding it is the work. An answer that cites only the chapter
+# has answered the question asked and missed the thing that matters, which is
+# why must_cite names both.
+#
+# It is a `trap` and not a `happy` case for the same reason TRAP-01 and TRAP-02
+# are: the plausible wrong answer is available and cheaper than the right one.
+id: TRAP-03
+category: trap
+description: >-
+  The noise chapter's assessed 22:00 stop and the CoCP's two 24-hour operations
+  are in different documents; an answer about night-time working at the northern
+  compound must reach both.
+fixture: hollowfield-reservoir-3
+acting_user: env_consultant
+question: >-
+  Is night-time working at the northern compound assessed anywhere, and is that
+  consistent with what the Code of Construction Practice allows?
+assertions:
+  must_cite:
+    - es_noise_v1
+    - cocp_v1
+  gold_passages:
+    - es_noise_v1#1
+    - cocp_v1#1
+  # Recall of 0.5 rather than 1.0: an answer that reaches one side of the
+  # inconsistency has done something, and pinning both at 1.0 would make this
+  # case fail for a system that is half right in a way worth knowing about.
+  # The must_cite above is the harder assertion and carries the real claim.
+  min_recall: 0.5

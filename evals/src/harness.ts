@@ -13,7 +13,8 @@
 import { serve } from '@hono/node-server';
 import type { ServerType } from '@hono/node-server';
 import { buildApp } from '@infora/api/app';
-import { FAKE_EMBED_VERSION, fakeRouter, fakeVector } from '@infora/api/test-router';
+import { FAKE_EMBED_VERSION, fakeRouter } from '@infora/api/test-router';
+import { evalVector } from './embedding';
 import { createDb } from '@infora/db';
 import type { Db } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
@@ -94,7 +95,7 @@ export async function startHarness(options: { grader?: Grader } = {}): Promise<H
         ? 'The corpus does not cover that.'
         : `${sources.join(' ')} An unsupported figure of 40%.`;
     return reader === undefined ? body : `${reader}. ${body}`;
-  }, EVAL_EMBED_MODEL);
+  }, EVAL_EMBED_MODEL, evalVector);
   const app = buildApp({
     db,
     sessionSecret: 'eval-harness-secret',
@@ -119,7 +120,7 @@ export async function startHarness(options: { grader?: Grader } = {}): Promise<H
     lenses,
     ...(options.grader !== undefined && { grader: options.grader }),
     embed: (text) => ({
-      vector: fakeVector(text),
+      vector: evalVector(text),
       modelId: EVAL_EMBED_MODEL,
       modelVersion: FAKE_EMBED_VERSION,
     }),
