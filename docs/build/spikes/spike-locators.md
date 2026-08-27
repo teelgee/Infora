@@ -7,9 +7,18 @@
 > resolve. **Two of the five recommended items were deliberately left to their
 > own tickets** and are not defects: the heading-number split is **T-307** —
 > the spike itself argues for a separate commit, because re-chunking moves
-> embeddings and the eval seed set should measure the change — and PDF input is
-> **T-305, built 2026-08-27**. The findings below are the reasoning, kept as the
-> record of *why* offsets are stored rather than recovered.
+> embeddings and the eval seed set should measure the change — **T-307, built
+> 2026-08-27 in its own commit** — and PDF input is **T-305, built 2026-08-27**.
+> The findings below are the reasoning, kept as the record of *why* offsets are
+> stored rather than recovered.
+>
+> **T-307 narrowed finding 2's proposed fix.** This document asks for *"a digit,
+> then whitespace, then a capitalised word"*; that rule also matches every
+> ordinary sentence ending in a number (*"The level is 54. The barrier is 3 m."*)
+> and would have glued two real sentences to unglue one heading. What separates
+> a heading from a sentence is not the digit but that **the number starts its
+> line**, so the built test is anchored there. The finding stands exactly as
+> written; only its proposed three-character lookahead did not survive contact.
 >
 > **T-305 settled the scope question this spike left open** (*"whether page is
 > worth having at all before a PDF path exists"*) by building the path, and it

@@ -4,6 +4,10 @@
 // is character-based — crude but stable; token-aware sizing can replace it
 // behind the same signature.
 //
+// T-307 — a numbered heading's dot is not a sentence terminator. See
+// `endsNumberedHeading` below for why the test is anchored to the line rather
+// than to the digit the spike named.
+//
 // T-271 — every chunk now carries the character range it came from. The spike
 // (T-270) found that offsets cannot be recovered afterwards and explained why:
 // the splitter consumes the whitespace run after a terminator and the packer
@@ -24,6 +28,40 @@
 export type Chunk = { index: number; content: string; start: number; end: number };
 
 const SENTENCE_BREAK = /(?<=[.!?])\s+/g;
+
+/**
+ * T-307 — the trailing dot of a **numbered heading**, which is not a sentence
+ * terminator however much it looks like one.
+ *
+ * `SENTENCE_BREAK` fires after the `2.` of *"2. Method"*, so the heading is
+ * severed from its own section and glued to the tail of the paragraph above
+ * it — *"…the NPS. 2. Method"* becomes one sentence about the NPS followed by
+ * a stray fragment (spike-locators.md finding 2). It is a retrieval-quality
+ * bug that reads like a bad embedding, and it destroys the one signal that
+ * makes a heading findable with the text beneath it.
+ *
+ * **The spike proposed "a digit, then whitespace, then a capitalised word",
+ * and this deliberately does something narrower**, because that rule also
+ * catches every ordinary sentence ending in a number — *"The level is 54. The
+ * barrier is 3 m."* would stop splitting, which trades one retrieval bug for a
+ * commoner one. What actually separates a heading from a sentence is not the
+ * digit: it is that **a heading number starts its line**. So the test is
+ * anchored there — a run of digits and dots, at the head of a line, ending in
+ * the dot the splitter is asking about.
+ */
+function endsNumberedHeading(text: string, breakAt: number): boolean {
+  if (text[breakAt - 1] !== '.') return false;
+  let at = breakAt - 1;
+  while (at > 0 && /[\d.]/.test(text[at - 1]!)) at -= 1;
+  const label = text.slice(at, breakAt);
+  // `2.`, `12.4.`, `12.4.7.` — never a bare `.`, and never a decimal that some
+  // sentence happened to end on
+  if (!/^\d+(?:\.\d+)*\.$/.test(label)) return false;
+  // and it must open its line: indentation is allowed, prose before it is not
+  let before = at;
+  while (before > 0 && (text[before - 1] === ' ' || text[before - 1] === '\t')) before -= 1;
+  return before === 0 || text[before - 1] === '\n' || text[before - 1] === '\f';
+}
 
 type Piece = { content: string; start: number; end: number };
 
@@ -63,6 +101,9 @@ function splitSentences(text: string): Piece[] {
   let at = 0;
   let match: RegExpExecArray | null;
   while ((match = breaks.exec(text)) !== null) {
+    // T-307 — not a sentence end: leave the heading number attached to the
+    // section it numbers, which is where a reader and a retriever both expect it
+    if (endsNumberedHeading(text, match.index)) continue;
     pieces.push(trimmed(text, at, match.index));
     at = match.index + match[0].length;
   }
