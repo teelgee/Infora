@@ -12,9 +12,9 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
-import { ingestVersion } from '@infora/data';
+import { ingestVersion, isVersionIndexed } from '@infora/data';
 import { buildApp } from './app';
-import { purgeSandboxDocument } from './purge';
+import { purgeSandboxDocument, removeLibraryContainer } from './purge';
 import { getBlob, putBlob } from './renditions';
 import { fakeRouter, FAKE_EMBED_MODEL } from './test-router';
 
@@ -30,6 +30,13 @@ let adminId: string;
 let adminCookie: string;
 let memberCookie: string;
 let participantId: string;
+
+/**
+ * "Is it indexed" is asked through @infora/data, because the grounding index
+ * has one reader by construction (source-rules.mjs RULE 1) and a test in
+ * apps/api is not it — the same rule the implementation obeys.
+ */
+const indexed = (versionId: string) => isVersionIndexed(db, router, versionId, projectId);
 
 /** the phrase that makes the purged document findable if anything survives */
 const NEEDLE = `perched horizon dewatering ${stamp}`;
@@ -352,5 +359,116 @@ describe('POST /projects/:projectId/purges — the gate (T-340)', () => {
     expect(
       (await app.request(`/projects/${projectId}/purges`, { headers: { cookie: memberCookie } })).status,
     ).toBe(404);
+  });
+});
+
+// T-341 — library removal (ADR-0050 §7). The refusals carry this ticket, not
+// the erasure: erasure is T-340's machinery reused, and what is new is WHO may
+// do it, WHEN, and to WHAT.
+describe('removeLibraryContainer (T-341)', () => {
+  let ownerOrgId: string;
+  let otherOrgId: string;
+
+  const admitReference = async (reference: string, state: 'live' | 'withdrawn') => {
+    const [container] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: organisationId,
+        documentReference: reference,
+        inLibrary: true,
+        state,
+      })
+      .returning();
+    const [version] = await db
+      .insert(s.versions)
+      .values({
+        containerId: container!.id,
+        versionReference: 'R01',
+        content: `A loaded reference document. ${NEEDLE}. Received, not produced here.`,
+        isCurrent: true,
+      })
+      .returning();
+    await ingestVersion(db, router, version!.id);
+    return { container: container!, version: version! };
+  };
+
+  beforeAll(async () => {
+    const [project] = await db.select().from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
+    ownerOrgId = project!.ownerOrganisationId;
+    const [other] = await db.insert(s.organisations).values({ name: `t341 other ${stamp}` }).returning();
+    otherOrgId = other!.id;
+  });
+
+  it('refuses a container that is not withdrawn — the two steps cannot collapse', async () => {
+    // withdraw is reversible and this is not, so the reversible one has to have
+    // happened first
+    const { container } = await admitReference(`T341-LIVE-${stamp}`, 'live');
+    const result = await removeLibraryContainer(db, {
+      containerId: container.id,
+      projectId,
+      organisationId: ownerOrgId,
+      userId: adminId,
+    });
+    expect(result).toEqual({ ok: false, reason: 'not_withdrawn' });
+    expect(await db.select().from(s.containers).where(eq(s.containers.id, container.id))).toHaveLength(1);
+  });
+
+  it('refuses an organisation that does not own the library', async () => {
+    // the lever sits with the owner, or a consultancy could erase six months of
+    // corpus ahead of a dispute and leave every citation resolving to nothing
+    const { container } = await admitReference(`T341-NOTOWNER-${stamp}`, 'withdrawn');
+    const result = await removeLibraryContainer(db, {
+      containerId: container.id,
+      projectId,
+      organisationId: otherOrgId,
+      userId: adminId,
+    });
+    expect(result).toEqual({ ok: false, reason: 'not_owner' });
+  });
+
+  it('refuses a container carrying a review record — §8 retains that', async () => {
+    const { container } = await admitReference(`T341-REVIEWED-${stamp}`, 'withdrawn');
+    await db.insert(s.workItems).values({
+      projectId,
+      type: 'document_production',
+      title: 'A produced deliverable',
+      status: 'planned',
+      containerId: container.id,
+    });
+    const result = await removeLibraryContainer(db, {
+      containerId: container.id,
+      projectId,
+      organisationId: ownerOrgId,
+      userId: adminId,
+    });
+    expect(result).toEqual({ ok: false, reason: 'has_review_record' });
+  });
+
+  it('erases a withdrawn reference document, chunks and all', async () => {
+    const { container, version } = await admitReference(`T341-REMOVE-${stamp}`, 'withdrawn');
+    expect(await indexed(version.id)).toBe(true);
+
+    const result = await removeLibraryContainer(db, {
+      containerId: container.id,
+      projectId,
+      organisationId: ownerOrgId,
+      userId: adminId,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.reach.versions).toBe(1);
+    expect(result.reach.chunks).toBeGreaterThan(0);
+
+    expect(await db.select().from(s.containers).where(eq(s.containers.id, container.id))).toHaveLength(0);
+    expect(await db.select().from(s.versions).where(eq(s.versions.id, version.id))).toHaveLength(0);
+    // removal means ERASED, not delisted — delisting buys nothing withdraw had
+    // not already bought
+    expect(await indexed(version.id)).toBe(false);
+
+    const [event] = await db.select().from(s.purgeEvents).where(eq(s.purgeEvents.id, result.eventId));
+    expect(event!.subjectKind).toBe('library_container');
+    expect(event!.subjectTitle).toBe(`T341-REMOVE-${stamp}`);
+    expect(event!.purgedByUserId).toBe(adminId);
   });
 });

@@ -246,3 +246,141 @@ export async function purgeSandboxDocument(
   for (const ref of blobRefs) deleteBlob(ref);
   return { reach, eventId };
 }
+
+// ── T-341 — library removal (ADR-0050 §7) ──────────────────────────────────
+//
+// **Two steps, and the first is already built.** `containers.state = 'live'` is
+// a pre-filter *inside* the retrieval query, in the same statement as the wall,
+// so **withdraw already stops a container grounding** the moment it is
+// withdrawn. This is the second step: the text goes.
+//
+// **The authority sits with the owner organisation**, not the producer, and
+// that is the decision rather than a detail. It is where the property already
+// sits (ADR-0016), and it forecloses the failure the alternative invites — a
+// consultancy erasing six months of corpus ahead of a dispute, leaving the
+// produced record intact but **uncheckable**, every citation in every accepted
+// deliverable resolving to nothing.
+//
+// **The citing run stays, and does not lie.** A run's evidence lives in
+// `steps.source_set` — jsonb, no foreign key — so erasing the version cannot
+// touch it. The run-context read then finds the chunk gone and reports T-253's
+// `unreconstructable`: *"I read something here and it can no longer be
+// produced"*, which is neither erased nor false. `citations` rows DO go, because
+// their foreign key to `versions` compels it and the CHECK forbids nulling the
+// column — worth knowing, and harmless, because the guarantee the ADR makes
+// rests on the step record rather than on that table.
+
+export type RemovalRefusal =
+  | 'not_withdrawn'
+  | 'not_owner'
+  | 'not_library'
+  | 'has_review_record';
+
+export type RemovalResult =
+  | { ok: true; reach: { versions: number; chunks: number; renditions: number; blobs: number }; eventId: string }
+  | { ok: false; reason: RemovalRefusal };
+
+/**
+ * Remove a **withdrawn** library container, and everything derived from it.
+ *
+ * ⚠ **Refused on a container carrying a review record**, and that is where two
+ * clauses of the same ADR pull against each other. §7 says removal erases; §8
+ * says the library owner **retains the deliverables and the review-cycle
+ * metadata, named individuals included**. Erasing a deliverable that has been
+ * through a cycle would destroy a signed-off record to solve a problem that
+ * record does not have.
+ *
+ * The ticket's own stated incident settles which way to go: *"the first real
+ * corpus load is also the first real test, so a document belonging to a
+ * different client going in is the failure to design for."* That document is
+ * **loaded reference material** — no work item, no cycle (T-304) — and removal
+ * is scoped to exactly it. Removing a produced deliverable is a different act
+ * against a different clause, and it is left **unruled rather than decided by
+ * this implementation**.
+ */
+export async function removeLibraryContainer(
+  db: Db,
+  input: { containerId: string; projectId: string; organisationId: string; userId: string },
+): Promise<RemovalResult> {
+  const [row] = await db
+    .select({
+      id: s.containers.id,
+      scope: s.containers.scope,
+      state: s.containers.state,
+      inLibrary: s.containers.inLibrary,
+      reference: s.containers.documentReference,
+      ownerOrganisationId: s.projects.ownerOrganisationId,
+    })
+    .from(s.containers)
+    .innerJoin(s.projects, eq(s.projects.id, s.containers.projectId))
+    .where(and(eq(s.containers.id, input.containerId), eq(s.containers.projectId, input.projectId)))
+    .limit(1);
+  if (!row) return { ok: false, reason: 'not_owner' }; // absence and denial look alike
+  if (row.ownerOrganisationId !== input.organisationId) return { ok: false, reason: 'not_owner' };
+  if (row.scope !== 'library' || !row.inLibrary) return { ok: false, reason: 'not_library' };
+  // the two steps cannot collapse into one click: withdraw is reversible and
+  // this is not, so the reversible one has to have happened first
+  if (row.state !== 'withdrawn') return { ok: false, reason: 'not_withdrawn' };
+
+  const [workItem] = await db
+    .select({ id: s.workItems.id })
+    .from(s.workItems)
+    .where(eq(s.workItems.containerId, row.id))
+    .limit(1);
+  const [cycle] = await db
+    .select({ id: s.reviewCycles.id })
+    .from(s.reviewCycles)
+    .where(eq(s.reviewCycles.containerId, row.id))
+    .limit(1);
+  if (workItem !== undefined || cycle !== undefined) return { ok: false, reason: 'has_review_record' };
+
+  const blobRefs: string[] = [];
+  const reach = { versions: 0, chunks: 0, renditions: 0, blobs: 0 };
+
+  const eventId = await withProjectScope(db, input.projectId, async (tx) => {
+    await tx.execute(sql`select set_config('infora.purge', 'on', true)`);
+    const versions = await tx
+      .select({ id: s.versions.id })
+      .from(s.versions)
+      .where(eq(s.versions.containerId, row.id));
+    const versionIds = versions.map((version) => version.id);
+    reach.versions = versionIds.length;
+
+    if (versionIds.length > 0) {
+      reach.chunks = await deleteChunksForVersions(tx, versionIds);
+      const renditions = await tx
+        .delete(s.renditions)
+        .where(inArray(s.renditions.versionId, versionIds))
+        .returning({ contentRef: s.renditions.contentRef });
+      reach.renditions = renditions.length;
+      blobRefs.push(...renditions.map((rendition) => rendition.contentRef));
+      await tx.delete(s.deliverableAcknowledgements).where(inArray(s.deliverableAcknowledgements.versionId, versionIds));
+      await tx.delete(s.citations).where(inArray(s.citations.versionId, versionIds));
+      await tx.delete(s.versions).where(inArray(s.versions.id, versionIds));
+    }
+    await tx.delete(s.containerClassifications).where(eq(s.containerClassifications.containerId, row.id));
+    await tx.delete(s.deliverableShares).where(eq(s.deliverableShares.containerId, row.id));
+    await tx.delete(s.containers).where(eq(s.containers.id, row.id));
+
+    reach.blobs = blobRefs.length;
+    const [event] = await tx
+      .insert(s.purgeEvents)
+      .values({
+        projectId: input.projectId,
+        organisationId: input.organisationId,
+        purgedByUserId: input.userId,
+        // the same record as a sandbox purge, distinguished by kind: both are
+        // acts of erasure with a name against them, and one register is one
+        // place to look rather than two
+        subjectKind: 'library_container',
+        subjectId: row.id,
+        subjectTitle: row.reference ?? row.id,
+        reached: reach,
+      })
+      .returning({ id: s.purgeEvents.id });
+    return event!.id;
+  });
+
+  for (const ref of blobRefs) deleteBlob(ref);
+  return { ok: true, reach, eventId };
+}

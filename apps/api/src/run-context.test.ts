@@ -7,7 +7,7 @@
 // the passages are the client's own documents, so this is the producer's
 // evidence, not a second route into the corpus.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import type { GetRunContextResponse, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s, withProjectScope } from '@infora/db';
 import { buildApp } from './app';
@@ -217,5 +217,44 @@ describe('passage-grain audit (T-253, finding F5)', () => {
     const lost = context.passages.find((passage) => passage.chunkId === chunkIds[0]);
     expect(lost?.content).toBeNull();
     expect(lost?.versionId).toBe(versionId); // the identity survives; the text does not
+  });
+});
+
+// T-341 (step 1) — the property library removal rests on, probed BEFORE the act
+// that depends on it is built.
+//
+// ADR-0050 §7: "The citing run stays, and does not lie." Removal erases the
+// derived stores, so a run that cited a removed passage now points at nothing —
+// and the honest answer is neither an erased record (which would falsify what
+// happened) nor a silent gap (which reads as an AI that cited nothing). T-253
+// built `unreconstructable` for a neighbouring case; this asks whether it
+// covers this one.
+describe('T-341 — a run that cited an erased passage says so', () => {
+  it('reports unreconstructable rather than a silent gap', async () => {
+    const run = await ask();
+    const before = (await (
+      await app.request(`/runs/${run.id}/context`, { headers: { cookie: consultantCookie } })
+    ).json()) as GetRunContextResponse;
+    expect(before.passages.length).toBeGreaterThan(0);
+    expect(before.unreconstructable).toBe(0);
+
+    // erase the chunks the run recorded — what removal will do, done directly,
+    // because the act itself is what this ticket is about to build
+    await withProjectScope(db, projectId, async (tx) => {
+      await tx.execute(sql`select set_config('infora.purge', 'on', true)`);
+      await tx.delete(s.versionChunks).where(eq(s.versionChunks.versionId, versionId));
+    });
+
+    const after = (await (
+      await app.request(`/runs/${run.id}/context`, { headers: { cookie: consultantCookie } })
+    ).json()) as GetRunContextResponse;
+    // the record still says a passage was read there...
+    expect(after.passages.length).toBe(before.passages.length);
+    // ...and says plainly that it can no longer be produced
+    expect(after.unreconstructable).toBe(before.passages.length);
+    for (const passage of after.passages) {
+      expect(passage.content).toBeNull();
+      expect(passage.locator).toBeNull();
+    }
   });
 });

@@ -7,13 +7,14 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { addMembershipBody, enrolParticipantBody, purgeRequestBody } from '@infora/contracts';
+import { addMembershipBody, enrolParticipantBody, libraryRemovalBody, purgeRequestBody } from '@infora/contracts';
 import type {
   ApiError,
   ListOrgUsersResponse,
   ListRosterResponse,
   MembershipRecord,
   RosterEntry,
+  LibraryRemovalResponse,
   ListPurgesResponse,
   PurgeResponse,
 } from '@infora/contracts';
@@ -22,7 +23,7 @@ import type { ConflictExclusion } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope } from './requester';
-import { purgeSandboxDocument } from './purge';
+import { purgeSandboxDocument, removeLibraryContainer } from './purge';
 import type { AppEnv, UserRow } from './requester';
 
 /**
@@ -459,6 +460,58 @@ export function administrationRoutes(deps: { db: Db }) {
         purgedAt: row.purgedAt.toISOString(),
       })),
     } satisfies ListPurgesResponse);
+  });
+
+  // T-341 — library removal (ADR-0050 §7), the second step after withdraw.
+  //
+  // Sits beside purge on this surface for the same reason purge does: an act
+  // with no undo does not belong next to the reversible one it follows. The
+  // TIER is different from purge's, and deliberately — purge reaches an
+  // organisation's own material, so an org admin holds it; removal reaches the
+  // OWNER's library, so the requester must be an admin of the owning
+  // organisation, which `removeLibraryContainer` checks against the project
+  // rather than trusting the caller.
+  app.post('/projects/:projectId/library-removals', async (c) => {
+    const user = c.get('user');
+    const projectId = c.req.param('projectId');
+    const seat = await adminSeat(deps.db, user, projectId);
+    if (!seat) return notFound(c);
+    const body = libraryRemovalBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+
+    const [container] = await deps.db
+      .select({ reference: s.containers.documentReference })
+      .from(s.containers)
+      .where(eq(s.containers.id, body.data.containerId))
+      .limit(1);
+    if (!container) return notFound(c);
+    // the same typed confirmation purge uses, and the same reason: a phrase the
+    // person has to read the row to know, checked server-side because a
+    // client-side-only confirmation is nothing at all to a script
+    if (body.data.confirmation.trim() !== (container.reference ?? '').trim()) {
+      return c.json(
+        {
+          error: 'invalid',
+          detail: 'confirmation_mismatch',
+          hint: `type the deliverable reference exactly: ${container.reference ?? ''}`,
+        } satisfies ApiError,
+        400,
+      );
+    }
+
+    const result = await removeLibraryContainer(deps.db, {
+      containerId: body.data.containerId,
+      projectId,
+      organisationId: user.organisationId,
+      userId: user.id,
+    });
+    if (!result.ok) {
+      // "not yours" is absence (principle 4); the state refusals are conflicts
+      // the caller can act on, and each says which one it is
+      if (result.reason === 'not_owner' || result.reason === 'not_library') return notFound(c);
+      return c.json({ error: 'conflict', detail: result.reason } satisfies ApiError, 409);
+    }
+    return c.json({ removalId: result.eventId, reached: result.reach } satisfies LibraryRemovalResponse);
   });
 
   return app;

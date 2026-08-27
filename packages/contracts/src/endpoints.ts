@@ -1725,3 +1725,32 @@ export type PurgeRecord = {
   purgedByName: string;
 };
 export type ListPurgesResponse = { items: PurgeRecord[] };
+
+// POST /projects/:projectId/library-removals — T-341, ADR-0050 §7.
+//
+// **The second step, and it cannot be the first.** Withdraw already stops a
+// container grounding — `state = 'live'` is a pre-filter inside the retrieval
+// query — and it is reversible. This erases, and is not. Refused on a container
+// that is not withdrawn, so the two cannot collapse into one click.
+//
+// **The authority is the owner organisation's**, not the producer's. It is
+// where the property already sits (ADR-0016), and the alternative lets a
+// consultancy erase six months of corpus ahead of a dispute, leaving the
+// produced record intact but uncheckable.
+//
+// ⚠ Refused (`has_review_record`) on a container carrying a work item or a
+// review cycle: §8 says the owner **retains** the deliverables and the
+// review-cycle metadata, so erasing one would destroy a signed-off record to
+// solve a problem that record does not have. The incident this act exists for
+// is a wrongly-loaded reference document, which has neither.
+export const libraryRemovalBody = z.object({
+  containerId: z.uuid(),
+  /** the deliverable reference, typed — checked server-side */
+  confirmation: z.string().min(1),
+});
+export type LibraryRemovalBody = z.infer<typeof libraryRemovalBody>;
+
+export type LibraryRemovalResponse = {
+  removalId: Id;
+  reached: { versions: number; chunks: number; renditions: number; blobs: number };
+};
