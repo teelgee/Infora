@@ -18,12 +18,20 @@ const password = 'pw-t251';
 const email = `t251-${stamp}@test.local`;
 
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
-// a deployment that wants very short clocks gets them: both are configuration
+// a deployment that wants very short clocks gets them: both are configuration.
+//
+// The window is ~600ms rather than the ~30ms it was, because the idle case
+// asserts BOTH halves — still live immediately after login, and dead after the
+// wait — and the first half was racing a login POST plus a `/me` GET, each a
+// database round-trip. On a loaded machine that is comfortably over 30ms, so
+// the test failed by asserting that a real timeout had not happened yet. The
+// property is unchanged; only the budget is now larger than the work inside it.
+const IDLE_MS = 600;
 const impatient = buildApp({
   db,
   sessionSecret: 'test-secret',
   router: fakeRouter(),
-  sessionPolicy: { absoluteHours: 1, idleMinutes: 0.0005 }, // ~30ms idle
+  sessionPolicy: { absoluteHours: 1, idleMinutes: IDLE_MS / 60_000 },
 });
 
 let userId: string;
@@ -114,7 +122,7 @@ describe('T-251 — a session is a row, and a row can be revoked', () => {
   it('the idle clock ends a session that was walked away from', async () => {
     const cookie = await login(impatient);
     expect((await me(cookie, impatient)).status).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, IDLE_MS + 100));
     expect((await me(cookie, impatient)).status).toBe(401);
 
     // and the expiry is WRITTEN DOWN when noticed, not merely computed — a
