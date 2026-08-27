@@ -24,7 +24,6 @@
 //
 // The extraction itself is bounded, one document's worth, and on no sweep —
 // what T-302 kept off the request path is the corpus-wide walk, not this.
-import { inflateRawSync } from 'node:zlib';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { eq, sql } from 'drizzle-orm';
@@ -32,7 +31,7 @@ import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { putBlob, getBlob } from './renditions';
-import { pdfToText } from './pdf-text';
+import { docxToText, extractText } from './extract';
 import { ensureDefaultSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -56,63 +55,11 @@ function extractOnUpload(
   bytes: Buffer,
 ): { ok: true; content: string } | { ok: false; detail: string } {
   if (format !== 'pdf') return { ok: true, content: '' };
-  const extracted = pdfToText(bytes);
+  const extracted = extractText('pdf', bytes);
   // the refusal carries WHICH failure, because "we could not read it" and
   // "this is a scan and Infora does not do OCR" are different things to the
   // person holding the document, and only one of them is worth re-exporting
   return extracted.ok ? { ok: true, content: extracted.text } : { ok: false, detail: extracted.reason };
-}
-
-// ── A minimal zip reader (central directory walk) for docx extraction ──────
-function unzipEntry(zip: Buffer, wanted: string): Buffer | null {
-  // find end-of-central-directory
-  let eocd = -1;
-  for (let i = zip.length - 22; i >= 0 && i >= zip.length - 22 - 65536; i--) {
-    if (zip.readUInt32LE(i) === 0x06054b50) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) return null;
-  const count = zip.readUInt16LE(eocd + 10);
-  let offset = zip.readUInt32LE(eocd + 16);
-  for (let n = 0; n < count; n++) {
-    if (zip.readUInt32LE(offset) !== 0x02014b50) return null;
-    const method = zip.readUInt16LE(offset + 10);
-    const compressedSize = zip.readUInt32LE(offset + 20);
-    const nameLength = zip.readUInt16LE(offset + 28);
-    const extraLength = zip.readUInt16LE(offset + 30);
-    const commentLength = zip.readUInt16LE(offset + 32);
-    const localOffset = zip.readUInt32LE(offset + 42);
-    const name = zip.subarray(offset + 46, offset + 46 + nameLength).toString();
-    if (name === wanted) {
-      const localNameLength = zip.readUInt16LE(localOffset + 26);
-      const localExtraLength = zip.readUInt16LE(localOffset + 28);
-      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
-      const payload = zip.subarray(dataStart, dataStart + compressedSize);
-      return method === 8 ? inflateRawSync(payload) : Buffer.from(payload);
-    }
-    offset += 46 + nameLength + extraLength + commentLength;
-  }
-  return null;
-}
-
-/** docx → plain text: paragraphs from word/document.xml, tags stripped. */
-export function docxToText(bytes: Buffer): string | null {
-  const documentXml = unzipEntry(bytes, 'word/document.xml');
-  if (!documentXml) return null;
-  const xml = documentXml.toString('utf8');
-  return xml
-    .replace(/<w:p[ >][\s\S]*?<\/w:p>|<w:p\/>/g, (p) => `${p}\n`)
-    .replace(/<w:tab[^>]*\/>/g, '\t')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 export function uploadRoutes(deps: { db: Db }) {

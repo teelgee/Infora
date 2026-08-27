@@ -79,6 +79,43 @@ export async function ingestAllVersions(
   return ingestRows(db, router, versions, options);
 }
 
+/**
+ * T-303 — has this version been indexed under the router's pinned model?
+ *
+ * The bulk load needs it to resume honestly: a document whose container
+ * committed and whose embedding call then died is **in the library and answers
+ * nothing**, which is worse than absent because the list says it is there.
+ * "Does a row exist" would call that done; this is the question that does not.
+ *
+ * It lives here rather than in the caller because `version_chunks` has one
+ * reader by construction (`scripts/source-rules.mjs` RULE 1) — and because the
+ * pinned model is ingest's business: each model is its own complete index
+ * (ADR-0024), so "indexed" is only ever a question about one of them.
+ */
+export async function isVersionIndexed(
+  db: Db,
+  router: Router,
+  versionId: string,
+  projectId: string,
+): Promise<boolean> {
+  // the index is under row-level security and the policy fails CLOSED (T-247),
+  // so an unscoped read would answer "never indexed" for every version and
+  // re-embed the whole corpus on every resume
+  const rows = await withProjectScope(db, projectId, (tx) =>
+    tx
+      .select({ id: s.versionChunks.id })
+      .from(s.versionChunks)
+      .where(
+        and(
+          eq(s.versionChunks.versionId, versionId),
+          eq(s.versionChunks.embeddingModelId, router.embeddingModel.id),
+        ),
+      )
+      .limit(1),
+  );
+  return rows.length > 0;
+}
+
 function assertIndexGeometry(router: Router): void {
   const { id: modelId, dimensions } = router.embeddingModel;
   if (dimensions !== INDEX_DIMENSIONS) {

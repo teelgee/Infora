@@ -383,3 +383,20 @@ are not recorded here.
   Infora does not do OCR" and "this file is damaged" are different instructions
   to the person holding the document, and v1.md requires the refusal to be
   loud and per-document.
+- **2026-08-27 (T-303) — the bulk load has a report, not a return code, and
+  `@infora/data` gained `isVersionIndexed`.** The load's contract with its
+  operator is `LoadReport`: four counts and a **per-document outcome** —
+  `loaded` / `present` / `reindexed` / `refused`, the last carrying a named
+  reason. A boolean or a count would have satisfied "it worked" and failed the
+  obligation that actually matters, which is that a 460-of-500 load must not be
+  able to read as a success. `reindexed` exists because the resume question is
+  not *"does a row exist"* — a document whose container committed and whose
+  embedding call then died is in the library, listed, and answering nothing —
+  so the resumable unit is **indexed-ness**, and that question had to move into
+  the package that owns the index. `isVersionIndexed(db, router, versionId,
+  projectId)` takes the project explicitly rather than inferring it, because
+  the index is under RLS and the policy **fails closed**: an unscoped read
+  reports every version unindexed, which would re-embed the corpus on every
+  resume. `extractText` in `apps/api/src/extract.ts` is the other half — one
+  vocabulary of refusal shared by the upload door and the load, so a reason a
+  person reads is the same string in both places.
