@@ -92,6 +92,13 @@ const MESSAGES: Record<string, string> = {
     'That spreadsheet has no text to index — charts, images and formula results without values aren’t readable.',
   pptx_no_text:
     'That deck has no text on its slides — a set of images has nothing to index. Speaker notes aren’t read.',
+
+  // schema import (T-337) — each names the fix, because "rename the column" is
+  // a ten-second job and is why this path never reaches for a model
+  no_recognisable_headers:
+    'That sheet needs a column of codes and a column of descriptions — rename the columns and import again.',
+  no_codes_found: 'That sheet has the right columns but no usable codes in them.',
+  file_required: 'Choose a file first.',
   share_required: 'The receiving organisation must be shared with before it can be transmitted to.',
   reason_required: 'A reason is required.',
 

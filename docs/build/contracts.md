@@ -400,3 +400,19 @@ are not recorded here.
   resume. `extractText` in `apps/api/src/extract.ts` is the other half — one
   vocabulary of refusal shared by the upload door and the load, so a reason a
   person reads is the same string in both places.
+- **2026-08-27 (T-337) — `ApiError.hint`, and an import that returns a
+  proposal.** `SchemaImportResponse` carries **candidates**, not a saved
+  scheme, and the endpoint's own acceptance test is that the project's scheme
+  is byte-identical afterwards. An import that wrote by arriving would let a
+  mistyped upload rewrite a project's numbering, which every reference in the
+  record is built on; the existing `PUT` still commits. It is also **the first
+  endpoint with no model call by design** rather than by not needing one — no
+  Run, so nothing for `runs.request` to echo, which is how the personal-data
+  constraint is met structurally rather than by remembering to strip a field.
+  `hint` is new on the envelope and is a genuinely different thing from
+  `detail`: `detail` is a machine code the surface maps to a sentence, `hint`
+  is request-derived text no map could hold — *which* columns the sheet had,
+  *which* row was wrong. A refusal a person can act on usually needs both, and
+  folding the second into the first would make `detail` unmappable. It carries
+  only what the requester supplied, which is the rule that keeps it from
+  becoming a leak wearing an error's clothes.

@@ -1190,6 +1190,26 @@ export type NamingSchemeField = {
   width?: number;
 };
 export type NamingScheme = { projectId: Id; separator: string; fields: NamingSchemeField[] };
+
+// POST /projects/:projectId/naming-scheme/import — T-337, the firm's own
+// spreadsheet as CANDIDATE fields. multipart, one `file` (.csv or .xlsx).
+//
+// **It writes nothing**, and the type says so: what comes back is a proposal
+// the owner reviews and then saves through the `PUT` above. An import that
+// wrote the scheme by arriving would let a mistyped upload rewrite a project's
+// numbering, and numbering is what every reference in the record is built on.
+//
+// Deterministic — no model call, therefore **no Run**, therefore nothing for
+// `runs.request` to echo. That matters beyond cost: an existing schema
+// routinely names authors and reviewers in its role columns, so a path that
+// recorded the upload would create a store of personal data nobody ruled on
+// (personal-data.md). The `extractor` escape hatch for an unreadable sheet is
+// T-274's, and is deliberately not on this path yet.
+export type SchemaImportResponse = {
+  fields: NamingSchemeField[];
+  /** every row that did not become a code, by the row number Excel shows */
+  skipped: Array<{ row: number; reason: string }>;
+};
 // T-376 — NOT nullable, and the difference is load-bearing rather than tidy.
 // The read never returns null: `loadSchemeOrDefault` serves the Infora default
 // when no scheme has been saved (T-188), so a project always has one. While the

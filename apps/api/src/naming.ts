@@ -25,6 +25,7 @@ import type {
   ListNamingProposalsResponse,
   NamingProposal,
   NamingSchemeField,
+  SchemaImportResponse,
 } from '@infora/contracts';
 import { canEditScheme, canProposeScheme } from '@infora/governance';
 import { schema as s } from '@infora/db';
@@ -33,9 +34,14 @@ import { projectScope, resolveSlice } from './requester';
 import { DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import type { AppEnv } from './requester';
 import { buildXlsx } from './xlsx';
+import { isRefusal, parseSchemaFile } from './schema-import';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
+// T-337 — a refusal a person can act on: the detail names WHICH thing was
+// wrong, and the optional second line names the row or the column
+const invalidDetail = (c: Context, detail: string, hint?: string) =>
+  c.json({ error: 'invalid', detail, ...(hint !== undefined && { hint }) } satisfies ApiError, 400);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
 // Compose a reference from the scheme + supplied field values, filling the
@@ -152,6 +158,28 @@ export function namingRoutes(deps: { db: Db }) {
         set: { separator: parsed.data.separator, fields: parsed.data.fields, updatedAt: sql`now()` },
       });
     return c.json({ ok: true });
+  });
+
+  // T-337 — the firm's own spreadsheet as candidate fields. Same tier as the
+  // scheme itself (canEditScheme): proposing a numbering scheme is the same act
+  // as saving one, one step earlier.
+  //
+  // Parsed IN-REQUEST and kept nowhere. The upload is not corpus: it is never
+  // admitted to the library, never chunked, never retrievable, and it does not
+  // touch the ingest path — this handler holds the bytes for the length of one
+  // response and writes nothing but the reply.
+  app.post('/projects/:projectId/naming-scheme/import', project, async (c) => {
+    const slice = c.get('slice');
+    if (!canEditScheme(slice)) return notFound(c);
+    const body = await c.req.parseBody().catch(() => null);
+    const file = body?.file;
+    if (!(file instanceof File)) return invalidDetail(c, 'file_required');
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const result = parseSchemaFile(file.name, bytes);
+    // loud and specific: "rename the column" is a ten-second fix, and it is the
+    // reason this path does not reach for a model when a header is unfamiliar
+    if (isRefusal(result)) return invalidDetail(c, result.reason, result.detail);
+    return c.json(result satisfies SchemaImportResponse);
   });
 
   // T-371 (ADR-0005 addendum) — the review period's project-level default.

@@ -42,6 +42,7 @@ import type {
   MeResponse,
   PatchMeBody,
   PlanImportResult,
+  SchemaImportResponse,
   PlanRow,
   ProposeFolderStructureResult,
   Resolution,
@@ -461,6 +462,13 @@ export const api = {
     const form = new FormData();
     form.append('file', file);
     return requestForm<PlanImportResult>(`/projects/${projectId}/plan/import`, form);
+  },
+  // T-337 — a firm's own spreadsheet as CANDIDATE fields. It writes nothing;
+  // the existing putNamingScheme is still what commits.
+  importSchema: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm<SchemaImportResponse>(`/projects/${projectId}/naming-scheme/import`, form);
   },
   namingProposals: (projectId: string) =>
     request<ListNamingProposalsResponse>(`/projects/${projectId}/naming-scheme/proposals`),

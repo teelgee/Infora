@@ -7,6 +7,7 @@ import type {
   GenerateReferenceResponse,
   GetNamingSchemeResponse,
   GetReviewPeriodResponse,
+  SchemaImportResponse,
 } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
@@ -275,5 +276,64 @@ describe('templateFields (pure, T-358)', () => {
     ];
     const out = templateFields({ fields });
     expect(out.map((f) => f.key)).toEqual(['title', 'project', 'suitability']);
+  });
+});
+
+// T-337 — schema import. The endpoint's own job is small: the tier, the
+// refusal shape, and — the one that matters most — that it WRITES NOTHING.
+describe('schema import (T-337)', () => {
+  const importFile = async (cookie: string, name: string, bytes: Buffer) => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(bytes)], name));
+    return app.request(`/projects/${projectId}/naming-scheme/import`, {
+      method: 'POST',
+      headers: { cookie },
+      body: form,
+    });
+  };
+  const codes = Buffer.from('Field,Code,Description\nDiscipline,ECV,Engineering – Civils\nDiscipline,EEN,Environmental\n');
+
+  it('returns candidates and changes nothing', async () => {
+    const before = await (
+      await app.request(`/projects/${projectId}/naming-scheme`, { headers: { cookie: ownerCookie } })
+    ).json();
+
+    const res = await importFile(ownerCookie, 'codes.csv', codes);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SchemaImportResponse;
+    expect(body.fields[0]!.label).toBe('Discipline');
+    expect(body.fields[0]!.allowedValues).toEqual(['ECV', 'EEN']);
+    expect(body.skipped).toEqual([]);
+
+    // the whole point of "candidate": an import that wrote the scheme by
+    // arriving would let a mistyped upload rewrite a project's numbering, and
+    // numbering is what every reference in the record is built on
+    const after = await (
+      await app.request(`/projects/${projectId}/naming-scheme`, { headers: { cookie: ownerCookie } })
+    ).json();
+    expect(after).toEqual(before);
+  });
+
+  it('is the scheme’s own tier — proposing numbering is the same act as saving it', async () => {
+    // a member of a producing org cannot edit the scheme, so it cannot propose
+    // one either; the answer is 404, never 403 (contracts principle 4)
+    expect((await importFile(consultCookie, 'codes.csv', codes)).status).toBe(404);
+    expect((await importFile(otherCookie, 'codes.csv', codes)).status).toBe(404);
+  });
+
+  it('refuses an unreadable sheet by name, with what it did find', async () => {
+    const res = await importFile(ownerCookie, 'codes.csv', Buffer.from('Widget,Sprocket\na,b\n'));
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { detail: string; hint?: string };
+    expect(body.detail).toBe('no_recognisable_headers');
+    expect(body.hint).toContain('Widget');
+  });
+
+  it('names the rows it skipped, so a person can go and look at them', async () => {
+    const messy = Buffer.from('Code,Description\nECV,Engineering\n,orphan description\nbad code,spaces\n');
+    const res = await importFile(ownerCookie, 'codes.csv', messy);
+    const body = (await res.json()) as SchemaImportResponse;
+    expect(body.fields[0]!.allowedValues).toEqual(['ECV']);
+    expect(body.skipped.map((s) => s.row)).toEqual([3, 4]);
   });
 });

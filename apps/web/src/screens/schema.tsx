@@ -4,13 +4,14 @@
 // appointment role slot. A default Infora schema preloads and is fully editable
 // (change fields, add fields). A guest super-user proposes additions; everyone
 // else views. The code-builder previews a compliant reference from the code fields.
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
 import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
-import { Info, Plus, X } from 'lucide-react';
-import { api } from '../api';
+import { Info, Plus, Upload, X } from 'lucide-react';
+import { api, RequestError } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -88,6 +89,7 @@ const emptyField = (): NamingSchemeField => ({ key: '', label: '', type: 'text' 
 // independently controlled, so spaces and mid-edit typing behave normally, and
 // it scales to the long routewide code lists.
 function OptionsEditor(props: {
+  projectId: string;
   field: NamingSchemeField;
   onSave: (patch: Pick<NamingSchemeField, 'allowedValues' | 'allowedValueLabels'>) => void;
   onClose: () => void;
@@ -95,6 +97,59 @@ function OptionsEditor(props: {
   const [rows, setRows] = useState<{ code: string; desc: string }[]>(() =>
     (props.field.allowedValues ?? []).map((c) => ({ code: c, desc: props.field.allowedValueLabels?.[c] ?? '' })),
   );
+  // T-337 — the firm already has this list in a spreadsheet, and typing it back
+  // in is the highest-friction moment in the product. The import lands the rows
+  // here, in the editor, rather than saving: they are CANDIDATES, and Done is
+  // still what commits them.
+  const importInput = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNote, setImportNote] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
+
+  const onImport = async (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    setImportNote(null);
+    try {
+      const result = await api.importSchema(props.projectId, file);
+      // one field imported → its codes; several → the one whose label best
+      // matches this field, else the first. The owner is looking at ONE field's
+      // options, so landing another field's codes silently would be worse than
+      // asking; matching on the label is the cheap honest middle.
+      const label = (props.field.label || props.field.key).toLowerCase();
+      const chosen =
+        result.fields.find((f) => f.label.toLowerCase() === label) ?? result.fields[0]!;
+      setRows(
+        (chosen.allowedValues ?? []).map((code) => ({
+          code,
+          desc: chosen.allowedValueLabels?.[code] ?? '',
+        })),
+      );
+      const skipped =
+        result.skipped.length === 0
+          ? ''
+          : ` ${result.skipped.length} row${result.skipped.length === 1 ? '' : 's'} skipped: ${result.skipped
+              .slice(0, 5)
+              .map((s) => `row ${s.row} (${s.reason})`)
+              .join('; ')}${result.skipped.length > 5 ? '…' : ''}`;
+      const other =
+        result.fields.length > 1
+          ? ` The sheet also held ${result.fields.length - 1} other field${result.fields.length > 2 ? 's' : ''} — import them from their own rows.`
+          : '';
+      setImportNote({
+        text: `Loaded ${chosen.allowedValues?.length ?? 0} codes from “${chosen.label}”. Nothing is saved until you press Done.${skipped}${other}`,
+        tone: result.skipped.length > 0 ? 'error' : 'info',
+      });
+    } catch (error) {
+      const code = errorCode(error);
+      const hint = error instanceof RequestError ? error.body?.hint : undefined;
+      setImportNote({
+        text: `${describeApiError(code)}${hint ? ` (${hint})` : ''}`,
+        tone: 'error',
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
   const set = (i: number, patch: Partial<{ code: string; desc: string }>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const add = () => setRows((rs) => [...rs, { code: '', desc: '' }]);
@@ -129,6 +184,30 @@ function OptionsEditor(props: {
       <p className="page-sub" style={{ marginTop: 0 }}>
         The code is stored and used in the reference; the description is shown alongside it in dropdowns.
       </p>
+      {/* T-337 — the list already exists in a spreadsheet somewhere in the firm */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Button variant="quiet" size="sm" disabled={importing} onClick={() => importInput.current?.click()}>
+          <Upload size={14} aria-hidden /> {importing ? 'Reading…' : 'Import from spreadsheet'}
+        </Button>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          .csv or .xlsx with a code column and a description column
+        </span>
+        <input
+          ref={importInput}
+          type="file"
+          accept=".csv,.xlsx"
+          hidden
+          onChange={(e) => {
+            void onImport(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {importNote !== null && (
+        <div className={`banner banner--${importNote.tone}`} style={{ marginBottom: 8 }}>
+          {importNote.text}
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '52vh', overflowY: 'auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 32px', gap: 8 }}>
           <SectionLabel>Code</SectionLabel>
@@ -546,6 +625,7 @@ export function SchemaScreen() {
 
       {editingOptions !== null && fields[editingOptions] && (
         <OptionsEditor
+          projectId={projectId}
           field={fields[editingOptions]}
           onSave={(patch) => setField(editingOptions, patch)}
           onClose={() => setEditingOptions(null)}
