@@ -430,3 +430,24 @@ are not recorded here.
   organisation's seat, so the seat cannot outlive the person). Self-removal is
   `conflict`, not `not_found`, per errors.ts — the requester can plainly see
   themselves, so existence is not what is being protected.
+- **2026-08-27 (T-328) — the finding schema, and the dishonest object that no
+  longer compiles.** `Finding` is minted ahead of the checker DAG and the
+  findings surface because neither can be specified without it, and the reason
+  it earns a note is *how* ADR-0048 is carried: `evidence` is a **union
+  discriminated by the input the finding arose from**, so §7's "three inputs,
+  three honest treatments" is a type rather than a rule an implementer must
+  remember. A rulebook finding has nowhere to put a `Citation` — the object with
+  one in it does not typecheck — which is §5's quotable-but-never-cited ruling
+  made structural. The same union is what gives §5's clause quote a home
+  (`clause` + `quote`, no citation anywhere near them), and that field is the
+  reason T-308's loader must preserve structure: a rulebook chunked for steer
+  alone would leave it unfillable and the ruling would die on the screen. A
+  proposed revision is a `Suggestion` and not free text (§3), so the checker
+  gains no write path the drafting side lacks. **`FindingStatus` is
+  `SandboxComment['status']` word for word**, pinned by a test: ADR-0049 §7
+  blocks promotion on open findings and open threads identically, and two words
+  for one state is how "why does this list stop me and that one not" starts
+  needing an answer. **Severity is `required | advisory`** — this ticket's call,
+  argued in the type's own comment. Types only, no zod: what the checker's model
+  call must return is a parse boundary that belongs to T-310, and inventing it
+  here would specify that ticket ahead of itself.
