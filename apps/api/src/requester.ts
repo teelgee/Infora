@@ -60,9 +60,11 @@ export type AppDeps = {
    */
   workflows?: WorkflowRegistry;
   /**
-   * T-265 — which declared workflow an Ask turn runs. CONFIG, not code
-   * (`ASK_WORKFLOW_ID`): the deployment decides, and hard-coding
-   * `project-question` here would make it unchangeable without a release.
+   * T-265, resemantised by T-266 — an override, not the default
+   * (`ASK_WORKFLOW_ID`): set, it pins every Ask turn to one declared workflow;
+   * unset, a turn is CLASSIFIED rather than assigned. Still config, not code:
+   * hard-coding `project-question` here would make the pin unchangeable
+   * without a release.
    */
   askWorkflowId?: string;
   /**

@@ -75,7 +75,7 @@ rewrite is not frozen.
 | `must_not_cite` | citations **and** the answer text | the permission assertion (§1.1) |
 | `must_contain` / `must_not_contain` | the answer text | plain string = case-insensitive substring; `/pattern/flags` = regex; `~claim` = **model-graded** (T-257) |
 | `max_uncited_claims` | the `open_world` rail outcomes | counted off the verifier's decision, never by parsing prose |
-| `expect_calls` / `expect_not_called` | the plan's steps | **deferred, see below** |
+| `expect_calls` / `expect_not_called` | the plan's steps | **live from T-265** (see below); `null` and `[]` are different observations |
 | `gold_passages` + `min_precision` / `min_recall` | the retrieve step's source set | chunk grain: a gold passage is `version_key#chunk_index` |
 
 Every type has a passing *and* a failing test, as evaluators
