@@ -1,2 +1,10 @@
-// @infora/workflows — standard + custom workflows composing capabilities
-export {};
+// @infora/workflows — standard + custom workflows composing capabilities.
+//
+// A workflow definition is a PLAN TEMPLATE (T-264): the plan artefact's step
+// shape with parameters where a plan has bound values. Declared orchestration
+// runs one; model-chosen orchestration does not, and that difference is the
+// whole of what the two modes' guarantees differ by (ADR-0028 §5 as amended).
+export { loadWorkflows, DEFINITIONS_DIR, WorkflowValidationError } from './load';
+export type { LoadOptions, WorkflowRegistry } from './load';
+export { validateWorkflow } from './validate';
+export type { KnownWorkers, ValidationOptions, ValidationResult } from './validate';

@@ -573,3 +573,19 @@ are not recorded here.
   plan answers 404 rather than a null body — that is a sub-agent's child run,
   which executes inside a step of its parent's plan, and a delegation is not a
   request.
+- **2026-08-28 (T-264) — the `Workflow` type, and the two fields that are
+  security rather than shape.** The declared-workflow DAG lives in contracts
+  for the Lens's reason: three layers need it and none may depend on the
+  others. What earns a note is not the field list but the two decisions inside
+  it. **A step has no `scope`, and cannot be given one** — no `corpus`, no
+  `visibility`, no `as_organisation` — because scope derives from the run's
+  entitled slice, and a workflow that could name one would be a widening
+  parameter arriving through domain content that a customer may one day author.
+  The absence is structural *and* named: the validator rejects those field
+  names with the reason, rather than as unknown fields, since "unknown field"
+  reads as an invitation to find the right spelling. And **`writes` and
+  `labelPropagation` are a required pair in one direction and a forbidden pair
+  in the other**: a workflow that writes must say what it does when its
+  sources' label is broader than its destination (finding F2), and one that
+  writes nothing must not, because behaviour declared for a write that never
+  happens goes stale unnoticed and then gets believed.

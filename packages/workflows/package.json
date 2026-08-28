@@ -3,12 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "standard + custom workflows composing capabilities",
+  "description": "standard + custom workflows composing capabilities: the declared-workflow DAG format (domain content in definitions/) plus its loader and validator (T-264)",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@infora/contracts": "workspace:*",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
