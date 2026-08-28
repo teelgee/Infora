@@ -456,6 +456,23 @@ diff, which is exactly what the free-text why exists to avoid.
 **The changer is a named person** (`changed_by_participant_id`) and is
 registered in [personal-data.md](../architecture/personal-data.md).
 
+## Drawn 2026-08-28 — the library pin (T-391)
+
+*Drawn and built the same day; migration 0054, and it is one enum value.*
+
+**Drawer 3 — `attached_source_kind` gains `library`.** The kinds were
+`sandbox | upload | web`, so a **library deliverable could not be pinned at
+all** — and ADR-0013's own consequences say a superseded or withdrawn document
+*"may still be pinned as an attached source (ADR-0022) to ask about it
+deliberately"*. The rule was written and the mechanism was missing, which is
+why T-391's badge had no subject until this. `ref` stays the free
+reference-by-kind it already is and carries the container id.
+
+**Nothing else changes, and that is the point.** An attached source still never
+joins a corpus, never grounds and never emits a citation (ADR-0022); what the
+new kind admits is a deliberate, named, user-supplied use of a document the AI
+has stopped reaching for on its own.
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

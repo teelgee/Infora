@@ -532,3 +532,17 @@ are not recorded here.
   it. Every write body carries a **mandatory `reason`**: ADR-0003 requires the
   change audited like a rails change, and "who and when" a timestamp already
   gives.
+- **2026-08-28 (T-391) — `AttachedSource` gains a `library` kind and a resolved
+  `document` marker, and the kind is the half worth recording.** ADR-0013's
+  consequences already said a superseded or withdrawn document *"may still be
+  pinned as an attached source (ADR-0022) to ask about it deliberately"* — and
+  the three kinds this type carried (`sandbox | upload | web`) could not express
+  one, so the rule was written and the mechanism was missing. The badge that
+  names *why* a pinned document is out of reach had no subject until the pin
+  existed. **`document` is resolved server-side and null for every other kind**,
+  through the same `contextStateOf` derivation the plan and library reads use,
+  so the badge on a pinned source and the badge on the deliverable itself cannot
+  say different things — and behind the same wall predicate, so a pin whose
+  container the requester can no longer see resolves to nothing rather than
+  leaking a reference through its own marker. Nothing about the channel changes:
+  a library pin still never joins a corpus, never grounds and never cites.

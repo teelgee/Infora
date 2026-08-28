@@ -4,6 +4,7 @@
 // sandbox reaches it; a member outside the scope does not. ADR-0022/0039.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AttachedSource } from '@infora/contracts';
+import { eq } from 'drizzle-orm';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
@@ -162,5 +163,98 @@ describe('attached-source working set on a multiplayer conversation (T-154)', ()
     expect(unpin.status).toBe(200);
     const after = await app.request(`/conversations/${conversationId}/attached-sources`, { headers: asJson(bCookie) });
     expect(((await after.json()) as { items: AttachedSource[] }).items.length).toBe(1);
+  });
+});
+
+// T-391 — a library deliverable pinned ON PURPOSE, with the marker that names
+// why it is out of the AI's ordinary reach.
+//
+// The distinction the ADRs draw and this suite holds: what ended is the AI
+// reaching for a withdrawn document SILENTLY, not anyone's ability to reach for
+// it deliberately (ADR-0013's consequences, ADR-0022). So the pin is legal, and
+// the badge is what separates it from dangerous use — a bare "out of context"
+// tells the reader that something is unusual and not what.
+describe('the library pin and its marker (T-391)', () => {
+  let withdrawnContainer: string;
+  let liveContainer: string;
+  let ownConversation: string;
+
+  beforeAll(async () => {
+    // B's own deliverables, so B can see them without a share (ADR-0016)
+    const make = async (reference: string) => {
+      const [container] = await db
+        .insert(s.containers)
+        .values({ projectId, producingOrganisationId: orgB, documentReference: reference, inLibrary: true })
+        .returning();
+      return container!.id;
+    };
+    withdrawnContainer = await make(`T391-GONE-${stamp}`);
+    liveContainer = await make(`T391-LIVE-${stamp}`);
+    await db
+      .update(s.containers)
+      .set({ state: 'withdrawn', withdrawnReason: 'The survey it rests on has been retracted' })
+      .where(eq(s.containers.id, withdrawnContainer));
+    const created = await app.request(`/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ surface: 'web' }),
+    });
+    ownConversation = ((await created.json()) as { conversationId: string }).conversationId;
+  });
+
+  it('pins a withdrawn deliverable and carries the reason it is out', async () => {
+    const res = await app.request(`/conversations/${ownConversation}/attached-sources`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ kind: 'library', ref: withdrawnContainer }),
+    });
+    expect(res.status).toBe(201);
+    const pinned = (await res.json()) as AttachedSource;
+    expect(pinned.document).toEqual({
+      containerId: withdrawnContainer,
+      documentReference: `T391-GONE-${stamp}`,
+      contextState: { grounds: false, reason: 'withdrawn' },
+      withdrawnReason: 'The survey it rests on has been retracted',
+    });
+  });
+
+  it('carries no marker for a deliverable that grounds — the badge explains an exception', async () => {
+    const res = await app.request(`/conversations/${ownConversation}/attached-sources`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ kind: 'library', ref: liveContainer }),
+    });
+    const pinned = (await res.json()) as AttachedSource;
+    expect(pinned.document?.contextState).toEqual({ grounds: true, reason: null });
+    expect(pinned.document?.withdrawnReason).toBeNull();
+  });
+
+  it('refuses a pin naming a container the requester cannot see', async () => {
+    // C is on the project and is not B — B's unshared deliverable is behind the
+    // wall, and a pin must not become a way to name it
+    const res = await app.request(`/conversations/${ownConversation}/attached-sources`, {
+      method: 'POST',
+      headers: asJson(cCookie),
+      body: JSON.stringify({ kind: 'library', ref: withdrawnContainer }),
+    });
+    // C cannot reach B's own conversation either, so the refusal is the wall's
+    expect(res.status).toBe(404);
+
+    const nonsense = await app.request(`/conversations/${ownConversation}/attached-sources`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ kind: 'library', ref: '00000000-0000-4000-8000-000000000000' }),
+    });
+    expect(nonsense.status).toBe(404);
+  });
+
+  it('the other kinds keep their free reference and gain no marker', async () => {
+    const res = await app.request(`/conversations/${ownConversation}/attached-sources`, {
+      method: 'POST',
+      headers: asJson(bCookie),
+      body: JSON.stringify({ kind: 'web', ref: 'https://example.test/guidance' }),
+    });
+    expect(res.status).toBe(201);
+    expect((await res.json() as AttachedSource).document).toBeNull();
   });
 });

@@ -1673,13 +1673,30 @@ export type ResolveWithdrawalProposalBody = z.infer<typeof resolveWithdrawalProp
 export type AttachedSource = {
   id: Id;
   conversationId: Id;
-  kind: 'sandbox' | 'upload' | 'web';
+  // T-391 — `library` pins a deliverable from the project library by container
+  // id. It exists because ADR-0013's consequences already said a superseded or
+  // withdrawn document "may still be pinned as an attached source to ask about
+  // it deliberately", and the other three kinds could not express one.
+  kind: 'sandbox' | 'upload' | 'web' | 'library';
   ref: string;
   label: string | null;
+  // T-391 — THE MARKER, resolved server-side for a `library` pin and null for
+  // every other kind. Pinning an out-of-context document is legal and
+  // deliberate; what separates that from dangerous use is the reader knowing
+  // WHY it is out — *"withdrawn — the survey it rests on has been retracted"*
+  // reads differently from a bare *"withdrawn"*, and differently again from
+  // *"superseded"*. The withdrawal reason's visibility follows the container
+  // (ADR-0013 §4), so anyone who could pin it could already read it.
+  document: {
+    containerId: Id;
+    documentReference: string;
+    contextState: ContextState;
+    withdrawnReason: string | null;
+  } | null;
 };
 export type ListAttachedSourcesResponse = { items: AttachedSource[] };
 export const pinAttachedSourceBody = z.object({
-  kind: z.enum(['sandbox', 'upload', 'web']),
+  kind: z.enum(['sandbox', 'upload', 'web', 'library']),
   ref: z.string().min(1),
   label: z.string().optional(),
 });

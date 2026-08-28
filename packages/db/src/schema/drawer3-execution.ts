@@ -60,8 +60,22 @@ export const conversations = pgTable('conversations', {
 // PDF, or a web search. Scoped to the Conversation and persisting across its
 // turns as a working set (an interval: pin adds, unpin closes removed_at), never
 // joining a corpus, never grounding, never emitting a citation. `ref` is a free
-// reference by kind: a sandbox_document id, an uploaded file ref, or a URL/query.
-export const attachedSourceKind = pgEnum('attached_source_kind', ['sandbox', 'upload', 'web']);
+// reference by kind: a sandbox_document id, an uploaded file ref, a URL/query,
+// or — from T-391 — a library container id.
+//
+// `library` was added 2026-08-28 because the rule had been written and the
+// mechanism was missing: ADR-0013's consequences say a superseded or withdrawn
+// document "may still be pinned as an attached source (ADR-0022) to ask about
+// it deliberately", and the three kinds above could not express one. Nothing
+// about the channel changes — a library pin still never grounds and never
+// cites; what it admits is a deliberate, named use of a document the AI has
+// stopped reaching for on its own.
+export const attachedSourceKind = pgEnum('attached_source_kind', [
+  'sandbox',
+  'upload',
+  'web',
+  'library',
+]);
 export const attachedSources = pgTable(
   'attached_sources',
   {

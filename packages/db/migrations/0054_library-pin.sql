@@ -1,0 +1,19 @@
+-- T-391 — the library pin (ADR-0022, ADR-0013's consequences). Drawn in
+-- docs/build/data-model.md before it was written.
+--
+-- One enum value, and it closes a gap between a written rule and a missing
+-- mechanism: ADR-0013 says a superseded or withdrawn document "may still be
+-- pinned as an attached source to ask about it deliberately", and the three
+-- kinds this enum carried -- sandbox, upload, web -- could not express one. So
+-- T-391's badge, which names WHY a pinned document is out of the AI's reach,
+-- had no subject until this.
+--
+-- Nothing about the channel changes: an attached source still never joins a
+-- corpus, never grounds and never emits a citation. What the new kind admits is
+-- a deliberate, named, user-supplied use of a document the AI has stopped
+-- reaching for on its own -- which is the distinction ADR-0022 exists to draw.
+--
+-- ALTER TYPE ... ADD VALUE runs inside the migration's transaction safely
+-- because nothing here USES the new value; the first row carrying it is written
+-- by a later request.
+ALTER TYPE "public"."attached_source_kind" ADD VALUE 'library';

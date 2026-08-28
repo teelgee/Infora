@@ -6,19 +6,72 @@
 // sources never join a corpus and never ground — they live beside the run record.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { pinAttachedSourceBody } from '@infora/contracts';
 import type { ApiError, AttachedSource, ListAttachedSourcesResponse } from '@infora/contracts';
 import { canAccessSandbox } from '@infora/governance';
+import type { EntitledSlice } from '@infora/governance';
+import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { admittingCodes, contextStateOf } from './context-state';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
+
+/**
+ * T-391 — THE MARKER on a library pin: what the document is, and why it is out
+ * of the AI's ordinary reach.
+ *
+ * Pinning an out-of-context document is legal and deliberate (ADR-0022). What
+ * separates that from dangerous use is the reader knowing WHY it is out —
+ * *"withdrawn — the survey it rests on has been retracted"* reads differently
+ * from a bare *"withdrawn"*, and differently again from *"superseded"*. The
+ * reason's visibility follows the container (ADR-0013 §4), so anyone who could
+ * pin it could already read it, and no new visibility rule is introduced here.
+ *
+ * Resolved through the SAME `contextStateOf` derivation the plan and the
+ * library reads use, so the badge on a pinned source and the badge on the
+ * deliverable itself cannot say different things.
+ */
+async function libraryMarkers(
+  db: Db,
+  slice: EntitledSlice,
+  containerIds: string[],
+): Promise<Map<string, NonNullable<AttachedSource['document']>>> {
+  const markers = new Map<string, NonNullable<AttachedSource['document']>>();
+  const ids = containerIds.filter((id) => isUuid(id));
+  if (ids.length === 0) return markers;
+  // the wall, in SQL: a pin whose container the requester can no longer see
+  // resolves to nothing rather than leaking a reference through its own badge
+  const rows = await db
+    .select({
+      id: s.containers.id,
+      documentReference: s.containers.documentReference,
+      inLibrary: s.containers.inLibrary,
+      state: s.containers.state,
+      withdrawnReason: s.containers.withdrawnReason,
+    })
+    .from(s.containers)
+    .where(and(inArray(s.containers.id, ids), deliverableVisible(slice)));
+  const codes = await admittingCodes(db, rows.map((r) => r.id));
+  for (const row of rows) {
+    markers.set(row.id, {
+      containerId: row.id,
+      documentReference: row.documentReference ?? '',
+      contextState: contextStateOf(row, codes.get(row.id)),
+      // a reason is only a WITHDRAWAL reason once the withdrawal is in force —
+      // while it is merely proposed the container is still live and the field
+      // carries the proposal instead (T-384)
+      withdrawnReason: row.state === 'withdrawn' ? row.withdrawnReason : null,
+    });
+  }
+  return markers;
+}
 
 export function attachedSourceRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -65,12 +118,18 @@ export function attachedSourceRoutes(deps: { db: Db }) {
       .from(s.attachedSources)
       .where(and(eq(s.attachedSources.conversationId, ctx.conv.id), isNull(s.attachedSources.removedAt)))
       .orderBy(desc(s.attachedSources.pinnedAt));
+    const markers = await libraryMarkers(
+      deps.db,
+      ctx.slice,
+      rows.filter((r) => r.kind === 'library').map((r) => r.ref),
+    );
     const items: AttachedSource[] = rows.map((r) => ({
       id: r.id,
       conversationId: r.conversationId,
       kind: r.kind,
       ref: r.ref,
       label: r.label,
+      document: r.kind === 'library' ? (markers.get(r.ref) ?? null) : null,
     }));
     return c.json({ items } satisfies ListAttachedSourcesResponse);
   });
@@ -80,6 +139,15 @@ export function attachedSourceRoutes(deps: { db: Db }) {
     if (!ctx) return notFound(c);
     const parsed = pinAttachedSourceBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
+    // T-391 — a library pin names a real container the requester may see, and
+    // is refused otherwise. The other kinds keep their free `ref` (a URL, a
+    // file reference), which is what makes this check specific rather than a
+    // new rule for everything.
+    let marker: AttachedSource['document'] = null;
+    if (parsed.data.kind === 'library') {
+      marker = (await libraryMarkers(deps.db, ctx.slice, [parsed.data.ref])).get(parsed.data.ref) ?? null;
+      if (!marker) return notFound(c);
+    }
     const [row] = await deps.db
       .insert(s.attachedSources)
       .values({
@@ -96,6 +164,7 @@ export function attachedSourceRoutes(deps: { db: Db }) {
       kind: row!.kind,
       ref: row!.ref,
       label: row!.label,
+      document: marker,
     };
     return c.json(body, 201);
   });

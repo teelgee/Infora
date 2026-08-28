@@ -383,7 +383,7 @@ entry naming its gate and where its design lives.
 - ~~**T-388** — context state on the deliverable read, and the badge that names its reason.~~ ✅ **Built 2026-08-28** — moved record in [plan-history.md](plan-history.md#slice-document-status)
 - ~~**T-389** — the owner's supersede and withdraw actions, and the producer's propose actions.~~ ✅ **Built 2026-08-28** — moved record in [plan-history.md](plan-history.md#slice-document-status)
 - ~~**T-390** — the acceptance-code editor, on the schema screen.~~ ✅ **Built 2026-08-28** (migration 0053) — moved record in [plan-history.md](plan-history.md#slice-document-status)
-- **T-391 — The attached-source marker carries the withdrawal reason.** Pinning an out-of-context document stays legal and deliberate (ADR-0022); the badge names *why* it is out, because that is what separates legitimate use from dangerous use. | *(Deps: T-388)*
+- ~~**T-391** — the attached-source marker carries the withdrawal reason.~~ ✅ **Built 2026-08-28** (migration 0054) — moved record in [plan-history.md](plan-history.md#slice-document-status)
 
 **The notification is not in this slice.** It is a third event type on ADR-0049's set and rides **T-330** below, which waits on T-329 and T-323 and therefore on SES domain verification and production access — external lead time (ADR-0047 §16). **The acts ship first and the telling follows**, stated here so the sequence is not discovered by whoever picks the ticket up.
 
