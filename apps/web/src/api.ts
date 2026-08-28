@@ -46,6 +46,7 @@ import type {
   ListWorkItemsResponse,
   MeResponse,
   PatchMeBody,
+  PatchReviewCommentBody,
   PlanImportResult,
   SchemaImportResponse,
   PlanRow,
@@ -337,6 +338,17 @@ export const api = {
   addReviewComment: (roundId: string, body: CreateReviewCommentBody) =>
     request<ReviewComment>(`/rounds/${roundId}/comments`, {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  // T-356 — ADR-0007's "moderate in the open": the lead reviewer edits or
+  // amends a reviewer's comment and its code within the OPEN round. The
+  // endpoint has existed since Slice A with no client method and no control
+  // anywhere; this is the missing half. There is deliberately no delete — the
+  // record is amended in the open, never quietly emptied, and once the round
+  // is issued the snapshot is frozen (ADR-0009) and the server refuses.
+  patchReviewComment: (commentId: string, body: PatchReviewCommentBody) =>
+    request<ReviewComment>(`/review-comments/${commentId}`, {
+      method: 'PATCH',
       body: JSON.stringify(body),
     }),
   setDeliverableCode: (roundId: string, acceptanceCodeId: string) =>

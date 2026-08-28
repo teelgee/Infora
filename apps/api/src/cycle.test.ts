@@ -527,6 +527,45 @@ describe('the round loop (T-123/T-124/T-126)', () => {
     expect(comment.anchor?.page).toBe(1);
   });
 
+  // T-356 — the endpoint the moderation surface finally reaches. It shipped in
+  // Slice A with no client method and no control anywhere, so nothing had ever
+  // exercised it: the affordance and the rule are proved to agree here rather
+  // than only on screen.
+  it('the lead reviewer moderates a comment IN THE OPEN, and only while the round is open (ADR-0007/0009)', async () => {
+    const res = await app.request(`/review-comments/${commentId}`, {
+      method: 'PATCH',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ body: 'Clarify the drainage assumption — see also the duplicate below.' }),
+    });
+    expect(res.status).toBe(200);
+    const moderated = (await res.json()) as { body: string; acceptanceCode: { id: string } | null };
+    expect(moderated.body).toContain('duplicate');
+    // the code is amendable too, and null TAKES IT OFF — `undefined` would mean
+    // "leave it alone", so the lead needs a way to say the comment carries none
+    expect(moderated.acceptanceCode).not.toBeNull();
+    const cleared = await app.request(`/review-comments/${commentId}`, {
+      method: 'PATCH',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ acceptanceCodeId: null }),
+    });
+    expect(((await cleared.json()) as { acceptanceCode: unknown }).acceptanceCode).toBeNull();
+    // and put it back, so the rest of this suite reads the round it expects
+    await app.request(`/review-comments/${commentId}`, {
+      method: 'PATCH',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ acceptanceCodeId: codes.revise }),
+    });
+
+    // the authoring side holds no moderation power — it cannot even see the
+    // open round's comments (ADR-0014)
+    const byAuthor = await app.request(`/review-comments/${commentId}`, {
+      method: 'PATCH',
+      headers: asJson(leadAuthorCookie),
+      body: JSON.stringify({ body: 'not mine to edit' }),
+    });
+    expect(byAuthor.status).toBe(403);
+  });
+
   it('a reviewer marks completion; it is walled from authors while open, withdrawable, and refused to non-reviewers (ADR-0052)', async () => {
     // the author holds no completion power
     const byAuthor = await app.request(`/rounds/${roundId}/review-completion`, {

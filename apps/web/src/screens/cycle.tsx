@@ -638,6 +638,13 @@ function RoundCard(props: {
                     key={comment.id}
                     comment={comment}
                     canRespond={props.canRespond}
+                    // T-356 — ADR-0007's "moderate in the open". Lead-only, and
+                    // only while the round is open: an issued round is a frozen
+                    // snapshot (ADR-0009) and the server refuses regardless, so
+                    // the affordance and the rule agree rather than the surface
+                    // offering something that will be turned down.
+                    canModerate={props.canModerate}
+                    codes={codes}
                     act={props.act}
                     hovered={hovered === comment.id}
                     onHover={setHovered}
@@ -790,9 +797,22 @@ function RoundCard(props: {
   );
 }
 
+/**
+ * T-356 — the DRR row, and the lead reviewer's moderation of it.
+ *
+ * ADR-0007's rule is **moderate in the open**, and the shape here is what makes
+ * that true rather than claimed: the lead can **edit** a reviewer's comment and
+ * its code, and there is **no delete anywhere** — a duplicate is amended to say
+ * so, not quietly emptied. The trail is the round itself: moderation happens
+ * only while the round is OPEN, and issue freezes the snapshot (ADR-0009), so
+ * what the authoring side eventually receives is the record as the lead left
+ * it, once.
+ */
 function CommentRow(props: {
   comment: ReviewComment;
   canRespond: boolean;
+  canModerate: boolean;
+  codes: AcceptanceCode[];
   act: (action: () => Promise<unknown>) => Promise<void>;
   hovered: boolean;
   onHover: (id: string | null) => void;
@@ -804,6 +824,11 @@ function CommentRow(props: {
   const [noChange, setNoChange] = useState(false);
   const [quote, setQuote] = useState('');
   const [reason, setReason] = useState('');
+  // T-356 — the moderation draft, held here so opening the editor never touches
+  // the record: cancelling is genuinely "never happened"
+  const [moderating, setModerating] = useState(false);
+  const [moderatedBody, setModeratedBody] = useState(comment.body);
+  const [moderatedCode, setModeratedCode] = useState(comment.acceptanceCode?.id ?? '');
 
   return (
     <div
@@ -830,7 +855,83 @@ function CommentRow(props: {
           “{comment.anchor.quote}”{comment.anchor.page !== undefined && ` — p.${comment.anchor.page}`}
         </div>
       )}
-      <div>{comment.body}</div>
+      {!moderating && <div>{comment.body}</div>}
+      {moderating && (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <textarea
+            aria-label="Moderate this comment"
+            value={moderatedBody}
+            onChange={(e) => setModeratedBody(e.target.value)}
+            // taller than the comment composer on purpose: this box starts FULL
+            // — the existing comment is already in it — and a moderator who can
+            // only see the last two lines of what they are amending is being
+            // asked to edit blind
+            style={{ ...field, minHeight: 88 }}
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <SelectInput
+                value={moderatedCode}
+                onChange={setModeratedCode}
+                placeholder="no code"
+                options={props.codes
+                  .filter((c) => c.level !== 'deliverable')
+                  .map((c) => ({ value: c.id, label: `${c.code} — ${c.description}` }))}
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!moderatedBody.trim()}
+              onClick={() =>
+                void props
+                  .act(() =>
+                    api.patchReviewComment(comment.id, {
+                      body: moderatedBody.trim(),
+                      // null clears the code — `undefined` would mean "leave it
+                      // alone", and the lead must be able to take a code OFF a
+                      // comment that should not carry one
+                      acceptanceCodeId: moderatedCode === '' ? null : moderatedCode,
+                    }),
+                  )
+                  .then(() => setModerating(false))
+              }
+            >
+              Save amendment
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() => {
+                setModeratedBody(comment.body);
+                setModeratedCode(comment.acceptanceCode?.id ?? '');
+                setModerating(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+          <span className="field-hint">
+            Moderating in the open (ADR-0007): the amended comment is what the authoring side
+            receives when the round is issued. There is no delete — a duplicate is amended to say so.
+          </span>
+        </div>
+      )}
+      {props.canModerate && !moderating && (
+        <div>
+          <Button
+            size="sm"
+            variant="quiet"
+            onClick={() => {
+              setModeratedBody(comment.body);
+              setModeratedCode(comment.acceptanceCode?.id ?? '');
+              setModerating(true);
+            }}
+          >
+            Edit as lead reviewer
+          </Button>
+        </div>
+      )}
       {comment.response && (
         <div style={{ background: 'var(--surface-sunken)', borderRadius: 'var(--primitive-radius-xs)', padding: '6px 10px' }}>
           <b>Response</b> · {comment.response.body}

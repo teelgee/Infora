@@ -300,6 +300,15 @@ const acts = [
         adrs: ['ADR-0014', 'ADR-0009'],
       },
       {
+        img: '18a-moderation',
+        lane: REVIEWER,
+        screen: 'Review cycle · moderate',
+        title: 'The lead moderates in the open, and cannot moderate in secret',
+        prose:
+          'Rachel amends a reviewer’s comment to absorb a duplicate and shape the group’s single position before any of it goes back. Two constraints make “in the open” true rather than claimed. There is **no delete** — a duplicate is amended to say so, never quietly emptied — and moderation is possible only while the round is **open**: issue freezes the snapshot, so what Calder & Hale eventually receives is the record as Rachel left it, once, and nothing can be edited behind an issued verdict. The amended comment is the record; there is no “original” hidden underneath it, because a moderated record with a shadow copy would be two accounts of one review.',
+        adrs: ['ADR-0007', 'ADR-0009'],
+      },
+      {
         img: '20-completion',
         lane: REVIEWER,
         screen: 'Review · deliverable status',
@@ -307,13 +316,6 @@ const acts = [
         prose:
           '“Review complete” is a stored, round-scoped signal — a reviewer with nothing to say is done, not absent. The set freezes when the round issues, and no count of completions closes anything: closing stays the lead’s human act.',
         adrs: ['ADR-0052', 'ADR-0005'],
-      },
-    ],
-    gaps: [
-      {
-        title: 'Moderation — endpoint without a surface',
-        prose:
-          'The story’s lead reviewer “moderates in the open”: edits comments and codes, resolves duplicates, shapes the group position before it goes back. The PATCH endpoint exists; no control on the cycle screen calls it. Ticketed T-356.',
       },
     ],
   },

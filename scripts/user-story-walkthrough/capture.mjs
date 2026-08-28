@@ -538,6 +538,36 @@ await r.locator('.review-pdf canvas').first().waitFor();
 await r.locator('.review-pdf-overlay [aria-label="anchored comment highlight"]').first().waitFor();
 await shot(r, '18-round-open');
 
+// T-356 — moderation in the open (ADR-0007). Rachel amends the third comment to
+// absorb a duplicate; the beat is the editor open with the amendment typed, and
+// the act itself follows. The comments are ordered by creation, so nth(2) is the
+// "reporting by parcel" one.
+//
+// The scroll is explicit and deliberate: `scrollIntoViewIfNeeded` is a no-op
+// when the target already peeks into the viewport, which is how 00b-acceptance-
+// codes came out a byte-identical duplicate of the card above it (caught in
+// review, 1479b26). Scroll the DRR column's head to the TOP so the comment
+// being moderated is what the viewport holds.
+await r.getByRole('button', { name: 'Edit as lead reviewer' }).nth(2).click();
+await r
+  .getByLabel('Moderate this comment')
+  .fill(
+    'Consider reporting by parcel rather than by route section for the appendix tables. ' +
+      'Amended by the lead reviewer: this absorbs the duplicate raised separately on the same point.',
+  );
+// the DRR column scrolls independently of the page, so the scroll has to be
+// driven from the element being photographed — and from the TEXTAREA rather
+// than the column, or the editor's own Save/Cancel stay below the fold.
+// `scrollTop = 0` puts the start of the amended comment in view: a box scrolled
+// to its tail photographs an edit whose subject is invisible.
+await r.getByLabel('Moderate this comment').evaluate((el) => {
+  el.scrollTop = 0;
+  el.scrollIntoView({ block: 'center' });
+});
+await shot(r, '18a-moderation');
+await r.getByRole('button', { name: 'Save amendment' }).click();
+await r.getByText('absorbs the duplicate', { exact: false }).first().waitFor();
+
 // the wall: the authoring side sees nothing of the open round
 await e.goto(`${WEB}/projects/${projectId}/review/${containerId}/cycle`);
 await e.locator('.review-pdf canvas').first().waitFor();
