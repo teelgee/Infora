@@ -57,6 +57,7 @@ export interface EmbeddingAdapter {
   embed(texts: string[], inputType: EmbedInputType): Promise<EmbedResult>;
 }
 
-// The skeleton's one thinking leaf (ADR-0027 §6); the task vocabulary grows
-// with the capability registry, the signature does not.
-export type ChatTask = 'draft';
+// T-284 — the task vocabulary lives in tasks.ts, beside the selection rule that
+// reads it, and is re-exported from the package index. It is not re-exported
+// here: tasks.ts imports `ChatAdapter` from this file, and a re-export would
+// make the pair mutually importing for the sake of one alias.

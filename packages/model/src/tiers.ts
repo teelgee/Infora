@@ -145,19 +145,23 @@ export class SecurityPolicyError extends Error {
 }
 
 /**
- * Two-axis selection in the ADR's order (§3): the tier policy is a hard
- * constraint filter applied first — classification the tier may carry, then
- * per-route attribute conformance — and only within the conforming set does
- * task-based optimisation choose. v1 has one route per capability, so
- * optimisation is "the first conforming route"; the filter is the load-bearing
- * part. Fails closed: no conforming route errors, never falls back to a
- * non-conforming region or provider to preserve availability.
+ * THE HARD CONSTRAINT, and the whole of it (§3): the classification the tier
+ * may carry, then per-route attribute conformance. Everything eligible, in the
+ * order the deployment declared it. Fails closed — no conforming route errors,
+ * and never falls back to a non-conforming region or provider to preserve
+ * availability.
+ *
+ * T-284 split this out of `selectRoute` so the second axis has something to
+ * rank. It returns the SET rather than a choice, because the ordering the ADR
+ * fixes is only checkable if the two steps are separable: task selection
+ * (tasks.ts) receives this result and can narrow it, and has no policy,
+ * classification or attributes with which to re-open it.
  */
-export function selectRoute<A>(
+export function conformingRoutes<R extends Route<unknown>>(
   policy: TierPolicy,
   classification: Classification,
-  routes: Array<Route<A>>,
-): Route<A> {
+  routes: readonly R[],
+): R[] {
   if (!classificationPermitted(policy, classification)) {
     throw new SecurityPolicyError(
       `deployment tier '${policy.tier}' may not carry '${classification}' data — no conforming route`,
@@ -169,7 +173,19 @@ export function selectRoute<A>(
       `no route conforms to tier '${policy.tier}' — refusing to dispatch (fail closed)`,
     );
   }
-  // task-based optimisation would rank the conforming set here; v1 takes the
-  // first, because the tier constraint has already done the load-bearing work
-  return conforming[0]!;
+  return conforming;
+}
+
+/**
+ * Two-axis selection in the ADR's order (§3): the tier policy filters first,
+ * and only within the conforming set does task-based optimisation choose. This
+ * is the no-task form — the first conforming route — which is what the
+ * embedding path uses, because an embedding call has no task axis.
+ */
+export function selectRoute<A>(
+  policy: TierPolicy,
+  classification: Classification,
+  routes: Array<Route<A>>,
+): Route<A> {
+  return conformingRoutes<Route<A>>(policy, classification, routes)[0]!;
 }

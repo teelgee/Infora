@@ -2,11 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { AnthropicChatAdapter, type AnthropicLike } from './anthropic-chat.js';
 import { VoyageEmbeddingAdapter } from './voyage-embeddings.js';
 import { Router, securityForTier } from './router.js';
+import { TASK_TIERS, routesForTask } from './tasks.js';
+import type { WorkerModelTier } from '@infora/contracts';
 import type { ChatAdapter, EmbeddingAdapter } from './types.js';
 import {
   SELF_HOSTED_UK,
   SecurityPolicyError,
   TIER_POLICIES,
+  UNATTRIBUTED,
   routeConforms,
   selectRoute,
   type RouteAttributes,
@@ -220,5 +223,99 @@ describe('tier policy selection (ADR-0037 §3)', () => {
     expect(() => selectRoute(TIER_POLICIES.standard, 'official', routes)).toThrow(SecurityPolicyError);
     // and it does NOT return the non-conforming route to preserve availability
     expect(() => selectRoute(TIER_POLICIES.standard, 'official', routes)).toThrow(/fail closed/);
+  });
+});
+
+// T-284 — the second axis. Every test here is about the ORDER as much as the
+// choice: a task may rank the conforming set and may never reach outside it.
+describe('task-class routing (T-284, ADR-0028 §9 refinement)', () => {
+  const routeAt = (modelId: string, serves?: WorkerModelTier[], attributes = SELF_HOSTED_UK) => ({
+    adapter: new AnthropicChatAdapter(anthropicStub(), modelId, { attributes }),
+    ...(serves !== undefined && { serves }),
+  });
+
+  it('dispatches a task to the route configured for its tier', async () => {
+    const router = new Router(
+      [routeAt('small-triage', ['triage']), routeAt('big-frontier', ['frontier'])],
+      conformingEmbeddings(),
+    );
+
+    const drafted = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(drafted.model.id).toBe('big-frontier'); // drafting is frontier work
+
+    const triaged = await router.chat('triage', { messages: [{ role: 'user', content: 'x' }] });
+    expect(triaged.model.id).toBe('small-triage'); // relevance filtering is not
+  });
+
+  // THE ORDERING, asserted rather than assumed: the route that would win on
+  // task is not tier-conforming, so it is never reached. Inverting the two
+  // steps would let a performance preference pick a non-conforming provider.
+  it('applies tier conformance BEFORE task selection', async () => {
+    const usPublic: RouteAttributes = {
+      region: 'us',
+      retention: 'transient',
+      jurisdiction: 'foreign-reachable',
+      eligibility: 'enterprise-zdr',
+    };
+    const router = new Router(
+      [routeAt('non-conforming-frontier', ['frontier'], usPublic), routeAt('uk-general')],
+      conformingEmbeddings(),
+    );
+
+    const drafted = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(drafted.model.id).toBe('uk-general');
+    expect(drafted.egress?.region).toBe('uk');
+  });
+
+  // availability is traded for conformance and for nothing else: a task with no
+  // route declared for its tier still runs, on a conforming route
+  it('falls through to a conforming route when none declares the task tier', async () => {
+    const router = new Router([routeAt('only-triage', ['triage'])], conformingEmbeddings());
+    const drafted = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(drafted.model.id).toBe('only-triage');
+  });
+
+  // the one-endpoint deployment: no `serves` anywhere, so every task lands on it
+  it('serves every task from an undeclared route, which is why nothing changed', async () => {
+    const router = new Router(conformingChat(), conformingEmbeddings());
+    for (const task of ['draft', 'triage', 'extract'] as const) {
+      const result = await router.chat(task, { messages: [{ role: 'user', content: 'x' }] });
+      expect(result.model.id).toBe('claude-opus-4-8');
+    }
+  });
+
+  it('fails closed when NO route conforms, whatever the task says', async () => {
+    const router = new Router([routeAt('undeclared', ['frontier'], UNATTRIBUTED)], conformingEmbeddings());
+    await expect(router.chat('draft', { messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(
+      SecurityPolicyError,
+    );
+  });
+
+  it('refuses a deployment that declared no chat route at all', () => {
+    expect(() => new Router([], conformingEmbeddings())).toThrow(/no chat route/);
+  });
+
+  // the Wave 5 table, as code: every class it names has a tier, and the tier
+  // vocabulary is contracts' WorkerModelTier rather than a second name for it
+  it('tiers every task class the design reference names', () => {
+    expect(Object.keys(TASK_TIERS).sort()).toEqual([
+      'clarify',
+      'draft',
+      'extract',
+      'orchestrate',
+      'plan',
+      'synthesise',
+      'synthesise_long',
+      'triage',
+      'verify',
+    ]);
+    expect(TASK_TIERS.triage).toBe('triage');
+    expect(TASK_TIERS.extract).toBe('mid');
+  });
+
+  // ranking, not filtering: the chain T-285 walks is every conforming route
+  it('ranks the whole conforming set rather than filtering it', () => {
+    const routes = [{ serves: ['frontier'] as const }, {}, { serves: ['triage'] as const }];
+    expect(routesForTask(routes, 'triage')).toEqual([routes[2], routes[0], routes[1]]);
   });
 });
