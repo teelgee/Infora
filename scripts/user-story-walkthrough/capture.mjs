@@ -289,7 +289,13 @@ await shot(r, '00a-review-period');
 // T-390 — the acceptance-code editor, its own section further down the same
 // screen: what "accepted" means on this project, and which codes admit a
 // deliverable to the AI's reach. The blast-radius column is the beat.
-await r.getByText('Acceptance codes', { exact: true }).scrollIntoViewIfNeeded();
+// scrollIntoViewIfNeeded is a no-op when the heading already peeks into the
+// viewport, which left this beat photographing the review-period card above it
+// (caught byte-identical in review) — scroll the heading to the TOP explicitly
+// so the table below it is what the viewport holds
+await r
+  .getByText('Acceptance codes', { exact: true })
+  .evaluate((el) => el.scrollIntoView({ block: 'start' }));
 // the label cell is an INPUT for an owner who may edit it, so the row is found
 // by its code rather than by its description
 await r.getByRole('row').filter({ hasText: 'A1' }).first().waitFor();
