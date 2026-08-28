@@ -3,7 +3,8 @@
 // the class names the spec styles.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { Step } from '@infora/contracts';
+import { readFileSync } from 'node:fs';
+import type { PlanStep, PlanStepState, Step } from '@infora/contracts';
 import {
   AgentReceipt,
   AppFrame,
@@ -23,6 +24,7 @@ import {
   Pane,
   PaneHeader,
   ProjectCard,
+  ProgressRail,
   ProjectSwitcher,
   Prose,
   Rail,
@@ -416,5 +418,92 @@ describe('modal + form controls (T-163)', () => {
     expect(html).toContain('combobox-input');
     expect(html).toContain('role="combobox"');
     expect(html).not.toContain('role="listbox"'); // the list is closed until focus
+  });
+});
+
+// T-293 — the progress rail. These are not rendering tests: each one pins a
+// rule that, broken, makes the surface tell the user something untrue.
+describe('ProgressRail (T-293)', () => {
+  const step = (
+    ordinal: number,
+    stage: PlanStep['stage'],
+    state: PlanStepState,
+  ): PlanStep => ({
+    id: `s${ordinal}`,
+    ordinal,
+    stage,
+    worker: null,
+    inputs: {},
+    dependsOn: [],
+    state,
+    stepRowId: null,
+    outputRef: null,
+    editedByParticipantId: null,
+    editedAt: null,
+  });
+
+  // RULE 4, and the reason the prop is nullable: a run in flight has no
+  // readable plan, and the honest rendering of that is a stated absence — not
+  // the first stage lit up, which is a client-side timer with the timer hidden.
+  it('claims nothing when no plan has been read', () => {
+    const html = renderToStaticMarkup(<ProgressRail steps={null} />);
+    expect(html).toContain('No plan has been recorded yet');
+    expect(html).not.toContain('pr-step');
+  });
+
+  // RULE 1 — a stage that did not run is never shown as having run.
+  it('renders a pending stage as not started, never as done', () => {
+    const html = renderToStaticMarkup(
+      <ProgressRail steps={[step(0, 'search_corpus', 'pending'), step(1, 'analyse', 'complete')]} />,
+    );
+    expect(html).toContain('Searching project documents');
+    expect(html).toContain('not started');
+    expect(html).toContain('is-pending');
+  });
+
+  // RULE 2 — a stage the plan never declared is ABSENT, not quietly completed.
+  it('shows only the stages the plan declared', () => {
+    const html = renderToStaticMarkup(<ProgressRail steps={[step(0, 'analyse', 'complete')]} />);
+    expect(html).toContain('Running the analysis');
+    expect(html).not.toContain('Researching publicly available sources');
+    expect(html).not.toContain('Checking the consenting canon');
+  });
+
+  // RULE 3 — failed and skipped show as failed and skipped, in those words.
+  it('names a failed stage failed and a skipped stage skipped', () => {
+    const html = renderToStaticMarkup(
+      <ProgressRail steps={[step(0, 'analyse', 'failed'), step(1, 'present', 'skipped')]} />,
+    );
+    expect(html).toContain('failed');
+    expect(html).toContain('skipped');
+    expect(html).toContain('is-failed');
+    expect(html).toContain('is-skipped');
+  });
+
+  // the plan's own order, read off `ordinal` rather than off array position —
+  // the rail must not reorder what the plan declared
+  it('orders by the plan step ordinal', () => {
+    const html = renderToStaticMarkup(
+      <ProgressRail steps={[step(2, 'present', 'complete'), step(0, 'search_corpus', 'complete')]} />,
+    );
+    expect(html.indexOf('Searching project documents')).toBeLessThan(html.indexOf('Report'));
+  });
+
+  // an empty plan is a fact and reads differently from no plan at all
+  it('distinguishes a plan with no steps from no plan', () => {
+    expect(renderToStaticMarkup(<ProgressRail steps={[]} />)).toContain('declared no steps');
+  });
+});
+
+// A guard rather than a rendering test, in the repo's own idiom: the rail's
+// whole claim is that it moves when the record moves. A timer would break that
+// silently and would still look right, so the absence of one is checked at the
+// source rather than trusted to review.
+describe('the progress rail has no clock (T-293)', () => {
+  it('mentions no timer, interval or animation frame', () => {
+    const source = readFileSync(new URL('./progress-rail.tsx', import.meta.url), 'utf8');
+    for (const forbidden of ['setInterval', 'setTimeout', 'requestAnimationFrame', 'Date.now']) {
+      expect(source).not.toContain(forbidden);
+    }
   });
 });

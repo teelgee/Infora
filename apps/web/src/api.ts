@@ -32,6 +32,7 @@ import type {
   GetHistoryResponse,
   GetLibraryResponse,
   GetPlanResponse,
+  GetRunPlanResponse,
   GetVersionResponse,
   GetWorkItemResponse,
   ListOrgUsersResponse,
@@ -188,6 +189,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ...(sandboxId !== undefined && { sandboxId }) }),
     }),
+  // T-293 — the plan a run performed, read back for the progress rail. The
+  // rail shows what ACTUALLY ran, so it is fetched after the run reports and
+  // never guessed at while one is in flight.
+  runPlan: (runId: string) => request<GetRunPlanResponse>(`/runs/${runId}/plan`),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
   documentSuggestions: (id: string) =>
     request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),

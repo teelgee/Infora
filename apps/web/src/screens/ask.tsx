@@ -7,8 +7,8 @@
 // completion (streaming is a later, additive change).
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
-import type { MeResponse, Run } from '@infora/contracts';
-import { Badge, ChatComposer, CitedProse, Markdown, RunTrace } from '@infora/ui';
+import type { MeResponse, PlanStep, Run } from '@infora/contracts';
+import { Badge, ChatComposer, CitedProse, Markdown, ProgressRail, RunTrace } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
@@ -46,6 +46,12 @@ export function AskScreen() {
   // run (and the plan record T-299 writes) and not a conversation column.
   const { lenses, defaultLensId, loaded: lensesLoaded } = useLenses();
   const [lens, setLens] = useState<LensChoice>(null);
+  // T-293 — the progress rail's steps, read off the plan the run wrote. NULL,
+  // not [], while a run is in flight: the rail claims nothing it has not read,
+  // and the API returns on completion, so there is genuinely no record yet.
+  // A rail that lit its first stage on send would be a client-side timer with
+  // the timer hidden.
+  const [railSteps, setRailSteps] = useState<PlanStep[] | null>(null);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
@@ -67,8 +73,14 @@ export function AskScreen() {
     conversationRef.current = reopenId;
     setMessages([]);
     setSourceOpen(null);
+    setRailSteps(null);
     if (reopenId === null) return;
-    void api.conversation(reopenId).then(({ runs }) =>
+    void api.conversation(reopenId).then(({ runs }) => {
+      // the rail shows the LAST answer's plan — one read, not one per run in
+      // the history, and `null` until it arrives rather than the previous
+      // conversation's stages left standing
+      const last = runs.at(-1);
+      if (last !== undefined) void loadRail(last.id);
       setMessages(
         runs.flatMap((run) => [
           { id: nextId.current++, kind: 'user' as const, text: run.request },
@@ -79,9 +91,21 @@ export function AskScreen() {
           // fabrication about a past answer.
           { id: nextId.current++, kind: 'agent' as const, run, lens: null },
         ]),
-      ),
-    );
+      );
+    });
   }, [reopenId]);
+
+  // The plan is producer-private and inherits the run's read scope exactly
+  // (T-261), so a refusal is an ordinary outcome and the rail stays honest by
+  // staying empty rather than by inventing stages.
+  async function loadRail(runId: string) {
+    try {
+      const { plan } = await api.runPlan(runId);
+      setRailSteps(plan.steps);
+    } catch {
+      setRailSteps(null);
+    }
+  }
 
   // T-106 — the answer carried into the Editor: a fresh sandbox document
   // seeded with the agent's response, opened on the canvas.
@@ -111,6 +135,9 @@ export function AskScreen() {
     if (pending) return;
     setFailed(false);
     setMessages((m) => [...m, { id: nextId.current++, kind: 'user', text: request }]);
+    // the previous answer's stages must not stand while a new question runs —
+    // they would read as this run's progress
+    setRailSteps(null);
     setPending(true);
     abortRef.current = new AbortController();
     try {
@@ -126,6 +153,8 @@ export function AskScreen() {
         sentUnder?.id,
       );
       setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run, lens: sentUnder }]);
+      // T-293 — read the plan the run actually wrote, AFTER it reports
+      await loadRail(run.id);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setMessages((m) => [
@@ -149,6 +178,10 @@ export function AskScreen() {
 
   return (
     <div className="chat-layout">
+      {/* T-293 — the progress rail, left of the transcript (the Wave 8 layout).
+          Driven entirely by the plan's step states; there is no timer here and
+          no state that advances without the record advancing. */}
+      <ProgressRail steps={railSteps} />
       <div className="chat-main">
         <div className="topbar" style={{ position: 'static' }}>
           <span className="crumb">
