@@ -36,7 +36,13 @@ if a task seems to need it, stop and ask.
 
 ## Working rules
 
-- `pnpm run check` mirrors CI exactly (dep rules + lint + typecheck + tests).
+- `pnpm run check` runs **every gate CI runs bar six**, and CI runs all twelve
+  of it (wired 2026-08-28): dep + source guards, the `T-###`/`Q-###`/`P-###`
+  counters, the docs index, the links, the data-model atlas, lint, typecheck
+  and the suites. **Green locally is not proof CI is green** — CI additionally
+  runs `check:audit`, migrate, seed, `eval:smoke`, `build` and e2e, on a clean
+  machine with an empty database. Run it before every commit anyway; it is the
+  fast half and it catches the record errors.
 - Package dependency rules are enforced by `scripts/dep-rules.mjs` — surfaces
   depend only on `contracts` + `ui`.
 - Migrations are drawn in `docs/build/data-model.md` before being written. The

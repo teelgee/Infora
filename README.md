@@ -51,7 +51,10 @@ row-level security entirely, so connecting as the owner would make the RLS
 backstop on the grounding index theatre. The app role also holds no TRUNCATE
 privilege — a running app has no business wiping a table.
 
-`pnpm run check` mirrors CI exactly. The dependency rules between workspace
+`pnpm run check` is CI's fast half: every gate it runs, CI runs too (wired
+2026-08-28), and CI then adds the dependency audit, migrate, seed, the eval
+smoke tier, the build and the e2e suite on a clean machine. So green locally
+means the static half will pass, not that CI will. The dependency rules between workspace
 packages are enforced (`scripts/dep-rules.mjs`) — surfaces depend only on
 `contracts` and `ui`; a violation fails the build.
 

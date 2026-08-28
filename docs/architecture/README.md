@@ -10,9 +10,7 @@ The design record: what Infora **is**, why each boundary sits where it does, and
 
 Lifecycle and maturity use **the two-axis vocabulary defined once in [the build layer's README](../build/README.md#artefacts)** — ▶ Live · ♻ Living reference · ✅ Closed · ⚙ Derived, and 🟢 settled · 🟡 drafted · 🔴 open. It is not restated here on purpose: two copies of a legend is how the two copies start disagreeing.
 
-> **Enforced by `pnpm run check`** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.**
->
-> ⚠ **`pnpm run check` is not CI.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs `check:deps`, `check:source`, lint, typecheck and the suites — **not** `check:docs`, `check:links`, `check:tickets`, `check:questions`, `check:parking` or `check:data-model`. So this guard fires locally and nowhere else, which makes the convention that stops a document being forgotten itself depend on somebody remembering to run it. Recorded here rather than left as a comforting sentence; closing it is a change to the workflow, not to this file.
+> **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.** The convention in prose is what let a 363-line superseded ticket pack sit in `docs/build/` unnoticed for five weeks; the convention in CI is what catches the next one — and as of 2026-08-28 it is genuinely in CI, which it had never been.
 
 | Doc | Lifecycle | Purpose | Maturity |
 |-----|-----------|---------|----------|

@@ -44,6 +44,29 @@ jobs:
       # prompt template carries a permission instruction
       - run: pnpm run check:source
 
+      # The record guards (2026-08-28). Every one of these existed and ran only
+      # when a person remembered to type `pnpm run check` — which is circular,
+      # because each was written after a prose convention failed. Enforcing them
+      # by a prose convention was the same bet a second time.
+      #
+      # ~3 seconds for all six, no database, no build: they read files. Placed
+      # here so a documentation-only change fails in seconds rather than after
+      # Postgres, the seed and a browser have started.
+      #
+      # The two counters are the ones with a record: taking a claimed `T-###` or
+      # `Q-###` does not error, it silently overwrites a plan, and that happened
+      # three times (T-208–T-210, T-223–T-233, and Q-034 claimed twice on
+      # 2026-08-03 — caught by eye, by nothing else).
+      - run: pnpm run check:tickets
+      - run: pnpm run check:questions
+      - run: pnpm run check:parking
+
+      # the docs index (no orphaned or dangling document), every relative link
+      # and anchor in docs/, and the generated data-model atlas being current
+      - run: pnpm run check:docs
+      - run: pnpm run check:links
+      - run: pnpm run check:data-model
+
       - run: pnpm run lint
 
       - run: pnpm run typecheck
