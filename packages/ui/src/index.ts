@@ -30,6 +30,10 @@ export { Skeleton } from './skeleton';
 export { ProjectCard } from './project-card';
 export { NumBadge, SuggestionCard } from './suggestion-card';
 export { RunTrace } from './run-trace';
+// T-370 — the "what the agent did" receipt, designed once and reused by every
+// administrative agent (ADR-0027's S10 amendment). No caller yet: nothing
+// adopts the direct-execution lane until this substrate exists.
+export { AgentReceipt } from './agent-receipt';
 export { Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
 export { ChatBubble, ChatComposer } from './chat-composer';

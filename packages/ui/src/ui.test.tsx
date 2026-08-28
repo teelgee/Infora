@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { Step } from '@infora/contracts';
 import {
+  AgentReceipt,
   AppFrame,
   Badge,
   Button,
@@ -111,6 +112,64 @@ describe('rail (T-049)', () => {
     expect(nav(undefined)).not.toContain('nav-count');
     // a three-digit count would push the label out of a 216px rail
     expect(nav(140)).toContain('99+');
+  });
+});
+
+describe('agent receipt (T-370)', () => {
+  const receipt = (over: Partial<Parameters<typeof AgentReceipt>[0]['receipt']> = {}) => ({
+    runId: 'r1',
+    canUndo: true,
+    acts: [
+      {
+        id: 'a1',
+        runId: 'r1',
+        act: 'folder_created',
+        subject: { kind: 'sandbox_folder', id: 'f1' },
+        summary: 'Created the folder “Ground investigation”',
+        performedAt: '2026-08-28T10:00:00.000Z',
+        undoneAt: null,
+      },
+      {
+        id: 'a2',
+        runId: 'r1',
+        act: 'folder_created',
+        subject: { kind: 'sandbox_folder', id: 'f2' },
+        summary: 'Created the folder “Ecology”',
+        performedAt: '2026-08-28T10:00:01.000Z',
+        undoneAt: '2026-08-28T10:05:00.000Z',
+      },
+    ],
+    ...over,
+  });
+
+  it('lists acts line by line — a receipt is what you can check, not a summary', () => {
+    const html = renderToStaticMarkup(<AgentReceipt receipt={receipt()} onUndo={() => {}} />);
+    expect(html).toContain('Ground investigation');
+    expect(html).toContain('Ecology');
+    // the head states how much still stands, because that is the question a
+    // person asks after undoing one of them
+    expect(html).toContain('1 of 2');
+  });
+
+  it('keeps an undone act on the receipt, struck, and offers no second undo', () => {
+    // currency by state: the record of what the agent did is not edited by
+    // undoing it, and a receipt that emptied itself would leave a person unable
+    // to answer "what did it do that I then reversed"
+    const html = renderToStaticMarkup(<AgentReceipt receipt={receipt()} onUndo={() => {}} />);
+    expect(html).toContain('agent-act undone');
+    expect(html).toContain('Undone');
+    expect(html.match(/>Undo</g) ?? []).toHaveLength(1); // the standing act only
+  });
+
+  it('offers no undo at all to someone who is not the run’s requester', () => {
+    const html = renderToStaticMarkup(
+      <AgentReceipt receipt={receipt({ canUndo: false })} onUndo={() => {}} />,
+    );
+    expect(html).not.toContain('>Undo<');
+  });
+
+  it('renders nothing when the agent did nothing — a receipt for no acts is noise', () => {
+    expect(renderToStaticMarkup(<AgentReceipt receipt={receipt({ acts: [] })} />)).toBe('');
   });
 });
 

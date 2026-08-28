@@ -577,6 +577,53 @@ ruling did not impose, on the one path a person reaches under deadline.
 **The overrider is a named person** (`overridden_by_participant_id`) and is
 registered in [personal-data.md](../architecture/personal-data.md).
 
+## Drawn 2026-08-28 — the agent act, and its receipt (T-370)
+
+*Drawn and built the same day; migration 0059. ADR-0027's S10 amendment
+(owner-ruled 2026-08-09) licenses an embedded agent to execute **administrative**
+work directly — folder structures, schema setup, plan housekeeping — within the
+invoker's own permissions, on two conditions: the act is **audited as
+agent-performed**, and there is a **visible "what the agent did" receipt with
+undo**. Nothing may adopt that lane until both exist. This is both.*
+
+**Drawer 3 — `agent_acts`.** Append-only by trigger (the T-008 pattern), one row
+per act an agent run performed: the **run** that performed it, a **polymorphic
+subject**, the **summary** a receipt reads, and an `undone_at` interval.
+
+**A side table rather than an `acting_run_id` column on each audited act**, and
+the reason is not economy. The subject row's existing attribution stays
+**correct**: the amendment says the agent acts *within the invoker's own
+permissions*, so the participant who invoked it really is the person the act is
+attributable to. Agent performance is an **additional** fact about the same act,
+and a column would read as replacing the attribution rather than adding to it.
+The shape also carries the receipt's own state (`undone_at`), which is not a
+fact about the folder or the plan row at all, and it admits a new act kind
+without DDL — Drawer 8's guard, applied for the same reason and with the same
+consequence: `subject_id` is deliberately **not** a foreign key.
+
+**The `act` column is `text` and its vocabulary is empty on purpose.** Nothing
+performs an administrative act yet — T-337 and T-364 stay preview-confirm, which
+the amendment reads as interaction design rather than doctrine — so declaring a
+closed set of act kinds here would be T-301's rule broken twice over: values the
+schema carries that no code can set. The first adopting ticket adds one act kind
+and one undo handler.
+
+**No `undoable` flag.** Whether an act can still be undone is a **runtime**
+question — an added folder that now holds documents is additive and no longer
+safely removable — so it is the undo handler's answer at the moment of asking,
+not a boolean frozen at insert.
+
+**No `undone_by_participant_id`, and that is a rule rather than an omission.**
+The receipt belongs to the run, the run already names its requester, and **only
+that requester may undo** — so the actor is fixed by construction and there is
+no second person to record. That is why this table introduces no new
+named-person data, which is what T-370's ticket predicted and what the register
+records.
+
+**`summary` is stored, not derived** — `purge_events`' rule one drawer along.
+After an undo the subject is gone, and a receipt naming only a uuid answers
+*"something happened"* and nothing else.
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

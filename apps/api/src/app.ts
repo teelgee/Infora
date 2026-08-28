@@ -31,6 +31,7 @@ import { attachedSourceRoutes } from './attached';
 import { sandboxRoutes } from './sandbox';
 import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
+import { agentActRoutes } from './agent-acts';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
@@ -230,6 +231,12 @@ export function buildApp(deps: AppDeps) {
   // T-329 — the notification record and its read/mark-read API (ADR-0049).
   // Visibility follows the subject, re-resolved on every read.
   app.route('/', notificationRoutes(deps));
+
+  // T-370 — the agent-act substrate (ADR-0027's S10 amendment): first-class
+  // actor identity for an agent run, and the receipt-with-undo. No caller yet —
+  // nothing adopts the direct-execution lane until this exists, which is the
+  // amendment's own sequencing.
+  app.route('/', agentActRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

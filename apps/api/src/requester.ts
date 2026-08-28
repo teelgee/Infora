@@ -19,6 +19,7 @@ import type { WorkflowRegistry } from '@infora/workflows';
 import type { Classifier, WorkerRegistry } from '@infora/capabilities';
 import type { ModelRates, Router } from '@infora/model';
 import { sessionCookie } from './auth';
+import type { AgentActUndoRegistry } from './agent-acts';
 import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
 import type { SessionPolicy } from './sessions';
 
@@ -67,6 +68,17 @@ export type AppDeps = {
    * without a release.
    */
   askWorkflowId?: string;
+  /**
+   * T-370 — how each administrative agent act is undone, one handler per act
+   * kind, bound at composition exactly as `workers` and `lenses` are.
+   *
+   * **Absent, and empty, in every deployment today** — that is the substrate
+   * working rather than missing: nothing performs an administrative act yet
+   * (ADR-0027's S10 amendment says nothing adopts the direct-execution lane
+   * until this substrate exists), so there is nothing to undo, and an act kind
+   * with no handler is refused rather than quietly succeeding.
+   */
+  agentActUndo?: AgentActUndoRegistry;
   /**
    * T-266/T-269 — the workers this deployment has built. The route assembles
    * the per-requester set from it before the classifier sees anything, so an

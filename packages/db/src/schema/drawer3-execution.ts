@@ -325,3 +325,80 @@ export const steps = pgTable('steps', {
   railOutcomes: jsonb('rail_outcomes').notNull().default([]),
   childRunId: uuid('child_run_id').references(() => runs.id),
 });
+
+/**
+ * T-370 — an act an agent RUN performed, and the receipt's own state
+ * (ADR-0027's S10 amendment, owner-ruled 2026-08-09).
+ *
+ * The amendment licenses an embedded agent to execute **administrative** work
+ * directly — folder structures, schema setup, plan housekeeping — within the
+ * invoker's own permissions, on two conditions: the act is **audited as
+ * agent-performed**, and there is a **visible "what the agent did" receipt with
+ * undo**. Nothing may adopt that lane until both substrates exist. This table is
+ * both, which is why it holds the receipt's state as well as the attribution.
+ *
+ * A SIDE TABLE RATHER THAN AN `acting_run_id` COLUMN ON EACH AUDITED ACT, and
+ * the reason is not economy. The subject row's existing attribution stays
+ * CORRECT — the agent acts within the invoker's own permissions, so the
+ * participant really is who the act is attributable to. Agent performance is an
+ * ADDITIONAL fact about the same act, and a column would read as replacing the
+ * attribution rather than adding to it. It also carries `undone_at`, which is
+ * not a fact about the folder or the plan row at all.
+ *
+ * `subject_id` IS DELIBERATELY NOT A FOREIGN KEY, for Drawer 8's reason: a
+ * per-kind column is a schema change every new act kind would need.
+ */
+export const agentActs = pgTable(
+  'agent_acts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * FIRST-CLASS ACTOR IDENTITY — the amendment's own words. Every write in
+     * the platform is attributed to the invoking participant alone; the run is
+     * recorded, but the act itself never says an agent performed it. This
+     * column is that sentence.
+     *
+     * It also fixes a precondition worth stating: an agent adopting the direct
+     * lane MUST record a Run. T-364's structure agent writes none today, which
+     * is its own named residual — the first adopter closes it.
+     */
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => runs.id),
+    /**
+     * The kind of act, and its vocabulary is EMPTY on purpose. Nothing performs
+     * an administrative act yet — T-337 and T-364 stay preview-confirm — so a
+     * closed enum here would be T-301's rule broken twice: values the schema
+     * carries that no code can set. The first adopting ticket adds one act kind
+     * and one undo handler and nothing else.
+     */
+    act: text('act').notNull(),
+    subjectKind: text('subject_kind').notNull(),
+    subjectId: uuid('subject_id').notNull(),
+    /**
+     * What the agent did, in the words the receipt reads. STORED, not derived —
+     * `purge_events`' rule one drawer along: after an undo the subject is gone,
+     * and a receipt naming only a uuid answers "something happened" and nothing
+     * else.
+     */
+    summary: text('summary').notNull(),
+    performedAt: timestamp('performed_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Currency by state. There is deliberately NO `undone_by_participant_id`:
+     * the receipt belongs to the run, the run already names its requester, and
+     * only that requester may undo — so the actor is fixed by construction and
+     * there is no second person to record. That is why this table introduces no
+     * new named-person data.
+     *
+     * And no `undoable` flag: whether an act can still be undone is a RUNTIME
+     * question (an added folder that now holds documents is additive and no
+     * longer safely removable), so it is the handler's answer at the moment of
+     * asking rather than a boolean frozen at insert.
+     */
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('agent_acts_run_idx').on(t.runId, t.performedAt),
+    index('agent_acts_subject_idx').on(t.subjectKind, t.subjectId),
+  ],
+);

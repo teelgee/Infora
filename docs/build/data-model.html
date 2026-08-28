@@ -416,6 +416,19 @@
       <h2>Drawer 3 — Work &amp; execution</h2>
       <p class="blurb">Work items, conversations, the append-only Run/Step record, the plan artefact.</p>
       <article class="card d3">
+        <h3>agent_acts <span class="badge">immutable content</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">act</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">subject_kind</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">subject_id</td><td class="type">uuid</td><td class="notes"></td></tr>
+          <tr><td class="col">summary</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">performed_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">undone_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d3">
         <h3>attached_sources</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

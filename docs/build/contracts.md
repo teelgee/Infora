@@ -708,3 +708,20 @@ are not recorded here.
   than through a replace — the same accident wearing a safer-looking control.
   `drop` is reported and never applied unless the caller asks, because a sheet
   not mentioning a field is weak evidence that the field should go.
+- **2026-08-28 (T-370) — `AgentAct.act` is a bare string, and the receipt says
+  who may undo rather than leaving a surface to guess.** ADR-0027's S10
+  amendment requires two substrates before any build lets an embedded agent act
+  directly, and it says plainly that nothing adopts the lane until they exist.
+  So these types describe a mechanism with no consumer, and that shapes two
+  fields. **`act` carries no union**: a closed set of act kinds would be values
+  no code can produce — T-301's rule (*a value the schema carries and no code
+  can set is a claim the schema makes falsely*) applied to a type instead of a
+  column — and the first adopting ticket names its own. **There is no `undoable`
+  field**, because whether an act can *still* be undone is a runtime question
+  the handler answers at the moment of asking: an added folder that has since
+  filled with documents is additive and no longer safely removable, and a
+  boolean frozen at insert would say otherwise. `AgentReceipt.canUndo` is
+  resolved server-side and is true only for the run's own requester — the
+  receipt belongs to the run, no ruling gives anyone authority over another
+  person's agent turn, and a surface computing it locally would offer a control
+  it will be refused on.
