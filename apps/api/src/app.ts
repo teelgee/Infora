@@ -31,6 +31,7 @@ import { attachedSourceRoutes } from './attached';
 import { sandboxRoutes } from './sandbox';
 import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
+import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
 import { uploadRoutes } from './upload';
@@ -225,6 +226,10 @@ export function buildApp(deps: AppDeps) {
   // Non-review transmittal, the acknowledgement gate, intra-org narrowing +
   // the standing routing rule (ADR-0035) — T-137
   app.route('/', transmittalRoutes(deps));
+
+  // T-329 — the notification record and its read/mark-read API (ADR-0049).
+  // Visibility follows the subject, re-resolved on every read.
+  app.route('/', notificationRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

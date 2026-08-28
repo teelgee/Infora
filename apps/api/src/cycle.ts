@@ -92,7 +92,7 @@ async function reviewPeriodTargetFor(
 /** producer | owner | live share — who may see the deliverable and its DRR.
  * A sandbox-scope (freeze-series) container is org-private machinery: the
  * producing organisation only, never the owner, never a share (ADR-0032). */
-async function canSeeContainer(db: Db, slice: EntitledSlice, container: ContainerRow) {
+export async function canSeeContainer(db: Db, slice: EntitledSlice, container: ContainerRow) {
   if (container.scope === 'sandbox') {
     return container.producingOrganisationId === slice.organisationId;
   }

@@ -865,5 +865,21 @@
         </tbody></table>
       </article>
     </section>
+    <section class="drawer d8">
+      <h2>Drawer 8 — Notifications</h2>
+      <p class="blurb">The telling: an event-shaped record whose visibility follows the subject it points at, storing a pointer and never content (T-329, ADR-0049).</p>
+      <article class="card d8">
+        <h3>notifications <span class="badge">immutable content</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">recipient_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">event_type</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">subject_kind</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">subject_id</td><td class="type">uuid</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">read_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+    </section>
 </body>
 </html>

@@ -20,10 +20,12 @@
 >   only its **narrative** — what it is for, and the design decisions it
 >   embodies, which no schema file can state — plus the pointer.
 >
-> All seven drawers are currently built, so no field list appears below; the
-> next drawer drawn (notifications, T-329, is the first candidate) carries its
-> field lists here until its migration lands, then reduces to narrative like
-> the rest. **Drawer 7 was added 2026-08-27 (T-308)** and is the first store
+> All eight drawers are currently built, so no field list appears below.
+> **Drawer 8 was added 2026-08-28 (T-329)** — notifications, and the first
+> drawer this rule was applied to end to end: its field list was drawn here,
+> the migration was written from the drawing, and the block reduced to
+> narrative and a pointer in the same commit, which is what the state rule
+> asks for once a drawer is built. **Drawer 7 was added 2026-08-27 (T-308)** and is the first store
 > behind [component 4](../architecture/components/component-4-context.md)'s
 > three scoped context stores, which until then had no tables at all. This split preserves "migrations are drawn before being written"
 > while removing the permanent sync obligation the old always-carry-fields
@@ -430,6 +432,58 @@ a guessed address, because an invented one looks checkable.
 **Currency by state**: `retired_at` on the rulebook, never a delete, so a
 finding written against a rule that has since been withdrawn still resolves to
 the words it quoted.
+
+## Drawer 8 — Notifications
+*The telling: one persisted, event-shaped record per thing a person needs to
+know, and the pointer back to where it can be read — drawn and built 2026-08-28
+(T-329, ADR-0049, migration 0056).*
+**Shape:** [drawer8-notifications.ts](../../packages/db/src/schema/drawer8-notifications.ts)
+
+**Why a drawer rather than a shelf in an existing one.** A notification points
+**at** things in four tables across three other drawers and belongs to none of
+them. Drawer 5 is the near-miss worth naming: `round-issued` is a review event,
+but `@-mention` hangs off a sandbox comment (Drawer 2's working area) and
+`record-state-changed-by-another-organisation` off a container — so the table
+would have sat in a drawer two of its three pilot events have nothing to do
+with. **The telling is its own subject area.**
+
+**The row stores no content, and that is the whole design** (ADR-0049 §3).
+Visibility follows the thing the notification points at, resolved through the
+same path as the subject itself, so a notification is never a channel by which
+a fact reaches someone who could not otherwise reach it. A stored title or
+summary would defeat that at a stroke — it would be a copy of the subject's
+content sitting *outside* the subject's access path, still readable after the
+share that permitted it was revoked. Every word on screen is resolved live.
+
+**Two columns are unconstrained text, and the guard is what makes them so.**
+ADR-0049 §2 requires that **adding a third event type not require a schema
+change**. A Postgres enum breaks that by construction — `ALTER TYPE … ADD VALUE`
+is a migration. Seeding the deferred `lock-flipped` value now would break the
+other rule instead, the one T-301 wrote down when it left `supersede` out of
+`elevated_action`: *a value the schema carries and no code can set is a claim
+the schema makes falsely.* So the vocabulary lives in `packages/contracts` as a
+union every surface is typed against, and the store holds the text. The same
+argument makes `subject_id` **not a foreign key**: a per-kind FK column is
+exactly the schema change the guard rules out. The integrity that gives up is
+bought back on the read path rather than lost — a subject that no longer
+resolves is a notification visible to nobody, which is what a cascade would
+have produced and what the visibility rule demands regardless.
+
+**`subject_kind` is separate from `event_type` on purpose.** The resolver that
+decides visibility keys on the *kind*, so a new event type over an existing
+kind — lock-flipped, over a sandbox document — reuses a resolution path that
+already exists and is already tested.
+
+**Participant grain, not User.** Every event in the set is about a project
+subject, and a Participant is the person-on-a-project the access predicate
+already resolves (ADR-0033). It also makes the wall rule hold with no second
+mechanism: a Participant interval closing on removal stops resolving to a
+slice, so the notifications go dark in the same act that ends the access. The
+project is **derived** through that column, never duplicated beside it.
+
+**Immutable event, mutable read state.** The T-008 pattern applied to a
+two-phase row, as `plans` does: a trigger rejects any `UPDATE` that changes
+anything but `read_at`. A notification is evidence that somebody was told.
 
 ---
 

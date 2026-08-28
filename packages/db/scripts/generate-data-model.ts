@@ -35,6 +35,7 @@ import * as drawer4 from '../src/schema/drawer4-output';
 import * as drawer5 from '../src/schema/drawer5-review';
 import * as drawer6 from '../src/schema/drawer6-ontology';
 import * as drawer7 from '../src/schema/drawer7-context';
+import * as drawer8 from '../src/schema/drawer8-notifications';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
@@ -48,6 +49,7 @@ const DRAWERS: Array<{ key: string; title: string; blurb: string; module: Record
   { key: 'd5', title: 'Drawer 5 — Review', blurb: 'The review cycle at two scopes: cycles, rounds, transmittals, comments, responses, appointments and shares.', module: drawer5 },
   { key: 'd6', title: 'Drawer 6 — The project ontology', blurb: 'The classification vocabulary and the typed edges between containers.', module: drawer6 },
   { key: 'd7', title: 'Drawer 7 — Context', blurb: 'The scoped context stores (ADR-0020). Org context only so far: the firm’s rulebook and its verbatim clauses (T-308, ADR-0048).', module: drawer7 },
+  { key: 'd8', title: 'Drawer 8 — Notifications', blurb: 'The telling: an event-shaped record whose visibility follows the subject it points at, storing a pointer and never content (T-329, ADR-0049).', module: drawer8 },
 ];
 
 // The atlas is only "the schema as built" while this list is complete, and the

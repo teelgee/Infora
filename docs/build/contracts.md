@@ -642,3 +642,22 @@ are not recorded here.
   the new plan *and* `supersededPlanId`, because the caller has to be able to
   show that the old plan is still there — supersession is the claim, and a
   response that only returned the new one would leave the surface to assume it.
+- **2026-08-28 (T-329) — the notification's event vocabulary lives in the
+  contracts, not in the store, and its subject label is never a field the
+  server fills from a copy.** ADR-0049 §2 guards the record with a hard test:
+  *adding a third event type must not require a schema change*. A Postgres enum
+  fails that by construction, and seeding the deferred `lock-flipped` value
+  into one fails T-301's rule instead — a value the schema carries and no code
+  can set is a claim the schema makes falsely. So `event_type` and
+  `subject_kind` are `text` in Drawer 8 and closed unions here, which is the
+  only arrangement in which both rules hold. The sharper half is
+  `NotificationSubject.label`: it is **resolved on every read** through the same
+  access path as the subject itself, and stored nowhere. A stored label would
+  be a copy of the subject's content sitting *outside* the subject's access
+  path — still readable after the share that permitted it was revoked — which
+  is precisely the leak §3 exists to prevent, arriving through a field that
+  looks like a display convenience. `ListNotificationsResponse` carries the
+  count beside the items for the same reason: the unread count is not
+  `SELECT count(*)`, because a row whose subject is out of reach is neither
+  listed nor counted, and computing it twice is how a badge starts disclosing
+  rows the list will not show.
