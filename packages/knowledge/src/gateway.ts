@@ -7,8 +7,8 @@
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Assemble, AssembledItem, AssemblyRequest } from '@infora/contracts';
-import { resolveAccess } from '@infora/governance';
-import type { EntitledSlice } from '@infora/governance';
+import { attenuate, resolveAccess } from '@infora/governance';
+import type { Attenuation, EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -43,10 +43,21 @@ const informing: Pipeline = async () => [];
 
 const emptyInput = () => ({ items: [], budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 } });
 
-export function createAssembler(deps: GatewayDeps): Assemble {
+/**
+ * T-248 — an optionally NARROWED assembler (finding F8).
+ *
+ * The narrowing rides the construction, never the call: `AssemblyRequest` has
+ * no attenuation field and gains none, so a caller still cannot ask this
+ * gateway for a scope. What an orchestrator can do is hand a worker an
+ * assembler already narrower than its own — three named documents rather than
+ * the whole entitled library — and, because `attenuate` is monotonic, a worker
+ * handed a narrowed assembler has no route back to the wider one.
+ */
+export function createAssembler(deps: GatewayDeps, narrowing?: Attenuation): Assemble {
   return async (req) => {
-    const slice = await resolveRequester(deps.db, req);
-    if (!slice) return emptyInput();
+    const resolved = await resolveRequester(deps.db, req);
+    if (!resolved) return emptyInput();
+    const slice = narrowing === undefined ? resolved : attenuate(resolved, narrowing);
 
     const [grounded, guidingItems, informingItems] = await Promise.all([
       groundedLibrary(deps, slice, req.request),

@@ -5,6 +5,7 @@
 // type level, because the guarantee is the signature's shape (ADR-0029).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AssembledItem, AssemblyRequest } from '@infora/contracts';
+import type { Attenuation } from '@infora/governance';
 import { createDb, schema as s } from '@infora/db';
 import { createAssembler } from './gateway';
 import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
@@ -16,6 +17,7 @@ let projectId: string;
 let entitled: AssemblyRequest['requester'];
 let unentitled: AssemblyRequest['requester']; // a real participant — of another project
 let supersededVersionId: string;
+let containerId: string; // T-248 — the one container a narrowing can name
 
 beforeAll(async () => {
   const stamp = Date.now();
@@ -64,6 +66,7 @@ beforeAll(async () => {
     .insert(s.containers)
     .values({ projectId, producingOrganisationId: orgA!.id, documentReference: `T33-LIB-GIR-${stamp}`, inLibrary: true })
     .returning();
+  containerId = container!.id;
   const versions = [
     { ref: 'v1', current: false, content: 'alpha superseded: no exceedances recorded.' },
     { ref: 'v2', current: true, content: 'alpha current: elevated PAH concentrations recorded.' },
@@ -171,7 +174,67 @@ describe('the wall through the gateway (T-033)', () => {
       'channel' | 'corpus' | 'source' | 'rule' | 'chunkId' | 'locator' | 'content'
     > = true;
 
-    expect([requestShape, requesterShape, queryShape, itemShape]).toEqual([true, true, true, true]);
+    // T-248 extended this test to the OTHER direction, because "no parameter
+    // widens" and "the narrowing parameter cannot widen either" are two
+    // different claims and only the first was pinned. Two things are asserted
+    // here and neither is redundant:
+    //
+    //   • `Attenuation`'s keys are exactly the two narrowing axes. A field
+    //     added here — an extra project, a second organisation, a corpus
+    //     name — would be a widening one by construction, and the review it
+    //     needs is this test failing.
+    //   • the narrowing is STILL not on `AssemblyRequest`, which the request
+    //     shape above already pins. It rides the resolved slice via a
+    //     constructed assembler, so a caller cannot name a scope at all —
+    //     it can only be handed one already narrower than its own.
+    const attenuationShape: ExactKeys<Attenuation, 'containerIds' | 'elevated'> = true;
+
+    expect([requestShape, requesterShape, queryShape, itemShape, attenuationShape]).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+});
+
+// T-248 — the narrowing reaching the pre-filter (finding F8). The unit proof
+// that attenuation never widens is attenuation.test.ts; what this adds is that
+// the narrowing is actually INTERSECTED into the one query, so it composes with
+// the wall rather than being applied beside it.
+describe('scope attenuation through the gateway (T-248)', () => {
+  const narrowed = (narrowing: Attenuation) =>
+    createAssembler({ db, router: fakeRouter() }, narrowing);
+
+  it('an unnarrowed assembler is unchanged — this ticket blocks nothing', async () => {
+    const { items } = await createAssembler({ db, router: fakeRouter() })(query(entitled));
+    expect(items.filter((i) => i.channel === 'grounded').length).toBeGreaterThan(0);
+  });
+
+  it('a narrowing to the container the requester already reaches returns the same grounded set', async () => {
+    const wide = await assemble(query(entitled));
+    const narrow = await narrowed({ containerIds: [containerId] })(query(entitled));
+    expect(narrow.items.filter((i) => i.channel === 'grounded')).toEqual(
+      wide.items.filter((i) => i.channel === 'grounded'),
+    );
+  });
+
+  it('a narrowing to another container returns no grounded content', async () => {
+    const { items } = await narrowed({ containerIds: [crypto.randomUUID()] })(query(entitled));
+    expect(items.filter((i) => i.channel === 'grounded')).toEqual([]);
+  });
+
+  it('a narrowing to NOTHING admits nothing — absent and empty are not the same value', async () => {
+    const { items } = await narrowed({ containerIds: [] })(query(entitled));
+    expect(items.filter((i) => i.channel === 'grounded')).toEqual([]);
+  });
+
+  it('a narrowing cannot recover what the wall already refused', async () => {
+    // the unentitled requester naming the entitled requester's own container:
+    // resolution fails first, so there is nothing for the narrowing to act on
+    const { items } = await narrowed({ containerIds: [containerId] })(query(unentitled));
+    expect(items).toEqual([]);
   });
 });
 

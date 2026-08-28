@@ -1,5 +1,8 @@
 // @infora/governance — audit log, grounding/NLI, rails, access policy
 export * from './access';
+// T-248 — scope attenuation (finding F8): narrowing only, intersected, monotonic
+export { attenuate, reachableContainerIds } from './attenuation';
+export type { Attenuation } from './attenuation';
 export * from './conflict';
 export * from './sandbox';
 // T-249 — label propagation on write-back (finding F2). Policy only: the

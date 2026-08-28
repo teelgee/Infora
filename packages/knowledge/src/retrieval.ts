@@ -13,6 +13,7 @@
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AssembledItem } from '@infora/contracts';
+import { reachableContainerIds } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -110,7 +111,24 @@ function liveLibraryFilter(slice: EntitledSlice, modelId: string, scope: string[
     eq(s.versionChunks.embeddingModelId, modelId),
     deliverableVisibleSql(slice),
     scope.length > 0 ? classificationScopeSql(scope) : undefined,
+    // T-248 — the caller's optional narrowing, INTERSECTED into the same
+    // `and()` as the wall's own clauses rather than applied around them. That
+    // placement is the guarantee: a narrowing cannot be evaluated on rows the
+    // pre-filter excluded, so it can only ever remove.
+    attenuationSql(slice),
   );
+}
+
+// The attenuation as SQL, with the absent/empty distinction the type carries
+// preserved: no narrowing adds no clause, and a narrowing to nothing admits
+// nothing. Returning `undefined` for the empty case would silently turn the
+// tightest possible narrowing into the loosest, which is finding F8 arriving
+// as a bug instead of a design gap.
+function attenuationSql(slice: EntitledSlice): SQL | undefined {
+  const ids = reachableContainerIds(slice);
+  if (ids === null) return undefined;
+  if (ids.length === 0) return sql`false`;
+  return inArray(s.containers.id, [...ids]);
 }
 
 // The admitting code's grounding rule, read LIVE (ADR-0013 §6). The scalar

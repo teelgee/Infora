@@ -6,6 +6,7 @@
 // 404 as nonexistence (contracts principle 4).
 
 import type { Id } from '@infora/contracts';
+import type { Attenuation } from './attenuation';
 
 export type MembershipRole = 'owner' | 'member';
 export type MembershipState = 'proposed' | 'active';
@@ -40,6 +41,12 @@ export type EntitledSlice = {
   // the elevated (super-user) capability holds destructive lifecycle actions
   // (T-174) — never granted implicitly by role; a per-participant capability
   elevated: boolean;
+  // T-248 — an optional NARROWING of everything above, applied by the caller
+  // that dispatches a sub-step. Absent on every slice `resolveAccess` returns:
+  // resolution answers what a requester holds, and attenuation is what a
+  // caller chooses to spend of it. Only `attenuate()` writes this field, and
+  // every value it can write admits less than the value it replaced.
+  attenuation?: Attenuation;
 };
 
 /**

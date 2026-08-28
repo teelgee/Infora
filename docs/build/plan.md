@@ -182,7 +182,7 @@ entry naming its gate and where its design lives.
 | F5 | Passage-grain audit | T-253 | nothing | ✅ Converts "we log what it saw" from a claim into a demonstration |
 | F6 | Defence in depth on the mandatory filter | T-247, T-297 | nothing | ✅ (chunks) / open (containers). Correct today *by construction*, and failing **open** at the database |
 | F7 | Real cost attribution | T-254 | cost reporting | Open — every step in the live system records a cost of exactly zero; token counts are real |
-| F8 | Scope attenuation | T-248 | nothing | **Downgraded.** Escalation is already structurally impossible; scope is *equal*, never narrowable, and equal scope leaks nothing because every worker runs inside the caller's single environment |
+| F8 | Scope attenuation | T-248 | nothing | ✅ **Downgraded, then built 2026-08-28.** Escalation is already structurally impossible; scope was *equal*, never narrowable, and equal scope leaks nothing because every worker runs inside the caller's single environment. T-248 added the other direction — a narrowing that is intersected, monotonic, and unreachable from the request |
 
 *Two requirements from that document that no ticket yet carries:* **revocation takes effect on the next plan step** (T-252's companion — consistent with the colocated store's immediate-effect property, ADR-0024, and live-mutable sandbox scope grants, ADR-0036); and **the rate-limit store moves off the per-process `Map`** ([rate-limit.ts:3](../../apps/api/src/rate-limit.ts#L3)) before multi-instance deployment — a named seam, restated under T-254 because one plan now means many model calls.
 
@@ -193,7 +193,8 @@ entry naming its gate and where its design lives.
 
 - ~~**T-247 — RLS on the grounding index, source guards, and a real application role.**~~ ✅ **Built** (migration 0034). Record in [plan-history.md](plan-history.md#slice-ask).
 
-- **T-248 — Scope attenuation on `EntitledSlice`.** Optional narrowing intersected into the pre-filter, never unioned; monotonic composition; the existing no-widening signature test extended to assert narrowing cannot widen either. **A hardening, not a gap, and it blocks nothing** (downgraded 2026-07-30) — escalation is already structurally impossible, and equal scope leaks nothing because every worker runs inside the caller's single environment. | *(Deps: none)*
+- ~~**T-248 — Scope attenuation on `EntitledSlice`.**~~ ✅ **Built 2026-08-28** (no migration). Record in [plan-history.md](plan-history.md#slice-ask).
+
 - ~~**T-249 — Label propagation on write-back.**~~ ✅ **Built 2026-07-31** (migration 0036). Record in [plan-history.md](plan-history.md#slice-ask).
 
 - ~~**T-250 — The untrusted-content type barrier.**~~ ✅ **Built 2026-07-30**. Record in [plan-history.md](plan-history.md#slice-ask).
