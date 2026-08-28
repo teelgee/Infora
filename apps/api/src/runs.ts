@@ -7,18 +7,25 @@
 // Everything else is the same not_found as nonexistence.
 import { Hono } from 'hono';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
-import { createConversationBody, createRunBody, openRunInEditorBody } from '@infora/contracts';
+import {
+  createConversationBody,
+  createRunBody,
+  openRunInEditorBody,
+  rerunPlanBody,
+} from '@infora/contracts';
 import type {
   ApiError,
   GetHistoryResponse,
   PlanMode,
   GetRunPlanResponse,
   HistoryEntry,
+  RerunPlanResponse,
   Id,
   ListLensesResponse,
   Run,
   WorkItem,
 } from '@infora/contracts';
+import { eq as dEq } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
@@ -32,6 +39,7 @@ import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import {
   canRerunPlan,
   createConversation,
+  PlanNotExecutable,
   readPlanForRun,
   readRun,
   readRunContext,
@@ -436,6 +444,131 @@ export function runRoutes(deps: {
     } satisfies GetRunPlanResponse);
   });
 
+  // T-267 — edit the plan, then run it again.
+  //
+  // SUPERSESSION, NOT MUTATION: a new run with a new plan, and the old plan
+  // marked `superseded` pointing at it. A plan is evidence, and "what did your
+  // AI do" has to survive the user editing it afterwards.
+  app.post('/runs/:runId/plan/rerun', resourceScope(deps, 'runId', resourceHomes.run), async (c) => {
+    const runId = c.req.param('runId');
+    const slice = c.get('slice');
+    const [previous] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
+    if (!previous || !(await runVisibleTo(deps.db, previous, slice))) return c.json(notFound, 404);
+
+    const plan = await readPlanForRun(deps.db, runId);
+    if (!plan) return c.json(notFound, 404);
+
+    // Read and re-run are different rights on one record (T-261). A 403 rather
+    // than a 404 because this caller can already READ the plan — telling them
+    // it does not exist would be a lie they can check, and principle 4 exists
+    // to hide what someone cannot see, not to confuse them about what they can.
+    if (!canRerunPlan(plan, slice.participantId)) {
+      return c.json(
+        {
+          error: 'forbidden',
+          detail:
+            're-running is a new Run with a new requester, so only the participant who asked the original question may re-run their own plan',
+        } satisfies ApiError,
+        403,
+      );
+    }
+
+    const raw = (await c.req.json().catch(() => null)) as unknown;
+    // Refused BY NAME rather than as an unknown field, exactly as the workflow
+    // validator does: a step's scope derives from the run's EntitledSlice and
+    // is not an editable field, so there is no correct spelling of it.
+    const scopeField = namedScopeField(raw);
+    if (scopeField !== null) {
+      return c.json(
+        invalid(
+          `a plan step may not declare '${scopeField}'. Scope derives from the run's entitled slice and is not editable, so editing a plan cannot widen what it reaches — there is no correct spelling of this field`,
+        ),
+        400,
+      );
+    }
+
+    const body = rerunPlanBody.safeParse(raw);
+    if (!body.success) return c.json(invalid('steps: stage, worker?, inputs?'), 400);
+
+    // The offered set is the ASSEMBLED set (T-269), so editing cannot reach a
+    // worker the requester is not entitled to — the entitlement bound stated
+    // as the only list a name may come from.
+    const entitled =
+      deps.workers?.assemble({
+        slice,
+        tier: 'standard',
+        authorityShelf: (await deps.authorityShelf?.(slice.organisationId)) ?? false,
+      }) ?? [];
+    const names = entitled.map((worker) => worker.name);
+
+    for (const [index, step] of body.data.steps.entries()) {
+      if (step.stage === 'verify' && step.worker != null) {
+        return c.json(
+          invalid(
+            `steps[${index}]: a verify step may not name a worker. The ground-check is code that runs outside the plan on every answer, and this step is its record`,
+          ),
+          400,
+        );
+      }
+      if (step.worker != null && !names.includes(step.worker)) {
+        // named, with what IS available — which is this requester's own set, so
+        // nothing about anyone else's entitlement leaks by saying it
+        return c.json(
+          invalid(
+            `steps[${index}]: '${step.worker}' is not a worker you can use. Available: ${names.join(', ') || '(none)'}`,
+          ),
+          400,
+        );
+      }
+    }
+
+    let rerun: RunRow;
+    try {
+      ({ run: rerun } = await runChain(deps.db, deps.leaves, {
+        conversationId: previous.conversationId,
+        request: previous.request,
+        environmentKey: slice.projectId,
+        requesterParticipantId: slice.participantId,
+        lens: null,
+        stages: body.data.steps.map((step) => ({
+          stage: step.stage,
+          worker: step.worker ?? null,
+          inputs: step.inputs ?? {},
+        })),
+        // An edited plan is `model_chosen` EVEN IF IT STARTED DECLARED. A
+        // declared workflow promises the same inputs produce the same steps in
+        // the same order; a hand-edited copy makes no such promise whatever it
+        // still resembles, so it may not carry the label. `workflow` stays null,
+        // which the stored CHECK also requires.
+        mode: 'model_chosen',
+      }));
+    } catch (error) {
+      if (error instanceof PlanNotExecutable) return c.json(invalid(error.message), 400);
+      if (!(error instanceof RunHalted)) throw error;
+      return error.reason === 'session_ended'
+        ? c.json({ error: 'unauthenticated' } satisfies ApiError, 401)
+        : c.json(notFound, 404);
+    }
+
+    const written = (await readPlanForRun(deps.db, rerun.id))!;
+    // state and successor together: the stored CHECK requires each to imply
+    // the other, so a plan can never be superseded by nothing or point at a
+    // successor while claiming to be current
+    await deps.db
+      .update(s.plans)
+      .set({ state: 'superseded', supersededByPlanId: written.id })
+      .where(dEq(s.plans.id, plan.id));
+
+    return c.json(
+      {
+        run: (await readRun(deps.db, rerun.id))!,
+        plan: written,
+        supersededPlanId: plan.id,
+      } satisfies RerunPlanResponse,
+      201,
+    );
+  });
+
   app.get(
     '/conversations/:conversationId',
     resourceScope(deps, 'conversationId', resourceHomes.conversation),
@@ -569,4 +702,41 @@ async function visibleRuns(db: Db, rows: RunRow[], slice: EntitledSlice): Promis
     if (run) runs.push(run);
   }
   return runs;
+}
+
+// T-267 — the scope fields an edit might reach for, refused by NAME. The
+// generic "unknown field" message reads as an invitation to find the right
+// spelling, and there is none: a step's scope derives from the run's entitled
+// slice and is not expressible. Same list, same reason, as the workflow
+// validator's rule 3.
+const SCOPE_FIELDS = new Set([
+  'scope',
+  'corpus',
+  'visibility',
+  'organisation',
+  'organisationId',
+  'organisation_id',
+  'project',
+  'projectId',
+  'project_id',
+  'asOrganisation',
+  'as_organisation',
+  'entitledSlice',
+  'entitled_slice',
+  'participant',
+  'participantId',
+  'participant_id',
+]);
+
+function namedScopeField(raw: unknown): string | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const steps = (raw as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return null;
+  for (const step of steps) {
+    if (step === null || typeof step !== 'object') continue;
+    for (const key of Object.keys(step as Record<string, unknown>)) {
+      if (SCOPE_FIELDS.has(key)) return key;
+    }
+  }
+  return null;
 }

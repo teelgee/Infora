@@ -120,17 +120,22 @@ export type PlanState =
   | 'superseded';
 // the named stages the progress rail shows (docs/build/plan.md — Slice Ask Wave 2) — a stage that did
 // not run is never displayed as having run
-export type PlanStage =
-  | 'understand'
-  | 'load_context'
-  | 'clarify'
-  | 'plan'
-  | 'search_corpus'
-  | 'check_authority'
-  | 'research_web'
-  | 'analyse'
-  | 'verify'
-  | 'present';
+// T-267 — as a VALUE, so the rerun body can validate against it: an edited
+// plan is user input, and a stage this system has no executor for must be
+// refused at the boundary rather than discovered mid-run.
+export const PLAN_STAGES = [
+  'understand',
+  'load_context',
+  'clarify',
+  'plan',
+  'search_corpus',
+  'check_authority',
+  'research_web',
+  'analyse',
+  'verify',
+  'present',
+] as const;
+export type PlanStage = (typeof PLAN_STAGES)[number];
 export type PlanStepState = 'pending' | 'running' | 'complete' | 'failed' | 'skipped';
 
 export type PlanStep = {

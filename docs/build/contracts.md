@@ -630,3 +630,15 @@ are not recorded here.
   *input* type earns its own line: it takes workflow **summaries** and the
   **already-assembled** worker set, so there is no shape in which the model is
   handed a worker the requester is not entitled to.
+- **2026-08-28 (T-267) — `rerunPlanBody` is `.strict()`, and its refusals are
+  named.** An edited plan is user input, and the two things a step may not say
+  are the two the type has to make unsayable. A `worker` outside the
+  requester's *assembled* set is refused with the available set named — theirs,
+  so nothing leaks by saying it. A **scope field is refused by name in every
+  spelling**, carrying the workflow validator's own reason: there is no correct
+  spelling, because a step's scope derives from the run's entitled slice and is
+  not an editable field. That is the difference between "editing cannot widen
+  scope" being structural and being checked. The response returns the new run,
+  the new plan *and* `supersededPlanId`, because the caller has to be able to
+  show that the old plan is still there — supersession is the claim, and a
+  response that only returned the new one would leave the surface to assume it.

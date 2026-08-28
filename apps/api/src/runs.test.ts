@@ -3,7 +3,12 @@
 // ruling — work-item-bound runs are project record (owner-readable in full);
 // ad-hoc runs belong to the producing organisation only.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { GetHistoryResponse, GetRunPlanResponse, Run } from '@infora/contracts';
+import type {
+  GetHistoryResponse,
+  GetRunPlanResponse,
+  RerunPlanResponse,
+  Run,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { createWorkerRegistry } from '@infora/capabilities';
 import { loadWorkflows } from '@infora/workflows';
@@ -613,5 +618,179 @@ describe('model-chosen orchestration and mode labelling (T-266)', () => {
     });
     await ask(noWorkers, cookie, 'anything');
     expect(seen).toEqual([]);
+  });
+});
+
+// T-267 — plan edit and re-run. The interesting properties are the three
+// bounds, not the happy path: entitlement bounds what may be added, scope is
+// not an editable field at all, and the result is supersession rather than
+// mutation.
+describe('plan edit and re-run (T-267)', () => {
+  const editApp = buildApp({
+    db,
+    sessionSecret: 'test-secret',
+    router: fakeRouter(),
+    workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+    workers: createWorkerRegistry(),
+  });
+
+  const askOnce = async (cookie: string) => {
+    const opened = await editApp.request(`/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ surface: 'web' }),
+    });
+    const { conversationId } = (await opened.json()) as { conversationId: string };
+    const res = await editApp.request(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ request: `what did ${documentReference} record?` }),
+    });
+    return (await res.json()) as Run;
+  };
+
+  const rerun = (cookie: string, runId: string, steps: unknown) =>
+    editApp.request(`/runs/${runId}/plan/rerun`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ steps }),
+    });
+
+  const chainSteps = [
+    { stage: 'search_corpus', worker: 'corpus_retrieval' },
+    { stage: 'analyse' },
+    { stage: 'verify' },
+    { stage: 'present' },
+  ];
+
+  it('supersession, not mutation: a NEW run and plan, the old one marked superseded', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    const res = await rerun(cookie, first.id, chainSteps);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as RerunPlanResponse;
+
+    expect(body.run.id).not.toBe(first.id);
+    expect(body.plan.runId).toBe(body.run.id);
+    expect(body.run.state).toBe('completed');
+
+    // the plan that produced the FIRST answer stays exactly as it was — a plan
+    // is evidence, and "what did your AI do" must survive the user editing it
+    const old = (await (
+      await editApp.request(`/runs/${first.id}/plan`, { headers: { cookie } })
+    ).json()) as GetRunPlanResponse;
+    expect(old.plan.state).toBe('superseded');
+    expect(old.plan.supersededByPlanId).toBe(body.plan.id);
+    expect(old.plan.steps).toHaveLength(4);
+  });
+
+  it('AN EDITED PLAN IS MODEL-CHOSEN EVEN THOUGH IT STARTED DECLARED', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    const before = (await (
+      await editApp.request(`/runs/${first.id}/plan`, { headers: { cookie } })
+    ).json()) as GetRunPlanResponse;
+    expect(before.plan.mode).toBe('declared');
+    expect(before.plan.workflowId).toBe('project-question');
+
+    const body = (await (await rerun(cookie, first.id, chainSteps)).json()) as RerunPlanResponse;
+    // a declared workflow promises the same inputs produce the same steps in
+    // the same order; a hand-edited copy makes no such promise whatever it
+    // still resembles, so it may not carry the label
+    expect(body.plan.mode).toBe('model_chosen');
+    expect(body.plan.workflowId).toBeNull();
+  });
+
+  it('a removed step is honoured — and the ground-check still runs', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    // the user removes `verify` from the plan: the strongest form of "edit it
+    // away", and it changes nothing about whether the check runs (T-262)
+    const body = (await (
+      await rerun(cookie, first.id, [
+        { stage: 'search_corpus', worker: 'corpus_retrieval' },
+        { stage: 'analyse' },
+        { stage: 'present' },
+      ])
+    ).json()) as RerunPlanResponse;
+
+    expect(body.plan.steps.map((step) => step.stage)).toEqual([
+      'search_corpus',
+      'analyse',
+      'present',
+    ]);
+    expect(body.run.steps.map((step) => step.type)).toContain('ground_check');
+  });
+
+  it('EDITING IS BOUNDED BY ENTITLEMENT — a worker outside the assembled set is refused', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    const res = await rerun(cookie, first.id, [
+      { stage: 'research_web', worker: 'web_research' },
+      { stage: 'present' },
+    ]);
+    expect(res.status).toBe(400);
+    const { detail } = (await res.json()) as { detail: string };
+    expect(detail).toContain("'web_research' is not a worker you can use");
+    // named with what IS available — this requester's own set, so nothing about
+    // anyone else's entitlement leaks by saying it
+    expect(detail).toContain('corpus_retrieval');
+  });
+
+  it('EDITING CANNOT WIDEN SCOPE — a scope field is refused by name, in any spelling', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    for (const field of ['scope', 'projectId', 'corpus', 'as_organisation']) {
+      const res = await rerun(cookie, first.id, [
+        { stage: 'search_corpus', worker: 'corpus_retrieval', [field]: 'anything' },
+        { stage: 'present' },
+      ]);
+      expect(res.status, field).toBe(400);
+      expect(((await res.json()) as { detail: string }).detail).toContain(
+        'there is no correct spelling of this field',
+      );
+    }
+  });
+
+  it('a verify step naming a worker is refused — the same rule the DAG format holds', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    const res = await rerun(cookie, first.id, [
+      { stage: 'verify', worker: 'corpus_retrieval' },
+      { stage: 'present' },
+    ]);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail: string }).detail).toContain('its record');
+  });
+
+  it('a colleague may read the plan and may not re-run it as themselves', async () => {
+    const colleagueCookie = await session(`t261-colleague-${stamp}@test.local`);
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+
+    // reading is fine — the run is producer-organisation-private, not personal
+    expect(
+      (await editApp.request(`/runs/${first.id}/plan`, { headers: { cookie: colleagueCookie } }))
+        .status,
+    ).toBe(200);
+    // re-running is not: it would file a run under whoever's question it was not
+    const res = await rerun(colleagueCookie, first.id, chainSteps);
+    expect(res.status).toBe(403);
+  });
+
+  it('another organisation gets the same 404 as nonexistence', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    expect((await rerun(owner, first.id, chainSteps)).status).toBe(404);
+  });
+
+  it('an unexecutable edit fails the request, not half a run', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const first = await askOnce(cookie);
+    // no `present` stage: nothing can produce an answer, so the edit is refused
+    // rather than producing a run that ends with nothing to show
+    const res = await rerun(cookie, first.id, [{ stage: 'search_corpus', worker: 'corpus_retrieval' }]);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail: string }).detail).toContain('declared no "present" step');
   });
 });

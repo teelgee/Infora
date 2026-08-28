@@ -20,6 +20,7 @@ import type {
   Suggestion,
   Surface,
 } from './shared';
+import { PLAN_STAGES } from './shared';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { ApiError } from './errors';
@@ -152,6 +153,41 @@ export type AssembledPassage = {
 // with a new requester, which is the honest record — so the button is absent
 // for a reader, exactly as an unentitled worker is absent rather than disabled.
 export type GetRunPlanResponse = { plan: Plan; canRerun: boolean };
+
+// T-267 — POST /runs/:runId/plan/rerun: edit the plan, then run it again.
+//
+// **Supersession, not mutation.** The edited plan is a NEW plan on a NEW run,
+// and the old one is marked `superseded` pointing at it. A plan is evidence:
+// "what did your AI do" has to survive the user editing it afterwards, so the
+// version that produced the first answer stays exactly as it was.
+//
+// **An edited plan is `model_chosen` even if it started `declared`**, and this
+// is not bookkeeping. A declared workflow's promise is that the same inputs
+// produce the same steps in the same order — a hand-edited copy of it makes no
+// such promise, whatever it still resembles, so it may not carry the label. The
+// stored CHECK enforces the other half: a `model_chosen` plan may never name a
+// workflow.
+//
+// **Two things a step may not say, and neither is a validation nicety.** It may
+// not name a worker outside the requester's ASSEMBLED set — the offered set is
+// the assembled one, so editing cannot reach a worker entitlement withheld. And
+// it may not declare a scope in any spelling: a step's scope derives from the
+// run's `EntitledSlice` and is not an editable field, which is what makes
+// "editing cannot widen scope" structural rather than checked.
+export const rerunPlanStep = z
+  .object({
+    stage: z.enum(PLAN_STAGES),
+    // absent = the orchestrator runs this stage itself; a `verify` step may
+    // never name one, because the ground-check is code outside the plan
+    worker: z.string().min(1).nullable().optional(),
+    inputs: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export const rerunPlanBody = z.object({ steps: z.array(rerunPlanStep).min(1) });
+export type RerunPlanBody = z.infer<typeof rerunPlanBody>;
+/** The new run, plus the plan it wrote and the plan it superseded. */
+export type RerunPlanResponse = { run: Run; plan: Plan; supersededPlanId: Id };
+
 
 export type GetRunContextResponse = {
   runId: Id;
