@@ -21,6 +21,10 @@ test.describe.configure({ mode: 'serial' });
 const PROJECT = 'Wrenfield–Ashcombe 400kV Connection';
 
 let consultant: ApiSession;
+// T-386 — confirming an edge into a LIBRARY container is the owner's act
+// (ADR-0045 as amended): the record is the owner's once published, so the
+// producing organisation proposes and the owner confirms.
+let owner: ApiSession;
 let projectId: string;
 let myContainerId: string;
 let myRef: string;
@@ -31,6 +35,7 @@ let edgeId: string;
 
 test.beforeAll(async () => {
   consultant = await ApiSession.login(SEEDED.consultant);
+  owner = await ApiSession.login(SEEDED.owner);
   const me = await consultant.get<{ participants: Array<{ projectId: string }> }>('/me');
   projectId = me.participants[0]!.projectId;
 
@@ -59,6 +64,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await consultant.dispose();
+  await owner.dispose();
 });
 
 test('1 — the default Uniclass/19650 scheme is copied into the project', async () => {
@@ -86,7 +92,7 @@ test('2 — the producing org classifies its deliverable', async () => {
   expect(disc!.proposed).toBe(false); // human-set, not an unconfirmed agent proposal
 });
 
-test('3 — propose a typed edge, then confirm it live', async () => {
+test('3 — propose a typed edge, then the owner confirms it live', async () => {
   const edge = await consultant.post<DocumentRelationship>(
     `/containers/${myContainerId}/relationships`,
     { toContainerId: targetContainerId, type: 'references' },
@@ -94,7 +100,12 @@ test('3 — propose a typed edge, then confirm it live', async () => {
   expect(edge.proposed).toBe(true);
   edgeId = edge.id;
 
-  const live = await consultant.post<DocumentRelationship>(
+  // T-386 — the target is published into the owner's library, so the producing
+  // organisation that proposed the edge cannot also confirm it
+  const byProducer = await consultant.raw('post', `/relationships/${edgeId}/confirmation`);
+  expect(byProducer.status()).toBe(404);
+
+  const live = await owner.post<DocumentRelationship>(
     `/relationships/${edgeId}/confirmation`,
     {},
   );
@@ -118,7 +129,7 @@ test('4 — a duplicate live edge of the same type is rejected', async () => {
 });
 
 test('5 — retiring the edge leaves the record and the live list', async () => {
-  const retired = await consultant.raw('post', `/relationships/${edgeId}/retirement`);
+  const retired = await owner.raw('post', `/relationships/${edgeId}/retirement`);
   expect(retired.status()).toBe(200);
   const rels = await consultant.get<ContainerRelationshipsResponse>(
     `/containers/${myContainerId}/relationships`,
