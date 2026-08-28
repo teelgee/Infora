@@ -201,6 +201,11 @@ async function runOnce(
   });
   if (asked.status !== 201) return error(`asking the question returned ${asked.status}`);
   const run = (await asked.json()) as Run;
+  // T-268 — `completed_with_failures` is an ERROR for a case, deliberately and
+  // not by accident of this comparison being `!== 'completed'`. A case is
+  // evidence about an ANSWER, and an answer produced while part of the plan did
+  // not run is evidence about something else — grading it would report the
+  // harness's own outage as a quality result.
   if (run.state !== 'completed') return error(`run finished in state '${run.state}'`);
 
   // T-261 — the plan the run actually performed. Producer-private and read as

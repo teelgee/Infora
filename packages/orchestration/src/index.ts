@@ -7,7 +7,7 @@ export {
   openStep,
 } from './run-writer';
 export type { ConversationRow, RunRow, StepAudit, StepRow } from './run-writer';
-export { CHAIN_AGENT_ID, RunHalted, runChain, sourcesOf } from './chain';
+export { CHAIN_AGENT_ID, RunHalted, runChain, sourcesOf, StepsFailed } from './chain';
 export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 export { createGroundCheckLeaf } from './ground-check-leaf';
@@ -29,7 +29,7 @@ export type { OpenedPlan, PlanRow, PlanStepRow } from './plan-writer';
 // T-262 — the plan's execution order, derived from its edges rather than from
 // four awaits. The ground-check is deliberately NOT among the stages this
 // orders: it runs as code outside the plan (see chain.ts).
-export { orderPlanSteps, PlanNotExecutable } from './plan-order';
+export { dependantsOf, orderPlanSteps, PlanNotExecutable } from './plan-order';
 export type { PlannedStep } from './plan-order';
 // T-253 — the assembled context a run saw, at passage grain
 export { readRunContext } from './context-reader';

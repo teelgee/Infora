@@ -63,7 +63,9 @@ export async function openRun(
 export async function finishRun(
   db: Db,
   runId: Id,
-  state: 'completed' | 'failed',
+  // T-263/T-268 — `completed_with_failures` is the third outcome a multi-worker
+  // plan has: an answer exists AND some of what was asked for did not run.
+  state: 'completed' | 'failed' | 'completed_with_failures',
   record: { response?: string | null } = {},
 ): Promise<RunRow> {
   const [row] = await db

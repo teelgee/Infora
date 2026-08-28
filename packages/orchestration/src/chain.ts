@@ -222,7 +222,7 @@ export async function runChain(
     leaf: Leaf<In, Out>,
     leafInput: In,
     auditFrom: (output: Out) => StepAudit = () => ({}),
-  ): Promise<Out> => {
+  ): Promise<{ ok: true; output: Out } | { ok: false; reason: string }> => {
     // T-252 — re-resolve BEFORE the step opens. Before, not after: a step that
     // has opened has already been recorded as attempted, and a step that has
     // run has already spent a model call and already seen the context. The
@@ -247,13 +247,16 @@ export async function runChain(
       const { output, audit } = await leaf({ db, run, stepId: row.id }, leafInput);
       await finishStep(db, row.id, 'completed', { ...auditFrom(output), ...audit });
       if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'complete');
-      return output;
+      return { ok: true, output };
     } catch (error) {
+      // T-268 — a failed step no longer stops the run. The step and its plan
+      // step are recorded failed and the WALK decides what that costs: its
+      // dependants are skipped and independent branches carry on. The run's
+      // outcome is settled at the end, once it is known whether anything
+      // survived.
       await finishStep(db, row.id, 'failed');
       if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'failed');
-      await finishPlan(db, plan.id, 'failed');
-      await finishRun(db, run.id, 'failed');
-      throw error;
+      return { ok: false, reason: reasonOf(error) };
     }
   };
 
@@ -275,6 +278,15 @@ export async function runChain(
     return fail(error.message);
   }
 
+  // A plan that can produce no answer at all is refused BEFORE anything runs
+  // rather than after: that is a defect in the plan, not a failure during it,
+  // and spending a retrieval and a model call to discover it would be paying
+  // for the discovery. T-268's partial-failure semantics are about steps that
+  // fail, and a step that was never declared did not fail.
+  if (!ordered.some((planned) => planned.stage === 'present')) {
+    return fail('the plan produced no answer — it declared no "present" step');
+  }
+
   const mode: ChainMode = input.sandboxDocumentId != null ? 'document' : 'chat';
   // The `verify` step is the ground-check's RECORD, held aside before the walk
   // so it is never reached as an instruction. If the plan names none, the check
@@ -287,7 +299,25 @@ export async function runChain(
   let cited: CiteOutput | null = null;
   const withSources = () => ({ sourceSet });
 
+  // T-268 — what failed, and what therefore did not run. Both are carried to
+  // the end rather than thrown, because the run's outcome is not knowable until
+  // the walk finishes: an answer may still survive a failure on a branch that
+  // did not feed it.
+  const failures: Array<{ stage: PlanStage; reason: string }> = [];
+  const failed = new Set<Id>();
+
   for (const planned of ordered) {
+    // a step whose dependencies did not run does not run either, and is
+    // recorded `skipped` rather than `failed`: nothing about it went wrong
+    if (planned.dependsOn.some((id) => failed.has(id))) {
+      failed.add(planned.id);
+      // `skipped`, not `failed` and not left `pending`: nothing about this step
+      // went wrong, and it did not run. `pending` would read as "not reached
+      // yet", which is a claim about a run that has finished.
+      await finishPlanStep(db, planned.id, 'skipped');
+      continue;
+    }
+
     switch (planned.stage) {
       case 'verify':
         continue; // the record, not an instruction — see the ground-check below
@@ -296,55 +326,94 @@ export async function runChain(
         // every step records the access-resolved source set it saw
         // (ADR-0028 §7): the retrieve step what it admitted, every later step
         // what it worked from
-        retrieved = await step(
+        const result = await step(
           'retrieve',
           planned.id,
           leaves.retrieve,
           { request: input.request },
           (out) => ({ sourceSet: sourcesOf(out) }),
         );
+        if (!result.ok) {
+          failed.add(planned.id);
+          failures.push({ stage: planned.stage, reason: result.reason });
+          continue;
+        }
+        retrieved = result.output;
         sourceSet = sourcesOf(retrieved);
         continue;
       }
 
       case 'analyse': {
         if (retrieved === null) {
+          // no retrieval reached this step. That is a plan defect when nothing
+          // failed, and an already-reported outage when something did — so it
+          // is only a refusal in the first case.
+          if (failures.length > 0) {
+            failed.add(planned.id);
+            await finishPlanStep(db, planned.id, 'skipped');
+            continue;
+          }
           return fail('plan step "analyse" has nothing to draft from — no retrieval ran before it');
         }
-        const draft = await step(
+        const drafted = await step(
           'draft',
           planned.id,
           leaves.draft,
           { request: input.request, retrieved, mode, lens: input.lens ?? null },
           withSources,
         );
+        if (!drafted.ok) {
+          failed.add(planned.id);
+          failures.push({ stage: planned.stage, reason: drafted.reason });
+          continue;
+        }
 
         // ── THE GROUND-CHECK, OUTSIDE THE PLAN ────────────────────────────
         // Code, here, immediately after drafting, on every answer in both
         // orchestration modes. `verifyStep` supplies the plan step to bind
         // when the plan named one and `null` when it did not; either way the
-        // check runs. There is no branch above this line that skips it.
-        checked = await step(
+        // check runs. There is no branch above this line that skips it — and
+        // T-268 does not add one: a run with no draft has no ANSWER, so the
+        // guarantee ("every answer is ground-checked") is untouched by the
+        // check not running where there is nothing to check.
+        const verified = await step(
           'ground_check',
           verifyStep?.id ?? null,
           leaves.groundCheck,
-          { draft, retrieved, mode },
+          { draft: drafted.output, retrieved, mode },
           withSources,
         );
+        if (!verified.ok) {
+          if (verifyStep !== null) failed.add(verifyStep.id);
+          failures.push({ stage: 'verify', reason: verified.reason });
+          continue;
+        }
+        checked = verified.output;
         continue;
       }
 
       case 'present': {
         if (retrieved === null || checked === null) {
+          if (failures.length > 0) {
+            failed.add(planned.id);
+            await finishPlanStep(db, planned.id, 'skipped');
+            continue;
+          }
           return fail('plan step "present" has nothing to cite — no drafted, ground-checked claims reached it');
         }
-        cited = await step(
+        const presented = await step(
           'cite',
           planned.id,
           leaves.cite,
           { checked, retrieved, sandboxDocumentId: input.sandboxDocumentId ?? null },
           withSources,
         );
+        if (!presented.ok) {
+          failed.add(planned.id);
+          failures.push({ stage: planned.stage, reason: presented.reason });
+          continue;
+        }
+        cited = presented.output;
         continue;
       }
 
@@ -358,13 +427,87 @@ export async function runChain(
     }
   }
 
+  // ── T-268: the outcome ────────────────────────────────────────────────────
+  //
+  // Three states, not two. `failed` where no answer survived — an incomplete
+  // answer offered as a complete one is the failure this slice exists to avoid.
+  // `completed_with_failures` where one did AND something did not run: reporting
+  // that as `completed` hides it, and as `failed` throws away work the user can
+  // act on.
+  // `cited === null` and not `cited.answer === null`: a document-targeted run
+  // legitimately produces suggestions and no answer text, and treating that as
+  // "nothing survived" would fail every drafting run.
   if (cited === null) {
-    return fail('the plan produced no answer — it declared no "present" step');
+    await finishPlan(db, plan.id, 'failed');
+    const finished = await finishRun(db, run.id, 'failed');
+    if (failures.length > 0) throw new StepsFailed(failures);
+    return { run: finished, suggestionIds: [] };
   }
 
+  if (failures.length === 0) {
+    await finishPlan(db, plan.id, 'complete');
+    const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
+    return { run: finished, suggestionIds: cited.suggestionIds };
+  }
+
+  // **The answer body reports what did not run**, not only the footer. This is
+  // absence detection (non-negotiable, Lens shared core 1.5) applied to the
+  // system's OWN failures: an answer that silently omits the half a failed step
+  // would have contributed reads as a complete answer, and a reader has no way
+  // to know it is not. A footer would not do — it is read after the answer has
+  // already been believed.
+  const skipped = ordered.filter(
+    (planned) => failed.has(planned.id) && !failures.some((f) => f.stage === planned.stage),
+  );
+  const answer = [
+    cited.answer,
+    '',
+    `Not everything in this analysis ran. ${describeFailures(failures)}${
+      skipped.length === 0
+        ? ''
+        : ` ${skipped.length === 1 ? 'One further step was' : `${skipped.length} further steps were`} skipped because ${skipped.length === 1 ? 'it depended' : 'they depended'} on what failed.`
+    } Treat this answer as covering less than it was asked to.`,
+  ].join('\n');
+
   await finishPlan(db, plan.id, 'complete');
-  const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
+  const finished = await finishRun(db, run.id, 'completed_with_failures', { response: answer });
   return { run: finished, suggestionIds: cited.suggestionIds };
+}
+
+/**
+ * T-268 — thrown only where NOTHING survived. A partial answer returns
+ * normally, because it is an answer; a run with none is a failure the caller
+ * has to see as one.
+ */
+export class StepsFailed extends Error {
+  constructor(readonly failures: ReadonlyArray<{ stage: PlanStage; reason: string }>) {
+    super(`the run produced no answer: ${describeFailures(failures)}`);
+    this.name = 'StepsFailed';
+  }
+}
+
+/** Named in words, not codes: this text reaches the user in the answer body. */
+function describeFailures(failures: ReadonlyArray<{ stage: PlanStage; reason: string }>): string {
+  return failures
+    .map((failure) => `The ${STAGE_NAMES[failure.stage]} step failed (${failure.reason}).`)
+    .join(' ');
+}
+
+const STAGE_NAMES: Record<PlanStage, string> = {
+  understand: 'understanding',
+  load_context: 'context-loading',
+  clarify: 'scoping',
+  plan: 'planning',
+  search_corpus: 'library search',
+  check_authority: 'authority check',
+  research_web: 'web research',
+  analyse: 'analysis',
+  verify: 'verification',
+  present: 'citation',
+};
+
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function sourcesOf(retrieved: AssembledInput): SourceRef[] {

@@ -76,3 +76,30 @@ export function orderPlanSteps(steps: readonly PlannedStep[]): PlannedStep[] {
   }
   return ordered;
 }
+
+/**
+ * T-268 — everything that transitively depends on a failed step.
+ *
+ * A failed step's DEPENDANTS are skipped and independent branches continue,
+ * which is the whole of partial-failure semantics: one failed web search must
+ * not discard a completed corpus search. The transitive closure matters — a
+ * step two edges downstream of a failure is just as unable to run as one, and
+ * skipping only the immediate dependants would leave it to fail on an input
+ * that never arrived, which reports the same outage twice under two different
+ * names.
+ */
+export function dependantsOf(steps: readonly PlannedStep[], failed: ReadonlySet<Id>): Set<Id> {
+  const skipped = new Set<Id>();
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const step of steps) {
+      if (failed.has(step.id) || skipped.has(step.id)) continue;
+      if (step.dependsOn.some((id) => failed.has(id) || skipped.has(id))) {
+        skipped.add(step.id);
+        grew = true;
+      }
+    }
+  }
+  return skipped;
+}

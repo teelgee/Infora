@@ -147,7 +147,7 @@ describe('the plan artefact (T-260)', () => {
   // one-plan-per-run index — is enforced by the database and tested there,
   // beside the T-008 append-only suite: packages/db/src/plan-artefact.test.ts.
 
-  it('a failed run leaves a failed plan, with the failing step marked and the rest untouched', async () => {
+  it('a failed run leaves a failed plan, the failing step marked and its dependants SKIPPED', async () => {
     const leaves = stubLeaves();
     leaves.draft = async () => {
       throw new Error('model unavailable');
@@ -163,11 +163,16 @@ describe('the plan artefact (T-260)', () => {
     const plan = (await readPlanForRun(db, run!.id))!;
 
     expect(plan.state).toBe('failed');
+    // T-268 changed the last two from `pending` to `skipped`, and the change is
+    // the point: `pending` reads as "not reached yet", which is a claim about a
+    // run that has finished. `skipped` says what actually happened — nothing
+    // went wrong with them and they did not run, because what they depended on
+    // failed. Neither is ever shown as having run.
     expect(plan.steps.map((step) => step.state)).toEqual([
       'complete', // search_corpus
       'failed', // analyse
-      'pending', // verify — never reached, and never shown as having run
-      'pending', // present
+      'skipped', // verify — depended on the draft that failed
+      'skipped', // present
     ]);
   });
 
