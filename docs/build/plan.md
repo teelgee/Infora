@@ -220,7 +220,7 @@ entry naming its gate and where its design lives.
 - ~~**T-260 — The plan artefact, persisted for the existing chain.**~~ ✅ **Built 2026-07-30** (migration 0035). Record in [plan-history.md](plan-history.md#slice-ask).
 
 - ~~**T-261 — Plan read API and permissions.**~~ ✅ **Built 2026-08-28** (no migration). Record in [plan-history.md](plan-history.md#slice-ask).
-- **T-262 — Execute from the plan.** The executor walks `plan.steps` honouring `depends_on`, replacing the hard-coded sequence. **The ground-check must stay outside the plan** — if it becomes a plan step a planner could skip it, which breaks the guarantee both modes rest on; asserted by a test. | *(Deps: T-260)*
+- ~~**T-262 — Execute from the plan.**~~ ✅ **Built 2026-08-28** (no migration). Record in [plan-history.md](plan-history.md#slice-ask).
 - **T-263 — Step and run state migration.** `step_type` gains the worker step types; `run_state` gains `completed_with_failures`; a test asserts the contracts types and the DB enum cannot drift. | *(Deps: T-262)*
 - **T-264 — Workflow DAG format, loader and validator.** `packages/workflows` is an empty stub today. Validation at load: every worker in the registry, acyclic, resolvable `depends_on`, **no step may declare a scope** (inherited and not expressible), `writes` declaring its label-propagation behaviour, drafts non-production only. Each rule gets a fixture that fails it. | *(Deps: T-263)*
 - **T-265 — `workflow_runner` and the first declared workflow.** The existing four-step chain declared as a DAG, changing no behaviour. The one non-leaf worker; keeping it from becoming a general escape hatch is review discipline, not a test. | *(Deps: T-264, T-269)*

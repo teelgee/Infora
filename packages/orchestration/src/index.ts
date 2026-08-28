@@ -26,6 +26,11 @@ export {
   startPlanStep,
 } from './plan-writer';
 export type { OpenedPlan, PlanRow, PlanStepRow } from './plan-writer';
+// T-262 — the plan's execution order, derived from its edges rather than from
+// four awaits. The ground-check is deliberately NOT among the stages this
+// orders: it runs as code outside the plan (see chain.ts).
+export { orderPlanSteps, PlanNotExecutable } from './plan-order';
+export type { PlannedStep } from './plan-order';
 // T-253 — the assembled context a run saw, at passage grain
 export { readRunContext } from './context-reader';
 export { readDocumentSuggestions, readRun } from './run-reader';

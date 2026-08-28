@@ -1,11 +1,28 @@
 // T-041 — the coded chain (ADR-0028 §5, ADR-0027 §6): retrieve → draft →
-// ground-check → cite as a fixed code spine. The ordering and each step's
-// executor are code, run the same way every time — no LLM decides the plan,
-// which is what makes "every grounded answer is ground-checked and cited"
-// provable. One thinking leaf (draft); the rest are doing. Leaves are typed
-// seams bound by T-042–T-045; agentic freedom exists only *inside* a leaf
-// (the retrieval sub-agent), never over the chain.
-import type { AssembledInput, Id, Lens } from '@infora/contracts';
+// ground-check → cite. One thinking leaf (draft); the rest are doing. Leaves
+// are typed seams bound by T-042–T-045; agentic freedom exists only *inside* a
+// leaf (the retrieval sub-agent), never over the chain.
+//
+// T-262 — THE ORDERING MOVED OUT OF THIS FILE AND INTO THE PLAN. It used to be
+// four `await`s; it is now `depends_on` edges the executor below walks. Nothing
+// about the running system changes — the coded chain writes the same four steps
+// with the same edges (`CODED_CHAIN_PLAN`) and produces the same Step rows in
+// the same order — but the executor stops being specific to that one sequence,
+// which is what lets an edited plan (T-267) and a declared workflow's DAG
+// (T-264/T-265) run through this same loop instead of a second one written to
+// resemble it.
+//
+// ONE THING DELIBERATELY DID NOT MOVE. The **ground-check is not a plan step**.
+// It runs as code, here, immediately after drafting, on every answer in both
+// orchestration modes — a plan that omits it still gets it, and there is no
+// value of `plan.steps` that turns it off. ADR-0027's amendment and ADR-0028 §5
+// both rest on exactly this: what model-chosen mode costs is repeatability of
+// the step sequence and NOTHING ELSE, and that sentence is only true while the
+// guarantee sits outside the thing the planner chooses. The plan's `verify`
+// step is the RECORD of the check, bound to the Step row the check wrote; it is
+// never an instruction the executor consults. Asserted by `chain.test.ts`
+// against a plan with no `verify` step at all.
+import type { AssembledInput, Id, Lens, PlanStage } from '@infora/contracts';
 import type { Db } from '@infora/db';
 import {
   CODED_CHAIN_PLAN,
@@ -15,6 +32,8 @@ import {
   openPlan,
   startPlanStep,
 } from './plan-writer';
+import { orderPlanSteps, PlanNotExecutable } from './plan-order';
+import type { PlannedStep } from './plan-order';
 import { finishRun, finishStep, openRun, openStep } from './run-writer';
 import type { RunRow, StepAudit } from './run-writer';
 
@@ -101,6 +120,18 @@ export type ChainInput = {
    * silently gaining a control it never asked for.
    */
   revalidate?: Revalidate;
+  /**
+   * T-262 — the stages this run's plan declares, defaulting to the coded
+   * chain. Every caller passes nothing today, which is why this ticket changes
+   * no behaviour; the declared workflow (T-265) and the classifier (T-266) are
+   * its real callers.
+   *
+   * It exists now, one ticket early, because the guarantee this ticket is
+   * about — **the ground-check runs whether or not the plan declares it** — is
+   * not assertable against a plan the caller cannot vary. A guarantee tested
+   * only against the one plan that happens to include the thing is not tested.
+   */
+  stages?: ReadonlyArray<{ stage: PlanStage }>;
 };
 
 /**
@@ -155,21 +186,26 @@ export async function runChain(
     projectId: input.environmentKey,
     requesterParticipantId: input.requesterParticipantId,
     question: input.request,
-    stages: CODED_CHAIN_PLAN,
+    stages: input.stages ?? CODED_CHAIN_PLAN,
     // the evidence half (T-299): which Lens produced this answer, and which
     // version of it, recorded on the plan before the draft step runs
     lens: input.lens ?? null,
   });
   await markPlanRunning(db, plan.id);
 
+  /**
+   * One executed step: re-check, open the Step row, bind the plan step it
+   * realises, run the leaf, record. `plannedStepId` is nullable because the
+   * ground-check runs whether or not the plan named it — an unbound Step row is
+   * the honest record of a check that ran outside the plan.
+   */
   const step = async <In, Out>(
     type: 'retrieve' | 'draft' | 'ground_check' | 'cite',
+    plannedStepId: Id | null,
     leaf: Leaf<In, Out>,
     leafInput: In,
     auditFrom: (output: Out) => StepAudit = () => ({}),
   ): Promise<Out> => {
-    const planStepId = plan.stepIds[CODED_CHAIN_PLAN.findIndex((s) => s.stepType === type)]!;
-
     // T-252 — re-resolve BEFORE the step opens. Before, not after: a step that
     // has opened has already been recorded as attempted, and a step that has
     // run has already spent a model call and already seen the context. The
@@ -181,7 +217,7 @@ export async function runChain(
         // wrong, and it did not run. The RUN is failed, because the answer it
         // would have produced does not exist — an incomplete answer offered as
         // a complete one is the failure mode this whole slice exists to avoid.
-        await finishPlanStep(db, planStepId, 'skipped');
+        if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'skipped');
         await finishPlan(db, plan.id, 'failed');
         await finishRun(db, run.id, 'failed');
         throw new RunHalted(check.reason);
@@ -189,48 +225,125 @@ export async function runChain(
     }
 
     const row = await openStep(db, { runId: run.id, type });
-    await startPlanStep(db, planStepId, row.id);
+    if (plannedStepId !== null) await startPlanStep(db, plannedStepId, row.id);
     try {
       const { output, audit } = await leaf({ db, run, stepId: row.id }, leafInput);
       await finishStep(db, row.id, 'completed', { ...auditFrom(output), ...audit });
-      await finishPlanStep(db, planStepId, 'complete');
+      if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'complete');
       return output;
     } catch (error) {
       await finishStep(db, row.id, 'failed');
-      await finishPlanStep(db, planStepId, 'failed');
+      if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'failed');
       await finishPlan(db, plan.id, 'failed');
       await finishRun(db, run.id, 'failed');
       throw error;
     }
   };
 
-  // every step records the access-resolved source set it saw (ADR-0028 §7):
-  // the retrieve step what it admitted, every later step what it worked from
-  const retrieved = await step('retrieve', leaves.retrieve, { request: input.request }, (out) => ({
-    sourceSet: sourcesOf(out),
-  }));
-  const sourceSet = sourcesOf(retrieved);
-  const withSources = () => ({ sourceSet });
+  const fail = async (reason: string): Promise<never> => {
+    await finishPlan(db, plan.id, 'failed');
+    await finishRun(db, run.id, 'failed');
+    throw new PlanNotExecutable(reason);
+  };
+
+  // ── the walk ──────────────────────────────────────────────────────────────
+  let ordered: PlannedStep[];
+  try {
+    ordered = orderPlanSteps(plan.steps);
+  } catch (error) {
+    if (!(error instanceof PlanNotExecutable)) throw error;
+    // Nothing has run. A plan that cannot be ordered is refused whole rather
+    // than executed as far as it happens to be orderable, which would produce
+    // an answer built from an analysis nobody wrote.
+    return fail(error.message);
+  }
 
   const mode: ChainMode = input.sandboxDocumentId != null ? 'document' : 'chat';
-  const draft = await step(
-    'draft',
-    leaves.draft,
-    { request: input.request, retrieved, mode, lens: input.lens ?? null },
-    withSources,
-  );
-  const checked = await step(
-    'ground_check',
-    leaves.groundCheck,
-    { draft, retrieved, mode },
-    withSources,
-  );
-  const cited = await step(
-    'cite',
-    leaves.cite,
-    { checked, retrieved, sandboxDocumentId: input.sandboxDocumentId ?? null },
-    withSources,
-  );
+  // The `verify` step is the ground-check's RECORD, held aside before the walk
+  // so it is never reached as an instruction. If the plan names none, the check
+  // still runs and writes an unbound Step row.
+  const verifyStep = ordered.find((planned) => planned.stage === 'verify') ?? null;
+
+  let retrieved: AssembledInput | null = null;
+  let sourceSet: SourceRef[] = [];
+  let checked: GroundCheckOutput | null = null;
+  let cited: CiteOutput | null = null;
+  const withSources = () => ({ sourceSet });
+
+  for (const planned of ordered) {
+    switch (planned.stage) {
+      case 'verify':
+        continue; // the record, not an instruction — see the ground-check below
+
+      case 'search_corpus': {
+        // every step records the access-resolved source set it saw
+        // (ADR-0028 §7): the retrieve step what it admitted, every later step
+        // what it worked from
+        retrieved = await step(
+          'retrieve',
+          planned.id,
+          leaves.retrieve,
+          { request: input.request },
+          (out) => ({ sourceSet: sourcesOf(out) }),
+        );
+        sourceSet = sourcesOf(retrieved);
+        continue;
+      }
+
+      case 'analyse': {
+        if (retrieved === null) {
+          return fail('plan step "analyse" has nothing to draft from — no retrieval ran before it');
+        }
+        const draft = await step(
+          'draft',
+          planned.id,
+          leaves.draft,
+          { request: input.request, retrieved, mode, lens: input.lens ?? null },
+          withSources,
+        );
+
+        // ── THE GROUND-CHECK, OUTSIDE THE PLAN ────────────────────────────
+        // Code, here, immediately after drafting, on every answer in both
+        // orchestration modes. `verifyStep` supplies the plan step to bind
+        // when the plan named one and `null` when it did not; either way the
+        // check runs. There is no branch above this line that skips it.
+        checked = await step(
+          'ground_check',
+          verifyStep?.id ?? null,
+          leaves.groundCheck,
+          { draft, retrieved, mode },
+          withSources,
+        );
+        continue;
+      }
+
+      case 'present': {
+        if (retrieved === null || checked === null) {
+          return fail('plan step "present" has nothing to cite — no drafted, ground-checked claims reached it');
+        }
+        cited = await step(
+          'cite',
+          planned.id,
+          leaves.cite,
+          { checked, retrieved, sandboxDocumentId: input.sandboxDocumentId ?? null },
+          withSources,
+        );
+        continue;
+      }
+
+      default:
+        // A stage with no executor is refused loudly. Only CODED_CHAIN_PLAN is
+        // written today, so this cannot fire in the running system; it fires
+        // the moment a workflow (T-265) or a classifier (T-266) writes a stage
+        // ahead of the code that runs it, which is exactly when a silent skip
+        // would be most expensive.
+        return fail(`plan step "${planned.stage satisfies PlanStage}" has no executor`);
+    }
+  }
+
+  if (cited === null) {
+    return fail('the plan produced no answer — it declared no "present" step');
+  }
 
   await finishPlan(db, plan.id, 'complete');
   const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });

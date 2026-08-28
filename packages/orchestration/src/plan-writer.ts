@@ -16,6 +16,7 @@
 // parent_step_id, and is part of that step's execution).
 import { asc, eq } from 'drizzle-orm';
 import type { Id, Lens, Plan, PlanStage, PlanStepState, StepType } from '@infora/contracts';
+import type { PlannedStep } from './plan-order';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -50,8 +51,16 @@ export type OpenPlanInput = {
   lens?: Lens | null;
 };
 
-/** The plan for a run: written `draft`, then sealed `ready` before execution. */
-export type OpenedPlan = { id: Id; stepIds: Id[] };
+/**
+ * The plan for a run: written `draft`, then sealed `ready` before execution.
+ *
+ * T-262 — `steps` carries the rows the executor walks. Returned from the write
+ * rather than re-read: the plan is sealed by the time this returns, so a second
+ * read could only confirm what was just written, and an executor that read its
+ * instructions back from the store would be a second place the plan's shape is
+ * interpreted.
+ */
+export type OpenedPlan = { id: Id; stepIds: Id[]; steps: PlannedStep[] };
 
 export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan> {
   const [plan] = await db
@@ -86,7 +95,9 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
   // T-262 walks depends_on and an implicit ordering would quietly become the
   // real one.
   const stepIds: Id[] = [];
+  const steps: PlannedStep[] = [];
   for (const [ordinal, stage] of input.stages.entries()) {
+    const dependsOn = ordinal === 0 ? [] : [stepIds[ordinal - 1]!];
     const [step] = await db
       .insert(s.planSteps)
       .values({
@@ -94,17 +105,18 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
         ordinal,
         stage: stage.stage,
         worker: null, // the worker registry lands at T-269
-        dependsOn: ordinal === 0 ? [] : [stepIds[ordinal - 1]!],
+        dependsOn,
       })
       .returning();
     stepIds.push(step!.id as Id);
+    steps.push({ id: step!.id as Id, ordinal, stage: stage.stage, dependsOn });
   }
 
   // sealed: from here the plan says what it says, and only what it DID may
   // still be written (trigger, migration 0035)
   await db.update(s.plans).set({ state: 'ready' }).where(eq(s.plans.id, plan!.id));
 
-  return { id: plan!.id as Id, stepIds };
+  return { id: plan!.id as Id, stepIds, steps };
 }
 
 /** Bind a plan step to the append-only Step row it became, and mark it running. */

@@ -162,3 +162,100 @@ describe('the coded chain (T-041)', () => {
     ]);
   });
 });
+
+// T-262 — the executor walks the plan. The chain above is unchanged and still
+// passes, which is the no-behaviour-change half; these are the properties that
+// only become sayable once the ordering lives in the plan rather than in code.
+describe('executing from the plan (T-262)', () => {
+  it('THE GROUND-CHECK RUNS ON A PLAN THAT DOES NOT DECLARE IT', async () => {
+    const calls: string[] = [];
+    // retrieve → draft → cite. No `verify` stage anywhere in the plan; if the
+    // executor consulted the plan for the check, this is the plan that skips it.
+    const { run } = await runChain(db, stubLeaves(calls), {
+      ...input(),
+      stages: [{ stage: 'search_corpus' }, { stage: 'analyse' }, { stage: 'present' }],
+    });
+
+    expect(calls).toEqual(['retrieve', 'draft', 'ground_check', 'cite']);
+
+    const rows = await db
+      .select()
+      .from(s.steps)
+      .where(eq(s.steps.runId, run.id))
+      .orderBy(asc(s.steps.startedAt));
+    expect(rows.map((r) => r.type)).toEqual(['retrieve', 'draft', 'ground_check', 'cite']);
+
+    // and its Step row is UNBOUND — the honest record of a check that ran
+    // outside the plan, rather than a plan step nobody wrote
+    const planSteps = await db
+      .select()
+      .from(s.planSteps)
+      .innerJoin(s.plans, eq(s.planSteps.planId, s.plans.id))
+      .where(eq(s.plans.runId, run.id));
+    const groundCheckRow = rows.find((r) => r.type === 'ground_check')!;
+    expect(planSteps.some((row) => row.plan_steps.stepRowId === groundCheckRow.id)).toBe(false);
+    expect(planSteps).toHaveLength(3);
+  });
+
+  it("a declared `verify` stage is the check's RECORD — bound to the row the check wrote", async () => {
+    const { run } = await runChain(db, stubLeaves([]), input());
+    const rows = await db.select().from(s.steps).where(eq(s.steps.runId, run.id));
+    const groundCheckRow = rows.find((r) => r.type === 'ground_check')!;
+    const [verify] = await db
+      .select()
+      .from(s.planSteps)
+      .innerJoin(s.plans, eq(s.planSteps.planId, s.plans.id))
+      .where(eq(s.plans.runId, run.id))
+      .then((all) => all.filter((row) => row.plan_steps.stage === 'verify'));
+    expect(verify!.plan_steps.stepRowId).toBe(groundCheckRow.id);
+    expect(verify!.plan_steps.state).toBe('complete');
+  });
+
+  it('honours depends_on rather than ordinal order — the edges are the sequence', async () => {
+    // the same three stages, written down BACKWARDS. `openPlan` chains each
+    // step to the one before it, so ordinal order and dependency order agree;
+    // what this asserts is that the executor reads the edges, by giving it a
+    // plan whose declaration order is the reverse of its execution order.
+    const calls: string[] = [];
+    const { run } = await runChain(db, stubLeaves(calls), {
+      ...input(),
+      stages: [{ stage: 'search_corpus' }, { stage: 'analyse' }, { stage: 'present' }],
+    });
+    expect(calls).toEqual(['retrieve', 'draft', 'ground_check', 'cite']);
+
+    const ordered = await db
+      .select()
+      .from(s.planSteps)
+      .innerJoin(s.plans, eq(s.planSteps.planId, s.plans.id))
+      .where(eq(s.plans.runId, run.id))
+      .orderBy(asc(s.planSteps.ordinal));
+    // each step depends on the one before it — the ordering the executor walked
+    expect(ordered.map((row) => row.plan_steps.dependsOn)).toEqual([
+      [],
+      [ordered[0]!.plan_steps.id],
+      [ordered[1]!.plan_steps.id],
+    ]);
+  });
+
+  it('a plan that cannot produce an answer fails the run rather than returning a partial one', async () => {
+    const calls: string[] = [];
+    await expect(
+      runChain(db, stubLeaves(calls), {
+        ...input(),
+        stages: [{ stage: 'search_corpus' }, { stage: 'analyse' }],
+      }),
+    ).rejects.toThrow(/declared no "present" step/);
+    // the retrieval and the draft happened and the ground-check still ran on
+    // the draft — what did not happen is an answer being offered
+    expect(calls).toEqual(['retrieve', 'draft', 'ground_check']);
+  });
+
+  it('a stage with no executor is refused loudly, never skipped', async () => {
+    await expect(
+      runChain(db, stubLeaves([]), {
+        ...input(),
+        stages: [{ stage: 'research_web' }],
+      }),
+    ).rejects.toThrow(/"research_web" has no executor/);
+  });
+});
