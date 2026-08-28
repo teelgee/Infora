@@ -92,11 +92,12 @@ counted or dropped, either of which fakes a number.
 
 **`expect_calls` / `expect_not_called` are implemented and deferred.** The
 evaluators are complete and unit-tested both ways; the runner cannot yet observe
-what they read. A plan exists (T-260) but nothing reads one over HTTP until
-T-261, and every plan step's `worker` is null until the registry at T-269. So
-the observation carries `workersCalled: null` and a case declaring either type
-is an `error` — because `[]` would make `expect_not_called` pass for every
-worker in the world, for ever.
+what they read. The plan is read over HTTP from **T-261** — its mode, its Lens
+and its steps are all on the result now — but every plan step's `worker` is null
+until the registry at **T-269**. So the observation carries
+`workersCalled: null` and a case declaring either type is an `error` — because
+`[]` would make `expect_not_called` pass for every worker in the world, for
+ever.
 
 ## Model-graded assertions and the fourth verdict (T-257)
 
@@ -263,8 +264,8 @@ the top of its own file, which is where it belongs; three things are only
 sayable here.
 
 **Two of the sixteen are deferred, and named rather than faked.** `HAPPY-02`
-and `ROUTE-01` rest on `expect_calls`, which needs a readable plan (T-261) and
-a worker registry (T-269). The assertion already errors rather than passing
+and `ROUTE-01` rest on `expect_calls`, which needs a plan step that names a
+worker — the registry at T-269. The assertion already errors rather than passing
 vacuously (T-256), so authoring them now would put two permanent errors in the
 seed set.
 

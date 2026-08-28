@@ -14,8 +14,8 @@
 //     repeatable by design, and gating on that would be gating on the design.
 //
 // And the third bucket decides the default. A run whose mode is unlabelled
-// (T-266 has not landed; nothing reads a plan's stored mode until T-261) gets
-// the DECLARED treatment, not the model-chosen one: the exemption needs
+// (no plan was readable for it at all) gets the DECLARED treatment, not the
+// model-chosen one: the exemption needs
 // evidence, and the absence of a label is not evidence. The smoke substrate is
 // deterministic by construction, so a flake there is a bug whatever the mode
 // turns out to have been.

@@ -557,3 +557,19 @@ are not recorded here.
   contract carries the fact the copy actually turns on. Found by capturing the
   beat rather than by a test, which is the case for photographing a surface
   before calling it finished.
+- **2026-08-28 (T-261) — `GET /runs/:runId/plan`, and `canRerun` carried on the
+  response rather than derived by the caller.** The plan artefact has been
+  written for every run since T-260 and nothing could read one; the eval
+  harness recorded that absence in three separate places, and its `mode`,
+  `plan` and `lens` fields were all null against a record that existed. **The
+  endpoint adds no new read scope, deliberately** — same `resourceScope`, same
+  `runVisibleTo`, same 404 as nonexistence — because the plan *is* the run's
+  internals and the 2026-07-12 ruling already decided who may read those. The
+  field that needed a contract rather than a convention is `canRerun`:
+  **reading and re-running are different rights on one record**, a colleague in
+  the producing organisation holds the first and not the second, and leaving
+  surfaces to compare participant ids themselves is how one of them eventually
+  offers a button that files a run under the wrong requester. A run with no
+  plan answers 404 rather than a null body — that is a sub-agent's child run,
+  which executes inside a step of its parent's plan, and a delegation is not a
+  request.

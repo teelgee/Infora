@@ -26,10 +26,10 @@ import type { Tier } from './tiers';
 
 /**
  * The modes a result is reported under. `unlabelled` is the honest third
- * bucket, not a default: a run carries no mode until the classifier labels one
- * (T-266) and nothing reads a plan's stored mode over HTTP until T-261. Folding
- * those into `declared` because the coded chain happens to be declared would
- * put a label in the report that no run stated.
+ * bucket, not a default: from T-261 the mode is read off the run's own plan, so
+ * `unlabelled` now means exactly one thing — no plan was readable for this
+ * result. Folding that into `declared` because the coded chain happens to be
+ * declared would put a label in the report that no run stated.
  */
 export const REPORTED_MODES = ['declared', 'model_chosen', 'unlabelled'] as const;
 export type ReportedMode = (typeof REPORTED_MODES)[number];

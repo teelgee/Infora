@@ -11,6 +11,7 @@ import { createConversationBody, createRunBody, openRunInEditorBody } from '@inf
 import type {
   ApiError,
   GetHistoryResponse,
+  GetRunPlanResponse,
   HistoryEntry,
   Id,
   ListLensesResponse,
@@ -23,7 +24,15 @@ import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import type { LensRegistry } from '@infora/lenses';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
-import { createConversation, readRun, readRunContext, RunHalted, runChain } from '@infora/orchestration';
+import {
+  canRerunPlan,
+  createConversation,
+  readPlanForRun,
+  readRun,
+  readRunContext,
+  RunHalted,
+  runChain,
+} from '@infora/orchestration';
 import type { ChainLeaves, Revalidate, RunRow } from '@infora/orchestration';
 import { projectScope, resolveSlice, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -291,6 +300,35 @@ export function runRoutes(deps: {
     const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
     if (!run || !(await runVisibleTo(deps.db, run, c.get('slice')))) return c.json(notFound, 404);
     return c.json(await readRunContext(deps.db, runId));
+  });
+
+  // T-261 — the plan a run performed. **The plan inherits the run's read scope
+  // exactly**: same `resourceScope`, same `runVisibleTo`, same 404 as
+  // nonexistence for another organisation. Nothing here is a second, softer
+  // route into the run record — the plan IS the run's internals, and the
+  // 2026-07-12 ruling keeps those producer-private, with the client reviewing
+  // the *document* through the review cycle.
+  app.get('/runs/:runId/plan', resourceScope(deps, 'runId', resourceHomes.run), async (c) => {
+    const runId = c.req.param('runId');
+    const slice = c.get('slice');
+    const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
+    if (!run || !(await runVisibleTo(deps.db, run, slice))) return c.json(notFound, 404);
+
+    const plan = await readPlanForRun(deps.db, runId);
+    // A run with no plan is a 404 rather than a null body: every run the chain
+    // drives writes one (T-260), so its absence means this is not a run whose
+    // plan exists to be read — a sub-agent's child run, which executes inside a
+    // step of its parent's plan and carries none of its own.
+    if (!plan) return c.json(notFound, 404);
+
+    return c.json({
+      plan,
+      // read ≠ re-run, and the difference is decided on the RECORD's requester
+      // rather than the caller's claim: a colleague may read this and may not
+      // re-run it as themselves, because a re-run is a new Run with a new
+      // requester and the audit has to say whose question it was.
+      canRerun: canRerunPlan(plan, slice.participantId),
+    } satisfies GetRunPlanResponse);
   });
 
   app.get(

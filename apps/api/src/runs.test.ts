@@ -3,7 +3,7 @@
 // ruling — work-item-bound runs are project record (owner-readable in full);
 // ad-hoc runs belong to the producing organisation only.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { GetHistoryResponse, Run } from '@infora/contracts';
+import type { GetHistoryResponse, GetRunPlanResponse, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { ensureDefaultSandbox } from './sandbox';
@@ -324,5 +324,84 @@ describe('run read scope — the 2026-07-12 ruling (supersedes 2026-07-06)', () 
     expect(((await workItem.json()) as { runs: Run[] }).runs).toEqual([]);
     const conversation = await get(owner, `/conversations/${bound}`);
     expect(((await conversation.json()) as { runs: Run[] }).runs).toEqual([]);
+  });
+});
+
+// T-261 — the plan read API and its permissions. The plan inherits the run's
+// read scope EXACTLY, so the interesting cases are the two edges: another
+// organisation gets nonexistence, and a colleague inside the producing
+// organisation gets the plan but not the right to re-run it.
+describe('the plan read API (T-261)', () => {
+  let colleague: string; // same organisation as the consultant, a different person
+
+  beforeAll(async () => {
+    await makeUser('t261-colleague', memberOrgId, projectId);
+    colleague = await session(`t261-colleague-${stamp}@test.local`);
+  });
+
+  it('the requester reads the plan its run performed, with canRerun true', async () => {
+    const conversation = await openConversation(consultant);
+    const run = (await (
+      await post(consultant, `/conversations/${conversation}/runs`, { request: 'plan read' })
+    ).json()) as Run;
+
+    const res = await get(consultant, `/runs/${run.id}/plan`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as GetRunPlanResponse;
+    expect(body.plan.runId).toBe(run.id);
+    expect(body.plan.mode).toBe('declared');
+    expect(body.plan.state).toBe('complete');
+    expect(body.canRerun).toBe(true);
+
+    // the 1:1 the plan artefact promises: every plan step is bound to the
+    // top-level Step row it became (T-260's acceptance, now readable)
+    const topLevel = run.steps.filter((step) => step.parentStepId === null);
+    expect(body.plan.steps.map((step) => step.stepRowId).sort()).toEqual(
+      topLevel.map((step) => step.id).sort(),
+    );
+  });
+
+  it('a colleague in the same organisation may READ the plan and may not re-run it', async () => {
+    const conversation = await openConversation(consultant);
+    const run = (await (
+      await post(consultant, `/conversations/${conversation}/runs`, { request: 'colleague read' })
+    ).json()) as Run;
+
+    const res = await get(colleague, `/runs/${run.id}/plan`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as GetRunPlanResponse;
+    expect(body.plan.runId).toBe(run.id);
+    // re-running is a NEW Run with a NEW requester; offering it here would put
+    // a run in the record attributed to whoever's question it was not
+    expect(body.canRerun).toBe(false);
+  });
+
+  it('another organisation gets the same 404 as nonexistence — the plan is not a softer read', async () => {
+    const conversation = await openConversation(consultant);
+    const run = (await (
+      await post(consultant, `/conversations/${conversation}/runs`, { request: 'owner may not read' })
+    ).json()) as Run;
+
+    // identical to the run read the owner is already refused (T-104): the plan
+    // IS the run's internals, and the owner reviews the document instead
+    expect((await get(owner, `/runs/${run.id}`)).status).toBe(404);
+    expect((await get(owner, `/runs/${run.id}/plan`)).status).toBe(404);
+    // and an id that does not exist reads identically
+    expect((await get(owner, `/runs/${crypto.randomUUID()}/plan`)).status).toBe(404);
+  });
+
+  it("a sub-agent's child run has no plan of its own — 404, not an empty one", async () => {
+    const conversation = await openConversation(consultant);
+    const run = (await (
+      await post(consultant, `/conversations/${conversation}/runs`, {
+        request: `child run ${documentReference}`,
+      })
+    ).json()) as Run;
+
+    const delegate = run.steps.find((step) => step.type === 'delegate');
+    expect(delegate?.childRunId).toBeDefined();
+    // a delegation is not a request: the child executes inside a step of its
+    // parent's plan, so "no plan" is the honest answer rather than a null body
+    expect((await get(consultant, `/runs/${delegate!.childRunId}/plan`)).status).toBe(404);
   });
 });

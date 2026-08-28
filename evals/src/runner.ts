@@ -6,7 +6,7 @@
 // project, ask the question, read the Run back. Everything the assertions see
 // comes off that HTTP response — the runner has a database handle only to
 // materialise fixtures, never to read a result it could have been told.
-import type { PlanMode, Run } from '@infora/contracts';
+import type { GetRunPlanResponse, Plan, PlanMode, Run } from '@infora/contracts';
 import { evaluateAssertions, Unevaluable } from './assertions';
 import type { Observation, ObservedSource, RetrievalMetrics } from './assertions';
 import type { Category, EvalCase } from './case';
@@ -39,17 +39,22 @@ export type CaseResult = {
   holdOut: boolean;
   fixture: { id: string; version: number; instance: string };
   routingTable: { chat: string; chatFamily: string; embedding: string };
-  // T-282 — the Lens this case ran under. The API refuses an id it does not
-  // carry (400, T-299), so a completed run is evidence the Lens applied; the
-  // run's OWN recorded lens comes off its plan, which is not readable over
-  // HTTP until T-261, so this stays the case's declaration until then.
+  // T-282 — the Lens this case ran under. **T-261 moved this from the case's
+  // declaration to the RUN'S OWN RECORD**: the plan stores `lens_id` and
+  // `lens_version` (T-299), and reading them back is the difference between
+  // "the case asked for this Lens" and "this Lens produced this answer". They
+  // agree today; the point is that a divergence would now be visible.
   lens: string | null;
-  // The rest are declared and recorded rather than inferred, and each is null
-  // because the thing it names does not exist yet — a plausible-looking value
-  // would be a fabrication in the one artefact that has to be trustworthy:
-  mode: PlanMode | null; // orchestration modes are labelled from T-266
-  plan: unknown | null; // the plan artefact lands at T-260
-  workersCalled: string[] | null; // the worker registry lands at T-269
+  // T-261 — the plan the run performed, read back over HTTP. `mode` is its
+  // stored column, never derived (T-260): until T-266 every plan is `declared`,
+  // and reporting that from the record rather than from a constant is what
+  // makes the modes reportable separately from the first model-chosen run.
+  mode: PlanMode | null;
+  plan: Plan | null;
+  // Still null, and the reason narrowed rather than cleared: the plan is
+  // readable now, but every plan step's `worker` is null until the registry at
+  // T-269, so an empty list would let `expect_not_called` pass on no evidence.
+  workersCalled: string[] | null;
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
   // T-256 — gold-passage set metrics, recorded whenever the case declared them.
   // Reported beside the verdict rather than folded into it: retrieval quality
@@ -196,10 +201,22 @@ async function runOnce(
   const run = (await asked.json()) as Run;
   if (run.state !== 'completed') return error(`run finished in state '${run.state}'`);
 
+  // T-261 — the plan the run actually performed. Producer-private and read as
+  // the requester itself, so this is the same read a consultant gets; a
+  // non-200 leaves `plan` null rather than failing the case, because a case is
+  // about the ANSWER and an unreadable plan is a harness fact, not a defect in
+  // what was answered.
+  const planRead = await session.get(`/runs/${run.id}/plan`);
+  const planned =
+    planRead.status === 200 ? ((await planRead.json()) as GetRunPlanResponse).plan : null;
+
   const observation = observe(run);
   const withRun: Omit<CaseResult, 'verdict' | 'failures'> = {
     ...base,
-    lens: evalCase.lens ?? null,
+    plan: planned,
+    mode: planned?.mode ?? null,
+    // the run's own record, not the case's declaration
+    lens: planned?.lensId ?? evalCase.lens ?? null,
     steps: run.steps.map((step) => ({
       type: step.type,
       model: step.model?.id ?? null,
@@ -349,8 +366,9 @@ function observe(run: Run): Observation {
     sourceSet,
     retrieved: retrieve === undefined ? null : retrieve.sourceSet.map(toObserved),
     railOutcomes: run.steps.flatMap((step) => step.railOutcomes),
-    // Null, not []. The plan read API is T-261 and the worker registry T-269;
-    // an empty list here would let `expect_not_called` pass on no evidence.
+    // Null, not []. The plan is readable from T-261, but every plan step's
+    // `worker` stays null until the registry at T-269, so an empty list here
+    // would let `expect_not_called` pass on no evidence.
     workersCalled: null,
   };
 }

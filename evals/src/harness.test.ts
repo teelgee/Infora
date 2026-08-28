@@ -113,9 +113,21 @@ describe('the eval harness (T-255)', () => {
       { type: 'ground_check', model: null, cost: null },
       { type: 'cite', model: null, cost: null },
     ]);
-    // and the harness still reports no plan: the plan read API is T-261, and
-    // a runner that guessed at one would be reporting something it never saw
-    expect(result.plan).toBeNull();
+    // T-261 — the plan is now read back over HTTP rather than reported as
+    // absent. The T-260 property this test pins is unchanged: the plan's steps
+    // correspond 1:1 to the run's TOP-LEVEL Step rows, which is the
+    // no-behaviour-change claim stated as data instead of as a comment. The
+    // `delegate` step above is the sub-agent's and is deliberately not among
+    // them — a delegation is not a request.
+    expect(result.plan?.mode).toBe('declared');
+    expect(result.plan?.steps.map((step) => step.stage)).toEqual([
+      'search_corpus',
+      'analyse',
+      'verify',
+      'present',
+    ]);
+    expect(result.plan?.steps.every((step) => step.stepRowId !== null)).toBe(true);
+    expect(result.plan?.steps.every((step) => step.worker === null)).toBe(true); // until T-269
   });
 
   it('is deterministic: ten executions, one verdict', async () => {
@@ -354,16 +366,15 @@ describe('the full assertion set (T-256)', () => {
     expect(typo.failures[0]).toContain("gold passage 'water_quality_v2#7'");
   });
 
-  // The deferred half of this ticket, recorded as an error rather than faked. A
-  // plan exists (T-260) but nothing can read it over HTTP until T-261, and every
-  // plan step's worker is null until the registry at T-269 — so `expect_calls`
-  // has no observation to work from and `expect_not_called` would pass for every
-  // worker in the world.
-  it('expect_calls / expect_not_called: an error until a plan is readable, never a vacuous pass', async () => {
+  // The deferred half of this ticket, recorded as an error rather than faked.
+  // The plan is readable from T-261, but every plan step's worker is null until
+  // the registry at T-269 — so `expect_calls` still has no observation to work
+  // from and `expect_not_called` would pass for every worker in the world.
+  it('expect_calls / expect_not_called: an error until a step names a worker, never a vacuous pass', async () => {
     const calls = await run('T256-expect-calls', { expect_calls: ['corpus_retrieval'] });
     expect(calls.verdict).toBe('error');
-    expect(calls.failures[0]).toContain('no plan is readable yet');
-    expect(calls.failures[0]).toContain('T-261');
+    expect(calls.failures[0]).toContain('no plan step names a worker yet');
+    expect(calls.failures[0]).toContain('T-269');
 
     const notCalled = await run('T256-expect-not-called', { expect_not_called: ['web_research'] });
     expect(notCalled.verdict).toBe('error');
@@ -445,12 +456,14 @@ describe('the full assertion set (T-256)', () => {
     expect(buildReport(results, 'release').results).toHaveLength(1);
   });
 
-  it('records the mode as unlabelled rather than assuming the coded chain is declared', async () => {
-    // The plan stores mode='declared' (T-260) and nothing can read it over HTTP
-    // until T-261, so the result says it does not know.
+  it('reads the mode off the plan record rather than assuming it', async () => {
+    // T-261 — `declared` because the run's own plan says so, not because the
+    // coded chain happens to be declared. The distinction is the whole point of
+    // storing `mode` as a column: the moment T-266 writes `model_chosen` on
+    // some runs, this report splits without a line of reporting code changing.
     const result = await runCase(harness, instance, perm02);
-    expect(result.mode).toBeNull();
-    expect(buildReport([result]).byMode.unlabelled.cases).toBe(1);
-    expect(buildReport([result]).byMode.declared.cases).toBe(0);
+    expect(result.mode).toBe('declared');
+    expect(buildReport([result]).byMode.declared.cases).toBe(1);
+    expect(buildReport([result]).byMode.unlabelled.cases).toBe(0);
   });
 });

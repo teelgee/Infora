@@ -13,6 +13,7 @@ import type {
   DocumentRelationship,
   DocumentRelationshipType,
   Id,
+  Plan,
   Resolution,
   Run,
   StepType,
@@ -136,6 +137,22 @@ export type AssembledPassage = {
   // one whose span no longer resolves against its version.
   locator: Locator | null;
 };
+// T-261 — GET /runs/:runId/plan: the analysis a run performed, read back.
+//
+// **The plan inherits the run's read scope EXACTLY** — producer-private (the
+// 2026-07-12 ruling), so another organisation gets the same `404 not_found` as
+// nonexistence. It is not a softer read than the run it belongs to and it is
+// not a harder one: the plan IS the run's internals, and the client reviews the
+// *document* through the review cycle rather than the agent's reasoning.
+//
+// `canRerun` is on the response rather than left to the caller to derive,
+// because deriving it means a surface comparing participant ids and getting the
+// rule slightly wrong somewhere: **a colleague in the same organisation may
+// READ this plan and may not re-run it as themselves.** Re-running is a new Run
+// with a new requester, which is the honest record — so the button is absent
+// for a reader, exactly as an unentitled worker is absent rather than disabled.
+export type GetRunPlanResponse = { plan: Plan; canRerun: boolean };
+
 export type GetRunContextResponse = {
   runId: Id;
   passages: AssembledPassage[];

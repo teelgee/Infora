@@ -12,9 +12,11 @@ export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 export { createGroundCheckLeaf } from './ground-check-leaf';
 export { createCiteLeaf } from './cite-leaf';
-// T-260 — the plan artefact: written for every run the chain drives. The read
-// endpoint and its permissions are T-261.
+// T-260 — the plan artefact: written for every run the chain drives. T-261
+// added the read endpoint's permission half (`canRerunPlan`) beside it, so
+// "who may read" and "who may re-run" cannot drift apart in two files.
 export {
+  canRerunPlan,
   CODED_CHAIN_PLAN,
   finishPlan,
   finishPlanStep,

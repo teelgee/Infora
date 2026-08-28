@@ -180,3 +180,21 @@ export async function readPlanForRun(db: Db, runId: Id): Promise<Plan | null> {
     })),
   };
 }
+
+/**
+ * T-261 — may this requester re-run the plan as themselves?
+ *
+ * Reading and re-running are deliberately different rights on the same record.
+ * A colleague in the same organisation may read a plan — the run is
+ * producer-private, and the producing organisation is the unit — but a re-run
+ * is a NEW Run with a NEW requester, and the record has to say who asked. If a
+ * reader could re-run "the plan", the audit trail would carry a run attributed
+ * to the person whose question it was not.
+ *
+ * Pure, and it takes ids rather than rows: the API has already resolved the
+ * slice and established the producing organisation by then, and this must not
+ * become a second place that resolves permissions (component 2's rule).
+ */
+export function canRerunPlan(plan: { requesterParticipantId: Id }, requesterParticipantId: Id): boolean {
+  return plan.requesterParticipantId === requesterParticipantId;
+}
