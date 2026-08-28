@@ -8,6 +8,7 @@ import { createDb } from './client.js';
 import { loadDbEnv } from './env.js';
 import { hashPassword } from './credentials.js';
 import { seedProjectOntology } from './ontology-seed.js';
+import { seedProjectAcceptanceCodes } from './acceptance-code-seed.js';
 import * as s from './schema/index.js';
 
 // T-247 — the seed runs as the OWNER, like migrations. It TRUNCATEs, and the
@@ -87,13 +88,10 @@ const [consultant] = await db
 
 // ── Drawer 5: the project's acceptance-code scheme (T-115, ADR-0003) ────────
 // Infora's default scheme, COPIED to the project at creation — a copy, not a
-// reference, so this project's edits never rewrite another's history.
-await db.insert(s.acceptanceCodes).values([
-  { projectId: project!.id, code: 'A', description: 'Accepted', level: 'both', isAccepting: true, sortOrder: 1 },
-  { projectId: project!.id, code: 'B', description: 'Accepted with comments', level: 'both', isAccepting: true, sortOrder: 2 },
-  { projectId: project!.id, code: 'C', description: 'Revise and resubmit', level: 'both', isAccepting: false, sortOrder: 3 },
-  { projectId: project!.id, code: 'D', description: 'Rejected', level: 'both', isAccepting: false, sortOrder: 4 },
-]);
+// reference, so this project's edits never rewrite another's history. From
+// T-383 the default is ISO 19650's 2021 National Annex set, and each code
+// carries its own `is_contractual` and `grounds` answers.
+await seedProjectAcceptanceCodes(db, project!.id);
 
 // ── Drawer 6: the project's classification vocabulary (T-240, ADR-0045) ──────
 // Infora's default Uniclass 2015 / ISO 19650 scheme, COPIED to the project at
@@ -480,16 +478,7 @@ await db.insert(s.participants).values({ userId: hannah!.id, projectId: ledbrook
 await db.insert(s.participants).values({ userId: eleanor!.id, projectId: ledbrook!.id });
 await db.insert(s.participants).values({ userId: owen!.id, projectId: project!.id });
 
-await db.insert(s.acceptanceCodes).values(
-  ['A', 'B', 'C', 'D'].map((code, at) => ({
-    projectId: ledbrook!.id,
-    code,
-    description: ['Accepted', 'Accepted with comments', 'Revise and resubmit', 'Rejected'][at]!,
-    level: 'both' as const,
-    isAccepting: at < 2,
-    sortOrder: at + 1,
-  })),
-);
+await seedProjectAcceptanceCodes(db, ledbrook!.id);
 await seedProjectOntology(db, ledbrook!.id);
 
 // A little library on the second project, so cross-project retrieval isolation

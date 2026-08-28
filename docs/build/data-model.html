@@ -200,6 +200,7 @@
           <tr><td class="col">state</td><td class="type">container_state</td><td class="notes">default</td></tr>
           <tr><td class="col">document_owner_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
           <tr><td class="col">withdrawn_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">withdrawn_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
           <tr><td class="col">metadata</td><td class="type">jsonb</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
@@ -595,6 +596,8 @@
           <tr><td class="col">description</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">level</td><td class="type">acceptance_code_level</td><td class="notes">default</td></tr>
           <tr><td class="col">is_accepting</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">is_contractual</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">grounds</td><td class="type">boolean</td><td class="notes">default</td></tr>
           <tr><td class="col">sort_order</td><td class="type">integer</td><td class="notes">default</td></tr>
           <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
         </tbody></table>

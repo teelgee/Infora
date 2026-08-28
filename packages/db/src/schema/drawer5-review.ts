@@ -42,6 +42,21 @@ export const acceptanceCodes = pgTable(
     level: acceptanceCodeLevel('level').notNull().default('both'),
     // a deliverable-level code that ends the cycle and closes the work item
     isAccepting: boolean('is_accepting').notNull().default(false),
+    // T-383, ADR-0003 as amended 2026-08-27. Two properties join is_accepting,
+    // both per-project configuration rather than platform constants — the
+    // scheme is copied at creation, so a project owns its own answers.
+    //   is_contractual — an accepting code ends the cycle, but only a
+    //     CONTRACTUAL one issues the C revision (ADR-0041): ISO's own
+    //     preliminary/contractual split, "we have agreed this" against "we have
+    //     agreed most of this, with comments".
+    //   grounds — whether a deliverable admitted under this code enters the
+    //     AI's reach (ADR-0013 §6). It cannot be a fixed mapping even in
+    //     principle: the 2021 National Annex makes Published codes
+    //     stage-agnostic and leaves each An code's meaning to the project's own
+    //     information standard, so the standard itself refuses to fix it.
+    // Both default false — the restrictive direction, which is the visible one.
+    isContractual: boolean('is_contractual').notNull().default(false),
+    grounds: boolean('grounds').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     retiredAt: timestamp('retired_at', { withTimezone: true }),
   },

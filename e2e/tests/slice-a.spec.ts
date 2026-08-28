@@ -266,7 +266,9 @@ test('4 — issue, respond, and the transmittal back; then acceptance admits the
   const plan = await rachel.get<{ items: PlanRow[] }>(`/projects/${projectId}/plan`);
   const done = plan.items.find((r) => r.containerId === row.containerId)!;
   expect(done.workItem?.status).toBe('accepted');
-  expect(done.deliverableCode?.code).toBe('A');
+  // T-383 — the default scheme is now ISO 19650's 2021 National Annex set, so
+  // the accepting code is A1 (Published — authorized and accepted), not 'A'
+  expect(done.deliverableCode?.code).toBe('A1');
 });
 
 test('5 — the rejected pathway: an abandoned deliverable stands as a record and never grounds', async () => {
@@ -336,5 +338,7 @@ test('browser — the accepted deliverable reads on the Review plan table', asyn
   await expect(page.getByRole('button', { name: 'Open the review' })).toBeVisible();
   await page.getByRole('button', { name: 'Open the review' }).click();
   await expect(page.getByText('Round 2 · P02')).toBeVisible();
-  await expect(page.getByText('A — Accepted', { exact: false }).first()).toBeVisible();
+  await expect(
+    page.getByText('A1 — Published — authorized and accepted', { exact: false }).first(),
+  ).toBeVisible();
 });

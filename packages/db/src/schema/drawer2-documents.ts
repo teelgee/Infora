@@ -62,6 +62,16 @@ export const containers = pgTable(
     // why a planned deliverable was removed from the plan (T-189): removal keeps
     // the container as a record (state → withdrawn) with this free-text reason
     withdrawnReason: text('withdrawn_reason'),
+    // WHICH SIDE withdrew it (T-383, ADR-0013 §5 as amended 2026-08-27).
+    // Authority over record state follows the publication boundary, so
+    // restoration must know whether it is undoing its own act or the other
+    // party's — as built either side could restore what the other withdrew and
+    // neither act recorded the other. A NAMED PERSON on a destructive act,
+    // registered in docs/architecture/personal-data.md; participant grain, like
+    // every other attribution here, because the act is project-scoped.
+    withdrawnByParticipantId: uuid('withdrawn_by_participant_id').references(
+      (): AnyPgColumn => participants.id,
+    ),
     // plan-authored extras (ADR-0008); the per-project schema is deferred with
     // the naming scheme — at-a-glance columns are derived by query, never
     // duplicated here (2026-07-18 ruling)
