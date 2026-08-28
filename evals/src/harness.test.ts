@@ -367,14 +367,15 @@ describe('the full assertion set (T-256)', () => {
   });
 
   // The deferred half of this ticket, recorded as an error rather than faked.
-  // The plan is readable from T-261, but every plan step's worker is null until
-  // the registry at T-269 — so `expect_calls` still has no observation to work
-  // from and `expect_not_called` would pass for every worker in the world.
+  // The plan is readable (T-261) and the registry exists (T-269), but no plan
+  // step names a worker until the declared workflow at T-265 — so
+  // `expect_calls` still has no observation to work from and
+  // `expect_not_called` would pass for every worker in the world.
   it('expect_calls / expect_not_called: an error until a step names a worker, never a vacuous pass', async () => {
     const calls = await run('T256-expect-calls', { expect_calls: ['corpus_retrieval'] });
     expect(calls.verdict).toBe('error');
     expect(calls.failures[0]).toContain('no plan step names a worker yet');
-    expect(calls.failures[0]).toContain('T-269');
+    expect(calls.failures[0]).toContain('T-265');
 
     const notCalled = await run('T256-expect-not-called', { expect_not_called: ['web_research'] });
     expect(notCalled.verdict).toBe('error');

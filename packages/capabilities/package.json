@@ -3,14 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "grounded generation, compliance, tabular review, plain-english",
-  "exports": { ".": "./src/index.ts" },
+  "description": "grounded generation, compliance, tabular review, plain-english, and the typed worker registry (T-269)",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
     "@infora/contracts": "workspace:*",
+    "@infora/governance": "workspace:*",
     "@infora/lenses": "workspace:*",
     "@infora/model": "workspace:*"
   },

@@ -589,3 +589,17 @@ are not recorded here.
   sources' label is broader than its destination (finding F2), and one that
   writes nothing must not, because behaviour declared for a write that never
   happens goes stale unnoticed and then gets believed.
+- **2026-08-28 (T-269) — `WorkerDeclaration`, and the field that is absent on
+  purpose.** The typed worker's shape earns a note for one reason: **there is
+  no `enabled`, no `disabled` and no `availableTo`.** The tool set is
+  *assembled* from entitlements, not filtered — an unentitled worker is absent
+  and the model is never told it exists — and the only way to keep that true
+  under maintenance pressure is for the type to have nothing to switch. A
+  boolean there would be the filtered design wearing the assembled design's
+  name, and a surface would eventually render it greyed out with a tooltip
+  naming a capability the viewer cannot have, which is the API's
+  denial-and-nonexistence rule broken in the one layer that is hardest to
+  audit. `externalEgress` is likewise a *declaration*, not a switch: the
+  sovereign tier's exclusion of third-party workers is read off ADR-0037's
+  existing provider-eligibility policy, so a tier added later cannot acquire a
+  web worker by nobody remembering to set a flag.

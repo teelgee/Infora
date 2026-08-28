@@ -44,9 +44,10 @@ export type Observation = {
   railOutcomes: Array<{ rail: string; outcome: string; detail?: string }>;
   /**
    * The workers the run's plan recorded calling. The plan became readable at
-   * T-261; this stays null until the registry at T-269, because until then
-   * every plan step's worker is null and an empty list would make
-   * `expect_not_called` pass against no evidence at all.
+   * T-261 and the registry exists from T-269; this stays null until a plan
+   * step actually NAMES a worker, which is the declared workflow at T-265 —
+   * an empty list before then would make `expect_not_called` pass against no
+   * evidence at all.
    */
   workersCalled: string[] | null;
 };
@@ -316,7 +317,7 @@ function matches(pattern: string, text: string): boolean {
 function workersOf(observation: Observation, assertion: string): string[] {
   if (observation.workersCalled === null) {
     throw new Unevaluable(
-      `${assertion}: no plan step names a worker yet, so the workers a run called cannot be observed (worker registry T-269)`,
+      `${assertion}: no plan step names a worker yet, so the workers a run called cannot be observed (the declared workflow, T-265)`,
     );
   }
   return observation.workersCalled;

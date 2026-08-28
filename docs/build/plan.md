@@ -247,7 +247,7 @@ entry naming its gate and where its design lives.
 **Audit shape.** A worker invocation is a **Step** in the existing append-only tree and in most cases a child **Run** — `parent_run_id` / `parent_step_id` / `child_run_id` already support this and the retrieve leaf already does exactly this. The only migration required is `step_type` gaining the worker step types (T-263); model id, usage, cost, egress facts, source set and rail outcomes are already on the Step row.
 
 *Wave 3 — workers (T-269–T-280).* Two spikes start immediately and block nothing in Wave 0.
-- **T-269 — Worker registry, typed contract, entitlement assembly.** ⭐ The declaration type plus one worker (`corpus_retrieval`). **The tool set is assembled from entitlements, not filtered** — an unentitled worker is absent, not disabled, and the model is never told it exists. A sovereign-tier deployment assembles no `web_research`, falling out of the existing router policy. | *(Deps: T-248, T-263)*
+- ~~**T-269 — Worker registry, typed contract, entitlement assembly.**~~ ✅ **Built 2026-08-28** (no migration). Record in [plan-history.md](plan-history.md#slice-ask).
 - ~~**T-270 — SPIKE: locator extraction.**~~ ✅ **Findings 2026-08-01**. Record in [plan-history.md](plan-history.md#slice-ask).
 
 - ~~**T-271 — Locators through the ingest pipeline.**~~ ✅ **Built 2026-08-04** (migration 0039). Record in [plan-history.md](plan-history.md#slice-ask).

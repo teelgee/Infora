@@ -177,6 +177,9 @@ importers:
       '@infora/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@infora/governance':
+        specifier: workspace:*
+        version: link:../governance
       '@infora/lenses':
         specifier: workspace:*
         version: link:../lenses

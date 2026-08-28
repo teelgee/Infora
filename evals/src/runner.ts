@@ -52,8 +52,9 @@ export type CaseResult = {
   mode: PlanMode | null;
   plan: Plan | null;
   // Still null, and the reason narrowed rather than cleared: the plan is
-  // readable now, but every plan step's `worker` is null until the registry at
-  // T-269, so an empty list would let `expect_not_called` pass on no evidence.
+  // readable and the registry exists, but no plan step NAMES a worker until
+  // the declared workflow at T-265, so an empty list would let
+  // `expect_not_called` pass on no evidence.
   workersCalled: string[] | null;
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
   // T-256 — gold-passage set metrics, recorded whenever the case declared them.
@@ -366,9 +367,10 @@ function observe(run: Run): Observation {
     sourceSet,
     retrieved: retrieve === undefined ? null : retrieve.sourceSet.map(toObserved),
     railOutcomes: run.steps.flatMap((step) => step.railOutcomes),
-    // Null, not []. The plan is readable from T-261, but every plan step's
-    // `worker` stays null until the registry at T-269, so an empty list here
-    // would let `expect_not_called` pass on no evidence.
+    // Null, not []. The plan is readable from T-261 and the registry exists
+    // from T-269, but no plan step names a worker until T-265 declares the
+    // chain as a workflow — an empty list here would let `expect_not_called`
+    // pass on no evidence.
     workersCalled: null,
   };
 }

@@ -6,6 +6,7 @@ export * from './assembly';
 export * from './external';
 export * from './finding';
 export * from './lens';
+export * from './worker';
 export * from './workflow';
 export * from './shared';
 export * from './endpoints';

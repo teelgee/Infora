@@ -66,7 +66,7 @@ describe('T-259 — the seed set', () => {
     }
 
     // Deferred and NOT faked: both rest on `expect_calls`, which needs a
-    // plan step that names a worker — the registry at T-269. The assertion
+    // plan step that names a worker — the declared workflow at T-265. The assertion
     // already errors rather than passing vacuously (T-256), so authoring them
     // now would put two permanent errors in the seed set.
     expect(ids).not.toContain('HAPPY-02');
