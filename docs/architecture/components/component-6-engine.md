@@ -123,6 +123,133 @@ entitlement rule), so the model is never told an unentitled worker exists.
 - **A finding states a defect, never a verdict** — §6's first answer invariant, applied where it is easiest to cross by accident.
 - **The rulebook guides, and a finding may quote it verbatim without citing it.** A house rule is an instruction to the author, not a fact about the scheme, so quoting it asserts nothing about the project. **The render must differ from a grounded citation** — a quoted rule is not a source chip. And because the rulebook lives in org context, a **quoted rule is org-private**: a finding quoting Org B's manual must never appear on a surface Org A reads.
 
+### The typed workers — settled 2026-08-28 (T-269, T-272–T-274, T-280)
+
+*Folded here from the board's Wave 3 design reference, on the V1 subset, when
+the registry and three of the leaf workers landed. **Only the built ones are
+here.** `verifier`, `authority_lookup` and `web_research` are → beyond V1 and
+their design stays in the board's holding pen: a component doc asserts what the
+code does, and this section would otherwise describe three capabilities that do
+not exist. `workflow_runner` is the fourth built worker and its design is in §4,
+where it folded with Wave 2.*
+
+**A worker is a typed tool, and its declaration is the contract**
+([worker.ts](../../../packages/contracts/src/worker.ts)): a name, a purpose, a
+model tier, input and output shapes, permitted tools, a scope expression,
+whether it is a leaf, whether it writes, whether it is cacheable, whether it
+sends data to a third party, and whether it needs the organisation's authority
+shelf. Three properties are held by the **type** rather than by any worker's
+code:
+
+- **Workers return structured objects, never prose.** The chat agent sees a
+  worker's output object, never its reasoning trace — which is what keeps the
+  orchestrator's context unpolluted and the audit record checkable rather than
+  narrative.
+- **Workers are leaves.** Only the chat agent orchestrates. The single
+  exception is `workflow_runner`, executing a pre-declared DAG, and `leaf:
+  false` is the one place that exception is written down.
+- **There is no generic worker** — no `research_agent`, no `code_execution`, no
+  `do_the_thing`. A capability that seems to want another worker is almost
+  always a workflow that has not been declared yet, which is the good outcome:
+  a declared workflow is evaluable end to end and an improvised worker is not.
+
+| Worker | Returns | Tools | Scope | Tier | Writes | Cacheable |
+| --- | --- | --- | --- | --- | --- | --- |
+| `corpus_retrieval` | ranked passages + coverage note | project indexes, document store read | user ∩ project ∩ deliverable visibility | triage | no | yes |
+| `extractor` | schema-conforming records + failures | document store read | inherits | mid, structured | no | yes |
+| `document_builder` | draft + source manifest + label | template store, document store write | inherits, plus write to the named sandbox | frontier | yes | no |
+
+**Entitlement — the tool set is assembled, not filtered.** Only workers the
+requester is entitled to enter the orchestrator's tool set: an unentitled worker
+is **absent, not disabled**, and the model is never told it exists — the API's
+"denial and nonexistence read identically", applied to a tool registry. There is
+no `enabled`, no `disabled` and no `availableTo` anywhere in the declaration
+type, because a boolean there would be the filtered version wearing the
+assembled version's name. Three inputs, in order: the requester's
+`EntitledSlice` (**no slice, no workers at all** — not a reduced set and not the
+read-only ones); the deployment tier, where the sovereign exclusion falls out of
+the router's existing provider-eligibility policy (ADR-0037 §2) rather than a
+per-worker switch, so a tier added later cannot acquire a third-party worker by
+omission; and the organisation's own authority shelf. **Every user therefore
+gets a materially different agent**, assembled per request. The registry holds
+**only workers that are built** — declaring an unimplemented one would put a
+capability into the model's tool set that no code backs, which is worse than its
+absence, because the model would call it.
+
+**Audit shape.** A worker invocation is a **Step** in the existing append-only
+tree, and in most cases a child **Run** — `parent_run_id` / `parent_step_id` /
+`child_run_id` already carry it, as the retrieve leaf already does. Model id,
+usage, cost, egress facts, source set and rail outcomes are already Step
+columns; `step_type` gained the worker step types at T-263 (migration 0055).
+
+⚠ **What is built is the workers, not their reachability.** All three are
+callable, tested and typed, and **nothing executes one as a plan step**:
+`runChain` dispatches on **stage**, so the drafting stage runs the draft leaf
+whatever worker a step names. Executing an arbitrary worker — and a *writing*
+worker in particular — is unruled semantics touching ADR-0027's thinking/doing
+line and the destination guarantee, and is tracked on
+**[T-309](../../build/plan.md)**. Cost attribution is absent for the same
+reason: a cost is recorded on a Step row, and the row is opened by the executor.
+
+**`corpus_retrieval`** — *ranked passages and a coverage note.* Inputs `query`,
+`classification_terms?` (the ADR-0045 ontology pre-filter), `doc_types?`,
+`include_superseded=false`, `max_passages`. It is **not a new path to the
+store**: it is `groundedLibrary` reached through the assembly gateway in
+targeted mode, so project, in-library, live-state, current-version, pinned-model
+and deliverable-visibility stay SQL pre-filters in one query and the worker adds
+structure around them. Two outputs carry the design:
+
+- **The coverage note** exists so an empty result can be told apart from an
+  empty corpus. They are indistinguishable to a reader and mean opposite
+  things — *"we searched four thousand passages and none matched"* is a
+  finding, *"your library has nothing in it"* is a configuration problem, and a
+  bare `[]` is both. The note states what slice was searched, how many
+  candidates the pre-filter admitted, and which requested terms found nothing;
+  where a number was not recorded it says so rather than quoting one nobody
+  counted.
+- **`include_superseded` flags in the prose at the point of use**, not only in
+  the manifest. Default exclusion is unchanged. A flag that lived only in a
+  footer is easy to render and easy to forget exactly where it matters — the
+  version-discipline invariant (§6) applied to the one input that can breach it.
+
+**`extractor`** — *a named register as rows, with its failures beside it.*
+Inputs `schema_name`, `scope` as either `{version_ids}` or `{query}`, and
+`strict` defaulting true. Structured output only; no narrative. Three things
+hold it up:
+
+- **The named schemas are versioned domain content, not code** — YAML beside
+  the Lens definitions
+  ([packages/capabilities/schemas/](../../../packages/capabilities/schemas/):
+  commitments, consultee responses, mitigation measures, ExA questions,
+  deadlines, parameters), owned by the same specialists. Adding a register is a
+  content change and the extractor's code does not move.
+- **`failures` is a first-class output.** A row that does not conform is
+  returned with its reason and its partial record, never coerced into shape — a
+  silently coerced commitment is worse than no record, because a register's
+  whole value is that it is complete and checkable, and one quietly-mangled row
+  looks exactly like a good one. Failures also feed absence detection.
+- **Every record carries source and locator** (§6's provenance invariant applies
+  to structured output exactly as to prose). No schema may declare those
+  columns — the validator refuses the names — because the extractor attaches
+  them from the passage a row came from, so a schema can neither forget them nor
+  forge them.
+
+**`document_builder`** — *a draft, its source manifest, and the computed label.*
+Inputs `template_id`, `brief`, `sources: {version_ids}` and `destination`.
+**`sources` is explicit and never "whatever you find":** the builder does not
+retrieve, the orchestrator hands it ids it got from `corpus_retrieval`, and that
+is what keeps the label computation tractable and the manifest honest. Outputs
+`document_id`, `manifest[]` (version reference, version, locator, what it was
+used for), `label {computed_label, most_restrictive_input, destination_label}`
+and `withheld[]`. **The label output is not decoration — it is the evidence that
+propagation happened** (T-249): the most restrictive label across the source set
+is computed and enforced against the destination before the draft is written, so
+a destination broader than the sources is refused with both labels named.
+`cacheable: false` is not a stub: a write is never served from a cache, because
+the destination's audience is a live access fact and a cached label is a cached
+access decision.
+
+
 ## 4. Workflow definition and checkpoints
 
 **Responsibility.** Decide how a workflow is defined (config, code, or composed steps); where the human-in-the-loop checkpoints sit; how a workflow drives a work item's status and ties to the document review/approval lifecycle (component 5).
