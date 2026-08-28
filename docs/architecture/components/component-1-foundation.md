@@ -70,7 +70,12 @@ endpoint and why, and the run continues around it. **Every attempt, including
 the failures, reaches the audit trail with its own egress facts** — a route
 that was tried egressed, and a record naming only the endpoint that eventually
 answered has omitted an egress event; failed attempts are written as child Step
-rows under the step that made the call.
+rows under the step that made the call. *(Scope, stated honestly — review,
+2026-08-28: the attempt-recording is wired on the **draft leaf** today, the one
+chat path running inside a plan; the extractor, the document builder and the
+structure agent dispatch through the same chain and do not yet write attempt
+rows — each adopts the pattern as it wires into a running plan, and until then
+this property is per-path, not global.)*
 
 *Not built here, and named so it is not mistaken for an omission:* the
 verify-independence constraint (`different family from the producer`) is

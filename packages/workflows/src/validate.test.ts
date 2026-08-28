@@ -35,7 +35,8 @@ const good = () => ({
     {
       id: 'draft',
       stage: 'analyse',
-      worker: 'extractor',
+      // no worker: the runner executes workers on no stage but retrieve yet
+      // (T-309's stop) — a worker here would validate the silent no-op path
       inputs: { passages: '{{steps.retrieve.output}}' },
       depends_on: ['retrieve'],
     },
@@ -53,6 +54,18 @@ const validate = (
   return validateWorkflow(doc, { file: 'project-question.yaml', workers, production });
 };
 
+// Interim rule (review, 2026-08-28, see T-309 on the board): the runner
+// executes a named worker on NO stage yet, so a worker anywhere but the
+// retrieve step is refused at load rather than silently running the
+// orchestrator's own leaf. This test is DELETED when the executor rule lands.
+it('refuses a worker on a stage the runner does not execute', () => {
+  const result = validate((doc) => {
+    (doc.steps[1] as Record<string, unknown>)['worker'] = 'document_builder';
+  });
+  const errors = (result.ok ? [] : result.errors).filter((e) => e.includes('silently run'));
+  if (errors.length !== 1) throw new Error(`expected the interim refusal, got: ${JSON.stringify(result)}`);
+});
+
 const errorsOf = (result: ReturnType<typeof validate>) => (result.ok ? [] : result.errors);
 
 describe('the declared-workflow validator (T-264)', () => {
@@ -62,7 +75,7 @@ describe('the declared-workflow validator (T-264)', () => {
     expect(result.ok && result.workflow.id).toBe('project-question');
     expect(result.ok && result.workflow.steps.map((step) => step.worker)).toEqual([
       'corpus_retrieval',
-      'extractor',
+      undefined,
     ]);
     // `writes: none` carries no label-propagation declaration at all
     expect(result.ok && result.workflow.labelPropagation).toBeUndefined();

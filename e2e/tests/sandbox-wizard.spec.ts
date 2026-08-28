@@ -18,7 +18,7 @@ test('the owner super-user creates a shared sandbox through the wizard', async (
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
   const name = `Wizard shared ${Date.now()}`;
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const w = page.getByRole('dialog');
 
   // step 1 — name + shared access

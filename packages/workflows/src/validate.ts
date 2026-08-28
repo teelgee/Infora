@@ -292,6 +292,22 @@ function readSteps(doc: Record<string, unknown>, at: (f: string, p: string) => v
         `'${worker}' — a \`verify\` step may not name a worker. The ground-check is code that runs outside the plan on every answer, and this step is its record, not an instruction`,
       );
     }
+    // Interim guard (review, 2026-08-28): the runner executes a named worker on
+    // NO stage yet — `runChain` dispatches on stage and never reads `worker`
+    // (T-309's stop). Until an executor rule is ruled at the checker session, a
+    // worker anywhere but the retrieve step — where the shipped definition
+    // carries it descriptively (T-265) — validated clean and SILENTLY ran the
+    // orchestrator's own leaf instead, which is a wrong answer nobody is told
+    // about. Refusing at load is the honest interim: a definition that names an
+    // executor the engine does not have must not load.
+    if (stage !== 'search_corpus' && stage !== 'verify' && worker !== '') {
+      at(
+        `${where}.worker`,
+        `'${worker}' — no stage but the retrieve step carries a worker yet: the runner executes ` +
+          `workers on no stage (the executor rule is undecided, see T-309 on the board), so this ` +
+          `step would silently run the orchestrator's own '${stage}' leaf instead of '${worker}'`,
+      );
+    }
 
     const inputs = step['inputs'];
     if (inputs !== undefined && (inputs === null || typeof inputs !== 'object' || Array.isArray(inputs))) {

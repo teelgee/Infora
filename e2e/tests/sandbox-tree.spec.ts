@@ -25,7 +25,7 @@ test('a document nests inside a folder, hides until expanded, and re-files via M
 
   // a fresh sandbox, so the tree starts empty and deterministic
   const sandboxName = `Tree e2e ${Date.now()}`;
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sbModal = page.getByRole('dialog');
   await sbModal.getByPlaceholder('e.g. Ecology working area').fill(sandboxName);
   await sbModal.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)

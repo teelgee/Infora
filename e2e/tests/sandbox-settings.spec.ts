@@ -22,7 +22,7 @@ test('a super-user configures a sandbox to lock its folder structure', async ({ 
   await loginAs(page, SEEDED.consultant); // elevated (guest super-user of Calder & Hale)
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Config area ${Date.now()}`);
   await sb.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)

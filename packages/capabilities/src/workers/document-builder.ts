@@ -37,6 +37,8 @@ export const DOCUMENT_BUILDER: WorkerDeclaration = {
     manifest: 'every source used, with what it was used for',
     label: 'the computed access label, the input that set it, and the destination’s',
     withheld: 'claims that resolved to no source and were not written',
+    unreachableSources:
+      'named sources the gateway did not return — a named document that produced nothing is a failure, never a silence (T-274’s rule)',
   },
   tools: ['template store', 'document store write'],
   reach: 'inherited',

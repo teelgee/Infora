@@ -22,7 +22,7 @@ test('a super-user builds a nested folder structure with the interactive builder
   await loginAs(page, SEEDED.consultant); // elevated super-user of Calder & Hale
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Structure e2e ${Date.now()}`);
   await sb.getByRole('button', { name: 'Next' }).click(); // wizard step 1 → people (private default)
@@ -74,7 +74,7 @@ test('the builder proposes a structure from the plan’s disciplines — editabl
   await loginAs(page, SEEDED.consultant);
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Seed e2e ${Date.now()}`);
   await sb.getByRole('button', { name: 'Next' }).click();
@@ -115,7 +115,7 @@ test('the builder’s agent proposes a tree from a free-form ask; the super user
   await loginAs(page, SEEDED.consultant);
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
-  await page.getByRole('button', { name: 'Sandbox' }).click();
+  await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Agent e2e ${Date.now()}`);
   await sb.getByRole('button', { name: 'Next' }).click();
