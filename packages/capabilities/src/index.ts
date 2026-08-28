@@ -29,6 +29,31 @@ export type {
   CorpusRetrievalInput,
   CorpusRetrievalOutput,
 } from './workers/corpus-retrieval';
+// T-274 — `extractor`, and the named schemas it extracts against. The schemas
+// are DOMAIN CONTENT: adding one is adding a file, and this code does not
+// change.
+export { EXTRACTOR, createExtractor, UnknownExtractionSchema } from './workers/extractor';
+export type {
+  ExtractedRecord,
+  ExtractionFailure,
+  ExtractionScope,
+  ExtractorDeps,
+  ExtractorInput,
+  ExtractorOutput,
+  RecordSource,
+} from './workers/extractor';
+export {
+  ExtractionSchemaError,
+  SCHEMAS_DIR,
+  loadExtractionSchemas,
+  validateExtractionSchema,
+} from './workers/extraction-schemas';
+export type {
+  ExtractionField,
+  ExtractionFieldType,
+  ExtractionSchema,
+  ExtractionSchemaRegistry,
+} from './workers/extraction-schemas';
 // T-266 — classification into four outcomes, and the model-chosen plan.
 export { classify, modelChosenStages, singleWorkflowClassifier } from './classify';
 export type {

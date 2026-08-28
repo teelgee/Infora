@@ -113,11 +113,12 @@ describe('entitlement assembly (T-269)', () => {
 
 describe('the registry (T-269)', () => {
   it('holds only workers that are BUILT', () => {
-    // declaring the other six would put capabilities in the model's tool set
-    // that no code implements — a worse failure than their absence, because
-    // the model would call them
-    expect(createWorkerRegistry().list()).toEqual(['corpus_retrieval']);
-    expect(BUILT_WORKERS.map((worker) => worker.name)).toEqual(['corpus_retrieval']);
+    // declaring the unbuilt ones would put capabilities in the model's tool
+    // set that no code implements — a worse failure than their absence,
+    // because the model would call them. `extractor` joined the set at T-274
+    // when it acquired an implementation, not before.
+    expect(createWorkerRegistry().list()).toEqual(['corpus_retrieval', 'extractor']);
+    expect(BUILT_WORKERS.map((worker) => worker.name)).toEqual(['corpus_retrieval', 'extractor']);
   });
 
   it("satisfies T-264's KnownWorkers, so a declared workflow validates against the real set", () => {

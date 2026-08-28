@@ -1,0 +1,31 @@
+name: commitments
+version: 1
+label: Commitments
+description: >-
+  Undertakings the applicant has made — in the REAC, the ES, a DCO requirement
+  or correspondence — that someone must later be able to prove were met.
+retrieval_hint: >-
+  commitment undertaking mitigation measure secured requirement REAC applicant
+  will shall ensure provide
+fields:
+  - name: commitment
+    type: string
+    required: true
+    description: >-
+      What was undertaken, in the document's own words as closely as possible.
+  - name: made_by
+    type: string
+    required: false
+    description: The party bound by it, where the document names one.
+  - name: secured_by
+    type: string
+    required: false
+    description: >-
+      The instrument that secures it — a DCO requirement number, a s.106
+      obligation, a REAC reference — where the document says.
+  - name: due
+    type: date
+    required: false
+    description: >-
+      When it must be met by, as it appears in the document. Leave empty rather
+      than inferring a date from context.

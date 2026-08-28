@@ -198,6 +198,9 @@ importers:
       '@infora/model':
         specifier: workspace:*
         version: link:../model
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.0
     devDependencies:
       typescript:
         specifier: ^5.8.3

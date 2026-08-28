@@ -1,0 +1,28 @@
+name: mitigation_measures
+version: 1
+label: Mitigation measures
+description: >-
+  Measures proposed to avoid, reduce or remedy an effect, with the effect each
+  one is answering.
+retrieval_hint: >-
+  mitigation measure embedded avoid reduce remedy compensate residual effect
+  significance
+fields:
+  - name: measure
+    type: string
+    required: true
+    description: The measure itself, in the document's own words as closely as possible.
+  - name: effect
+    type: string
+    required: true
+    description: The effect it mitigates, as the document describes it.
+  - name: receptor
+    type: string
+    required: false
+    description: What or who is affected, where the document names it.
+  - name: residual_effect
+    type: string
+    required: false
+    description: >-
+      The effect the document says remains after the measure, where it states
+      one. Leave empty rather than concluding one.

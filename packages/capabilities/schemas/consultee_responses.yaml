@@ -1,0 +1,26 @@
+name: consultee_responses
+version: 1
+label: Consultee responses
+description: >-
+  What each statutory or non-statutory consultee said, so the ones who never
+  answered are visible by their absence from the register.
+retrieval_hint: >-
+  consultee response representation statutory consultation reply comments
+  Natural England Environment Agency local authority
+fields:
+  - name: consultee
+    type: string
+    required: true
+    description: The organisation or person who responded, as named.
+  - name: response
+    type: string
+    required: true
+    description: What they said, closely paraphrased or quoted.
+  - name: topic
+    type: string
+    required: false
+    description: The subject their response is about, where the document scopes it.
+  - name: responded_on
+    type: date
+    required: false
+    description: The date of the response as the document gives it.

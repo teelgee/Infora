@@ -15,7 +15,8 @@
     "@infora/contracts": "workspace:*",
     "@infora/governance": "workspace:*",
     "@infora/lenses": "workspace:*",
-    "@infora/model": "workspace:*"
+    "@infora/model": "workspace:*",
+    "yaml": "^2.8.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3",

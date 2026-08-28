@@ -1,0 +1,28 @@
+name: deadlines
+version: 1
+label: Deadlines
+description: >-
+  Dated obligations in the examination timetable or the consent, each tied to
+  what is due.
+retrieval_hint: >-
+  deadline timetable submission due by date examination procedural decision
+  Deadline 1 Deadline 2 Deadline 3
+fields:
+  - name: deadline
+    type: string
+    required: true
+    description: What the deadline is called (e.g. "Deadline 3").
+  - name: due
+    type: date
+    required: true
+    description: >-
+      The date, exactly as the document states it. A date this register
+      inferred rather than read is the failure this schema exists to prevent.
+  - name: obligation
+    type: string
+    required: true
+    description: What is due by it.
+  - name: owner
+    type: string
+    required: false
+    description: Who owes it, where the document names them.

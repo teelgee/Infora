@@ -1,0 +1,26 @@
+name: exa_questions
+version: 1
+label: Examining Authority questions
+description: >-
+  Questions the Examining Authority has put, so an unanswered one is visible
+  rather than lost in a deadline submission.
+retrieval_hint: >-
+  Examining Authority ExA written question first round second round action
+  point request for further information deadline
+fields:
+  - name: reference
+    type: string
+    required: false
+    description: The question's own reference, where it has one (e.g. "ExQ1 1.2.3").
+  - name: question
+    type: string
+    required: true
+    description: The question as asked.
+  - name: directed_to
+    type: string
+    required: false
+    description: Who it was put to, where the document says.
+  - name: deadline
+    type: date
+    required: false
+    description: The deadline it must be answered by, as the document gives it.

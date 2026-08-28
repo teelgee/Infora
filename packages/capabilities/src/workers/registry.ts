@@ -32,6 +32,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { TIER_POLICIES } from '@infora/model';
 import type { DeploymentTier } from '@infora/model';
 import { CORPUS_RETRIEVAL } from './corpus-retrieval';
+import { EXTRACTOR } from './extractor';
 
 /** The facts assembly reads. Nothing here is supplied by the request. */
 export type WorkerAssemblyFacts = {
@@ -90,8 +91,8 @@ export function assembleWorkers(
   });
 }
 
-/** Every worker this deployment has built. One, today (T-269). */
-export const BUILT_WORKERS: readonly WorkerDeclaration[] = [CORPUS_RETRIEVAL];
+/** Every worker this deployment has built. Two, since T-274. */
+export const BUILT_WORKERS: readonly WorkerDeclaration[] = [CORPUS_RETRIEVAL, EXTRACTOR];
 
 export function createWorkerRegistry(
   declared: readonly WorkerDeclaration[] = BUILT_WORKERS,

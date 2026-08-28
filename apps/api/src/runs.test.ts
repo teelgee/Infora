@@ -600,7 +600,10 @@ describe('model-chosen orchestration and mode labelling (T-266)', () => {
       cookie,
       'anything',
     );
-    expect(seen).toEqual(['corpus_retrieval']);
+    // T-274 added `extractor` to the built set; the property under test is
+    // that this is the ASSEMBLED set for this requester, not that it has one
+    // member.
+    expect(seen).toEqual(['corpus_retrieval', 'extractor']);
   });
 
   it('a deployment with no worker registry hands the classifier nothing — no slice, no workers', async () => {

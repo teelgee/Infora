@@ -1,0 +1,32 @@
+name: parameters
+version: 1
+label: Design parameters
+description: >-
+  The numbers the design is consented against — the Rochdale envelope's maxima
+  and minima, and anything else stated as a limit.
+retrieval_hint: >-
+  parameter maximum minimum height width extent envelope Rochdale limits
+  dimensions permitted
+fields:
+  - name: parameter
+    type: string
+    required: true
+    description: What is being limited (e.g. "pylon height").
+  - name: value
+    type: number
+    required: true
+    description: The number itself, without its unit.
+  - name: unit
+    type: string
+    required: true
+    description: The unit the number is expressed in (e.g. "m", "ha", "MW").
+  - name: bound
+    type: string
+    required: false
+    description: >-
+      Whether the number is a maximum, a minimum or a fixed value, where the
+      document says which.
+  - name: applies_to
+    type: string
+    required: false
+    description: The element or area the limit applies to, where scoped.
