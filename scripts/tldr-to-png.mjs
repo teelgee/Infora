@@ -2,6 +2,15 @@
 /**
  * tldr-to-png.mjs — render a tldraw .tldr file to a legible PNG, locally.
  *
+ * WHY THIS EXISTS, and why CLAUDE.md forbids reading a .tldr directly (T-214):
+ * a .tldr is tldraw's native JSON store — 40–75 KB of shape and coordinate
+ * records per diagram, with almost no human-readable signal. Loading one into
+ * an agent's context spends tens of thousands of tokens for near-zero
+ * comprehension. Render it and read the PNG instead; the Read tool renders
+ * images visually. The .tldr stays the editable source of truth and the PNG is
+ * a throwaway view for interpretation only, which is why the output directory
+ * is gitignored.
+ *
  * Usage:
  *   node scripts/tldr-to-png.mjs <input.tldr> [output.png]
  *   node scripts/tldr-to-png.mjs --all        # render every docs/architecture/diagrams/*.tldr
