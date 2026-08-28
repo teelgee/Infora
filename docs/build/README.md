@@ -18,7 +18,9 @@ No database migration or application code is written until the artefacts below e
 **Two axes, deliberately kept apart** — a document can be perfectly settled *and* superseded, which the old single-column vocabulary could not say.
 
 **Lifecycle** — is this worked from *now*?
-▶ **Live** (the current horizon) · ♻ **Living reference** (updated as the build moves) · ✅ **Closed** (superseded; precedent only, **don't load by default**) · ⚙ **Derived** (regenerate, never hand-edit).
+▶ **Live** (the current horizon) · ♻ **Living reference** (updated as the build moves) · ✅ **Finished** (settled or closed — nothing further is expected of it) · ⚙ **Derived** (regenerate, never hand-edit).
+
+> ⚠ **✅ means finished, not "don't read".** It was defined as *"Closed — superseded; precedent only, don't load by default"* until 2026-08-28, and that definition lost: of 295 ✅ marks across `docs/`, **two** were this lifecycle cell and the other 293 mean *built*, *ruled* or *agreed*. An agent that learned the old legend and then met `operating-envelope.md`'s own header — *"Status: ✅ agreed"* — would conclude the pilot's binding numbers were superseded and skip them. **What to load is carried elsewhere and always was:** the `-history` suffix below, and `CLAUDE.md`'s explicit *don't load by default* list. A glyph was never going to carry it.
 
 **Maturity** — how settled is the content? 🟢 settled · 🟡 drafted, under review · 🔴 open.
 

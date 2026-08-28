@@ -23,7 +23,7 @@ Lifecycle and maturity use **the two-axis vocabulary defined once in [the build 
 
 ## The subfolders the index does not reach
 
-`scripts/docs-rules.mjs` is **non-recursive by design**: it guards files sitting directly in an indexed folder. These four carry their own conventions instead, and an orphan inside one of them would **not** be caught — so read the convention before adding to it.
+`scripts/docs-rules.mjs` is **non-recursive by design**: it guards files sitting directly in an indexed folder, and there are five (`docs/architecture`, `docs/build`, `docs/build/spikes`, `docs/design`, `docs/design/mockups`). These four carry their own conventions instead, and an orphan inside one of them would **not** be caught — so read the convention before adding to it.
 
 | Folder | Its own convention |
 |---|---|

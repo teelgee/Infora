@@ -8,12 +8,16 @@ synced from the "Infora Design System" project, not an authority (UI-2,
 
 ## Artefacts
 
-| Path | What it is |
+| Doc | What it is |
 |---|---|
-| [design-rules.md](design-rules.md) | The written rulebook — read before making a visual decision. |
-| [design-tokens.json](design-tokens.json) | The token source of truth: colour, type, spacing, radius, elevation, motion. |
-| [ui-vocabulary.md](ui-vocabulary.md) | The class vocabulary the components emit. |
-| `mockups/` | Screens drawn **before they exist**. See the lifecycle below. |
+| `design-rules.md` | The written rulebook — read before making a visual decision. |
+| `ui-vocabulary.md` | The class vocabulary the components emit. |
+
+> **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, both directions), from 2026-08-28. **Add a file here, add its row in the same commit.**
+>
+> Two things about the shape of that table, both of which will look like mistakes and are not. The first cell is a **backticked filename, never a markdown link** — that is the row form the guard matches, and it is the same in all five indexes. And [`design-tokens.json`](design-tokens.json) — the token source of truth for colour, type, spacing, radius, elevation and motion — is named here in prose rather than given a row **on purpose**: the guard reads `.md` and `.html` only, so a `.json` row would name a file it cannot see and be reported as dangling. (Tried it; it fails exactly that way.) The tokens are unguarded, which is worth knowing rather than papering over.
+>
+> [`mockups/`](mockups/) is a **folder**, so it is deliberately *not* a row — the guard checks files and would report a row naming a directory as dangling. It carries [its own index](mockups/README.md) under the same guard, which is the register that says what is currently pending.
 
 Interface copy is governed by `CONTEXT.md`, not by this folder: it fixes one
 word per concept, and a mockup that invents a synonym is a language gap to
@@ -24,7 +28,10 @@ raise rather than a word to ship.
 A mockup is a **proposal**, drawn by hand, for a screen the product does not
 have yet. It exists to be ruled on before code is written — the loop is
 *sketch → mockup → owner ruling → ADR addendum → ticket → build*. ADR-0051 came
-out of exactly this loop, off `mockups/deliverable-status-page.html`.
+out of exactly this loop — and its mockup is **gone**, which is the loop
+finishing rather than a loss: the ruling is in the ADR, the screen is
+[deliverable-status.tsx](../../apps/web/src/screens/deliverable-status.tsx), and
+the record is the walkthrough's capture.
 
 **A mockup is never evidence.** It says nothing about what the product does
 today, and it is never cited as though it did. The record of what exists is

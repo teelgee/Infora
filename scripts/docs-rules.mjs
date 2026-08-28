@@ -37,7 +37,19 @@ import { join } from 'node:path';
  * be a second place to keep current. Their README says so, so nobody assumes
  * an orphan in one of them would be caught here.
  */
-const INDEXED = ['docs/architecture', 'docs/build', 'docs/build/spikes'];
+const INDEXED = [
+  'docs/architecture',
+  'docs/build',
+  'docs/build/spikes',
+  // `docs/design` and its `mockups/` joined 2026-08-28, and the second is the
+  // one that mattered. `CLAUDE.md` actively routes UI work into that folder,
+  // and it held a mockup of a screen that had already shipped and been
+  // photographed — the "stale drawing beside a real screenshot" the design
+  // README calls a trap, sitting in the one folder an agent is TOLD to read.
+  // The folder's own rule had said so for weeks; nothing was checking.
+  'docs/design',
+  'docs/design/mockups',
+];
 
 /** Documented file types. The README itself is the index, never a row in it. */
 const DOCUMENTED = /\.(md|html)$/;

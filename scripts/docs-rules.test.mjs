@@ -18,10 +18,25 @@ afterEach(() => {
  * the siblings the case under test is not about — an empty folder with an
  * empty table is valid: no files to orphan, no rows to dangle.
  */
-const SIBLINGS = ['docs/architecture', 'docs/build', 'docs/build/spikes'];
+// every folder in INDEXED, because a folder named there and not present is now
+// a violation in its own right. Keep this in step with docs-rules.mjs — the
+// tests failing loudly when it drifts is the guard's own rule applying to it.
+const SIBLINGS = [
+  'docs/architecture',
+  'docs/build',
+  'docs/build/spikes',
+  'docs/design',
+  'docs/design/mockups',
+];
 
-function scaffold(at, except) {
+/**
+ * @param at       temp root
+ * @param except   a folder to create WITHOUT a README (the no-index case)
+ * @param omit     folders not to create at all (the missing-folder case)
+ */
+function scaffold(at, except, omit = []) {
   for (const folder of SIBLINGS) {
+    if (omit.includes(folder)) continue;
     mkdirSync(join(at, folder), { recursive: true });
     if (folder !== except) writeFileSync(join(at, folder, 'README.md'), index());
   }
@@ -84,10 +99,8 @@ describe('dangling rows', () => {
     // the typo case: `docs/architecure`. This used to `continue` silently, so
     // one transposed letter unguarded a whole folder with CI still green.
     root = mkdtempSync(join(tmpdir(), 'infora-docs-rules-'));
-    mkdirSync(join(root, 'docs/build/spikes'), { recursive: true });
-    writeFileSync(join(root, 'docs/build/README.md'), index());
-    writeFileSync(join(root, 'docs/build/spikes/README.md'), index());
-    const violations = checkDocsIndex(root); // docs/architecture never created
+    scaffold(root, null, ['docs/architecture']); // every folder but this one
+    const violations = checkDocsIndex(root);
     expect(violations).toHaveLength(1);
     expect(violations[0]).toContain('docs/architecture');
     expect(violations[0]).toContain('INDEXED');
