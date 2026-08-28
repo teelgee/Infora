@@ -13,7 +13,7 @@
 // its context state and the surface badges it, rather than the list quietly
 // standing for two different things.
 import { Hono } from 'hono';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { schema as s } from '@infora/db';
@@ -41,6 +41,12 @@ export function libraryRoutes(deps: { db: Db }) {
         issuedAt: s.versions.createdAt,
         metadata: s.containers.metadata,
         producerName: s.organisations.name,
+        producingOrganisationId: s.containers.producingOrganisationId,
+        // T-389 — a proposed withdrawal leaves the container LIVE, so it is
+        // still on this list; the reason and its proposer come with it because
+        // the answer the owner has to give is asked for on this screen.
+        withdrawnReason: s.containers.withdrawnReason,
+        withdrawnByParticipantId: s.containers.withdrawnByParticipantId,
         title: s.workItems.title,
         // T-304 — the absence IS the marker: a reference-material container has
         // no work item (the 2026-07-31 ruling), so the left join answering null
@@ -71,6 +77,20 @@ export function libraryRoutes(deps: { db: Db }) {
     // under a code the project does not ground on — live, listed, and out of
     // reach with nothing on screen saying so until now.
     const codes = await admittingCodes(deps.db, rows.map((r) => r.containerId));
+    // T-389 — the proposers' names, batched. Every row on this list is `live`,
+    // so a withdrawal reason present here can only be a PROPOSED one (T-384's
+    // shape: reason + proposer recorded while the state is untouched).
+    const proposerIds = [
+      ...new Set(rows.map((r) => r.withdrawnByParticipantId).filter((x): x is string => x !== null)),
+    ];
+    const proposerRows = proposerIds.length
+      ? await deps.db
+          .select({ participantId: s.participants.id, name: s.users.name })
+          .from(s.participants)
+          .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+          .where(inArray(s.participants.id, proposerIds))
+      : [];
+    const proposerName = new Map(proposerRows.map((r) => [r.participantId, r.name]));
     const items = rows.map((row): LibraryItem => {
       const meta = (row.metadata ?? {}) as Record<string, unknown>;
       const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -92,6 +112,15 @@ export function libraryRoutes(deps: { db: Db }) {
           { inLibrary: true, state: 'live' },
           codes.get(row.containerId),
         ),
+        producingOrganisationId: row.producingOrganisationId,
+        withdrawalProposal:
+          row.withdrawnReason !== null && row.withdrawnByParticipantId !== null
+            ? {
+                participantId: row.withdrawnByParticipantId,
+                name: proposerName.get(row.withdrawnByParticipantId) ?? '',
+                reason: row.withdrawnReason,
+              }
+            : null,
       };
     });
     return c.json({ items } satisfies GetLibraryResponse);

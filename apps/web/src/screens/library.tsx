@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import type { LibraryItem, MeResponse, PendingTransmittal, Rendition, RosterEntry } from '@infora/contracts';
 import { BookOpen, Download, FileText, Inbox, Send } from 'lucide-react';
-import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
+import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table, TextArea } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 import { contextStateBadge, formatDate } from './shared';
@@ -158,6 +158,124 @@ function DocumentModal(props: { item: LibraryItem; onClose: () => void }) {
   );
 }
 
+// T-389 — ENDING A DELIVERABLE, on the screen where deliverables are read.
+// Until now there was no button for this anywhere: `superseded` was set by
+// nothing in the codebase, and withdrawal existed only as T-189's remove-from-
+// the-plan act, which is a different act that shares a word (ADR-0013's
+// amendment). Two acts, and which one you get is decided by the publication
+// boundary rather than by who you are (ADR-0013 §2) — the owner ends a
+// published deliverable, the producing organisation asks the owner to.
+//
+// The REASON IS MANDATORY, and it is mandatory because of who reads it: its
+// visibility follows the container (ADR-0013 §4), so the producing organisation
+// whose work this is reads why its deliverable was ended. "No longer required"
+// typed under duress is a poor answer; no answer at all is not an answer.
+function EndDeliverableModal(props: {
+  item: LibraryItem;
+  /** the owner ends it outright; the producing organisation proposes */
+  mode: 'withdraw' | 'propose';
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const withdrawing = props.mode === 'withdraw';
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title={`${withdrawing ? 'Withdraw' : 'Propose withdrawing'} ${props.item.documentReference}`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={busy || reason.trim() === ''}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(reason.trim());
+            }}
+          >
+            {withdrawing ? 'Withdraw' : 'Propose withdrawal'}
+          </Button>
+        </>
+      }
+    >
+      <Field
+        label="Why"
+        hint={
+          withdrawing
+            ? 'Read by everyone who can see this deliverable, including the organisation that produced it (ADR-0013). The document stays in the record and stops being used for AI answers.'
+            : 'Sent to the project owner, who decides. Nothing changes until they accept — the deliverable stays live and keeps grounding until then.'
+        }
+      >
+        <TextArea value={reason} onChange={setReason} rows={3} placeholder="e.g. Superseded by the revised alignment" />
+      </Field>
+    </Modal>
+  );
+}
+
+// T-389 — the owner's supersede act. Supersession is an EDGE and not a state
+// (ADR-0013 §3): the case it exists for is a DIFFERENT document — not a newer
+// revision — becoming the authoritative one, so it has a second endpoint and
+// has to name it. Confirming the edge is what sets the target's record state
+// (ADR-0045 as amended §1), which is why this modal picks a replacement rather
+// than offering a bare "mark superseded".
+function SupersedeModal(props: {
+  item: LibraryItem;
+  candidates: LibraryItem[];
+  /** the owner proposes AND confirms; the producer only proposes */
+  mode: 'confirm' | 'propose';
+  onClose: () => void;
+  onSubmit: (replacementContainerId: string) => Promise<void>;
+}) {
+  const [replacement, setReplacement] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title={`Supersede ${props.item.documentReference}`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={busy || replacement === null}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(replacement!);
+            }}
+          >
+            {props.mode === 'confirm' ? 'Supersede' : 'Propose'}
+          </Button>
+        </>
+      }
+    >
+      <Field
+        label="Which deliverable replaces it"
+        hint={
+          props.mode === 'confirm'
+            ? 'The replacement supersedes this one. It stays in the record and stops being used for AI answers; retiring the relationship is the way back.'
+            : 'Proposed to the project owner, who confirms. Nothing changes until they do.'
+        }
+      >
+        <Combobox
+          value={replacement}
+          onChange={setReplacement}
+          placeholder="Search deliverables"
+          options={props.candidates.map((c) => ({
+            value: c.containerId,
+            label: `${c.documentReference}${c.title ? ` — ${c.title}` : ''}`,
+          }))}
+        />
+      </Field>
+    </Modal>
+  );
+}
+
 export function LibraryScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -169,6 +287,9 @@ export function LibraryScreen() {
   const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
   const [openItem, setOpenItem] = useState<LibraryItem | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // T-389 — the two lifecycle acts, each open on at most one row at a time
+  const [endingItem, setEndingItem] = useState<LibraryItem | null>(null);
+  const [supersedingItem, setSupersedingItem] = useState<LibraryItem | null>(null);
 
   const load = useCallback(() => {
     void api.library(projectId).then((res) => setItems(res.items));
@@ -211,6 +332,63 @@ export function LibraryScreen() {
     }
   }
 
+  // T-389 — the same endpoint for both sides, because the boundary decides the
+  // act, not the caller (ADR-0013 §2). What differs is what the screen then
+  // says, and it must not overstate: a proposal changes nothing at all yet.
+  async function endDeliverable(item: LibraryItem, reason: string) {
+    const mine = item.producingOrganisationId === me.organisationId;
+    try {
+      await api.withdrawDeliverable(item.containerId, reason);
+      setNote(
+        isOwner && !mine
+          ? `${item.documentReference} withdrawn — it stands as a record on the plan and no longer grounds.`
+          : isOwner
+            ? `${item.documentReference} withdrawn.`
+            : `Withdrawal proposed for ${item.documentReference}. It stays live and keeps grounding until the owner accepts.`,
+      );
+      load();
+    } catch {
+      setNote('Could not withdraw — the elevated capability is required for this act.');
+    }
+    setEndingItem(null);
+  }
+
+  async function resolveProposal(item: LibraryItem, accept: boolean) {
+    try {
+      await api.resolveWithdrawalProposal(item.containerId, accept);
+      setNote(
+        accept
+          ? `${item.documentReference} withdrawn under the producing organisation's own reason.`
+          : `Proposal declined — ${item.documentReference} is unchanged.`,
+      );
+      load();
+    } catch {
+      setNote('Could not answer the proposal — the elevated capability is required.');
+    }
+  }
+
+  // Propose the edge, and — where the caller is the owner, who is also the only
+  // party that may confirm one into a library container (T-386) — confirm it in
+  // the same act. Two calls rather than one, deliberately: the record then reads
+  // proposed-then-confirmed, which is what actually happened, instead of
+  // inventing a third kind of write that skips the propose/confirm shape
+  // ADR-0045 built.
+  async function supersede(item: LibraryItem, replacementContainerId: string) {
+    try {
+      const edge = await api.proposeRelationship(replacementContainerId, item.containerId, 'supersedes');
+      if (isOwner) {
+        await api.confirmRelationship(edge.id);
+        setNote(`${item.documentReference} superseded — it no longer grounds.`);
+      } else {
+        setNote(`Supersession proposed for ${item.documentReference}. The owner confirms it.`);
+      }
+      load();
+    } catch {
+      setNote('Could not record that — check the replacement is a deliverable you can both see.');
+    }
+    setSupersedingItem(null);
+  }
+
   async function transmit(item: LibraryItem, organisationId: string) {
     try {
       await api.issueTransmittal(item.containerId, [organisationId]);
@@ -231,6 +409,23 @@ export function LibraryScreen() {
       </p>
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
       {openItem && <DocumentModal item={openItem} onClose={() => setOpenItem(null)} />}
+      {endingItem && (
+        <EndDeliverableModal
+          item={endingItem}
+          mode={isOwner ? 'withdraw' : 'propose'}
+          onClose={() => setEndingItem(null)}
+          onSubmit={(reason) => endDeliverable(endingItem, reason)}
+        />
+      )}
+      {supersedingItem && (
+        <SupersedeModal
+          item={supersedingItem}
+          mode={isOwner ? 'confirm' : 'propose'}
+          candidates={(deliverables ?? []).filter((d) => d.containerId !== supersedingItem.containerId)}
+          onClose={() => setSupersedingItem(null)}
+          onSubmit={(replacement) => supersede(supersedingItem, replacement)}
+        />
+      )}
       {transmitItem && (
         <TransmitModal
           item={transmitItem}
@@ -309,6 +504,30 @@ export function LibraryScreen() {
                       </Badge>
                     </div>
                   )}
+                  {/* T-389 — a standing proposal, and the owner's answer to it.
+                      It sits on the row rather than in a separate queue because
+                      the thing being decided is this deliverable, and the row
+                      is where its reason, its producer and its state already
+                      are. Both sides see the proposal; only the owner answers. */}
+                  {item.withdrawalProposal && (
+                    <div
+                      style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Withdrawal proposed by {item.withdrawalProposal.name} —{' '}
+                      {item.withdrawalProposal.reason}
+                      {isOwner && (
+                        <span style={{ display: 'inline-flex', gap: 6, marginLeft: 8 }}>
+                          <Button size="sm" variant="quiet" onClick={() => void resolveProposal(item, true)}>
+                            Withdraw it
+                          </Button>
+                          <Button size="sm" variant="quiet" onClick={() => void resolveProposal(item, false)}>
+                            Decline
+                          </Button>
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td><span className="mono">{item.revision}</span></td>
                 <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
@@ -325,6 +544,22 @@ export function LibraryScreen() {
                         <Send size={13} strokeWidth={2} /> Transmit
                       </Button>
                     )}
+                    {/* T-389 — the acts that did not exist. Offered to the two
+                        sides the record belongs to and to nobody else: the
+                        owner ends a published deliverable, the producing
+                        organisation asks. A member organisation that neither
+                        owns the library nor produced this row sees neither. */}
+                    {(isOwner || item.producingOrganisationId === me.organisationId) &&
+                      item.withdrawalProposal === null && (
+                        <>
+                          <Button size="sm" variant="quiet" onClick={() => setSupersedingItem(item)}>
+                            Supersede…
+                          </Button>
+                          <Button size="sm" variant="quiet" onClick={() => setEndingItem(item)}>
+                            {isOwner ? 'Withdraw…' : 'Propose withdrawal…'}
+                          </Button>
+                        </>
+                      )}
                   </span>
                 </td>
               </tr>

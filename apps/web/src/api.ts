@@ -206,6 +206,13 @@ export const api = {
     }),
   restoreDeliverable: (containerId: string) =>
     request<PlanRow>(`/containers/${containerId}/restoration`, { method: 'POST' }),
+  // T-389 — the owner's answer to a producing organisation's proposed
+  // withdrawal of a published deliverable (T-384, ADR-0013 §2)
+  resolveWithdrawalProposal: (containerId: string, accept: boolean) =>
+    request<PlanRow>(`/containers/${containerId}/withdrawal-proposal/resolution`, {
+      method: 'POST',
+      body: JSON.stringify({ accept }),
+    }),
   grantAuthor: (containerId: string, participantId: string, isLead: boolean) =>
     request<AppointmentGrant>(`/containers/${containerId}/authors`, {
       method: 'POST',

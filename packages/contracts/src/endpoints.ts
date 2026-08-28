@@ -399,6 +399,15 @@ export type LibraryItem = {
   kind: 'deliverable' | 'reference';
   // T-388 — whether the AI may rely on this deliverable, and if not, why.
   contextState: ContextState;
+  // T-389 — which side the reader is on decides which action they hold, and
+  // `producerName` is a display string. The lifecycle acts on this screen are
+  // the first that need the id: the owner withdraws, the producing organisation
+  // proposes, and everyone else does neither (ADR-0013 §2).
+  producingOrganisationId: Id;
+  // T-389 — a producing organisation's proposed withdrawal, awaiting the owner.
+  // On this list because a proposal leaves the deliverable LIVE and listed: it
+  // is not in force until the owner answers, and the answer is asked for here.
+  withdrawalProposal: { participantId: Id; name: string; reason: string } | null;
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 

@@ -502,3 +502,16 @@ are not recorded here.
   different halves: the library list carries only the live corpus, so it is
   where a live-but-out-of-reach deliverable is visible at all, and the plan is
   where a `superseded`, `withdrawn` or `rejected` record is actually read.
+- **2026-08-28 (T-389) — `LibraryItem` gains `producingOrganisationId` and
+  `withdrawalProposal`, and the first one is the interesting half.** The list
+  has carried `producerName` since T-086 and that was enough while the screen
+  only ever *read*. The lifecycle acts are the first writes on it, and which
+  side you are on decides which act you hold — the owner ends a published
+  deliverable, the producing organisation asks the owner to (ADR-0013 §2) — so
+  a display string cannot answer the question the buttons ask. It is an id
+  rather than a boolean `mine` because the same read serves both sides and a
+  server-computed "yours" would have to be recomputed for every reader while
+  the id already is what it is. `withdrawalProposal` is on **this** list and not
+  a queue of its own because a proposal leaves the deliverable **live**: it is
+  still listed, still grounding, and the row is where its reason, its producer
+  and its state already sit.

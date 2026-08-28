@@ -331,6 +331,47 @@ describe('context state, and the badge that names its reason (T-388)', () => {
   });
 });
 
+// T-389 — the Documents screen is where these acts live, so what it reads has
+// to carry enough to offer them to the right side and to nobody else.
+describe('the Documents read carries what the lifecycle buttons need (T-389)', () => {
+  it('names the producer by id and surfaces a standing proposal to both sides', async () => {
+    const containerId = await publishedRow(`T389-DOC-${stamp}`);
+    await db
+      .insert(s.versions)
+      .values({ containerId, versionReference: 'C01', content: 'published', isCurrent: true });
+
+    const listed = async (cookie: string) => {
+      const res = await app.request(`/projects/${projectId}/library`, { headers: { cookie } });
+      const body = (await res.json()) as { items: Array<Record<string, unknown>> };
+      return body.items.find((i) => i['containerId'] === containerId) as
+        | { producingOrganisationId: string; withdrawalProposal: { name: string; reason: string } | null }
+        | undefined;
+    };
+
+    // the id, not the display name: which side you are on decides which act you
+    // hold, and a name cannot answer that
+    expect((await listed(ownerCookie))?.producingOrganisationId).toBe(producerOrg);
+    expect((await listed(ownerCookie))?.withdrawalProposal).toBeNull();
+
+    await app.request(`/containers/${containerId}/withdrawal`, {
+      method: 'POST',
+      headers: asJson(producerCookie),
+      body: JSON.stringify({ reason: 'The alignment moved' }),
+    });
+
+    // a proposal leaves the deliverable LIVE, so it is still on the list — which
+    // is the point: it is where the owner is asked to answer
+    for (const cookie of [ownerCookie, producerCookie]) {
+      const row = await listed(cookie);
+      expect(row?.withdrawalProposal).toEqual({
+        participantId: producerParticipantId,
+        name: 't384-pia',
+        reason: 'The alignment moved',
+      });
+    }
+  });
+});
+
 // T-385 — as built, either side could restore what the other withdrew and
 // neither act recorded the other. The comment that justified free restoration
 // (*"recovery is never a helpdesk ticket"*) was reasoning about a producer
