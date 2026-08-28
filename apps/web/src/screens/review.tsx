@@ -7,11 +7,19 @@
 // no longer carries the act (T-349). Restyled onto the @infora/ui
 // primitives in the same pass: the raw inputs and retired token names were
 // the last pre-kit styling on a review screen.
+//
+// T-357 — THE INLINE "+ Plan a deliverable" FORM IS GONE, and the deletion is
+// the ticket. It predated the Plan screen and had quietly become a second
+// creation path with none of the first one's rules: it bypassed the naming
+// scheme (ADR-0008's reference is GENERATED, never typed), it carried no
+// elevated-tier gate where `plan.tsx` enforces one, and it mapped EVERY failure
+// — the API's `403 super_user_required` included — to "That document reference
+// already exists on this project", which is a wrong answer told confidently.
+// One creation path now; this schedule links to it.
 import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type { MeResponse, PlanRow } from '@infora/contracts';
-import { Badge, Button, Card, SectionLabel, Table, TextInput } from '@infora/ui';
+import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { statusBadge } from './shared';
 
@@ -22,10 +30,6 @@ export function ReviewScreen() {
   const navigate = useNavigate();
   const isOwner = participant.membershipRole === 'owner';
   const [rows, setRows] = useState<PlanRow[] | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [reference, setReference] = useState('');
-  const [title, setTitle] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setRows((await api.plan(participant.projectId)).items);
@@ -34,21 +38,6 @@ export function ReviewScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  async function addRow(event: FormEvent) {
-    event.preventDefault();
-    if (!reference.trim() || !title.trim()) return;
-    setError(null);
-    try {
-      await api.createPlanRow(participant.projectId, reference.trim(), title.trim());
-      setReference('');
-      setTitle('');
-      setAdding(false);
-      await reload();
-    } catch {
-      setError('That document reference already exists on this project.');
-    }
-  }
 
   const liveNames = (grants: PlanRow['reviewers'] | PlanRow['authors']) =>
     grants
@@ -68,38 +57,18 @@ export function ReviewScreen() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <SectionLabel>{isOwner ? 'All deliverables' : 'Your deliverables'}</SectionLabel>
         <span style={{ flex: 1 }} />
-        {!adding && (
-          <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
-            + Plan a deliverable
-          </Button>
-        )}
+        {/* T-357 — a LINK, not a form. Planning a deliverable generates its
+            reference from the scheme and is gated on the elevated tier; both
+            live on the Plan screen, and a second entry point here could only
+            ever be a worse copy of them. */}
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => void navigate(`/projects/${participant.projectId}/plan`)}
+        >
+          + Plan a deliverable
+        </Button>
       </div>
-
-      {adding && (
-        <Card>
-          <form onSubmit={addRow} style={{ padding: 14, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <div style={{ width: 280 }}>
-              <TextInput
-                value={reference}
-                onChange={setReference}
-                placeholder="Document reference (e.g. WA-ENV-ECO-001)"
-                mono
-                autoFocus
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <TextInput value={title} onChange={setTitle} placeholder="Deliverable title" />
-            </div>
-            <Button size="sm" variant="primary" type="submit">
-              Add to the plan
-            </Button>
-            <Button size="sm" variant="quiet" onClick={() => setAdding(false)}>
-              Cancel
-            </Button>
-            {error && <Badge tone="danger">{error}</Badge>}
-          </form>
-        </Card>
-      )}
 
       <Table>
         <table>
