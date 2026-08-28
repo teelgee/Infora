@@ -25,6 +25,7 @@ let ownerOrgId: string;
 let producerOrgId: string;
 let viewerOrgId: string; // a member org, shared A only
 let projectId: string;
+let ownerSession: string;
 let producerSession: string;
 let viewerSession: string;
 let ownerParticipantId: string;
@@ -132,6 +133,7 @@ beforeAll(async () => {
   ownerParticipantId = await makeUser('own', ownerOrgId, 'admin');
   await makeUser('prod', producerOrgId, 'admin');
   viewerParticipantId = await makeUser('view', viewerOrgId, 'member');
+  ownerSession = await session('own');
   producerSession = await session('prod');
   viewerSession = await session('view');
 
@@ -195,7 +197,12 @@ describe('relationship edges — propose / confirm / retire', () => {
     expect(edge.confirmedByParticipantId).toBeNull();
     edgeId = edge.id;
 
-    const confirmed = await req(`/relationships/${edgeId}/confirmation`, producerSession, 'POST');
+    // T-386 — both containers are in the owner's library, so the confirmation
+    // is the OWNER's act; the producer that proposed it cannot also confirm it
+    const byProducer = await req(`/relationships/${edgeId}/confirmation`, producerSession, 'POST');
+    expect(byProducer.status).toBe(404);
+
+    const confirmed = await req(`/relationships/${edgeId}/confirmation`, ownerSession, 'POST');
     expect(confirmed.status).toBe(200);
     const live = (await confirmed.json()) as DocumentRelationship;
     expect(live.proposed).toBe(false);
@@ -232,10 +239,85 @@ describe('relationship edges — propose / confirm / retire', () => {
   });
 
   it('retires the edge (currency-by-state; leaves the record)', async () => {
-    const retired = await req(`/relationships/${edgeId}/retirement`, producerSession, 'POST');
+    const retired = await req(`/relationships/${edgeId}/retirement`, ownerSession, 'POST');
     expect(retired.status).toBe(200);
     const res = await req(`/containers/${containerA}/relationships`, producerSession);
     const body = (await res.json()) as ContainerRelationshipsResponse;
     expect(body.items.find((e) => e.id === edgeId)).toBeUndefined();
+  });
+});
+
+// T-386 — a confirmed `supersedes` edge stops being only metadata (ADR-0045 as
+// amended §1, ADR-0013 §3): it is the mechanism for the case a version bump
+// cannot express, where a DIFFERENT document becomes the authoritative one.
+describe('a confirmed supersedes edge sets record state', () => {
+  const stateOf = async (containerId: string) =>
+    (await db.select().from(s.containers).where(eq(s.containers.id, containerId)).limit(1))[0]!.state;
+
+  it('the proposal alone changes nothing; the owner’s confirmation supersedes the target', async () => {
+    const newer = await makeContainer(`WA-NEW-${stamp}`);
+    const older = await makeContainer(`WA-OLD-${stamp}`);
+
+    const proposed = await req(`/containers/${newer.containerId}/relationships`, producerSession, 'POST', {
+      toContainerId: older.containerId,
+      type: 'supersedes',
+    });
+    expect(proposed.status).toBe(201);
+    const edge = (await proposed.json()) as DocumentRelationship;
+    // proposed and NOT yet live — nothing structural is written without a
+    // person in the loop, and that includes the record-state consequence
+    expect(await stateOf(older.containerId)).toBe('live');
+
+    const confirmed = await req(`/relationships/${edge.id}/confirmation`, ownerSession, 'POST');
+    expect(confirmed.status).toBe(200);
+    expect(await stateOf(older.containerId)).toBe('superseded');
+    // the superseding document is untouched — the edge is directional
+    expect(await stateOf(newer.containerId)).toBe('live');
+
+    // retiring the confirmed edge is the way back: ADR-0045 grants the
+    // consequence to a confirmed AND UN-RETIRED edge
+    const retired = await req(`/relationships/${edge.id}/retirement`, ownerSession, 'POST');
+    expect(retired.status).toBe(200);
+    expect(await stateOf(older.containerId)).toBe('live');
+  });
+
+  it('does not overwrite a state a person set — a withdrawn target stays withdrawn', async () => {
+    const newer = await makeContainer(`WA-NEW2-${stamp}`);
+    const older = await makeContainer(`WA-OLD2-${stamp}`);
+    await db
+      .update(s.containers)
+      .set({ state: 'withdrawn', withdrawnReason: 'ended by the owner' })
+      .where(eq(s.containers.id, older.containerId));
+
+    const proposed = await req(`/containers/${newer.containerId}/relationships`, producerSession, 'POST', {
+      toContainerId: older.containerId,
+      type: 'supersedes',
+    });
+    const edge = (await proposed.json()) as DocumentRelationship;
+    await req(`/relationships/${edge.id}/confirmation`, ownerSession, 'POST');
+    // none of the three states grounds, so there is nothing to gain by
+    // restating it and a reason — the withdrawal's — to lose
+    expect(await stateOf(older.containerId)).toBe('withdrawn');
+  });
+
+  it('the owner may propose an edge about its own library, not only the producer', async () => {
+    const a = await makeContainer(`WA-OWNP-${stamp}`);
+    const b = await makeContainer(`WA-OWNQ-${stamp}`);
+    const proposed = await req(`/containers/${a.containerId}/relationships`, ownerSession, 'POST', {
+      toContainerId: b.containerId,
+      type: 'references',
+    });
+    expect(proposed.status).toBe(201);
+    expect(((await proposed.json()) as DocumentRelationship).proposed).toBe(true);
+  });
+
+  it('a member organisation that produces neither end may do nothing', async () => {
+    const a = await makeContainer(`WA-WALL1-${stamp}`);
+    const b = await makeContainer(`WA-WALL2-${stamp}`);
+    const proposed = await req(`/containers/${a.containerId}/relationships`, viewerSession, 'POST', {
+      toContainerId: b.containerId,
+      type: 'supersedes',
+    });
+    expect(proposed.status).toBe(404);
   });
 });

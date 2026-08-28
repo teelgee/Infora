@@ -101,6 +101,25 @@ export function ontologyRoutes(deps: { db: Db }) {
   const producesIt = (container: ContainerRow, slice: EntitledSlice) =>
     container.producingOrganisationId === slice.organisationId && container.scope === 'library';
 
+  // T-386 (ADR-0045 as amended 2026-08-27) — who may write an edge, in the two
+  // halves the amendment separates.
+  //
+  // PROPOSAL is open to either party. It was a producing-organisation act
+  // throughout, which left the owner — whose library the edge is about — unable
+  // to say "this one replaces that one" about its own record.
+  //
+  // CONFIRMATION follows the publication boundary, exactly as record state does
+  // (ADR-0013 §2). It keys on the edge's TARGET, because that is the container a
+  // confirmation writes to: a confirmed `supersedes` edge INTO A LIBRARY
+  // CONTAINER sets that container's record state, and a record in the owner's
+  // library is the owner's. A target that is not yet published is unchanged —
+  // the producing organisation's own record, its own edge to confirm.
+  const mayProposeEdge = (from: ContainerRow, slice: EntitledSlice) =>
+    from.scope === 'library' &&
+    (from.producingOrganisationId === slice.organisationId || slice.membershipRole === 'owner');
+  const mayConfirmEdge = (target: ContainerRow, from: ContainerRow, slice: EntitledSlice) =>
+    target.inLibrary ? slice.membershipRole === 'owner' : producesIt(from, slice);
+
   // ── The classification vocabulary (project-wide, owner-owned) ──────────────
   app.get('/projects/:projectId/classification-scheme', project, async (c) => {
     const slice = c.get('slice');
@@ -259,11 +278,11 @@ export function ontologyRoutes(deps: { db: Db }) {
     return c.json({ items } satisfies ContainerRelationshipsResponse);
   });
 
-  // ── Propose an edge from this container to another (producing-org act) ─────
+  // ── Propose an edge from this container to another (either party, T-386) ───
   app.post('/containers/:containerId/relationships', async (c) => {
     const scoped = await loadVisible(c, c.req.param('containerId'));
     if (!scoped) return notFound(c);
-    if (!producesIt(scoped.container, scoped.slice)) return notFound(c);
+    if (!mayProposeEdge(scoped.container, scoped.slice)) return notFound(c);
     const body = proposeRelationshipBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     if (body.data.toContainerId === scoped.container.id) return invalid(c); // no self-edge
@@ -299,21 +318,42 @@ export function ontologyRoutes(deps: { db: Db }) {
     }
   });
 
-  // Confirm a proposed edge → live (producing-org act on the from container).
+  // Confirm a proposed edge → live. On a library target this is the OWNER's act
+  // (T-386), and for `supersedes` it is no longer only a metadata write: the
+  // confirmation sets the target's record state to `superseded` (ADR-0045 as
+  // amended §1, ADR-0013 §3). This is the mechanism for the case a version bump
+  // cannot express — a DIFFERENT document, not a newer revision, becoming the
+  // authoritative one. The schema anticipated it (*"`supersedes` records the
+  // link ADR-0013's supersede state implies"*); this wires it.
   app.post('/relationships/:relationshipId/confirmation', async (c) => {
     const edge = await loadEdgeForWrite(c, c.req.param('relationshipId'));
     if (!edge) return notFound(c);
     if (edge.row.confirmedAt) return conflict(c, 'already_confirmed');
+    if (edge.row.retiredAt) return notFound(c);
     const [updated] = await deps.db
       .update(s.documentRelationships)
       .set({ confirmedByParticipantId: edge.slice.participantId, confirmedAt: sql`now()` })
       .where(eq(s.documentRelationships.id, edge.row.id))
       .returning();
+    // Only `live` is overwritten. A target already `withdrawn` or `rejected` is
+    // in a state a person set for a reason, and none of the three grounds — so
+    // there is nothing to gain by restating it and a reason to lose.
+    if (edge.row.type === 'supersedes' && edge.target.inLibrary && edge.target.state === 'live') {
+      await deps.db
+        .update(s.containers)
+        .set({ state: 'superseded' })
+        .where(eq(s.containers.id, edge.target.id));
+    }
     return c.json(toRelationship(updated!));
   });
 
   // Retire an edge (currency-by-state; nothing deleted). Retiring a proposal is
-  // how a proposed edge is rejected. Producing-org act on the from container.
+  // how a proposed edge is rejected; retiring a CONFIRMED `supersedes` edge is
+  // how a superseding that should not have happened is undone — ADR-0045 §1
+  // grants the consequence to a confirmed *and un-retired* edge, so the target
+  // returns to `live` when no other such edge still points at it (T-386). That
+  // is the only way back from `superseded`: nothing withdrew the container, so
+  // T-385's restore rule has no act to read.
   app.post('/relationships/:relationshipId/retirement', async (c) => {
     const edge = await loadEdgeForWrite(c, c.req.param('relationshipId'));
     if (!edge) return notFound(c);
@@ -323,15 +363,37 @@ export function ontologyRoutes(deps: { db: Db }) {
       .set({ retiredAt: sql`now()` })
       .where(eq(s.documentRelationships.id, edge.row.id))
       .returning();
+    if (edge.row.type === 'supersedes' && edge.row.confirmedAt && edge.target.state === 'superseded') {
+      const standing = await deps.db
+        .select({ id: s.documentRelationships.id })
+        .from(s.documentRelationships)
+        .where(
+          and(
+            eq(s.documentRelationships.toContainerId, edge.target.id),
+            eq(s.documentRelationships.type, 'supersedes'),
+            isNull(s.documentRelationships.retiredAt),
+            sql`${s.documentRelationships.confirmedAt} is not null`,
+          ),
+        )
+        .limit(1);
+      if (standing.length === 0) {
+        await deps.db
+          .update(s.containers)
+          .set({ state: 'live' })
+          .where(eq(s.containers.id, edge.target.id));
+      }
+    }
     return c.json(toRelationship(updated!));
   });
 
-  // Load an edge for a confirm/retire write, gated on the from container's
-  // producing organisation (edges are that organisation's authoring metadata).
+  // Load an edge for a confirm/retire write. The authority is the TARGET's:
+  // owner-side on a library container, the from container's producing
+  // organisation otherwise (T-386). The target row comes back with it, because
+  // both writes now need its record state.
   async function loadEdgeForWrite(
     c: Context,
     relationshipId: string,
-  ): Promise<{ row: RelationshipRow; slice: EntitledSlice } | null> {
+  ): Promise<{ row: RelationshipRow; slice: EntitledSlice; target: ContainerRow } | null> {
     if (!isUuid(relationshipId)) return null;
     const [row] = await deps.db
       .select()
@@ -340,8 +402,13 @@ export function ontologyRoutes(deps: { db: Db }) {
       .limit(1);
     if (!row) return null;
     const scoped = await loadVisible(c, row.fromContainerId);
-    if (!scoped || !producesIt(scoped.container, scoped.slice)) return null;
-    return { row, slice: scoped.slice };
+    if (!scoped) return null;
+    // the target must be visible to the writer too — the wall does not open
+    // because an edge points through it
+    const targetScoped = await loadVisible(c, row.toContainerId);
+    if (!targetScoped) return null;
+    if (!mayConfirmEdge(targetScoped.container, scoped.container, scoped.slice)) return null;
+    return { row, slice: scoped.slice, target: targetScoped.container };
   }
 
   return app;
