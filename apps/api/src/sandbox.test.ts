@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import type { ListSandboxDocumentsResponse, SandboxDocument } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { sandboxDefaultName } from './sandbox';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -181,5 +182,37 @@ describe('sandbox documents (T-051)', () => {
     expect(items).toHaveLength(1);
     expect(items[0]!.content).toBe('Proposed text.');
     expect(items[0]!.signal).toBeUndefined(); // pending
+  });
+});
+
+// T-394 — the default working area's NAME is a substrate guarantee, and this is
+// where it is kept rather than in a browser selector. It used to be the literal
+// `Sandbox`, which is also the sandbox screen's "+ Sandbox" toolbar control, so
+// once anything created a document the screen carried two controls with the same
+// accessible name and the browser suite's `getByRole('button', { name: 'Sandbox' })`
+// became a strict-mode violation. Seven specs were hardened with `exact: true`,
+// which treats the symptom; this is the assertion that makes that hardening
+// belt-and-braces rather than the only thing holding the suite up.
+describe('the default working area does not collide with the screen’s own controls (T-394)', () => {
+  it('names itself after the owning organisation, on the lazy create path', async () => {
+    const created = await app.request(`/projects/${projectId}/sandbox-documents`, {
+      method: 'POST',
+      headers: { cookie: alice, 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Names the default' }),
+    });
+    const doc = (await created.json()) as SandboxDocument;
+    expect(doc.sandboxId).not.toBeNull(); // sandbox_id is NOT NULL (T-171)
+    const [sandbox] = await db
+      .select({ name: s.sandboxes.name })
+      .from(s.sandboxes)
+      .where(eq(s.sandboxes.id, doc.sandboxId!));
+    expect(sandbox!.name).toBe(sandboxDefaultName('t051 org A'));
+  });
+
+  // a non-exact role query matches by SUBSTRING, so "Acme — project sandbox"
+  // would re-create the ambiguity while looking like it had been fixed
+  it('carries no control label as a substring — the word “sandbox” included', () => {
+    expect(sandboxDefaultName('Calder & Hale')).not.toMatch(/sandbox/i);
+    expect(sandboxDefaultName('Calder & Hale')).toContain('Calder & Hale');
   });
 });

@@ -354,12 +354,17 @@ const [redgateParticipant] = await db
   .returning();
 
 // Org C's own single-org sandbox, provisioned exactly as the API's lazy path
-// would (ADR-0018/0019): the working area Org B must never see into.
+// would (ADR-0018/0019): the working area Org B must never see into. The name
+// mirrors `sandboxDefaultName` (apps/api/src/sandbox.ts, T-394), which cannot
+// be imported here — `packages/db` sits below the app — so the shape is
+// repeated deliberately and pinned by a test there. A seeded row spelling the
+// default differently would be a demonstration dataset quietly disagreeing
+// with the code that produces it.
 const [redgateSandbox] = await db
   .insert(s.sandboxes)
   .values({
     projectId: project!.id,
-    name: 'Sandbox',
+    name: `${redgate!.name} — working area`,
     scope: 'single_org',
     owningOrganisationId: redgate!.id,
     createdByParticipantId: redgateParticipant!.id,

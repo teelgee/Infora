@@ -30,6 +30,27 @@ import type { AppEnv } from './requester';
 // T-171 — a document always lives in a sandbox (sandbox_id NOT NULL). When none
 // is named, it lands in the organisation's default single-org sandbox, created
 // on first use with an organisation scope grant (ADR-0036).
+//
+// T-394 — it is named after the organisation that owns it, and the name is a
+// TEST SUBSTRATE fact as much as a display one. It used to be the literal
+// string `Sandbox`, which is also the label of the sandbox screen's own
+// "+ Sandbox" toolbar control — so the moment anything created a document, the
+// screen carried two controls whose accessible name was `Sandbox`, and every
+// `getByRole('button', { name: 'Sandbox' })` in the browser suite became a
+// strict-mode violation. That is a collision the product created for itself,
+// not a selector problem: the org's default working area is *the
+// organisation's*, and saying so is both the better label and a name no
+// toolbar button can share. `sandboxDefaultName` is exported so the guard
+// against the collision returning can be a test rather than a convention.
+export function sandboxDefaultName(organisationName: string): string {
+  // deliberately does not contain the word "sandbox": a non-exact role query
+  // for `Sandbox` matches by substring, so a name like "Acme — project
+  // sandbox" would re-create exactly the ambiguity this ticket removed. The
+  // noun is CONTEXT.md's own opening word for a sandbox, and it keeps the card
+  // from reading as its owner line repeated twice.
+  return `${organisationName} — working area`;
+}
+
 export async function ensureDefaultSandbox(
   db: Db,
   projectId: string,
@@ -48,11 +69,16 @@ export async function ensureDefaultSandbox(
     )
     .limit(1);
   if (existing) return existing.id;
+  const [organisation] = await db
+    .select({ name: s.organisations.name })
+    .from(s.organisations)
+    .where(eq(s.organisations.id, organisationId))
+    .limit(1);
   const [sandbox] = await db
     .insert(s.sandboxes)
     .values({
       projectId,
-      name: 'Sandbox',
+      name: sandboxDefaultName(organisation!.name),
       scope: 'single_org',
       owningOrganisationId: organisationId,
       createdByParticipantId: participantId,

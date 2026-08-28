@@ -839,6 +839,50 @@ the board ordered them.
   measurement quieter without making it mean anything. `docker compose down -v`
   stops being the workaround because there is nothing left for the reset to fix.
 
+- **T-394 — The e2e suite survives its own substrate: the lazy `Sandbox` card.** *(Minted 2026-08-28 in review, the day it stopped being latent.)* `ensureDefaultSandbox` (apps/api/src/sandbox.ts) lazily creates an org sandbox named **`Sandbox`** from the document-listing path — so any browser test that merely *visits Ask* creates a card whose accessible name collides with the toolbar's `Sandbox` button, and `getByRole('button', { name: 'Sandbox' })` becomes a strict-mode violation in every later sandbox spec. Adding `progress-rail.spec.ts` (T-293) turned this from a re-run fragility into a **clean-seed CI failure**; the review hardened all seven selector sites with `exact: true`, which treats the symptom. **Done when:** the suite passes **twice in a row on one seed** — rename the lazily-created default so no card shares the toolbar button's name, or stop the listing path creating state, and the selector hardening stops being load-bearing. | *(Deps: none)*
+  **As built — the rename, not the selector.** `ensureDefaultSandbox` names the
+  lazily-created default after the organisation that owns it, through an
+  exported `sandboxDefaultName(organisationName)`; the seeded Redgate row
+  mirrors it, since its own comment says it is *"provisioned exactly as the
+  API's lazy path would"* and a demonstration dataset spelling the default
+  differently would quietly disagree with the code that produces it. No
+  migration and **no backfill**: `ensureDefaultSandbox` matches on
+  (project, organisation, `single_org`) and never on the name, so an existing
+  database's `Sandbox` row is still found and still used — the name is a
+  display fact, and CI starts empty.
+  🔒 **The name deliberately does NOT contain the word "sandbox", and that is
+  the whole mechanism.** A non-exact `getByRole` name matches by **substring**,
+  so the obvious rename — *"Calder & Hale — project sandbox"*, which is the
+  phrase the editor's own location chip already uses twice — would have left
+  `{ name: 'Sandbox' }` matching two controls exactly as before, while looking
+  fixed. `— working area` is CONTEXT.md's opening word for a sandbox, it is the
+  vocabulary the create dialog's own placeholder uses (*"e.g. Ecology working
+  area"*), and it keeps the card from reading as its owner line printed twice.
+  **The guarantee moved out of the browser suite and into a unit test.**
+  `sandbox.test.ts` asserts the lazy path names the default after the
+  organisation, and asserts directly that the name matches no `/sandbox/i` — so
+  the collision cannot return silently. The seven `exact: true` sites **stay**:
+  exactness is right regardless, and the point of the ticket was that it should
+  stop being the only thing holding the suite up, not that it should be undone.
+  `sandbox-freeze.spec.ts`'s comment, which described the collision in the
+  present tense, now describes it in the past and names where the guarantee
+  lives.
+  📸 **The walkthrough was recaptured**, and it had to be: the default working
+  area is the card `openOrgSandbox` clicks in five beats, its name is the
+  sandbox screen's **breadcrumb root**, and 24 committed screenshots showed
+  both reading `Sandbox`. The capture ran on a fresh seed with the API
+  restarted after it, in that order.
+  ✅ **Acceptance, run as the ticket words it:** `docker compose down -v` →
+  migrate → seed → the suite twice in a row on that one seed, servers started
+  fresh so the new API code was the code under test. **64 passed, then 64
+  passed.** The pre-fix baseline is worth recording honestly: the suite already
+  passed twice on one seed *before* this change, because the review's
+  `exact: true` pass was doing the work — the collision was real and present in
+  the database (a `Sandbox` card sat beside the `+ Sandbox` button on every run)
+  and the hardening was what kept it from failing. That is exactly the state
+  the ticket calls treating the symptom, and it is why the acceptance here is
+  the rename plus the unit pin rather than the green run alone.
+
 ### Slice V1-N
 
 *Ruled 2026-08-01, design session 3 → [ADR-0049](../architecture/adr/0049-notifications-and-the-promotion-gate.md), closing `Q-012`; built from 2026-08-28. Records move here ticket by ticket as they close. **T-330 is not among them** — the emitter waits on T-323 (the SES transport) and therefore on external lead time, so the record, the surface and the gate ship first and the telling follows.*

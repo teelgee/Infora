@@ -21,9 +21,12 @@ test('Freeze checks the document out (locks); Release unlocks it', async ({ page
   await loginAs(page, SEEDED.consultant);
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
-  // exact: the lazily-created org sandbox's CARD is also a button whose
-  // accessible name begins "Sandbox" — the strict-mode collision that fails
-  // this spec whenever an earlier test has touched the sandbox path (T-394)
+  // exact, belt-and-braces: the lazily-created org working area's CARD is also
+  // a button, and while it was named the literal "Sandbox" its accessible name
+  // collided with this toolbar control the moment any earlier test created a
+  // document. T-394 renamed the default after its owning organisation, so the
+  // collision no longer exists and this `exact` is no longer what holds the
+  // suite up — the guarantee is pinned in apps/api/src/sandbox.test.ts.
   await page.getByRole('button', { name: 'Sandbox', exact: true }).click();
   const sb = page.getByRole('dialog');
   await sb.getByPlaceholder('e.g. Ecology working area').fill(`Freeze e2e ${Date.now()}`);
