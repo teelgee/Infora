@@ -657,6 +657,13 @@ export type PlanRow = {
   producingOrganisationName: string;
   metadata: Record<string, unknown>;
   state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  // T-389 — whether this deliverable has been published into the owner's
+  // library. The surface needs it because `withdrawn` is TWO ACTS THAT SHARE A
+  // WORD (ADR-0013's 2026-08-27 amendment): before publication it is the
+  // producer removing a row from its own plan, after it is the owner stopping a
+  // published deliverable being relied on. A screen that called both "removed
+  // from the plan" would be asserting the wrong one half the time.
+  inLibrary: boolean;
   workItem: { id: Id; title: string; status: string } | null; // null = owner-added reference material
   currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
   deliverableCode: { code: string; description: string } | null; // latest round verdict — derived

@@ -706,7 +706,7 @@ export function SchemaScreen() {
               {codes.map((code) => (
                 <tr key={code.id} style={{ opacity: code.retiredAt ? 0.55 : 1 }}>
                   <td className="mono">{code.code}</td>
-                  <td>
+                  <td style={{ minWidth: 320 }}>
                     {canEdit && !code.retiredAt ? (
                       <TextInput
                         value={code.description}

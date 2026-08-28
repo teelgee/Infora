@@ -326,8 +326,15 @@ function DeliverableDetail(props: {
   const authors = row.authors.filter((a) => a.revokedAt === null);
   const reviewers = row.reviewers.filter((r) => r.revokedAt === null);
   const isWithdrawn = row.state === 'withdrawn';
+  // T-389 — `withdrawn` is TWO ACTS THAT SHARE A WORD (ADR-0013's amendment):
+  // before publication it is the producing organisation removing a row from its
+  // own plan (T-189), after it is the owner stopping a published deliverable
+  // being relied on. Calling both "removed from the plan" asserted the wrong
+  // one half the time, and the two have different authors and different undos.
   const st = isWithdrawn
-    ? { tone: 'neutral' as const, label: 'Removed from plan' }
+    ? row.inLibrary
+      ? { tone: 'neutral' as const, label: 'Withdrawn from the library' }
+      : { tone: 'neutral' as const, label: 'Removed from plan' }
     : row.workItem
       ? statusBadge(row.workItem.status)
       : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
@@ -374,7 +381,14 @@ function DeliverableDetail(props: {
     >
       {isWithdrawn && (
         <div className="banner" style={{ marginBottom: 10 }}>
-          Removed from the plan{row.withdrawnReason ? ` — ${row.withdrawnReason}` : ''}. The container is kept as a record.
+          {row.inLibrary
+            ? 'Withdrawn from the project library'
+            : 'Removed from the plan'}
+          {row.withdrawnReason ? ` — ${row.withdrawnReason}` : ''}.{' '}
+          {row.inLibrary
+            ? 'It stands as a record and no longer grounds.'
+            : 'The container is kept as a record.'}
+          {row.withdrawnBy && ` Withdrawn by ${row.withdrawnBy.name}.`}
         </div>
       )}
       <div style={{ display: 'grid', gap: 6 }}>

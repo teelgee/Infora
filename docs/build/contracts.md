@@ -546,3 +546,14 @@ are not recorded here.
   container the requester can no longer see resolves to nothing rather than
   leaking a reference through its own marker. Nothing about the channel changes:
   a library pin still never joins a corpus, never grounds and never cites.
+- **2026-08-28 (Slice Document Status close-out) — `PlanRow.inLibrary`, added
+  because the walkthrough capture photographed the surface telling a lie.** The
+  plan row's banner read *"Removed from the plan"* for a deliverable the OWNER
+  had withdrawn from the library — which is the other of the two acts that share
+  that word, and the one ADR-0013's amendment exists to separate. The screen had
+  no way to tell them apart: `state = 'withdrawn'` is the same value either
+  side of publication, and `withdrawnBy.side` cannot answer it (an
+  owner-produced row withdrawn from its own plan is an owner act too). So the
+  contract carries the fact the copy actually turns on. Found by capturing the
+  beat rather than by a test, which is the case for photographing a surface
+  before calling it finished.

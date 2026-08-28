@@ -286,6 +286,17 @@ await shot(r, '00-schema');
 // the schema and deliberately not a field inside it
 await r.getByText('Review period', { exact: true }).scrollIntoViewIfNeeded();
 await shot(r, '00a-review-period');
+// T-390 — the acceptance-code editor, its own section further down the same
+// screen: what "accepted" means on this project, and which codes admit a
+// deliverable to the AI's reach. The blast-radius column is the beat.
+await r.getByText('Acceptance codes', { exact: true }).scrollIntoViewIfNeeded();
+// the label cell is an INPUT for an owner who may edit it, so the row is found
+// by its code rather than by its description
+await r.getByRole('row').filter({ hasText: 'A1' }).first().waitFor();
+await shot(r, '00b-acceptance-codes');
+// the blast-radius beat is captured LATER, after acceptance: photographed here
+// the count would read zero, and a screenshot of "this will exclude 0
+// deliverables" argues the opposite of the thing it is there to show.
 
 console.log('consultant lane —');
 await signIn(e, ELEANOR);
@@ -642,12 +653,45 @@ await r.goto(`${WEB}/projects/${projectId}/documents`);
 await r.getByText('WA-EIA-MST-001').first().waitFor();
 await shot(r, '26-library');
 
-// the closing beat: the status page at Complete. (The library modal's
-// embedded PDF is a MimeHandlerView — Chromium never composites it into a
-// screenshot, headed or headless, so that beat is not capturable.)
+// the status page at Complete. (The library modal's embedded PDF is a
+// MimeHandlerView — Chromium never composites it into a screenshot, headed or
+// headless, so that beat is not capturable.)
 await r.goto(`${WEB}/projects/${projectId}/review/${containerId}`);
 await r.getByText('Complete').first().waitFor();
 await shot(r, '27-accepted-status');
+
+// T-390 — the blast radius, now that A1 has actually admitted a deliverable
+console.log('the scheme, after acceptance —');
+await r.goto(`${WEB}/projects/${projectId}/plan/scheme`);
+await r.getByRole('row').filter({ hasText: 'A1' }).first().waitFor();
+await r.getByRole('button', { name: 'Stop grounding' }).first().click();
+await r.getByRole('dialog').getByText('from the next question asked', { exact: false }).waitFor();
+await shot(r, '27a-blast-radius');
+await r.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+
+// ── Act VII — ending a deliverable that is no longer current ────────────────
+// T-389 — the acts that did not exist anywhere before this slice: nothing set
+// `superseded`, and withdrawal reached only a producer's own unpublished plan
+// row. The owner ends a published deliverable; the producing organisation asks.
+console.log('ending a deliverable —');
+await r.goto(`${WEB}/projects/${projectId}/documents`);
+await r.getByText('WA-EIA-MST-001').first().waitFor();
+await r.getByRole('row').filter({ hasText: 'WA-EIA-MST-001' }).getByRole('button', { name: 'Withdraw…' }).click();
+await r.getByText('Read by everyone who can see this deliverable', { exact: false }).waitFor();
+await shot(r, '28-withdraw');
+await r.getByRole('textbox').last().fill('The ground model it rests on has been re-issued and no longer supports its conclusions');
+await r.getByRole('button', { name: 'Withdraw', exact: true }).click();
+await r.getByText('stands as a record', { exact: false }).waitFor();
+await shot(r, '29-withdrawn');
+
+// T-388/T-391 — the record, from the producing side: the deliverable stands on
+// the plan, badged with WHY it is out of the AI's reach, and the reason its
+// producer can read because visibility follows the container.
+await e.goto(`${WEB}/projects/${projectId}/plan`);
+await e.getByText('WA-EIA-MST-001').first().waitFor();
+await e.getByText('WA-EIA-MST-001').first().click();
+await e.getByText('Not used for AI answers', { exact: false }).first().waitFor();
+await shot(e, '30-context-state');
 
 await browser.close();
 await eleanorApi.ctx.dispose();

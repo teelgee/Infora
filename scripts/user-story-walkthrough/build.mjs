@@ -55,6 +55,15 @@ const acts = [
         adrs: ['ADR-0005'],
       },
       {
+        img: '00b-acceptance-codes',
+        lane: OWNER,
+        screen: 'Deliverable schema · acceptance codes',
+        title: 'What “accepted” means here, and what the AI may rely on',
+        prose:
+          'The third thing settled before any deliverable exists: the project’s acceptance codes, seeded from ISO 19650’s 2021 National Annex and copied at creation, so nothing Rachel does here touches another project. Two columns decide what a code DOES rather than what it is called — contractual, which is what issues the C revision and is the difference between “we have agreed this” and “we have agreed most of this, with comments”; and grounds, whether a deliverable accepted under the code enters the AI’s reach. That second column has to be hers because the standard itself refuses to fix it: the 2021 Annex makes published codes stage-agnostic and requires each A-code’s meaning to be written into the project’s own information standard. Until this slice there was no write path at all, so a pilot firm could not represent its own scheme — a gap that had nothing to do with AI.',
+        adrs: ['ADR-0003', 'ADR-0041', 'ADR-0011'],
+      },
+      {
         img: '01-workspace',
         lane: CONSULTANT,
         screen: 'Workspace',
@@ -346,7 +355,7 @@ const acts = [
       {
         title: 'The coding scheme’s unbuilt half',
         prose:
-          'ADR-0003 gives the scheme two behaviours the built product does not have. The system is meant to suggest the deliverable code from the comment codes, for the lead reviewer to confirm or override — Rachel picks hers from the list unaided, and the suggestion survives only as a note in the schema. And whether a comment’s code blocks acceptance is meant to be a property of that code in the project’s scheme, not hard-wired; the stored scheme carries a level and an is_accepting flag and nothing that blocks. Neither half carries a ticket yet.',
+          'ADR-0003 gives the scheme two behaviours the built product does not have. The system is meant to suggest the deliverable code from the comment codes, for the lead reviewer to confirm or override — Rachel picks hers from the list unaided, and the suggestion survives only as a note in the schema. And whether a comment’s code blocks acceptance is meant to be a property of that code in the project’s scheme, not hard-wired; the stored scheme carries a level, is_accepting, is_contractual and grounds — and nothing that blocks. Neither half carries a ticket yet.',
       },
       {
         title: 'The response’s jump into P02',
@@ -410,6 +419,57 @@ const acts = [
         prose:
           'Submitted, in review, responding, complete. The work item is closed and the cycle ran to acceptance without a review spreadsheet, a chased document controller or an emailed comment sheet anywhere in it.',
         adrs: ['ADR-0005', 'ADR-0032'],
+      },
+      {
+        img: '27a-blast-radius',
+        lane: OWNER,
+        screen: 'Acceptance codes · stop grounding',
+        title: 'The consequence, before the click rather than after it',
+        prose:
+          'Back on the scheme, and now A1 has actually admitted something: the row carries the count, and turning the code off states it — this many live deliverables leave AI answers, from the next question asked. It is not a checkbox because the damage it can do is invisible: every citation that already exists still resolves, so a project that quietly stopped relying on half its library would look exactly like one that had not. The change is recorded the way a rails change is, with a reason in Rachel’s own words, because who and when a timestamp already gives. And the promise about “the next question” is only honest because retrieval reads the flag live rather than caching a composite answer — the surface and the query had to agree, and this is the side making the claim.',
+        adrs: ['ADR-0003', 'ADR-0030', 'ADR-0013'],
+      },
+    ],
+  },
+  {
+    num: 'VII',
+    title: 'Ending a deliverable that is no longer current',
+    lede:
+      'The journey does not end at acceptance, because a project outlives its documents. A study is overtaken, or found wanting, and the question is what stops — and what deliberately does not. Nothing is deleted and nothing becomes unreadable; what ends is the AI reaching for it silently.',
+    beats: [
+      {
+        img: '28-withdraw',
+        lane: OWNER,
+        screen: 'Documents · withdraw',
+        title: 'The button that did not exist',
+        prose:
+          'Until this slice nothing in the product set a deliverable superseded, and withdrawal reached only a producer’s own unpublished plan row — the same word for a different act. Authority now follows the publication boundary rather than the party: before publication the record is the producing organisation’s, and once published into the owner’s library it is the owner’s, with the producer pressing the same control to PROPOSE instead. The reason is mandatory, and it is mandatory because of who reads it: visibility follows the container, so the firm whose work this is reads why its deliverable was ended. A deliverable that stops being relied on with no explanation is a decision nobody can audit.',
+        adrs: ['ADR-0013', 'ADR-0033'],
+      },
+      {
+        img: '29-withdrawn',
+        lane: OWNER,
+        screen: 'Documents',
+        title: 'It leaves the corpus, not the record',
+        prose:
+          'The deliverable is gone from the governed corpus and stands as a record on the plan, exactly as it did a moment ago except in one respect: the AI has stopped answering from it. Restoration is no longer symmetric — the container records which side withdrew it, and only that side may undo it, or the owner over a producer’s act. As built, either party could restore what the other withdrew with neither act recording the other, which is a disagreement the record could not show.',
+        adrs: ['ADR-0013', 'ADR-0011'],
+      },
+      {
+        img: '30-context-state',
+        lane: CONSULTANT_SUPER,
+        screen: 'Plan · deliverable detail',
+        title: 'The badge names its reason',
+        prose:
+          'From the producing side: the row is still there, still readable, and now carries a second badge beside its status — not used for AI answers, and WHY. The distinction matters because there are three different reasons a deliverable can be out of the agent’s reach, with three different responses: superseded by another document, withdrawn with a reason, or accepted under a code this project decided not to rely on. Context state is derived from those three conditions and never stored, because a flag that could be set independently of its inputs would give the platform two state machines that could disagree — invisibly, since every citation would still resolve. And it is not access: anyone who could read this deliverable still can, and may pin it deliberately as an attached source, where the same marker travels with it.',
+        adrs: ['ADR-0013', 'ADR-0003', 'ADR-0022'],
+      },
+    ],
+    gaps: [
+      {
+        title: 'Being told, rather than noticing',
+        prose:
+          'The story has the consultant find out because Infora tells them — the bare fact and a link, never the reason, which is not the sort of thing that belongs in an email leaving the platform. The event is ruled and the notification is not built: it belongs to the notifications slice (T-329–T-332). Until it lands, the fact reaches the producing organisation where the withdrawal itself is read, on this screen and in Documents.',
       },
     ],
   },

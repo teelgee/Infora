@@ -315,6 +315,7 @@ async function toPlanRows(
       producingOrganisationName: orgName.get(container.producingOrganisationId) ?? '',
       metadata: (container.metadata ?? {}) as Record<string, unknown>,
       state: container.state,
+      inLibrary: container.inLibrary,
       workItem: workItem
         ? { id: workItem.id, title: workItem.title, status: workItem.status }
         : null,
