@@ -101,14 +101,14 @@ afterAll(async () => {
 
 describe('classification-scoped retrieval (T-242)', () => {
   it('unscoped retrieval returns both matching documents', async () => {
-    const items = await groundedLibrary(deps, slice, { text: CONTENT, mode: 'baseline' });
+    const { items } = await groundedLibrary(deps, slice, { text: CONTENT, mode: 'baseline' });
     const versionIds = new Set(items.map((i) => (i.source as { versionId: string }).versionId));
     expect(versionIds.has(classifiedVersionId)).toBe(true);
     expect(versionIds.has(unclassifiedVersionId)).toBe(true);
   });
 
   it('scoping to the discipline term narrows to the classified document only', async () => {
-    const items = await groundedLibrary(deps, slice, {
+    const { items } = await groundedLibrary(deps, slice, {
       text: CONTENT,
       mode: 'baseline',
       classificationTermIds: [disciplineTermId],

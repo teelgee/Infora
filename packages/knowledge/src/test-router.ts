@@ -36,6 +36,8 @@ export function fakeRouter(): Router {
       Promise.resolve({
         embeddings: texts.map(fakeVector),
         model: { id: FAKE_EMBED_MODEL, version: 'fake-1' },
+        // T-313 — as the api harness: a provider reports what it counted
+        usage: { tokens: texts.reduce((total, text) => total + Math.ceil(text.length / 4), 0) },
       }),
   };
   return new Router(chat, embeddings);

@@ -13,7 +13,7 @@
 // carries `unpricedSteps` beside its total, and a caller reading a total
 // without it is reading a lower bound.
 import { Hono } from 'hono';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { ApiError, OrganisationCostsResponse } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -38,6 +38,16 @@ export function costRoutes(deps: { db: Db }) {
     // organisation. Joined through the run's requester rather than through the
     // project, because the producing organisation is derived from the record
     // (the same derivation `runVisibleTo` uses) and never from the caller.
+    //
+    // T-313 — CHILD RUNS ARE COUNTED, and until this ticket they were not.
+    // `isNull(runs.parent_run_id)` excluded every sub-agent run, which cost
+    // nothing while a sub-agent made no model call — and the retrieval
+    // sub-agent has always made one, an embedding, which simply carried no
+    // usage to notice. The moment the embedding half became priceable the
+    // filter became a silent under-report of real spend, which is finding F7
+    // arriving by a second route. A child run carries the same
+    // `requester_participant_id`, so the aggregation is unchanged; there is no
+    // double counting, because steps are rows and a child's steps are its own.
     const rows = await deps.db
       .select({
         userId: s.users.id,
@@ -51,7 +61,7 @@ export function costRoutes(deps: { db: Db }) {
       .innerJoin(s.runs, eq(s.steps.runId, s.runs.id))
       .innerJoin(s.participants, eq(s.runs.requesterParticipantId, s.participants.id))
       .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-      .where(and(eq(s.users.organisationId, user.organisationId), isNull(s.runs.parentRunId)));
+      .where(eq(s.users.organisationId, user.organisationId));
 
     const byUser = new Map<string, OrganisationCostsResponse['users'][number]>();
     const unpricedModels = new Set<string>();

@@ -104,7 +104,12 @@ describe('the eval harness (T-255)', () => {
       'Water quality baseline survey, Hollow Brook. Sampling at eight points over two seasons recorded elevated phosphate concentrations at three points, the highest at HB-04 at 0.41 mg/l against a baseline mean of 0.09 mg/l. No exceedance of the dissolved metals thresholds was recorded at any point.\n\nAn unsupported figure of 40%.',
     );
     expect(result.steps).toEqual([
-      { type: 'retrieve', model: null, cost: null },
+      // T-313 REPINNED, and the change is the ticket: the retrieve step made an
+      // embedding call all along and recorded nothing about it, so a run's
+      // "cost" silently meant its DRAFTING cost. It now names the embedding
+      // model, and reads `null` — UNPRICED — because the harness declares no
+      // rate table, exactly as the draft step does.
+      { type: 'retrieve', model: 'eval-embed', cost: null },
       { type: 'delegate', model: null, cost: null },
       // T-254 — was `0`. The harness declares no rate table, so the draft step
       // is UNPRICED, and unpriced is null. Zero was finding F7 in miniature:

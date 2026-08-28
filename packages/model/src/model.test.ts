@@ -97,6 +97,27 @@ describe('VoyageEmbeddingAdapter', () => {
       [0.3, 0.4],
     ]);
     expect(result.model).toEqual({ id: 'voyage-3.5', version: 'voyage-3.5' });
+    // T-313 — this response carried no usage, so none is reported. ABSENT, not
+    // zero: a zero would price the retrieval half of every run as free, which
+    // is finding F7 repeated one layer down.
+    expect(result.usage).toBeUndefined();
+  });
+
+  // T-313 — the adapter reporting usage is the thing nothing else can be built
+  // on: no rate table can price a call whose token count never left the wire.
+  it('reports the provider’s own token count when it is given one', async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({
+        model: 'voyage-3.5',
+        data: [{ embedding: [0.1] }],
+        usage: { total_tokens: 412 },
+      }),
+    });
+    const result = await new VoyageEmbeddingAdapter({ apiKey: 'vk', fetchFn }).embed(['a'], 'query');
+    expect(result.usage).toEqual({ tokens: 412 });
   });
 
   it('throws with status and body on a failed request', async () => {

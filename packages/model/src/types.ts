@@ -60,6 +60,11 @@ export type EmbedResult = {
   embeddings: number[][];
   model: ModelIdentity;
   egress?: EgressFacts; // as ChatResult (ADR-0037 §6)
+  // T-313 — the provider's own token count. **Optional, and absent means the
+  // provider reported none**, which is not the same as zero: T-254's rule
+  // applied to the retrieval half. An adapter that invented a count would make
+  // the whole rate table a confident guess.
+  usage?: { tokens: number };
 };
 
 // Adapters optionally declare their egress attributes and endpoint (ADR-0037

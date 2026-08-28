@@ -66,6 +66,11 @@ export function fakeRouter(
       Promise.resolve({
         embeddings: texts.map(vectorise),
         model: { id: embedModelId, version: FAKE_EMBED_VERSION },
+        // T-313 — a real embeddings provider reports what it counted, and a
+        // fake that reports nothing would make the retrieval half of a run's
+        // cost untestable end to end. Deterministic: one token per four
+        // characters, the same estimator shape the budget uses.
+        usage: { tokens: texts.reduce((total, text) => total + Math.ceil(text.length / 4), 0) },
       }),
   };
   return new Router(chat, embeddings);

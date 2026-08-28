@@ -67,10 +67,14 @@ export function createAssembler(deps: GatewayDeps, narrowing?: Attenuation): Ass
 
     // v1 merge (T-032): grounded-first within the budget, lowest-priority
     // channel dropped first (ADR-0029 §5)
-    return mergeChannels(
-      { grounded, guiding: guidingItems, informing: informingItems },
+    const merged = mergeChannels(
+      { grounded: grounded.items, guiding: guidingItems, informing: informingItems },
       TOKEN_LIMIT,
     );
+    // T-313 — the embedding call rides out with the input it produced. It
+    // survives the merge dropping every item: the call was made and was paid
+    // for whether or not anything it found fitted the budget.
+    return grounded.embedding === undefined ? merged : { ...merged, embedding: grounded.embedding };
   };
 }
 

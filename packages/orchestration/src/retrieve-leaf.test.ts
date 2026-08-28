@@ -4,11 +4,12 @@
 // on the audit tree.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
-import type { AssembledItem, AssemblyRequest } from '@infora/contracts';
+import type { AssembledInput, AssembledItem, AssemblyRequest } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { runChain } from './chain';
 import type { ChainLeaves } from './chain';
 import { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
+import { openRun, openStep } from './run-writer';
 
 const { db, pool } = createDb();
 
@@ -165,5 +166,79 @@ describe('the retrieve leaf + retrieval sub-agent (T-042)', () => {
       .orderBy(desc(s.runs.startedAt))
       .limit(1);
     expect(child!.state).toBe('failed');
+  });
+});
+
+// T-313 — the retrieval half of a run's cost, on the step that spent it.
+describe('embedding cost attribution (T-313)', () => {
+  const embedded = (tokens: number): AssembledInput => ({
+    items: [],
+    budget: { tokenLimit: 12000, tokensUsed: 0 },
+    embedding: { model: { id: 'voyage-3.5', version: 'voyage-3.5' }, tokens },
+  });
+
+  async function openRetrieveStep() {
+    const run = await openRun(db, {
+      conversationId,
+      agentId: 'infora.grounded_draft',
+      agentProvenance: 'infora',
+      request: 'q',
+      environmentKey: projectId,
+      requesterParticipantId: participantId,
+    });
+    const step = await openStep(db, { runId: run.id, type: 'retrieve' });
+    return { run, stepId: step.id };
+  }
+
+  it('records the baseline call on the parent step and the targeted call on the child', async () => {
+    const leaf = createRetrieveLeaf(
+      { assemble: async (req) => embedded(req.request.mode === 'baseline' ? 100 : 40) },
+      { rates: { 'voyage-3.5': { promptPerMTok: 2, completionPerMTok: 0 } } },
+    );
+    const { run, stepId } = await openRetrieveStep();
+
+    const result = await leaf({ db, run, stepId }, { request: 'q' });
+
+    // the parent's own call, priced against the EMBEDDING model's rate
+    expect(result.audit?.model).toEqual({ id: 'voyage-3.5', version: 'voyage-3.5' });
+    expect(result.audit?.usage).toEqual({
+      tokensPrompt: 100,
+      // a fact about an embedding call, not a placeholder: it produces none
+      tokensCompletion: 0,
+      cost: (100 * 2) / 1_000_000,
+    });
+
+    // the sub-agent's call, on the sub-agent's own step — attributing it to the
+    // parent would put a child run's spend on a step that did not make it
+    const [childRun] = await db
+      .select()
+      .from(s.runs)
+      .where(eq(s.runs.parentRunId, run.id));
+    const [childStep] = await db
+      .select()
+      .from(s.steps)
+      .where(eq(s.steps.runId, childRun!.id));
+    expect(childStep?.modelId).toBe('voyage-3.5');
+    expect(childStep?.tokensPrompt).toBe(40);
+    expect(childStep?.tokensCompletion).toBe(0);
+  });
+
+  // T-254's rule one layer down: unpriced is a reportable state, free is a lie
+  it('records an unpriced embedding as null cost, never zero', async () => {
+    const leaf = createRetrieveLeaf({ assemble: async () => embedded(100) }); // no rates
+    const { run, stepId } = await openRetrieveStep();
+    const result = await leaf({ db, run, stepId }, { request: 'q' });
+    expect(result.audit?.usage?.cost).toBeNull();
+  });
+
+  // an assembly that reported no usage is not a model call that cost nothing
+  it('records no model at all when the provider reported no usage', async () => {
+    const leaf = createRetrieveLeaf({
+      assemble: async () => ({ items: [], budget: { tokenLimit: 12000, tokensUsed: 0 } }),
+    });
+    const { run, stepId } = await openRetrieveStep();
+    const result = await leaf({ db, run, stepId }, { request: 'q' });
+    expect(result.audit?.model).toBeUndefined();
+    expect(result.audit?.usage).toBeUndefined();
   });
 });

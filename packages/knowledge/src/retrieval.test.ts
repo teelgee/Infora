@@ -191,7 +191,10 @@ afterAll(async () => {
   await pool.end();
 });
 
-const retrieve = (text: string) => groundedLibrary(deps, slice, { text, mode: 'baseline' });
+// T-313 — the call now returns the items plus what embedding them cost;
+// every assertion below is about the items.
+const retrieve = async (text: string) =>
+  (await groundedLibrary(deps, slice, { text, mode: 'baseline' })).items;
 
 describe('grounded library retrieval (T-031)', () => {
   it('returns the nearest live library chunk, annotated grounded/library with its source', async () => {
@@ -403,7 +406,7 @@ describe('the admitting code decides whether a deliverable grounds (T-387)', () 
   });
 
   const contentsOf = async (text: string, mode: 'baseline' | 'targeted' = 'baseline') =>
-    (await groundedLibrary(deps, codeSlice, { text, mode })).map((i) => i.content).join(' ');
+    (await groundedLibrary(deps, codeSlice, { text, mode })).items.map((i) => i.content).join(' ');
 
   it('excludes a deliverable admitted under a NON-GROUNDING code', async () => {
     const stamp = Date.now();

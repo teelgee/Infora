@@ -19,7 +19,12 @@ const { db, pool } = createDb();
 const stamp = Date.now();
 const password = 'pw-t254';
 
-const RATES = { 'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 } };
+// T-313 — the embedding model is priced too. Before this ticket the retrieval
+// half of every run carried no token count at all, so no rate could reach it.
+const RATES = {
+  'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 },
+  'fake-embed': { promptPerMTok: 0.06, completionPerMTok: 0 },
+};
 const priced = buildApp({
   db,
   sessionSecret: 'test-secret',
@@ -143,10 +148,34 @@ describe('T-254 — a run costs money, and the record says how much', () => {
 
   it('a step that called no model is neither priced nor unpriced', async () => {
     const run = await ask(adminCookie);
+    // T-313 changed which steps these are. `retrieve` DOES call a model — an
+    // embedding — and now says so; `ground_check` and `cite` are pure code and
+    // still carry no model. Counting a modelless step as a pricing gap would
+    // report half of every run as unpriced and drown the number that matters.
+    const check = run.steps.find((step) => step.type === 'ground_check')!;
+    expect(check.model).toBeUndefined();
+    expect(run.steps.find((step) => step.type === 'cite')!.model).toBeUndefined();
+  });
+
+  // T-313 — the retrieval half, which was invisible: `EmbedResult` carried no
+  // usage at all, so a run's recorded "cost" silently meant its DRAFTING cost.
+  it('the retrieve step records the embedding call it made, priced', async () => {
+    const run = await ask(adminCookie);
     const retrieve = run.steps.find((step) => step.type === 'retrieve')!;
-    // counting these as a pricing gap would report three quarters of every run
-    // as unpriced and drown the number that matters
-    expect(retrieve.model).toBeUndefined();
+
+    expect(retrieve.model?.id).toBe(FAKE_EMBED_MODEL);
+    expect(retrieve.usage!.tokensPrompt).toBeGreaterThan(0);
+    // an embedding produces no completion — 0 is the fact, not a placeholder
+    expect(retrieve.usage!.tokensCompletion).toBe(0);
+    expect(retrieve.usage!.cost).toBeGreaterThan(0);
+  });
+
+  it('an unpriced embedding model records null, exactly as an unpriced chat model does', async () => {
+    const cookie = await makeUser('t313-nopricing', 'admin', unpriced);
+    const run = await ask(cookie, unpriced);
+    const retrieve = run.steps.find((step) => step.type === 'retrieve')!;
+    expect(retrieve.usage!.cost).toBeNull();
+    expect(retrieve.usage!.tokensPrompt).toBeGreaterThan(0);
   });
 
   describe('aggregation at organisation and user grain', () => {

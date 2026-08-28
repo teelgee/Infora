@@ -93,9 +93,34 @@ export type AssembledItem = {
   content: string;
 };
 
+/**
+ * T-313 — what the embedding call this assembly made actually cost in tokens.
+ *
+ * The retrieval half of a run is a real model call and was invisible: nothing
+ * in `EmbedResult` carried usage at all, so no rate table could price it and a
+ * run's "cost" silently meant its DRAFTING cost. This is the fact that makes
+ * the other half priceable.
+ *
+ * **Optional, and absent means UNKNOWN rather than free** — T-254's rule
+ * applied one layer down. An assembly that made no embedding call, or a
+ * provider that reported no usage, must not read as an assembly that cost
+ * nothing, because the arithmetic would succeed and the number would be
+ * plausible.
+ *
+ * The model identity is spelled out here rather than imported: `contracts`
+ * depends on nothing, and this shape is what crosses the boundary.
+ */
+export type EmbeddingUsage = {
+  model: { id: string; version: string };
+  /** the provider's own token count for the embedded text */
+  tokens: number;
+};
+
 export type AssembledInput = {
   items: AssembledItem[]; // grounded-first within the budget (ADR-0029 §5)
   budget: { tokenLimit: number; tokensUsed: number };
+  /** T-313 — the embedding call this assembly made, where it made one */
+  embedding?: EmbeddingUsage;
 };
 
 // The one gateway. In the skeleton, guiding and informing may return empty;

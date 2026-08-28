@@ -12,7 +12,7 @@
 // applied as a SQL pre-filter (deliverableVisibleSql), never a post-filter.
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import type { AssembledItem } from '@infora/contracts';
+import type { AssembledItem, EmbeddingUsage } from '@infora/contracts';
 import { reachableContainerIds } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s, withProjectScope } from '@infora/db';
@@ -37,11 +37,24 @@ type RetrievalRequest = {
   classificationTermIds?: string[];
 };
 
+/**
+ * T-313 — the items, plus what embedding them cost.
+ *
+ * Returned as a pair rather than stashed on the items, because the embedding
+ * call is a property of the RETRIEVAL, not of any passage it found: a query
+ * that matched nothing still cost a model call, and a shape that hung the cost
+ * off a result would price that run at zero.
+ */
+export type GroundedLibraryResult = {
+  items: AssembledItem[];
+  embedding?: EmbeddingUsage;
+};
+
 export async function groundedLibrary(
   deps: { db: Db; router: Router },
   slice: EntitledSlice,
   request: RetrievalRequest,
-): Promise<AssembledItem[]> {
+): Promise<GroundedLibraryResult> {
   const modelId = deps.router.embeddingModel.id;
 
   const scope = request.classificationTermIds ?? [];
@@ -49,7 +62,8 @@ export async function groundedLibrary(
   // vector arm: query embedded with the same pinned model the index holds.
   // Embedded before the transaction opens — an outbound provider call has no
   // business holding a DB transaction open.
-  const { embeddings } = await deps.router.embed([request.text], 'query');
+  const embedded = await deps.router.embed([request.text], 'query');
+  const { embeddings } = embedded;
 
   // T-247 — both arms run inside a transaction that declares the entitled
   // project, so row-level security enforces the boundary BENEATH the SQL
@@ -85,7 +99,13 @@ export async function groundedLibrary(
       content: row.content,
     });
   }
-  return items;
+  return {
+    items,
+    // absent where the provider reported no usage — UNKNOWN, never zero
+    ...(embedded.usage !== undefined && {
+      embedding: { model: embedded.model, tokens: embedded.usage.tokens },
+    }),
+  };
 }
 
 // The one pre-filter both arms share: the entitled project's live grounded

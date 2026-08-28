@@ -725,3 +725,17 @@ are not recorded here.
   receipt belongs to the run, no ruling gives anyone authority over another
   person's agent turn, and a surface computing it locally would offer a control
   it will be refused on.
+- **2026-08-28 (T-313) — `AssembledInput.embedding` is optional, and absent
+  means *unknown*, never *free*.** The retrieval half of every run was a real
+  model call that nothing could price: `EmbedResult` carried no token usage at
+  all, so a run's recorded cost silently meant its **drafting** cost. The fact
+  had to cross the knowledge → orchestration boundary to reach a Step row, so
+  it rides the assembled input rather than a side channel. **Optional is the
+  design, not caution:** T-254's rule one layer down — an assembly that made no
+  embedding call, or a provider that reported no usage, must not be recorded as
+  a model call that cost nothing, because the arithmetic would succeed and the
+  number would be plausible. It hangs off the INPUT rather than off any item,
+  because the call is a property of the retrieval: a query that matched nothing
+  still cost a model call, and a shape that hung the cost off a result would
+  price that run at zero. The model identity is spelled out inline because
+  `contracts` depends on nothing and this shape is what crosses the boundary.

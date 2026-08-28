@@ -15,6 +15,10 @@ type FetchLike = (
 type VoyageResponse = {
   model: string;
   data: Array<{ embedding: number[] }>;
+  // T-313 — Voyage reports the tokens it counted. Optional in this type on
+  // purpose: a response without it yields NO usage rather than a zero, because
+  // a zero would price the retrieval half of every run as free.
+  usage?: { total_tokens?: number };
 };
 
 export class VoyageEmbeddingAdapter implements EmbeddingAdapter {
@@ -67,9 +71,11 @@ export class VoyageEmbeddingAdapter implements EmbeddingAdapter {
     }
 
     const payload = (await response.json()) as VoyageResponse;
+    const tokens = payload.usage?.total_tokens;
     return {
       embeddings: payload.data.map((item) => item.embedding),
       model: { id: this.modelId, version: payload.model },
+      ...(typeof tokens === 'number' && { usage: { tokens } }),
     };
   }
 }

@@ -140,7 +140,12 @@ export function buildApp(deps: AppDeps) {
     runRoutes({
       db: deps.db,
       leaves: {
-        retrieve: createRetrieveLeaf({ assemble }),
+        // T-313 — the retrieve step now records what embedding the query cost,
+        // so it needs the same rate table the draft leaf has
+        retrieve: createRetrieveLeaf(
+          { assemble },
+          { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) },
+        ),
         // T-254 — the rate table is bound HERE, at composition, where the
         // deployment's configuration is known. Keyed by model id, so the price
         // follows whichever model the router actually chose.
