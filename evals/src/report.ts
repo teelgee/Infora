@@ -66,6 +66,22 @@ export type EvalReport = {
    * two rows, because the Lens layer's whole claim is that the four differ.
    */
   byLens: Record<string, Tally>;
+  /**
+   * T-266 — **the fall-through rate: the share of labelled runs that fell
+   * through to model-chosen.** A first-class product metric, not a diagnostic.
+   *
+   * The largest risk in the classifier is quality, and its failure is quiet: a
+   * weak classifier routes everything to model-chosen, every answer still
+   * arrives grounded and cited, and the product becomes the generic agent the
+   * design forbids without a single test going red. **A rising share on
+   * repeated question shapes means a workflow is missing**, and the shapes
+   * cluster into the ticket that declares it — which is how "avoid the generic
+   * powerful agent" becomes measurable rather than aspirational.
+   *
+   * Null when no result carried a mode at all: 0 would read as "nothing fell
+   * through", which is a claim, and "nothing was labelled" is the fact.
+   */
+  fallThroughRate: number | null;
   results: CaseResult[];
 };
 
@@ -85,12 +101,16 @@ export function buildReport(results: CaseResult[], tier: Tier = 'full'): EvalRep
   const byLens = Object.fromEntries(
     lensKeys.map((lens) => [lens, tally(emitted.filter((r) => lensOf(r) === lens))]),
   );
+  // over LABELLED runs only — an unlabelled run is one no plan was read for,
+  // and counting it either way would be inventing an observation
+  const labelled = byMode.declared.cases + byMode.model_chosen.cases;
   return {
     generatedAt: new Date().toISOString(),
     tier,
     byCategory,
     byMode,
     byLens,
+    fallThroughRate: labelled === 0 ? null : byMode.model_chosen.cases / labelled,
     results: emitted,
   };
 }
@@ -149,6 +169,14 @@ export function formatReport(report: EvalReport): string {
     ...table('category', CATEGORIES, report.byCategory),
     '',
     ...table('mode', REPORTED_MODES, report.byMode),
+    // T-266 — printed beside the mode table, because a share is what makes the
+    // two rows mean something over time. It is NOT the aggregate this report
+    // forbids: the forbidden number is a pass rate across categories, which
+    // hides a bad one behind a good one. This measures which mode ran, not how
+    // well anything did, and its whole job is to be looked at.
+    ...(report.fallThroughRate === null
+      ? []
+      : [`fall-through to model-chosen: ${(report.fallThroughRate * 100).toFixed(1)}% of labelled runs`]),
     // Only when a Lens was actually named. A table whose single row is `none`
     // says nothing and trains the reader to skip the section.
     ...(lensKeys.some((key) => key !== NO_LENS) ? ['', ...table('lens', lensKeys, report.byLens)] : []),

@@ -29,3 +29,12 @@ export type {
   CorpusRetrievalInput,
   CorpusRetrievalOutput,
 } from './workers/corpus-retrieval';
+// T-266 — classification into four outcomes, and the model-chosen plan.
+export { classify, modelChosenStages, singleWorkflowClassifier } from './classify';
+export type {
+  Classification,
+  Classifier,
+  ClassifierRequest,
+  ClassifierVerdict,
+  ClassifyInput,
+} from './classify';

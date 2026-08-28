@@ -62,9 +62,13 @@ const app = buildApp({
   lenses,
   defaultLensId: env.DEFAULT_LENS_ID ?? null,
   workflows,
-  // config, not code: which workflow an Ask turn runs is a deployment
-  // decision, and the default is the one this repo ships
-  askWorkflowId: env.ASK_WORKFLOW_ID ?? 'project-question',
+  // T-269 — the workers this deployment has built. The per-requester set is
+  // assembled from it on every run.
+  workers: createWorkerRegistry(),
+  // T-266 — a turn is CLASSIFIED rather than assigned, so `ASK_WORKFLOW_ID` is
+  // now an override rather than the default: setting it pins every Ask turn to
+  // one workflow, which is what the deployment did between T-265 and T-266.
+  ...(env.ASK_WORKFLOW_ID !== undefined && { askWorkflowId: env.ASK_WORKFLOW_ID }),
   // T-254 — parsed at BOOT, so a malformed rate table refuses to start rather
   // than reporting confident wrong prices. A pricing error is worse than a
   // deployment that will not come up.

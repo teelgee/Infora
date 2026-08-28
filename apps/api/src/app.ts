@@ -156,6 +156,11 @@ export function buildApp(deps: AppDeps) {
       // run already recording which version of it produced the answer.
       ...(deps.workflows !== undefined && { workflows: deps.workflows }),
       ...(deps.askWorkflowId !== undefined && { askWorkflowId: deps.askWorkflowId }),
+      // T-266 — the worker registry, so the set the classifier sees is the one
+      // ASSEMBLED for this requester rather than everything the deployment
+      // built. The model is never told about a worker this user cannot use.
+      ...(deps.workers !== undefined && { workers: deps.workers }),
+      ...(deps.classifier !== undefined && { classifier: deps.classifier }),
       // T-252 — the same policy the middleware admitted the request under, so
       // the mid-run re-check and the front-door check cannot disagree
       sessionPolicy: deps.sessionPolicy ?? DEFAULT_SESSION_POLICY,

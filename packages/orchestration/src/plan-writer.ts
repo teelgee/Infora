@@ -15,7 +15,7 @@
 // its run's TOP-LEVEL Step rows (the delegate step hangs beneath one of them,
 // parent_step_id, and is part of that step's execution).
 import { asc, eq } from 'drizzle-orm';
-import type { Id, Lens, Plan, PlanStage, PlanStepState, StepType } from '@infora/contracts';
+import type { Id, Lens, Plan, PlanMode, PlanStage, PlanStepState, StepType } from '@infora/contracts';
 import type { PlannedStep } from './plan-order';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -56,6 +56,19 @@ export type OpenPlanInput = {
    * v1 of a workflow is never read as one about v2.
    */
   workflow?: { id: string; version: number } | null;
+  /**
+   * T-266 — the orchestration mode, STORED and never derived. Defaults to
+   * `declared`, which is what the coded chain has always been. A
+   * `model_chosen` plan may never name a workflow (CHECK, 0035), and the
+   * caller that sets one sets neither the other.
+   */
+  mode?: PlanMode;
+  /**
+   * T-266 — what the system assumed because nobody told it. Named AT THE TOP
+   * OF THE ANSWER, never in a footer: an assumption a reader has to go looking
+   * for is one they will act on without having read.
+   */
+  assumptions?: string[];
   /** T-299 — the Lens this run was asked for, or null if it named none. */
   lens?: Lens | null;
 };
@@ -84,7 +97,7 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       // packages/workflows/definitions/project-question.yaml; a declared plan
       // naming no workflow stays legal, a model-chosen one naming one is not
       // (CHECK, 0035).
-      mode: 'declared',
+      mode: input.mode ?? 'declared',
       // T-265 — the workflow, where there is one. A `model_chosen` plan may
       // never name one (CHECK, 0035), which is why this rides the declared
       // path only.
@@ -101,7 +114,7 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       // nothing restates the question until the classifier lands (T-266), and
       // echoing the question as its own restatement would be a fabrication
       restatement: null,
-      assumptions: [],
+      assumptions: input.assumptions ?? [],
     })
     .returning();
 

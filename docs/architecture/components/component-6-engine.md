@@ -62,6 +62,27 @@ derived; the completion footer states it in words; the eval harness reports the
 modes separately; and Teach submissions carry it, so a correction against a
 model-chosen run is not treated as evidence about a declared workflow.
 
+**Classification produces one of four outcomes** *(folded 2026-08-28 on T-266,
+when the classifier landed and the paragraph stopped describing unbuilt
+behaviour)*: a declared workflow fully bound → run it; a declared workflow with
+unbound required parameters → clarify, then run it; no matching workflow →
+model-chosen; out of scope → say so, **and say why**. **Outcome 3 is a signal,
+not a fallback: its rate is a first-class product metric**, reported per
+category — a rising share of model-chosen runs on repeated question shapes
+means a workflow is missing, and the shapes cluster into the ticket that
+declares it. That is how *"avoid the generic powerful agent"* becomes
+measurable rather than aspirational, because the classifier's failure mode is
+quiet: a weak one routes everything to model-chosen, every answer still arrives
+grounded and cited, and nothing goes red.
+
+The classification itself is ADR-0027's **code with an LLM escape hatch**, not
+the reverse. Whether a question *matches* a declared workflow is judgement in
+language and is the model's; whether the workflow's parameters are *bound*,
+which workers the requester is *entitled* to, and what the plan therefore *is*
+are definite questions with right answers and are code. The worker set the
+classifier sees is the one already **assembled** for that requester (§3's
+entitlement rule), so the model is never told an unentitled worker exists.
+
 ### The plan artefact
 
 *The analysis, persisted.* The schema and the stage vocabulary live in code —

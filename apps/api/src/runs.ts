@@ -11,6 +11,7 @@ import { createConversationBody, createRunBody, openRunInEditorBody } from '@inf
 import type {
   ApiError,
   GetHistoryResponse,
+  PlanMode,
   GetRunPlanResponse,
   HistoryEntry,
   Id,
@@ -25,6 +26,8 @@ import type { EntitledSlice } from '@infora/governance';
 import type { LensRegistry } from '@infora/lenses';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
+import { classify } from '@infora/capabilities';
+import type { Classifier, WorkerRegistry } from '@infora/capabilities';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import {
   canRerunPlan,
@@ -59,8 +62,23 @@ export function runRoutes(deps: {
    * a run already recording which version of it produced the answer.
    */
   workflows?: WorkflowRegistry;
-  /** the workflow an Ask turn runs. Config, not code. */
+  /**
+   * T-266 — superseded `askWorkflowId` as the DEFAULT path: a turn is now
+   * classified rather than assigned. Kept because a deployment may still pin
+   * one workflow to Ask, which is what it did between T-265 and T-266.
+   */
   askWorkflowId?: string;
+  /** T-269 — the workers this deployment has built, assembled per request. */
+  workers?: WorkerRegistry;
+  /**
+   * T-266 — the model classifier, injected. Absent means the deterministic
+   * default, which is not a stub: with one declared workflow whose parameter
+   * is the question itself, asking a frontier model to choose among one option
+   * is spending money to be less reliable (ADR-0027).
+   */
+  classifier?: Classifier;
+  /** T-269 — whether this organisation holds an authority shelf (ADR-0023). */
+  authorityShelf?: (organisationId: Id) => Promise<boolean>;
 }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -170,18 +188,66 @@ export function runRoutes(deps: {
         return { ok: true };
       };
 
-      // T-265 — the declared workflow this turn runs, bound to its parameters.
-      // A deployment carrying the definition runs the DECLARED plan; one that
-      // does not falls back to the coded chain, which is the same four stages
-      // in the same order — this ticket changes no behaviour, and the fallback
-      // is what makes that true of a deployment mid-rollout as well.
+      // ── T-266: classify, then run what the classification chose ──────────
+      //
+      // The worker set is ASSEMBLED FOR THIS REQUESTER before the classifier
+      // sees it (T-269), so the model is never told about a worker this user
+      // is not entitled to — the assembled-not-filtered rule reaching the one
+      // place it would be easiest to lose.
+      const workers =
+        deps.workers?.assemble({
+          slice,
+          tier: 'standard',
+          authorityShelf: (await deps.authorityShelf?.(slice.organisationId)) ?? false,
+        }) ?? [];
+
       let declared: Parameters<typeof runChain>[2]['workflow'] = null;
       let stages: Parameters<typeof runChain>[2]['stages'];
-      const workflow =
+      let mode: PlanMode = 'declared';
+      let assumptions: string[] = [];
+
+      // A deployment that pinned one workflow (the T-265 shape) keeps it; one
+      // carrying a registry classifies. Both end in the same three variables,
+      // and a deployment with neither runs the coded chain unchanged.
+      const pinned =
         deps.askWorkflowId === undefined ? undefined : deps.workflows?.get(deps.askWorkflowId);
-      if (workflow !== undefined) {
+      const available = deps.workflows?.list() ?? [];
+
+      const outcome =
+        pinned !== undefined
+          ? ({ outcome: 'declared', workflowId: pinned.id, parameters: { question: body.data.request } } as const)
+          : available.length === 0
+            ? undefined
+            : await classify({
+                question: body.data.request,
+                workflows: available,
+                workers,
+                ...(deps.classifier !== undefined && { classifier: deps.classifier }),
+              });
+
+      if (outcome?.outcome === 'out_of_scope') {
+        // Say so, AND SAY WHY. A refusal a user cannot act on reads as a broken
+        // system rather than a careful one — the same rule the label-propagation
+        // refusal follows. Where an out-of-scope refusal belongs in the RUN
+        // RECORD is unruled and is `Q-048`; nothing is written today, which is
+        // the reversible choice.
+        return c.json({ error: 'invalid', detail: outcome.reason } satisfies ApiError, 400);
+      }
+
+      if (outcome?.outcome === 'model_chosen') {
+        mode = 'model_chosen';
+        stages = outcome.stages;
+      } else if (outcome !== undefined) {
+        const workflow = deps.workflows!.get(outcome.workflowId)!;
+        if (outcome.outcome === 'clarify') {
+          // Wave 6's clarification dialogue is deferred beyond V1, so V1 does
+          // what Wave 6 specifies for a user who SKIPS every question: proceed
+          // on stated assumptions, named at the top of the answer rather than
+          // in a footer. The plan carries them as evidence.
+          assumptions = outcome.assumptions;
+        }
         try {
-          const bound = bindWorkflow(workflow, { question: body.data.request });
+          const bound = bindWorkflow(workflow, outcome.parameters);
           declared = { id: bound.workflowId, version: bound.workflowVersion };
           stages = bound.stages;
         } catch (error) {
@@ -206,6 +272,8 @@ export function runRoutes(deps: {
           revalidate,
           workflow: declared,
           ...(stages !== undefined && { stages }),
+          mode,
+          assumptions,
         }));
       } catch (error) {
         if (!(error instanceof RunHalted)) throw error;

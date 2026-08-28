@@ -22,7 +22,7 @@
 // step is the RECORD of the check, bound to the Step row the check wrote; it is
 // never an instruction the executor consults. Asserted by `chain.test.ts`
 // against a plan with no `verify` step at all.
-import type { AssembledInput, Id, Lens, PlanStage } from '@infora/contracts';
+import type { AssembledInput, Id, Lens, PlanMode, PlanStage } from '@infora/contracts';
 import type { Db } from '@infora/db';
 import {
   CODED_CHAIN_PLAN,
@@ -138,6 +138,14 @@ export type ChainInput = {
    * version rather than only the shape.
    */
   workflow?: { id: string; version: number } | null;
+  /**
+   * T-266 — the orchestration mode this run was classified into. Stored on the
+   * plan, never derived, because the labelling requirement is hard: a user must
+   * never be unable to tell which kind of answer they are holding.
+   */
+  mode?: PlanMode;
+  /** T-266 — assumptions the answer opens with, never a footer. */
+  assumptions?: string[];
 };
 
 /**
@@ -194,6 +202,8 @@ export async function runChain(
     question: input.request,
     stages: input.stages ?? CODED_CHAIN_PLAN,
     workflow: input.workflow ?? null,
+    ...(input.mode !== undefined && { mode: input.mode }),
+    ...(input.assumptions !== undefined && { assumptions: input.assumptions }),
     // the evidence half (T-299): which Lens produced this answer, and which
     // version of it, recorded on the plan before the draft step runs
     lens: input.lens ?? null,

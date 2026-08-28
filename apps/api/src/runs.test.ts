@@ -485,3 +485,133 @@ describe('the first declared workflow (T-265)', () => {
     );
   });
 });
+
+// T-266 — model-chosen orchestration over HTTP. The property that matters is
+// not that the mode is recorded but that recording it changes NOTHING about
+// the guarantees: the ground-check runs, the answer is cited, the audit is the
+// same shape. What model-chosen mode costs is repeatability of the sequence.
+describe('model-chosen orchestration and mode labelling (T-266)', () => {
+  const workflows = loadWorkflows({ workers: createWorkerRegistry(), production: true });
+
+  const appWith = (classifier?: Parameters<typeof buildApp>[0]['classifier']) =>
+    buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter(),
+      workflows,
+      workers: createWorkerRegistry(),
+      ...(classifier !== undefined && { classifier }),
+    });
+
+  const ask = async (application: typeof app, cookie: string, request: string) => {
+    const opened = await application.request(`/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ surface: 'web' }),
+    });
+    const { conversationId } = (await opened.json()) as { conversationId: string };
+    return application.request(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ request }),
+    });
+  };
+
+  const planOf = async (application: typeof app, cookie: string, runId: string) =>
+    (
+      (await (
+        await application.request(`/runs/${runId}/plan`, { headers: { cookie } })
+      ).json()) as GetRunPlanResponse
+    ).plan;
+
+  it('outcome 1 — a matched workflow runs declared, and the plan says so', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const res = await ask(appWith(), cookie, `what did ${documentReference} record?`);
+    expect(res.status).toBe(201);
+    const plan = await planOf(appWith(), cookie, ((await res.json()) as Run).id);
+    expect(plan.mode).toBe('declared');
+    expect(plan.workflowId).toBe('project-question');
+  });
+
+  it('outcome 3 — no match falls through to model-chosen, LABELLED, with no workflow named', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const res = await ask(
+      appWith(async () => ({ match: 'none' })),
+      cookie,
+      `an exploratory question about ${documentReference}`,
+    );
+    expect(res.status).toBe(201);
+    const run = (await res.json()) as Run;
+    const plan = await planOf(appWith(), cookie, run.id);
+
+    expect(plan.mode).toBe('model_chosen');
+    // a model-chosen plan may never name a workflow (CHECK, migration 0035) —
+    // a hand-picked sequence is not the declared workflow whatever it resembles
+    expect(plan.workflowId).toBeNull();
+
+    // AND THE GUARANTEES ARE IDENTICAL. This is the sentence the mode split
+    // rests on: what model-chosen costs is repeatability of the step sequence
+    // and nothing else.
+    expect(run.state).toBe('completed');
+    expect(run.steps.map((step) => step.type)).toContain('ground_check');
+    expect(run.response).not.toBe('');
+  });
+
+  it('the ground-check runs in model-chosen mode even when the plan is stripped to nothing', async () => {
+    // the planner here declares no verify stage at all — the strongest form of
+    // "a planner could skip it", and it cannot
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const res = await ask(appWith(async () => ({ match: 'none' })), cookie, 'anything at all');
+    const run = (await res.json()) as Run;
+    const groundCheck = run.steps.find((step) => step.type === 'ground_check');
+    expect(groundCheck?.status).toBe('completed');
+    expect(groundCheck?.railOutcomes.length).toBeGreaterThan(0);
+  });
+
+  it('outcome 4 — out of scope says so and SAYS WHY', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const res = await ask(
+      appWith(async () => ({
+        match: 'out_of_scope',
+        reason: 'Infora answers questions about this project\'s documents; it does not schedule meetings.',
+      })),
+      cookie,
+      'book me a meeting with the ExA',
+    );
+    expect(res.status).toBe(400);
+    // the reason reaches the user: a refusal nobody can act on reads as a
+    // broken system rather than a careful one
+    expect(((await res.json()) as { detail: string }).detail).toContain('does not schedule meetings');
+  });
+
+  it('the classifier is handed the ASSEMBLED worker set, never the deployment set', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    let seen: string[] = [];
+    await ask(
+      appWith(async (request) => {
+        seen = request.workers.map((worker) => worker.name);
+        return { match: 'none' };
+      }),
+      cookie,
+      'anything',
+    );
+    expect(seen).toEqual(['corpus_retrieval']);
+  });
+
+  it('a deployment with no worker registry hands the classifier nothing — no slice, no workers', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    let seen: string[] | null = null;
+    const noWorkers = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter(),
+      workflows,
+      classifier: async (request) => {
+        seen = request.workers.map((worker) => worker.name);
+        return { match: 'none' };
+      },
+    });
+    await ask(noWorkers, cookie, 'anything');
+    expect(seen).toEqual([]);
+  });
+});

@@ -65,6 +65,11 @@ describe('per category, and never a single aggregate (§4.1)', () => {
       'byCategory',
       'byMode',
       'byLens',
+      // T-266 — a share, and deliberately not one of the aggregates this test
+      // forbids. The banned number is a PASS RATE across categories, which
+      // hides a bad category behind a good one; this measures which mode ran,
+      // not how well anything did, and its whole job is to be looked at.
+      'fallThroughRate',
       'results',
     ]);
     // 95% overall with permission at 80% is not a good result, it is a serious
@@ -158,11 +163,35 @@ describe('the mode split (§4.1)', () => {
   });
 
   it('reports an unlabelled run as unlabelled rather than assuming declared', () => {
-    // Nothing labels a mode yet (T-266), and the coded chain being declared in
-    // fact is not the same as a run having said so.
+    // A run carries a mode from T-261 (read off its plan); `unlabelled` now
+    // means exactly one thing — no plan was readable — and the coded chain
+    // being declared in fact is still not the same as a run having said so.
     const report = buildReport([result({ mode: null })]);
     expect(report.byMode.unlabelled.cases).toBe(1);
     expect(report.byMode.declared.cases).toBe(0);
+  });
+
+  // T-266 — the fall-through rate. The classifier's failure is QUIET: a weak
+  // one routes everything to model-chosen, every answer still arrives grounded
+  // and cited, and nothing goes red. This is the number that goes up.
+  it('reports the fall-through rate over LABELLED runs only', () => {
+    const report = buildReport([
+      result({ caseId: 'D1', mode: 'declared', verdict: 'pass' }),
+      result({ caseId: 'D2', mode: 'declared', verdict: 'pass' }),
+      result({ caseId: 'M1', mode: 'model_chosen', verdict: 'pass' }),
+      // unlabelled: no plan was read, so it is not evidence either way and
+      // counting it would be inventing an observation
+      result({ caseId: 'U1', mode: null, verdict: 'pass' }),
+    ]);
+    expect(report.fallThroughRate).toBeCloseTo(1 / 3);
+    expect(formatReport(report)).toContain('fall-through to model-chosen: 33.3%');
+  });
+
+  it('reports NULL rather than 0 when nothing was labelled', () => {
+    // 0 reads as "nothing fell through", which is a claim; "nothing was
+    // labelled" is the fact
+    expect(buildReport([result({ mode: null })]).fallThroughRate).toBeNull();
+    expect(formatReport(buildReport([result({ mode: null })]))).not.toContain('fall-through');
   });
 
   it('applies the hold-out rule to the mode table too', () => {

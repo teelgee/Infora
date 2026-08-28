@@ -16,6 +16,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { LensRegistry } from '@infora/lenses';
 import type { WorkflowRegistry } from '@infora/workflows';
+import type { Classifier, WorkerRegistry } from '@infora/capabilities';
 import type { ModelRates, Router } from '@infora/model';
 import { sessionCookie } from './auth';
 import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
@@ -64,6 +65,19 @@ export type AppDeps = {
    * `project-question` here would make it unchangeable without a release.
    */
   askWorkflowId?: string;
+  /**
+   * T-266/T-269 — the workers this deployment has built. The route assembles
+   * the per-requester set from it before the classifier sees anything, so an
+   * unentitled worker is absent rather than offered and refused.
+   */
+  workers?: WorkerRegistry;
+  /**
+   * T-266 — the model classifier. Absent means the deterministic default,
+   * which is not a stub: with one declared workflow whose parameter is the
+   * question itself, asking a frontier model to choose among one option is
+   * spending money to be less reliable (ADR-0027's own argument).
+   */
+  classifier?: Classifier;
   /**
    * T-251 — the absolute lifetime and idle window. Optional so an existing
    * caller keeps working; unset means the modest out-of-the-box posture, which

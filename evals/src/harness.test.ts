@@ -270,6 +270,7 @@ describe('the eval harness (T-255)', () => {
       'byCategory',
       'byMode',
       'byLens',
+      'fallThroughRate', // T-266 — a share, not a pass rate; see report.test.ts
       'results',
     ]);
     expect(formatReport(report)).toContain('permission');

@@ -617,3 +617,16 @@ are not recorded here.
   executor for it would imply something that could be asked not to run, which
   is precisely what ADR-0027's and ADR-0028's amended guarantees rest on being
   impossible.
+- **2026-08-28 (T-266) — classification as a union of four outcomes, not a
+  mode flag.** The obvious shape was a boolean plus extras — "did it match a
+  workflow, and here are the details". It is a discriminated union instead
+  because **each outcome carries different evidence**: a bound workflow carries
+  parameters, a clarify carries assumptions *and* the unbound names, a
+  fall-through carries the stages it chose, and an out-of-scope carries a
+  reason a user has to be able to read. A caller holding a flag can ignore the
+  difference; a caller holding this union cannot, and the failure it prevents
+  is one outcome being labelled as another — which is the labelling
+  requirement, which the whole two-mode design rests on. The classifier's
+  *input* type earns its own line: it takes workflow **summaries** and the
+  **already-assembled** worker set, so there is no shape in which the model is
+  handed a worker the requester is not entitled to.
