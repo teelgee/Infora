@@ -47,9 +47,11 @@ jobs:
       # The record guards (2026-08-28). Every one of these existed and ran only
       # when a person remembered to type `pnpm run check` — which is circular,
       # because each was written after a prose convention failed. Enforcing them
-      # by a prose convention was the same bet a second time.
+      # by a prose convention was the same bet a second time. `check:board` was
+      # added the same day its convention changed, which is the one moment the
+      # guard costs less than the drift it prevents.
       #
-      # ~3 seconds for all six, no database, no build: they read files. Placed
+      # ~3 seconds for all seven, no database, no build: they read files. Placed
       # here so a documentation-only change fails in seconds rather than after
       # Postgres, the seed and a browser have started.
       #
@@ -60,6 +62,7 @@ jobs:
       - run: pnpm run check:tickets
       - run: pnpm run check:questions
       - run: pnpm run check:parking
+      - run: pnpm run check:board
 
       # the docs index (no orphaned or dangling document), every relative link
       # and anchor in docs/, and the generated data-model atlas being current

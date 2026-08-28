@@ -40,6 +40,8 @@ describe('rule 1 — one definition per number', () => {
   });
 
   it('rejects a closed ticket copied into history rather than moved', () => {
+    // UNSTRUCK on the board and full in the archive: two entries, not a
+    // pointer and a record.
     const { violations } = checkTicketNumbers(
       tree({
         board: counter(300) + '- **T-245 — Conflict register: schema and predicate.** Built.\n',
@@ -47,7 +49,39 @@ describe('rule 1 — one definition per number', () => {
       }),
     );
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('MOVES to plan-history.md');
+    expect(violations[0]).toContain('a struck one-line pointer stays on the board');
+  });
+
+  it('accepts a STRUCK pointer on the board beside its record in history', () => {
+    // 2026-08-28 — the board adopted the tracker's convention (a closed ticket
+    // leaves a struck one-liner and its record moves), so it adopted the
+    // tracker's tolerance with it. Before that the board moved a closing SLICE
+    // whole and this shape was correctly a violation.
+    const { violations } = checkTicketNumbers(
+      tree({
+        board:
+          counter(300) +
+          '- ~~**T-245 — Conflict register: schema and predicate.**~~ ✅ **Built** (migration 0032). Record in [plan-history.md](plan-history.md#slice-ask).\n',
+        history: '- **T-245 — Conflict register: schema and predicate.** Built. The whole record.\n',
+      }),
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it('still fires on two DIFFERENT tickets on one number, struck or not', () => {
+    // the tolerance must not blunt the collision it exists for — two
+    // renumbers' worth of cost (T-208–T-210, T-223–T-233)
+    const { violations } = checkTicketNumbers(
+      tree({
+        board:
+          counter(300) +
+          '- ~~**T-245 — Conflict register: schema and predicate.**~~ ✅ Built. Record in [plan-history.md](plan-history.md).\n' +
+          '- **T-245 — Something else entirely.** a different ticket on the same number\n',
+        history: '- **T-245 — Conflict register: schema and predicate.** Built.\n',
+      }),
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.includes('for different tickets'))).toBe(true);
   });
 
   it('accepts the same ticket defined once, in either file', () => {
