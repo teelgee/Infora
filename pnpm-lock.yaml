@@ -38,6 +38,9 @@ importers:
       '@hono/node-server':
         specifier: ^2.0.11
         version: 2.0.11(hono@4.12.28)
+      '@infora/capabilities':
+        specifier: workspace:*
+        version: link:../../packages/capabilities
       '@infora/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -62,6 +65,9 @@ importers:
       '@infora/orchestration':
         specifier: workspace:*
         version: link:../../packages/orchestration
+      '@infora/workflows':
+        specifier: workspace:*
+        version: link:../../packages/workflows
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
@@ -143,6 +149,9 @@ importers:
       '@infora/api':
         specifier: workspace:*
         version: link:../apps/api
+      '@infora/capabilities':
+        specifier: workspace:*
+        version: link:../packages/capabilities
       '@infora/contracts':
         specifier: workspace:*
         version: link:../packages/contracts
@@ -152,6 +161,9 @@ importers:
       '@infora/lenses':
         specifier: workspace:*
         version: link:../packages/lenses
+      '@infora/workflows':
+        specifier: workspace:*
+        version: link:../packages/workflows
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)

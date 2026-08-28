@@ -88,7 +88,20 @@ export const ALLOWED = {
   // the harness resolves it against the same registry the app was composed
   // with, so a case naming an id the deployment does not offer is an `error`
   // with the available ids named rather than an opaque 400 from the API.
-  '@infora/evals': ['@infora/contracts', '@infora/db', '@infora/lenses', '@infora/api'],
+  // T-265 added `@infora/capabilities` and `@infora/workflows`, and the reason
+  // is the same one that admitted `@infora/api`: the harness must compose the
+  // app THE WAY A DEPLOYMENT DOES, or a case is evidence about a configuration
+  // nobody ships. A deployment loads the declared workflows against the real
+  // worker registry, so the harness does too. Neither package gives the harness
+  // any reach it did not already have through the API it boots.
+  '@infora/evals': [
+    '@infora/contracts',
+    '@infora/db',
+    '@infora/lenses',
+    '@infora/capabilities',
+    '@infora/workflows',
+    '@infora/api',
+  ],
   // one web app, role-scoped views (T-110, 2026-07-14) — the formerly
   // planned web-owner split is superseded
   '@infora/web': ['@infora/contracts', '@infora/ui'],

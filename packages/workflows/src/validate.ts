@@ -221,7 +221,7 @@ export function validateWorkflow(raw: unknown, options: ValidationOptions): Vali
       steps: steps.map((step) => ({
         id: step.id,
         stage: step.stage as PlanStage,
-        worker: step.worker,
+        ...(step.worker !== '' && { worker: step.worker }),
         inputs: step.inputs,
         dependsOn: step.dependsOn,
       })),
@@ -267,8 +267,31 @@ function readSteps(doc: Record<string, unknown>, at: (f: string, p: string) => v
     if (!STAGES.includes(stage as PlanStage)) {
       at(`${where}.stage`, `'${stage}' is not a plan stage. One of: ${STAGES.join(', ')}`);
     }
+    // T-265 refined this, and the refinement came from declaring the FIRST
+    // workflow rather than from review. `worker` was required, and the coded
+    // chain has two steps no worker runs: `analyse` is the orchestrator's own
+    // thinking leaf and `present` is citation resolution (ADR-0027 §6), and
+    // neither is a worker in the Wave 3 sense — a worker is a tool the agent
+    // may CALL, and the agent does not call its own drafting.
+    //
+    // So `worker` is optional, and a step without one is executed by the
+    // orchestrator's leaf for that stage. Rule 1 is unchanged in force: every
+    // worker NAMED must be in the registry.
     const worker = typeof step['worker'] === 'string' ? step['worker'] : '';
-    if (worker === '') at(`${where}.worker`, 'is required — every declared step names the worker that runs it');
+    if (step['worker'] !== undefined && worker.trim() === '') {
+      at(`${where}.worker`, 'is present but empty. Omit it for a stage the orchestrator runs itself');
+    }
+    // The ground-check is CODE, outside the plan, running on every answer in
+    // both modes (T-262). A `verify` step is the RECORD of that check, never an
+    // instruction — so it may not name a worker, because naming one would
+    // suggest an executor that could be asked not to run, which is exactly the
+    // thing ADR-0027's and ADR-0028's guarantees rest on being impossible.
+    if (stage === 'verify' && worker !== '') {
+      at(
+        `${where}.worker`,
+        `'${worker}' — a \`verify\` step may not name a worker. The ground-check is code that runs outside the plan on every answer, and this step is its record, not an instruction`,
+      );
+    }
 
     const inputs = step['inputs'];
     if (inputs !== undefined && (inputs === null || typeof inputs !== 'object' || Array.isArray(inputs))) {

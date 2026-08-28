@@ -15,6 +15,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { LensRegistry } from '@infora/lenses';
+import type { WorkflowRegistry } from '@infora/workflows';
 import type { ModelRates, Router } from '@infora/model';
 import { sessionCookie } from './auth';
 import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
@@ -50,6 +51,19 @@ export type AppDeps = {
    * the shared core, which is what the product did before Lenses existed.
    */
   defaultLensId?: string | null;
+  /**
+   * T-265 — the declared workflows this deployment carries, loaded and
+   * validated once at composition. Optional on the same terms as `lenses`: an
+   * absent registry means the coded chain runs, which is the same four stages
+   * in the same order, so a deployment mid-rollout behaves identically.
+   */
+  workflows?: WorkflowRegistry;
+  /**
+   * T-265 — which declared workflow an Ask turn runs. CONFIG, not code
+   * (`ASK_WORKFLOW_ID`): the deployment decides, and hard-coding
+   * `project-question` here would make it unchangeable without a release.
+   */
+  askWorkflowId?: string;
   /**
    * T-251 — the absolute lifetime and idle window. Optional so an existing
    * caller keeps working; unset means the modest out-of-the-box posture, which

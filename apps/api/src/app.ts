@@ -151,6 +151,11 @@ export function buildApp(deps: AppDeps) {
       // cannot change underneath a run already recording which produced it.
       ...(deps.lenses !== undefined && { lenses: deps.lenses }),
       ...(deps.defaultLensId !== undefined && { defaultLensId: deps.defaultLensId }),
+      // T-265 — the declared workflows, resolved at composition for the same
+      // reason the Lens registry is: a workflow must not change underneath a
+      // run already recording which version of it produced the answer.
+      ...(deps.workflows !== undefined && { workflows: deps.workflows }),
+      ...(deps.askWorkflowId !== undefined && { askWorkflowId: deps.askWorkflowId }),
       // T-252 — the same policy the middleware admitted the request under, so
       // the mid-run re-check and the front-door check cannot disagree
       sessionPolicy: deps.sessionPolicy ?? DEFAULT_SESSION_POLICY,

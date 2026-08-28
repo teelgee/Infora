@@ -2,6 +2,8 @@
 import { serve } from '@hono/node-server';
 import { createDb } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
+import { createWorkerRegistry } from '@infora/capabilities';
+import { loadWorkflows } from '@infora/workflows';
 import {
   AnthropicChatAdapter,
   parseModelRates,
@@ -43,6 +45,15 @@ const allowedOrigins = env.ALLOWED_ORIGINS?.split(',')
 // Outside production the set hot-reloads and includes drafts, which is what
 // AUTHORING.md's "put it in with status: draft and open Ask" depends on.
 const lenses = loadLenses({ production: process.env.NODE_ENV === 'production' });
+// T-265 — the declared workflows, on exactly the same terms: read and validated
+// ONCE at boot, against the REAL worker registry (T-269), so a workflow naming
+// a worker this deployment cannot run refuses to start rather than failing at
+// the step. Validated at load, never at run — a declared workflow that breaks
+// half way through a customer's run has already spent everything before it.
+const workflows = loadWorkflows({
+  workers: createWorkerRegistry(),
+  production: process.env.NODE_ENV === 'production',
+});
 
 const app = buildApp({
   db,
@@ -50,6 +61,10 @@ const app = buildApp({
   router,
   lenses,
   defaultLensId: env.DEFAULT_LENS_ID ?? null,
+  workflows,
+  // config, not code: which workflow an Ask turn runs is a deployment
+  // decision, and the default is the one this repo ships
+  askWorkflowId: env.ASK_WORKFLOW_ID ?? 'project-question',
   // T-254 — parsed at BOOT, so a malformed rate table refuses to start rather
   // than reporting confident wrong prices. A pricing error is worse than a
   // deployment that will not come up.

@@ -29,6 +29,59 @@ The cut is by **domain capability**; because the component is largely ungrilled,
 **Terms owned.** Agent, Run, Conversation, Step. References Orchestration, Work item.
 **Depends on.** Context (component 4) for the assembled working input and the assembly contract (M3); ADR-0012 (the Context/workflow boundary); governance (component 3).
 
+### The two orchestration modes
+
+*Folded here 2026-08-28 from the board's Wave 2 design reference, on T-265, when
+T-262–T-265 landed. Owner-ruled 2026-07-29: **both modes ship, honestly
+labelled.** That reverses part of an accepted invariant, so it is recorded as a
+reversal — **ADR-0027 §3** and **ADR-0028 §5** amended, not reinterpreted.*
+
+| | **Declared** | **Model-chosen** |
+| --- | --- | --- |
+| The plan comes from | a codified workflow's pre-declared DAG | the chat agent, per request |
+| Repeatable | yes — same inputs, same steps, same order | no — the step sequence may differ between runs |
+| Evaluable end to end | yes | per-answer only |
+| Grounding / citation / audit | full | **full — identical** |
+| Suited to | the work the product exists to do | exploration, one-off questions, discovery |
+
+**What model-chosen mode does *not* cost, stated precisely because it is the
+thing most easily got wrong:** it does not weaken grounding, citation or audit.
+The deterministic ground-check is **code and sits outside the plan**, running on
+every answer in both modes against the source set the run actually admitted —
+which is why the executor runs it immediately after drafting whether or not the
+plan declares it, and why a plan's `verify` step is the check's *record* rather
+than an instruction anything could decline (asserted by test, T-262). **What it
+costs is repeatability of the step sequence**, and therefore of the evidence
+set, even over a frozen corpus. The honest sentence to a client: *"We can always
+show you exactly what it saw and prove every claim is sourced. For this class of
+run we cannot promise it takes the same route twice."*
+
+**Labelling is hard, not cosmetic** — a user must never be unable to tell which
+kind of answer they are holding. The plan stores `mode` as a column, never
+derived; the completion footer states it in words; the eval harness reports the
+modes separately; and Teach submissions carry it, so a correction against a
+model-chosen run is not treated as evidence about a declared workflow.
+
+### The plan artefact
+
+*The analysis, persisted.* The schema and the stage vocabulary live in code —
+`Plan` / `PlanStep` / `PlanStage` in
+[contracts/shared.ts](../../../packages/contracts/src/shared.ts) and migration
+0035 — so they are not restated here. Four properties live nowhere else:
+
+- **Plans are versioned by supersession, not mutation.** A plan is evidence, and
+  *"what did your AI do"* must survive the user editing it afterwards.
+- **A plan is mutable while `draft` and immutable from `ready`**, a one-way
+  transition, with the append-only trigger applying from `ready` onward.
+- **A plan step declares no scope, and cannot.** Scope derives from the run's
+  entitled slice and is deliberately not expressible, so no plan edit and no
+  workflow definition can widen reach.
+- **The executor walks the plan's `depends_on` edges**, not an ordinal order or
+  a coded sequence (T-262), with ties broken on `ordinal` — because two steps
+  with no edge between them are genuinely unordered, and resolving that by row
+  order would make a *declared* workflow non-repeatable, which is the one
+  property declared mode exists to promise.
+
 ## 2. The workflow set (standard)
 
 **Responsibility.** Provide the Infora-built workflows — document production, assurance, feedback triage, compliance check, internal reports, data interrogation, consultation analysis; decide which ship first (the MVP set).
@@ -52,9 +105,67 @@ The cut is by **domain capability**; because the component is largely ungrilled,
 ## 4. Workflow definition and checkpoints
 
 **Responsibility.** Decide how a workflow is defined (config, code, or composed steps); where the human-in-the-loop checkpoints sit; how a workflow drives a work item's status and ties to the document review/approval lifecycle (component 5).
-**Governing ADRs.** **Open.** Relates to ADR-0027 (thinking vs doing — the code/LLM split per step).
+**Governing ADRs.** **The definition format is settled and built** (below, T-264/T-265). Checkpoints and the work-item tie remain **open**. Relates to ADR-0027 (thinking vs doing — the code/LLM split per step).
 **Terms owned.** Work item (shared with document management, component 5, which closes it on acceptance).
 **Depends on.** Document management (component 5); orchestration (§1).
+
+### How a workflow is defined — settled 2026-08-28 (T-264, T-265)
+
+*Folded here from the board's Wave 2 design reference when the format, its
+loader and the first declared workflow landed.*
+
+**A workflow definition is a plan template** — §1's plan step shape with
+**parameters** instead of bound values. Definitions are **domain content**, YAML
+beside the Lens definitions
+([packages/workflows/definitions/](../../../packages/workflows/definitions/)),
+versioned like code with an owner and a review process. Adding a workflow is
+adding a file; the loader is the only code involved and it does not change.
+
+The fields: `id`, `version`, `label`, `description`, `status: active | draft`;
+`parameters` (name, type, required, default?, description — the description is
+what the user is shown when the parameter needs clarifying); `output_schema`;
+`steps` (id, stage, worker, `inputs` which may reference `{{parameters.x}}` and
+`{{steps.y.output}}`, `depends_on`); `requires_workers`;
+`writes: none | sandbox_document`.
+
+**Validated at load, never at run.** That is not a performance note: a workflow
+whose step names a worker that does not exist must fail when the deployment
+starts, in front of whoever changed it, rather than half way through a
+customer's run with two steps already spent and an answer that will never
+arrive. The rules:
+
+1. Every worker named is in the registry, and so is every `requires_workers`
+   entry.
+2. The DAG is acyclic and every `depends_on` resolves. A `{{steps.x.output}}`
+   may only read a step the reader **depends on** — otherwise the reference is
+   to an output that may not have been produced, which is a race dressed as a
+   template.
+3. **No step declares a scope** — inherited, and not expressible. Enforced
+   twice: the type has no such field, and `scope`, `corpus`, `visibility`,
+   `project_id` and their relatives are rejected **by name**, because the
+   generic "unknown field" message reads as an invitation to find the right
+   spelling and there is none.
+4. A workflow declaring `writes` must declare its **label-propagation**
+   behaviour — `refuse` or `require_override` — and one that writes nothing must
+   not, because behaviour declared for a write that never happens goes stale
+   unnoticed.
+5. `status: draft` loads in **non-production only** — absent from the registry
+   entirely, not present-but-disabled, the same rule as a draft Lens and an
+   unentitled worker.
+
+**`worker` is optional, and forbidden on `verify`.** A step with no worker is
+run by the orchestrator's own leaf: `analyse` is the one thinking leaf and
+`present` is citation resolution (ADR-0027 §6), and neither is a worker — a
+worker is a tool the agent may *call*, and the agent does not call its own
+drafting. A `verify` step may never name one, because the ground-check is code
+outside the plan and that step is its record.
+
+**`workflow_runner` is the one non-leaf worker**, and the exception is narrow:
+it executes a **pre-declared** DAG and cannot compose one. That is why it is not
+the generic escape hatch the eighth-worker rule forbids — it can only run a
+workflow somebody wrote down, reviewed and versioned. Keeping it that way is
+review discipline; what the build holds structurally is that it takes a
+workflow id rather than a step list, and adds, removes and reorders nothing.
 
 ## 5. Custom-workflow builder, deployment and rails inheritance
 

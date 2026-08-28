@@ -51,10 +51,11 @@ export type CaseResult = {
   // makes the modes reportable separately from the first model-chosen run.
   mode: PlanMode | null;
   plan: Plan | null;
-  // Still null, and the reason narrowed rather than cleared: the plan is
-  // readable and the registry exists, but no plan step NAMES a worker until
-  // the declared workflow at T-265, so an empty list would let
-  // `expect_not_called` pass on no evidence.
+  // T-265 — real at last. The workers the run's plan recorded calling, read
+  // off the plan's own steps. Null only where no plan was readable: `[]` from
+  // a readable plan is a true observation (the run called no worker), and `[]`
+  // from no plan at all would let `expect_not_called` pass on no evidence,
+  // which is why the two must stay distinguishable.
   workersCalled: string[] | null;
   steps: Array<{ type: string; model: string | null; cost: number | null }>;
   // T-256 — gold-passage set metrics, recorded whenever the case declared them.
@@ -212,8 +213,17 @@ async function runOnce(
     planRead.status === 200 ? ((await planRead.json()) as GetRunPlanResponse).plan : null;
 
   const observation = observe(run);
+  // T-265 — the workers the plan recorded calling. A step with no worker is
+  // one the orchestrator ran itself and contributes nothing here; an empty
+  // list from a plan that WAS read is the honest "it called no worker".
+  if (planned !== null) {
+    observation.workersCalled = planned.steps
+      .map((step) => step.worker)
+      .filter((worker): worker is string => worker !== null);
+  }
   const withRun: Omit<CaseResult, 'verdict' | 'failures'> = {
     ...base,
+    workersCalled: observation.workersCalled,
     plan: planned,
     mode: planned?.mode ?? null,
     // the run's own record, not the case's declaration
@@ -367,10 +377,9 @@ function observe(run: Run): Observation {
     sourceSet,
     retrieved: retrieve === undefined ? null : retrieve.sourceSet.map(toObserved),
     railOutcomes: run.steps.flatMap((step) => step.railOutcomes),
-    // Null, not []. The plan is readable from T-261 and the registry exists
-    // from T-269, but no plan step names a worker until T-265 declares the
-    // chain as a workflow — an empty list here would let `expect_not_called`
-    // pass on no evidence.
+    // T-265 — set by the caller from the plan, which is the only place that
+    // knows. Null here means "no plan was read", which is a different fact
+    // from "the plan called no worker" and must not collapse into it.
     workersCalled: null,
   };
 }

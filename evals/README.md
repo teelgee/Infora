@@ -90,14 +90,19 @@ an empty answer must never read as perfectly precise. A retrieved source
 recorded without its chunk makes the metric `Unevaluable` rather than being
 counted or dropped, either of which fakes a number.
 
-**`expect_calls` / `expect_not_called` are implemented and deferred.** The
-evaluators are complete and unit-tested both ways; the runner cannot yet observe
-what they read. The plan is read over HTTP from **T-261** — its mode, its Lens
-and its steps are all on the result now — and the worker registry exists from
-**T-269** — but no plan step NAMES a worker until the coded chain is declared as
-a workflow at **T-265**. So the observation carries `workersCalled: null` and a
-case declaring either type is an `error` — because `[]` would make
-`expect_not_called` pass for every worker in the world, for ever.
+**`expect_calls` / `expect_not_called` are live from T-265.** They were
+implemented at T-256 and deferred for three tickets — the runner had nothing to
+observe. The plan became readable over HTTP at **T-261**, the worker registry
+landed at **T-269**, and at **T-265** the coded chain became a declared workflow
+whose retrieve step names `corpus_retrieval`. The observation now reads
+`workersCalled` off the plan's own steps.
+
+**Null and `[]` remain different observations.** `[]` from a plan that was read
+means the run genuinely called no worker; `null` means no plan was readable at
+all, and a case declaring either assertion against it is still an `error`.
+Collapsing the two would make `expect_not_called` pass for every worker in the
+world, which is exactly what the three-ticket deferral existed to avoid
+committing.
 
 ## Model-graded assertions and the fourth verdict (T-257)
 
@@ -264,10 +269,10 @@ the top of its own file, which is where it belongs; three things are only
 sayable here.
 
 **Two of the sixteen are deferred, and named rather than faked.** `HAPPY-02`
-and `ROUTE-01` rest on `expect_calls`, which needs a plan step that names a
-worker — the declared workflow at T-265. The assertion already errors rather than passing
-vacuously (T-256), so authoring them now would put two permanent errors in the
-seed set.
+and `ROUTE-01` rest on `expect_calls`, which became observable at **T-265**
+(the declared workflow's retrieve step names its worker). They are now
+authorable; they were not when the seed set was written, and the reservation is
+recorded here rather than silently spent.
 
 **`BEH-05` is not an eval case and cannot be one.** Every case executes a run
 over HTTP; `BEH-05` is a claim about what happens when a FILE is loaded — no

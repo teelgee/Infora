@@ -23,6 +23,8 @@ import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import type { LensRegistry } from '@infora/lenses';
+import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
+import type { WorkflowRegistry } from '@infora/workflows';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import {
   canRerunPlan,
@@ -50,6 +52,15 @@ export function runRoutes(deps: {
   lenses?: LensRegistry;
   defaultLensId?: string | null;
   sessionPolicy?: SessionPolicy;
+  /**
+   * T-265 — the declared workflows this deployment carries, resolved at
+   * composition for the same reason the Lens registry is: production reads the
+   * definitions once and freezes them, so a workflow cannot change underneath
+   * a run already recording which version of it produced the answer.
+   */
+  workflows?: WorkflowRegistry;
+  /** the workflow an Ask turn runs. Config, not code. */
+  askWorkflowId?: string;
 }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -159,6 +170,30 @@ export function runRoutes(deps: {
         return { ok: true };
       };
 
+      // T-265 — the declared workflow this turn runs, bound to its parameters.
+      // A deployment carrying the definition runs the DECLARED plan; one that
+      // does not falls back to the coded chain, which is the same four stages
+      // in the same order — this ticket changes no behaviour, and the fallback
+      // is what makes that true of a deployment mid-rollout as well.
+      let declared: Parameters<typeof runChain>[2]['workflow'] = null;
+      let stages: Parameters<typeof runChain>[2]['stages'];
+      const workflow =
+        deps.askWorkflowId === undefined ? undefined : deps.workflows?.get(deps.askWorkflowId);
+      if (workflow !== undefined) {
+        try {
+          const bound = bindWorkflow(workflow, { question: body.data.request });
+          declared = { id: bound.workflowId, version: bound.workflowVersion };
+          stages = bound.stages;
+        } catch (error) {
+          if (!(error instanceof WorkflowNotRunnable)) throw error;
+          // A declared workflow that cannot be bound is a 400 naming the
+          // parameter, never a quiet fall-through to the coded chain: falling
+          // through would answer the question under a plan the user did not
+          // get, which is the labelling failure this slice exists to avoid.
+          return c.json(invalid(error.message), 400);
+        }
+      }
+
       let run: RunRow;
       try {
         ({ run } = await runChain(deps.db, deps.leaves, {
@@ -169,6 +204,8 @@ export function runRoutes(deps: {
           sandboxDocumentId: body.data.sandboxDocumentId ?? null,
           lens,
           revalidate,
+          workflow: declared,
+          ...(stages !== undefined && { stages }),
         }));
       } catch (error) {
         if (!(error instanceof RunHalted)) throw error;

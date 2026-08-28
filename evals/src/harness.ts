@@ -18,6 +18,8 @@ import { evalVector } from './embedding';
 import { createDb } from '@infora/db';
 import type { Db } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
+import { createWorkerRegistry } from '@infora/capabilities';
+import { loadWorkflows } from '@infora/workflows';
 import type { LensRegistry } from '@infora/lenses';
 import type { Grader } from './grading';
 
@@ -69,6 +71,12 @@ export type Harness = {
 export async function startHarness(options: { grader?: Grader } = {}): Promise<Harness> {
   const { db, pool } = createDb();
   const lenses = loadLenses({ production: true });
+  // T-265 — the harness runs the DECLARED workflow, because a deployment does.
+  // Loading production-only, against the real worker registry, for the same
+  // reason the Lens set is: a case that ran the coded-chain fallback while
+  // production ran a declared workflow would be evidence about a configuration
+  // nobody ships.
+  const workflows = loadWorkflows({ workers: createWorkerRegistry(), production: true });
   // The deterministic chat. It does two things a fixed string cannot, and both
   // are needed by cases that would otherwise be untestable:
   //
@@ -101,6 +109,8 @@ export async function startHarness(options: { grader?: Grader } = {}): Promise<H
     sessionSecret: 'eval-harness-secret',
     router,
     lenses,
+    workflows,
+    askWorkflowId: 'project-question',
     // the harness logs in once per case execution from one address, and a
     // determinism check runs the same case ten times in a row — far past the
     // production throttles, which exist to slow credential guessing and paid

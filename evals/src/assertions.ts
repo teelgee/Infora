@@ -43,11 +43,12 @@ export type Observation = {
   retrieved: ObservedSource[] | null;
   railOutcomes: Array<{ rail: string; outcome: string; detail?: string }>;
   /**
-   * The workers the run's plan recorded calling. The plan became readable at
-   * T-261 and the registry exists from T-269; this stays null until a plan
-   * step actually NAMES a worker, which is the declared workflow at T-265 —
-   * an empty list before then would make `expect_not_called` pass against no
-   * evidence at all.
+   * The workers the run's plan recorded calling — read off the plan's own
+   * steps from T-265. **Null and `[]` are different observations and must stay
+   * so:** `[]` from a plan that was read means the run genuinely called no
+   * worker, and null means no plan was readable at all. Collapsing them would
+   * make `expect_not_called` pass against no evidence, which is the failure
+   * this field spent three tickets refusing to commit.
    */
   workersCalled: string[] | null;
 };
@@ -317,7 +318,7 @@ function matches(pattern: string, text: string): boolean {
 function workersOf(observation: Observation, assertion: string): string[] {
   if (observation.workersCalled === null) {
     throw new Unevaluable(
-      `${assertion}: no plan step names a worker yet, so the workers a run called cannot be observed (the declared workflow, T-265)`,
+      `${assertion}: no plan was readable for this run, so the workers it called cannot be observed`,
     );
   }
   return observation.workersCalled;

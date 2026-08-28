@@ -46,7 +46,16 @@ export type OpenPlanInput = {
   projectId: Id;
   requesterParticipantId: Id;
   question: string;
-  stages: ReadonlyArray<{ stage: PlanStage }>;
+  stages: ReadonlyArray<{ stage: PlanStage; worker?: string | null; inputs?: Record<string, unknown> }>;
+  /**
+   * T-265 — the declared workflow this plan came from, when it came from one.
+   * Recorded on the plan rather than inferred: a `declared` plan naming no
+   * workflow stayed legal at T-260 (the coded chain was pre-declared without
+   * being written down), and now that the chain IS written down the record
+   * says which file and which version produced it — so a complaint against
+   * v1 of a workflow is never read as one about v2.
+   */
+  workflow?: { id: string; version: number } | null;
   /** T-299 — the Lens this run was asked for, or null if it named none. */
   lens?: Lens | null;
 };
@@ -71,10 +80,16 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       projectId: input.projectId,
       requesterParticipantId: input.requesterParticipantId,
       // The coded chain is pre-declared and repeatable — same inputs, same
-      // steps, same order (03 §1). `workflow_id` stays null until T-265
-      // declares it as a DAG in packages/workflows; a declared plan naming no
-      // workflow is legal, a model-chosen one naming one is not (CHECK, 0035).
+      // steps, same order. From T-265 it is also WRITTEN DOWN, as
+      // packages/workflows/definitions/project-question.yaml; a declared plan
+      // naming no workflow stays legal, a model-chosen one naming one is not
+      // (CHECK, 0035).
       mode: 'declared',
+      // T-265 — the workflow, where there is one. A `model_chosen` plan may
+      // never name one (CHECK, 0035), which is why this rides the declared
+      // path only.
+      workflowId: input.workflow?.id ?? null,
+      workflowVersion: input.workflow?.version ?? null,
       // T-299 — the evidence half: the Lens the request named, and the
       // VERSION of it, so a register complaint against v1 is never read as one
       // about v3. Null stays the honest value for a run that named no Lens; a
@@ -104,7 +119,11 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
         planId: plan!.id,
         ordinal,
         stage: stage.stage,
-        worker: null, // the worker registry lands at T-269
+        // T-265 — the worker the step realises, where a worker realises it.
+        // Null for a stage the orchestrator runs itself (`analyse`, `present`)
+        // and for `verify`, whose ground-check is code outside the plan.
+        worker: stage.worker ?? null,
+        inputs: stage.inputs ?? {},
         dependsOn,
       })
       .returning();

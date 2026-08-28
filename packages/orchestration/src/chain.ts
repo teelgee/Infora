@@ -131,7 +131,13 @@ export type ChainInput = {
    * not assertable against a plan the caller cannot vary. A guarantee tested
    * only against the one plan that happens to include the thing is not tested.
    */
-  stages?: ReadonlyArray<{ stage: PlanStage }>;
+  stages?: ReadonlyArray<{ stage: PlanStage; worker?: string | null; inputs?: Record<string, unknown> }>;
+  /**
+   * T-265 — the declared workflow these stages came from. Recorded on the plan
+   * beside the stages themselves, so the evidence names the file and the
+   * version rather than only the shape.
+   */
+  workflow?: { id: string; version: number } | null;
 };
 
 /**
@@ -187,6 +193,7 @@ export async function runChain(
     requesterParticipantId: input.requesterParticipantId,
     question: input.request,
     stages: input.stages ?? CODED_CHAIN_PLAN,
+    workflow: input.workflow ?? null,
     // the evidence half (T-299): which Lens produced this answer, and which
     // version of it, recorded on the plan before the draft step runs
     lens: input.lens ?? null,

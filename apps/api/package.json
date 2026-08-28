@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.11",
+    "@infora/capabilities": "workspace:*",
     "@infora/contracts": "workspace:*",
     "@infora/data": "workspace:*",
     "@infora/db": "workspace:*",
@@ -27,6 +28,7 @@
     "@infora/lenses": "workspace:*",
     "@infora/model": "workspace:*",
     "@infora/orchestration": "workspace:*",
+    "@infora/workflows": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.9.0",
     "zod": "^4.4.3"

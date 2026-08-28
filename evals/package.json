@@ -16,9 +16,11 @@
   "dependencies": {
     "@hono/node-server": "^2.0.11",
     "@infora/api": "workspace:*",
+    "@infora/capabilities": "workspace:*",
     "@infora/contracts": "workspace:*",
     "@infora/db": "workspace:*",
     "@infora/lenses": "workspace:*",
+    "@infora/workflows": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "yaml": "^2.8.1",
     "zod": "^4.4.3"

@@ -212,3 +212,44 @@ describe('the declared-workflow validator (T-264)', () => {
     expect(errorsOf(validate((doc) => (doc.version = 0)))[0]).toContain('bumped on any change');
   });
 });
+
+// T-265 — the two refinements declaring the FIRST workflow forced. Both came
+// from building rather than from review, which is the case for declaring a
+// real workflow rather than a plausible one.
+describe('worker is optional, and forbidden on `verify` (T-265)', () => {
+  it('a step with no worker loads — the orchestrator runs that stage itself', () => {
+    // `analyse` is the one thinking leaf and `present` is citation resolution
+    // (ADR-0027 §6). Neither is a worker: a worker is a tool the agent may
+    // CALL, and the agent does not call its own drafting.
+    const result = validate((doc) => {
+      delete (doc.steps[1] as Record<string, unknown>)['worker'];
+    });
+    expect(errorsOf(result)).toEqual([]);
+    expect(result.ok && result.workflow.steps[1]!.worker).toBeUndefined();
+  });
+
+  it('a `verify` step naming a worker fails to load', () => {
+    const errors = errorsOf(
+      validate((doc) => {
+        doc.steps[1]!.stage = 'verify';
+        doc.steps[1]!.worker = 'corpus_retrieval';
+      }),
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('a `verify` step may not name a worker');
+    expect(errors[0]).toContain('outside the plan on every answer');
+  });
+
+  it('a `verify` step with no worker loads', () => {
+    const result = validate((doc) => {
+      doc.steps[1]!.stage = 'verify';
+      delete (doc.steps[1] as Record<string, unknown>)['worker'];
+    });
+    expect(errorsOf(result)).toEqual([]);
+  });
+
+  it('an empty `worker` is a mistake, not an omission, and says so', () => {
+    const errors = errorsOf(validate((doc) => (doc.steps[0]!.worker = '  ')));
+    expect(errors[0]).toContain('Omit it for a stage the orchestrator runs itself');
+  });
+});

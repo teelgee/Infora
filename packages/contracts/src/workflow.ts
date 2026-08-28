@@ -65,8 +65,15 @@ export type WorkflowStep = {
   id: string; // unique within the workflow; `depends_on` names these
   /** the plan stage this step occupies — what the progress rail shows */
   stage: PlanStageName;
-  /** the worker that executes it; must be in the registry at load (T-269) */
-  worker: string;
+  /**
+   * The worker that executes this step; must be in the registry at load
+   * (T-269). **Absent means the orchestrator runs the step itself** — its own
+   * thinking leaf for `analyse`, citation resolution for `present`, and the
+   * ground-check for `verify`, none of which is a worker in the Wave 3 sense.
+   * A worker is a tool the agent may CALL, and the agent does not call its own
+   * drafting. A `verify` step may never name one (T-262/T-265).
+   */
+  worker?: string;
   /**
    * Bound at plan time from `{{parameters.x}}` and `{{steps.y.output}}`. A
    * reference to anything else is a load failure: a template that resolves to

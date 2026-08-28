@@ -1,0 +1,69 @@
+# T-265 — the first declared workflow: the existing four-step chain, written
+# down as a DAG, CHANGING NO BEHAVIOUR.
+#
+# The chain has run retrieve -> draft -> ground-check -> cite since T-041, and
+# from T-262 it runs by walking the plan's `depends_on` edges rather than four
+# awaits. What this file adds is that the plan those edges came from is now a
+# declared artefact with a version, rather than a constant in code — which is
+# what makes the run repeatable AND EVALUABLE END TO END, the whole of what
+# declared mode promises over model-chosen.
+#
+# Two steps name no worker on purpose. `analyse` is the orchestrator's own
+# thinking leaf and `present` is citation resolution (ADR-0027 section 6): a
+# worker is a tool the agent may CALL, and the agent does not call its own
+# drafting. And `verify` names none because it MAY not -- the ground-check is
+# code outside the plan, running on every answer in both modes, and this step is
+# its record rather than an instruction anything could decline.
+id: project-question
+version: 1
+label: Project question
+description: >-
+  Answer a question from the project library, grounded in the documents the
+  requester may reach and cited to a locator inside them.
+status: active
+
+parameters:
+  - name: question
+    type: string
+    required: true
+    description: The question to answer, in the requester's own words.
+
+output_schema:
+  answer: the grounded, cited answer text
+  citations: the sources each claim resolves to
+
+steps:
+  - id: retrieve
+    stage: search_corpus
+    worker: corpus_retrieval
+    inputs:
+      query: '{{parameters.question}}'
+    depends_on: []
+
+  - id: draft
+    stage: analyse
+    inputs:
+      request: '{{parameters.question}}'
+      passages: '{{steps.retrieve.output}}'
+    depends_on:
+      - retrieve
+
+  - id: verify
+    stage: verify
+    inputs: {}
+    depends_on:
+      - draft
+
+  - id: present
+    stage: present
+    inputs:
+      checked: '{{steps.verify.output}}'
+    depends_on:
+      - verify
+
+requires_workers:
+  - corpus_retrieval
+
+# Reads and answers; the drafting write path is `document_builder` (T-280) in
+# its own workflow, which is why no label-propagation declaration belongs here.
+writes: none

@@ -5,6 +5,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { GetHistoryResponse, GetRunPlanResponse, Run } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
+import { createWorkerRegistry } from '@infora/capabilities';
+import { loadWorkflows } from '@infora/workflows';
 import { buildApp } from './app';
 import { ensureDefaultSandbox } from './sandbox';
 import { FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
@@ -403,5 +405,83 @@ describe('the plan read API (T-261)', () => {
     // a delegation is not a request: the child executes inside a step of its
     // parent's plan, so "no plan" is the honest answer rather than a null body
     expect((await get(consultant, `/runs/${delegate!.childRunId}/plan`)).status).toBe(404);
+  });
+});
+
+// T-265 — the declared workflow over HTTP. The acceptance is that it changes
+// no behaviour, so the test is a comparison rather than an assertion about the
+// declared path alone: the same question, answered by an app composed with the
+// workflow registry and by one composed without it, must produce the same
+// answer and the same step rows — and differ only in what the PLAN records.
+describe('the first declared workflow (T-265)', () => {
+  const declaredApp = buildApp({
+    db,
+    sessionSecret: 'test-secret',
+    router: fakeRouter(),
+    workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+    askWorkflowId: 'project-question',
+  });
+
+  const ask = async (application: typeof app, cookie: string) => {
+    const opened = await application.request(`/projects/${projectId}/conversations`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ surface: 'web' }),
+    });
+    const { conversationId } = (await opened.json()) as { conversationId: string };
+    const res = await application.request(`/conversations/${conversationId}/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ request: `what did ${documentReference} record?` }),
+    });
+    expect(res.status).toBe(201);
+    return (await res.json()) as Run;
+  };
+
+  it('CHANGES NO BEHAVIOUR: same answer, same step rows, declared or not', async () => {
+    const declaredCookie = await session(`t046-consultant-${stamp}@test.local`);
+    const [viaWorkflow, viaChain] = [
+      await ask(declaredApp, declaredCookie),
+      await ask(app, consultant),
+    ];
+
+    expect(viaWorkflow.response).toBe(viaChain.response);
+    expect(viaWorkflow.steps.map((step) => step.type)).toEqual(
+      viaChain.steps.map((step) => step.type),
+    );
+    expect(viaWorkflow.state).toBe(viaChain.state);
+  });
+
+  it('records the workflow and its version on the plan, where the chain records neither', async () => {
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    const viaWorkflow = await ask(declaredApp, cookie);
+    const viaChain = await ask(app, consultant);
+
+    const planOf = async (application: typeof app, who: string, runId: string) =>
+      ((await (await application.request(`/runs/${runId}/plan`, { headers: { cookie: who } })).json()) as GetRunPlanResponse)
+        .plan;
+
+    const declaredPlan = await planOf(declaredApp, cookie, viaWorkflow.id);
+    const chainPlan = await planOf(app, consultant, viaChain.id);
+
+    expect(declaredPlan.workflowId).toBe('project-question');
+    expect(declaredPlan.workflowVersion).toBe(1);
+    // the fallback stays legal and stays honest: a declared plan naming no
+    // workflow is what the coded chain has always been
+    expect(chainPlan.workflowId).toBeNull();
+    expect(declaredPlan.mode).toBe('declared');
+    expect(chainPlan.mode).toBe('declared');
+
+    // and the retrieve step names the worker that realises it — the fact the
+    // eval harness's `expect_calls` spent three tickets waiting for
+    expect(declaredPlan.steps.map((step) => step.worker)).toEqual([
+      'corpus_retrieval',
+      null,
+      null,
+      null,
+    ]);
+    expect(chainPlan.steps.map((step) => step.stage)).toEqual(
+      declaredPlan.steps.map((step) => step.stage),
+    );
   });
 });

@@ -23,6 +23,8 @@ const schema = z.object({
   // `planning-environmental` would make Infora's view of the modal user into
   // everyone's default. Unset means no Lens — the shared core alone.
   DEFAULT_LENS_ID: z.string().min(1).optional(),
+  // T-265 — which declared workflow an Ask turn runs. Config, not code.
+  ASK_WORKFLOW_ID: z.string().min(1).optional(),
   // T-251 — the two session clocks (finding F4). Both are deployment
   // configuration because the right numbers are a security-session decision,
   // not a build-time one. Unset falls through to the modest in-code posture,

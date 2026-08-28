@@ -603,3 +603,17 @@ are not recorded here.
   sovereign tier's exclusion of third-party workers is read off ADR-0037's
   existing provider-eligibility policy, so a tier added later cannot acquire a
   web worker by nobody remembering to set a flag.
+- **2026-08-28 (T-265) — `WorkflowStep.worker` became optional, and forbidden
+  on `verify`.** Both changes came from declaring the *first real* workflow
+  rather than from reviewing the format, which is the argument for declaring a
+  real one. `worker` was required, and the coded chain has two steps no worker
+  runs: `analyse` is the orchestrator's own thinking leaf and `present` is
+  citation resolution (ADR-0027 §6). **A worker is a tool the agent may call,
+  and the agent does not call its own drafting** — so a step with no worker is
+  one the orchestrator runs itself, and rule 1 is unweakened: every worker
+  *named* must still be in the registry. The `verify` prohibition is the
+  sharper half: the ground-check is code outside the plan, running on every
+  answer in both modes, and a `verify` step is its **record**. Naming an
+  executor for it would imply something that could be asked not to run, which
+  is precisely what ADR-0027's and ADR-0028's amended guarantees rest on being
+  impossible.
