@@ -9,6 +9,7 @@ import { runChain } from './chain';
 import type { ChainLeaves } from './chain';
 import { createCiteLeaf } from './cite-leaf';
 import { createGroundCheckLeaf } from './ground-check-leaf';
+import { openRun, openStep } from './run-writer';
 
 const { db, pool } = createDb();
 
@@ -188,5 +189,95 @@ describe('cite resolution + Suggestion write (T-045)', () => {
     expect(suggestionIds).toEqual([]);
     const rows = await db.select().from(s.suggestions).where(eq(s.suggestions.runId, run.id));
     expect(rows).toEqual([]);
+  });
+});
+
+// T-273 — mandatory flagging at the point of use. The flag is CODE, not a
+// prompt instruction, which is the only way "mandatory" is a property rather
+// than a hope: the model is never asked to remember it.
+async function openCiteStep() {
+  const run = await openRun(db, {
+    conversationId: adHocConversationId,
+    agentId: 'infora.grounded_draft',
+    agentProvenance: 'infora',
+    request: 'q',
+    environmentKey: projectId,
+    requesterParticipantId: participantId,
+  });
+  const step = await openStep(db, { runId: run.id, type: 'cite' });
+  return { run, stepId: step.id };
+}
+
+describe('a superseded source is flagged in the prose (T-273)', () => {
+  const retrieved = (superseded: boolean): AssembledInput => ({
+    items: [
+      {
+        channel: 'grounded' as const,
+        corpus: 'library' as const,
+        source: { versionId },
+        chunkId: 'chunk-1',
+        descriptor: {
+          documentReference: 'WA-GEO-GIR-004',
+          documentTitle: null,
+          versionReference: 'P01',
+          superseded,
+        },
+        content: 'the passage',
+      },
+    ],
+    budget: { tokenLimit: 12000, tokensUsed: 0 },
+  });
+
+  // built per test, not at describe time: `versionId` is set in beforeAll
+  const claim = () => ({
+    text: 'Three pits exceeded the threshold.',
+    sourceRef: { versionId },
+  });
+
+  it('marks the sentence itself, not only the manifest', async () => {
+    const { run, stepId } = await openCiteStep();
+    const result = await createCiteLeaf()(
+      { db, run, stepId },
+      {
+        checked: { surviving: [claim()], withheld: [] },
+        retrieved: retrieved(true),
+        sandboxDocumentId: null,
+      },
+    );
+    // in the prose, inside the sentence, before its full stop — a footer is
+    // read after the sentence has already been believed
+    expect(result.output.answer).toBe(
+      'Three pits exceeded the threshold (from a superseded document).',
+    );
+  });
+
+  it('leaves a current source alone — a mark on everything makes the mark invisible', async () => {
+    const { run, stepId } = await openCiteStep();
+    const result = await createCiteLeaf()(
+      { db, run, stepId },
+      {
+        checked: { surviving: [claim()], withheld: [] },
+        retrieved: retrieved(false),
+        sandboxDocumentId: null,
+      },
+    );
+    expect(result.output.answer).toBe('Three pits exceeded the threshold.');
+  });
+
+  // the flag travels with the claim into the citation's own span, so a written
+  // answer cannot lose it
+  it('the citation span covers the flagged text, not the unflagged text', async () => {
+    const { run, stepId } = await openCiteStep();
+    const result = await createCiteLeaf()(
+      { db, run, stepId },
+      {
+        checked: { surviving: [claim()], withheld: [] },
+        retrieved: retrieved(true),
+        sandboxDocumentId: null,
+      },
+    );
+    const [citation] = await db.select().from(s.citations).where(eq(s.citations.stepId, stepId));
+    const span = citation!.claimSpan as { start: number; end: number };
+    expect(result.output.answer!.slice(span.start, span.end)).toContain('(from a superseded document)');
   });
 });

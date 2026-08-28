@@ -6,7 +6,7 @@
 // ruled 2026-07-06) with its citations; an untargeted chat run attaches the
 // citations to the cite step instead, so the answer is citable either way.
 import { eq } from 'drizzle-orm';
-import type { Id } from '@infora/contracts';
+import type { AssembledInput, Id } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import { checkPropagation } from '@infora/governance';
 import { runSourceAudience, sandboxDocumentAudience } from '@infora/knowledge';
@@ -23,9 +23,20 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
     // block alike (T-088, 2026-07-09). A labelled open-world claim (chat
     // only, T-089) joins the answer but earns no citation — citations attach
     // to grounded sources only, by construction.
-    const content = surviving.map((claim) => claim.text).join(CLAIM_SEPARATOR);
-    const spans = claimSpans(surviving);
-    const cited = surviving
+    // T-273 — MANDATORY FLAGGING AT THE POINT OF USE, and it is code rather
+    // than a prompt instruction, which is the only way "mandatory" is true.
+    // Superseded material is excluded by default and admitted only on a
+    // deliberate opt-in; where it IS admitted, the sentence resting on it says
+    // so in the prose. A footer or a manifest entry is read after the sentence
+    // has already been believed — this is the flag that is easy to render in a
+    // footer and easy to forget where it matters.
+    const flagged = surviving.map((claim) => ({
+      ...claim,
+      text: markSuperseded(claim, input.retrieved),
+    }));
+    const content = flagged.map((claim) => claim.text).join(CLAIM_SEPARATOR);
+    const spans = claimSpans(flagged);
+    const cited = flagged
       .map((claim, at) => ({ sourceRef: claim.sourceRef, claimSpan: spans[at] }))
       .filter((claim): claim is { sourceRef: SourceRefValue; claimSpan: { start: number; end: number } } =>
         claim.sourceRef !== undefined,
@@ -104,6 +115,38 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
 
     return { output: { suggestionIds: [suggestionId], answer: content } };
   };
+}
+
+/**
+ * The flag, in the vocabulary the Document Status slice already uses on screen
+ * (T-388's badge, T-391's attached-source marker): the word is **superseded**,
+ * because a reader who has seen the badge and the marker must not have to learn
+ * a third name for one state.
+ *
+ * Appended to the claim rather than prefixed, so the sentence still reads as a
+ * sentence — and appended INSIDE the claim text, so it travels with the claim
+ * into the Suggestion, into the document, and into the citation's own span. A
+ * flag added at render time would be lost the moment the answer was written
+ * anywhere.
+ */
+const SUPERSEDED_FLAG = ' (from a superseded document)';
+
+function markSuperseded(
+  claim: { text: string; sourceRef?: SourceRefValue },
+  retrieved: AssembledInput,
+): string {
+  if (claim.sourceRef === undefined || !('versionId' in claim.sourceRef)) return claim.text;
+  const versionId = claim.sourceRef.versionId;
+  const source = retrieved.items.find(
+    (item) => item.source !== undefined && 'versionId' in item.source && item.source.versionId === versionId,
+  );
+  if (source?.descriptor?.superseded !== true) return claim.text;
+  if (claim.text.includes(SUPERSEDED_FLAG)) return claim.text; // idempotent
+  // before the terminal punctuation, so the mark reads as part of the sentence
+  const terminal = /([.!?:;…]["'”’)\]]*)$/.exec(claim.text);
+  return terminal === null
+    ? `${claim.text}${SUPERSEDED_FLAG}`
+    : `${claim.text.slice(0, terminal.index)}${SUPERSEDED_FLAG}${terminal[1]}`;
 }
 
 type SourceRefValue = { versionId: Id } | { authorityRef: string };

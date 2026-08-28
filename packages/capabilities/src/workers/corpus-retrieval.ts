@@ -32,9 +32,17 @@
 // this worker an already-attenuated assembler (T-248) — which is a scope it was
 // GIVEN rather than one it chose.
 //
-// Still absent, and named so it is not mistaken for done: `include_superseded`
-// is T-273, and the cache keyed on `query + corpus_version + scope_hash` is not
-// built.
+// T-273 — `include_superseded` is HERE, and the shape it takes is the point.
+// The worker does not pass a widening parameter into the gateway: it is
+// constructed with TWO gateways, an ordinary one and one the composition built
+// to admit superseded material, and it chooses between capabilities it was
+// granted. `AssemblyRequest` therefore still has no field that widens anything
+// — the wall's signature guarantee — and a worker in a deployment that
+// constructed no widened gateway simply cannot honour the request, and says so
+// in the coverage note rather than quietly returning the default.
+//
+// Still absent, and named so it is not mistaken for done: the cache keyed on
+// `query + corpus_version + scope_hash` is not built.
 import type { Assemble, AssembledItem, AssemblyCoverage, WorkerDeclaration } from '@infora/contracts';
 
 export const CORPUS_RETRIEVAL: WorkerDeclaration = {
@@ -45,6 +53,8 @@ export const CORPUS_RETRIEVAL: WorkerDeclaration = {
   inputSchema: {
     query: 'the text to search for',
     max_passages: 'how many passages to return at most (default 20)',
+    include_superseded:
+      'deliberately include superseded documents, which are excluded by default; every passage from one is flagged (default false)',
   },
   outputSchema: {
     passages:
@@ -83,20 +93,44 @@ export type CorpusPassage = {
 /** 20, per the Wave 3 entry. A cap, not a target. */
 export const DEFAULT_MAX_PASSAGES = 20;
 
-export type CorpusRetrievalInput = { query: string; maxPassages?: number };
+export type CorpusRetrievalInput = {
+  query: string;
+  maxPassages?: number;
+  /**
+   * T-273 — default FALSE. Exclusion is unchanged unless somebody deliberately
+   * asks, and asking is not enough on its own: the deployment must have
+   * constructed the gateway that admits them.
+   */
+  includeSuperseded?: boolean;
+};
 export type CorpusRetrievalOutput = { passages: CorpusPassage[]; coverageNote: string };
 
 /**
  * Non-negotiable 6, as code: the return value is an OBJECT of passages, never
  * prose and never a reasoning trace. The orchestrator sees exactly this.
  */
-export function createCorpusRetrieval(deps: { assemble: Assemble }) {
+export function createCorpusRetrieval(deps: {
+  assemble: Assemble;
+  /**
+   * T-273 — the same gateway, constructed to admit superseded material. A
+   * SECOND gateway rather than a parameter on the first: the widening is a
+   * capability the composition granted, and this worker chooses between the
+   * two rather than asking either for more than it offers.
+   */
+  assembleIncludingSuperseded?: Assemble;
+}) {
   return async (
     requester: { organisationId: string; participantId: string },
     environment: { projectId: string },
     input: CorpusRetrievalInput,
   ): Promise<CorpusRetrievalOutput> => {
-    const assembled = await deps.assemble({
+    // asked for, and available. Both halves matter: a deployment that built no
+    // widened gateway cannot honour the request, and the honest response is to
+    // search the live corpus and SAY SO — not to return the default silently,
+    // which would read as "there are no superseded sources".
+    const wantsSuperseded = input.includeSuperseded === true;
+    const widened = wantsSuperseded ? deps.assembleIncludingSuperseded : undefined;
+    const assembled = await (widened ?? deps.assemble)({
       // `targeted`, not `baseline`: this IS a sub-agent's narrower query
       // (ADR-0029 §4), and the two modes are the same call with the same
       // access guarantees precisely so agentic retrieval stays inside the wall
@@ -127,7 +161,11 @@ export function createCorpusRetrieval(deps: { assemble: Assemble }) {
 
     return {
       passages,
-      coverageNote: coverageNote(assembled.coverage, grounded.length, passages.length),
+      coverageNote: coverageNote(assembled.coverage, grounded.length, passages.length, {
+        requested: wantsSuperseded,
+        admitted: widened !== undefined,
+        returned: passages.filter((passage) => passage.superseded).length,
+      }),
     };
   };
 }
@@ -149,6 +187,11 @@ export function coverageNote(
   coverage: AssemblyCoverage | undefined,
   matched: number,
   returned: number,
+  superseded: { requested: boolean; admitted: boolean; returned: number } = {
+    requested: false,
+    admitted: false,
+    returned: 0,
+  },
 ): string {
   const parts: string[] = [];
   if (coverage === undefined) {
@@ -164,6 +207,23 @@ export function coverageNote(
         ? `${matched} passages matched; the ${returned} best are returned.`
         : `${matched} passage${matched === 1 ? '' : 's'} matched and ${matched === 1 ? 'is' : 'are'} returned.`,
   );
+  // T-273 — the coverage half of mandatory flagging. The prose flag at the
+  // point of use is the one that matters and lives in the cite leaf; this says
+  // what the SEARCH did, which is the only place the *default* exclusion is
+  // visible at all.
+  if (superseded.requested && !superseded.admitted) {
+    parts.push(
+      'Superseded documents were requested and this deployment does not admit them, so only current revisions were searched.',
+    );
+  } else if (superseded.requested) {
+    parts.push(
+      superseded.returned === 0
+        ? 'Superseded documents were deliberately included; none matched.'
+        : `Superseded documents were deliberately included, and ${superseded.returned} of the passages returned ${superseded.returned === 1 ? 'is' : 'are'} from one.`,
+    );
+  } else {
+    parts.push('Superseded documents were excluded, as they are by default.');
+  }
   if (coverage.unmatchedReferences.length > 0) {
     parts.push(
       `The question named ${coverage.unmatchedReferences.join(', ')}, which ${coverage.unmatchedReferences.length === 1 ? 'is' : 'are'} not in the reachable corpus.`,

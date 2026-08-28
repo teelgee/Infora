@@ -60,14 +60,37 @@ const emptyInput = () => ({
  * the whole entitled library — and, because `attenuate` is monotonic, a worker
  * handed a narrowed assembler has no route back to the wider one.
  */
-export function createAssembler(deps: GatewayDeps, narrowing?: Attenuation): Assemble {
+/**
+ * T-273 — the deliberate opt-in, and it rides CONSTRUCTION for T-248's reason
+ * read in the other direction.
+ *
+ * `AssemblyRequest` has no field for it and gains none: the wall's signature
+ * guarantee is that **no parameter on the call widens what retrieval returns**,
+ * and a request field here would have been the first one. A caller can only be
+ * *handed* an assembler that admits superseded material, exactly as it can only
+ * be handed one narrowed to three documents — so the opt-in is a capability the
+ * composition granted, never something a worker or a plan step can ask for.
+ *
+ * It relaxes RECORD STATE only. Every access clause is untouched, so an
+ * assembler built this way cannot reach one row its ordinary twin could not
+ * have reached in a live revision.
+ */
+export type Inclusion = { superseded?: boolean };
+
+export function createAssembler(
+  deps: GatewayDeps,
+  narrowing?: Attenuation,
+  inclusion?: Inclusion,
+): Assemble {
   return async (req) => {
     const resolved = await resolveRequester(deps.db, req);
     if (!resolved) return emptyInput();
     const slice = narrowing === undefined ? resolved : attenuate(resolved, narrowing);
 
     const [grounded, guidingItems, informingItems] = await Promise.all([
-      groundedLibrary(deps, slice, req.request),
+      groundedLibrary(deps, slice, req.request, {
+        ...(inclusion?.superseded !== undefined && { includeSuperseded: inclusion.superseded }),
+      }),
       guiding(deps, slice, req.request),
       informing(deps, slice, req.request),
     ]);

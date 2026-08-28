@@ -52,10 +52,34 @@ export type GroundedLibraryResult = {
   coverage: AssemblyCoverage;
 };
 
+/**
+ * T-273 — the deliberate opt-in, and where it is NOT expressible.
+ *
+ * It is an option on this function and a construction argument on the
+ * assembler — **never a field on `AssemblyRequest`** — which is T-248's shape
+ * applied in the widening direction. The wall's signature guarantee is that no
+ * parameter on the CALL widens what retrieval returns; a caller can only ever
+ * be handed a gateway that already admits more, exactly as it can only be
+ * handed one that already admits less. A request field would have been the
+ * first widening parameter on that signature, and the next one would not have
+ * needed an argument.
+ *
+ * What it relaxes is RECORD STATE and nothing else: the project clause, the
+ * deliverable-visibility clause, the attenuation and the grounding-code clause
+ * are untouched, so this cannot reach one row the requester could not already
+ * have reached in a live revision. Withdrawn and rejected stay out — they are
+ * not superseded, and ADR-0013 does not treat them alike.
+ */
+export type RetrievalOptions = {
+  /** default false — exclusion is unchanged unless somebody asks */
+  includeSuperseded?: boolean;
+};
+
 export async function groundedLibrary(
   deps: { db: Db; router: Router },
   slice: EntitledSlice,
   request: RetrievalRequest,
+  options: RetrievalOptions = {},
 ): Promise<GroundedLibraryResult> {
   const modelId = deps.router.embeddingModel.id;
 
@@ -80,14 +104,16 @@ export async function groundedLibrary(
       [
         // lexical arm: deliverable codes named in the request beat similarity —
         // code is how this domain names documents (ADR-0022)
-        codes.length > 0 ? await liveChunksByCode(tx, slice, modelId, codes, scope) : [],
-        await nearestLiveChunks(tx, slice, modelId, embeddings[0]!, scope),
+        codes.length > 0
+          ? await liveChunksByCode(tx, slice, modelId, codes, scope, options)
+          : [],
+        await nearestLiveChunks(tx, slice, modelId, embeddings[0]!, scope, options),
         // T-272 — how many chunks the pre-filter admitted BEFORE ranking cut to
         // the top few. In the same transaction and against the same filter, so
         // the number describes the corpus this run could actually see rather
         // than the table; a count taken outside the scope would be a different
         // claim wearing the same name.
-        await countLiveChunks(tx, slice, modelId, scope),
+        await countLiveChunks(tx, slice, modelId, scope, options),
       ] as const,
   );
 
@@ -168,13 +194,27 @@ function relevanceOf(distance: number): number {
 // §4 puts baseline assembly and targeted sub-agent retrieval on one call exactly
 // so a guarantee holds in both modes, and a clause added one path up would let
 // an agentic sub-agent reach what the baseline excludes.
-function liveLibraryFilter(slice: EntitledSlice, modelId: string, scope: string[] = []) {
+function liveLibraryFilter(
+  slice: EntitledSlice,
+  modelId: string,
+  scope: string[] = [],
+  options: RetrievalOptions = {},
+) {
+  // T-273 — the opt-in relaxes exactly two clauses and no others. A container
+  // whose record state is `superseded`, and a version that is no longer the
+  // current one, become admissible; `withdrawn` and `rejected` do NOT, because
+  // they are not superseded and ADR-0013 does not treat them alike. Every
+  // access clause below is untouched, which is what makes this a widening of
+  // record state rather than of reach.
+  const superseded = options.includeSuperseded === true;
   return and(
     eq(s.containers.projectId, slice.projectId),
     eq(s.containers.inLibrary, true),
-    eq(s.containers.state, 'live'),
+    superseded
+      ? inArray(s.containers.state, ['live', 'superseded'])
+      : eq(s.containers.state, 'live'),
     groundingCodeSql(),
-    eq(s.versions.isCurrent, true),
+    superseded ? undefined : eq(s.versions.isCurrent, true),
     eq(s.versionChunks.embeddingModelId, modelId),
     deliverableVisibleSql(slice),
     scope.length > 0 ? classificationScopeSql(scope) : undefined,
@@ -284,6 +324,7 @@ function liveChunksByCode(
   modelId: string,
   codes: string[],
   scope: string[] = [],
+  options: RetrievalOptions = {},
 ) {
   return db
     .select({ ...chunkColumns, ...titleColumn, distance: NO_DISTANCE })
@@ -293,7 +334,7 @@ function liveChunksByCode(
     .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
     .where(
       and(
-        liveLibraryFilter(slice, modelId, scope),
+        liveLibraryFilter(slice, modelId, scope, options),
         inArray(sql<string>`upper(${s.containers.documentReference})`, codes),
       ),
     )
@@ -314,13 +355,14 @@ async function countLiveChunks(
   slice: EntitledSlice,
   modelId: string,
   scope: string[] = [],
+  options: RetrievalOptions = {},
 ): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(s.versionChunks)
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
-    .where(liveLibraryFilter(slice, modelId, scope));
+    .where(liveLibraryFilter(slice, modelId, scope, options));
   return row?.count ?? 0;
 }
 
@@ -330,6 +372,7 @@ function nearestLiveChunks(
   modelId: string,
   query: number[],
   scope: string[] = [],
+  options: RetrievalOptions = {},
 ) {
   const distance = cosineDistance(s.versionChunks.embedding, query);
   return db
@@ -338,7 +381,7 @@ function nearestLiveChunks(
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
     .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
-    .where(liveLibraryFilter(slice, modelId, scope))
+    .where(liveLibraryFilter(slice, modelId, scope, options))
     .orderBy(asc(distance), asc(s.versionChunks.id))
     .limit(GROUNDED_CHUNK_LIMIT);
 }

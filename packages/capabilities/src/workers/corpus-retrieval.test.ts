@@ -192,7 +192,14 @@ describe('the coverage note (T-272)', () => {
 // answer on a partial library where every citation resolves.
 describe('the ontology scope filter stays unwired (Q-028)', () => {
   it('declares no classification or document-type input', () => {
-    expect(Object.keys(CORPUS_RETRIEVAL.inputSchema).sort()).toEqual(['max_passages', 'query']);
+    // `include_superseded` (T-273) is a RECORD-STATE opt-in, not a scope: it
+    // relaxes which revisions are admissible and reaches no row the requester
+    // could not already have reached in a live one.
+    expect(Object.keys(CORPUS_RETRIEVAL.inputSchema).sort()).toEqual([
+      'include_superseded',
+      'max_passages',
+      'query',
+    ]);
   });
 
   it('is not expressible on the input type either', () => {
@@ -205,5 +212,75 @@ describe('the ontology scope filter stays unwired (Q-028)', () => {
           : true;
     const pinned: Unscoped = true;
     expect(pinned).toBe(true);
+  });
+});
+
+// T-273 — the opt-in, and the shape it deliberately does NOT take.
+describe('include_superseded (T-273)', () => {
+  const supersededItem = {
+    channel: 'grounded' as const,
+    corpus: 'library' as const,
+    source: { versionId: 'ver-old' },
+    chunkId: 'chunk-old',
+    descriptor: {
+      documentReference: 'WA-GEO-GIR-004',
+      documentTitle: null,
+      versionReference: 'P01',
+      superseded: true,
+    },
+    content: 'the earlier revision said something else',
+  };
+  const widened = async () => ({
+    items: [supersededItem],
+    budget: { tokenLimit: 12000, tokensUsed: 0 },
+    coverage: { candidates: 500, requestedReferences: [], unmatchedReferences: [] },
+  });
+
+  it('excludes by default and says so', async () => {
+    const worker = createCorpusRetrieval({ assemble: async () => assembled() });
+    const { passages, coverageNote } = await worker(requester, environment, { query: 'q' });
+    expect(passages.every((passage) => !passage.superseded)).toBe(true);
+    expect(coverageNote).toContain('Superseded documents were excluded, as they are by default');
+  });
+
+  // the widening is a CAPABILITY the composition granted, not a parameter the
+  // worker passes into the gateway: `AssemblyRequest` still has no field that
+  // widens anything, which is the wall's signature guarantee
+  it('uses the second gateway when asked, and flags what came back', async () => {
+    const ordinary = vi.fn<Assemble>(async () => assembled());
+    const worker = createCorpusRetrieval({
+      assemble: ordinary,
+      assembleIncludingSuperseded: widened,
+    });
+    const { passages, coverageNote } = await worker(requester, environment, {
+      query: 'q',
+      includeSuperseded: true,
+    });
+    expect(ordinary).not.toHaveBeenCalled();
+    expect(passages[0]!.superseded).toBe(true);
+    expect(coverageNote).toContain('deliberately included, and 1 of the passages');
+  });
+
+  // a deployment that built no widened gateway cannot honour the request, and
+  // returning the default silently would read as "there are no superseded ones"
+  it('says it could not honour the request rather than returning the default silently', async () => {
+    const worker = createCorpusRetrieval({ assemble: async () => assembled() });
+    const { coverageNote } = await worker(requester, environment, {
+      query: 'q',
+      includeSuperseded: true,
+    });
+    expect(coverageNote).toContain('does not admit them');
+  });
+
+  it('reports that none matched, rather than saying nothing', async () => {
+    const worker = createCorpusRetrieval({
+      assemble: async () => assembled(),
+      assembleIncludingSuperseded: async () => assembled(),
+    });
+    const { coverageNote } = await worker(requester, environment, {
+      query: 'q',
+      includeSuperseded: true,
+    });
+    expect(coverageNote).toContain('deliberately included; none matched');
   });
 });

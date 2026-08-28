@@ -493,3 +493,39 @@ describe('the acknowledgement gate and intra-org narrowing (T-136, ADR-0035)', (
     expect(await canRetrieve(paul, v)).toBe(false);
   });
 });
+
+// T-273 — the deliberate opt-in, and the two things it must not become.
+describe('include_superseded widens record state and nothing else (T-273)', () => {
+  it('is not expressible on the request — a caller can only be HANDED it', () => {
+    // the same guarantee `no parameter exists to widen scope` pins above, read
+    // for the one parameter that genuinely widens something: it rides the
+    // assembler's CONSTRUCTION, exactly as T-248's narrowing does, so a worker
+    // or a plan step cannot ask the gateway for more than it was built with.
+    type ExactKeys<T, K extends keyof T> = [Exclude<keyof T, K>] extends [never]
+      ? [Exclude<K, keyof T>] extends [never]
+        ? true
+        : false
+      : false;
+    const stillTwoKeys: ExactKeys<AssemblyRequest['request'], 'text' | 'mode'> = true;
+    expect(stillTwoKeys).toBe(true);
+  });
+
+  it('returns the superseded Version to the entitled, flagged, when built to', async () => {
+    const including = createAssembler({ db, router: fakeRouter() }, undefined, { superseded: true });
+    const { items } = await including(query(entitled));
+    const old = items.find(
+      (item) => item.source !== undefined && 'versionId' in item.source && item.source.versionId === supersededVersionId,
+    );
+    expect(old).toBeDefined();
+    // and it says what it is — the flag is a fact on the item, not a rendering
+    expect(old!.descriptor?.superseded).toBe(true);
+  });
+
+  it('STILL returns nothing across the wall, opt-in or not', async () => {
+    // the widening relaxes record state; every access clause is untouched, and
+    // this is the assertion that says so rather than the comment that claims it
+    const including = createAssembler({ db, router: fakeRouter() }, undefined, { superseded: true });
+    const { items } = await including(query(unentitled));
+    expect(items).toEqual([]);
+  });
+});
