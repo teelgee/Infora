@@ -4,7 +4,43 @@
 
 export type Id = string; // uuid
 export type Surface = 'web' | 'word_addin' | 'copilot'; // ADR-0031
-export type StepType = 'retrieve' | 'draft' | 'ground_check' | 'cite' | 'delegate';
+// T-263 — the step vocabulary as a VALUE, with the type derived from it.
+//
+// It was a bare union and is now an array the union is read off, for one
+// reason: a union cannot be compared to anything at run time, so "the contracts
+// type and the database enum cannot drift" was a sentence rather than a check.
+// With the list as data it is a test (`enum-drift.test.ts` in orchestration,
+// the one package that sees both contracts and the schema).
+//
+// The first five are the coded chain and its delegation; the rest are the Wave
+// 3 workers — a worker invocation is a Step in the same append-only tree
+// (ADR-0028 §3, §7). Three of them (`authority_lookup`, `web_research`,
+// `verifier`) are beyond V1 and are declared anyway: the audit store cannot be
+// restructured later, so the vocabulary is fixed once rather than widened per
+// worker on a live table.
+export const STEP_TYPES = [
+  'retrieve',
+  'draft',
+  'ground_check',
+  'cite',
+  'delegate',
+  'corpus_retrieval',
+  'authority_lookup',
+  'web_research',
+  'extractor',
+  'workflow_runner',
+  'document_builder',
+  'verifier',
+] as const;
+export type StepType = (typeof STEP_TYPES)[number];
+
+// T-263 — `completed_with_failures` is the third outcome a multi-worker plan
+// has and a four-step chain never did: an answer exists, and some of what was
+// asked for did not run. Reporting that as `completed` hides it and reporting
+// it as `failed` throws away work the user can use. The semantics — which
+// dependants skip, which branches continue — are T-268.
+export const RUN_STATES = ['running', 'completed', 'failed', 'completed_with_failures'] as const;
+export type RunState = (typeof RUN_STATES)[number];
 export type Resolution = 'accepted' | 'edited' | 'rejected';
 
 export type Citation = {
@@ -57,7 +93,7 @@ export type Run = {
   parentRunId: Id | null;
   agentId: string;
   agentProvenance: 'infora' | 'custom';
-  state: 'running' | 'completed' | 'failed';
+  state: RunState;
   request: string; // the prompt/task text — part of the record
   response: string | null; // the produced answer — part of the record too (added 2026-07-08, T-052; ADR-0031 §6 renders it in Copilot)
   startedAt: string;

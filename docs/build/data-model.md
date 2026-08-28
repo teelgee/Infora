@@ -281,6 +281,22 @@ expressible, so no plan edit can widen reach. And **the ground-check stays
 outside the plan**: if it were a step, a planner could skip it, which would
 break the guarantee both orchestration modes rest on (asserted at T-262).
 
+**The step and run vocabularies** (T-263, migration 0055) carry two widenings
+that are one decision each. `step_type` gains the **seven worker types** — a
+worker invocation is a Step in this same append-only tree and, where it
+delegates, a child Run, which `parent_run_id` / `parent_step_id` /
+`child_run_id` already express and the retrieval leaf already does; model,
+usage, cost, egress, source set and rail outcomes are already columns here. So
+this is **the only migration the whole worker wave needs**. All seven land at
+once including the three whose workers are beyond V1, because an append-only
+audit store cannot be restructured later — ADR-0028 §3's reason for fixing the
+recursive shape from the first migration, applied to the type. `run_state`
+gains **`completed_with_failures`**, the outcome a multi-worker plan has and a
+four-step chain never did: an answer exists and some of what was asked for did
+not run, which is neither `completed` nor `failed`, and reporting it as either
+hides work or throws it away. The semantics are T-268; the value is the
+vocabulary they are written in.
+
 **Label override** (T-249, migration 0036, finding F2) is the record of a
 person deciding, by name and with a stated reason, to write material into a
 destination broader than its sources' label. There is no `allowBroadening`

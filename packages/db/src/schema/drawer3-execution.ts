@@ -18,8 +18,42 @@ import { participants, projects } from './drawer1-parties.js';
 import { containers, sandboxDocuments } from './drawer2-documents.js';
 
 export const surface = pgEnum('surface', ['web', 'word_addin', 'copilot']);
-export const runState = pgEnum('run_state', ['running', 'completed', 'failed']);
-export const stepType = pgEnum('step_type', ['retrieve', 'draft', 'ground_check', 'cite', 'delegate']);
+// T-263 — `completed_with_failures` is the state a MULTI-WORKER plan needs and
+// a four-step chain never did. The chain fails hard, which is correct when
+// every step feeds the next; once a plan fans out, one failed branch beside a
+// completed one is neither `completed` (it is not) nor `failed` (an answer
+// exists and is worth returning). The third value is what stops that being
+// reported as one of the other two. Partial-failure SEMANTICS are T-268; this
+// is the vocabulary they are written in.
+export const runState = pgEnum('run_state', [
+  'running',
+  'completed',
+  'failed',
+  'completed_with_failures',
+]);
+// T-263 — the worker step types (the Wave 3 table). A worker invocation is a
+// Step in the existing append-only tree and, where it delegates, a child Run —
+// `parent_run_id` / `parent_step_id` / `child_run_id` already support that and
+// the retrieve leaf already does exactly this, so this enum is the ONLY
+// migration the whole worker wave requires. `verifier`, `authority_lookup` and
+// `web_research` are declared here although their workers are beyond V1: the
+// audit store is append-only and cannot be restructured later, so the step
+// vocabulary is fixed once rather than widened per worker (ADR-0028 §3's
+// reasoning for the recursive shape, applied to the type).
+export const stepType = pgEnum('step_type', [
+  'retrieve',
+  'draft',
+  'ground_check',
+  'cite',
+  'delegate',
+  'corpus_retrieval',
+  'authority_lookup',
+  'web_research',
+  'extractor',
+  'workflow_runner',
+  'document_builder',
+  'verifier',
+]);
 export const stepStatus = pgEnum('step_status', ['running', 'completed', 'failed']);
 export const agentProvenance = pgEnum('agent_provenance', ['infora', 'custom']);
 
