@@ -15,12 +15,17 @@ const DEFAULT_ENDPOINT = 'https://api.anthropic.com';
 // substitute a stub without mocking the whole SDK.
 export interface AnthropicLike {
   messages: {
-    create(params: {
-      model: string;
-      max_tokens: number;
-      system?: string;
-      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-    }): Promise<{
+    create(
+      params: {
+        model: string;
+        max_tokens: number;
+        system?: string;
+        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      },
+      // T-285 — request options, where the router's per-attempt timeout signal
+      // travels. Optional so a stub may ignore it.
+      options?: { signal?: AbortSignal },
+    ): Promise<{
       model: string;
       stop_reason: string | null;
       content: Array<{ type: string; text?: string }>;
@@ -49,20 +54,33 @@ export class AnthropicChatAdapter implements ChatAdapter {
     modelId?: string;
     attributes?: RouteAttributes;
     endpoint?: string;
+    // T-285 — a fallback chain is several routes, and a second route is a
+    // second procurement: its own base URL and its own credential. Both
+    // default to the SDK's own env pickup, which is what a one-route
+    // deployment has.
+    apiKey?: string;
+    baseUrl?: string;
   } = {}): AnthropicChatAdapter {
-    return new AnthropicChatAdapter(new Anthropic(), options.modelId, {
+    const client = new Anthropic({
+      ...(options.apiKey !== undefined && { apiKey: options.apiKey }),
+      ...(options.baseUrl !== undefined && { baseURL: options.baseUrl }),
+    });
+    return new AnthropicChatAdapter(client, options.modelId, {
       ...(options.attributes !== undefined && { attributes: options.attributes }),
       ...(options.endpoint !== undefined && { endpoint: options.endpoint }),
     });
   }
 
   async chat(request: ChatRequest): Promise<ChatResult> {
-    const response = await this.client.messages.create({
-      model: this.modelId,
-      max_tokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
-      ...(request.system !== undefined && { system: request.system }),
-      messages: request.messages,
-    });
+    const response = await this.client.messages.create(
+      {
+        model: this.modelId,
+        max_tokens: request.maxTokens ?? DEFAULT_MAX_TOKENS,
+        ...(request.system !== undefined && { system: request.system }),
+        messages: request.messages,
+      },
+      { ...(request.signal !== undefined && { signal: request.signal }) },
+    );
 
     if (response.stop_reason === 'refusal') {
       throw new Error(`model refused the request (model ${response.model})`);

@@ -13,7 +13,7 @@ import {
 } from '@infora/model';
 import { buildApp } from './app';
 import { DEFAULT_SESSION_POLICY } from './sessions';
-import { loadApiEnv, resolveRouteAttributes } from './env';
+import { loadApiEnv, parseChatRoutes, resolveRouteAttributes } from './env';
 
 const env = loadApiEnv();
 const { db } = createDb();
@@ -22,17 +22,47 @@ const { db } = createDb();
 // egress attributes or the router fails closed.
 const security = securityForTier(env.DEPLOYMENT_TIER, env.DATA_CLASSIFICATION);
 const attributes = resolveRouteAttributes(env);
+// T-285 — the chat side is a CHAIN, of one route by default. `MODEL_CHAT_ROUTES`
+// declares more, each with its own credential and its own four egress
+// attributes; unset means the single route the MODEL_* variables describe,
+// which is every deployment to date and is why nothing changed by default.
+// Parsed at BOOT for T-254's reason: a typo in a chain is a route that never
+// conforms, and the symptom would be a deployment failing closed on every call
+// with no clue why.
+const chatRoutes =
+  env.MODEL_CHAT_ROUTES === undefined
+    ? [
+        {
+          adapter: AnthropicChatAdapter.fromEnv({
+            ...(attributes !== undefined && { attributes }),
+            ...(env.MODEL_CHAT_ENDPOINT !== undefined && { endpoint: env.MODEL_CHAT_ENDPOINT }),
+          }),
+        },
+      ]
+    : parseChatRoutes(env.MODEL_CHAT_ROUTES).map((route) => ({
+        adapter: AnthropicChatAdapter.fromEnv({
+          modelId: route.modelId,
+          attributes: route.attributes,
+          endpoint: route.endpoint,
+          apiKey: route.apiKey,
+          // the audited endpoint IS the base URL: two fields would let the
+          // record name a host the call never touched
+          baseUrl: route.endpoint,
+        }),
+        ...(route.serves !== undefined && { serves: route.serves }),
+      }));
 const router = new Router(
-  AnthropicChatAdapter.fromEnv({
-    ...(attributes !== undefined && { attributes }),
-    ...(env.MODEL_CHAT_ENDPOINT !== undefined && { endpoint: env.MODEL_CHAT_ENDPOINT }),
-  }),
+  chatRoutes,
   new VoyageEmbeddingAdapter({
     apiKey: env.VOYAGE_API_KEY,
     ...(attributes !== undefined && { attributes }),
     ...(env.MODEL_EMBED_ENDPOINT !== undefined && { endpoint: env.MODEL_EMBED_ENDPOINT }),
   }),
   security,
+  {
+    ...(env.MODEL_FALLBACK_ATTEMPTS !== undefined && { attempts: env.MODEL_FALLBACK_ATTEMPTS }),
+    ...(env.MODEL_ATTEMPT_TIMEOUT_MS !== undefined && { timeoutMs: env.MODEL_ATTEMPT_TIMEOUT_MS }),
+  },
 );
 // T-216: deployments widen CORS only by declaring origins explicitly
 const allowedOrigins = env.ALLOWED_ORIGINS?.split(',')

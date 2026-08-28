@@ -7,7 +7,7 @@
 import type { AssembledInput, Id, Lens } from '@infora/contracts';
 import { composeLensOverlay } from '@infora/lenses';
 import { costOf } from '@infora/model';
-import type { EgressFacts, ModelIdentity, ModelRates, Router } from '@infora/model';
+import type { EgressFacts, ModelIdentity, ModelRates, RouteAttempt, Router } from '@infora/model';
 
 export type SourceRef = { versionId: Id } | { authorityRef: string };
 export type DraftedClaim = { text: string; sourceRef?: SourceRef };
@@ -17,6 +17,10 @@ export type GroundedDraftResult = {
   model: ModelIdentity;
   usage: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
   egress?: EgressFacts; // the router's egress facts for this call (ADR-0037 §6)
+  // T-285 — every route the router attempted, in order. Carried through
+  // untouched: this package cannot write a Step row (it holds no `Db`), so it
+  // hands the facts to the leaf that can.
+  attempts?: RouteAttempt[];
 };
 
 export type GroundedDraftOptions = {
@@ -128,6 +132,7 @@ export async function groundedDraft(
     claims: parseClaims(result.text, sourceByMarker),
     model: result.model,
     ...(result.egress !== undefined && { egress: result.egress }),
+    ...(result.attempts !== undefined && { attempts: result.attempts }),
     usage: {
       tokensPrompt: result.usage.tokensPrompt,
       tokensCompletion: result.usage.tokensCompletion,

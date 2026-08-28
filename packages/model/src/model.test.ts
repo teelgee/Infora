@@ -3,6 +3,7 @@ import { AnthropicChatAdapter, type AnthropicLike } from './anthropic-chat.js';
 import { VoyageEmbeddingAdapter } from './voyage-embeddings.js';
 import { Router, securityForTier } from './router.js';
 import { TASK_TIERS, routesForTask } from './tasks.js';
+import { RouteChainExhausted, attemptsOf, isRouteUnavailable } from './failover.js';
 import type { WorkerModelTier } from '@infora/contracts';
 import type { ChatAdapter, EmbeddingAdapter } from './types.js';
 import {
@@ -317,5 +318,187 @@ describe('task-class routing (T-284, ADR-0028 §9 refinement)', () => {
   it('ranks the whole conforming set rather than filtering it', () => {
     const routes = [{ serves: ['frontier'] as const }, {}, { serves: ['triage'] as const }];
     expect(routesForTask(routes, 'triage')).toEqual([routes[2], routes[0], routes[1]]);
+  });
+});
+
+// T-285 — fallback chains. The two properties that carry the ticket are that a
+// fallback is only ever a route that ALSO conforms, and that a route which
+// ANSWERED is never retried on the next model.
+describe('fallback chains (T-285)', () => {
+  const failing = (
+    modelId: string,
+    error: unknown,
+    attributes: RouteAttributes = SELF_HOSTED_UK,
+  ): ChatAdapter => ({
+    modelId,
+    attributes,
+    endpoint: `https://${modelId}.example`,
+    chat: vi.fn().mockRejectedValue(error),
+  });
+  const answering = (
+    modelId: string,
+    attributes: RouteAttributes = SELF_HOSTED_UK,
+  ): ChatAdapter => ({
+    modelId,
+    attributes,
+    endpoint: `https://${modelId}.example`,
+    chat: vi.fn().mockResolvedValue({
+      text: 'answer',
+      model: { id: modelId, version: `${modelId}-1` },
+      usage: { tokensPrompt: 1, tokensCompletion: 1 },
+    }),
+  });
+  const rateLimited = Object.assign(new Error('rate limited'), { status: 429 });
+
+  it('falls through a rate-limited route to the next conforming one', async () => {
+    const second = answering('second');
+    const router = new Router(
+      [{ adapter: failing('first', rateLimited) }, { adapter: second }],
+      conformingEmbeddings(),
+    );
+
+    const result = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(result.model.id).toBe('second');
+    expect(second.chat).toHaveBeenCalled();
+  });
+
+  // AVAILABILITY IS NEVER TRADED FOR CONFORMANCE. The only other route is not
+  // tier-conforming, so the chain has one link and exhausts rather than
+  // reaching for the route that would have worked.
+  it('never falls back to a non-conforming route', async () => {
+    const usPublic: RouteAttributes = {
+      region: 'us',
+      retention: 'transient',
+      jurisdiction: 'foreign-reachable',
+      eligibility: 'enterprise-zdr',
+    };
+    const nonConforming = answering('us-route', usPublic);
+    const router = new Router(
+      [{ adapter: failing('uk-route', rateLimited) }, { adapter: nonConforming }],
+      conformingEmbeddings(),
+    );
+
+    await expect(
+      router.chat('draft', { messages: [{ role: 'user', content: 'x' }] }),
+    ).rejects.toThrow(RouteChainExhausted);
+    expect(nonConforming.chat).not.toHaveBeenCalled();
+  });
+
+  // A REFUSAL IS AN ANSWER. Retrying it on the next model is shopping for one
+  // that complies, and it would succeed silently.
+  it('does not retry a route that answered — a refusal ends the call', async () => {
+    const second = answering('second');
+    const router = new Router(
+      [{ adapter: failing('first', new Error('model refused the request')) }, { adapter: second }],
+      conformingEmbeddings(),
+    );
+
+    await expect(
+      router.chat('draft', { messages: [{ role: 'user', content: 'x' }] }),
+    ).rejects.toThrow(/refused/);
+    expect(second.chat).not.toHaveBeenCalled();
+  });
+
+  it('states every endpoint and its reason when the chain exhausts', async () => {
+    const router = new Router(
+      [
+        { adapter: failing('first', rateLimited) },
+        { adapter: failing('second', Object.assign(new Error('gateway'), { status: 502 })) },
+      ],
+      conformingEmbeddings(),
+    );
+
+    await expect(
+      router.chat('draft', { messages: [{ role: 'user', content: 'x' }] }),
+    ).rejects.toThrow(/first\.example \(rate limited\).*second\.example \(gateway\)/s);
+  });
+
+  // the audit half: a fallback that fired is visible, with the egress facts of
+  // the route it was tried on — not only of the route that answered
+  it('reports every attempt with its own egress facts', async () => {
+    const router = new Router(
+      [{ adapter: failing('first', rateLimited) }, { adapter: answering('second') }],
+      conformingEmbeddings(),
+    );
+
+    const result = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(result.attempts).toEqual([
+      {
+        endpoint: 'https://first.example',
+        egress: { endpoint: 'https://first.example', region: 'uk', retention: 'zero', classification: 'official' },
+        outcome: 'unavailable',
+        reason: 'rate limited',
+      },
+      {
+        endpoint: 'https://second.example',
+        egress: { endpoint: 'https://second.example', region: 'uk', retention: 'zero', classification: 'official' },
+        outcome: 'succeeded',
+      },
+    ]);
+  });
+
+  it('carries the attempts on the thrown error too', async () => {
+    const router = new Router([{ adapter: failing('first', rateLimited) }], conformingEmbeddings());
+    const error = await router
+      .chat('draft', { messages: [{ role: 'user', content: 'x' }] })
+      .catch((thrown: unknown) => thrown);
+    expect(attemptsOf(error)).toHaveLength(1);
+    expect(attemptsOf(error)[0]?.outcome).toBe('unavailable');
+  });
+
+  // one entry even when nothing fell back, so "no fallback fired" and "the
+  // field was not populated" cannot read the same
+  it('reports the single attempt when the first route answers', async () => {
+    const router = new Router(conformingChat(), conformingEmbeddings());
+    const result = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(result.attempts).toHaveLength(1);
+    expect(result.attempts?.[0]?.outcome).toBe('succeeded');
+  });
+
+  it('stops at the configured attempt budget', async () => {
+    const third = answering('third');
+    const router = new Router(
+      [
+        { adapter: failing('first', rateLimited) },
+        { adapter: failing('second', rateLimited) },
+        { adapter: third },
+      ],
+      conformingEmbeddings(),
+      securityForTier('standard'),
+      { attempts: 2 },
+    );
+
+    await expect(
+      router.chat('draft', { messages: [{ role: 'user', content: 'x' }] }),
+    ).rejects.toThrow(RouteChainExhausted);
+    expect(third.chat).not.toHaveBeenCalled();
+  });
+
+  it('treats a route that does not answer within the timeout as unavailable', async () => {
+    const hanging: ChatAdapter = {
+      modelId: 'hanging',
+      attributes: SELF_HOSTED_UK,
+      endpoint: 'https://hanging.example',
+      chat: () => new Promise(() => {}),
+    };
+    const router = new Router(
+      [{ adapter: hanging }, { adapter: answering('second') }],
+      conformingEmbeddings(),
+      securityForTier('standard'),
+      { timeoutMs: 5 },
+    );
+
+    const result = await router.chat('draft', { messages: [{ role: 'user', content: 'x' }] });
+    expect(result.model.id).toBe('second');
+    expect(result.attempts?.[0]?.reason).toMatch(/did not answer within 5ms/);
+  });
+
+  // the classification allow-list: an unrecognised failure is an ANSWER, and
+  // the direction of that default is the one that cannot launder a refusal
+  it('classifies outages, not answers', () => {
+    expect(isRouteUnavailable(Object.assign(new Error('x'), { status: 503 }))).toBe(true);
+    expect(isRouteUnavailable(Object.assign(new Error('x'), { code: 'ECONNRESET' }))).toBe(true);
+    expect(isRouteUnavailable(Object.assign(new Error('x'), { status: 400 }))).toBe(false);
+    expect(isRouteUnavailable(new Error('model returned no text'))).toBe(false);
   });
 });

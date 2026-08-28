@@ -53,6 +53,16 @@ const schema = z.object({
   MODEL_ELIGIBILITY: z.enum(['enterprise-zdr', 'self-hosted']).optional(),
   MODEL_CHAT_ENDPOINT: z.string().url().optional(),
   MODEL_EMBED_ENDPOINT: z.string().url().optional(),
+  // T-285 — the fallback chain, as JSON. Deployment configuration: a chain is
+  // a list of PROCUREMENTS, and which endpoints a firm has bought is not
+  // something the repository can know. Unset — the shipped default — means the
+  // single route the four MODEL_* attributes above describe, and the chain is
+  // one long, which is what every deployment has had until now.
+  MODEL_CHAT_ROUTES: z.string().optional(),
+  // The Wave 5 design reference's `defaults {fallback_attempts, timeout_ms}`.
+  // Both bound a bad day rather than tune a good one.
+  MODEL_FALLBACK_ATTEMPTS: z.coerce.number().int().positive().optional(),
+  MODEL_ATTEMPT_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
 });
 
 export type ApiEnv = z.infer<typeof schema>;
@@ -86,4 +96,89 @@ export function resolveRouteAttributes(env: ApiEnv):
     jurisdiction: env.MODEL_JURISDICTION,
     eligibility: env.MODEL_ELIGIBILITY,
   };
+}
+
+/**
+ * T-285 — parse the declared fallback chain.
+ *
+ * Strict, and refusing at boot, for T-254's reason restated: a chain with a
+ * typo in it is a route that silently never conforms, and the symptom is a
+ * deployment that fails closed on every call with no clue why. Better to
+ * refuse to start.
+ *
+ * **A route's four egress attributes are required per route, never inherited
+ * from the MODEL_* defaults.** Inheritance is what makes a second procurement
+ * quietly adopt the first one's compliance claims — which is the exact failure
+ * ADR-0037 §3's unattributed default exists to prevent, arriving through a
+ * convenience.
+ *
+ * `endpoint` is BOTH the audited egress fact and the client's base URL,
+ * deliberately: two fields would let a deployment record an endpoint the call
+ * never touched, and an egress record that names the wrong host is worse than
+ * none.
+ */
+export type ChatRouteConfig = {
+  modelId: string;
+  endpoint: string;
+  apiKey: string;
+  serves?: Array<'triage' | 'mid' | 'frontier'>;
+  attributes: {
+    region: 'uk' | 'eu' | 'us';
+    retention: 'zero' | 'transient';
+    jurisdiction: 'uk-sovereign' | 'foreign-reachable';
+    eligibility: 'enterprise-zdr' | 'self-hosted';
+  };
+};
+
+const routeSchema = z.object({
+  modelId: z.string().min(1),
+  endpoint: z.string().url(),
+  /** the env var holding THIS route's credential; a second provider is a second key */
+  apiKeyEnv: z.string().min(1).default('ANTHROPIC_API_KEY'),
+  /** the model tiers this route is configured to serve (T-284). Omitted = all. */
+  serves: z.array(z.enum(['triage', 'mid', 'frontier'])).nonempty().optional(),
+  region: z.enum(['uk', 'eu', 'us']),
+  retention: z.enum(['zero', 'transient']),
+  jurisdiction: z.enum(['uk-sovereign', 'foreign-reachable']),
+  eligibility: z.enum(['enterprise-zdr', 'self-hosted']),
+});
+
+export function parseChatRoutes(
+  source: string,
+  env: NodeJS.ProcessEnv = process.env,
+): ChatRouteConfig[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`MODEL_CHAT_ROUTES is not valid JSON: ${(error as Error).message}`, {
+      cause: error,
+    });
+  }
+  const routes = z.array(routeSchema).nonempty().safeParse(parsed);
+  if (!routes.success) {
+    throw new Error(
+      `MODEL_CHAT_ROUTES must be a non-empty array of declared routes: ${routes.error.message}`,
+    );
+  }
+  return routes.data.map((route) => {
+    const apiKey = env[route.apiKeyEnv];
+    if (apiKey === undefined || apiKey === '') {
+      throw new Error(
+        `MODEL_CHAT_ROUTES: route '${route.endpoint}' names ${route.apiKeyEnv}, which is not set`,
+      );
+    }
+    return {
+      modelId: route.modelId,
+      endpoint: route.endpoint,
+      apiKey,
+      ...(route.serves !== undefined && { serves: [...route.serves] }),
+      attributes: {
+        region: route.region,
+        retention: route.retention,
+        jurisdiction: route.jurisdiction,
+        eligibility: route.eligibility,
+      },
+    };
+  });
 }

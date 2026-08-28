@@ -17,6 +17,10 @@ export type ChatRequest = {
   // elevation seam. When absent the router uses the deployment default — v1
   // resolves it there, never inferring it at dispatch.
   classification?: Classification;
+  // T-285 — set by the ROUTER, never by a caller: the attempt's timeout. An
+  // adapter passes it to its provider client so a timed-out call is actually
+  // cancelled rather than merely stopped being waited for.
+  signal?: AbortSignal;
 };
 
 export type ModelIdentity = { id: string; version: string };
@@ -29,6 +33,25 @@ export type ChatResult = {
   // (ADR-0037 §6). The adapter does not populate it; the router does, because
   // classification is request-level.
   egress?: EgressFacts;
+  // T-285 — every route this call was attempted on, in order, the successful
+  // one last. Present even when the first route answered (one entry), because
+  // "no fallback fired" and "the field was not populated" must not read the
+  // same to whoever writes the audit rows.
+  attempts?: RouteAttempt[];
+};
+
+/**
+ * One dispatch attempt, whatever became of it. Carries the egress facts
+ * because the ticket's audit requirement is per ATTEMPT, not per call: a
+ * fallback that fired sent data to a second endpoint, and a record that only
+ * names the endpoint that eventually answered has omitted an egress event.
+ */
+export type RouteAttempt = {
+  endpoint: string;
+  egress: EgressFacts;
+  outcome: 'succeeded' | 'unavailable';
+  /** why the route was unavailable — absent on the attempt that answered */
+  reason?: string;
 };
 
 export type EmbedInputType = 'document' | 'query';
