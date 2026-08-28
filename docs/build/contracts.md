@@ -74,7 +74,7 @@ Pointers, never copies. Each entry names the guarantee; the file is the shape.
 | **The Lens** | A register control, never a reach one: the shape has no field a Lens could use to narrow or widen retrieval, and `governance`/`knowledge`/`data` may not mention a Lens at all (source-rule 3). | [lens.ts](../../packages/contracts/src/lens.ts) |
 | **The untrusted-content barrier** | `ExternalSource` is a *different type* from `AssembledItem` with no conversion function anywhere in the repository; the mistake is not expressible, checked by must-not-compile fixtures on every build (T-250). | [external.ts](../../packages/contracts/src/external.ts) |
 | **The error envelope** | One envelope; `not_found` covers nonexistence and denial alike (principle 4); the vocabulary is pinned. | [errors.ts](../../packages/contracts/src/errors.ts) |
-| **The ingest entry points** *(internal, `@infora/data`)* | `ingestVersion(db, router, versionId)` on every product path — an unknown id throws rather than indexing nothing quietly; the full-table sweep survives only as `ingestAllVersions`, reachable from the dev CLI and e2e substrate and from nothing on a request path. | [ingest.ts](../../packages/data/src/ingest.ts) |
+| **The ingest entry points** *(internal, `@infora/data`)* | `ingestVersion(db, router, versionId)` on every product path — an unknown id throws rather than indexing nothing quietly; the full-table sweep survives only as `ingestAllVersions`, reachable from the dev CLI and e2e substrate and from nothing on a request path, and its one option **narrows** — a project scope, never a corpus, store or organisation parameter. | [ingest.ts](../../packages/data/src/ingest.ts) |
 | **The router policy layer** *(internal, `@infora/model`)* | Every `chat`/`embed` call selects a tier-conforming route and **fails closed** when none conforms; an undeclared endpoint conforms to nothing; egress facts ride every result into the Step audit (ADR-0037). Provider SDKs live only in `packages/model`, guard-enforced. | [packages/model/src/](../../packages/model/src/) |
 
 ## The completion log — why, not what
@@ -757,3 +757,20 @@ are not recorded here.
   `wall.test.ts`'s pinned key set firing is the review rather than a problem.
   `relevance` is **absent** on a passage matched by document reference: absent
   means *not ranked*, and a zero would read as *ranked, and badly*.
+- **2026-08-28 (T-393) — `ingestAllVersions` takes a project scope, and it
+  exists so the sweep can be tested at all.** A full-table sweep run against a
+  shared, long-lived dev database is a sweep of every fixture every run on that
+  machine ever left behind: the T-012 test timed out at ~740 versions and again
+  at ~1,170, **on a clean tree**, and `docker compose down -v` was the only
+  thing that made `pnpm run check` mean anything again. CI never saw it — the
+  database there is empty — so the failure landed precisely where the check is
+  meant to be trusted and nowhere it would be caught. **The scope narrows and
+  cannot widen**, which is why it is admissible under principle 2 at all:
+  ingest excludes nothing by policy (ADR-0022, T-033), so a scope here can only
+  leave *less* indexed, never reach further, and the two real callers — the dev
+  CLI and the e2e substrate, both indexing a seeded database from nothing —
+  pass none, so the default is still the full walk. **The bound is also the
+  assertion.** `summary.versions` is now an exact count of the suite's own two
+  fixtures, so a sweep that reached past them fails the test rather than merely
+  taking longer; raising the timeout would have hidden exactly the property the
+  test is for.

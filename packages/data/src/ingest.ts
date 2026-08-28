@@ -14,6 +14,12 @@
 // survives as `ingestAllVersions` and is named so a caller cannot reach for it
 // by accident: it belongs to the dev CLI and the e2e substrate, which index a
 // seeded database from nothing, and to nothing on a request path.
+//
+// T-393 — and because the sweep is linear in what it walks, it can only be
+// TESTED against versions of its own: the suite shares one long-lived dev
+// database, so an unbounded sweep in a test is a sweep of every fixture every
+// run since the machine was set up ever left behind. `SweepOptions.projectId`
+// is what bounds it, and the sweep's own test is the only caller that passes one.
 import { and, eq, inArray } from 'drizzle-orm';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -24,6 +30,16 @@ const INDEX_DIMENSIONS = 1024; // version_chunks.embedding — vector(1024)
 
 export type IngestSummary = { versions: number; chunks: number; model: string };
 export type IngestOptions = { maxChars?: number };
+// T-393 — the sweep's only extra knob: which project's versions it walks.
+// **Narrowing only, and never on a request path** — ingest excludes nothing by
+// policy (ADR-0022, T-033), so a scope here can only ever leave *less* indexed,
+// never reach further. Both real callers (the dev CLI, the e2e substrate) index
+// a seeded database from nothing and pass none, which is why the default stays
+// the full walk. It exists because a full-table sweep cannot be *tested*
+// against a shared dev database: the suite inherits every version every earlier
+// run ever left behind, so the test got slower with the machine's age and
+// timed out at ~740 versions on a clean tree.
+export type SweepOptions = IngestOptions & { projectId?: string };
 
 // T-298 — versions carry their project, because the chunk index is under
 // row-level security (T-247) and the replace-wholesale step below has to be
@@ -62,20 +78,22 @@ export async function ingestVersion(
 }
 
 /**
- * The full sweep — every version in the database. Idempotent and correct, and
- * **linear in the size of the corpus**, so it belongs to the dev ingest CLI and
- * the e2e substrate only. On a request path use `ingestVersion` (T-302).
+ * The full sweep — every version in the database, or every version of one
+ * project when `projectId` is given. Idempotent and correct, and **linear in
+ * the size of what it walks**, so it belongs to the dev ingest CLI and the e2e
+ * substrate only. On a request path use `ingestVersion` (T-302).
  */
 export async function ingestAllVersions(
   db: Db,
   router: Router,
-  options: IngestOptions = {},
+  options: SweepOptions = {},
 ): Promise<IngestSummary> {
   assertIndexGeometry(router);
   const versions = await db
     .select(versionColumns)
     .from(s.versions)
-    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id));
+    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .where(options.projectId ? eq(s.containers.projectId, options.projectId) : undefined);
   return ingestRows(db, router, versions, options);
 }
 

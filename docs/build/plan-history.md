@@ -816,6 +816,29 @@ the board ordered them.
   **The surface change needed one contract field.** `PlanRow.deliverableCode` gains `isContractual`, because the only other way to tell was the current revision's prefix — inferring the outcome backwards from its side effect, and wrong in the direction that matters: an accepted deliverable whose current revision is still the round's `P` would have rendered as *"round 2 issued"*, which reads as still under review. The status page now says **"round N, retained on acceptance"** and adds an **On acceptance** row that states the fork in words: *contractual — the C revision was issued*, or *not contractual — no C revision, and the reviewed revision stands as the accepted content*.
   **A consequence worth naming:** with no C, the **P series is what continues**, so the next submission is `P02` rather than a `P02` sitting after a `C01` that never existed. Pinned by a test, because the revision sequence is the one thing every reference in the record is built on.
 
+- **T-393 — The ingest sweep's test is scoped to its own fixtures.** *(Minted 2026-08-28 from Session C's report.)* `ingestAllVersions` is a full-table sweep and its test inherits the shared dev database's entire history — it timed out at ~740 and again at ~1,170 versions **on a clean tree**, and only a `docker compose down -v` reset makes `pnpm run check` meaningful again. CI never sees this (empty database), so the failure lands exactly where the check is supposed to be trusted: locally, on any dev machine old enough to have history. **Done when:** the test exercises the sweep against a bounded fixture set of its own and passes on a dev database of any age; a full reset stops being the workaround. | *(Deps: none)*
+  **As built.** `SweepOptions` adds one field to the sweep — `projectId` — and
+  the suite is the only caller that passes it. **It narrows and cannot widen:**
+  ingest excludes nothing by policy (ADR-0022, T-033), so a scope on an ingest
+  can only leave *less* indexed, never reach further, which is what makes it
+  admissible at all next to principle 2's no-widening-parameter rule. The dev
+  CLI and the e2e substrate both index a seeded database from nothing and pass
+  none, so the sweep's default behaviour is unchanged and neither call site
+  moved.
+  🔒 **The bound is also the assertion, and that is the half that keeps the fix
+  honest.** `summary.versions` is now `toBe(2)` — exactly the two fixtures
+  `beforeAll` makes — where it was `toBeGreaterThanOrEqual(1)`, a shape that
+  passed identically whether the sweep walked two versions or eleven hundred.
+  A sweep that reached past this project now **fails** the test rather than
+  slowing it down, so the scope cannot be quietly dropped later and go
+  unnoticed. Verified on a dev database already holding 116 versions from
+  earlier runs: the sweep reports two.
+  ⚠ **Raising the timeout was the available non-fix and is what the ticket
+  forbids.** The test was not slow; it was measuring the wrong thing — the age
+  of the developer's database — and a larger timeout would have made that
+  measurement quieter without making it mean anything. `docker compose down -v`
+  stops being the workaround because there is nothing left for the reset to fix.
+
 ### Slice V1-N
 
 *Ruled 2026-08-01, design session 3 → [ADR-0049](../architecture/adr/0049-notifications-and-the-promotion-gate.md), closing `Q-012`; built from 2026-08-28. Records move here ticket by ticket as they close. **T-330 is not among them** — the emitter waits on T-323 (the SES transport) and therefore on external lead time, so the record, the surface and the gate ship first and the telling follows.*

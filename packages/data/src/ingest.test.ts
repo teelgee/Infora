@@ -6,6 +6,16 @@
 // T-302 extends it: `ingestVersion` indexes the version it was named and
 // **nothing else**, which is the whole point — the sweep it replaces was
 // linear in the corpus on every library admission.
+//
+// T-393 — every sweep below is bound to this suite's own project. The sweep is
+// linear in what it walks and the dev database is shared and long-lived, so an
+// unbounded sweep here re-chunks and re-embeds every fixture every run on this
+// machine has ever left behind: it timed out at ~740 versions and again at
+// ~1,170, on a clean tree, and `docker compose down -v` was the only thing that
+// made `pnpm run check` mean anything again. CI never saw it (empty database),
+// which is exactly the wrong way round. The bound is also the assertion —
+// `summary.versions` is now an EXACT count, so a sweep that reached past this
+// project's two fixtures fails the test rather than merely slowing it down.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { createDb, schema as s, withProjectScope } from '@infora/db';
@@ -85,8 +95,10 @@ describe('ingestAllVersions (T-012)', () => {
   it('chunks every version and pins the embedding model per row', async () => {
     const summary = await ingestAllVersions(db, new Router(fakeChat, fakeEmbeddings(1024)), {
       maxChars: 40,
+      projectId,
     });
-    expect(summary.versions).toBeGreaterThanOrEqual(1);
+    // exactly the two fixtures beforeAll made, and nothing else in the database
+    expect(summary.versions).toBe(2);
 
     // T-247 — the chunk index is under row-level security, so a read must
     // declare its project scope exactly as retrieval does. An unscoped read
@@ -106,7 +118,10 @@ describe('ingestAllVersions (T-012)', () => {
   });
 
   it('re-ingest replaces a version’s chunks — no duplicates, no stale rows', async () => {
-    await ingestAllVersions(db, new Router(fakeChat, fakeEmbeddings(1024, 'fake-2')));
+    const summary = await ingestAllVersions(db, new Router(fakeChat, fakeEmbeddings(1024, 'fake-2')), {
+      projectId,
+    });
+    expect(summary.versions).toBe(2);
     const rows = await withProjectScope(db, projectId, (tx) =>
       tx.select().from(s.versionChunks).where(eq(s.versionChunks.versionId, versionId)),
     );
@@ -115,9 +130,9 @@ describe('ingestAllVersions (T-012)', () => {
   });
 
   it('refuses an embedding geometry the index is not pinned to (ADR-0024)', async () => {
-    await expect(ingestAllVersions(db, new Router(fakeChat, fakeEmbeddings(512)))).rejects.toThrow(
-      /re-index deliberately/,
-    );
+    await expect(
+      ingestAllVersions(db, new Router(fakeChat, fakeEmbeddings(512)), { projectId }),
+    ).rejects.toThrow(/re-index deliberately/);
   });
 });
 
