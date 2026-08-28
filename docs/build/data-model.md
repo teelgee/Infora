@@ -550,8 +550,7 @@ deferred: **programme** and programme context; the **org-context / Knowledge /
 precedent** stores and the distillation loop (Sessions 4/7); **custom agents**
 and the builder (Slice F); the **authority corpus** internals (ADR-0023 —
 referenced by Citation, owned by Context); **rails as scoped records**
-(ADR-0030); **notifications** (ruled by ADR-0049, ticketed as T-329 — the
-first drawer the drawing-board rule above will apply to); portfolio and
+(ADR-0030); portfolio and
 programme views. Each is drawn here, fields first, when its slice starts.
 
 ## Open items sent back to the grill tracker
