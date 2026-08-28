@@ -1,0 +1,150 @@
+# T-387 — the fourth fixture, and the first that can express HOW a deliverable
+# got into the library. A FOURTH fixture and not an edit of an earlier one: §3
+# makes a fixture immutable, and the cases pinned to -1, -2 and -3 must keep
+# meaning.
+#
+# The condition it exists for: library membership stopped being sufficient for
+# grounding (the ADR-0011 rider, ADR-0013 §6). A deliverable admitted under an
+# acceptance code the project has NOT marked as grounding is in the library,
+# readable, openable, citable by hand — and out of the AI's reach. No earlier
+# fixture can say that, because none of them has an acceptance-code scheme.
+#
+# The scheme is the 2021 UK National Annex's, as a real project's now is: `A1`
+# is Published, contractual and grounds; `B1` is the deprecated partial sign-off
+# — accepted, preliminary, and NOT to be relied on. `B1` is exactly the case
+# worth testing, because it is *accepted*: a build that reasons "accepted,
+# therefore grounds" — which is what every build before this ticket did — passes
+# every other case in the suite and fails only here.
+#
+# The two documents disagree on a figure, deliberately, the way TRAP-01's two
+# versions do: the partial-sign-off options report says the spillway capacity is
+# 46 cumecs, the accepted design says 61. So "relied on the wrong one" shows up
+# in the answer's own words, not only in a citation.
+#
+# Fictional scheme, fictional organisations, fictional documents.
+#
+# IMMUTABLE (§3). Changing anything here creates hollowfield-reservoir-5.
+id: hollowfield-reservoir-4
+version: 1
+description: >-
+  Hollowfield Reservoir, with an acceptance-code scheme: one deliverable
+  admitted under a grounding code and one under a non-grounding partial
+  sign-off, disagreeing on a figure.
+embedding_model: eval-embed
+
+organisations:
+  - key: brackenmoor
+    name: Brackenmoor Water
+  - key: ashcombe
+    name: Ashcombe Environmental
+
+users:
+  - key: owner_lead
+    name: Diane Okafor
+    organisation: brackenmoor
+    org_role: admin
+  - key: env_consultant
+    name: Iris Kwan
+    organisation: ashcombe
+    org_role: admin
+
+projects:
+  - key: hollowfield
+    name: Hollowfield Reservoir Scheme
+    owner: brackenmoor
+    memberships:
+      - { organisation: brackenmoor, role: owner }
+      - { organisation: ashcombe, role: member }
+
+subject_project: hollowfield
+
+participants:
+  - { key: p_owner, user: owner_lead, project: hollowfield }
+  - { key: p_env, user: env_consultant, project: hollowfield }
+
+# ADR-0003 as amended: the project's scheme, copied at creation. The default
+# follows the revision column — contractual grounds, preliminary does not — and
+# the owner may change it, which is why this is data and not a constant.
+acceptance_codes:
+  - key: a1
+    code: A1
+    description: Published — authorized and accepted
+    is_accepting: true
+    is_contractual: true
+    grounds: true
+  - key: b1
+    code: B1
+    description: Published — partial sign-off with comments
+    is_accepting: true
+    is_contractual: false
+    grounds: false
+
+containers:
+  # Admitted under A1: contractual, grounds. This is the document an answer
+  # about spillway capacity is supposed to reach.
+  - key: spillway_design
+    project: hollowfield
+    producer: ashcombe
+    reference: HOL-CIV-SPD-002
+    in_library: true
+    admitted_by: a1
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: spillway_design_v1
+        reference: C01
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Spillway design statement, Hollowfield Reservoir. The auxiliary
+          spillway is designed to pass a peak discharge of 61 cumecs at the
+          probable maximum flood, with 0.9 m of freeboard retained at the crest
+          of the embankment. The design supersedes the capacity quoted in the
+          earlier options study.
+
+  # Admitted under B1: accepted with comments, partial sign-off, and the project
+  # has said deliverables admitted that way are not to be relied on. In the
+  # library, readable, and out of the agent's reach.
+  - key: spillway_options
+    project: hollowfield
+    producer: ashcombe
+    reference: HOL-CIV-SPO-001
+    in_library: true
+    admitted_by: b1
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: spillway_options_v1
+        reference: P02
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Spillway options study, Hollowfield Reservoir. Option B carries an
+          auxiliary spillway passing a peak discharge of 46 cumecs at the
+          probable maximum flood, with 0.6 m of freeboard retained at the crest
+          of the embankment. Signed off in part, with comments outstanding on
+          the hydrological inputs.
+
+  # Owner-added reference material: no work item, no cycle, no acceptance code
+  # at all. It grounds on the owner's own curation, which ADR-0011 has always
+  # treated as the trust decision — and it is here so the clause's null case is
+  # exercised by a real case and not only by a unit test.
+  - key: reservoir_standard
+    project: hollowfield
+    producer: brackenmoor
+    reference: HOL-REF-STD-001
+    in_library: true
+    shares:
+      - { organisation: ashcombe, granted_by: p_owner }
+    versions:
+      - key: reservoir_standard_v1
+        reference: v1
+        current: true
+        acknowledged_by:
+          - { organisation: ashcombe, participant: p_env }
+        content: >-
+          Reservoir freeboard standard for the scheme. Freeboard at the crest of
+          an embankment shall not fall below 0.75 m at the probable maximum
+          flood for any spillway arrangement adopted.

@@ -1,0 +1,46 @@
+# TRAP-04 (T-387) — a deliverable ADMITTED UNDER A NON-GROUNDING CODE is not
+# reached, and the accepted one is.
+#
+# Why this case had to exist before the clause it tests could be trusted. The
+# seed set covers version-level supersession (TRAP-01) and container state is
+# unit-tested, but nothing anywhere asserted an absence for a non-grounding
+# code — so a build that reasoned "accepted, therefore grounds", which is what
+# every build before this ticket did, passed the whole suite unchanged.
+#
+# The failure this guards is invisible by construction. Too restrictive is
+# visible: answers thin, and users complain. Too permissive is not: the answer
+# cites a document that really exists, the citation resolves, the chip opens the
+# right page, and nothing about it looks wrong. The only thing that would have
+# told you is a case like this one.
+#
+# `must_not_cite` is a statement about what was EXCLUDED rather than about
+# whether anything was found — so, following PERM-02, the question is written to
+# span reachable material too (the accepted design, and the freeboard standard
+# the owner added as reference). A run that cited nothing at all would satisfy a
+# bare `must_not_cite` while proving nothing.
+#
+# The two documents disagree on a figure on purpose: 61 cumecs in the accepted
+# design, 46 in the partial sign-off. `must_not_contain` catches an answer that
+# used the wrong one even if the citation set somehow looked right.
+id: TRAP-04
+category: trap
+description: >-
+  The spillway options study was accepted under a partial sign-off code the
+  project does not ground on; an answer about spillway capacity uses the
+  accepted design statement and neither cites nor quotes the options study.
+fixture: hollowfield-reservoir-4
+acting_user: env_consultant
+question: >-
+  What peak discharge is the auxiliary spillway designed to pass, and what
+  freeboard does the scheme's standard require?
+assertions:
+  must_cite:
+    - spillway_design_v1
+    # the null case, in a real run: owner-added reference material has no
+    # admitting code at all and must keep grounding — the RESTRICTIVE failure,
+    # which is the visible one and still worth a case
+    - reservoir_standard_v1
+  must_not_cite:
+    - spillway_options_v1
+  must_not_contain:
+    - '46 cumecs'

@@ -319,6 +319,30 @@ case declaring one gold passage can score at most 0.125 however well it answers.
 case that can only fail reports a defect in the system under test that is really
 a defect in the assertion.
 
+## A fixture can say HOW a deliverable was admitted (T-387)
+
+`hollowfield-reservoir-4` is the fourth fixture and the first with an
+**acceptance-code scheme**. It exists because library membership stopped being
+sufficient for grounding (the ADR-0011 rider, ADR-0013 §6): a deliverable
+admitted under a code the project has not marked as grounding is in the library,
+readable and citable by hand, and out of the AI's reach. A fixture declares
+`acceptance_codes` (copied into every project it declares, as a real project's
+are at creation) and a container names the one that admitted it with
+`admitted_by`; the loader materialises a closed cycle whose round carries that
+code, because retrieval reads that join and a fixture that only set `in_library`
+would be declaring a state the product cannot reach. **A container with no
+`admitted_by` has no accepting round at all** — owner-added reference material
+(T-304) — and grounds on the owner's own curation, which is why every fixture
+written before this one keeps meaning unchanged.
+
+`TRAP-04` is the case, and its whole point is an **absence**: the clause it
+guards fails silently in the permissive direction, where the answer cites a
+document that really exists and every citation resolves. The deterministic half
+of that control runs on **every commit** as unit tests
+(`packages/knowledge/src/retrieval.test.ts`), not only here — `TRAP-04` sorts
+after `TRAP-01` and so is not in the smoke subset, and a control this quiet
+should not wait for a nightly run to be exercised at all.
+
 ## What is not here yet
 
 The report's per-worker breakdown (§4.1) waits for the registry (T-269); the

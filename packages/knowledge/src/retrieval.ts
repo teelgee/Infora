@@ -91,16 +91,61 @@ export async function groundedLibrary(
 // corpus — one live version per container falls out of is_current + state.
 // An optional classification scope narrows to containers carrying one of the
 // given terms (the ontology's semantic pre-filter, T-242), in the same query.
+//
+// T-387 — the third condition. Library membership was sufficient for grounding
+// and is now only necessary (the ADR-0011 rider): a container grounds when it is
+// in the library AND its record state is `live` AND the acceptance code that
+// admitted it carries the project's grounding rule. It lives HERE, in the filter
+// both arms of the one gateway call share, rather than in any caller — ADR-0029
+// §4 puts baseline assembly and targeted sub-agent retrieval on one call exactly
+// so a guarantee holds in both modes, and a clause added one path up would let
+// an agentic sub-agent reach what the baseline excludes.
 function liveLibraryFilter(slice: EntitledSlice, modelId: string, scope: string[] = []) {
   return and(
     eq(s.containers.projectId, slice.projectId),
     eq(s.containers.inLibrary, true),
     eq(s.containers.state, 'live'),
+    groundingCodeSql(),
     eq(s.versions.isCurrent, true),
     eq(s.versionChunks.embeddingModelId, modelId),
     deliverableVisibleSql(slice),
     scope.length > 0 ? classificationScopeSql(scope) : undefined,
   );
+}
+
+// The admitting code's grounding rule, read LIVE (ADR-0013 §6). The scalar
+// subquery is the code of the container's most recent ACCEPTING round — the act
+// that admitted it to the library — and `is not false` is doing the load-bearing
+// work at the null:
+//
+//   grounds = true   → grounds.
+//   grounds = false  → excluded. The code admitted the deliverable and the
+//                      project has said deliverables admitted that way are not
+//                      to be relied on (a preliminary An, a partial sign-off).
+//   NO accepting round at all → NULL → grounds. This is owner-added reference
+//                      material (T-304: no work item, no cycle, no code). Its
+//                      admission decision is the owner's own curation, which
+//                      ADR-0011 has always treated as the trust decision; a
+//                      clause requiring a grounding code would have silently
+//                      emptied the reference half of every project library.
+//
+// NOT denormalised onto the container, and that is a measured decision rather
+// than an omission — see the ticket record in plan-history.md for the number.
+// ADR-0013 §6 permits caching WHICH code admitted a container (immutable) and
+// forbids caching the answer: a super user turning a code off is making a claim
+// about the very next query, and T-390's blast-radius count is the surface
+// making that promise on this path's behalf.
+function groundingCodeSql(): SQL {
+  return sql`(
+    select ac.grounds
+      from rounds r
+      join review_cycles rc on rc.id = r.cycle_id
+      join acceptance_codes ac on ac.id = r.deliverable_code_id
+     where rc.container_id = ${s.containers.id}
+       and ac.is_accepting
+     order by rc.launched_at desc, r.number desc
+     limit 1
+  ) is not false`;
 }
 
 // A container is in scope if it is classified under any of the given terms —

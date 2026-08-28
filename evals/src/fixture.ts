@@ -57,6 +57,14 @@ const containerSchema = z
     reference: z.string(), // the deliverable code, e.g. HOL-ENV-WQR-001
     in_library: z.boolean().default(true),
     state: z.enum(['live', 'superseded', 'withdrawn']).default('live'),
+    // T-387 — the acceptance code that ADMITTED this deliverable to the library.
+    // Library membership is necessary and no longer sufficient for grounding
+    // (the ADR-0011 rider): a deliverable admitted under a code the project has
+    // not marked as grounding is in the library, readable, citable by hand — and
+    // out of the AI's reach. Absent means no accepting round at all, which is
+    // owner-added reference material (T-304) and grounds on the owner's own
+    // curation, so every fixture written before this stays exactly as it was.
+    admitted_by: key.optional(),
     shares: z
       .array(
         z.object({
@@ -99,6 +107,24 @@ export const fixtureSchema = z
       )
       .min(1),
     participants: z.array(z.object({ key, user: key, project: key })).default([]),
+    // T-387 — the project's acceptance-code scheme (ADR-0003 as amended), copied
+    // into every project the fixture declares, as a real project's is at
+    // creation. `grounds` is per-code and per-project because the 2021 National
+    // Annex leaves each Published code's meaning to the project's own
+    // information standard — so a fixture that wants to say "accepted, but not
+    // to be relied on by the agent" has to say it here.
+    acceptance_codes: z
+      .array(
+        z.object({
+          key,
+          code: z.string(),
+          description: z.string(),
+          is_accepting: z.boolean().default(true),
+          is_contractual: z.boolean().default(false),
+          grounds: z.boolean().default(false),
+        }),
+      )
+      .default([]),
     // the project a case's question is asked in; required once a fixture
     // carries more than one project
     subject_project: key.optional(),
@@ -191,9 +217,13 @@ function validate(fixture: Fixture, path: string): Fixture {
     if (!users.has(participant.user)) fail(`participant ${participant.key} names unknown user ${participant.user}`);
     if (!projects.has(participant.project)) fail(`participant ${participant.key} names unknown project ${participant.project}`);
   }
+  const codes = known(fixture.acceptance_codes.map((c) => c.key));
   for (const container of fixture.containers) {
     if (!projects.has(container.project)) fail(`container ${container.key} names unknown project ${container.project}`);
     if (!orgs.has(container.producer)) fail(`container ${container.key} names unknown producer ${container.producer}`);
+    if (container.admitted_by !== undefined && !codes.has(container.admitted_by)) {
+      fail(`container ${container.key} is admitted by unknown acceptance code ${container.admitted_by}`);
+    }
     for (const share of container.shares) {
       if (!orgs.has(share.organisation)) fail(`container ${container.key} shares with unknown organisation ${share.organisation}`);
       if (!participants.has(share.granted_by)) fail(`container ${container.key} names unknown granting participant ${share.granted_by}`);
@@ -305,6 +335,28 @@ export async function materialise(
     instance.participantIds.set(participant.key, row!.id);
   }
 
+  // T-387 — the acceptance-code scheme, copied into every project, as a real
+  // project's is at creation (ADR-0003: a copy, never a shared reference, so one
+  // project's edits cannot rewrite another's history). Keyed per project because
+  // that copy is the whole point.
+  const codeIds = new Map<string, string>();
+  for (const [projectKey, projectId] of instance.projectIds) {
+    for (const code of fixture.acceptance_codes) {
+      const [row] = await db
+        .insert(s.acceptanceCodes)
+        .values({
+          projectId,
+          code: code.code,
+          description: code.description,
+          isAccepting: code.is_accepting,
+          isContractual: code.is_contractual,
+          grounds: code.grounds,
+        })
+        .returning();
+      codeIds.set(`${projectKey}|${code.key}`, row!.id);
+    }
+  }
+
   for (const container of fixture.containers) {
     const [row] = await db
       .insert(s.containers)
@@ -392,6 +444,24 @@ export async function materialise(
           acknowledgedByParticipantId: instance.participantIds.get(ack.participant)!,
         });
       }
+    }
+
+    // T-387 — the admission act itself: a closed cycle whose round carries the
+    // accepting code. Retrieval reads this join, so a fixture that only set
+    // `in_library` would be declaring a state the product cannot reach.
+    if (container.admitted_by !== undefined) {
+      const currentVersion = container.versions.find((v) => v.current)!;
+      const [cycle] = await db
+        .insert(s.reviewCycles)
+        .values({ containerId: row!.id, state: 'accepted' })
+        .returning();
+      await db.insert(s.rounds).values({
+        cycleId: cycle!.id,
+        number: 1,
+        versionId: instance.versionIds.get(currentVersion.key)!,
+        state: 'issued',
+        deliverableCodeId: codeIds.get(`${container.project}|${container.admitted_by}`)!,
+      });
     }
   }
 

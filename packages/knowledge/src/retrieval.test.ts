@@ -28,6 +28,12 @@ async function addDocument(options: {
   // keeping as the default: most of these cases are about the pre-filter, and
   // they should keep exercising the version-grain degrade for free.
   chunkMaxChars?: number;
+  // T-387 — how the deliverable was ADMITTED to the library: one closed cycle
+  // per entry, in chronological order, each accepted under a code that grounds
+  // or does not. Left unset the container has no accepting round at all, which
+  // is owner-added reference material (T-304) and is the default here because
+  // it is what every fixture written before this ticket implicitly was.
+  admittedBy?: boolean[];
 }) {
   // the producing organisation is the test project's owner (ADR-0033, T-114)
   const [proj] = await db
@@ -74,8 +80,32 @@ async function addDocument(options: {
       })),
     );
   }
+  // T-387 — the admission history: a cycle per entry, accepted under a code
+  // whose `grounds` flag is the entry. `launched_at` is set explicitly and
+  // spaced, because the clause reads the MOST RECENT accepting round and two
+  // cycles opened in the same millisecond would make that order arbitrary.
+  for (const [at, grounds] of (options.admittedBy ?? []).entries()) {
+    const [cycle] = await db
+      .insert(s.reviewCycles)
+      .values({
+        containerId: container!.id,
+        state: 'accepted',
+        launchedAt: new Date(Date.UTC(2026, 0, 1 + at)),
+      })
+      .returning();
+    await db.insert(s.rounds).values({
+      cycleId: cycle!.id,
+      number: 1,
+      versionId: versionIds[versionIds.length - 1]!,
+      state: 'issued',
+      deliverableCodeId: grounds ? groundingCodeId : nonGroundingCodeId,
+    });
+  }
   return versionIds;
 }
+
+let groundingCodeId: string;
+let nonGroundingCodeId: string;
 
 let liveAlphaVersionId: string;
 let supersededBetaVersionId: string;
@@ -107,6 +137,7 @@ beforeAll(async () => {
     membershipRole: 'owner',
     elevated: false,
   };
+
 
   liveAlphaVersionId = (
     await addDocument({
@@ -295,5 +326,197 @@ describe('grounded library retrieval (T-031)', () => {
       'WA-GEO-GIR-004',
     ]);
     expect(extractReferenceCodes('no codes here')).toEqual([]);
+  });
+});
+
+// T-387 — the third grounding condition (the ADR-0011 rider, ADR-0013 §6).
+//
+// ⚠ THE TESTS LEAN ONE WAY ON PURPOSE. This clause fails silently and
+// asymmetrically: too RESTRICTIVE is visible — answers thin out and users
+// complain — while too PERMISSIVE is invisible, because the answer cites a
+// document that really exists and every citation still resolves. So the cases
+// below are mostly assertions of ABSENCE, and each excluded fixture is given
+// content the query would otherwise match exactly, the same discipline the
+// pre-filter cases above use.
+describe('the admitting code decides whether a deliverable grounds (T-387)', () => {
+  // ITS OWN PROJECT, deliberately. The fake embedder ranks by keyword basis and
+  // every fixture here shares the fallback basis, so on a shared project the
+  // eight-chunk budget decides which of them comes back — and a test whose
+  // absence assertion is satisfied by a crowded budget rather than by the
+  // pre-filter is exactly the reassurance this ticket exists to refuse.
+  let codeSlice: EntitledSlice;
+
+  beforeAll(async () => {
+    const stamp = Date.now();
+    const [org] = await db.insert(s.organisations).values({ name: 't387 org' }).returning();
+    const [project] = await db
+      .insert(s.projects)
+      .values({ name: 't387 project', ownerOrganisationId: org!.id })
+      .returning();
+    await db
+      .insert(s.memberships)
+      .values({ organisationId: org!.id, projectId: project!.id, role: 'owner' });
+    const [user] = await db
+      .insert(s.users)
+      .values({ name: 't387', email: `t387-${stamp}@test.local`, organisationId: org!.id })
+      .returning();
+    const [participant] = await db
+      .insert(s.participants)
+      .values({ userId: user!.id, projectId: project!.id })
+      .returning();
+    codeSlice = {
+      organisationId: org!.id,
+      participantId: participant!.id,
+      projectId: project!.id,
+      membershipRole: 'owner',
+      elevated: false,
+    };
+
+    // the project's own scheme: one accepting code that grounds and one that
+    // does not. The 2021 National Annex makes Published codes stage-agnostic and
+    // leaves each `An` code's meaning to the project's information standard,
+    // which is precisely why this is per-project data and not a constant.
+    const [grounding] = await db
+      .insert(s.acceptanceCodes)
+      .values({
+        projectId: project!.id,
+        code: 'A1',
+        description: 'Published — authorized and accepted',
+        isAccepting: true,
+        isContractual: true,
+        grounds: true,
+      })
+      .returning();
+    groundingCodeId = grounding!.id;
+    const [preliminary] = await db
+      .insert(s.acceptanceCodes)
+      .values({
+        projectId: project!.id,
+        code: 'B1',
+        description: 'Published — partial sign-off with comments',
+        isAccepting: true,
+        isContractual: false,
+        grounds: false,
+      })
+      .returning();
+    nonGroundingCodeId = preliminary!.id;
+  });
+
+  const contentsOf = async (text: string, mode: 'baseline' | 'targeted' = 'baseline') =>
+    (await groundedLibrary(deps, codeSlice, { text, mode })).map((i) => i.content).join(' ');
+
+  it('excludes a deliverable admitted under a NON-GROUNDING code', async () => {
+    const stamp = Date.now();
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference: `T387-LIB-PARTIAL-${stamp}`,
+      versions: [{ current: true, content: 'delta partial sign-off: the culvert capacity is 2.4 cumecs.' }],
+      admittedBy: [false],
+    });
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference: `T387-LIB-FULL-${stamp}`,
+      versions: [{ current: true, content: 'delta accepted: the culvert capacity is 3.1 cumecs.' }],
+      admittedBy: [true],
+    });
+
+    const contents = await contentsOf('delta culvert capacity cumecs');
+    // the invisible failure, named: a broken-permissive build returns this and
+    // looks perfectly healthy doing it
+    expect(contents).not.toContain('partial sign-off');
+    expect(contents).toContain('delta accepted');
+  });
+
+  it('holds in TARGETED mode too — the clause is in the gateway, not a caller', async () => {
+    // ADR-0029 §4 puts baseline assembly and targeted sub-agent retrieval on one
+    // call precisely so a guarantee holds in both; a clause added one path up
+    // would let an agentic sub-agent reach what the baseline excludes, and
+    // nothing about the answer would look wrong
+    expect(await contentsOf('delta culvert capacity cumecs', 'targeted')).not.toContain(
+      'partial sign-off',
+    );
+  });
+
+  it('holds on the LEXICAL arm too — naming the code does not open the door', async () => {
+    const stamp = Date.now();
+    const reference = `T387-LIB-NAMED-${stamp}`;
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference,
+      versions: [{ current: true, content: 'epsilon partial: the embankment was re-profiled in May.' }],
+      admittedBy: [false],
+    });
+    // the hybrid's code arm beats similarity, so it is the path most likely to
+    // reach past a filter that was only applied to the vector arm
+    expect(await contentsOf(`summarise ${reference} for the report`)).not.toContain(
+      'epsilon partial',
+    );
+  });
+
+  it('the MOST RECENT accepting round decides, in both directions', async () => {
+    const stamp = Date.now();
+    // accepted preliminary first, then properly: it grounds now
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference: `T387-LIB-RESCUED-${stamp}`,
+      versions: [{ current: true, content: 'zeta rescued: the ground investigation was re-issued.' }],
+      admittedBy: [false, true],
+    });
+    // and the other way round, which is the one that fails quietly
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference: `T387-LIB-DEMOTED-${stamp}`,
+      versions: [{ current: true, content: 'zeta demoted: the ground investigation was re-opened.' }],
+      admittedBy: [true, false],
+    });
+
+    const contents = await contentsOf('zeta ground investigation');
+    expect(contents).toContain('zeta rescued');
+    expect(contents).not.toContain('zeta demoted');
+  });
+
+  it('owner-added reference material has no admitting code, and still grounds', async () => {
+    // T-304: a reference container has no work item, no cycle and no code. Its
+    // admission decision is the owner's own curation, which ADR-0011 has always
+    // treated as the trust decision — a clause requiring a grounding code would
+    // have silently emptied the reference half of every project library, which
+    // is the RESTRICTIVE failure and the one users would eventually report
+    const stamp = Date.now();
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference: `T387-LIB-REF-${stamp}`,
+      versions: [{ current: true, content: 'eta reference: the design manual for roads and bridges.' }],
+    });
+    expect(await contentsOf('eta design manual roads bridges')).toContain('eta reference');
+  });
+
+  it('the flag is read LIVE — turning a code off changes the very next query', async () => {
+    // ADR-0013 §6 forbids caching the composite answer, and T-390's editor
+    // promises a blast-radius count about the NEXT query. If this path cached
+    // anything, that promise would be one the surface makes and retrieval does
+    // not keep.
+    const stamp = Date.now();
+    const reference = `T387-LIB-LIVE-${stamp}`;
+    await addDocument({
+      projectId: codeSlice.projectId,
+      reference,
+      versions: [{ current: true, content: 'theta live-flag: the outfall headwall was rebuilt.' }],
+      admittedBy: [true],
+    });
+    expect(await contentsOf('theta outfall headwall')).toContain('theta live-flag');
+
+    await db
+      .update(s.acceptanceCodes)
+      .set({ grounds: false })
+      .where(eq(s.acceptanceCodes.id, groundingCodeId));
+    try {
+      expect(await contentsOf('theta outfall headwall')).not.toContain('theta live-flag');
+    } finally {
+      await db
+        .update(s.acceptanceCodes)
+        .set({ grounds: true })
+        .where(eq(s.acceptanceCodes.id, groundingCodeId));
+    }
+    expect(await contentsOf('theta outfall headwall')).toContain('theta live-flag');
   });
 });
