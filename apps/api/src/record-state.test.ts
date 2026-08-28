@@ -264,6 +264,73 @@ describe('the withdrawal guard follows the publication boundary (T-384)', () => 
   });
 });
 
+// T-388 — context state on the deliverable read: whether the AI may rely on
+// this deliverable, and if not, why. DERIVED, never stored — a switch that set
+// it independently of its inputs would give the platform two state machines
+// that could disagree, invisibly, because every citation would still resolve.
+describe('context state, and the badge that names its reason (T-388)', () => {
+  const contextOf = async (containerId: string) =>
+    (await readRow(containerId, ownerCookie)).contextState;
+
+  it('names withdrawal, supersession and rejection by their own words', async () => {
+    for (const state of ['withdrawn', 'superseded', 'rejected'] as const) {
+      const containerId = await publishedRow(`T388-${state.toUpperCase()}-${stamp}`);
+      expect(await contextOf(containerId)).toEqual({ grounds: true, reason: null });
+      await db.update(s.containers).set({ state }).where(eq(s.containers.id, containerId));
+      // whatever code got the deliverable there — a project may configure which
+      // codes admit, never configure its way past this (ADR-0013 §6)
+      expect(await contextOf(containerId)).toEqual({ grounds: false, reason: state });
+    }
+  });
+
+  it('names the admitting code’s own description when the code does not ground', async () => {
+    const [preliminary] = await db
+      .insert(s.acceptanceCodes)
+      .values({
+        projectId,
+        code: `B1-${stamp}`,
+        description: 'partial sign-off',
+        isAccepting: true,
+        grounds: false,
+      })
+      .returning();
+    const containerId = await publishedRow(`T388-CODE-${stamp}`);
+    const [cycle] = await db
+      .insert(s.reviewCycles)
+      .values({ containerId, state: 'accepted' })
+      .returning();
+    const [version] = await db
+      .insert(s.versions)
+      .values({ containerId, versionReference: 'C01', content: 'accepted in part', isCurrent: true })
+      .returning();
+    await db.insert(s.rounds).values({
+      cycleId: cycle!.id,
+      number: 1,
+      versionId: version!.id,
+      state: 'issued',
+      deliverableCodeId: preliminary!.id,
+    });
+
+    // the reason is the PROJECT's own words: the 2021 National Annex requires
+    // each Published code's meaning to be written into the project's
+    // information standard, so no platform phrase is true of every project
+    expect(await contextOf(containerId)).toEqual({ grounds: false, reason: 'partial sign-off' });
+  });
+
+  it('an unpublished plan row is out of reach, and says which condition failed', async () => {
+    const res = await app.request(`/projects/${projectId}/plan`, {
+      method: 'POST',
+      headers: asJson(producerCookie),
+      body: JSON.stringify({ documentReference: `T388-PLAN-${stamp}`, title: 'Not yet published' }),
+    });
+    const containerId = ((await res.json()) as PlanRow).containerId;
+    expect(await contextOf(containerId)).toEqual({
+      grounds: false,
+      reason: 'not in the project library',
+    });
+  });
+});
+
 // T-385 — as built, either side could restore what the other withdrew and
 // neither act recorded the other. The comment that justified free restoration
 // (*"recovery is never a helpdesk ticket"*) was reasoning about a producer

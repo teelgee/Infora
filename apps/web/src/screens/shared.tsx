@@ -1,4 +1,5 @@
 import type { BadgeTone } from '@infora/ui';
+import type { ContextState } from '@infora/contracts';
 
 export function initialsOf(name: string): string {
   return name
@@ -27,6 +28,26 @@ export function formatDateTime(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/**
+ * T-388 — the context-state badge, and it NAMES ITS REASON.
+ *
+ * "Not used for AI answers" on its own is the unhelpful version: a user who
+ * reads it cannot tell whether the deliverable was ended, replaced, or accepted
+ * under a code their own project decided not to rely on — three situations with
+ * three different responses. So the label always carries the why, and the why
+ * comes from the server's derivation rather than being re-inferred here, because
+ * a surface that worked it out for itself would be the second state machine the
+ * ADR refuses (ADR-0013 §6).
+ *
+ * Null when the deliverable grounds: silence is right there. A green "used for
+ * AI answers" chip on every row would make the ordinary case shout and the
+ * exceptional case blend in.
+ */
+export function contextStateBadge(state: ContextState): { tone: BadgeTone; label: string } | null {
+  if (state.grounds) return null;
+  return { tone: 'warning', label: `Not used for AI answers — ${state.reason}` };
 }
 
 /** A stored status/state → badge tone + humanised label. */

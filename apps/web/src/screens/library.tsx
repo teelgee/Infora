@@ -9,7 +9,7 @@ import { BookOpen, Download, FileText, Inbox, Send } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
-import { formatDate } from './shared';
+import { contextStateBadge, formatDate } from './shared';
 
 // the coded reference is the primary identifier — prominent monospace, not the
 // muted 12px .mono treatment used for incidental codes
@@ -225,8 +225,9 @@ export function LibraryScreen() {
     <div className="content">
       <h1 className="page">Project library</h1>
       <p className="page-sub">
-        The governed corpus — what the AI grounds on. Superseded and withdrawn documents leave this
-        list and the grounded corpus together.
+        The governed corpus. Superseded and withdrawn documents leave this list and stand as
+        records on the plan. What the AI grounds on is narrower still: a deliverable accepted
+        under a code this project does not rely on stays here, badged, and out of reach.
       </p>
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
       {openItem && <DocumentModal item={openItem} onClose={() => setOpenItem(null)} />}
@@ -294,7 +295,21 @@ export function LibraryScreen() {
                     <span style={refStyle}>{item.documentReference}</span>
                   </span>
                 </td>
-                <td>{item.title ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                <td>
+                  {item.title ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                  {/* T-388 — a live deliverable can be in the library and out of
+                      the AI's reach, when the code that admitted it is one this
+                      project does not ground on. Nothing on this screen said so
+                      before, and the failure is invisible from the answer end:
+                      the citations it does return all resolve. */}
+                  {contextStateBadge(item.contextState) && (
+                    <div style={{ marginTop: 4 }}>
+                      <Badge tone={contextStateBadge(item.contextState)!.tone}>
+                        {contextStateBadge(item.contextState)!.label}
+                      </Badge>
+                    </div>
+                  )}
+                </td>
                 <td><span className="mono">{item.revision}</span></td>
                 <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td>{item.discipline ? <span className="mono">{item.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>

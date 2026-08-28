@@ -4,12 +4,21 @@
 // in_library, state = 'live', is_current) applied as SQL, so what the list
 // shows and what grounding admits cannot drift apart; superseded/withdrawn
 // are omitted here for the skeleton per the contract.
+//
+// T-388 — that "cannot drift apart" stopped being true of membership alone:
+// since the ADR-0011 rider, a LIVE deliverable in the library can still be out
+// of the AI's reach, when the acceptance code that admitted it is one the
+// project does not ground on. That row belongs on this list — it is a real
+// deliverable and it did pass review — so what changes is that it now carries
+// its context state and the surface badges it, rather than the list quietly
+// standing for two different things.
 import { Hono } from 'hono';
 import { and, asc, eq } from 'drizzle-orm';
 import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { admittingCodes, contextStateOf } from './context-state';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -56,6 +65,12 @@ export function libraryRoutes(deps: { db: Db }) {
         ),
       )
       .orderBy(asc(s.containers.documentReference));
+    // T-388 — the third grounding condition, on the read where it is the ONLY
+    // one a user could not otherwise see: this list is already filtered to
+    // `in_library` and `live`, so a row that does not ground is one admitted
+    // under a code the project does not ground on — live, listed, and out of
+    // reach with nothing on screen saying so until now.
+    const codes = await admittingCodes(deps.db, rows.map((r) => r.containerId));
     const items = rows.map((row): LibraryItem => {
       const meta = (row.metadata ?? {}) as Record<string, unknown>;
       const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -73,6 +88,10 @@ export function libraryRoutes(deps: { db: Db }) {
         issuedAt: row.issuedAt.toISOString(),
         state: 'live',
         kind: row.workItemId === null ? 'reference' : 'deliverable',
+        contextState: contextStateOf(
+          { inLibrary: true, state: 'live' },
+          codes.get(row.containerId),
+        ),
       };
     });
     return c.json({ items } satisfies GetLibraryResponse);

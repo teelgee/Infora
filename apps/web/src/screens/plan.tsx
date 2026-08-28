@@ -26,7 +26,7 @@ import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
-import { formatDate, statusBadge } from './shared';
+import { contextStateBadge, formatDate, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -331,6 +331,7 @@ function DeliverableDetail(props: {
     : row.workItem
       ? statusBadge(row.workItem.status)
       : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
+  const contextBadge = contextStateBadge(row.contextState);
 
   // producing-org participants for the document-owner picker
   const people = props.roster.filter((r) => r.organisationId === row.producingOrganisationId);
@@ -394,7 +395,13 @@ function DeliverableDetail(props: {
           <DetailRow label="Producer">{row.producingOrganisationName}</DetailRow>
           <DetailRow label="Discipline">{String(row.metadata['discipline'] ?? '—')}</DetailRow>
           <DetailRow label="Status">
-            <Badge tone={st.tone}>{st.label}</Badge>
+            <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>
+              <Badge tone={st.tone}>{st.label}</Badge>
+              {/* T-388 — context state beside record state, never instead of it:
+                  they answer different questions, and a row can be perfectly
+                  live and still outside the AI's reach. */}
+              {contextBadge && <Badge tone={contextBadge.tone}>{contextBadge.label}</Badge>}
+            </span>
           </DetailRow>
           <DetailRow label="Revision">{row.currentVersion?.versionReference ?? '—'}</DetailRow>
           <DetailRow label="Issued">

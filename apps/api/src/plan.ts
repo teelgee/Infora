@@ -44,6 +44,7 @@ import { isLiveAuthor, isLiveConfirmedReviewer } from './cycle';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
+import { admittingCodes, contextStateOf } from './context-state';
 import { composeReference, loadSchemeOrDefault, templateFields } from './naming';
 import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
@@ -224,6 +225,11 @@ async function toPlanRows(
     : [];
   const actorById = new Map(actorRows.map((r) => [r.participantId, r]));
 
+  // T-388 — the admitting code, for the third grounding condition. Batched
+  // beside the rest; the derivation itself lives in context-state.ts, shared
+  // with the library read so the two cannot say different things.
+  const codes = await admittingCodes(db, ids);
+
   const authorRows = await db
     .select({ grant: s.deliverableAuthors, name: s.users.name })
     .from(s.deliverableAuthors)
@@ -326,6 +332,7 @@ async function toPlanRows(
             name: ownerName.get(container.documentOwnerParticipantId) ?? '',
           }
         : null,
+      contextState: contextStateOf(container, codes.get(container.id)),
       withdrawnReason: proposed ? null : (container.withdrawnReason ?? null),
       withdrawnBy:
         !proposed && actor

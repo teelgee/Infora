@@ -485,3 +485,20 @@ are not recorded here.
   derived `side` (`owner | producer`) rather than an organisation id, because
   every consumer — T-385's restore rule, T-389's buttons, T-388's badge — asks
   which *side* acted and none of them asks *which organisation*.
+- **2026-08-28 (T-388) — `ContextState` is a read with no writer, and that is
+  the point.** `LibraryItem` and `PlanRow` both gain `contextState`
+  (`{ grounds, reason }`), answering *may the AI rely on this, and if not why*.
+  There is deliberately no endpoint that sets it: ADR-0013 §6 forbids storing
+  the composite answer, because a persisted "this grounds" flag is a second
+  state machine that can disagree with the first — and the drift would be
+  invisible, since every citation would still resolve. So the type is derived
+  from the same three conditions retrieval's `WHERE` clause reads, and the two
+  agree by being the same three facts rather than by sharing a cache.
+  **`reason` carries the project's own words, not a platform enum:** for a
+  non-grounding acceptance code it is that code's description, because the 2021
+  National Annex requires each Published code's meaning to be written into the
+  project's information standard — there is no phrase Infora could ship that
+  would be true of every project. It lands on **both** reads because they show
+  different halves: the library list carries only the live corpus, so it is
+  where a live-but-out-of-reach deliverable is visible at all, and the plan is
+  where a `superseded`, `withdrawn` or `rejected` record is actually read.

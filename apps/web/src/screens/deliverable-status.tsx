@@ -26,7 +26,7 @@ import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
 import { useMe } from '../session';
-import { formatDate, initialsOf, statusBadge } from './shared';
+import { contextStateBadge, formatDate, initialsOf, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -170,6 +170,7 @@ export function DeliverableStatusScreen() {
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
   const status = statusBadge(row.workItem?.status ?? row.state);
   const containerState = statusBadge(row.state);
+  const contextBadge = contextStateBadge(row.contextState);
   const liveAuthors = row.authors.filter((g) => g.revokedAt === null);
   const liveReviewers = row.reviewers.filter((g) => g.revokedAt === null);
   const newestRound = cycle ? [...cycle.rounds].sort((a, b) => a.number - b.number).at(-1) : null;
@@ -238,6 +239,16 @@ export function DeliverableStatusScreen() {
               ? `${draft?.title ?? 'Working draft'} · org-private internal review — the record never crosses the wall (ADR-0032)`
               : `${row.workItem?.title ?? 'Reference material'} · produced by ${row.producingOrganisationName}`}{' '}
             · <Badge tone={status.tone}>{status.label}</Badge>
+            {/* T-388 — beside the work-item status, never folded into it: one
+                says where the deliverable is in its lifecycle, the other says
+                whether the agent may rely on it, and a deliverable can be
+                accepted and still out of reach. */}
+            {contextBadge && (
+              <>
+                {' '}
+                <Badge tone={contextBadge.tone}>{contextBadge.label}</Badge>
+              </>
+            )}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>

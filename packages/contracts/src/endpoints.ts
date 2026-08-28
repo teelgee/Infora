@@ -397,8 +397,31 @@ export type LibraryItem = {
   // deliverable is the corpus quietly laundering itself into the produced
   // record. Both ground; only one was produced here.
   kind: 'deliverable' | 'reference';
+  // T-388 — whether the AI may rely on this deliverable, and if not, why.
+  contextState: ContextState;
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
+
+// T-388 — CONTEXT STATE (ADR-0013 §6). **Derived, never stored**: a persisted
+// "this grounds" flag would be a second state machine that could disagree with
+// the first, and the drift would be invisible because every citation would still
+// resolve. It is the answer to three conditions — in the library, record state
+// `live`, and admitted by a code the project grounds on (ADR-0011's rider) —
+// and it is READ-ONLY on the wire: no endpoint sets it, because there is
+// nothing to set.
+//
+// `reason` is what follows the em dash in the badge — *"not used for AI answers
+// — withdrawn"* — and is null exactly when the deliverable grounds. For a
+// non-grounding acceptance code it is that code's own description, because the
+// project wrote it: the 2021 National Annex requires each Published code's
+// meaning to be set in the project's information standard, so there is no
+// platform phrase for it that would be true of every project.
+//
+// **Context state is not access.** Component 2 remains the only place access is
+// resolved; a deliverable out of the AI's reach is still readable, still
+// openable, and may still be pinned deliberately as an attached source
+// (ADR-0022) by anyone who could see it before.
+export type ContextState = { grounds: boolean; reason: string | null };
 
 // GET /versions/:versionId — the cited source, readable (T-094, 2026-07-09):
 // a citation chip opens the version it names. Scoped exactly like the
@@ -637,6 +660,11 @@ export type PlanRow = {
   // undoing its own act or the other party's; `side` is derived from the
   // withdrawing participant's organisation against the container's producer.
   withdrawnBy: { participantId: Id; name: string; side: 'owner' | 'producer' } | null;
+  // T-388 — whether the AI may rely on this deliverable, and if not, why. The
+  // plan is where a `superseded`, `withdrawn` or `rejected` record is actually
+  // read (the library list carries only the live corpus), so the badge needs it
+  // on both reads.
+  contextState: ContextState;
   // T-384 — a producing organisation's PROPOSED withdrawal of a deliverable
   // already published into the owner's library, awaiting the owner's answer
   // (ADR-0013 §2 — the owner sets record state, the producer proposes). Null
