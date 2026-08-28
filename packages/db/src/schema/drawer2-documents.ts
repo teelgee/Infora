@@ -104,6 +104,11 @@ export const elevatedAction = pgEnum('elevated_action', [
   // "who attempted an act this tier holds and was refused", and omitting one
   // direction of the same gate leaves it incomplete while looking complete
   'container_restore',
+  // T-332 (ADR-0049 §8) — forcing a promotion past open comment threads or open
+  // findings. It joins the two destructive acts because it is the same kind of
+  // thing: an act heavier than a project role should routinely carry, which is
+  // exactly the company the 2026-07-31 ruling put this tier in.
+  'promote_over_open_items',
 ]);
 
 // Append-only (enforced by trigger, T-008): a refusal record a super-user could

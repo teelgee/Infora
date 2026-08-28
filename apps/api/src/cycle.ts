@@ -38,6 +38,8 @@ import type {
 // transaction commits: an outbound embedding call has no business holding a
 // database transaction open.
 import { ingestVersion } from '@infora/data';
+import { countOpenItems, hasOpenItems } from './open-items';
+import type { OpenItems } from './open-items';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -453,6 +455,10 @@ type PromotionPlan = {
   /** the P revision this promotion would issue, and the round it would open */
   versionReference: string;
   roundNumber: number;
+  /** T-332 — what was open when the decision was taken. Carried on the plan
+   * rather than recounted at the write, because the override's audit record has
+   * to state the numbers the person was actually shown. */
+  openItems: OpenItems;
 };
 
 /**
@@ -469,6 +475,9 @@ async function resolvePromotion(
   doc: typeof s.sandboxDocuments.$inferSelect,
   container: ContainerRow,
   slice: EntitledSlice,
+  /** T-332 — the elevated lead author's explicit force (ADR-0049 §8). Absent on
+   * the preflight, which asks what the click WOULD do without one. */
+  override = false,
 ): Promise<{ ok: true; plan: PromotionPlan } | { ok: false; refusal: PromotionRefusal }> {
   const refuse = (status: 400 | 403 | 409, detail: string) =>
     ({ ok: false as const, refusal: { status, detail } as PromotionRefusal });
@@ -549,6 +558,23 @@ async function resolvePromotion(
       .limit(1);
     if (unanswered) return refuse(409, 'unanswered_comments');
   }
+
+  // T-332 (ADR-0049 §7) — nothing reaches the controlled library with loose
+  // ends. Owner-ruled AGAINST the recommendation to warn, and the two lists are
+  // treated identically so the surface never has to explain why one stops you
+  // and the other does not.
+  //
+  // It sits here, INSIDE the shared decision function, so the promotion window
+  // states the block before the click and the click enforces it — a preflight
+  // computed separately from the act is a preflight that will eventually lie.
+  //
+  // §8's override is checked, never assumed: an elevated lead author who did
+  // not ask to force it is stopped exactly as an ordinary one is. A tier that
+  // silently waived the block would make §7 read "blocked unless you happen to
+  // be senior", which is not what was ruled. Whether they MAY force it is the
+  // route's business (it records the refusal), so this only reports the block.
+  const openItems = await countOpenItems(db, doc.id);
+  if (hasOpenItems(openItems) && !override) return refuse(409, 'open_items');
 
   // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
   // version — never a head drifting past an active internal cycle
@@ -658,6 +684,7 @@ async function resolvePromotion(
       qaAcceptedAt,
       versionReference: nextRevision(existingRefs, 'P'),
       roundNumber: existingCycle ? latestRound!.number + 1 : 1,
+      openItems,
     },
   };
 }
@@ -990,6 +1017,12 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         roundNumber: 0,
         reviewPeriodDefaultDays,
         blocker: resolved.refusal.detail,
+        // T-332 — counted even on the refusal path, because `open_items` is the
+        // one blocker the window has to be able to QUANTIFY: "you cannot
+        // promote" is unactionable, "four open threads" is a place to go. On a
+        // refusal for any other reason it is still the honest count.
+        openItems: await countOpenItems(deps.db, doc.id),
+        canOverrideOpenItems: slice.elevated,
       } satisfies PromotionPreflight);
     }
     const { plan } = resolved;
@@ -1003,6 +1036,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       roundNumber: plan.roundNumber,
       reviewPeriodDefaultDays,
       blocker: null,
+      openItems: plan.openItems,
+      canOverrideOpenItems: slice.elevated,
     } satisfies PromotionPreflight);
   });
 
@@ -1019,10 +1054,37 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       );
     }
 
+    // T-371/T-373 — the submission's target date. The project default (ADR-0005
+    // addendum), or the lead author's override for THIS submission alone, which
+    // is the promotion window's one editable schedule field. The override rides
+    // the computed target and is never stored on the project: it changes one
+    // round, not the next one.
+    //
+    // T-332 moved this read ABOVE the decision, because the decision now takes
+    // an argument off it: whether the caller asked to force the open-items gate.
+    const body = promoteDocumentBody.safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+
+    // T-332 (ADR-0049 §8) — the override is `Participant.elevated` ONLY, and a
+    // refusal is recorded rather than merely returned (T-301's rule: a control
+    // nobody can see operating is a control nobody can audit). Checked BEFORE
+    // the decision runs, so an unelevated caller asking to force is told the act
+    // is above their tier rather than handed a plain `open_items` they would
+    // read as "there is nothing you can do".
+    const forcing = body.data.overrideOpenItems === true;
+    if (forcing && !slice.elevated) {
+      return refuseElevated(c, deps.db, 'elevated_required', {
+        projectId: container.projectId,
+        containerId: container.id,
+        attemptedByParticipantId: slice.participantId,
+        action: 'promote_over_open_items',
+      });
+    }
+
     // T-373 — one decision function, shared with the preflight the promotion
     // window reads, so what the window promises and what the click does cannot
     // drift apart
-    const resolved = await resolvePromotion(deps.db, doc, container, slice);
+    const resolved = await resolvePromotion(deps.db, doc, container, slice, forcing);
     if (!resolved.ok) {
       const { status, detail } = resolved.refusal;
       return c.json({ error: status === 403 ? 'forbidden' : status === 400 ? 'invalid' : 'conflict', detail } satisfies ApiError, status);
@@ -1034,15 +1096,8 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       source,
       sourceContent,
       versionReference,
+      openItems,
     } = resolved.plan;
-
-    // T-371/T-373 — the submission's target date. The project default (ADR-0005
-    // addendum), or the lead author's override for THIS submission alone, which
-    // is the promotion window's one editable schedule field. The override rides
-    // the computed target and is never stored on the project: it changes one
-    // round, not the next one.
-    const body = promoteDocumentBody.safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
     // T-382 — the window states WHICH version promotes; if a fresh QA acceptance
     // (or a spent one) changed the answer between the preflight and this click,
     // refuse rather than silently promote content the user was never shown.
@@ -1153,6 +1208,22 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .update(s.workItems)
         .set({ status: 'in_review' })
         .where(eq(s.workItems.containerId, container.id));
+      // T-332 (ADR-0049 §8) — every use of the override is audited, and the
+      // record says who did it and WHAT WAS OPEN AT THE TIME. Written inside
+      // the same transaction as the version it let through: an audit that can
+      // fail separately from the act it audits is an audit with a gap in it.
+      // The counts come off the decision rather than being recounted here,
+      // because the numbers the record states must be the numbers the person
+      // was shown.
+      if (forcing && hasOpenItems(openItems)) {
+        await tx.insert(s.promotionOverrides).values({
+          containerId: container.id,
+          versionId: version!.id,
+          overriddenByParticipantId: slice.participantId,
+          openThreads: openItems.threads,
+          openFindings: openItems.findings.open,
+        });
+      }
       return {
         versionId: version!.id,
         versionReference,

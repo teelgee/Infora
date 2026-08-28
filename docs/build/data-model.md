@@ -543,6 +543,40 @@ joins a corpus, never grounds and never emits a citation (ADR-0022); what the
 new kind admits is a deliberate, named, user-supplied use of a document the AI
 has stopped reaching for on its own.
 
+## Drawn 2026-08-28 — the promotion override record (T-332)
+
+*Drawn and built the same day; migration 0057. ADR-0049 §8 requires that
+**every use of the override be audited** and that the record say **who did it
+and what was open at the time** — and, as with T-390 above, there is nothing to
+imitate: every audit in this repo is a purpose-built append-only table, so this
+is one more of those. `elevated_refusals` is its near-twin and deliberately not
+reused: that table records an act **refused** for want of the tier, and this one
+records an act **performed** with it. Merging them would need a column meaning
+"did this happen", which is two records wearing one shape.*
+
+**Drawer 5 — `promotion_overrides`.** Append-only by trigger (the T-008
+pattern), holding the container, the version the promotion issued, the elevated
+participant who forced it, and **the counts of what was open at the time** —
+open comment threads and open findings, stored separately because they are two
+lists even though the gate treats them identically.
+
+**The counts are stored rather than recomputed, for `purge_events`' reason one
+store along:** afterwards there is nothing to count. Threads get closed and
+findings get cleared in the ordinary course of the work, so a record that
+recomputed them would report zero and answer *"somebody pressed the button"*
+instead of *"somebody pressed the button past four open threads"* — which is the
+only version of this record worth keeping.
+
+**No reason field, deliberately.** §8 names exactly two things the record must
+say, and T-390's free-text why exists because a code's history reads as a
+sequence of decisions a diff cannot reconstruct. Here the decision is fully
+described by who, what and when: the person held the tier, the items were open,
+and they went ahead. A mandatory reason would be inventing an obligation the
+ruling did not impose, on the one path a person reaches under deadline.
+
+**The overrider is a named person** (`overridden_by_participant_id`) and is
+registered in [personal-data.md](../architecture/personal-data.md).
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

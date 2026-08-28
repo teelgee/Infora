@@ -693,6 +693,18 @@
         </tbody></table>
       </article>
       <article class="card d5">
+        <h3>promotion_overrides <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">overridden_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">open_threads</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">open_findings</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
         <h3>responses <span class="badge">frozen at issue</span></h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

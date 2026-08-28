@@ -37,6 +37,13 @@ const MESSAGES: Record<string, string> = {
   // confirmed-and-accepted gates sit on the acknowledgement (ADR-0051)
   no_lead_reviewer: 'This deliverable needs a lead reviewer — name one here or on the Plan.',
   already_lead_reviewer: 'They are already the lead reviewer.',
+  // T-332 (ADR-0049 §7) — the gate itself. The message never distinguishes the
+  // two lists, because the ruling is that they are treated identically and the
+  // surface must never have to explain why one stops you and the other does
+  // not. The window states the COUNTS beside it, which is what makes this
+  // actionable rather than merely refusing.
+  open_items:
+    'This draft has open items — resolve the open comment threads and findings before promoting.',
   promotion_state_changed:
     'What would promote has changed since this window opened — close it and reopen to see the current state.',
   // T-374 — the receipt narrows to a single accountable receiver (ADR-0051

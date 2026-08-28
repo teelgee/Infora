@@ -23,6 +23,7 @@ import type {
 import { PLAN_STAGES } from './shared';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
+import type { OpenFindingCount } from './finding';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -1037,6 +1038,16 @@ export const promoteDocumentBody = z.object({
   // promotion_state_changed) instead of promoting content nobody confirmed.
   // Omitted = no check, for callers that never stated a source.
   expectedSourceVersionReference: z.string().nullable().optional(),
+  // T-332 (ADR-0049 §8) — force the promotion past open comment threads or
+  // open findings. `Participant.elevated` ONLY, and every use is audited.
+  //
+  // It is an explicit flag rather than an inference from the tier, because the
+  // gate has to be real for the person who holds the tier too: an elevated lead
+  // author who has not seen the open items must be stopped exactly as an
+  // ordinary one is, and then decide. A tier that silently waived the block
+  // would make §7 mean "blocked unless you happen to be senior", which is not
+  // what was ruled.
+  overrideOpenItems: z.boolean().optional(),
 });
 export type PromoteDocumentBody = z.infer<typeof promoteDocumentBody>;
 
@@ -1057,6 +1068,22 @@ export type PromotionPreflight = {
   // the detail code the POST would refuse with, or null when it would succeed —
   // so the window states the blocker instead of the user finding it on the click
   blocker: string | null;
+  /**
+   * T-332 (ADR-0049 §7) — what is open, counted BEFORE the click.
+   *
+   * The window has to be able to say *how much* is outstanding rather than only
+   * that something is, and the two lists are reported separately although the
+   * gate treats them identically: they are two lists, and a single total would
+   * leave the user unable to tell which one to go and clear.
+   *
+   * It is present whether or not it blocks, so the window can show a clean
+   * deliverable's zeroes rather than making silence do the work.
+   */
+  openItems: { threads: number; findings: OpenFindingCount };
+  /** whether THIS requester could force it (`Participant.elevated`, §8) — so
+   * the window offers the override only to someone who holds it, instead of
+   * showing everyone a control most of them will be refused on */
+  canOverrideOpenItems: boolean;
 };
 
 // Release ("check in") — the audited unlock of a standalone check-out (ADR-0032

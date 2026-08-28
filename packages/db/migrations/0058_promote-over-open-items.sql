@@ -1,0 +1,1 @@
+ALTER TYPE "public"."elevated_action" ADD VALUE 'promote_over_open_items';

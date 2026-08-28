@@ -75,6 +75,11 @@ export function PromotionWindow(props: {
   const [periodDays, setPeriodDays] = useState('');
   const [addingReviewer, setAddingReviewer] = useState(false);
   const [changingLead, setChangingLead] = useState(false);
+  // T-332 (ADR-0049 §8) — the elevated force, and it is a deliberate act rather
+  // than a property of holding the tier: an elevated lead author who has not
+  // looked at the open items is stopped exactly as an ordinary one is, and then
+  // decides. Reset by nothing, because the window closes on success.
+  const [forcing, setForcing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -201,7 +206,13 @@ export function PromotionWindow(props: {
   // runs. Every other blocker stays a disabled Promote (T-373/T-377).
   const promoteEnabled =
     preflight !== null &&
-    (preflight.blocker === null || (preflight.blocker === 'no_lead_reviewer' && stagedLead !== null));
+    (preflight.blocker === null ||
+      (preflight.blocker === 'no_lead_reviewer' && stagedLead !== null) ||
+      // T-332 — the second blocker the window can clear, and only for someone
+      // who holds the tier AND has ticked the box. `canOverrideOpenItems` comes
+      // off the server's own resolution of this requester, so the control is
+      // absent rather than offered-and-refused.
+      (preflight.blocker === 'open_items' && preflight.canOverrideOpenItems && forcing));
 
   async function promote() {
     if (!preflight || !promoteEnabled) return;
@@ -230,6 +241,7 @@ export function PromotionWindow(props: {
         periodChanged && Number.isFinite(days) && days >= 1 ? days : undefined,
         // T-382 — promote exactly what this window said would promote, or refuse
         preflight.sourceVersionReference,
+        preflight.blocker === 'open_items' && forcing ? true : undefined,
       );
       props.onPromoted(result);
     } catch (err) {
@@ -332,6 +344,59 @@ export function PromotionWindow(props: {
           {error && <div className="banner banner--error">{error}</div>}
           {preflight.blocker && (
             <div className="banner banner--error">{describeApiError(preflight.blocker)}</div>
+          )}
+
+          {/* ── Open items (T-332, ADR-0049 §7/§8) ──────────────────────────
+              Shown only when they BLOCK. A permanent "0 open items" row would
+              be one more thing to stop reading, and the ruling's whole point is
+              that this is a stop rather than a status. The two lists are
+              counted separately although the gate treats them identically —
+              they are two lists, and one total leaves the reader unable to tell
+              which to go and clear — but they are never RANKED, so the surface
+              never implies one matters more. */}
+          {preflight.blocker === 'open_items' && (
+            <div className="card" style={{ padding: '10px 12px' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>
+                What is still open
+              </div>
+              <p style={{ fontSize: 12, lineHeight: 1.55, margin: '0 0 8px', color: 'var(--text-secondary)' }}>
+                {[
+                  preflight.openItems.threads > 0
+                    ? `${preflight.openItems.threads} open comment thread${preflight.openItems.threads === 1 ? '' : 's'}`
+                    : null,
+                  preflight.openItems.findings.open > 0
+                    ? `${preflight.openItems.findings.open} open finding${preflight.openItems.findings.open === 1 ? '' : 's'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' and ')}
+                . Nothing reaches the controlled library with loose ends.
+              </p>
+              {preflight.canOverrideOpenItems ? (
+                <>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={forcing}
+                      onChange={(e) => setForcing(e.currentTarget.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      Promote anyway. <b>This is recorded against your name</b>, with what was open
+                      at the time.
+                    </span>
+                  </label>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                    The override exists for the items that cannot be cleared — a finding against a
+                    paragraph a later draft deleted, a thread whose author has left the project.
+                  </p>
+                </>
+              ) : (
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  Resolve them in the editor, or ask a super user with the elevated tier.
+                </p>
+              )}
+            </div>
           )}
 
           {/* ── What promotes ───────────────────────────────────────────── */}

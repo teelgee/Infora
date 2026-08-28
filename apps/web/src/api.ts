@@ -303,6 +303,10 @@ export const api = {
     // T-382 — the source version the caller was shown (null = the live head);
     // the POST refuses if the answer changed since. Omit to skip the check.
     expectedSourceVersionReference?: string | null,
+    // T-332 (ADR-0049 §8) — force it past open threads/findings. Elevated only,
+    // and audited. Sent only when the person actually asked: the flag is the
+    // act, not a property of holding the tier.
+    overrideOpenItems?: boolean,
   ) =>
     request<PromotionResult>(`/sandbox-documents/${documentId}/promotion`, {
       method: 'POST',
@@ -311,6 +315,7 @@ export const api = {
         ...(expectedSourceVersionReference !== undefined
           ? { expectedSourceVersionReference }
           : {}),
+        ...(overrideOpenItems === true ? { overrideOpenItems } : {}),
       }),
     }),
   freezeDocument: (documentId: string) =>

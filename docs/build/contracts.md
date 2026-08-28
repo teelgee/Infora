@@ -661,3 +661,21 @@ are not recorded here.
   `SELECT count(*)`, because a row whose subject is out of reach is neither
   listed nor counted, and computing it twice is how a badge starts disclosing
   rows the list will not show.
+- **2026-08-28 (T-332) — the promotion override is a flag on the request, and
+  the preflight states the counts.** `promoteDocumentBody` gains
+  `overrideOpenItems`, and the obvious alternative — inferring the override from
+  `Participant.elevated` — is the one that had to be refused. A tier that
+  silently waived the block would make ADR-0049 §7 read *"blocked unless you
+  happen to be senior"*, which is not what was ruled: the gate has to be real
+  for the person holding the tier too, and then they decide. An explicit flag is
+  also what makes §8's audit meaningful, because a row written whenever a senior
+  person promotes records nothing about intent. `PromotionPreflight` gains
+  `openItems` and `canOverrideOpenItems` for the matching reason on the read
+  side: *"you cannot promote"* is unactionable, *"four open threads"* is a place
+  to go, and a window that offered the override to everyone would be showing
+  most people a control they will be refused on. The two lists are reported
+  **separately and never ranked** — they are two lists, so one total would leave
+  the reader unable to tell which to clear, but §7 treats them identically and
+  the surface must never explain why one stops you and the other does not.
+  `openItems.findings` is T-328's own `OpenFindingCount`, so the shape does not
+  change when the checker lands and starts filling it.

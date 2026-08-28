@@ -546,3 +546,56 @@ export const deliverableGrantRules = pgTable(
     index('deliverable_grant_rules_project_org_idx').on(t.projectId, t.organisationId),
   ],
 );
+
+/**
+ * T-332 — the audited use of the promotion override (ADR-0049 §8).
+ *
+ * Promotion is **blocked** by open comment threads or open findings (§7,
+ * owner-ruled against the recommendation to warn): nothing reaches the
+ * controlled library with loose ends. §8 adds the only lawful way past, because
+ * **a block with no escape is a deadlock rather than a stricter gate** — a
+ * finding against a paragraph a later redraft deleted, or a thread whose author
+ * has left the project, would otherwise prevent promotion permanently. The
+ * override is `Participant.elevated` only, and every use lands here.
+ *
+ * NOT `elevated_refusals`, which is its near-twin: that table records an act
+ * **refused** for want of the tier and this one records an act **performed**
+ * with it. One table for both would need a column meaning "did this happen",
+ * which is two records wearing one shape.
+ *
+ * THE COUNTS ARE STORED RATHER THAN RECOMPUTED, for `purge_events`' reason one
+ * store along: afterwards there is nothing to count. Threads get closed and
+ * findings get cleared in the ordinary course of the work, so a record that
+ * recomputed them would report zero — answering "somebody pressed the button"
+ * instead of "somebody pressed the button past four open threads", which is the
+ * only version of this record worth keeping.
+ *
+ * No reason column, deliberately: §8 names exactly two things the record must
+ * say — who did it, and what was open at the time — and both are here.
+ */
+export const promotionOverrides = pgTable(
+  'promotion_overrides',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    /** the P revision the forced promotion issued — the thing that reached the
+     * library with loose ends, named rather than inferred from a timestamp */
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => versions.id),
+    // identity from the record, never from the caller. A named person, and
+    // registered in docs/architecture/personal-data.md.
+    overriddenByParticipantId: uuid('overridden_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    /** what was open at the time. Two columns although the gate treats the two
+     * lists identically (§7): they ARE two lists, and a single total would make
+     * the record unable to say which kind of loose end was left. */
+    openThreads: integer('open_threads').notNull(),
+    openFindings: integer('open_findings').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('promotion_overrides_container_idx').on(t.containerId, t.createdAt)],
+);
