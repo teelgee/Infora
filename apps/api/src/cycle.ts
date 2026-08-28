@@ -1471,14 +1471,22 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           .limit(1)
       : [];
     const accepting = code?.isAccepting ?? false;
+    // T-392 (ADR-0003 as amended, ADR-0041) — an accepting code ENDS the cycle;
+    // only a CONTRACTUAL one issues the `C` revision. That is the 2021 National
+    // Annex's own `S4`/`S5` split: a deliverable can be accepted for its stated
+    // purpose without becoming the contractual issue. T-383 stored the flag and
+    // said plainly that nothing consumed it; this is what consumes it.
+    const contractual = code?.isContractual ?? false;
 
     const authors = await deps.db
       .select({ participantId: s.deliverableAuthors.participantId })
       .from(s.deliverableAuthors)
       .where(and(eq(s.deliverableAuthors.containerId, container.id), isNull(s.deliverableAuthors.revokedAt)));
 
-    // the contractual C-revision issued on a client acceptance (set inside the tx)
-    let contractual: { id: string; content: string } | null = null;
+    // the contractual C-revision issued on a client acceptance (set inside the
+    // tx). Null when the code accepts without being contractual (T-392) — and
+    // null is then the honest answer rather than a missing step.
+    let contractualVersion: { id: string; content: string } | null = null;
     const transmittalId = await deps.db.transaction(async (tx) => {
       const [transmittal] = await tx
         .insert(s.transmittals)
@@ -1529,11 +1537,23 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
             .update(s.containers)
             .set({ inLibrary: true })
             .where(eq(s.containers.id, container.id));
-          // ISO 19650 (ADR-0041): client acceptance issues the CONTRACTUAL
-          // revision — a new immutable C-version of the accepted content, made
-          // current so the library/plan/retrieval all read the published revision.
-          // (The reviewed P-version keeps its P reference; version_reference is
-          // immutable, T-008/0013, so C is a fresh issue, not a relabel.)
+        }
+        if (container.scope === 'library' && contractual) {
+          // ISO 19650 (ADR-0041): client acceptance under a CONTRACTUAL code
+          // issues the contractual revision — a new immutable C-version of the
+          // accepted content, made current so the library/plan/retrieval all read
+          // the published revision. (The reviewed P-version keeps its P
+          // reference; version_reference is immutable, T-008/0013, so C is a
+          // fresh issue, not a relabel.)
+          //
+          // T-392 — under an accepting but NON-contractual code nothing is
+          // issued at all: admission already happened above (`in_library`), and
+          // whether it grounds is the code's own `grounds` flag read live by
+          // retrieval (T-387). The accepted content keeps its reviewed P
+          // revision, which is the honest record — issuing a C would assert a
+          // contractual status the project's own scheme says this code does not
+          // confer, and `version_reference` is immutable, so it could not be
+          // taken back.
           const [accepted] = await tx
             .select({ content: s.versions.content })
             .from(s.versions)
@@ -1558,7 +1578,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
               isCurrent: true,
             })
             .returning();
-          contractual = { id: cVersion!.id, content: accepted!.content };
+          contractualVersion = { id: cVersion!.id, content: accepted!.content };
         }
       } else {
         await tx
@@ -1574,9 +1594,12 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     });
     if (accepting) {
       // the contractual revision's renditions, generated beside it like a
-      // promotion's (T-121, ADR-0034) — the published record the client owns
-      if (contractual) {
-        const issued = contractual as { id: string; content: string };
+      // promotion's (T-121, ADR-0034) — the published record the client owns.
+      // T-392: absent under a non-contractual code, and nothing is missing —
+      // the reviewed P revision already carries its renditions and its chunks
+      // from the promotion that issued it.
+      if (contractualVersion) {
+        const issued = contractualVersion as { id: string; content: string };
         const [boundDoc] = await deps.db
           .select()
           .from(s.sandboxDocuments)

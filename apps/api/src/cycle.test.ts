@@ -81,7 +81,12 @@ beforeAll(async () => {
     { organisationId: thirdOrg, projectId, role: 'member' },
   ]);
   await db.insert(s.acceptanceCodes).values([
-    { projectId, code: 'A', description: 'Accepted', isAccepting: true, sortOrder: 1 },
+    // T-392 — `isContractual` is set explicitly now that something consumes it:
+    // this suite asserts the C revision, and only a CONTRACTUAL code issues one
+    // (ADR-0003 as amended, ADR-0041). The seeded scheme's `A1` is contractual
+    // for the same reason, so this fixture matches what a real project gets.
+    // The non-contractual acceptance is `c-revision.test.ts`.
+    { projectId, code: 'A', description: 'Accepted', isAccepting: true, isContractual: true, sortOrder: 1 },
     { projectId, code: 'C', description: 'Revise and resubmit', isAccepting: false, sortOrder: 2 },
   ]);
 

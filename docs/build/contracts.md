@@ -679,3 +679,16 @@ are not recorded here.
   the surface must never explain why one stops you and the other does not.
   `openItems.findings` is T-328's own `OpenFindingCount`, so the shape does not
   change when the checker lands and starts filling it.
+- **2026-08-28 (T-392) — `PlanRow.deliverableCode` carries `isContractual`.**
+  The verdict was `{ code, description }`, which is enough to *name* an
+  acceptance and not enough to say **which** acceptance happened: an accepting
+  code ends the cycle, and only a contractual one issues the `C` revision
+  (ADR-0003 as amended, ADR-0041 — the 2021 National Annex's own `S4`/`S5`
+  split). Without the flag the accepted-status screen had exactly one way to
+  tell: read the current revision's prefix. That is inferring an outcome
+  backwards from its side effect, and it fails in the direction that matters —
+  a deliverable accepted under a non-contractual code shows a `P` revision, so
+  the screen would either render it as *"round 2 issued"* (still under review,
+  which it is not) or say nothing and let the reader conclude the `C` is
+  missing. The flag rides the same derived verdict lookup the code and
+  description already come from, so nothing is stored twice.

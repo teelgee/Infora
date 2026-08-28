@@ -176,6 +176,12 @@ async function toPlanRows(
       containerId: s.reviewCycles.containerId,
       code: s.acceptanceCodes.code,
       description: s.acceptanceCodes.description,
+      // T-392 — the surface has to say WHICH of the two acceptances happened,
+      // and only the code knows: an accepting code ends the cycle, a
+      // contractual one also issues the C revision (ADR-0003 as amended,
+      // ADR-0041). Derived here with the verdict rather than re-read, so the
+      // screen never infers it from a revision prefix.
+      isContractual: s.acceptanceCodes.isContractual,
       number: s.rounds.number,
     })
     .from(s.rounds)
@@ -183,10 +189,17 @@ async function toPlanRows(
     .innerJoin(s.acceptanceCodes, eq(s.rounds.deliverableCodeId, s.acceptanceCodes.id))
     .where(inArray(s.reviewCycles.containerId, ids))
     .orderBy(desc(s.rounds.number));
-  const verdictByContainer = new Map<string, { code: string; description: string }>();
+  const verdictByContainer = new Map<
+    string,
+    { code: string; description: string; isContractual: boolean }
+  >();
   for (const v of verdicts) {
     if (!verdictByContainer.has(v.containerId)) {
-      verdictByContainer.set(v.containerId, { code: v.code, description: v.description });
+      verdictByContainer.set(v.containerId, {
+        code: v.code,
+        description: v.description,
+        isContractual: v.isContractual,
+      });
     }
   }
 

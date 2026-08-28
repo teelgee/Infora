@@ -720,7 +720,13 @@ export type PlanRow = {
   inLibrary: boolean;
   workItem: { id: Id; title: string; status: string } | null; // null = owner-added reference material
   currentVersion: { versionId: Id; versionReference: string; createdAt: string } | null;
-  deliverableCode: { code: string; description: string } | null; // latest round verdict — derived
+  // the latest round verdict — derived. `isContractual` rides with it (T-392)
+  // because the accepted-status surface has to state WHICH acceptance happened:
+  // an accepting code ends the cycle, a contractual one also issues the `C`
+  // revision (ADR-0003 as amended, ADR-0041 — the 2021 NA's `S4`/`S5` split).
+  // Without it a screen would have to infer the answer from a revision prefix,
+  // which reads the outcome backwards from its side effect.
+  deliverableCode: { code: string; description: string; isContractual: boolean } | null;
   // the document owner (single, informational, amendable — T-189); null if unset
   documentOwner: { participantId: Id; name: string } | null;
   // why the deliverable was removed from the plan (state = withdrawn), if so
