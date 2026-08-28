@@ -16,6 +16,7 @@ import { costRoutes } from './costs';
 import { csrfGuard } from './csrf';
 import { libraryRoutes } from './library';
 import { cycleRoutes } from './cycle';
+import { acceptanceCodeRoutes } from './acceptance-codes';
 import { namingRoutes } from './naming';
 import { healthRoutes, requestObservability } from './observability';
 import { containerRoutes, planRoutes } from './plan';
@@ -191,6 +192,8 @@ export function buildApp(deps: AppDeps) {
 
   // Promotion + the review cycle (Slice A, ADR-0002/0005–0014/0032) — T-120+
   app.route('/', cycleRoutes({ db: deps.db, router: deps.router }));
+  // T-390 — the acceptance-code scheme's read and, for the first time, its write
+  app.route('/', acceptanceCodeRoutes(deps));
 
   // Renditions: the record's stored exports (Slice A, ADR-0004/0034) — T-121
   app.route('/', renditionRoutes(deps));

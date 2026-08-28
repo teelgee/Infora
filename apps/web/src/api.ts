@@ -19,6 +19,8 @@ import type {
   IssueRoundResponse,
   LeadReviewerReplacement,
   ListAcceptanceCodesResponse,
+  CreateAcceptanceCodeBody,
+  UpdateAcceptanceCodeBody,
   ListRenditionsResponse,
   PromotionPreflight,
   PromotionResult,
@@ -258,6 +260,19 @@ export const api = {
   cycle: (containerId: string) => request<ReviewCycle | null>(`/containers/${containerId}/cycle`),
   acceptanceCodes: (projectId: string) =>
     request<ListAcceptanceCodesResponse>(`/projects/${projectId}/acceptance-codes`),
+  // T-390 — the scheme's write path, which did not exist. Every write carries a
+  // reason: the change is audited like a rails change (ADR-0003/0030), because
+  // it alters what the AI may rely on across a whole project.
+  createAcceptanceCode: (projectId: string, body: CreateAcceptanceCodeBody) =>
+    request<ListAcceptanceCodesResponse>(`/projects/${projectId}/acceptance-codes`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateAcceptanceCode: (codeId: string, body: UpdateAcceptanceCodeBody) =>
+    request<ListAcceptanceCodesResponse>(`/acceptance-codes/${codeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   // T-373 — what the promotion window states before the click, off the same
   // decision the act runs
   promotionPreflight: (documentId: string) =>

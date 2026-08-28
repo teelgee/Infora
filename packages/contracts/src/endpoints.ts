@@ -879,10 +879,69 @@ export type AcceptanceCode = {
   description: string;
   level: 'comment' | 'deliverable' | 'both';
   isAccepting: boolean;
+  // T-383/T-390 (ADR-0003 as amended): an accepting code ends the cycle, but
+  // only a CONTRACTUAL one issues the C revision (ADR-0041); `grounds` is
+  // whether a deliverable admitted under this code enters the AI's reach.
+  isContractual: boolean;
+  grounds: boolean;
   sortOrder: number;
   retiredAt: string | null;
 };
-export type ListAcceptanceCodesResponse = { items: AcceptanceCode[] };
+
+// T-390 — the code AS THE EDITOR READS IT: the code, plus the two facts that
+// decide whether an edit is safe and whether it is even offered. Separate from
+// `AcceptanceCode` because a round's own verdict (`Round.deliverableCode`)
+// needs neither, and computing a blast radius for every round on every cycle
+// read would be work nobody asked for.
+export type AcceptanceCodeRow = AcceptanceCode & {
+  // THE BLAST RADIUS, and it is what makes this screen safe rather than
+  // dangerous: how many live library deliverables this code admitted. It turns
+  // a checkbox into *"this will exclude forty-one deliverables from AI
+  // answers"*. **It is a promise about the NEXT query**, which is only honest
+  // because retrieval reads the flag live rather than caching the composite
+  // (T-387, ADR-0013 §6) — the two have to agree, and this is the side making
+  // the claim.
+  liveDeliverables: number;
+  // Whether this code has ever been used on a round. A used code is never
+  // redefined in the ways that would change what it MEANT (ADR-0003: retire and
+  // replace); the surface needs to know before it offers those edits.
+  everUsed: boolean;
+};
+export type ListAcceptanceCodesResponse = { items: AcceptanceCodeRow[] };
+
+// T-390 — the scheme's write path, which did not exist: a pilot firm could not
+// represent its own acceptance scheme at all, independently of anything AI.
+//
+// Every write carries a REASON, and that is the point rather than ceremony.
+// ADR-0003 requires a change here to be audited like a rails change (ADR-0030),
+// because it alters what the AI may rely on across a whole project — silently,
+// since every citation that already exists still resolves. "Who and when" a
+// timestamp could give; the why is the half only the person making the change
+// holds.
+export const createAcceptanceCodeBody = z.object({
+  code: z.string().min(1).max(16),
+  description: z.string().min(1),
+  level: z.enum(['comment', 'deliverable', 'both']).default('both'),
+  isAccepting: z.boolean().default(false),
+  isContractual: z.boolean().default(false),
+  grounds: z.boolean().default(false),
+  reason: z.string().min(1),
+});
+export type CreateAcceptanceCodeBody = z.infer<typeof createAcceptanceCodeBody>;
+
+// A partial edit: exactly the properties the editor offers, each optional.
+// `code` is absent on purpose — the letter IS the code's identity, and a
+// project that wants a different one adds it and retires this (ADR-0003's
+// retire-and-replace, which predates this ticket).
+export const updateAcceptanceCodeBody = z.object({
+  description: z.string().min(1).optional(),
+  isAccepting: z.boolean().optional(),
+  isContractual: z.boolean().optional(),
+  grounds: z.boolean().optional(),
+  retired: z.boolean().optional(),
+  reason: z.string().min(1),
+});
+export type UpdateAcceptanceCodeBody = z.infer<typeof updateAcceptanceCodeBody>;
 
 // Promotion & the freeze (ADR-0002/0032, T-120/T-125): the near-empty
 // hand-off — "no wizard" is the acceptance test. Two legal sources: the live

@@ -6,7 +6,15 @@
 // else views. The code-builder previews a compliant reference from the code fields.
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
-import type { MeResponse, NamingProposal, NamingSchemeField, SchemaFieldRole, SchemaFieldType } from '@infora/contracts';
+import type {
+  AcceptanceCodeRow,
+  ListAcceptanceCodesResponse,
+  MeResponse,
+  NamingProposal,
+  NamingSchemeField,
+  SchemaFieldRole,
+  SchemaFieldType,
+} from '@infora/contracts';
 import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
 import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { Info, Plus, Upload, X } from 'lucide-react';
@@ -250,6 +258,54 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: 'lead_reviewer', label: 'Lead reviewer' },
 ];
 
+// T-390 — the acceptance-code editor, and the reason every write asks for one.
+// The change alters what "accepted" means on this project and, through
+// `grounds`, what the AI may rely on across the whole of it — silently, because
+// every citation that already exists still resolves. ADR-0003 requires it
+// audited like a rails change (ADR-0030), not saved like a preference, and
+// "who and when" a timestamp already gives: the why is the half only the person
+// making the change holds.
+function CodeChangeModal(props: {
+  title: string;
+  /** what the change will do, in the sentence the owner should read before saving */
+  consequence: string;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title={props.title}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={busy || reason.trim() === ''}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(reason.trim());
+            }}
+          >
+            Save change
+          </Button>
+        </>
+      }
+    >
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 0, lineHeight: 1.5 }}>
+        {props.consequence}
+      </p>
+      <Field label="Why" hint="Recorded with your name against this code, permanently.">
+        <TextInput value={reason} onChange={setReason} placeholder="e.g. A3 is design-stage only on this scheme" />
+      </Field>
+    </Modal>
+  );
+}
+
 export function SchemaScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -269,6 +325,15 @@ export function SchemaScreen() {
   const [reviewPeriodDays, setReviewPeriodDays] = useState('');
   const [savedPeriod, setSavedPeriod] = useState<number | null>(null);
   const [periodSaved, setPeriodSaved] = useState(false);
+  // T-390 — the acceptance-code scheme, its own section like the review period
+  const [codes, setCodes] = useState<AcceptanceCodeRow[] | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [pendingChange, setPendingChange] = useState<{
+    title: string;
+    consequence: string;
+    apply: (reason: string) => Promise<ListAcceptanceCodesResponse>;
+  } | null>(null);
+  const [addingCode, setAddingCode] = useState<{ code: string; description: string } | null>(null);
 
   // T-378 — the editor holds three states, exactly as T-376 gave the plan
   // screen: loading / ready / failed. Without it, a failed read left an EMPTY
@@ -292,8 +357,25 @@ export function SchemaScreen() {
       setSavedPeriod(r.defaultDays);
       setReviewPeriodDays(String(r.defaultDays));
     });
+    void api.acceptanceCodes(projectId).then(
+      (r) => setCodes(r.items),
+      // the same three-state discipline the scheme read learned in T-378: a
+      // failed read must not render as an empty scheme wearing the costume of
+      // configuration, because the next click would write that emptiness back
+      () => setCodeError('Could not load the acceptance codes — reload before changing anything.'),
+    );
     loadProposals();
   }, [projectId]);
+
+  // T-390 — every code write goes through the reason modal, so there is one
+  // path and no way to add a save that skips the audit.
+  function askThen(
+    title: string,
+    consequence: string,
+    apply: (reason: string) => Promise<ListAcceptanceCodesResponse>,
+  ) {
+    setPendingChange({ title, consequence, apply });
+  }
 
   async function save() {
     // saving is refused, not degraded, until the real scheme has arrived —
@@ -586,6 +668,187 @@ export function SchemaScreen() {
           </>
         )}
       </div>
+
+      {/* T-390 (ADR-0003 as amended 2026-08-27) — the acceptance-code scheme.
+          Its own section beside the review period, and for the same reason: it
+          is project configuration, not an attribute of a deliverable. There was
+          no write path at all before this, so a pilot firm could not represent
+          its own coding scheme — a gap that has nothing to do with AI, and the
+          reason this screen is worth building independently of the grounding
+          column that made it urgent. */}
+      <SectionLabel>Acceptance codes</SectionLabel>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 8px', maxWidth: 700, lineHeight: 1.5 }}>
+        What a reviewer's verdict can say on this project, seeded from ISO 19650's 2021 National
+        Annex and copied at project creation — nothing here touches another project.{' '}
+        <strong>Accepting</strong> ends the review cycle; <strong>contractual</strong> is what issues
+        the C revision, the difference between <em>we have agreed this</em> and <em>we have agreed
+        most of this, with comments</em>; <strong>grounds</strong> is whether a deliverable accepted
+        under the code enters the AI's reach. A code that has been used is never redefined — retire
+        it and add its replacement, so a deliverable coded last year still reads as what it meant
+        last year.
+      </p>
+      {codeError && <p style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>{codeError}</p>}
+      {codes !== null && (
+        <Table>
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Label</th>
+                <th>Accepting</th>
+                <th>Contractual</th>
+                <th>Grounds</th>
+                <th>Live deliverables</th>
+                {canEdit && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map((code) => (
+                <tr key={code.id} style={{ opacity: code.retiredAt ? 0.55 : 1 }}>
+                  <td className="mono">{code.code}</td>
+                  <td>
+                    {canEdit && !code.retiredAt ? (
+                      <TextInput
+                        value={code.description}
+                        onChange={(v) =>
+                          setCodes((rows) =>
+                            (rows ?? []).map((r) => (r.id === code.id ? { ...r, description: v } : r)),
+                          )
+                        }
+                        onEnter={() =>
+                          askThen(
+                            `Rename ${code.code}`,
+                            'The word changes and nothing else does: the state underneath is fixed, and everything downstream keys on what happened rather than on what it is called.',
+                            (reason) => api.updateAcceptanceCode(code.id, { description: code.description, reason }),
+                          )
+                        }
+                      />
+                    ) : (
+                      code.description
+                    )}
+                  </td>
+                  <td>{code.isAccepting ? <Badge tone="success">Yes</Badge> : '—'}</td>
+                  <td>{code.isContractual ? <Badge tone="info">Yes</Badge> : '—'}</td>
+                  <td>
+                    {code.grounds ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>}
+                  </td>
+                  {/* THE BLAST RADIUS — what makes this screen safe rather than
+                      dangerous. It is a promise about the NEXT query, honest
+                      only because retrieval reads the flag live (T-387). */}
+                  <td>{code.liveDeliverables}</td>
+                  {canEdit && (
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {!code.retiredAt && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="quiet"
+                            onClick={() =>
+                              askThen(
+                                `${code.grounds ? 'Stop' : 'Start'} grounding on ${code.code}`,
+                                code.grounds
+                                  ? `This will exclude ${code.liveDeliverables} live deliverable${code.liveDeliverables === 1 ? '' : 's'} from AI answers, from the next question asked. They stay in the library and stay readable; the agent stops reaching for them.`
+                                  : `This will admit ${code.liveDeliverables} live deliverable${code.liveDeliverables === 1 ? '' : 's'} to AI answers, from the next question asked.`,
+                                (reason) => api.updateAcceptanceCode(code.id, { grounds: !code.grounds, reason }),
+                              )
+                            }
+                          >
+                            {code.grounds ? 'Stop grounding' : 'Ground on it'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="quiet"
+                            onClick={() =>
+                              askThen(
+                                `Retire ${code.code}`,
+                                'A retired code cannot be chosen on a new round. Every round already coded with it is untouched and still reads as what it meant — which is exactly why retiring is the way to change a code that has been used.',
+                                (reason) => api.updateAcceptanceCode(code.id, { retired: true, reason }),
+                              )
+                            }
+                          >
+                            Retire
+                          </Button>
+                        </>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Table>
+      )}
+      {canEdit && (
+        <div style={{ marginTop: 8 }}>
+          <Button size="sm" onClick={() => setAddingCode({ code: '', description: '' })}>
+            <Plus size={13} strokeWidth={2} /> Add a code
+          </Button>
+        </div>
+      )}
+      {addingCode && (
+        <Modal
+          open
+          onClose={() => setAddingCode(null)}
+          size="sm"
+          title="Add an acceptance code"
+          footer={
+            <>
+              <Button variant="quiet" onClick={() => setAddingCode(null)}>Cancel</Button>
+              <Button
+                variant="primary"
+                disabled={addingCode.code.trim() === '' || addingCode.description.trim() === ''}
+                onClick={() => {
+                  const draft = addingCode;
+                  setAddingCode(null);
+                  askThen(
+                    `Add ${draft.code.trim()}`,
+                    'The new code is available on the next round. It grounds nothing until you say so — the standard leaves each published code’s meaning to this project’s information standard, so nothing about the letter tells us the answer.',
+                    (reason) =>
+                      api.createAcceptanceCode(projectId, {
+                        code: draft.code.trim(),
+                        description: draft.description.trim(),
+                        level: 'both',
+                        isAccepting: false,
+                        isContractual: false,
+                        grounds: false,
+                        reason,
+                      }),
+                  );
+                }}
+              >
+                Continue
+              </Button>
+            </>
+          }
+        >
+          <Field label="Code" hint="The letter, as the project's information standard writes it — e.g. A4.">
+            <TextInput value={addingCode.code} onChange={(v) => setAddingCode({ ...addingCode, code: v })} mono />
+          </Field>
+          <Field label="Label">
+            <TextInput
+              value={addingCode.description}
+              onChange={(v) => setAddingCode({ ...addingCode, description: v })}
+              placeholder="e.g. Published — authorized and accepted for construction"
+            />
+          </Field>
+        </Modal>
+      )}
+      {pendingChange && (
+        <CodeChangeModal
+          title={pendingChange.title}
+          consequence={pendingChange.consequence}
+          onClose={() => setPendingChange(null)}
+          onSubmit={async (reason) => {
+            try {
+              setCodes((await pendingChange.apply(reason)).items);
+              setCodeError(null);
+            } catch (error) {
+              setCodeError(describeApiError(errorCode(error)));
+            }
+            setPendingChange(null);
+          }}
+        />
+      )}
 
       <SectionLabel>Scheme additions</SectionLabel>
       {canPropose && (

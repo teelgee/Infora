@@ -23,7 +23,6 @@ import type {
   AcceptanceCode,
   ApiError,
   GetCycleResponse,
-  ListAcceptanceCodesResponse,
   PromotionPreflight,
   PromotionResult,
   ReviewComment,
@@ -47,7 +46,7 @@ import { generateRenditions } from './renditions';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import { loadSchemeOrDefault } from './naming';
-import { projectScope, resolveSlice } from './requester';
+import { resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -209,6 +208,8 @@ function toAcceptanceCode(row: typeof s.acceptanceCodes.$inferSelect): Acceptanc
     description: row.description,
     level: row.level,
     isAccepting: row.isAccepting,
+    isContractual: row.isContractual,
+    grounds: row.grounds,
     sortOrder: row.sortOrder,
     retiredAt: row.retiredAt?.toISOString() ?? null,
   };
@@ -663,17 +664,9 @@ async function resolvePromotion(
 
 export function cycleRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
-  const project = projectScope(deps);
 
-  app.get('/projects/:projectId/acceptance-codes', project, async (c) => {
-    const slice = c.get('slice');
-    const rows = await deps.db
-      .select()
-      .from(s.acceptanceCodes)
-      .where(eq(s.acceptanceCodes.projectId, slice.projectId))
-      .orderBy(asc(s.acceptanceCodes.sortOrder));
-    return c.json({ items: rows.map(toAcceptanceCode) } satisfies ListAcceptanceCodesResponse);
-  });
+  // T-390 — the acceptance-code read moved to acceptance-codes.ts, beside the
+  // write path it now has and the blast-radius count that makes that path safe.
 
   app.get('/containers/:containerId/cycle', async (c) => {
     const containerId = c.req.param('containerId');

@@ -588,6 +588,20 @@
       <h2>Drawer 5 — Review</h2>
       <p class="blurb">The review cycle at two scopes: cycles, rounds, transmittals, comments, responses, appointments and shares.</p>
       <article class="card d5">
+        <h3>acceptance_code_changes <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">acceptance_code_id</td><td class="type">uuid</td><td class="notes">→ acceptance_codes.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">changed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">field</td><td class="type">acceptance_code_change_field</td><td class="notes"></td></tr>
+          <tr><td class="col">previous_value</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">new_value</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">changed_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
         <h3>acceptance_codes</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

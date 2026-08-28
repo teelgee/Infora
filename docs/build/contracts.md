@@ -515,3 +515,20 @@ are not recorded here.
   a queue of its own because a proposal leaves the deliverable **live**: it is
   still listed, still grounding, and the row is where its reason, its producer
   and its state already sit.
+- **2026-08-28 (T-390) — the scheme gains a write path, and `AcceptanceCodeRow`
+  splits off from `AcceptanceCode` rather than widening it.** The editor's row
+  needs two facts the code itself is not: the **blast radius**
+  (`liveDeliverables` — *"this will exclude forty-one deliverables from AI
+  answers"*) and `everUsed`, which decides whether the redefining edits are
+  offered at all. Both are computed, and computing them for
+  `Round.deliverableCode` on every cycle read would be work nobody asked for —
+  a round's own verdict needs neither. **The blast radius is counted through
+  the same `admittingCodes` derivation retrieval's clause and the context-state
+  badge read**, deliberately, and not off `rounds`: a code named on a round that
+  was later re-accepted under a different one admitted nothing, and the sentence
+  the surface prints would then be about a set that is not the one the next
+  query returns. **`code` is absent from the update body** — the letter is the
+  code's identity, and ADR-0003's retire-and-replace is how a project changes
+  it. Every write body carries a **mandatory `reason`**: ADR-0003 requires the
+  change audited like a rails change, and "who and when" a timestamp already
+  gives.

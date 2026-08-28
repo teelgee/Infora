@@ -427,6 +427,35 @@ the words it quoted.
 
 **Nothing is stored for context state**, deliberately: it is derived from library membership + record state + the code's `grounds` flag, computed in the same SQL pre-filter retrieval already runs, and storing it would create a second state machine that could disagree with the first.
 
+## Drawn 2026-08-28 — the acceptance-code change record (T-390)
+
+*Drawn and built the same day, so the field list below is already gone and
+[drawer5-review.ts](../../packages/db/src/schema/drawer5-review.ts) is the
+authority on its shape; migration 0053. Not part of the document-status
+session's own drawing, and worth saying why it appeared: T-390 has to be
+"audited like a rails change" (ADR-0003 as amended, ADR-0030), and **there is
+no rails-change machinery to imitate** — rails as scoped records is still in
+the not-drawn list below. Every audit in this repo is instead a purpose-built
+append-only table, so this is one more of those.*
+
+**Drawer 5 — `acceptance_code_changes`.** Append-only by trigger (the T-008
+pattern), holding who changed which code, what the change was, and **why in
+free text** — the user story asks for *"who, when and why"* and the why is the
+half a diff cannot reconstruct. It exists because the edit it records is not a
+preference: turning `grounds` off changes what the AI may rely on across a
+whole project, **silently**, since every citation that already exists still
+resolves. A row here is the only thing that can answer *"when did this project
+stop relying on `A3`, and who decided"*.
+
+**Not a diff of the row, and not a version of it.** The stored change is the
+one property that moved plus its old and new value, because a code's history is
+read as a sequence of decisions rather than as a sequence of states — and a
+whole-row snapshot would invite the reader to reconstruct a decision from a
+diff, which is exactly what the free-text why exists to avoid.
+
+**The changer is a named person** (`changed_by_participant_id`) and is
+registered in [personal-data.md](../architecture/personal-data.md).
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

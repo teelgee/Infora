@@ -68,6 +68,57 @@ export const acceptanceCodes = pgTable(
   ],
 );
 
+// ── The acceptance-code change record (T-390, ADR-0003 as amended) ─────────
+// Append-only by trigger (T-008): the edit this records is not a preference.
+// Turning `grounds` off changes what the AI may rely on across a whole project,
+// SILENTLY — every citation that already exists still resolves — so ADR-0003
+// requires it to be audited like a rails change (ADR-0030). There is no
+// rails-change machinery to reuse (rails as scoped records is undrawn), and
+// every audit in this repo is a purpose-built append-only table, so this is one
+// more of those.
+//
+// One property per row, with its old and new value, and the REASON in free
+// text: a code's history reads as a sequence of decisions, not of states, and
+// a whole-row snapshot would invite a reader to reconstruct the decision from a
+// diff — which is the thing the reason exists to make unnecessary.
+export const acceptanceCodeChangeField = pgEnum('acceptance_code_change_field', [
+  'created',
+  'description',
+  'is_accepting',
+  'is_contractual',
+  'grounds',
+  'retired',
+]);
+
+export const acceptanceCodeChanges = pgTable(
+  'acceptance_code_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    acceptanceCodeId: uuid('acceptance_code_id')
+      .notNull()
+      .references(() => acceptanceCodes.id),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // identity from the record, never from the caller. Participant grain: the
+    // scheme is the owner organisation's, per project, so the same person may
+    // hold this on one project and not another. A named person — registered in
+    // docs/architecture/personal-data.md.
+    changedByParticipantId: uuid('changed_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    field: acceptanceCodeChangeField('field').notNull(),
+    // rendered as text so one column serves a boolean and a label alike; null
+    // on `created`, where there is no previous value to state
+    previousValue: text('previous_value'),
+    newValue: text('new_value'),
+    // why, in the owner's own words. The half a diff cannot reconstruct.
+    reason: text('reason').notNull(),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('acceptance_code_changes_project_idx').on(t.projectId, t.changedAt)],
+);
+
 // ── The cycle (the instance unit; its record is the DRR) ───────────────────
 // Both terminals are explicit human action: acceptance via the lead
 // reviewer's accepting code; rejection closed by the lead author or project
