@@ -99,6 +99,22 @@ async function authoringContainer(db: Db, container: ContainerRow): Promise<Cont
   return row ?? null;
 }
 
+/** T-385 — which SIDE withdrew this container (ADR-0013 §5), read off
+ * `withdrawn_by_participant_id`. A withdrawal recorded before migration 0052
+ * carries no actor, so the publication boundary stands in for it: pre-publication
+ * the record was the producer's and only the producer could have acted; in the
+ * library it is the owner's. That is what the missing row would have said. */
+async function withdrawingSide(db: Db, container: ContainerRow): Promise<'owner' | 'producer'> {
+  if (!container.withdrawnByParticipantId) return container.inLibrary ? 'owner' : 'producer';
+  const [actor] = await db
+    .select({ organisationId: s.users.organisationId })
+    .from(s.participants)
+    .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+    .where(eq(s.participants.id, container.withdrawnByParticipantId))
+    .limit(1);
+  return actor?.organisationId === container.producingOrganisationId ? 'producer' : 'owner';
+}
+
 async function loadContainer(db: Db, containerId: string): Promise<ContainerRow | null> {
   if (!isUuid(containerId)) return null;
   const [row] = await db.select().from(s.containers).where(eq(s.containers.id, containerId)).limit(1);
@@ -852,11 +868,20 @@ export function containerRoutes(deps: { db: Db }) {
     return c.json(row!);
   });
 
+  // Restoration — T-385 (ADR-0013 §5). **It stops being symmetric.** As built
+  // either side could restore what the other withdrew, and neither act recorded
+  // the other; the comment that justified free restoration — *"recovery is never
+  // a helpdesk ticket"* — was reasoning about a producer undoing its own
+  // mistake, and does not survive a cross-organisation act. So the container's
+  // recorded withdrawer decides: only that side may undo it, **or the owner over
+  // a producer's act**, because the owner may un-break and never break.
   app.post('/containers/:containerId/restoration', async (c) => {
     const scopedCtx = await scoped(c, c.req.param('containerId'));
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
-    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    const isProducer = container.producingOrganisationId === slice.organisationId;
+    const isOwnerSide = slice.membershipRole === 'owner';
+    if (!isProducer && !isOwnerSide) return notFound(c);
     // recovery rather than destruction, and recorded anyway (T-301): the record
     // answers "who attempted an act this tier holds and was refused", and one
     // direction of the same gate going unrecorded leaves it incomplete while
@@ -869,6 +894,16 @@ export function containerRoutes(deps: { db: Db }) {
         action: 'container_restore',
       });
     }
+    // T-385 — who may undo, read off the record rather than inferred. A
+    // withdrawal recorded before migration 0052 has no actor; the publication
+    // boundary is what the missing record would have said, so it stands in.
+    const withdrewSide = await withdrawingSide(deps.db, container);
+    const mayRestore = withdrewSide === 'owner' ? isOwnerSide : isProducer || isOwnerSide;
+    if (!mayRestore) return forbidden(c, 'restoration_not_permitted');
+    // `superseded` and `rejected` are not undone here and never were: a
+    // superseded container is superseded by a confirmed edge, so the way back is
+    // retiring that edge (T-386), and a rejected one is a closed cycle's record.
+    if (container.state !== 'withdrawn') return conflict(c, 'not_withdrawn');
     const [updated] = await deps.db
       .update(s.containers)
       // T-384 — the actor clears with the reason: a live row carrying the name

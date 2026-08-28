@@ -263,3 +263,88 @@ describe('the withdrawal guard follows the publication boundary (T-384)', () => 
     expect(refusals.map((r) => r.action)).toEqual(['container_withdraw']);
   });
 });
+
+// T-385 — as built, either side could restore what the other withdrew and
+// neither act recorded the other. The comment that justified free restoration
+// (*"recovery is never a helpdesk ticket"*) was reasoning about a producer
+// undoing its own mistake, and does not survive a cross-organisation act.
+describe('restoration stops being symmetric (T-385)', () => {
+  it('the producer cannot undo the owner’s withdrawal of a published deliverable', async () => {
+    const containerId = await publishedRow(`T385-OWN-${stamp}`);
+    await app.request(`/containers/${containerId}/withdrawal`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+      body: JSON.stringify({ reason: 'Ended by the client' }),
+    });
+
+    const byProducer = await app.request(`/containers/${containerId}/restoration`, {
+      method: 'POST',
+      headers: asJson(producerCookie),
+    });
+    expect(byProducer.status).toBe(403);
+    expect(((await byProducer.json()) as { detail: string }).detail).toBe(
+      'restoration_not_permitted',
+    );
+    expect((await readRow(containerId, ownerCookie)).state).toBe('withdrawn');
+
+    const byOwner = await app.request(`/containers/${containerId}/restoration`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(byOwner.status).toBe(200);
+    const row = (await byOwner.json()) as PlanRow;
+    expect(row.state).toBe('live');
+    expect(row.withdrawnBy).toBeNull();
+    expect(row.withdrawnReason).toBeNull();
+  });
+
+  it('a producer undoes its own act, and the owner may undo it too', async () => {
+    const make = async (ref: string) => {
+      const res = await app.request(`/projects/${projectId}/plan`, {
+        method: 'POST',
+        headers: asJson(producerCookie),
+        body: JSON.stringify({ documentReference: ref, title: 'Planned chapter' }),
+      });
+      const id = ((await res.json()) as PlanRow).containerId;
+      await app.request(`/containers/${id}/withdrawal`, {
+        method: 'POST',
+        headers: asJson(producerCookie),
+        body: JSON.stringify({ reason: 'Descoped' }),
+      });
+      return id;
+    };
+
+    const own = await make(`T385-SELF-${stamp}`);
+    const bySelf = await app.request(`/containers/${own}/restoration`, {
+      method: 'POST',
+      headers: asJson(producerCookie),
+    });
+    expect(bySelf.status).toBe(200);
+    expect(((await bySelf.json()) as PlanRow).state).toBe('live');
+
+    // §5's other half: the owner may undo a producer's act — it may un-break,
+    // never break (it has no withdrawal act on an unpublished row at all)
+    const other = await make(`T385-OVER-${stamp}`);
+    const byOwner = await app.request(`/containers/${other}/restoration`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(byOwner.status).toBe(200);
+    expect(((await byOwner.json()) as PlanRow).state).toBe('live');
+  });
+
+  it('restoration is for withdrawal alone — a superseded container is not undone here', async () => {
+    const containerId = await publishedRow(`T385-SUP-${stamp}`);
+    await db
+      .update(s.containers)
+      .set({ state: 'superseded' })
+      .where(eq(s.containers.id, containerId));
+    const res = await app.request(`/containers/${containerId}/restoration`, {
+      method: 'POST',
+      headers: asJson(ownerCookie),
+    });
+    expect(res.status).toBe(409);
+    // the way back from `superseded` is retiring the edge that set it (T-386)
+    expect(((await res.json()) as { detail: string }).detail).toBe('not_withdrawn');
+  });
+});
