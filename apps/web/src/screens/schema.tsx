@@ -11,11 +11,18 @@ import type {
   ListAcceptanceCodesResponse,
   MeResponse,
   NamingProposal,
+  NamingSchemeDiff,
   NamingSchemeField,
   SchemaFieldRole,
   SchemaFieldType,
 } from '@infora/contracts';
-import { defaultDeliverableSchema, isCodeField, optionLabel } from '@infora/contracts';
+import {
+  applyNamingSchemeImport,
+  defaultDeliverableSchema,
+  diffNamingSchemeFields,
+  isCodeField,
+  optionLabel,
+} from '@infora/contracts';
 import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { Info, Plus, Upload, X } from 'lucide-react';
 import { api, RequestError } from '../api';
@@ -306,6 +313,176 @@ function CodeChangeModal(props: {
   );
 }
 
+
+/**
+ * T-338 — the schema screen's own import, and the **diff** that stops it being
+ * a silent replace.
+ *
+ * T-337 built the parse and put it behind ONE field's option editor, where it
+ * lands a code list. This is the other half: a sheet describing the whole schema
+ * — Field / Code / Description — landing as fields in the editing table.
+ *
+ * **Nothing is auto-applied, and the guarantee comes free** (ADR-0048 §3's
+ * principle arriving without new machinery): the owner already holds the write
+ * and the table is already an editor, so the import gains **no write path the
+ * owner did not already have**. `Save schema` is still what commits.
+ *
+ * **Why the diff exists, in the ticket's own words:** `Reset to Infora default`
+ * already sits beside this button, and an import that quietly wiped a schema in
+ * progress is the same accident with a worse cause. So the panel states what the
+ * import would add, change and drop before anything moves.
+ *
+ * The diff itself lives in `@infora/contracts`
+ * (`diffNamingSchemeFields` / `applyNamingSchemeImport`), where it can be
+ * pinned by tests — this screen renders it and owns nothing about it but the
+ * words on the page.
+ */
+function SchemaImportPanel(props: {
+  projectId: string;
+  fields: NamingSchemeField[];
+  onApply: (next: NamingSchemeField[]) => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [staged, setStaged] = useState<{
+    diff: NamingSchemeDiff;
+    skipped: Array<{ row: number; reason: string }>;
+  } | null>(null);
+  const [dropMissing, setDropMissing] = useState(false);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    setStaged(null);
+    setDropMissing(false);
+    try {
+      const result = await api.importSchema(props.projectId, file);
+      setStaged({ diff: diffNamingSchemeFields(props.fields, result.fields), skipped: result.skipped });
+    } catch (err) {
+      const code = errorCode(err);
+      const hint = err instanceof RequestError ? err.body?.hint : undefined;
+      setError(`${describeApiError(code)}${hint ? ` (${hint})` : ''}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const diff = staged?.diff;
+  const nothingToDo =
+    diff !== undefined && diff.add.length === 0 && diff.change.length === 0;
+
+  return (
+    <>
+      <Button variant="quiet" disabled={importing} onClick={() => input.current?.click()}>
+        <Upload size={14} aria-hidden /> {importing ? 'Reading…' : 'Import fields from spreadsheet'}
+      </Button>
+      <input
+        ref={input}
+        type="file"
+        accept=".csv,.xlsx"
+        hidden
+        onChange={(e) => {
+          void onFile(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      {error !== null && (
+        <div className="banner banner--error" style={{ flexBasis: '100%' }}>
+          {error}
+        </div>
+      )}
+      {staged && diff && (
+        <div className="card" style={{ flexBasis: '100%', padding: '10px 12px', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+            What this import would do
+          </div>
+          {nothingToDo ? (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.55 }}>
+              Nothing to add or change — the sheet matches the schema you already have.
+            </p>
+          ) : (
+            <div style={{ display: 'grid', gap: 4, fontSize: 12, lineHeight: 1.5 }}>
+              {diff.add.map((f) => (
+                <div key={`a-${f.key}`}>
+                  <Badge tone="success">Add</Badge>{' '}
+                  <b>{f.label}</b>{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    ({f.allowedValues?.length ?? 0} option
+                    {(f.allowedValues?.length ?? 0) === 1 ? '' : 's'})
+                  </span>
+                </div>
+              ))}
+              {diff.change.map((c) => (
+                <div key={`c-${c.current.key}`}>
+                  <Badge tone="warning">Change</Badge>{' '}
+                  <b>{c.current.label}</b>{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>{c.what.join('; ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {diff.drop.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={dropMissing}
+                  onChange={(e) => setDropMissing(e.currentTarget.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Also drop the {diff.drop.length} field
+                  {diff.drop.length === 1 ? '' : 's'} the sheet does not mention —{' '}
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {diff.drop.map((f) => f.label).join(', ')}
+                  </span>
+                </span>
+              </label>
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                Off by default: most sheets cover one part of a schema, so not being mentioned is
+                weak evidence that a field should go.
+              </p>
+            </div>
+          )}
+          {staged.skipped.length > 0 && (
+            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+              {staged.skipped.length} row{staged.skipped.length === 1 ? '' : 's'} skipped:{' '}
+              {staged.skipped
+                .slice(0, 5)
+                .map((s) => `row ${s.row} (${s.reason})`)
+                .join('; ')}
+              {staged.skipped.length > 5 ? '…' : ''}
+            </p>
+          )}
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+            A matched field keeps its <b>in code</b>, <b>required</b>, <b>role</b> and{' '}
+            <b>originator</b> settings — a spreadsheet of codes has no view on those, and an import
+            that flattened them would unmake the coded reference. Applying changes the table only;
+            nothing is stored until you press <b>Save schema</b>.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <Button
+              size="sm"
+              disabled={nothingToDo && !(dropMissing && diff.drop.length > 0)}
+              onClick={() => {
+                props.onApply(applyNamingSchemeImport(props.fields, diff, dropMissing));
+                setStaged(null);
+              }}
+            >
+              Apply to the table
+            </Button>
+            <Button size="sm" variant="quiet" onClick={() => setStaged(null)}>
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function SchemaScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -576,6 +753,17 @@ export function SchemaScreen() {
           >
             Reset to Infora default
           </Button>
+          {/* T-338 — the import, beside Reset deliberately: they are the two
+              controls that can change the whole table at once, and the diff is
+              what makes this one the safer of the pair. Scoped to `canEdit` by
+              the block it sits in — a guest super-user's import would have to
+              become a NamingProposal, whose body is free text and cannot carry
+              a field list. That is a recorded scope cut, not an oversight. */}
+          <SchemaImportPanel
+            projectId={projectId}
+            fields={fields}
+            onApply={(next) => setFields(next)}
+          />
           <label style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             Separator
             <input className="field-input mono" value={separator} onChange={(e) => setSeparator(e.target.value)} style={{ width: 40 }} />

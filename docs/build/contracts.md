@@ -692,3 +692,19 @@ are not recorded here.
   which it is not) or say nothing and let the reader conclude the `C` is
   missing. The flag rides the same derived verdict lookup the code and
   description already come from, so nothing is stored twice.
+- **2026-08-28 (T-338) — the schema import's diff is a contract helper, not
+  screen code.** `diffNamingSchemeFields` and `applyNamingSchemeImport` join
+  `defaultDeliverableSchema` and `isCodeField` as pure functions over
+  `NamingSchemeField`, and the reason is where they *cannot* live: `apps/web`
+  has no test runner, and the dependency matrix leaves a surface only
+  `contracts` and `ui` to reach for. This is the function that decides whether
+  an owner's schema survives an import — the accident T-338 names is *"an import
+  that quietly wiped a schema in progress"* — so a home that can be pinned by
+  tests is not a nicety. The load-bearing rule they encode: **a matched field
+  keeps `inCode`, `required`, `role`, `isOriginator`, `isSerial` and `width`.**
+  A spreadsheet of codes can express a field's name and its options and has no
+  view on what a reference looks like or which appointments a deliverable needs,
+  so flattening those would unmake the coded reference through a merge rather
+  than through a replace — the same accident wearing a safer-looking control.
+  `drop` is reported and never applied unless the caller asks, because a sheet
+  not mentioning a field is weak evidence that the field should go.

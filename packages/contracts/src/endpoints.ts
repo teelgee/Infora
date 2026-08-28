@@ -1494,6 +1494,99 @@ export function optionLabel(value: string, labels?: Record<string, string>): str
   return desc ? `${value} — ${desc}` : value;
 }
 
+/**
+ * T-338 — what a schema import would **add, change and drop**, computed before
+ * anything moves.
+ *
+ * It lives here rather than in the screen for one reason: it is the function
+ * that decides whether an owner's schema survives an import, and the surfaces
+ * package has no test runner. A pure function over a contract type, beside
+ * `defaultDeliverableSchema` and `isCodeField`, is the closest home that can be
+ * pinned by tests — which for a destructive operation is not a nicety.
+ *
+ * **Matched on `key`** — the stable machine name the parse derives from the
+ * sheet's own field name — with a label fallback, because a firm that renamed a
+ * label without renaming the key would otherwise see its own field as new and
+ * end up with two of it.
+ */
+export type NamingSchemeDiff = {
+  add: NamingSchemeField[];
+  change: Array<{ current: NamingSchemeField; incoming: NamingSchemeField; what: string[] }>;
+  /** in the schema, absent from the sheet. NOT a removal — see `applyNamingSchemeImport` */
+  drop: NamingSchemeField[];
+};
+
+const sameSchemaOptions = (a: NamingSchemeField, b: NamingSchemeField) =>
+  JSON.stringify(a.allowedValues ?? []) === JSON.stringify(b.allowedValues ?? []) &&
+  JSON.stringify(a.allowedValueLabels ?? {}) === JSON.stringify(b.allowedValueLabels ?? {});
+
+export function diffNamingSchemeFields(
+  current: NamingSchemeField[],
+  incoming: NamingSchemeField[],
+): NamingSchemeDiff {
+  const add: NamingSchemeField[] = [];
+  const change: NamingSchemeDiff['change'] = [];
+  const matched = new Set<string>();
+  for (const inc of incoming) {
+    const existing =
+      current.find((f) => f.key === inc.key) ??
+      current.find((f) => f.label.trim().toLowerCase() === inc.label.trim().toLowerCase());
+    if (!existing) {
+      add.push(inc);
+      continue;
+    }
+    matched.add(existing.key);
+    const what: string[] = [];
+    if (existing.label !== inc.label) what.push(`label “${existing.label}” → “${inc.label}”`);
+    if (!sameSchemaOptions(existing, inc)) {
+      what.push(`options ${existing.allowedValues?.length ?? 0} → ${inc.allowedValues?.length ?? 0}`);
+    }
+    if (what.length > 0) change.push({ current: existing, incoming: inc, what });
+  }
+  return { add, change, drop: current.filter((f) => !matched.has(f.key)) };
+}
+
+/**
+ * Apply a diff to the field list — **in memory, for the editing table**. Nothing
+ * here writes; the existing naming-scheme `PUT` is still what commits, which is
+ * how the import gains no write path the owner did not already have.
+ *
+ * **A matched field keeps its `inCode`, `required`, `role`, `isOriginator`,
+ * `isSerial` and `width`.** A spreadsheet of codes can express a field's name
+ * and its options; it has no view on what a reference looks like or which
+ * appointments a deliverable needs. An import that flattened those would
+ * silently unmake the coded reference — the accident the ticket names, arriving
+ * through a merge instead of a replace.
+ *
+ * **`dropMissing` is the caller's explicit choice and should default to false.**
+ * A sheet not mentioning a field is weak evidence the field should go, because
+ * most sheets cover one part of a schema.
+ */
+export function applyNamingSchemeImport(
+  current: NamingSchemeField[],
+  diff: NamingSchemeDiff,
+  dropMissing: boolean,
+): NamingSchemeField[] {
+  const changeByKey = new Map(diff.change.map((c) => [c.current.key, c.incoming]));
+  const dropped = new Set(dropMissing ? diff.drop.map((f) => f.key) : []);
+  const kept = current
+    .filter((f) => !dropped.has(f.key))
+    .map((f) => {
+      const inc = changeByKey.get(f.key);
+      if (!inc) return f;
+      return {
+        ...f,
+        label: inc.label,
+        type: inc.allowedValues?.length ? ('select' as const) : f.type,
+        allowedValues: inc.allowedValues,
+        allowedValueLabels: inc.allowedValueLabels,
+      };
+    });
+  // adds arrive at the END: order is the owner's to set, because it is what
+  // orders the coded reference's segments, and a sheet has no view on that
+  return [...kept, ...diff.add];
+}
+
 export const namingSchemeFieldSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
