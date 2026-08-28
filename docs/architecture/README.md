@@ -8,7 +8,7 @@ The design record: what Infora **is**, why each boundary sits where it does, and
 
 ## Artefacts
 
-Lifecycle and maturity use **the two-axis vocabulary defined once in [the build layer's README](../build/README.md#artefacts)** — ▶ Live · ♻ Living reference · ✅ Closed · ⚙ Derived, and 🟢 settled · 🟡 drafted · 🔴 open. It is not restated here on purpose: two copies of a legend is how the two copies start disagreeing.
+Lifecycle and maturity use **the two-axis vocabulary defined once in [the build layer's README](../build/README.md#artefacts)** — ▶ Live · ♻ Living reference · ✅ Finished · ⚙ Derived, and 🟢 settled · 🟡 drafted · 🔴 open. It is not restated here on purpose: two copies of a legend is how the two copies start disagreeing.
 
 > **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.** The convention in prose is what let a 363-line superseded ticket pack sit in `docs/build/` unnoticed for five weeks; the convention in CI is what catches the next one — and as of 2026-08-28 it is genuinely in CI, which it had never been.
 
@@ -19,11 +19,11 @@ Lifecycle and maturity use **the two-axis vocabulary defined once in [the build 
 | `operating-envelope.md` | ♻ **Living reference** | **The pilot's non-functional envelope** (renamed from `nfr.md` 2026-08-04; moved here from `docs/build/` 2026-08-28): scale, availability, RPO/RTO, latency, the security floor, and the revisit triggers that say when it must be re-cut. **These are the numbers ADR-0037, ADR-0047 and ADR-0050 were decided against, and the numbers a pilot agreement may point at** — which is why it is a standing record rather than a build blueprint. | 🟢 Agreed — re-cut for V1 2026-08-01, `Q-027` closed |
 | `personal-data.md` | ♻ **Living reference** | **The personal-data register** (moved here from `docs/build/` 2026-08-28) — what data about a named person is held, why, and where it is deleted, derived from `packages/db/src/schema` and the ADRs that put each field there, plus the sub-processor list from ADR-0047. **Four things read from it:** ADR-0050, its contract-end clause, the DPA, and a customer's own DPIA. **A ticket or ADR that introduces, stores or derives data about a named person updates it** — the working rule in `CLAUDE.md` names this file. | ♻ Seeded 2026-08-01; deletion positions filled 2026-08-03 from ADR-0050. Controller/processor still open (`Q-035`) |
 | `access-and-channels.html` | ⚙ **Derived** | The access model and the three channels drawn as one page, for reading in a browser. Regenerated, never hand-edited. | ⚙ Current |
-| `user-stories-walkthrough.html` | ⚙ **Derived** | The **photographed** walkthrough of the built product — narrative in `scripts/user-story-walkthrough/build.mjs`, screenshots via its `capture.mjs`. **Never hand-edited**; regenerate instead. | ⚙ Regenerated when a surface in the journey changes |
+| `user-stories-walkthrough.html` | ⚙ **Derived** | The **photographed** walkthrough of the built product — narrative in `scripts/user-story-walkthrough/build.mjs`, screenshots via its `capture.mjs`. **Never hand-edited**; regenerate instead: `node scripts/user-story-walkthrough/capture.mjs` (seed first — the full recipe is in that file's header), then `node scripts/user-story-walkthrough/build.mjs`. | ⚙ Regenerated when a surface in the journey changes |
 
 ## The subfolders the index does not reach
 
-`scripts/docs-rules.mjs` is **non-recursive by design**: it guards files sitting directly in an indexed folder, and there are five (`docs/architecture`, `docs/build`, `docs/build/spikes`, `docs/design`, `docs/design/mockups`). These four carry their own conventions instead, and an orphan inside one of them would **not** be caught — so read the convention before adding to it.
+`scripts/docs-rules.mjs` is **non-recursive by design**: it guards files sitting directly in an indexed folder — the folder list is `INDEXED` in that script, not restated here. The four subfolders below instead carry their own conventions, and an orphan inside one of them would **not** be caught — so read the convention before adding to it.
 
 | Folder | Its own convention |
 |---|---|

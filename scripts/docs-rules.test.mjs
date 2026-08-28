@@ -27,6 +27,8 @@ const SIBLINGS = [
   'docs/build/spikes',
   'docs/design',
   'docs/design/mockups',
+  'docs/reference',
+  'docs/grill-sessions',
 ];
 
 /**
@@ -70,7 +72,7 @@ describe('orphans', () => {
 
   it('names the lifecycle vocabulary in the message, so the fix is obvious', () => {
     const violations = checkDocsIndex(tree({ 'README.md': index(), 'stray.md': '' }));
-    expect(violations[0]).toContain('Live / Living reference / Closed / Derived');
+    expect(violations[0]).toContain('Live / Living reference / Finished / Derived');
   });
 
   it('guards html as well as markdown', () => {
@@ -127,6 +129,39 @@ describe('what the guard must not do', () => {
       '| Doc | Lifecycle | Purpose | Maturity |\n|---|---|---|---|\n' +
       '| `plan.md` | 🦆 nonsense | a doc | 🟢 |\n';
     expect(checkDocsIndex(tree({ 'README.md': readme, 'plan.md': '' }))).toEqual([]);
+  });
+});
+
+describe('the legend cannot fork (2026-08-28)', () => {
+  // vocabulary checking, not lifecycle judging: WHICH glyph a row carries stays
+  // a human call, but a legend glyph paired with a word the legend does not
+  // define is how "✅ Closed" survived its own rename in three files
+  const withCell = (cell) =>
+    '| Doc | Lifecycle | Purpose | Maturity |\n|---|---|---|---|\n' +
+    `| \`plan.md\` | ${cell} | a doc | 🟢 |\n`;
+
+  it('rejects the renamed-away word', () => {
+    const violations = checkDocsIndex(tree({ 'README.md': withCell('✅ **Closed**'), 'plan.md': '' }));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('✅ Finished');
+  });
+
+  it('rejects an invented value on a legend glyph', () => {
+    const violations = checkDocsIndex(tree({ 'README.md': withCell('♻ **Open** — not built yet'), 'plan.md': '' }));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('Living reference');
+  });
+
+  it('accepts every legend pairing, with or without bold and a suffix', () => {
+    for (const cell of ['▶ **Live**', '♻ Living reference', '✅ **Finished** — built by T-271', '⚙ Derived']) {
+      expect(checkDocsIndex(tree({ 'README.md': withCell(cell), 'plan.md': '' }))).toEqual([]);
+    }
+  });
+
+  it('leaves a non-lifecycle cell alone — maturity glyphs and prose are not the legend', () => {
+    for (const cell of ['🔴 **Status unresolved — needs a decision**', 'The written rulebook']) {
+      expect(checkDocsIndex(tree({ 'README.md': withCell(cell), 'plan.md': '' }))).toEqual([]);
+    }
   });
 });
 

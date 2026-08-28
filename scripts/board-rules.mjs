@@ -16,7 +16,12 @@
 // one is written the same day its convention changes, which is the only time
 // the cost of writing it is lower than the cost of the drift.
 //
-// WHAT IT CHECKS, mechanically, under `## Building for V1` and nowhere else:
+// WHAT IT CHECKS, mechanically, from `## Where to start` down to `## Beyond
+// V1` — the whole live board. The scope began at `## Building for V1` and was
+// widened on 2026-08-28, the day an audit found a dozen multi-paragraph
+// closed-ticket records sitting in Where to start: the frontier narrative was
+// regrowing exactly the archive the ticket-grain rule had just shed, one
+// section above the guard's old ceiling, in the same file.
 //
 //   1. a CLOSED entry is exactly ONE line. That is the enforceable form of
 //      "its record moved" — a closed entry with continuation lines is a record
@@ -34,8 +39,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** The section the rule applies to. The deferred register is not live work. */
-const SECTION_START = '## Building for V1';
+/** The span the rule applies to. The deferred register is not live work. */
+const SECTION_START = '## Where to start';
 const SECTION_END = '## Beyond V1';
 
 /** An entry opens a bullet and names its ticket, struck or not. */
@@ -49,7 +54,7 @@ const ENTRY = /^- (?:~~)?\*\*(?:~~)?(T-\d{3})/;
  * open — a rule keyed on the tick alone would have filed two live tickets into
  * the archive, which is how a guard causes the loss it was written to prevent.
  */
-const DONE = /✅\s*\*{0,2}(?:Built|built|Findings|Minted and built|Closed)/;
+const DONE = /✅\s*\*{0,2}(?:Built|built|Findings|Minted and built|Closed|Done)/;
 
 const HISTORY_LINK = /\]\(plan-history\.md(#[^)]*)?\)/;
 

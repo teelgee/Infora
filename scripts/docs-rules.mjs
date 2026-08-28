@@ -8,14 +8,17 @@
 // anyone noticed. The index convention was written down and still failed,
 // because a convention nobody executes is a convention nobody follows.
 //
-// Two rules, in both directions:
+// Three rules:
 //   1. every documented file in an indexed folder appears in that folder's
 //      README table — no orphans
 //   2. every file the README names exists — no dangling rows
+//   3. a row's lifecycle cell, when it opens with a legend glyph, pairs it
+//      with the legend's own word (2026-08-28 — "✅ Closed" survived the
+//      glyph's rename in three files, and one index invented "♻ Open")
 //
-// Deliberately narrow: this checks *presence in the index*, not the lifecycle
-// or maturity marker a row carries. Judging whether a document is still live is
-// a human call and a guard that guessed at it would be wrong often enough to
+// Deliberately narrow: this checks *presence in the index* and *vocabulary*,
+// never the judgement a marker encodes. Whether a document is still live is a
+// human call and a guard that guessed at it would be wrong often enough to
 // get switched off.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -49,6 +52,14 @@ const INDEXED = [
   // The folder's own rule had said so for weeks; nothing was checking.
   'docs/design',
   'docs/design/mockups',
+  // `docs/reference` and `docs/grill-sessions` joined later the same day, off
+  // the audit's break-it pass: a file dropped in either was caught by nothing.
+  // `docs/reference` had NO index at all — the exact preconditions of the
+  // tickets-a2-polish failure this guard was written for — and a loose
+  // session-notes file in `docs/grill-sessions` would sit beside the three
+  // real records indefinitely.
+  'docs/reference',
+  'docs/grill-sessions',
 ];
 
 /** Documented file types. The README itself is the index, never a row in it. */
@@ -57,6 +68,46 @@ const NOT_A_ROW = new Set(['README.md']);
 
 /** A row names its file in backticks: `| \`plan.md\` | ▶ Live | … |` */
 const ROW = /^\|\s*`([^`]+)`\s*\|/gm;
+
+/**
+ * A row's second cell, when it opens with a legend glyph, must pair it with
+ * the legend's own word. The glyphs and words are defined once, in
+ * docs/build/README.md#artefacts; this is vocabulary checking, not lifecycle
+ * judging — whether a doc IS still live stays a human call (see below), but
+ * "✅ Closed" after the 2026-08-28 rename, or an invented value like "♻ Open",
+ * is the legend forking, which is what the rename was supposed to end.
+ * A cell that opens with anything else (🔴, plain prose, a maturity glyph) is
+ * not a lifecycle cell and is not checked.
+ */
+const ROW_WITH_CELL = /^\|\s*`([^`]+)`\s*\|\s*([^|]*)\|/;
+const LIFECYCLE_WORDS = new Map([
+  ['▶', 'Live'],
+  ['♻', 'Living reference'],
+  ['✅', 'Finished'],
+  ['⚙', 'Derived'],
+]);
+
+function lifecycleViolations(readme, folder) {
+  const violations = [];
+  withoutFences(readme)
+    .split('\n')
+    .forEach((line, index) => {
+      const match = ROW_WITH_CELL.exec(line);
+      if (!match) return;
+      const cell = match[2].trim();
+      const glyph = [...LIFECYCLE_WORDS.keys()].find((g) => cell.startsWith(g));
+      if (!glyph) return;
+      const word = LIFECYCLE_WORDS.get(glyph);
+      const rest = cell.slice(glyph.length).trim().replace(/^\*\*/, '');
+      if (rest.startsWith(word)) return;
+      violations.push(
+        `${folder}/README.md:${index + 1}: row \`${match[1]}\` pairs ${glyph} with "${rest.split('—')[0].replace(/\*\*/g, '').trim()}" — ` +
+          `the lifecycle vocabulary is ▶ Live · ♻ Living reference · ✅ Finished · ⚙ Derived ` +
+          `(defined once, docs/build/README.md#artefacts). Use the legend's word, or open the cell with something other than a legend glyph if it is not a lifecycle.`,
+      );
+    });
+  return violations;
+}
 
 /**
  * Blank fenced code blocks, preserving line structure, so an EXAMPLE row shown
@@ -123,12 +174,13 @@ export function checkDocsIndex(root) {
 
     const indexed = listed(readme);
     const files = present(dir);
+    violations.push(...lifecycleViolations(readme, folder));
 
     for (const file of files) {
       if (indexed.has(file)) continue;
       violations.push(
         `${folder}/${file}: not in ${folder}/README.md. Add a row naming its lifecycle ` +
-          `(Live / Living reference / Closed / Derived) — or delete the file if it is spent.`,
+          `(Live / Living reference / Finished / Derived) — or delete the file if it is spent.`,
       );
     }
 

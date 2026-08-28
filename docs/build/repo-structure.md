@@ -23,15 +23,16 @@ infora/
 │  ├─ external/           # untrusted external content (web research) — contracts only, by rule (T-250)
 │  ├─ lenses/             # Lens definitions (domain content) + loader/validator — contracts only, by rule (T-281)
 │  ├─ governance/         # access predicates + wall, grounding/NLI rails
-│  ├─ db/                 # Postgres + pgvector: schema (6 drawers), migrations, seed
+│  ├─ db/                 # Postgres + pgvector: schema (drawer modules — the drawing is docs/build/data-model.md), migrations, seed
 │  ├─ contracts/          # shared types + API schema (single source of truth)
 │  └─ ui/                 # shared React kit + design tokens
 ├─ e2e/                   # Playwright browser + API acceptance suites (T-084)
 ├─ evals/                 # the Ask eval harness: cases + fixtures as data, run over HTTP (T-255)
-├─ scripts/               # the CI guards — dep-rules, source-rules, docs-rules,
-│                         # and the two numbering guards (check-tickets /
-│                         # check-questions over counter-rules.mjs, T-343);
-│                         # plus tldr-to-png.mjs
+├─ scripts/               # the CI guards, one *-rules.mjs + check-*.mjs pair
+│                         # each — the authoritative list is package.json's
+│                         # `check` script, not this tree (an enumeration here
+│                         # went three guards stale); plus tldr-to-png.mjs and
+│                         # the walkthrough generator
 └─ turbo.json  pnpm-workspace.yaml  tsconfig.base.json
 ```
 

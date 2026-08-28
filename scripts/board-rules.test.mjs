@@ -14,12 +14,12 @@ afterEach(() => {
   root = undefined;
 });
 
-function tree(planBody, historyBody = '') {
+function tree(planBody, historyBody = '', frontierBody = '') {
   root = mkdtempSync(join(tmpdir(), 'infora-board-rules-'));
   mkdirSync(join(root, 'docs/build'), { recursive: true });
   writeFileSync(
     join(root, 'docs/build/plan.md'),
-    `# Board\n\n## Building for V1\n\n${planBody}\n\n## Beyond V1 — the deferred register\n\n- **T-999 — deferred, never checked.**\n  a second line the guard must not read\n`,
+    `# Board\n\n## Where to start\n\n${frontierBody}\n\n## Building for V1\n\n${planBody}\n\n## Beyond V1 — the deferred register\n\n- **T-999 — deferred, never checked.**\n  a second line the guard must not read\n`,
   );
   writeFileSync(join(root, 'docs/build/plan-history.md'), `# History\n\n${historyBody}\n`);
   return root;
@@ -88,7 +88,28 @@ describe('what the guard must not do', () => {
     writeFileSync(join(root, 'docs/build/plan-history.md'), '# History\n');
     const violations = checkBoard(root);
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('Building for V1');
+    expect(violations[0]).toContain('Where to start');
+  });
+});
+
+describe('the 2026-08-28 widenings', () => {
+  it('reads the frontier — a closed record parked in Where to start is caught', () => {
+    // the regrowth case: a dozen of these were sitting above the guard's old
+    // ceiling on the day its scope was widened, in the same file it guards
+    const violations = checkBoard(
+      tree('', 'T-500', '- ~~**T-500 — landed today.**~~ ✅ **Built 2026-08-28**. Record in [plan-history.md](plan-history.md).\n  and the whole finding, parked on the frontier'),
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('T-500');
+    expect(violations[0]).toContain('2 lines');
+  });
+
+  it('reads `✅ Done` as closed — a synonym must not smuggle a record past the guard', () => {
+    const violations = checkBoard(
+      tree('- **T-501 — a thing.** ✅ Done 2026-08-28.\n  the record, still here, no pointer anywhere'),
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.includes('T-501'))).toBe(true);
   });
 });
 

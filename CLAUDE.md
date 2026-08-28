@@ -17,10 +17,12 @@ ethical wall, with grounded, cited AI drafting.
    the gates.
 5. `docs/grill-sessions/grill-questions.md` — the open-questions index (`Q-###`).
 
-**Where a new document goes** — three folder indexes, each the authority for its
-own folder, each enforced in both directions by `check:docs`. Read the one you
-are writing into **before** adding a file; each says what belongs there, what the
-lifecycle marks mean, and what its subfolders' own conventions are.
+**Where a new document goes** — folder indexes, each the authority for its own
+folder, all enforced in both directions by `check:docs` (the folder list is
+`INDEXED` in `scripts/docs-rules.mjs`, not restated here). Read the one you are
+writing into **before** adding a file; it says what belongs there, what its
+rows' marks mean, and what its subfolders' own conventions are. The three you
+will most often write into:
 
 - [docs/architecture/README.md](docs/architecture/README.md) — *what Infora is,
   why a boundary sits where it does*, and the standing records the pilot is
@@ -79,6 +81,7 @@ if a task seems to need it, stop and ask.
   A proposal that cannot be built **without amending an accepted ADR** is not
   an open question — it is parked (`P-###`, `pnpm run check:parking -- --next`),
   and only on the owner's instruction. Never park something to avoid ruling it.
+  A new ADR's number is derived the same way: `pnpm run check:adrs -- --next`.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
   Cite them, don't re-argue them.
 - **A surface is not finished when it merges.** Built work **inside** the user

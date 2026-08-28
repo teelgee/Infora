@@ -39,6 +39,32 @@ const definitionPattern = (prefix) =>
 // use, whatever shape it was named in.
 const mentionPattern = (prefix) => new RegExp(String.raw`\b${prefix}-(\d+)\b`, 'g');
 
+// A LOOSE definition is an entry written in a non-standard form — the number
+// bolded alone (`- **T-123** — title`) or bare (`- T-123 — title`). Sessions
+// produce these under time pressure, and rule 1 was blind to them: the
+// 2026-08-28 audit's break-it pass hid a genuine collision behind exactly this
+// formatting slip. A loose match is admitted ONLY as collision evidence — same
+// number, DIFFERENT title, neither line struck — never for the
+// copy-instead-of-move check, because pointers and status references
+// legitimately take loose forms. A line carrying a strike or a status glyph
+// (✅ ⚠ 🌫) is a reference by construction and is excluded.
+const loosePattern = (prefix) =>
+  new RegExp(String.raw`^\s*-\s*(?:\*\*)?${prefix}-(\d+)(?:\*\*)?\s*—\s*(.+)$`);
+const LOOSE_EXCLUDED = /~~|✅|⚠|🌫/;
+
+function looseDefinitions(text, source, prefix) {
+  const strict = new RegExp(definitionPattern(prefix).source);
+  const loose = loosePattern(prefix);
+  const found = [];
+  text.split('\n').forEach((line, index) => {
+    if (LOOSE_EXCLUDED.test(line) || strict.test(line)) return;
+    const match = loose.exec(line);
+    if (!match) return;
+    found.push({ number: Number(match[1]), title: match[2].trim(), source, line: index + 1 });
+  });
+  return found;
+}
+
 function read(root, file) {
   try {
     return readFileSync(join(root, file), 'utf8');
@@ -153,6 +179,26 @@ export function checkNumbering(root, kind) {
         : `${prefix}-${pad(def.number)} is defined twice, same ${noun} — ` +
             `${prior.source}:${prior.line} and ${def.source}:${def.line}. ` +
             moveAdvice,
+    );
+  }
+
+  // ---- rule 1b: a loose-form entry cannot hide a collision ---------------
+  const looseSeen = new Map();
+  for (const def of [
+    ...looseDefinitions(liveText, live, prefix),
+    ...looseDefinitions(archiveText, archive, prefix),
+  ]) {
+    const prior = defined.get(def.number) ?? looseSeen.get(def.number);
+    if (!prior) {
+      looseSeen.set(def.number, def);
+      continue;
+    }
+    if (normalise(prior.title) === normalise(def.title)) continue; // a reference, not a rival claim
+    violations.push(
+      `${prefix}-${pad(def.number)} is defined twice, for different ${nounPlural} — ` +
+        `${prior.source}:${prior.line} "${prior.title}" vs ${def.source}:${def.line} "${def.title}" ` +
+        `(the latter in a non-standard entry form). Two sessions claimed the same number; ` +
+        `renumber the later one and bump the counter.`,
     );
   }
 

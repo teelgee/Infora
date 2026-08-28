@@ -18,12 +18,14 @@
     "check:tickets": "node scripts/check-tickets.mjs",
     "check:questions": "node scripts/check-questions.mjs",
     "check:parking": "node scripts/check-parking.mjs",
+    "check:adrs": "node scripts/check-adrs.mjs",
     "check:board": "node scripts/check-board.mjs",
     "check:docs": "node scripts/check-docs.mjs",
     "check:links": "node scripts/check-links.mjs --baseline scripts/link-baseline.txt",
+    "check:personal-data": "node scripts/check-personal-data.mjs",
     "check:data-model": "pnpm --filter @infora/db run datamodel:check",
     "check:audit": "pnpm audit --prod",
-    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:parking && pnpm run check:board && pnpm run check:docs && pnpm run check:links && pnpm run check:data-model && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
+    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:parking && pnpm run check:adrs && pnpm run check:board && pnpm run check:docs && pnpm run check:links && pnpm run check:personal-data && pnpm run check:data-model && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

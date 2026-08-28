@@ -34,6 +34,7 @@ import * as drawer3 from '../src/schema/drawer3-execution';
 import * as drawer4 from '../src/schema/drawer4-output';
 import * as drawer5 from '../src/schema/drawer5-review';
 import * as drawer6 from '../src/schema/drawer6-ontology';
+import * as drawer7 from '../src/schema/drawer7-context';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
@@ -46,7 +47,26 @@ const DRAWERS: Array<{ key: string; title: string; blurb: string; module: Record
   { key: 'd4', title: 'Drawer 4 — AI output & feedback', blurb: 'Suggestions, citations, and the Signal each resolution writes.', module: drawer4 },
   { key: 'd5', title: 'Drawer 5 — Review', blurb: 'The review cycle at two scopes: cycles, rounds, transmittals, comments, responses, appointments and shares.', module: drawer5 },
   { key: 'd6', title: 'Drawer 6 — The project ontology', blurb: 'The classification vocabulary and the typed edges between containers.', module: drawer6 },
+  { key: 'd7', title: 'Drawer 7 — Context', blurb: 'The scoped context stores (ADR-0020). Org context only so far: the firm’s rulebook and its verbatim clauses (T-308, ADR-0048).', module: drawer7 },
 ];
+
+// The atlas is only "the schema as built" while this list is complete, and the
+// list is hand-typed: drawer 7 shipped (T-308) without joining it, and
+// `--check` could not notice because it compares the committed file against
+// this generator's own output — both agreed, both were missing the drawer. So
+// completeness is asserted against the directory: a schema drawer file with no
+// DRAWERS entry kills the run, in --check and --write alike.
+const schemaDir = join(here, '..', 'src', 'schema');
+const drawerFiles = readdirSync(schemaDir).filter((f) => /^drawer\d+-.*\.ts$/.test(f));
+if (drawerFiles.length !== DRAWERS.length) {
+  console.error(
+    `generate-data-model.ts: ${schemaDir} holds ${drawerFiles.length} drawer modules ` +
+      `(${drawerFiles.sort().join(', ')}) but DRAWERS lists ${DRAWERS.length}. ` +
+      `Add the missing drawer's import and entry above, then regenerate ` +
+      `(pnpm --filter @infora/db run datamodel).`,
+  );
+  process.exit(1);
+}
 
 // ---- integrity badges from the migration triggers -------------------------
 const BADGE_LABELS: Array<[RegExp, string]> = [

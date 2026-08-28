@@ -12,12 +12,12 @@ Prerequisites: Node ≥ 24, Docker (Desktop or OrbStack), pnpm via corepack.
 corepack enable                          # activates pnpm from package.json
 pnpm install
 docker compose up -d --wait              # Postgres 17 + pgvector on :5432
-cp .env.example .env                     # defaults match the compose file
+cp .env.example .env                     # defaults match the compose file; provider keys ship as boot-safe placeholders
 echo "SESSION_SECRET=$(openssl rand -hex 32)" >> .env  # required — the API refuses to boot without it
 pnpm --filter @infora/db run migrate     # apply the schema (runs as the DB owner)
 pnpm --filter @infora/db run seed        # the walking-skeleton seed data
-pnpm run check                           # dep rules + lint + typecheck + tests
-pnpm --filter @infora/data run ingest    # embed the library (needs VOYAGE_API_KEY in .env)
+pnpm run check                           # record guards + dep rules + lint + typecheck + tests
+pnpm --filter @infora/data run ingest    # embed the library (needs a real VOYAGE_API_KEY in .env)
 pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 

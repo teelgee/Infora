@@ -175,6 +175,36 @@ describe('what the guard must not do', () => {
     expect(violations).toEqual([]);
   });
 
+  it('catches a collision hiding behind a non-standard entry form', () => {
+    // found by the 2026-08-28 audit's break-it pass: a plain-bullet claim
+    // (`- T-250 — …`, no bold run) was invisible to rule 1, so a sloppy entry
+    // could sit on an already-claimed number without a violation
+    const { violations } = checkTicketNumbers(
+      tree({
+        board:
+          counter(300) +
+          '- **T-250 — The untrusted-content type barrier.** Built.\n' +
+          '- T-250 — something else entirely, written in a hurry\n',
+      }),
+    );
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.includes('for different tickets'))).toBe(true);
+  });
+
+  it('does not read a struck or status-glyph loose line as a rival claim', () => {
+    // pointers and status notes legitimately take loose forms; only an
+    // unstruck, glyph-free loose line is collision evidence
+    const { violations } = checkTicketNumbers(
+      tree({
+        board:
+          counter(300) +
+          '- ~~**T-245** — a thing.~~ ✅ Built — moved record in [plan-history.md](plan-history.md)\n',
+        history: '- **T-245 — Conflict register: schema and predicate.** Built. The whole record.\n',
+      }),
+    );
+    expect(violations).toEqual([]);
+  });
+
   it('holds a struck-through ticket to its number', () => {
     const { violations } = checkTicketNumbers(
       tree({

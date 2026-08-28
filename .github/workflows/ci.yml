@@ -51,23 +51,31 @@ jobs:
       # added the same day its convention changed, which is the one moment the
       # guard costs less than the drift it prevents.
       #
-      # ~3 seconds for all seven, no database, no build: they read files. Placed
-      # here so a documentation-only change fails in seconds rather than after
-      # Postgres, the seed and a browser have started.
+      # A few seconds for all nine, no database, no build: they read files.
+      # Placed here so a documentation-only change fails in seconds rather than
+      # after Postgres, the seed and a browser have started.
       #
       # The two counters are the ones with a record: taking a claimed `T-###` or
       # `Q-###` does not error, it silently overwrites a plan, and that happened
       # three times (T-208–T-210, T-223–T-233, and Q-034 claimed twice on
-      # 2026-08-03 — caught by eye, by nothing else).
+      # 2026-08-03 — caught by eye, by nothing else). `check:adrs` and
+      # `check:personal-data` joined off the 2026-08-28 rot audit: ADR numbers
+      # had the same collision exposure with no mutex, and the personal-data
+      # register — the record a DPA is drafted from — had no reader at all and
+      # was found fourteen tables behind the schema.
       - run: pnpm run check:tickets
       - run: pnpm run check:questions
       - run: pnpm run check:parking
+      - run: pnpm run check:adrs
       - run: pnpm run check:board
 
-      # the docs index (no orphaned or dangling document), every relative link
-      # and anchor in docs/, and the generated data-model atlas being current
+      # the docs index (no orphaned or dangling document, and no legend-glyph
+      # cell outside the lifecycle vocabulary), every relative link and anchor
+      # in docs/, the personal-data register covering every who-did-this
+      # column, and the generated data-model atlas being current
       - run: pnpm run check:docs
       - run: pnpm run check:links
+      - run: pnpm run check:personal-data
       - run: pnpm run check:data-model
 
       - run: pnpm run lint
