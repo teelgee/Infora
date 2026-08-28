@@ -739,3 +739,21 @@ are not recorded here.
   still cost a model call, and a shape that hung the cost off a result would
   price that run at zero. The model identity is spelled out inline because
   `contracts` depends on nothing and this shape is what crosses the boundary.
+- **2026-08-28 (T-272) — `AssemblyCoverage` exists so an empty result can be
+  told apart from an empty corpus.** They are indistinguishable to a reader and
+  mean opposite things: *"we searched four thousand passages and none matched"*
+  is a finding; *"your library has nothing in it"* is a configuration problem;
+  a bare `[]` is both. So the assembled input carries what was **searched** —
+  the candidates the access-and-state pre-filter admitted before ranking, and
+  the deliverable references the question named that the corpus does not have.
+  **Optional, and absent means "not recorded", never zero** — the same
+  distinction `EmbeddingUsage` draws one field along, and the reason a coverage
+  note can say *"how much of it was admitted was not recorded"* rather than
+  quoting a number nobody counted. **`AssembledItem` gained `descriptor` and
+  `relevance` in the same ticket**, and both are output-side annotations on
+  rows the pre-filter had already returned: a structured worker output has to
+  be able to name the document rather than only its uuid, and neither field
+  carries a predicate or an id a caller could pass back in — which is why
+  `wall.test.ts`'s pinned key set firing is the review rather than a problem.
+  `relevance` is **absent** on a passage matched by document reference: absent
+  means *not ranked*, and a zero would read as *ranked, and badly*.

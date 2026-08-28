@@ -10,14 +10,32 @@
 // ADR-0029 §2), which is exactly what "workers retrieve only through Context"
 // exists to prevent.
 //
-// WHAT T-272 ADDS, so this is not mistaken for the finished worker: the
-// `coverage_note` (what slice was searched, how many candidates the pre-filter
-// admitted, which requested terms found nothing — the mechanism behind absence
-// detection), the classification-term and doc-type inputs, `include_superseded`
-// (T-273), and the cache keyed on `query + corpus_version + scope_hash`. Those
-// are deliberately absent rather than stubbed: a `coverage_note` that said
-// something plausible and untrue would be worse than the field not existing.
-import type { Assemble, AssembledItem, WorkerDeclaration } from '@infora/contracts';
+// T-272 — THE COVERAGE NOTE IS THE MECHANISM BEHIND ABSENCE DETECTION, and it
+// is why this worker returns more than a list. An empty result and a result
+// from an empty corpus are indistinguishable to a reader and mean opposite
+// things: "we searched 4,000 passages and none matched" is a finding, "your
+// library has nothing in it" is a configuration problem, and a bare `[]` is
+// both. So the note states what slice was searched, how many candidates the
+// pre-filter admitted before ranking, and which named documents the corpus did
+// not have.
+//
+// ⚠ **THE ONTOLOGY SCOPE FILTER IS DELIBERATELY NOT AN INPUT HERE.** The board
+// entry lists `classification_terms?` and `doc_types?`, and they are absent on
+// purpose: `Q-028` — *who selects the retrieval scope* — is open, and its own
+// text rules that leaving the lever unwired is the SAFE STATE, not a bug. The
+// stakes are asymmetric and that is the whole reason: a wrongly-scoped question
+// grounds a confident, fully-cited answer on a partial library, where every
+// citation resolves and neither the ground-check nor the user can see what was
+// excluded. Declaring the parameter and ignoring it would be worse than not
+// declaring it, because the model would be told a lever exists and would use
+// it. The narrowing is still reachable the safe way — an orchestrator may hand
+// this worker an already-attenuated assembler (T-248) — which is a scope it was
+// GIVEN rather than one it chose.
+//
+// Still absent, and named so it is not mistaken for done: `include_superseded`
+// is T-273, and the cache keyed on `query + corpus_version + scope_hash` is not
+// built.
+import type { Assemble, AssembledItem, AssemblyCoverage, WorkerDeclaration } from '@infora/contracts';
 
 export const CORPUS_RETRIEVAL: WorkerDeclaration = {
   name: 'corpus_retrieval',
@@ -30,7 +48,9 @@ export const CORPUS_RETRIEVAL: WorkerDeclaration = {
   },
   outputSchema: {
     passages:
-      'ranked passages, each with version_id, chunk_id, locator and the text the model was shown',
+      'ranked passages, each with the document it came from, its revision, a locator, the text the model was shown and how well it matched',
+    coverage_note:
+      'what corpus slice was searched, how much of it was admitted, and which named documents were not found',
   },
   tools: ['project indexes', 'document store read'],
   reach: 'inherited',
@@ -47,12 +67,24 @@ export const CORPUS_RETRIEVAL: WorkerDeclaration = {
 export type CorpusPassage = {
   versionId: string;
   chunkId: string | null;
+  /** how the document is NAMED — a uuid is not something a reader can act on */
+  documentReference: string | null;
+  /** null for reference material, which has no work item and so no title */
+  documentTitle: string | null;
+  versionReference: string | null;
+  /** T-273's opt-in is the only thing that can make this true */
+  superseded: boolean;
   locator: AssembledItem['locator'];
   text: string;
+  /** null means NOT RANKED — matched on the document's reference, not by similarity */
+  relevance: number | null;
 };
 
+/** 20, per the Wave 3 entry. A cap, not a target. */
+export const DEFAULT_MAX_PASSAGES = 20;
+
 export type CorpusRetrievalInput = { query: string; maxPassages?: number };
-export type CorpusRetrievalOutput = { passages: CorpusPassage[] };
+export type CorpusRetrievalOutput = { passages: CorpusPassage[]; coverageNote: string };
 
 /**
  * Non-negotiable 6, as code: the return value is an OBJECT of passages, never
@@ -73,21 +105,69 @@ export function createCorpusRetrieval(deps: { assemble: Assemble }) {
       requester,
     });
 
-    const passages = assembled.items
+    const grounded = assembled.items
       // grounded only. A guiding item has no `source` at all (T-308) and must
       // never reach a caller that will cite what it is handed.
       .filter((item) => item.channel === 'grounded' && item.source !== undefined)
       .map((item) => ({
         versionId: 'versionId' in item.source! ? item.source.versionId : '',
         chunkId: item.chunkId ?? null,
+        documentReference: item.descriptor?.documentReference ?? null,
+        documentTitle: item.descriptor?.documentTitle ?? null,
+        versionReference: item.descriptor?.versionReference ?? null,
+        superseded: item.descriptor?.superseded ?? false,
         locator: item.locator,
         text: item.content,
+        relevance: item.relevance ?? null,
       }))
       .filter((passage) => passage.versionId !== '');
 
+    const limit = input.maxPassages ?? DEFAULT_MAX_PASSAGES;
+    const passages = grounded.slice(0, limit);
+
     return {
-      passages:
-        input.maxPassages === undefined ? passages : passages.slice(0, input.maxPassages),
+      passages,
+      coverageNote: coverageNote(assembled.coverage, grounded.length, passages.length),
     };
   };
+}
+
+/**
+ * What was searched, in one sentence a person can act on.
+ *
+ * It reports the SHAPE of the search, not a verdict on the result. Three facts,
+ * each of which changes what an empty list means: the slice searched, how much
+ * of it the access and state pre-filter admitted, and which documents the
+ * question named that the corpus does not have. The third is the sharpest —
+ * the asker believed the document was there.
+ *
+ * When the assembly reported no coverage at all the note says so rather than
+ * asserting zero. An absent fact and a zero are different claims, and this is
+ * the field whose whole job is not confusing them.
+ */
+export function coverageNote(
+  coverage: AssemblyCoverage | undefined,
+  matched: number,
+  returned: number,
+): string {
+  const parts: string[] = [];
+  if (coverage === undefined) {
+    return 'Searched the reachable project library. How much of it was admitted was not recorded for this run.';
+  }
+  parts.push(
+    `Searched the reachable project library — the deliverables this requester can see, in their current live revisions, indexed under the pinned embedding model: ${coverage.candidates} passage${coverage.candidates === 1 ? '' : 's'} were admitted by the access and state pre-filter.`,
+  );
+  parts.push(
+    matched === 0
+      ? 'No passage matched the question.'
+      : returned < matched
+        ? `${matched} passages matched; the ${returned} best are returned.`
+        : `${matched} passage${matched === 1 ? '' : 's'} matched and ${matched === 1 ? 'is' : 'are'} returned.`,
+  );
+  if (coverage.unmatchedReferences.length > 0) {
+    parts.push(
+      `The question named ${coverage.unmatchedReferences.join(', ')}, which ${coverage.unmatchedReferences.length === 1 ? 'is' : 'are'} not in the reachable corpus.`,
+    );
+  }
+  return parts.join(' ');
 }

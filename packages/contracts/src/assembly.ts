@@ -90,6 +90,27 @@ export type AssembledItem = {
   // locator — a quote that cannot be found is worse than none, because it looks
   // checkable.
   locator?: Locator;
+  // T-272 — how the source READS, so a structured worker output can name the
+  // document rather than only its id. An OUTPUT-side annotation on rows the
+  // pre-filter had already returned, exactly as `chunkId` and `locator` are: it
+  // carries no predicate and can no more widen a slice than they can.
+  //
+  // `superseded` is FALSE for everything the default filter returns — live
+  // record state and current version are pre-filter clauses. It exists because
+  // T-273's deliberate opt-in is the only thing that can make it true, and a
+  // flag that appeared with the feature would leave every consumer written
+  // against a world where superseded material could not arrive.
+  descriptor?: {
+    documentReference: string;
+    /** the deliverable's title; null for reference material, which has no work item */
+    documentTitle: string | null;
+    versionReference: string;
+    superseded: boolean;
+  };
+  // T-272 — the similarity score, absent where the passage was matched by
+  // DOCUMENT REFERENCE rather than by similarity (ADR-0022's lexical arm).
+  // Absent means "not ranked", never "ranked zero".
+  relevance?: number;
   content: string;
 };
 
@@ -116,11 +137,36 @@ export type EmbeddingUsage = {
   tokens: number;
 };
 
+/**
+ * T-272 — what the retrieval actually looked at, so absence can be reported
+ * rather than inferred from an empty list.
+ *
+ * The mechanism behind absence detection: an empty result and a result from an
+ * empty corpus are indistinguishable to a reader, and they mean opposite
+ * things. `candidates` is how many chunks the access + state pre-filter
+ * admitted BEFORE ranking cut to the top few, so "we searched 4,000 passages
+ * and none matched" reads differently from "your library has nothing in it".
+ *
+ * `unmatchedReferences` is the deliverable codes the question NAMED and the
+ * corpus did not have — the sharpest kind of absence, because the asker
+ * believed the document was there.
+ */
+export type AssemblyCoverage = {
+  /** chunks the pre-filter admitted, before ranking */
+  candidates: number;
+  /** deliverable references the question named */
+  requestedReferences: string[];
+  /** …of those, the ones nothing in the reachable corpus matched */
+  unmatchedReferences: string[];
+};
+
 export type AssembledInput = {
   items: AssembledItem[]; // grounded-first within the budget (ADR-0029 §5)
   budget: { tokenLimit: number; tokensUsed: number };
   /** T-313 — the embedding call this assembly made, where it made one */
   embedding?: EmbeddingUsage;
+  /** T-272 — what was searched, for the coverage note */
+  coverage?: AssemblyCoverage;
 };
 
 // The one gateway. In the skeleton, guiding and informing may return empty;

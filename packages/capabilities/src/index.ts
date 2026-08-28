@@ -23,7 +23,12 @@ export {
   tierAdmitsThirdParty,
 } from './workers/registry';
 export type { WorkerAssemblyFacts, WorkerRegistry } from './workers/registry';
-export { CORPUS_RETRIEVAL, createCorpusRetrieval } from './workers/corpus-retrieval';
+export {
+  CORPUS_RETRIEVAL,
+  DEFAULT_MAX_PASSAGES,
+  coverageNote,
+  createCorpusRetrieval,
+} from './workers/corpus-retrieval';
 export type {
   CorpusPassage,
   CorpusRetrievalInput,

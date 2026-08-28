@@ -208,6 +208,18 @@ describe('grounded library retrieval (T-031)', () => {
       corpus: 'library',
       source: { versionId: liveAlphaVersionId },
       chunkId: expect.any(String) as unknown as string,
+      // T-272 — how the source READS, selected in the same query as the
+      // passage so the description cannot drift from what was retrieved.
+      // `documentTitle` is null because this fixture has no work item, which
+      // is exactly T-304's reference-material marker.
+      descriptor: {
+        documentReference: expect.any(String) as unknown as string,
+        documentTitle: null,
+        versionReference: 'v1',
+        // the default filter admits live, current versions only
+        superseded: false,
+      },
+      relevance: expect.any(Number) as unknown as number,
       content: 'alpha: made ground and contamination findings.',
     });
   });
@@ -521,5 +533,31 @@ describe('the admitting code decides whether a deliverable grounds (T-387)', () 
         .where(eq(s.acceptanceCodes.id, groundingCodeId));
     }
     expect(await contentsOf('theta outfall headwall')).toContain('theta live-flag');
+  });
+});
+
+// T-272 — the coverage facts, taken inside the same scope and against the same
+// pre-filter as the search, so the number describes the corpus this run could
+// see rather than the table.
+describe('coverage (T-272)', () => {
+  it('counts the candidates the pre-filter admitted, not the rows in the table', async () => {
+    const { coverage } = await groundedLibrary(deps, slice, {
+      text: 'alpha question',
+      mode: 'baseline',
+    });
+    expect(coverage.candidates).toBeGreaterThan(0);
+    // the same predicate the arms use: a superseded version's chunks are
+    // excluded from the count exactly as they are from the result
+    const { items } = await groundedLibrary(deps, slice, { text: 'alpha question', mode: 'baseline' });
+    expect(coverage.candidates).toBeGreaterThanOrEqual(items.length);
+  });
+
+  it('names a deliverable reference the question asked for and the corpus does not have', async () => {
+    const { coverage } = await groundedLibrary(deps, slice, {
+      text: 'what does ZZ-NOT-HERE-999 say?',
+      mode: 'baseline',
+    });
+    expect(coverage.requestedReferences).toContain('ZZ-NOT-HERE-999');
+    expect(coverage.unmatchedReferences).toContain('ZZ-NOT-HERE-999');
   });
 });

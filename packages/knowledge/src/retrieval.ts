@@ -12,7 +12,7 @@
 // applied as a SQL pre-filter (deliverableVisibleSql), never a post-filter.
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import type { AssembledItem, EmbeddingUsage } from '@infora/contracts';
+import type { AssemblyCoverage, AssembledItem, EmbeddingUsage } from '@infora/contracts';
 import { reachableContainerIds } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s, withProjectScope } from '@infora/db';
@@ -48,6 +48,8 @@ type RetrievalRequest = {
 export type GroundedLibraryResult = {
   items: AssembledItem[];
   embedding?: EmbeddingUsage;
+  /** T-272 — what the pre-filter admitted, for the coverage note */
+  coverage: AssemblyCoverage;
 };
 
 export async function groundedLibrary(
@@ -71,15 +73,31 @@ export async function groundedLibrary(
   // the work; RLS is the backstop for a query nobody reviewed. Scoping here
   // rather than at the callers keeps the guarantee with the only code that
   // reads this index.
-  const [byCode, bySimilarity] = await withProjectScope(deps.db, slice.projectId, async (tx) => [
-    // lexical arm: deliverable codes named in the request beat similarity —
-    // code is how this domain names documents (ADR-0022)
-    codes.length > 0 ? await liveChunksByCode(tx, slice, modelId, codes, scope) : [],
-    await nearestLiveChunks(tx, slice, modelId, embeddings[0]!, scope),
-  ]);
+  const [byCode, bySimilarity, candidates] = await withProjectScope(
+    deps.db,
+    slice.projectId,
+    async (tx) =>
+      [
+        // lexical arm: deliverable codes named in the request beat similarity —
+        // code is how this domain names documents (ADR-0022)
+        codes.length > 0 ? await liveChunksByCode(tx, slice, modelId, codes, scope) : [],
+        await nearestLiveChunks(tx, slice, modelId, embeddings[0]!, scope),
+        // T-272 — how many chunks the pre-filter admitted BEFORE ranking cut to
+        // the top few. In the same transaction and against the same filter, so
+        // the number describes the corpus this run could actually see rather
+        // than the table; a count taken outside the scope would be a different
+        // claim wearing the same name.
+        await countLiveChunks(tx, slice, modelId, scope),
+      ] as const,
+  );
 
   const seen = new Set<string>();
   const items: AssembledItem[] = [];
+  // T-272 — a code the question NAMED and the corpus did not have is the
+  // sharpest kind of absence, because the asker believed the document was
+  // there. Computed from the lexical arm's own result, so it cannot disagree
+  // with what was searched.
+  const matchedCodes = new Set(byCode.map((row) => row.documentReference.toUpperCase()));
   for (const row of [...byCode, ...bySimilarity]) {
     if (seen.has(row.chunkId) || items.length >= GROUNDED_CHUNK_LIMIT) continue;
     seen.add(row.chunkId);
@@ -96,6 +114,19 @@ export async function groundedLibrary(
       // to reconstruct exactly what the model was shown
       chunkId: row.chunkId,
       ...(locator !== null && { locator }),
+      // T-272 — how the source reads. Derived from the same row, so it cannot
+      // drift from the passage it describes.
+      descriptor: {
+        documentReference: row.documentReference,
+        documentTitle: row.documentTitle,
+        versionReference: row.versionReference,
+        // false for everything the default filter returns; T-273's opt-in is
+        // the only thing that can make it true
+        superseded: row.containerState !== 'live' || row.isCurrent !== true,
+      },
+      // absent means NOT RANKED — the lexical arm matched on the document's own
+      // reference, which is a different kind of match, not a score of zero
+      ...(row.distance !== null && { relevance: relevanceOf(row.distance) }),
       content: row.content,
     });
   }
@@ -105,7 +136,23 @@ export async function groundedLibrary(
     ...(embedded.usage !== undefined && {
       embedding: { model: embedded.model, tokens: embedded.usage.tokens },
     }),
+    coverage: {
+      candidates,
+      requestedReferences: codes,
+      unmatchedReferences: codes.filter((code) => !matchedCodes.has(code)),
+    },
   };
+}
+
+/**
+ * Cosine DISTANCE (0 = identical) read as relevance (1 = identical).
+ *
+ * Clamped rather than trusted: pgvector returns distances in [0, 2] for
+ * arbitrary vectors, and a negative relevance rendered beside a passage would
+ * be a number nobody could interpret.
+ */
+function relevanceOf(distance: number): number {
+  return Math.max(0, Math.min(1, 1 - distance));
 }
 
 // The one pre-filter both arms share: the entitled project's live grounded
@@ -205,8 +252,31 @@ const chunkColumns = {
   chunkId: s.versionChunks.id,
   versionId: s.versionChunks.versionId,
   content: s.versionChunks.content,
+  // T-272 — how the source reads, selected in the SAME query as the passage.
+  // A second lookup to decorate results would be a second path to the store
+  // and would let the description drift from what was actually retrieved.
+  // wrapped in `sql<>` rather than taken as bare column refs: the arms LEFT
+  // JOIN the work item for its title, and drizzle widens a joined select's
+  // inferred types to nullable. These columns come from the INNER-joined
+  // container and version and cannot be null, so the wrapper states the fact
+  // rather than making every reader defend against a case that cannot arise.
+  documentReference: sql<string>`${s.containers.documentReference}`,
+  containerState: sql<string>`${s.containers.state}`,
+  isCurrent: sql<boolean>`${s.versions.isCurrent}`,
+  versionReference: sql<string>`${s.versions.versionReference}`,
   ...locatorColumns,
 };
+
+// T-272 — the deliverable's title, which lives on its work item. LEFT joined,
+// because the absence IS the marker for reference material (T-304): a loaded
+// legacy document has no work item, and `null` here is that fact rather than a
+// missing row.
+const titleColumn = { documentTitle: s.workItems.title };
+
+// The lexical arm matched on the document's own reference, so it has no
+// distance. `null`, not zero: absent relevance means NOT RANKED, and a zero
+// would read as "ranked, and badly".
+const NO_DISTANCE = sql<number | null>`null::double precision`;
 
 function liveChunksByCode(
   db: Db,
@@ -216,10 +286,11 @@ function liveChunksByCode(
   scope: string[] = [],
 ) {
   return db
-    .select(chunkColumns)
+    .select({ ...chunkColumns, ...titleColumn, distance: NO_DISTANCE })
     .from(s.versionChunks)
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
     .where(
       and(
         liveLibraryFilter(slice, modelId, scope),
@@ -227,6 +298,30 @@ function liveChunksByCode(
       ),
     )
     .orderBy(asc(s.containers.documentReference), asc(s.versionChunks.chunkIndex));
+}
+
+/**
+ * T-272 — how many chunks this requester's pre-filter admits, before ranking.
+ *
+ * The same `liveLibraryFilter` the two arms use, so the number cannot describe
+ * a different corpus from the one that was searched. It is what makes an empty
+ * answer legible: "4,000 passages were searched and none matched" and "your
+ * library has nothing in it" look identical without it and mean opposite
+ * things.
+ */
+async function countLiveChunks(
+  db: Db,
+  slice: EntitledSlice,
+  modelId: string,
+  scope: string[] = [],
+): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(s.versionChunks)
+    .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
+    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .where(liveLibraryFilter(slice, modelId, scope));
+  return row?.count ?? 0;
 }
 
 function nearestLiveChunks(
@@ -238,10 +333,11 @@ function nearestLiveChunks(
 ) {
   const distance = cosineDistance(s.versionChunks.embedding, query);
   return db
-    .select(chunkColumns)
+    .select({ ...chunkColumns, ...titleColumn, distance: sql<number | null>`${distance}` })
     .from(s.versionChunks)
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
     .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
     .where(liveLibraryFilter(slice, modelId, scope))
     .orderBy(asc(distance), asc(s.versionChunks.id))
     .limit(GROUNDED_CHUNK_LIMIT);

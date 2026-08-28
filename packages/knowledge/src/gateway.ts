@@ -41,7 +41,14 @@ type Pipeline = (
 const guiding: Pipeline = async (deps, slice) => guidingRules(deps.db, slice.organisationId);
 const informing: Pipeline = async () => [];
 
-const emptyInput = () => ({ items: [], budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 } });
+// An unentitled requester gets an empty input AND an empty coverage: zero
+// candidates is the honest number, and it reads identically to an empty corpus
+// — which is the point (denial and nonexistence read the same).
+const emptyInput = () => ({
+  items: [],
+  budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 },
+  coverage: { candidates: 0, requestedReferences: [], unmatchedReferences: [] },
+});
 
 /**
  * T-248 — an optionally NARROWED assembler (finding F8).
@@ -71,10 +78,16 @@ export function createAssembler(deps: GatewayDeps, narrowing?: Attenuation): Ass
       { grounded: grounded.items, guiding: guidingItems, informing: informingItems },
       TOKEN_LIMIT,
     );
-    // T-313 — the embedding call rides out with the input it produced. It
-    // survives the merge dropping every item: the call was made and was paid
-    // for whether or not anything it found fitted the budget.
-    return grounded.embedding === undefined ? merged : { ...merged, embedding: grounded.embedding };
+    // T-313/T-272 — the embedding call and the coverage facts ride out with the
+    // input they produced. Both survive the merge dropping every item: the call
+    // was made and was paid for whether or not anything it found fitted the
+    // budget, and what was SEARCHED is precisely the thing an empty result
+    // needs said about it.
+    return {
+      ...merged,
+      ...(grounded.embedding !== undefined && { embedding: grounded.embedding }),
+      coverage: grounded.coverage,
+    };
   };
 }
 

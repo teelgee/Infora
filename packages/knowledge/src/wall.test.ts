@@ -169,9 +169,25 @@ describe('the wall through the gateway (T-033)', () => {
     // own organisation and reaches no project, no share and no other party.
     // `source` going optional narrows rather than widens — it is what says a
     // guiding item is not citable.
+    // T-272 added `descriptor` and `relevance`, and this test firing is the
+    // review. Both are OUTPUT annotations on rows the pre-filter had already
+    // returned — how the source reads (its reference, title, revision and
+    // whether it is superseded) and how well it scored — carrying no predicate
+    // and no id a caller could pass back in. They can no more widen a slice
+    // than `chunkId` or `locator` can, and they exist because a worker's
+    // STRUCTURED output has to be able to name a document rather than only its
+    // uuid.
     const itemShape: ExactKeys<
       AssembledItem,
-      'channel' | 'corpus' | 'source' | 'rule' | 'chunkId' | 'locator' | 'content'
+      | 'channel'
+      | 'corpus'
+      | 'source'
+      | 'rule'
+      | 'chunkId'
+      | 'locator'
+      | 'descriptor'
+      | 'relevance'
+      | 'content'
     > = true;
 
     // T-248 extended this test to the OTHER direction, because "no parameter
