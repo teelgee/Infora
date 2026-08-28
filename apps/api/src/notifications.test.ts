@@ -188,6 +188,9 @@ describe('the record and its read (T-329)', () => {
     expect(item.subject.label).toBe(`Round 1 on T329-CH7-${stamp}`);
     expect(item.projectId).toBe(projectId);
     expect(item.readAt).toBeNull();
+    // a round is read on its deliverable, not at its own grain — the target is
+    // resolved in the SAME pass that decided the row was visible
+    expect(item.subject.opens).toEqual({ kind: 'container', id: containerId });
 
     // the label tracks the subject, because it is resolved and not copied: the
     // whole point of storing no content is that the record cannot go stale or
@@ -211,6 +214,7 @@ describe('the record and its read (T-329)', () => {
     const body = await list(producerCookie);
     const item = body.items.find((n) => n.subject.id === commentId)!;
     expect(item.subject.label).toBe('a comment on Chapter 7 — Noise and Vibration');
+    expect(item.subject.opens).toEqual({ kind: 'sandbox-document', id: sandboxDocId });
     expect(JSON.stringify(body)).not.toContain('THE COMMENT TEXT');
   });
 });

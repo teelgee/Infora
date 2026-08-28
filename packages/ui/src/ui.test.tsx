@@ -95,6 +95,23 @@ describe('rail (T-049)', () => {
     expect(html).toContain('class="active"');
     expect(html).toContain('class="avatar"');
   });
+
+  // T-331 (ADR-0049 §6a) — the rail carries the unread count, because it is the
+  // placement that survives wherever the user is. Zero renders NOTHING: a badge
+  // saying "0" is a badge asking to be ignored, and an item that always wears
+  // one stops being read on the day it means something.
+  it('carries an unread count, and renders none at zero', () => {
+    const nav = (count?: number) =>
+      renderToStaticMarkup(
+        <RailNav items={[{ label: 'Notifications', glyph: '◔', href: '#', count }]} />,
+      );
+    expect(nav(3)).toContain('nav-count');
+    expect(nav(3)).toContain('>3<');
+    expect(nav(0)).not.toContain('nav-count');
+    expect(nav(undefined)).not.toContain('nav-count');
+    // a three-digit count would push the label out of a 216px rail
+    expect(nav(140)).toContain('99+');
+  });
 });
 
 describe('suggestion card + run trace (T-049)', () => {

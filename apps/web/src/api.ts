@@ -36,6 +36,9 @@ import type {
   GetWorkItemResponse,
   ListOrgUsersResponse,
   ListLensesResponse,
+  ListNotificationsResponse,
+  MarkAllNotificationsReadResponse,
+  MarkNotificationReadResponse,
   ListRosterResponse,
   ListSandboxCommentsResponse,
   ListSandboxDocumentsResponse,
@@ -143,6 +146,23 @@ export const api = {
     }),
   workItems: (projectId: string) =>
     request<ListWorkItemsResponse>(`/projects/${projectId}/work-items`),
+  // T-329/T-331 — the two scopes are different on purpose (ADR-0049 §6b): the
+  // rail's is the user's OWN across every project they can reach, the panel's
+  // is one project's. Without the split a mention on a second project would be
+  // silently invisible, because the rail sits beneath a project switcher and
+  // would otherwise inherit its scope.
+  notifications: () => request<ListNotificationsResponse>('/notifications'),
+  projectNotifications: (projectId: string) =>
+    request<ListNotificationsResponse>(`/projects/${projectId}/notifications`),
+  markNotificationRead: (id: string) =>
+    request<MarkNotificationReadResponse>(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: (projectId?: string) =>
+    request<MarkAllNotificationsReadResponse>(
+      projectId === undefined
+        ? '/notifications/read-all'
+        : `/projects/${projectId}/notifications/read-all`,
+      { method: 'POST' },
+    ),
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
   library: (projectId: string) => request<GetLibraryResponse>(`/projects/${projectId}/library`),

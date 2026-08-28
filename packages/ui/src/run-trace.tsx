@@ -4,12 +4,29 @@
 // withheld count reads from rail_outcomes.detail entries (ruled 2026-07-06).
 import type { Step } from '@infora/contracts';
 
+// The coded chain's five, plus T-263's seven worker types — a worker
+// invocation is a Step in the same append-only tree (ADR-0028 §3), so the
+// trace has to be able to name one. Found unlabelled 2026-08-28 while
+// building T-331: `STEP_TYPES` widened with migration 0055 and this map did
+// not, which typechecks only while a stale turbo cache hides it.
+//
+// The three whose workers are beyond V1 (`authority_lookup`, `web_research`,
+// `verifier`) are labelled anyway, for the same reason the vocabulary declares
+// them: this is a Record over a closed union, so an unlabelled member is a
+// compile error rather than a blank line on a screen.
 const LABEL: Record<Step['type'], string> = {
   retrieve: 'Assembled context',
   delegate: 'Sub-agent',
   draft: 'Drafted',
   ground_check: 'Ground-check',
   cite: 'Cited',
+  corpus_retrieval: 'Searched the library',
+  authority_lookup: 'Looked up an authority',
+  web_research: 'Researched the web',
+  extractor: 'Extracted',
+  workflow_runner: 'Ran a workflow',
+  document_builder: 'Built a document',
+  verifier: 'Verified',
 };
 
 const tick = (status: Step['status']) =>

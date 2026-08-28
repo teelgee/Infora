@@ -15,6 +15,18 @@ export type RailNavItem = {
   glyph: ReactNode; // a Lucide icon element (design-rules.md §F.7 — always Lucide, 2px stroke, currentColor)
   href: string;
   active?: boolean;
+  /**
+   * T-329/T-331 (ADR-0049 §6a) — an unread count on the item itself. The rail
+   * is the placement that survives WHEREVER the user is, which is the point:
+   * the person a round-issued event most needs to reach has been in the editor
+   * all afternoon and will not visit a home page. Zero renders nothing —
+   * a badge saying "0" is a badge asking to be ignored.
+   *
+   * It survives the collapsed rail too, as a dot: the count is the whole reason
+   * this placement was chosen, so hiding it with the label would take away the
+   * only thing the item is for.
+   */
+  count?: number;
   onClick?: (event: MouseEvent<HTMLAnchorElement>) => void; // routers preventDefault here
   // drill-down (T-099): a chevron toggles the next layer beneath the item
   onToggle?: () => void;
@@ -139,6 +151,11 @@ export function RailNav(props: { items: RailNavItem[] }) {
         <div key={item.label}>
           <a href={item.href} className={item.active ? 'active' : undefined} onClick={item.onClick} title={item.label}>
             <span className="glyph">{item.glyph}</span> <span className="label">{item.label}</span>
+            {item.count !== undefined && item.count > 0 && (
+              <span className="nav-count" title={`${item.count} unread`}>
+                {item.count > 99 ? '99+' : item.count}
+              </span>
+            )}
             {item.onToggle !== undefined && (
               <span
                 className="drill"

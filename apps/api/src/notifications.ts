@@ -70,7 +70,7 @@ type StoredNotification = {
  * the same deny-as-nonexistence the API boundary uses everywhere else
  * (contracts principle 4).
  */
-type ResolvedSubject = { label: string } | null;
+type ResolvedSubject = { label: string; opens: NotificationSubject['opens'] } | null;
 
 /** The deliverable's name as a person reads it: its coded reference, its work
  * item's title, or both. Never invented — a container with neither resolves to
@@ -115,14 +115,18 @@ const subjectResolvers: Record<
     if (!row) return null;
     if (row.container.projectId !== slice.projectId) return null;
     if (!(await canSeeContainer(db, slice, row.container))) return null;
-    return { label: `Round ${row.number} on ${await containerLabel(db, row.container.id)}` };
+    return {
+      label: `Round ${row.number} on ${await containerLabel(db, row.container.id)}`,
+      // a round is read on its deliverable's cycle screen, not at its own grain
+      opens: { kind: 'container', id: row.container.id },
+    };
   },
   container: async (db, slice, id) => {
     const [container] = await db.select().from(s.containers).where(eq(s.containers.id, id)).limit(1);
     if (!container) return null;
     if (container.projectId !== slice.projectId) return null;
     if (!(await canSeeContainer(db, slice, container))) return null;
-    return { label: await containerLabel(db, container.id) };
+    return { label: await containerLabel(db, container.id), opens: { kind: 'container', id: container.id } };
   },
   'sandbox-document': async (db, slice, id) => {
     const [doc] = await db
@@ -138,11 +142,12 @@ const subjectResolvers: Record<
     // the sandbox is org-private (ADR-0018/0032) — the same check
     // `resourceHomes.sandboxDocument` makes on every sandbox route
     if (doc.organisationId !== slice.organisationId) return null;
-    return { label: doc.title };
+    return { label: doc.title, opens: { kind: 'sandbox-document', id } };
   },
   'sandbox-comment': async (db, slice, id) => {
     const [row] = await db
       .select({
+        sandboxDocumentId: s.sandboxDocuments.id,
         title: s.sandboxDocuments.title,
         projectId: s.sandboxDocuments.projectId,
         organisationId: s.sandboxDocuments.organisationId,
@@ -154,7 +159,10 @@ const subjectResolvers: Record<
     if (!row || row.projectId !== slice.projectId) return null;
     if (row.organisationId !== slice.organisationId) return null;
     // the document, never the comment's text — a label is a pointer, not content
-    return { label: `a comment on ${row.title}` };
+    return {
+      label: `a comment on ${row.title}`,
+      opens: { kind: 'sandbox-document', id: row.sandboxDocumentId },
+    };
   },
 };
 
@@ -228,6 +236,7 @@ async function visibleFor(
       kind: row.subjectKind,
       id: row.subjectId,
       label: resolved.label,
+      opens: resolved.opens,
     };
     out.push({
       id: row.id,

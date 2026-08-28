@@ -66,6 +66,19 @@ export type NotificationSubject = {
   kind: NotificationSubjectKind;
   id: Id;
   label: string;
+  /**
+   * **Where following the pointer lands**, resolved server-side in domain terms
+   * — never a URL, which would put a surface's routing table inside the API.
+   *
+   * It exists because most subjects are not openable at their own grain: a
+   * round lives on a deliverable's cycle screen and a comment lives on its
+   * document, so a client holding only `{kind, id}` would have to join its way
+   * back to something it can open — a second traversal, outside the access path
+   * that just decided this row was visible. Resolving it here keeps the rule
+   * from ADR-0049 §3 whole: one pass decides both *whether* you may see it and
+   * *what* it points at.
+   */
+  opens: { kind: 'container' | 'sandbox-document'; id: Id };
 };
 
 export type Notification = {

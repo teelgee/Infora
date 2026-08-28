@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
-import { Archive, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, Bell, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,
   CommandBar,
@@ -28,6 +28,7 @@ import type { RailNavItem } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 import { SourceModal } from '../source-modal';
+import { NeedsYouPanel, useNotifications } from './notifications';
 import { greeting, initialsOf, statusBadge } from './shared';
 
 type Participation = MeResponse['participants'][number];
@@ -43,6 +44,11 @@ const NAV = [
   { label: 'Plan', glyph: <ClipboardList size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'plan' }, // TIDP/MIDP (T-155)
   { label: 'Project library', glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'documents' },
   { label: 'Review', glyph: <ClipboardCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'review' },
+  // T-331 (ADR-0049 §6a) — alongside Home and Review, and carrying the unread
+  // count. This is the placement that survives WHEREVER the user is, which is
+  // the whole argument for it: the person a round-issued event most needs to
+  // reach will not visit a home page today.
+  { label: 'Notifications', glyph: <Bell size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'notifications' },
   { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },
   { label: 'Tools', glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'tools' }, // Workflows renamed (T-109)
   { label: 'History', glyph: <HistoryIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'history' }, // your prompted turns (T-108)
@@ -63,6 +69,11 @@ export function ProjectShell() {
   const [sandboxDocs, setSandboxDocs] = useState<SandboxDocument[] | null>(null);
   const [libraryItems, setLibraryItems] = useState<LibraryItem[] | null>(null);
   const [sourceOpen, setSourceOpen] = useState<string | null>(null);
+  // §6b — the rail's count is the USER'S OWN, across every project they can
+  // reach, and deliberately not this project's: the rail sits beneath a project
+  // switcher and would otherwise inherit its scope, making a mention on a
+  // second project silently invisible.
+  const { data: notifications } = useNotifications();
 
   useEffect(() => {
     // the layers refresh when the project changes
@@ -152,6 +163,9 @@ export function ProjectShell() {
             glyph: item.glyph,
             href: `${base}/${item.path}`,
             active: activePath === item.path,
+            ...(item.path === 'notifications' && notifications !== null
+              ? { count: notifications.unread }
+              : {}),
             onClick: (e: { preventDefault: () => void }) => {
               e.preventDefault();
               void navigate(`${base}/${item.path}`);
@@ -221,6 +235,10 @@ export function ProjectHome() {
           Ask about the project — grounded on its library, every claim cited or withheld
         </CommandBar>
       </div>
+
+      {/* §6a — directly above the work items, so a notification sits beside the
+          thing it is about. Absent at zero, never an empty state. */}
+      <NeedsYouPanel projectId={participant.projectId} />
 
       <SectionLabel>Your work items</SectionLabel>
       <Table>
