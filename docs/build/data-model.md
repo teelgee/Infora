@@ -25,7 +25,8 @@
 > drawer this rule was applied to end to end: its field list was drawn here,
 > the migration was written from the drawing, and the block reduced to
 > narrative and a pointer in the same commit, which is what the state rule
-> asks for once a drawer is built. **Drawer 7 was added 2026-08-27 (T-308)** and is the first store
+> asks for once a drawer is built. **Drawer 7 was added 2026-08-27 (T-308)**
+> and is the first store
 > behind [component 4](../architecture/components/component-4-context.md)'s
 > three scoped context stores, which until then had no tables at all. This split preserves "migrations are drawn before being written"
 > while removing the permanent sync obligation the old always-carry-fields
@@ -545,7 +546,14 @@ has stopped reaching for on its own.
 
 ## Drawn 2026-08-28 — the promotion override record (T-332)
 
-*Drawn and built the same day; migration 0057. ADR-0049 §8 requires that
+*Drawn and built the same day; migrations 0057 and 0058 — the second is one
+enum value, drawn here per the T-391 precedent: **Drawer 1 —
+`elevated_action` gains `promote_over_open_items`**, so an unelevated force
+refuses through the one elevated-gate path and the refusal is recorded
+(T-301's rule applied). Added in review; the block below covered the table
+only.*
+
+*ADR-0049 §8 requires that
 **every use of the override be audited** and that the record say **who did it
 and what was open at the time** — and, as with T-390 above, there is nothing to
 imitate: every audit in this repo is a purpose-built append-only table, so this
@@ -631,8 +639,7 @@ deferred: **programme** and programme context; the **org-context / Knowledge /
 precedent** stores and the distillation loop (Sessions 4/7); **custom agents**
 and the builder (Slice F); the **authority corpus** internals (ADR-0023 —
 referenced by Citation, owned by Context); **rails as scoped records**
-(ADR-0030); portfolio and
-programme views. Each is drawn here, fields first, when its slice starts.
+(ADR-0030); portfolio and programme views. Each is drawn here, fields first, when its slice starts.
 
 ## Open items sent back to the grill tracker
 

@@ -305,7 +305,7 @@ const acts = [
         screen: 'Review cycle · moderate',
         title: 'The lead moderates in the open, and cannot moderate in secret',
         prose:
-          'Rachel amends a reviewer’s comment to absorb a duplicate and shape the group’s single position before any of it goes back. Two constraints make “in the open” true rather than claimed. There is **no delete** — a duplicate is amended to say so, never quietly emptied — and moderation is possible only while the round is **open**: issue freezes the snapshot, so what Calder & Hale eventually receives is the record as Rachel left it, once, and nothing can be edited behind an issued verdict. The amended comment is the record; there is no “original” hidden underneath it, because a moderated record with a shadow copy would be two accounts of one review.',
+          'Rachel amends a reviewer’s comment to absorb a duplicate and shape the group’s single position before any of it goes back. Two constraints make “in the open” true rather than claimed. There is <strong>no delete</strong> — a duplicate is amended to say so, never quietly emptied — and moderation is possible only while the round is <strong>open</strong>: issue freezes the snapshot, so what Calder & Hale eventually receives is the record as Rachel left it, once, and nothing can be edited behind an issued verdict. The amended comment is the record; there is no “original” hidden underneath it, because a moderated record with a shadow copy would be two accounts of one review.',
         adrs: ['ADR-0007', 'ADR-0009'],
       },
       {
