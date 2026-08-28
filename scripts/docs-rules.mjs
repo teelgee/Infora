@@ -23,8 +23,21 @@ import { join } from 'node:path';
 /**
  * Folders whose README carries an artefact table. Add a folder here and its
  * contents become guarded; that is the intended way to extend this.
+ *
+ * `docs/architecture` joined on 2026-08-28, when the operating envelope and the
+ * personal-data register moved up out of the build layer. It had four loose
+ * files and no index at all, so extending the guard was the price of the move
+ * rather than an extra: a file leaving a guarded folder for an unguarded one is
+ * how the thing this guard exists to prevent happens again.
+ *
+ * NON-RECURSIVE, deliberately. `adr/`, `components/`, `diagrams/` and
+ * `user-story-screens/` sit under `docs/architecture` and are NOT covered:
+ * each carries its own convention (ADR numbering, the component-N naming rule,
+ * tldraw sources, generated captures), and an index table restating them would
+ * be a second place to keep current. Their README says so, so nobody assumes
+ * an orphan in one of them would be caught here.
  */
-const INDEXED = ['docs/build', 'docs/build/spikes'];
+const INDEXED = ['docs/architecture', 'docs/build', 'docs/build/spikes'];
 
 /** Documented file types. The README itself is the index, never a row in it. */
 const DOCUMENTED = /\.(md|html)$/;

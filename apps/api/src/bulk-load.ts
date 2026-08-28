@@ -1,7 +1,7 @@
 // T-303 — the bulk-load path: a corpus arrives as an **operator action**, not
 // an interactive one.
 //
-// [operating-envelope.md](../../../docs/build/operating-envelope.md) is explicit
+// [operating-envelope.md](../../../docs/architecture/operating-envelope.md) is explicit
 // that this is measured separately from interactive ingest and **is allowed to
 // take hours**. What it may not do is two things, and both shape the code below
 // rather than sitting in a comment:

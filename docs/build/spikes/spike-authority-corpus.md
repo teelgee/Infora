@@ -70,7 +70,7 @@ Authority, the applicant's representatives, sometimes objectors. They are
 published Crown-copyright documents, so this is not a leak; but Infora would be
 **introducing a store of named individuals** by shipping them, and CLAUDE.md's
 working rule says a ticket that does so says so and names where it is deleted.
-**T-277 must register this in [personal-data.md](../personal-data.md)** before
+**T-277 must register this in [personal-data.md](../../architecture/personal-data.md)** before
 it loads a single Decision Letter. Nothing here is deleted at a customer's
 exit, because it is not the customer's material — it is public record shipped
 by Infora — and that answer needs writing down rather than being inferred.
@@ -228,7 +228,7 @@ In order, and the first two are the ones that carry risk:
 1. **Separate tables, from the start** (Finding 4). Do not extend
    `version_chunks`.
 2. **Register the named-individual exposure** in
-   [personal-data.md](../personal-data.md) *before* loading Decision Letters
+   [personal-data.md](../../architecture/personal-data.md) *before* loading Decision Letters
    (Finding 1b), including the answer that it is not deleted at a customer's
    exit because it is not the customer's material.
 3. **Provision grain with two time axes** (Finding 2): a text interval stored,

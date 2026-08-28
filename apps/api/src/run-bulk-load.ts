@@ -2,7 +2,7 @@
 //
 // A CLI, deliberately, and the same reasoning as `run-ingest.ts`: the load is
 // an operator action that is allowed to take hours
-// ([operating-envelope.md](../../../docs/build/operating-envelope.md)), and
+// ([operating-envelope.md](../../../docs/architecture/operating-envelope.md)), and
 // nothing that takes hours belongs on a request path. There is no endpoint for
 // this and there should not be one until someone can say what the surface does
 // while it runs.

@@ -182,7 +182,7 @@ invisibly across months of separate conversations.
     — multiplayer and the shared Conversation scope to "the document's sandbox
     participant scope", singular.
   - **[ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md)
-    and [personal-data.md](../build/personal-data.md)** — named individuals at
+    and [personal-data.md](../architecture/personal-data.md)** — named individuals at
     the third party, and what Purge reaches when the engagement ends.
 
   **Shape as understood — non-binding, from the raising conversation.** Three

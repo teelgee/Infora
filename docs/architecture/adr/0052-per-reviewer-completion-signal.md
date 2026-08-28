@@ -14,7 +14,7 @@
 
 **4. Walled like the open round's comments (ADR-0014).** Completion is reviewer-side state. While the round is open it is visible to the review group and the owner's read, and **withheld from the authoring side**; from issue onward it is plainly visible history. One rule, borrowed whole — the server applies it in the same place it already phases comments.
 
-**Personal data:** a named Participant and a timestamp — review-cycle metadata, same class and retention as the acknowledgers row ([personal-data.md](../../build/personal-data.md), ADR-0050).
+**Personal data:** a named Participant and a timestamp — review-cycle metadata, same class and retention as the acknowledgers row ([personal-data.md](../personal-data.md), ADR-0050).
 
 **Considered and not taken.** *Deriving completion from commenting activity* — wrong on both edges (silent-but-done, commented-but-reading). *A per-reviewer round state machine* — a second lifecycle to keep consistent with the first, bought for one boolean's worth of signal. *Blocking issue until all reviewers complete* — repeats the review-period-as-gate mistake ADR-0005 already rejected; the lead's judgement is the close, and a signal that gated would teach reviewers to game it.
 

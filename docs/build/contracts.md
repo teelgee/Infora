@@ -218,7 +218,8 @@ are not recorded here.
   silent — appointments must stay propose/confirm acts (ADR-0033), and saying
   so beats a spreadsheet column quietly doing nothing. There is deliberately
   no import body schema: the input is a file, transient by rule
-  (personal-data.md — its author/reviewer columns carry named people), so
+  ([personal-data.md](../architecture/personal-data.md) — its author/reviewer
+  columns carry named people), so
   no persisted contract type may carry its contents.
 - **2026-08-09 (T-360) — the plan read carries the organisation's column
   standard, not the user's.** `GetPlanResponse.planColumns` rides the plan

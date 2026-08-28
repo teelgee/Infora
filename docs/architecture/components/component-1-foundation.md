@@ -2,7 +2,7 @@
 
 The foundation is the shared base every other component stands on: the model layer, the store substrate, the file store, and the typed contracts. It has no domain logic of its own — it is depended on by everything and depends on nothing — but it is named as a component so its pieces have a home and are not improvised at the keyboard.
 
-**No longer a stub.** The infra/security decision session ran on **2026-08-01** and closed the questions this component carried: cloud provider, file/blob storage, hosting, deployment, key management, tenant isolation, residency and production identity are settled in **[ADR-0047](../adr/0047-pilot-deployment-substrate.md)**, decided against the pilot envelope in [operating-envelope.md](../../build/operating-envelope.md). The store substrate was already fixed by ADR-0024 and is unchanged.
+**No longer a stub.** The infra/security decision session ran on **2026-08-01** and closed the questions this component carried: cloud provider, file/blob storage, hosting, deployment, key management, tenant isolation, residency and production identity are settled in **[ADR-0047](../adr/0047-pilot-deployment-substrate.md)**, decided against the pilot envelope in [operating-envelope.md](../operating-envelope.md). The store substrate was already fixed by ADR-0024 and is unchanged.
 
 Four pieces:
 

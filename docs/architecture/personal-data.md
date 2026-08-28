@@ -4,13 +4,13 @@
 >
 > **Why it exists.** A competitive review on 2026-08-01 found `DPIA`, `personal data`, `data subject`, `right to erasure`, `eyes off` and `human access` returned **zero hits** across `docs/`, while `GDPR` appeared four times and only ever inside a posture list. The ethical wall is architecturally strong; the privacy programme was undocumented. This register is the first half of the fix, and the open questions are the second.
 >
-> **Four things read from it**, which is what makes it worth keeping current: **[ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md)** (operator access and deletion) was written against it and now supplies this file's deletion positions, its contract-end clause enumerates it, the **DPA** is drafted from it — still blocked on the controller/processor model, **`Q-035`** — and a customer's own **DPIA** needs it as the technical half.
+> **Four things read from it**, which is what makes it worth keeping current: **[ADR-0050](adr/0050-the-privacy-programme-operator-access-and-deletion.md)** (operator access and deletion) was written against it and now supplies this file's deletion positions, its contract-end clause enumerates it, the **DPA** is drafted from it — still blocked on the controller/processor model, **`Q-035`** — and a customer's own **DPIA** needs it as the technical half.
 
 **Working rule (CLAUDE.md):** a ticket or ADR that introduces, stores, or derives data about a **named person** says so, and names where that data is deleted. This file is where that lands.
 
 ## What is held
 
-Grouped by *why* it exists, because that is the question a DPA and a DPIA both ask. **"Deleted where"** is the current position. Ruled **2026-08-03 by [ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md)**, whose governing distinction is **whose material it is** rather than where it sits: the **member organisation** may require complete deletion of its own material wherever it lives, the **library owner** retains the deliverables and the review-cycle metadata including named individuals, and library removal is the owner's act after withdraw.
+Grouped by *why* it exists, because that is the question a DPA and a DPIA both ask. **"Deleted where"** is the current position. Ruled **2026-08-03 by [ADR-0050](adr/0050-the-privacy-programme-operator-access-and-deletion.md)**, whose governing distinction is **whose material it is** rather than where it sits: the **member organisation** may require complete deletion of its own material wherever it lives, the **library owner** retains the deliverables and the review-cycle metadata including named individuals, and library removal is the owner's act after withdraw.
 
 ### Identity and access
 
@@ -108,4 +108,4 @@ Transcribed from ADR-0047 — facts already decided, gathered here because a DPA
 
 ## What this file is not
 
-It is **not** the DPA, and not a DPIA. The **controller/processor model remains open as `Q-035`** and blocks the DPA; a DPIA travels with it, being a controller obligation Infora may not owe as processor. This register is the **technical half** both are drafted from. Its deletion column is now a transcription of [ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md) rather than a set of open questions — where a position is genuinely still open the cell says so and names the question.
+It is **not** the DPA, and not a DPIA. The **controller/processor model remains open as `Q-035`** and blocks the DPA; a DPIA travels with it, being a controller obligation Infora may not owe as processor. This register is the **technical half** both are drafted from. Its deletion column is now a transcription of [ADR-0050](adr/0050-the-privacy-programme-operator-access-and-deletion.md) rather than a set of open questions — where a position is genuinely still open the cell says so and names the question.

@@ -16,7 +16,7 @@
 
 **5. The status bar reads directly off the states.** The deliverable status page and the review interface (the Review Surface slice) render the same four-state bar: **Submitted** = round `submitted`, awaiting the owner's acknowledgement; **In review** = `open`, pen with the review group; **Responding** = `issued`/`responded`, pen with the authoring team; **Complete** = the cycle's accepting terminal. A non-accepting verdict loops to the next round, whose bar restarts at Submitted — the bar never pretends one pass ends a cycle.
 
-**Personal data:** the acknowledgement stores a named Participant and a timestamp — the same class as the existing acknowledgers row in [personal-data.md](../../build/personal-data.md) (review-cycle metadata, retained by the library owner under ADR-0050); the register's row is extended rather than grown by one.
+**Personal data:** the acknowledgement stores a named Participant and a timestamp — the same class as the existing acknowledgers row in [personal-data.md](../personal-data.md) (review-cycle metadata, retained by the library owner under ADR-0050); the register's row is extended rather than grown by one.
 
 **Considered and not taken.** *Keeping auto-open* (the status quo) — rejected by the ruling; it records no receipt and leaves the owner's first recorded contact with a submission being the verdict. *Per-reviewer acknowledgement* — receipt is an organisational act (the ADR-0035 §"Considered" reasoning applies unchanged); reviewers already have propose-then-confirm for their own appointment, which is a different question. *A separate acknowledgements table for review submissions* — a table keyed on a row that already exists one-to-one with the act is a join with no second use.
 

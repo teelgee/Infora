@@ -58,7 +58,7 @@ if a task seems to need it, stop and ask.
   is git's job. The file restates no type — `packages/contracts` is the spec.
 - A ticket or ADR that introduces, stores, or derives data about a **named
   person** says so, and names where that data is deleted — the register is
-  `docs/build/personal-data.md`.
+  `docs/architecture/personal-data.md`.
 - Design gaps go to `docs/grill-sessions/grill-questions.md` as open
   questions — never resolved inline. Derive the number with
   `pnpm run check:questions -- --next`, never by reading the counter line

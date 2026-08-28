@@ -188,7 +188,7 @@ stored rather than recomputed for the obvious reason — after a purge there is
 nothing left to count — and they are what makes the record answer *"was this
 actually erased, and how much of it"* rather than merely *"someone pressed the
 button"*. A **named person on a destructive act**, so it is registered in
-[personal-data.md](personal-data.md).
+[personal-data.md](../architecture/personal-data.md).
 
 **`forbid_mutation()` gains one carve-out**, and it is the interesting half.
 `versions`, `signals` and `comments` are append-only *by trigger* (T-008), and
@@ -334,7 +334,7 @@ overridable. **A declined appointment is not a live lead**: the one-live-lead
 partial unique index excludes it, so a replacement can be named without
 revoking the refusal, which stays on the record as the interval discipline
 requires. The decline reason is a named person's stated refusal
-([personal-data.md](personal-data.md)) and is owner-organisation-private — the
+([personal-data.md](../architecture/personal-data.md)) and is owner-organisation-private — the
 producing side learns only that a lead reviewer is awaited. **Migration 0047
 deliberately does not backfill `accepted_at`:** a backfill would manufacture an
 undertaking nobody gave, so every lead confirmed before the migration blocks
@@ -423,7 +423,7 @@ the words it quoted.
 
 **Drawer 5 — `acceptance_codes` gains two booleans.** `is_contractual` — an accepting code ends the cycle, but only a *contractual* one issues the `C` revision (ADR-0041), which is ISO's own preliminary/contractual split. `grounds` — whether a deliverable accepted under this code enters the AI's reach. Both default to `false`; the seeded scheme sets them from the **2021** UK National Annex, where `A1, An…` are contractual and ground, and the `S` codes are neither (they never reach the library at all). The scheme is per-project and copied at creation, so this is per-row configuration, not a platform constant.
 
-**Drawer 2 — `containers` gains `withdrawn_by_participant_id`.** Nullable, referencing `participants`. Today only `withdrawn_reason` is stored, so nothing records *which side* withdrew, and restoration cannot tell whether it is undoing its own act or the other party's. This is a **named person on a destructive act** and is registered in [personal-data.md](personal-data.md).
+**Drawer 2 — `containers` gains `withdrawn_by_participant_id`.** Nullable, referencing `participants`. Today only `withdrawn_reason` is stored, so nothing records *which side* withdrew, and restoration cannot tell whether it is undoing its own act or the other party's. This is a **named person on a destructive act** and is registered in [personal-data.md](../architecture/personal-data.md).
 
 **Nothing is drawn for context state**, deliberately: it is derived from library membership + record state + the code's `grounds` flag, computed in the same SQL pre-filter retrieval already runs, and storing it would create a second state machine that could disagree with the first.
 
