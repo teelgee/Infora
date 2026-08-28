@@ -1,8 +1,10 @@
 # The build layer
 
-Build-facing documentation: the blueprints that turn settled concepts into code-ready structure. This layer sits **below** the five design artefacts and depends on them.
+Build-facing documentation: the blueprints that turn settled concepts into code-ready structure. This layer sits **below** [the architecture layer](../architecture/README.md) and depends on it.
 
-- **Design layer** (already established) — `CONTEXT.md` (language), [overview](../architecture/infora-overview.md) (vision), the [component docs](../architecture/components/) (structure), [`docs/architecture/adr/`](../architecture/adr/) (decisions), the [grill tracker](../grill-sessions/grill-questions.md) (process log). These answer *what Infora is* and *why each boundary sits where it does*.
+- **Architecture layer** ([`docs/architecture/`](../architecture/README.md), already established) — `CONTEXT.md` (language), [overview](../architecture/infora-overview.md) (vision), the [component docs](../architecture/components/) (structure), [`adr/`](../architecture/adr/) (decisions), the [grill tracker](../grill-sessions/grill-questions.md) (process log), and the **standing records** the pilot is measured and contracted against ([operating-envelope.md](../architecture/operating-envelope.md), [personal-data.md](../architecture/personal-data.md)). These answer *what Infora is*, *why each boundary sits where it does*, and *what the deployment must meet or hold*. **Its own index is [`docs/architecture/README.md`](../architecture/README.md)** — enumerating it here as well would be a second list to keep current, and the first one to go stale.
+
+  ⚠ **"The design layer" is retired as a name for it**, because [`docs/design/`](../design/README.md) is a different folder holding the *visual* system (rules, tokens, mockups). Say **architecture layer** or **design *record*** when you mean the ADRs and the component docs; say **`docs/design/`** when you mean the UI kit.
 - **Build layer** (this folder) — turns those settled concepts into what a developer types: the stored tables, the typed API, the first build slice. These answer *what gets built first, and how*.
 
 The boundary between the two is a **gate**: a concept is grilled into the design layer first, then translated here. Nothing in this folder invents new design — where it surfaces a genuine design gap, that goes back to the grill tracker as an open question, not resolved here.
@@ -22,7 +24,9 @@ No database migration or application code is written until the artefacts below e
 
 > **Naming rule:** a closed companion takes the **`-history` suffix** beside its live sibling (`plan.md` → `plan-history.md`, `grill-questions.md` → `grill-history.md`). Suffix, never a subfolder — links stay stable, and the pair sorts adjacent so you cannot miss it.
 >
-> **Enforced:** `pnpm run check` fails if a file in this folder is missing from the table below, or if the table names a file that does not exist. The convention in prose is what let a 363-line superseded ticket pack sit here unnoticed for five weeks; the convention in CI is what catches the next one.
+> **Enforced by `pnpm run check`** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.**
+>
+> ⚠ **`pnpm run check` is not CI.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs `check:deps`, `check:source`, lint, typecheck and the suites — **not** `check:docs`, `check:links`, `check:tickets`, `check:questions`, `check:parking` or `check:data-model`. So this guard fires locally and nowhere else, which makes the convention that stops a document being forgotten itself depend on somebody remembering to run it. Recorded here rather than left as a comforting sentence; closing it is a change to the workflow, not to this file.
 
 | Doc | Lifecycle | Purpose | Maturity |
 |-----|-----------|---------|----------|

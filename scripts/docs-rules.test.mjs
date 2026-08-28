@@ -12,11 +12,27 @@ afterEach(() => {
   root = undefined;
 });
 
-function tree(files) {
+/**
+ * Every folder in INDEXED must exist, or the guard now reports it (a typo in
+ * that list used to switch the guard off silently). So a temp tree scaffolds
+ * the siblings the case under test is not about — an empty folder with an
+ * empty table is valid: no files to orphan, no rows to dangle.
+ */
+const SIBLINGS = ['docs/architecture', 'docs/build', 'docs/build/spikes'];
+
+function scaffold(at, except) {
+  for (const folder of SIBLINGS) {
+    mkdirSync(join(at, folder), { recursive: true });
+    if (folder !== except) writeFileSync(join(at, folder, 'README.md'), index());
+  }
+}
+
+function tree(files, folder = 'docs/build') {
   root = mkdtempSync(join(tmpdir(), 'infora-docs-rules-'));
-  mkdirSync(join(root, 'docs/build'), { recursive: true });
+  scaffold(root);
+  mkdirSync(join(root, folder), { recursive: true });
   for (const [name, body] of Object.entries(files)) {
-    writeFileSync(join(root, 'docs/build', name), body);
+    writeFileSync(join(root, folder, name), body);
   }
   return root;
 }
@@ -57,11 +73,24 @@ describe('dangling rows', () => {
 
   it('rejects an indexed folder with no README at all', () => {
     root = mkdtempSync(join(tmpdir(), 'infora-docs-rules-'));
-    mkdirSync(join(root, 'docs/build'), { recursive: true });
+    scaffold(root, 'docs/build'); // every sibling valid; this one has no index
     writeFileSync(join(root, 'docs/build/plan.md'), '');
     const violations = checkDocsIndex(root);
     expect(violations).toHaveLength(1);
     expect(violations[0]).toContain('no README.md');
+  });
+
+  it('reports a folder named in INDEXED that is not there', () => {
+    // the typo case: `docs/architecure`. This used to `continue` silently, so
+    // one transposed letter unguarded a whole folder with CI still green.
+    root = mkdtempSync(join(tmpdir(), 'infora-docs-rules-'));
+    mkdirSync(join(root, 'docs/build/spikes'), { recursive: true });
+    writeFileSync(join(root, 'docs/build/README.md'), index());
+    writeFileSync(join(root, 'docs/build/spikes/README.md'), index());
+    const violations = checkDocsIndex(root); // docs/architecture never created
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('docs/architecture');
+    expect(violations[0]).toContain('INDEXED');
   });
 });
 
@@ -85,6 +114,43 @@ describe('what the guard must not do', () => {
       '| Doc | Lifecycle | Purpose | Maturity |\n|---|---|---|---|\n' +
       '| `plan.md` | 🦆 nonsense | a doc | 🟢 |\n';
     expect(checkDocsIndex(tree({ 'README.md': readme, 'plan.md': '' }))).toEqual([]);
+  });
+});
+
+describe('every indexed folder, not just the first', () => {
+  it('guards docs/architecture — the folder the 2026-08-28 move added', () => {
+    // a guard that covers a folder in name only is the failure it exists to
+    // prevent, one directory along
+    const violations = checkDocsIndex(tree({ 'README.md': index(), 'stray.md': '' }, 'docs/architecture'));
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('not in docs/architecture/README.md');
+  });
+
+  it('is non-recursive, as documented — a subfolder orphan is NOT caught', () => {
+    // asserted so the limit is a decision on the record rather than a surprise:
+    // adr/, components/ and diagrams/ carry their own conventions
+    root = tree({ 'README.md': index('plan.md'), 'plan.md': '' });
+    mkdirSync(join(root, 'docs/build/nested'), { recursive: true });
+    writeFileSync(join(root, 'docs/build/nested/orphan.md'), '');
+    expect(checkDocsIndex(root)).toEqual([]);
+  });
+});
+
+describe('the guard against its own documentation', () => {
+  it('ignores an example row inside a fenced block', () => {
+    // a README explaining the convention by SHOWING a row must not thereby
+    // index the file that row names
+    const readme =
+      index('plan.md') +
+      '\n```\n| `ghost.md` | \u25b6 **Live** | an example, not an index row | \ud83d\udfe2 |\n```\n';
+    const violations = checkDocsIndex(tree({ 'README.md': readme, 'plan.md': '' }));
+    expect(violations).toEqual([]); // `ghost.md` is neither indexed nor dangling
+  });
+
+  it('still reads real rows, whose filenames are themselves inline code', () => {
+    // the asymmetry with link-rules.mjs: fences are blanked, inline spans are not
+    const violations = checkDocsIndex(tree({ 'README.md': index('plan.md'), 'plan.md': '' }));
+    expect(violations).toEqual([]);
   });
 });
 

@@ -4,13 +4,15 @@ The design record: what Infora **is**, why each boundary sits where it does, and
 
 ## What lives here
 
-**The four files below, plus four subfolders that carry their own conventions** (see the note under the table — the index does *not* reach into them).
+**The six documents in the table below** — four written (`.md`) and two generated (`.html`) — **plus four subfolders that carry their own conventions** (see the note under the table: the index does *not* reach into them).
 
 ## Artefacts
 
 Lifecycle and maturity use **the two-axis vocabulary defined once in [the build layer's README](../build/README.md#artefacts)** — ▶ Live · ♻ Living reference · ✅ Closed · ⚙ Derived, and 🟢 settled · 🟡 drafted · 🔴 open. It is not restated here on purpose: two copies of a legend is how the two copies start disagreeing.
 
-> **Enforced:** `pnpm run check` fails if a `.md` or `.html` file **directly in this folder** is missing from the table below, or if the table names a file that does not exist (`scripts/docs-rules.mjs`, both directions). The convention in prose is what let a 363-line superseded ticket pack sit in `docs/build/` unnoticed for five weeks; the convention in CI is what catches the next one. **Add a file here, add its row in the same commit.**
+> **Enforced by `pnpm run check`** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.**
+>
+> ⚠ **`pnpm run check` is not CI.** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs `check:deps`, `check:source`, lint, typecheck and the suites — **not** `check:docs`, `check:links`, `check:tickets`, `check:questions`, `check:parking` or `check:data-model`. So this guard fires locally and nowhere else, which makes the convention that stops a document being forgotten itself depend on somebody remembering to run it. Recorded here rather than left as a comforting sentence; closing it is a change to the workflow, not to this file.
 
 | Doc | Lifecycle | Purpose | Maturity |
 |-----|-----------|---------|----------|
@@ -41,5 +43,10 @@ The one question that decides it: **which layer's question does it answer?**
 - *A decision with alternatives considered* → an **ADR** in [`adr/`](adr/), not a loose file here.
 - *An open question* → [`grill-questions.md`](../grill-sessions/grill-questions.md) as a `Q-###`. Never resolved inline, in either layer.
 - *A proposal that cannot be built without amending an accepted ADR* → the parking lot, and **only on the owner's instruction**.
+- *A visual or UI-system document* — rules, tokens, a mockup → **[`docs/design/`](../design/README.md)**, which is its own folder and **not** this one. Read its README for the mockup lifecycle before drawing one.
+- *External material Infora did not author* — a standard, a competitor teardown, a friction map → **[`docs/reference/`](../reference/)**. Context, never authority, and never a citation in an ADR.
+- *The closed record* — a ruled question, a closed slice → its `-history` sibling ([`grill-history.md`](../grill-sessions/grill-history.md), [`plan-history.md`](../build/plan-history.md)), moved in the same commit that closes it.
+
+**Generated artefacts follow their subject, not their file type.** `data-model.html` is build-layer because the schema is; `user-stories-walkthrough.html` is architecture-layer because the journeys are. Both are ⚙ Derived — regenerate, never hand-edit — and both still need a row in whichever index they land in.
 
 `CONTEXT.md` at the repository root is the vocabulary authority and stays there: it is read before either layer.

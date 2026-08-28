@@ -46,8 +46,26 @@ const NOT_A_ROW = new Set(['README.md']);
 /** A row names its file in backticks: `| \`plan.md\` | ▶ Live | … |` */
 const ROW = /^\|\s*`([^`]+)`\s*\|/gm;
 
+/**
+ * Blank fenced code blocks, preserving line structure, so an EXAMPLE row shown
+ * inside a fence is not read as a real index row.
+ *
+ * Without this the guard is defeated by its own documentation: the moment a
+ * README explains the convention by showing `| \`plan.md\` | ▶ Live | … |` in a
+ * fence, `plan.md` counts as indexed whether or not the table names it — and
+ * the orphan this guard exists to catch walks straight through.
+ *
+ * NOTE the asymmetry with `link-rules.mjs`'s `withoutCode`, which also blanks
+ * inline spans. It must not here: a row's filename IS an inline code span, so
+ * stripping those would blank every real row and the guard would pass on
+ * everything.
+ */
+function withoutFences(text) {
+  return text.replace(/```[\s\S]*?```/g, (block) => block.replace(/[^\n]/g, ' '));
+}
+
 function listed(readme) {
-  return new Set([...readme.matchAll(ROW)].map((m) => m[1]));
+  return new Set([...withoutFences(readme).matchAll(ROW)].map((m) => m[1]));
 }
 
 function present(dir) {
@@ -66,9 +84,20 @@ export function checkDocsIndex(root) {
 
   for (const folder of INDEXED) {
     const dir = join(root, folder);
+    let exists;
     try {
-      if (!statSync(dir).isDirectory()) continue;
+      exists = statSync(dir).isDirectory();
     } catch {
+      exists = false;
+    }
+    // A folder named here that is not there is a VIOLATION, not a skip. Skipping
+    // it meant a single typo in INDEXED silently switched the guard off for that
+    // folder while CI stayed green — the guard reporting success for a folder it
+    // was no longer looking at, which is worse than not guarding it at all.
+    if (!exists) {
+      violations.push(
+        `${folder}: named in INDEXED but not a directory — fix the path in scripts/docs-rules.mjs, or remove the entry if the folder is genuinely gone.`,
+      );
       continue;
     }
 
