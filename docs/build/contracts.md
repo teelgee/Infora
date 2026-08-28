@@ -469,3 +469,19 @@ are not recorded here.
   cannot resolve like a source chip. The shape pin in
   `packages/knowledge/src/wall.test.ts` fired on both changes, which is the
   review it exists to force.
+- **2026-08-28 (T-384) — `PlanRow` gains `withdrawnBy` and `withdrawalProposal`,
+  and the second one exists because the ruling left a proposal nowhere to
+  live.** ADR-0013 §2 gives a published deliverable's record to the owner and
+  says the producing organisation *proposes* — but the migration drawn for the
+  slice ([data-model.md](data-model.md)) drew two columns and no proposal table,
+  and it enumerated what it deliberately left undrawn without naming one. So a
+  proposal is carried by the **same two columns as a withdrawal**, with record
+  state telling them apart: reason + proposer recorded while `state` is still
+  `live` is a proposal in flight, and nothing about the deliverable has changed
+  — it is in the library and it still grounds until the owner answers. That is
+  why `withdrawnReason` is now **suppressed** while a proposal stands rather
+  than shown: one column meaning two things is tolerable in the store, and is
+  not tolerable in a contract a surface renders. `withdrawnBy` carries a
+  derived `side` (`owner | producer`) rather than an organisation id, because
+  every consumer — T-385's restore rule, T-389's buttons, T-388's badge — asks
+  which *side* acted and none of them asks *which organisation*.

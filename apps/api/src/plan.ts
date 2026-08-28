@@ -16,6 +16,7 @@ import {
   nameLeadReviewerBody,
   isColumnableField,
   patchContainerBody,
+  resolveWithdrawalProposalBody,
   setDocumentOwnerBody,
   setPlanTitleBody,
   shareDeliverableBody,
@@ -185,6 +186,28 @@ async function toPlanRows(
     : [];
   const ownerName = new Map(ownerRows.map((r) => [r.participantId, r.name]));
 
+  // T-384 — who withdrew (or proposed withdrawing) each container, with the
+  // organisation that answers "which side" (ADR-0013 §5). One batched lookup
+  // beside the others; the organisation comes off the User, which is where the
+  // access model keeps it (ADR-0015).
+  const actorIds = [
+    ...new Set(
+      containers.map((c) => c.withdrawnByParticipantId).filter((x): x is string => x !== null),
+    ),
+  ];
+  const actorRows = actorIds.length
+    ? await db
+        .select({
+          participantId: s.participants.id,
+          name: s.users.name,
+          organisationId: s.users.organisationId,
+        })
+        .from(s.participants)
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.participants.id, actorIds))
+    : [];
+  const actorById = new Map(actorRows.map((r) => [r.participantId, r]));
+
   const authorRows = await db
     .select({ grant: s.deliverableAuthors, name: s.users.name })
     .from(s.deliverableAuthors)
@@ -254,6 +277,15 @@ async function toPlanRows(
   return containers.map((container) => {
     const workItem = workItemByContainer.get(container.id);
     const version = versionByContainer.get(container.id);
+    // T-384 — the SAME two columns carry a withdrawal and a proposed one; the
+    // record state is what tells them apart. A proposal is a reason and a
+    // proposer recorded while the state is still `live`, so nothing about the
+    // deliverable has changed yet: it is in the library and it still grounds
+    // until the owner answers.
+    const actor = container.withdrawnByParticipantId
+      ? (actorById.get(container.withdrawnByParticipantId) ?? null)
+      : null;
+    const proposed = container.state === 'live' && container.withdrawnReason !== null;
     return {
       containerId: container.id,
       documentReference: container.documentReference, // null only at sandbox scope (ADR-0032)
@@ -278,7 +310,26 @@ async function toPlanRows(
             name: ownerName.get(container.documentOwnerParticipantId) ?? '',
           }
         : null,
-      withdrawnReason: container.withdrawnReason ?? null,
+      withdrawnReason: proposed ? null : (container.withdrawnReason ?? null),
+      withdrawnBy:
+        !proposed && actor
+          ? {
+              participantId: actor.participantId,
+              name: actor.name,
+              side:
+                actor.organisationId === container.producingOrganisationId
+                  ? ('producer' as const)
+                  : ('owner' as const),
+            }
+          : null,
+      withdrawalProposal:
+        proposed && actor
+          ? {
+              participantId: actor.participantId,
+              name: actor.name,
+              reason: container.withdrawnReason!,
+            }
+          : null,
       authors: authorRows.filter((r) => r.grant.containerId === container.id).map(toAuthor),
       reviewers: reviewerRows.filter((r) => r.grant.containerId === container.id).map(toReviewer),
       sharedWith: shareRows
@@ -676,17 +727,48 @@ export function containerRoutes(deps: { db: Db }) {
     return c.json(row!);
   });
 
-  // Remove a planned deliverable from the plan (T-189): the container stays as a
-  // record (state → withdrawn) with a free-text reason. Reversible — a
-  // restoration puts it back live (recovery is never a helpdesk ticket).
+  // Withdrawal — T-189's act, re-guarded by T-384 so that authority follows the
+  // PUBLICATION BOUNDARY rather than the party (ADR-0013 §2, closing `Q-036`).
+  //
+  // ADR-0013 called supersede and withdraw "owner-set states" while ADR-0033 and
+  // T-176 built every container write as a producing-organisation act, and the
+  // build followed the later one — so this endpoint's guard was unconditional.
+  // The two rules never disagreed: they describe TWO ACTS THAT SHARE ONE WORD.
+  //
+  //   pre-publication — removing a planned deliverable from your own plan
+  //     (T-189: "Remove a planned deliverable from the plan"). The record is the
+  //     producing organisation's, the producer-only guard is correct, and it
+  //     stays exactly as built.
+  //   published into the owner's library — stopping a promoted deliverable being
+  //     relied on. The record is the owner's: the owner withdraws, and the
+  //     producing organisation PROPOSES.
+  //
+  // The container stays as a record either way (currency by state, nothing
+  // deleted), with a mandatory free-text reason whose visibility follows the
+  // container — so the producing organisation reads why its own deliverable was
+  // withdrawn, and an organisation it was never shared with learns nothing
+  // (ADR-0013 §4, no new visibility rule to enforce).
   app.post('/containers/:containerId/withdrawal', async (c) => {
     const scopedCtx = await scoped(c, c.req.param('containerId'));
     if (!scopedCtx) return notFound(c);
     const { container, slice } = scopedCtx;
-    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    const isProducer = container.producingOrganisationId === slice.organisationId;
+    const isOwnerSide = slice.membershipRole === 'owner';
+    // pre-publication the record is the producer's alone — the owner has no act
+    // here, and is answered as if the container did not exist, because that is
+    // what the plan already tells them about another organisation's unpublished
+    // rows (contracts principle 4)
+    if (!container.inLibrary && !isProducer) return notFound(c);
+    // published, and neither side: planVisible already refused every other
+    // organisation, so this is unreachable in practice and stated anyway
+    if (container.inLibrary && !isProducer && !isOwnerSide) return notFound(c);
     // the refusal is recorded (T-301). A cross-organisation attempt answered
     // 404 above is deliberately NOT recorded: it is denial-reads-as-nonexistence
     // (contracts principle 4), and the requester was never shown the container.
+    //
+    // The tier gates the PROPOSAL too. T-362 lists withdraw among the acts a
+    // row's lead author does not hold, and asking the client to end a published
+    // deliverable is not a smaller act than removing an unpublished plan row.
     if (!canEditPlan(slice)) {
       return refuseElevated(c, deps.db, 'super_user_required', {
         projectId: container.projectId,
@@ -697,15 +779,75 @@ export function containerRoutes(deps: { db: Db }) {
     }
     const body = withdrawContainerBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
+    // a published deliverable the PRODUCER wants ended: the reason and the
+    // proposer are recorded, the record state is not touched, and the owner
+    // answers (the resolution endpoint below). Nothing is in force yet — the
+    // deliverable is still live and still grounds.
+    const proposing = container.inLibrary && !isOwnerSide;
+    if (container.withdrawnReason !== null && container.state === 'live') {
+      return conflict(c, 'withdrawal_already_proposed');
+    }
+    if (container.state === 'withdrawn') return conflict(c, 'already_withdrawn');
     const [updated] = await deps.db
       .update(s.containers)
-      .set({ state: 'withdrawn', withdrawnReason: body.data.reason })
+      .set({
+        ...(proposing ? {} : { state: 'withdrawn' as const }),
+        withdrawnReason: body.data.reason,
+        withdrawnByParticipantId: slice.participantId,
+      })
       .where(eq(s.containers.id, container.id))
       .returning();
-    await deps.db
-      .update(s.workItems)
-      .set({ status: 'withdrawn' })
-      .where(eq(s.workItems.containerId, container.id));
+    if (!proposing) {
+      await deps.db
+        .update(s.workItems)
+        .set({ status: 'withdrawn' })
+        .where(eq(s.workItems.containerId, container.id));
+    }
+    const [row] = await toPlanRows(deps.db, [updated!], slice);
+    return c.json(row!);
+  });
+
+  // The owner's answer to a proposed withdrawal (T-384, ADR-0013 §2). Accepting
+  // withdraws the deliverable under the PROPOSER'S OWN REASON — the producing
+  // organisation said why, and rewriting that in the owner's words would lose
+  // the only account of it — but `withdrawn_by` is re-stamped to the confirming
+  // owner participant, because §5's question is which side WITHDREW it and,
+  // once published, the answer is the owner. Declining clears the proposal and
+  // leaves the record exactly as it was.
+  app.post('/containers/:containerId/withdrawal-proposal/resolution', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (slice.membershipRole !== 'owner') return notFound(c);
+    if (!container.inLibrary) return notFound(c);
+    if (container.state !== 'live' || container.withdrawnReason === null) {
+      return conflict(c, 'no_withdrawal_proposed');
+    }
+    if (!canEditPlan(slice)) {
+      return refuseElevated(c, deps.db, 'super_user_required', {
+        projectId: container.projectId,
+        containerId: container.id,
+        attemptedByParticipantId: slice.participantId,
+        action: 'container_withdraw',
+      });
+    }
+    const body = resolveWithdrawalProposalBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+    const [updated] = await deps.db
+      .update(s.containers)
+      .set(
+        body.data.accept
+          ? { state: 'withdrawn' as const, withdrawnByParticipantId: slice.participantId }
+          : { withdrawnReason: null, withdrawnByParticipantId: null },
+      )
+      .where(eq(s.containers.id, container.id))
+      .returning();
+    if (body.data.accept) {
+      await deps.db
+        .update(s.workItems)
+        .set({ status: 'withdrawn' })
+        .where(eq(s.workItems.containerId, container.id));
+    }
     const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
   });
@@ -729,7 +871,9 @@ export function containerRoutes(deps: { db: Db }) {
     }
     const [updated] = await deps.db
       .update(s.containers)
-      .set({ state: 'live', withdrawnReason: null })
+      // T-384 — the actor clears with the reason: a live row carrying the name
+      // of whoever last withdrew it would read as a withdrawal that is in force
+      .set({ state: 'live', withdrawnReason: null, withdrawnByParticipantId: null })
       .where(eq(s.containers.id, container.id))
       .returning();
     await deps.db

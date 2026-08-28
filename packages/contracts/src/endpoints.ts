@@ -632,6 +632,17 @@ export type PlanRow = {
   documentOwner: { participantId: Id; name: string } | null;
   // why the deliverable was removed from the plan (state = withdrawn), if so
   withdrawnReason: string | null;
+  // T-384 — WHICH SIDE withdrew it (ADR-0013 §5). Authority over record state
+  // follows the publication boundary, so restoration has to know whether it is
+  // undoing its own act or the other party's; `side` is derived from the
+  // withdrawing participant's organisation against the container's producer.
+  withdrawnBy: { participantId: Id; name: string; side: 'owner' | 'producer' } | null;
+  // T-384 — a producing organisation's PROPOSED withdrawal of a deliverable
+  // already published into the owner's library, awaiting the owner's answer
+  // (ADR-0013 §2 — the owner sets record state, the producer proposes). Null
+  // when none stands. A proposal is NOT in force: `state` is still `live` and
+  // the deliverable still grounds until the owner confirms.
+  withdrawalProposal: { participantId: Id; name: string; reason: string } | null;
   authors: AppointmentGrant[];
   reviewers: ReviewerGrant[];
   // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers
@@ -1554,6 +1565,13 @@ export type SetDocumentOwnerBody = z.infer<typeof setDocumentOwnerBody>;
 // record (state → withdrawn) with a free-text reason; a super-user act.
 export const withdrawContainerBody = z.object({ reason: z.string().min(1) });
 export type WithdrawContainerBody = z.infer<typeof withdrawContainerBody>;
+
+// T-384 — the owner's answer to a producing organisation's proposed withdrawal
+// of a published deliverable (ADR-0013 §2). `accept` withdraws it under the
+// proposer's own reason; declining clears the proposal and leaves the record
+// live. Owner-side only: once published, the record is the owner's.
+export const resolveWithdrawalProposalBody = z.object({ accept: z.boolean() });
+export type ResolveWithdrawalProposalBody = z.infer<typeof resolveWithdrawalProposalBody>;
 
 // Attached-source working set (ADR-0022 refined, T-154)
 export type AttachedSource = {
