@@ -1,0 +1,23 @@
+id: technical-note
+version: 1
+label: Technical note
+description: >-
+  A short, self-contained note answering one technical question from the
+  project record.
+sections:
+  - id: purpose
+    heading: Purpose
+    guidance: >-
+      State in one or two sentences what question this note answers and for
+      whom. Do not restate the brief.
+  - id: evidence
+    heading: The evidence
+    guidance: >-
+      Set out what the project record says, each point attributed to the
+      document it came from. Where the record is silent, say so.
+  - id: implication
+    heading: Implication
+    guidance: >-
+      State what follows for the design or the programme, marked as inference
+      and resting on the evidence above. Never state a conclusion the record
+      does not support.

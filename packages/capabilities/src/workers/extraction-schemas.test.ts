@@ -9,6 +9,7 @@ import {
   loadExtractionSchemas,
   validateExtractionSchema,
 } from './extraction-schemas';
+import { loadDocumentTemplates, validateTemplate } from './templates';
 
 const good = {
   name: 'commitments',
@@ -119,5 +120,51 @@ describe('the loader (T-274)', () => {
   it('refuses two files declaring one name', () => {
     const path = dir({ 'a.yaml': yamlOf({ ...good, name: 'a' }), 'a.yml': yamlOf({ ...good, name: 'a' }) });
     expect(() => loadExtractionSchemas({ dir: path })).toThrow(/already declared by/);
+  });
+});
+
+// T-280 — the document templates, on the schemas' terms and with one extra
+// rule that is the whole reason they are separate kinds of file.
+describe('document templates (T-280)', () => {
+  it('the shipped templates all load and all validate', () => {
+    const registry = loadDocumentTemplates();
+    expect(registry.ids().sort()).toEqual(['chapter-section', 'technical-note']);
+    for (const template of registry.list()) {
+      expect(template.sections.length).toBeGreaterThan(0);
+      for (const section of template.sections) expect(section.guidance.trim()).not.toBe('');
+    }
+  });
+
+  // A TEMPLATE SUPPLIES NO SOURCES. An extraction schema legitimately carries a
+  // `retrieval_hint` because it READS; a template WRITES, and one able to name
+  // its own corpus would be a write path that chose what it saw — the
+  // propagation guarantee undone from the inside.
+  it('refuses a template that tries to name its own sources', () => {
+    for (const forbidden of ['sources', 'retrieval_hint', 'query', 'scope']) {
+      const errors = validateTemplate('t.yaml', {
+        id: 't',
+        version: 1,
+        label: 'T',
+        description: 'd',
+        [forbidden]: 'anything',
+        sections: [{ id: 'a', heading: 'A', guidance: 'g' }],
+      });
+      expect(errors.join(' ')).toMatch(/supplies no sources/);
+    }
+  });
+
+  it('refuses a template with no sections, and an id that disagrees with its filename', () => {
+    expect(
+      validateTemplate('t.yaml', { id: 't', version: 1, label: 'T', description: 'd', sections: [] }).join(' '),
+    ).toMatch(/at least one section/);
+    expect(
+      validateTemplate('other.yaml', {
+        id: 't',
+        version: 1,
+        label: 'T',
+        description: 'd',
+        sections: [{ id: 'a', heading: 'A', guidance: 'g' }],
+      }).join(' '),
+    ).toMatch(/they must match/);
   });
 });

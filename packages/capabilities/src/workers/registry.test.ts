@@ -117,8 +117,16 @@ describe('the registry (T-269)', () => {
     // set that no code implements — a worse failure than their absence,
     // because the model would call them. `extractor` joined the set at T-274
     // when it acquired an implementation, not before.
-    expect(createWorkerRegistry().list()).toEqual(['corpus_retrieval', 'extractor']);
-    expect(BUILT_WORKERS.map((worker) => worker.name)).toEqual(['corpus_retrieval', 'extractor']);
+    expect(createWorkerRegistry().list()).toEqual([
+      'corpus_retrieval',
+      'extractor',
+      'document_builder',
+    ]);
+    expect(BUILT_WORKERS.map((worker) => worker.name)).toEqual([
+      'corpus_retrieval',
+      'extractor',
+      'document_builder',
+    ]);
   });
 
   it("satisfies T-264's KnownWorkers, so a declared workflow validates against the real set", () => {

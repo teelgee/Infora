@@ -59,6 +59,16 @@ export type {
   ExtractionSchema,
   ExtractionSchemaRegistry,
 } from './workers/extraction-schemas';
+// T-280 — `document_builder`'s declaration and its template prompt; the
+// implementation writes, so it lives in `@infora/orchestration`.
+export { DOCUMENT_BUILDER, composeTemplatePrompt } from './workers/document-builder';
+export {
+  DocumentTemplateError,
+  TEMPLATES_DIR,
+  loadDocumentTemplates,
+  validateTemplate,
+} from './workers/templates';
+export type { DocumentTemplate, TemplateRegistry, TemplateSection } from './workers/templates';
 // T-266 — classification into four outcomes, and the model-chosen plan.
 export { classify, modelChosenStages, singleWorkflowClassifier } from './classify';
 export type {

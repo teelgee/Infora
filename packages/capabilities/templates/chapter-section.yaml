@@ -1,0 +1,27 @@
+id: chapter-section
+version: 1
+label: Assessment chapter section
+description: >-
+  A section of an assessment chapter — the test, the baseline, the effect and
+  the mitigation, in the order a reader expects them.
+sections:
+  - id: test
+    heading: The test
+    guidance: >-
+      State the statutory or policy test this section is answering, and where it
+      comes from.
+  - id: baseline
+    heading: Baseline
+    guidance: >-
+      Describe the baseline as the record establishes it, with its survey dates
+      and its limitations where they are stated.
+  - id: effect
+    heading: Effect
+    guidance: >-
+      Describe the effect on the receptor, its magnitude and its duration, as
+      the record describes them.
+  - id: mitigation
+    heading: Mitigation
+    guidance: >-
+      Set out the mitigation the record commits to and the residual effect it
+      states. Never conclude a residual effect the record does not state.

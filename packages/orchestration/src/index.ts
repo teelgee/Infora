@@ -10,6 +10,18 @@ export type { ConversationRow, RunRow, StepAudit, StepRow } from './run-writer';
 export { CHAIN_AGENT_ID, RunHalted, runChain, sourcesOf, StepsFailed } from './chain';
 export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
+// T-280 — `document_builder`'s implementation: it writes, so it lives here
+export {
+  UnknownDocumentTemplate,
+  builtDocumentContent,
+  createDocumentBuilder,
+} from './document-builder';
+export type {
+  DocumentBuilderDeps,
+  DocumentBuilderInput,
+  DocumentBuilderOutput,
+  ManifestEntry,
+} from './document-builder';
 export { createGroundCheckLeaf } from './ground-check-leaf';
 export { createCiteLeaf } from './cite-leaf';
 // T-260 — the plan artefact: written for every run the chain drives. T-261
