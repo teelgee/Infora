@@ -33,7 +33,13 @@ import type { AppEnv } from './requester';
 // the one SQL pre-filter shared with retrieval (ADR-0016 + ADR-0035 §5), so the
 // list and grounding never drift; see @infora/knowledge deliverableVisibleSql.
 
-export function libraryRoutes(deps: { db: Db; router?: Router }) {
+// `router` is REQUIRED, deliberately (review, 2026-08-29): an optional router
+// made "no router bound" render as "No sources in scope" — the zero-source
+// warning firing on configuration rather than on the corpus, which is the
+// exact failure T-292's scoping near-miss caught one level down. The one
+// caller (app.ts) always has a router; a composition that lacks one should
+// fail to compile, not answer confidently about an empty index.
+export function libraryRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -180,10 +186,7 @@ export function libraryRoutes(deps: { db: Db; router?: Router }) {
   // composer to render.
   app.get('/projects/:projectId/grounding-scope', project, async (c) => {
     const slice = c.get('slice');
-    const sources =
-      deps.router === undefined
-        ? [] // no router bound: nothing is indexed, and that is the honest answer
-        : await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
+    const sources = await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
     return c.json({
       sources,
       assemblyTokenBudget: TOKEN_LIMIT,
