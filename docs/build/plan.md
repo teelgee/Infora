@@ -303,7 +303,7 @@ entry naming its gate and where its design lives.
 *Wave 8 — interface (T-292–T-296).*
 - ~~**T-292 — Composer chips.**~~ ✅ **Built 2026-08-29** (no migration; the Model chip stopped at `Q-021` and left as a placeholder — see the record) — moved record in [plan-history.md](plan-history.md#slice-ask)
 - ~~**T-293 — The progress rail.**~~ ✅ **Built 2026-08-28** (no migration) — moved record in [plan-history.md](plan-history.md#slice-ask)
-- **T-294 — The completion footer and plan view.** The orchestration mode stated **in words**, always visible; the Lens and version; Details exposing the plan, workers, per-step cost with pins marked, and the citation manifest. | *(Deps: T-267, T-293)*
+- ~~**T-294 — The completion footer and plan view.**~~ ✅ **Built 2026-08-29** (no migration) — moved record in [plan-history.md](plan-history.md#slice-ask)
 - **T-295 — The output destination selector.** 🔒 A destination broader than the source material warns naming both labels and is blocked by default. Cannot ship before T-249 — a selector without propagation implies a guarantee the backend does not make. | *(Deps: T-249, T-280)*
 - **T-296 — Four-register rendering.** Record, Inference, Authority and External **visually distinct by chip shape and colour, not by tooltip**. A reader skim-reading must tell a web source from a project document without hovering — the visible half of the ADR-0022 carve-out, and the half a client will judge. ⚠ **V1 ships the two-register degradation** ([v1.md](v1.md)'s named deviation): Authority (T-278) and External (T-279) are → beyond V1, so only Record and Inference render in the pilot; the four-register cut ships when those two return. | *(Deps: T-279, T-278, T-271)*
 

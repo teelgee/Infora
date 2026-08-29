@@ -1314,3 +1314,30 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 .pr-step.is-running .pr-mark { color: var(--text-primary); }
 .pr-step.is-failed .pr-mark, .pr-step.is-failed .pr-state { color: var(--feedback-danger-text); }
 .pr-step.is-skipped { color: var(--text-muted); }
+
+/* T-294 — the completion footer under every answer. The mode line is always
+   visible; only the plan, costs and manifest sit behind Details. */
+.completion-footer {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle, var(--chip-border));
+  font-family: var(--ui-label-family); font-size: 12px; color: var(--text-muted);
+}
+.cf-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.cf-sep { opacity: 0.5; }
+.cf-mode { color: var(--text-secondary); font-weight: 600; }
+.cf-withheld, .cf-open-world { color: var(--feedback-warning-text); }
+.cf-verification { margin-top: 4px; line-height: 1.5; }
+.cf-toggle {
+  margin-top: 6px; padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: inherit; color: var(--text-secondary); text-decoration: underline;
+}
+.cf-details { margin-top: 8px; }
+.cf-details h4 { margin: 8px 0 4px; font-size: 12px; color: var(--text-secondary); }
+.cf-steps { margin: 0; padding-left: 18px; }
+.cf-steps li { display: flex; flex-wrap: wrap; gap: 8px; line-height: 1.7; }
+.cf-stage { color: var(--text-secondary); min-width: 110px; }
+.cf-state--failed { color: var(--feedback-danger-text); }
+.cf-state--skipped, .cf-state--pending { color: var(--feedback-warning-text); }
+.cf-manifest { margin: 0; padding-left: 18px; }
+.cf-manifest li { display: flex; gap: 8px; line-height: 1.7; }
+.cf-register { color: var(--text-secondary); min-width: 68px; }
+.cf-absent { margin: 4px 0 0; font-style: italic; }

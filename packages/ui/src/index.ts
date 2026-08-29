@@ -32,6 +32,9 @@ export { NumBadge, SuggestionCard } from './suggestion-card';
 export { RunTrace } from './run-trace';
 // T-293 — the progress rail, driven by plan step states and never by a timer
 export { ProgressRail } from './progress-rail';
+// T-294 — the completion footer: the orchestration mode in words, always
+// visible, plus the plan, the per-step cost and the citation manifest
+export { CompletionFooter, formatStepCost } from './completion-footer';
 // T-370 — the "what the agent did" receipt, designed once and reused by every
 // administrative agent (ADR-0027's S10 amendment). No caller yet: nothing
 // adopts the direct-execution lane until this substrate exists.

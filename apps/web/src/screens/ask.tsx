@@ -7,8 +7,16 @@
 // completion (streaming is a later, additive change).
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
-import type { MeResponse, PlanStep, Run } from '@infora/contracts';
-import { Badge, ChatComposer, CitedProse, Markdown, ProgressRail, RunTrace } from '@infora/ui';
+import type { MeResponse, Plan, PlanStep, Run } from '@infora/contracts';
+import {
+  Badge,
+  ChatComposer,
+  CitedProse,
+  CompletionFooter,
+  Markdown,
+  ProgressRail,
+  RunTrace,
+} from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
@@ -26,7 +34,11 @@ type Message =
   // message rather than read from the picker. Switching re-renders the next
   // answer only; history keeps what produced it, so scrolling back does not
   // silently relabel an old answer with a register it was never written in.
-  | { id: number; kind: 'agent'; run: Run; lens: LensChoice }
+  // T-294 — the plan rides the message beside the run, because the completion
+  // footer states the orchestration mode and the mode lives on the plan. `null`
+  // is a real value: a plan that could not be read is a stated absence, and the
+  // footer says so rather than deriving a label from the workflow id.
+  | { id: number; kind: 'agent'; run: Run; lens: LensChoice; plan: Plan | null }
   | { id: number; kind: 'note'; text: string }; // e.g. a cancelled wait (T-097)
 
 export function AskScreen() {
@@ -83,21 +95,38 @@ export function AskScreen() {
     setSourceOpen(null);
     setRailSteps(null);
     if (reopenId === null) return;
-    void api.conversation(reopenId).then(({ runs }) => {
-      // the rail shows the LAST answer's plan — one read, not one per run in
-      // the history, and `null` until it arrives rather than the previous
-      // conversation's stages left standing
-      const last = runs.at(-1);
-      if (last !== undefined) void loadRail(last.id);
+    void api.conversation(reopenId).then(async ({ runs }) => {
+      // T-294 — every answer's plan, not just the last one. T-293 read one
+      // because the RAIL shows one; the footer states the orchestration mode
+      // under EVERY answer, and a mode a scrolled-back answer cannot state is
+      // the labelling requirement failing exactly where history is read. A
+      // refusal or an absent plan resolves to null and the footer says so.
+      const plans = await Promise.all(
+        runs.map((run) =>
+          api
+            .runPlan(run.id)
+            .then((res) => res.plan)
+            .catch(() => null),
+        ),
+      );
+      // the rail shows the LAST answer's plan, and `null` until it arrives
+      // rather than the previous conversation's stages left standing
+      setRailSteps(plans.at(-1)?.steps ?? null);
       setMessages(
-        runs.flatMap((run) => [
+        runs.flatMap((run, at) => [
           { id: nextId.current++, kind: 'user' as const, text: run.request },
-          // A reopened conversation's Lens is not recoverable over HTTP yet:
-          // it lives on the plan (T-299) and the plan read API is T-261. Null
-          // here means "not known", and the footer says so rather than
-          // guessing at the picker's current value, which would be a
-          // fabrication about a past answer.
-          { id: nextId.current++, kind: 'agent' as const, run, lens: null },
+          // T-294 closes T-293's own gap here: a reopened conversation's Lens
+          // WAS unrecoverable, and it is on the plan (T-299) — so the message
+          // carries the id the plan recorded rather than nothing. Null still
+          // means "not known", and never the picker's current value, which
+          // would be a fabrication about a past answer.
+          {
+            id: nextId.current++,
+            kind: 'agent' as const,
+            run,
+            lens: lensChoiceOf(plans[at] ?? null),
+            plan: plans[at] ?? null,
+          },
         ]),
       );
     });
@@ -106,12 +135,11 @@ export function AskScreen() {
   // The plan is producer-private and inherits the run's read scope exactly
   // (T-261), so a refusal is an ordinary outcome and the rail stays honest by
   // staying empty rather than by inventing stages.
-  async function loadRail(runId: string) {
+  async function loadPlan(runId: string): Promise<Plan | null> {
     try {
-      const { plan } = await api.runPlan(runId);
-      setRailSteps(plan.steps);
+      return (await api.runPlan(runId)).plan;
     } catch {
-      setRailSteps(null);
+      return null;
     }
   }
 
@@ -165,9 +193,15 @@ export function AskScreen() {
         sentUnder?.id,
         narrowedTo,
       );
-      setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run, lens: sentUnder }]);
-      // T-293 — read the plan the run actually wrote, AFTER it reports
-      await loadRail(run.id);
+      // T-293/T-294 — ONE read of the plan the run actually wrote, after it
+      // reports, serving both the rail and the footer. Two reads would be two
+      // chances for them to disagree about what ran.
+      const plan = await loadPlan(run.id);
+      setRailSteps(plan?.steps ?? null);
+      setMessages((m) => [
+        ...m,
+        { id: nextId.current++, kind: 'agent', run, lens: sentUnder, plan },
+      ]);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setMessages((m) => [
@@ -228,6 +262,7 @@ export function AskScreen() {
                   key={message.id}
                   run={message.run}
                   lens={message.lens}
+                  plan={message.plan}
                   onOpenSource={setSourceOpen}
                   onOpenInEditor={() => void openInEditor(message.run)}
                 />
@@ -300,9 +335,18 @@ export function AskScreen() {
   );
 }
 
+// T-294 — the Lens a past answer was produced under, recovered from its plan.
+// The label is not on the plan (only the id and version are), so the id stands
+// in until the picker's list can name it — which is what the footer does.
+function lensChoiceOf(plan: Plan | null): LensChoice {
+  if (plan === null || plan.lensId === null) return null;
+  return { id: plan.lensId, label: plan.lensId };
+}
+
 function AgentMessage(props: {
   run: Run;
   lens: LensChoice;
+  plan: Plan | null;
   onOpenSource: (versionId: string) => void;
   onOpenInEditor: () => void;
 }) {
@@ -310,7 +354,6 @@ function AgentMessage(props: {
   const outcomes = run.steps
     .filter((step) => step.type === 'ground_check')
     .flatMap((step) => step.railOutcomes);
-  const withheld = outcomes.filter((outcome) => outcome.outcome === 'withheld').length;
   const openWorld = outcomes.filter((outcome) => outcome.outcome === 'open_world').length;
 
   return (
@@ -340,14 +383,21 @@ function AgentMessage(props: {
           </Badge>
         </div>
       )}
+      {/* T-294 — the completion footer. Always visible, under every answer:
+          the mode in words is a hard requirement, not a Details affordance. */}
+      <CompletionFooter
+        run={run}
+        plan={props.plan}
+        {...(props.lens !== null && { lensLabel: props.lens.label })}
+      />
+      {/* T-294 — the Lens and the withheld count moved INTO the footer, which
+          states them beside the mode; repeating them here would be two places
+          to read one fact and two places for it to go stale. What stays is the
+          raw Step tree, which the footer deliberately does not duplicate: the
+          footer says what the run was, this says what it did. */}
       <details className="meta" style={{ marginTop: 4 }}>
         <summary style={{ cursor: 'pointer' }}>
-          Run {run.id.slice(0, 8)} · {statusBadge(run.state).label}
-          {/* T-283 — the Lens THIS answer was produced under, never the
-              picker's current value. Switching does not rewrite history. */}
-          {props.lens !== null && ` · ${props.lens.label} Lens`}
-          {withheld > 0 && ` · ${withheld} claim${withheld === 1 ? '' : 's'} withheld`} · every step
-          in the audit trail
+          Run {run.id.slice(0, 8)} · {statusBadge(run.state).label} · every step in the audit trail
         </summary>
         <RunTrace steps={run.steps} />
       </details>

@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
-import type { PlanStep, PlanStepState, Step } from '@infora/contracts';
+import type { Plan, PlanStep, PlanStepState, Run, Step } from '@infora/contracts';
 import {
   AgentReceipt,
   AppFrame,
@@ -24,6 +24,8 @@ import {
   Pane,
   PaneHeader,
   ProjectCard,
+  CompletionFooter,
+  formatStepCost,
   ProgressRail,
   ProjectSwitcher,
   Prose,
@@ -505,5 +507,123 @@ describe('the progress rail has no clock (T-293)', () => {
     for (const forbidden of ['setInterval', 'setTimeout', 'requestAnimationFrame', 'Date.now']) {
       expect(source).not.toContain(forbidden);
     }
+  });
+});
+
+// T-294 — the footer's hard requirement is the mode, and the failures worth
+// pinning are all the same shape: a footer that states something the record
+// does not hold. Each case below is a sentence the user must never be able to
+// read off an answer that did not earn it.
+describe('CompletionFooter (T-294)', () => {
+  const plan = (over: Partial<Plan> = {}): Plan => ({
+    id: 'p1',
+    runId: 'r1',
+    conversationId: 'c1',
+    projectId: 'proj',
+    requesterParticipantId: 'part',
+    mode: 'declared',
+    workflowId: 'answer-a-question',
+    workflowVersion: 2,
+    lensId: null,
+    lensVersion: null,
+    state: 'complete',
+    question: 'q',
+    restatement: null,
+    assumptions: [],
+    createdAt: '2026-08-29T00:00:00.000Z',
+    supersededByPlanId: null,
+    steps: [],
+    ...over,
+  });
+
+  const run = (over: Partial<Run> = {}): Run => ({
+    id: 'r1',
+    conversationId: 'c1',
+    parentRunId: null,
+    agentId: 'infora.grounded_draft',
+    agentProvenance: 'infora',
+    state: 'completed',
+    request: 'q',
+    response: 'An answer.',
+    startedAt: '2026-08-29T00:00:00.000Z',
+    endedAt: '2026-08-29T00:00:01.000Z',
+    steps: [],
+    suggestions: [],
+    citations: [],
+    ...over,
+  });
+
+  const groundCheck = (outcomes: Step['railOutcomes']): Step => ({
+    id: 'st1',
+    runId: 'r1',
+    parentStepId: null,
+    type: 'ground_check',
+    status: 'completed',
+    startedAt: '2026-08-29T00:00:00.000Z',
+    endedAt: '2026-08-29T00:00:01.000Z',
+    sourceSet: [],
+    railOutcomes: outcomes,
+  });
+
+  // THE hard requirement: the mode is in words and is never behind Details.
+  it('states the orchestration mode in words, outside the Details affordance', () => {
+    const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />);
+    expect(html).toContain('Ran a declared workflow');
+    expect(html).toContain('answer-a-question');
+    expect(html.indexOf('Ran a declared workflow')).toBeLessThan(html.indexOf('Details'));
+  });
+
+  // T-267: an edited plan is `model_chosen` and still carries a workflow-shaped
+  // history. Deriving the label from `workflowId` would put the declared
+  // workflow's promise — same inputs, same steps — on a plan that broke it.
+  it('reads the mode off the stored column, never off the workflow id', () => {
+    const edited = plan({ mode: 'model_chosen', workflowId: 'answer-a-question' });
+    const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={edited} />);
+    expect(html).toContain('Composed for this question');
+    expect(html).not.toContain('Ran a declared workflow');
+  });
+
+  // a plan that could not be read is a stated absence, not a guess — the same
+  // rule the progress rail's nullable steps carry
+  it('says the mode is not recorded rather than assuming one', () => {
+    const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={null} />);
+    expect(html).toContain('Orchestration mode not recorded');
+    expect(html).not.toContain('Composed for this question');
+  });
+
+  // "where verification could not be taken independently, say so" — the
+  // independent-family verifier is beyond V1, so EVERY answer here must say it
+  it('states that no independent model verification was taken', () => {
+    const html = renderToStaticMarkup(
+      <CompletionFooter run={run({ steps: [groundCheck([{ rail: 'grounding', outcome: 'passed' }])] })} plan={plan()} />,
+    );
+    expect(html).toContain('no independent model verification was taken');
+  });
+
+  // no ground-check outcomes at all is not "nothing was withheld"
+  it('distinguishes an unrecorded check from a clean one', () => {
+    const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />);
+    expect(html).toContain('No ground-check outcomes were recorded');
+  });
+
+  // T-254's null-is-not-zero rule, on the surface that reports the number.
+  // Pinned on the formatter directly: the per-step costs sit behind Details,
+  // which static markup does not render, and this rule is far too easy to lose
+  // to leave untested for that reason.
+  it('renders an unpriced step as unpriced, never as zero', () => {
+    expect(formatStepCost(null)).toBe('unpriced');
+    expect(formatStepCost(undefined)).toBe('unpriced');
+    // a DECLARED rate of zero is still a price — a self-hosted model that
+    // genuinely costs nothing must not read as "we do not know"
+    expect(formatStepCost(0)).toBe('$0.0000');
+    expect(formatStepCost(0.0123)).toBe('$0.0123');
+  });
+
+  // the plan and the manifest are behind Details; the mode is not
+  it('keeps the plan breakdown behind Details and the mode outside it', () => {
+    const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />);
+    expect(html).toContain('Details');
+    expect(html).not.toContain('Citation manifest');
+    expect(html).toContain('Ran a declared workflow');
   });
 });
