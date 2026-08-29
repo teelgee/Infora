@@ -37,7 +37,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^2.0.11
-        version: 2.0.11(hono@4.12.28)
+        version: 2.0.11(hono@4.13.5)
       '@infora/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
@@ -72,8 +72,8 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
       hono:
-        specifier: ^4.9.0
-        version: 4.12.28
+        specifier: ^4.12.34
+        version: 4.13.5
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -145,7 +145,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^2.0.11
-        version: 2.0.11(hono@4.12.28)
+        version: 2.0.11(hono@4.13.5)
       '@infora/api':
         specifier: workspace:*
         version: link:../apps/api
@@ -1891,8 +1891,8 @@ packages:
   hast-util-whitespace@3.0.0:
     resolution: {integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==}
 
-  hono@4.12.28:
-    resolution: {integrity: sha512-YwUvVpSF7m1yOblFPrU3Hbo8XhPheBoiyfGuII6z19LnOr6JpDnyyp7LFNrfV56wS8tpvtBFGRISHN02pDdLOA==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   html-url-attributes@3.0.1:
@@ -2987,9 +2987,9 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@hono/node-server@2.0.11(hono@4.12.28)':
+  '@hono/node-server@2.0.11(hono@4.13.5)':
     dependencies:
-      hono: 4.12.28
+      hono: 4.13.5
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -3781,7 +3781,7 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.4
 
-  hono@4.12.28: {}
+  hono@4.13.5: {}
 
   html-url-attributes@3.0.1: {}
 
