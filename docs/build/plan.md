@@ -301,7 +301,7 @@ entry naming its gate and where its design lives.
 *Not in scope for this wave:* streaming (additive and orthogonal — the rail and footer are designed to accommodate it without rework, and the rail is its natural home); the Copilot surface (ADR-0031 makes it read-only with a bound project and no clarification round); and plan-editing beyond step inputs (reordering and branching are deferred — the artefact supports them, the surface starts with edit-and-rerun).
 
 *Wave 8 — interface (T-292–T-296).*
-- **T-292 — Composer chips.** Lens, Model, Data sources, Tools, Context. The Lens picker states in the picker that a Lens does not change what you can see. The Model chip lists only tier-conforming routes. **The Data sources chip warns when zero sources are in scope**, and refinement narrows only, intersected server-side. | *(Deps: T-283, T-284)*
+- ~~**T-292 — Composer chips.**~~ ✅ **Built 2026-08-29** (no migration; the Model chip stopped at `Q-021` and left as a placeholder — see the record) — moved record in [plan-history.md](plan-history.md#slice-ask)
 - ~~**T-293 — The progress rail.**~~ ✅ **Built 2026-08-28** (no migration) — moved record in [plan-history.md](plan-history.md#slice-ask)
 - **T-294 — The completion footer and plan view.** The orchestration mode stated **in words**, always visible; the Lens and version; Details exposing the plan, workers, per-step cost with pins marked, and the citation manifest. | *(Deps: T-267, T-293)*
 - **T-295 — The output destination selector.** 🔒 A destination broader than the source material warns naming both labels and is blocked by default. Cannot ship before T-249 — a selector without propagation implies a guarantee the backend does not make. | *(Deps: T-249, T-280)*

@@ -434,6 +434,14 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .chip:focus-visible { box-shadow: 0 0 0 3px var(--focus-ring); outline: none; }
 .chip:disabled { color: var(--text-muted); cursor: help; }
 .chip:disabled:hover { border-color: var(--chip-border); background: var(--chip-background); }
+/* T-292 — the zero-sources statement. Warning-toned even when disabled, because
+   the disabled grey is what would make it invisible. */
+.chip-warning,
+.chip-warning:disabled,
+.chip-warning:disabled:hover {
+  color: var(--feedback-warning-text); background: var(--feedback-warning-tint);
+  border-color: var(--feedback-warning-text);
+}
 
 /* sources (citation pills) */
 .cite {

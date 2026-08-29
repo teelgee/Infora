@@ -59,10 +59,14 @@ export function ComposerSources(props: { projectId: string; onInsert: (snippet: 
         label="Sandbox search"
         waitsOn="needs a ruling — the AI never grounds on the sandbox (ADR-0011)"
       />
+      {/* T-292 stopped here rather than building it: a chip listing routes for
+          the user to choose from IS the user-facing model picker, which is
+          `Q-021` and unruled. The tooltip names the question rather than the
+          seam, so whoever picks this up finds the ruling it waits on. */}
       <Placeholder
         glyph="✳"
         label="Model"
-        waitsOn="model choice — multi-model routing behind the Router seam (ADR-0028 §9)"
+        waitsOn="a user-facing model picker is Q-021 and is not ruled — per-request routing policy (ADR-0028 §9), to design when a second adapter lands"
       />
     </>
   );

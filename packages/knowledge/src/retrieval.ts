@@ -386,6 +386,57 @@ function nearestLiveChunks(
     .limit(GROUNDED_CHUNK_LIMIT);
 }
 
+/**
+ * T-292 — the documents a grounded answer could draw on, for this requester,
+ * right now.
+ *
+ * It exists because the composer's **Data sources** chip has to be able to say
+ * *"none"* — a grounded answer over an empty scope is the single most
+ * misleading state Ask can be in, and it looks identical to a confident one.
+ * Saying it truthfully means the chip cannot be built from the library list:
+ * membership in the library is necessary and no longer sufficient (the ADR-0011
+ * rider — a live deliverable whose acceptance code does not ground is on that
+ * list and out of the AI's reach), and a document with no chunks under the
+ * deployment's pinned embedding model is indexed for nobody.
+ *
+ * So it runs `liveLibraryFilter` itself — **the same predicate both arms of the
+ * gateway call use**, not a second definition of it. The chip therefore cannot
+ * show a document the answer could not have used, and it cannot omit one the
+ * answer could: the two statements are the same SQL.
+ *
+ * DISTINCT ON the container because the unit is the document, not the passage:
+ * the chip counts things a person recognises.
+ */
+export async function groundingSources(
+  db: Db,
+  slice: EntitledSlice,
+  modelId: string,
+  options: RetrievalOptions = {},
+): Promise<Array<{ containerId: string; documentReference: string; title: string | null }>> {
+  // the chunk index is under row-level security and the policy fails CLOSED
+  // (T-247), so this declares its project scope exactly as retrieval's own two
+  // arms do. Without it every requester's chip would read "no sources in
+  // scope" — the warning state firing on the policy rather than on the corpus,
+  // which is the one wrong answer this chip must never give.
+  const rows = await withProjectScope(db, slice.projectId, (tx) =>
+    tx
+      .selectDistinctOn([s.containers.id], {
+        containerId: s.containers.id,
+        documentReference: s.containers.documentReference,
+        title: s.workItems.title,
+      })
+      .from(s.versionChunks)
+      .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
+      .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+      .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+      .where(liveLibraryFilter(slice, modelId, [], options))
+      .orderBy(asc(s.containers.id)),
+  );
+  // a library-scope container always carries its coded reference; the column is
+  // nullable for sandbox freeze series, which this filter never admits
+  return rows.map((row) => ({ ...row, documentReference: row.documentReference ?? '' }));
+}
+
 // A deliverable code is a hyphenated token of three or more segments
 // (WA-GEO-GIR-004); matched exactly, case-insensitively.
 export function extractReferenceCodes(text: string): string[] {

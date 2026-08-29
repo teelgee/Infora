@@ -14,8 +14,15 @@
 // standing for two different things.
 import { Hono } from 'hono';
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import type { ApiError, GetLibraryResponse, GetVersionResponse, LibraryItem } from '@infora/contracts';
-import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
+import type {
+  ApiError,
+  GetGroundingScopeResponse,
+  GetLibraryResponse,
+  GetVersionResponse,
+  LibraryItem,
+} from '@infora/contracts';
+import { deliverableVisibleSql as deliverableVisible, groundingSources, TOKEN_LIMIT } from '@infora/knowledge';
+import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { admittingCodes, contextStateOf } from './context-state';
@@ -26,7 +33,7 @@ import type { AppEnv } from './requester';
 // the one SQL pre-filter shared with retrieval (ADR-0016 + ADR-0035 §5), so the
 // list and grounding never drift; see @infora/knowledge deliverableVisibleSql.
 
-export function libraryRoutes(deps: { db: Db }) {
+export function libraryRoutes(deps: { db: Db; router?: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -156,6 +163,31 @@ export function libraryRoutes(deps: { db: Db }) {
       .limit(1);
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
     return c.json({ ...row, documentReference: row.documentReference! } satisfies GetVersionResponse);
+  });
+
+  // T-292 — what the composer's Data sources and Context chips read.
+  //
+  // It is NOT the library list one filter along. Membership in the library is
+  // necessary and no longer sufficient (the ADR-0011 rider), and a document
+  // with no chunks under this deployment's pinned embedding model is indexed
+  // for nobody — so the list and the grounding scope are genuinely two
+  // questions, and answering the second with the first is how a chip ends up
+  // naming a document the answer could not have used. `groundingSources` runs
+  // the gateway's own `liveLibraryFilter`, so the two cannot drift.
+  //
+  // The token budget rides the same response because both chips are one read:
+  // a second call for one constant would be a second round trip for the
+  // composer to render.
+  app.get('/projects/:projectId/grounding-scope', project, async (c) => {
+    const slice = c.get('slice');
+    const sources =
+      deps.router === undefined
+        ? [] // no router bound: nothing is indexed, and that is the honest answer
+        : await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
+    return c.json({
+      sources,
+      assemblyTokenBudget: TOKEN_LIMIT,
+    } satisfies GetGroundingScopeResponse);
   });
 
   return app;

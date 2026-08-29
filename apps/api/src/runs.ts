@@ -29,7 +29,7 @@ import { eq as dEq } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
-import type { EntitledSlice } from '@infora/governance';
+import type { Attenuation, EntitledSlice } from '@infora/governance';
 import type { LensRegistry } from '@infora/lenses';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
@@ -87,6 +87,19 @@ export function runRoutes(deps: {
   classifier?: Classifier;
   /** T-269 — whether this organisation holds an authority shelf (ADR-0023). */
   authorityShelf?: (organisationId: Id) => Promise<boolean>;
+  /**
+   * T-292 — a retrieve leaf built on an assembler NARROWER than the
+   * requester's own, for the Data sources chip's refinement.
+   *
+   * A factory rather than a parameter on the bound leaf, because that is where
+   * T-248 put the guarantee: the narrowing is a construction argument to
+   * `createAssembler`, `attenuate` is monotonic, and there is therefore no
+   * route from the narrowed assembler back to the wider one. A refinement a
+   * user set cannot be quietly widened by a later step. Absent means the
+   * deployment offers no refinement, and the request field is then ignored
+   * rather than silently honoured by a different path.
+   */
+  narrowedRetrieve?: (narrowing: Attenuation) => ChainLeaves['retrieve'];
 }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -268,9 +281,22 @@ export function runRoutes(deps: {
         }
       }
 
+      // T-292 — the Data sources refinement. **It can only remove.** The ids
+      // are handed to `attenuate` and intersected INTO the grounded
+      // pre-filter's own `and()` (T-248), so an id the requester cannot reach
+      // is not a way in — it narrows the set exactly as a reachable one does.
+      // No validation of the ids is needed or wanted for that reason: checking
+      // them would mean answering "does this container exist", which is the
+      // question deny-as-404 exists to refuse.
+      const refinement = body.data.sourceContainerIds;
+      const leaves =
+        refinement === undefined || deps.narrowedRetrieve === undefined
+          ? deps.leaves
+          : { ...deps.leaves, retrieve: deps.narrowedRetrieve({ containerIds: refinement }) };
+
       let run: RunRow;
       try {
-        ({ run } = await runChain(deps.db, deps.leaves, {
+        ({ run } = await runChain(deps.db, leaves, {
           conversationId: c.req.param('conversationId'),
           request: body.data.request,
           environmentKey: slice.projectId,

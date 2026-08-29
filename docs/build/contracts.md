@@ -774,3 +774,24 @@ are not recorded here.
   fixtures, so a sweep that reached past them fails the test rather than merely
   taking longer; raising the timeout would have hidden exactly the property the
   test is for.
+- **2026-08-29 (T-292) — `sourceContainerIds` is the one request field that
+  names documents, and it is admissible because it can only remove.** Principle
+  2 forbids a parameter that could *widen* what a requester reaches; the Data
+  sources chip needs the opposite, and the difference is structural rather than
+  a matter of care. The ids go to `attenuate` (T-248) and are intersected
+  **into** the grounded pre-filter's own `and()` rather than applied around it,
+  so a narrowing is never evaluated on rows the wall already excluded — which
+  is why **nothing validates them**. Validating would mean answering *"does this
+  container exist"*, the question deny-as-404 exists to refuse, and it would buy
+  nothing: an id the requester cannot reach narrows the set exactly as a
+  reachable one does. **Absent means *not narrowed*; an empty array means
+  *narrowed to nothing***, so the schema requires at least one id and the
+  surface sends the field only when the user actually narrowed — T-248's
+  `absent ≠ empty` reaching the wire, where a UI would otherwise lose it.
+  `GET /projects/:id/grounding-scope` arrives in the same ticket and is
+  deliberately **not** the library list one filter along: since the ADR-0011
+  rider a live deliverable whose acceptance code does not ground is on that list
+  and out of the AI's reach, and a document with no chunks under the pinned
+  embedding model is indexed for nobody — so it runs the gateway's own
+  `liveLibraryFilter`, and the chip and the answer cannot disagree about what
+  was reachable.

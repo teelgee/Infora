@@ -13,6 +13,7 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
+import { ContextChip, DataSourcesChip, ToolsChip, useGroundingScope } from '../composer-chips';
 import { LensPicker, useLenses } from '../lens-picker';
 import type { LensChoice } from '../lens-picker';
 import { useMe } from '../session';
@@ -52,6 +53,13 @@ export function AskScreen() {
   // A rail that lit its first stage on send would be a client-side timer with
   // the timer hidden.
   const [railSteps, setRailSteps] = useState<PlanStep[] | null>(null);
+  // T-292 — the composer's scope chips. The refinement is per-conversation and
+  // lives here rather than on the run, because it is the user's standing
+  // narrowing for the turns that follow; each run carries the ids it was sent
+  // with. Empty means NOT NARROWED — the surface never sends an empty array,
+  // since an empty one means "narrowed to nothing" (T-248's `absent ≠ empty`).
+  const groundingScope = useGroundingScope(participant.projectId);
+  const [refinement, setRefinement] = useState<string[]>([]);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
@@ -145,12 +153,17 @@ export function AskScreen() {
       // the Lens is captured HERE, at send time — switching while a run is in
       // flight must not relabel the answer already being produced
       const sentUnder = lens;
+      // T-292 — the refinement is captured at send time for the same reason:
+      // narrowing while a run is in flight must not relabel what that answer
+      // was actually built on.
+      const narrowedTo = refinement;
       const run = await api.createRun(
         conversationRef.current,
         request,
         undefined,
         abortRef.current.signal,
         sentUnder?.id,
+        narrowedTo,
       );
       setMessages((m) => [...m, { id: nextId.current++, kind: 'agent', run, lens: sentUnder }]);
       // T-293 — read the plan the run actually wrote, AFTER it reports
@@ -261,6 +274,13 @@ export function AskScreen() {
               sources={
                 <>
                   <LensPicker lenses={lenses} value={lens} onChange={setLens} />
+                  <DataSourcesChip
+                    scope={groundingScope}
+                    selected={refinement}
+                    onChange={setRefinement}
+                  />
+                  <ToolsChip />
+                  <ContextChip scope={groundingScope} />
                   <ComposerSources
                     projectId={participant.projectId}
                     onInsert={(snippet) => composerRef.current?.insert(snippet)}

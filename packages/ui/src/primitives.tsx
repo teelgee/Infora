@@ -28,11 +28,25 @@ export function Badge(props: { tone: BadgeTone; dot?: boolean; children: ReactNo
  * never for navigation or primary actions. Interactive: a `disabled` chip
  * still shows its `title` (e.g. "waits on X") via `cursor: help`, it just
  * can't be clicked. */
-export function Chip(props: { children: ReactNode; onClick?: () => void; title?: string; disabled?: boolean }) {
+/**
+ * T-292 — `tone: 'warning'` exists for exactly one statement: the composer's
+ * Data-sources chip saying **no sources are in scope**. A grounded answer over
+ * an empty scope is the most misleading state Ask can be in, and a chip reading
+ * "0 sources" in the same grey as every other chip is a warning nobody sees.
+ */
+export function Chip(props: {
+  children: ReactNode;
+  onClick?: () => void;
+  title?: string;
+  disabled?: boolean;
+  tone?: 'warning';
+}) {
   return (
     <button
       type="button"
-      className={props.disabled ? 'chip disabled' : 'chip'}
+      className={
+        `chip${props.disabled ? ' disabled' : ''}${props.tone === 'warning' ? ' chip-warning' : ''}`
+      }
       onClick={props.onClick}
       title={props.title}
       disabled={props.disabled}

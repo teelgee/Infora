@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { ApiError } from '@infora/contracts';
 import { createAssembler } from '@infora/knowledge';
+import type { Attenuation } from '@infora/governance';
 import {
   createCiteLeaf,
   createDraftLeaf,
@@ -135,10 +136,22 @@ export function buildApp(deps: AppDeps) {
   // leaves are bound once here: retrieval reaches stores only through the
   // assembly gateway (T-030), draft through the Router.
   const assemble = createAssembler({ db: deps.db, router: deps.router });
+  // T-292 — the Data sources chip's refinement needs an assembler NARROWER
+  // than the requester's own, and `attenuate` is monotonic, so the narrowed one
+  // has to be built per request rather than reached for from the bound leaf.
+  // It is a factory rather than a mutable field for the reason T-248 put the
+  // narrowing in the constructor: there is no route back to the wider
+  // assembler, so a later step cannot undo the user's refinement.
+  const narrowedRetrieve = (narrowing: Attenuation) =>
+    createRetrieveLeaf(
+      { assemble: createAssembler({ db: deps.db, router: deps.router }, narrowing) },
+      { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) },
+    );
   app.route(
     '/',
     runRoutes({
       db: deps.db,
+      narrowedRetrieve,
       leaves: {
         // T-313 — the retrieve step now records what embedding the query cost,
         // so it needs the same rate table the draft leaf has

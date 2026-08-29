@@ -68,6 +68,18 @@ export const createRunBody = z.object({
   // worse than a refusal, because the answer still arrives and reads
   // plausibly. Omitted means no Lens, which is the shared core alone.
   lensId: z.string().min(1).optional(),
+  // T-292 — the Data sources chip's refinement, and the one request field in
+  // this API that names documents. **It NARROWS and cannot widen**, which is
+  // what makes it admissible beside principle 2's no-scope-parameter rule:
+  // the server hands it to `attenuate` (T-248) and the ids are intersected
+  // INTO the grounded pre-filter's own `and()` rather than applied around it,
+  // so a narrowing is never evaluated on rows the wall already excluded. An id
+  // the requester cannot reach therefore adds nothing — it removes, like every
+  // other id in the list. It is a **relevance** control, not an access one.
+  // Absent means "not narrowed"; the surface never sends an empty array,
+  // because an empty one means "narrowed to nothing" and the two must not be
+  // confused (T-248's `absent ≠ empty`).
+  sourceContainerIds: z.array(id).min(1).optional(),
 });
 export type CreateRunBody = z.infer<typeof createRunBody>;
 export type CreateRunResponse = Run; // completed, with steps, suggestions and citations
@@ -2111,4 +2123,24 @@ export type LibraryRemovalBody = z.infer<typeof libraryRemovalBody>;
 export type LibraryRemovalResponse = {
   removalId: Id;
   reached: { versions: number; chunks: number; renditions: number; blobs: number };
+};
+
+// T-292 — GET /projects/:projectId/grounding-scope: what the composer's
+// **Data sources** and **Context** chips read, in one call.
+//
+// `sources` is computed from the SAME pre-filter retrieval grounds on, so the
+// chip cannot show a document the answer could not have used, and an empty
+// array is the real answer rather than a loading state — which is the whole
+// point, because a grounded answer over an empty scope is the most misleading
+// state Ask can be in and looks exactly like a good one.
+export type GroundingSource = {
+  containerId: Id;
+  documentReference: string;
+  /** the deliverable's title, absent for reference material (T-304) */
+  title: string | null;
+};
+export type GetGroundingScopeResponse = {
+  sources: GroundingSource[];
+  /** the per-turn assembly token budget every run is built inside (ADR-0029 §5) */
+  assemblyTokenBudget: number;
 };

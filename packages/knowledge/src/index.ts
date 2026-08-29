@@ -3,6 +3,10 @@ export { createAssembler, TOKEN_LIMIT } from './gateway';
 export type { GatewayDeps, Inclusion } from './gateway';
 export { estimateTokens } from './merge';
 export { deliverableVisibleSql } from './visibility';
+// T-292 — the documents in grounding scope for one requester, off the SAME
+// pre-filter retrieval uses, so the composer's Data-sources chip and the answer
+// cannot disagree about what was reachable
+export { groundingSources } from './retrieval';
 // T-249 — the access facts behind label propagation (finding F2); the policy
 // they feed is pure and lives in @infora/governance
 export {

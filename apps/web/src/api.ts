@@ -30,6 +30,7 @@ import type {
   Round,
   GetConversationResponse,
   GetHistoryResponse,
+  GetGroundingScopeResponse,
   GetLibraryResponse,
   GetPlanResponse,
   GetRunPlanResponse,
@@ -168,6 +169,12 @@ export const api = {
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
   library: (projectId: string) => request<GetLibraryResponse>(`/projects/${projectId}/library`),
+
+  // T-292 — what the composer's Data sources and Context chips read. NOT the
+  // library list: membership is necessary and no longer sufficient, and the
+  // server computes this off the same pre-filter retrieval grounds on.
+  groundingScope: (projectId: string) =>
+    request<GetGroundingScopeResponse>(`/projects/${projectId}/grounding-scope`),
   version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
@@ -644,6 +651,10 @@ export const api = {
     // on the conversation: an answer's Lens is a property of the answer, so
     // switching changes the next one and leaves history as it was produced.
     lensId?: string,
+    // T-292 — the Data sources refinement. Sent only when the user narrowed:
+    // absent means "not narrowed", and an empty array would mean "narrowed to
+    // nothing" (T-248's `absent ≠ empty`), so the surface never sends one.
+    sourceContainerIds?: string[],
   ) =>
     request<Run>(`/conversations/${conversationId}/runs`, {
       method: 'POST',
@@ -651,6 +662,8 @@ export const api = {
         request: requestText,
         ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
         ...(lensId !== undefined && { lensId }),
+        ...(sourceContainerIds !== undefined &&
+          sourceContainerIds.length > 0 && { sourceContainerIds }),
       }),
       ...(signal !== undefined && { signal }),
     }),
