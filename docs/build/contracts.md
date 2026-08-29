@@ -795,3 +795,16 @@ are not recorded here.
   embedding model is indexed for nobody — so it runs the gateway's own
   `liveLibraryFilter`, and the chip and the answer cannot disagree about what
   was reachable.
+- **2026-08-29 (T-295) — the destination preflight is the write's own decision,
+  not a second opinion about it.** `GET /runs/:runId/destination-check` exists
+  because T-249's refusal could previously only be met **at** the click, which
+  is the worst moment to learn that where you are writing decides who can read
+  it. The endpoint could have recomputed the comparison; instead the handler and
+  the write call one `propagationVerdict`, for T-373's reason one slice along —
+  *a preflight computed separately from the act it previews is a preflight that
+  will eventually lie*, and here the lie is a selector saying "fine" over a
+  write that then refuses. It inherits the write's refusals exactly: a colleague
+  who may read a run may not preview carrying it, and an unreachable destination
+  answers `404` rather than "exists but refused", which would make the preview a
+  disclosure channel the write itself closes. `openRunInEditorBody` is unchanged
+  — the override and its mandatory reason were already the shape this needed.

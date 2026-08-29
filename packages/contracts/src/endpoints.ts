@@ -2144,3 +2144,34 @@ export type GetGroundingScopeResponse = {
   /** the per-turn assembly token budget every run is built inside (ADR-0029 §5) */
   assemblyTokenBudget: number;
 };
+
+// T-295 — GET /runs/:runId/destination-check?sandboxId=…: what the destination
+// selector shows BEFORE the click.
+//
+// **It is a preview of the write's own decision, never a second judgement.**
+// The handler calls the same `checkPropagation` over the same freshly-computed
+// audiences that `POST /runs/:runId/sandbox-document` calls — T-373's rule from
+// the promotion window, one slice along: a preflight computed separately from
+// the act it previews is a preflight that will eventually lie. So the selector
+// surfaces what the backend already refuses and invents nothing.
+//
+// `reason` names BOTH labels when the destination is broader, because "refused"
+// on its own tells a user nothing they can act on. `allowed: false` is a
+// **block by default**, not a warning: writing anyway needs the explicit
+// override `openRunInEditorBody` already carries, with its recorded reason.
+export type DestinationCheckResponse = {
+  allowed: boolean;
+  /** the most restrictive label across the run's source set */
+  sourceLabel: AccessLabelName;
+  /** the label of the sandbox the answer would be written into */
+  destinationLabel: AccessLabelName;
+  /** present only when refused; names both labels in one sentence */
+  reason?: string;
+};
+/** The lattice, most restrictive first. Spelled out because `contracts`
+ *  depends on nothing and this crosses the boundary (the T-313 precedent). */
+export type AccessLabelName =
+  | 'participant_narrowed'
+  | 'single_organisation'
+  | 'multi_organisation'
+  | 'project_wide';

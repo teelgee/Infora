@@ -30,6 +30,7 @@ import type {
   Round,
   GetConversationResponse,
   GetHistoryResponse,
+  DestinationCheckResponse,
   GetGroundingScopeResponse,
   GetLibraryResponse,
   GetPlanResponse,
@@ -191,11 +192,24 @@ export const api = {
   // create followed by a content PATCH: the server has to know the content
   // came from this run to check what the destination would widen (docs/build/plan.md — Slice Ask Wave 0
   // R2). A destination broader than the answer's sources answers 403.
-  openRunInEditor: (runId: string, sandboxId?: string) =>
+  openRunInEditor: (runId: string, sandboxId?: string, overrideReason?: string) =>
     request<SandboxDocument>(`/runs/${runId}/sandbox-document`, {
       method: 'POST',
-      body: JSON.stringify({ ...(sandboxId !== undefined && { sandboxId }) }),
+      body: JSON.stringify({
+        ...(sandboxId !== undefined && { sandboxId }),
+        // T-295 — the explicit override the block-by-default rule requires. A
+        // reason is mandatory and is recorded on the run and in the audit
+        // trail; the surface never sends one the user did not type.
+        ...(overrideReason !== undefined && { override: { reason: overrideReason } }),
+      }),
     }),
+  // T-295 — what the destination selector shows BEFORE the click. The server
+  // runs the same propagation check the write runs, so this previews the
+  // refusal rather than making a second judgement about it.
+  destinationCheck: (runId: string, sandboxId: string) =>
+    request<DestinationCheckResponse>(
+      `/runs/${runId}/destination-check?sandboxId=${encodeURIComponent(sandboxId)}`,
+    ),
   // T-293 — the plan a run performed, read back for the progress rail. The
   // rail shows what ACTUALLY ran, so it is fetched after the run reports and
   // never guessed at while one is in flight.

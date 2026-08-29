@@ -180,6 +180,87 @@ async function ask(): Promise<Run> {
   return (await res.json()) as Run;
 }
 
+// T-295 — the destination selector's preflight. Its whole value is that it is
+// the SAME judgement the write makes, so every case below pairs the preview
+// with the act and asserts they agree. A preflight computed separately from the
+// act it previews is a preflight that will eventually lie (T-373's rule, one
+// slice along), and the way that lie would show up is exactly here: a selector
+// that says "fine" over a write that then refuses.
+describe('the destination preflight previews the write, and never a second judgement (T-295)', () => {
+  const check = async (cookie: string, runId: string, sandboxId: string) =>
+    app.request(`/runs/${runId}/destination-check?sandboxId=${sandboxId}`, { headers: { cookie } });
+
+  it('refuses the broader destination before the click, naming both labels', async () => {
+    const run = await ask();
+    const res = await check(narrowedCookie, run.id, wideSandbox);
+    expect(res.status).toBe(200);
+    const verdict = (await res.json()) as {
+      allowed: boolean;
+      sourceLabel: string;
+      destinationLabel: string;
+      reason?: string;
+    };
+    expect(verdict.allowed).toBe(false);
+    expect(verdict.sourceLabel).toBe('participant_narrowed');
+    expect(verdict.destinationLabel).toBe('multi_organisation');
+    // both labels named, in a sentence a user can act on
+    expect(verdict.reason).toContain('participant narrowed');
+    expect(verdict.reason).toContain('multi organisation');
+
+    // and the write agrees — this is the pairing that makes the preview
+    // meaningful rather than decorative
+    const write = await post(narrowedCookie, `/runs/${run.id}/sandbox-document`, {
+      sandboxId: wideSandbox,
+    });
+    expect(write.status).toBe(403);
+  });
+
+  it('allows a destination no broader than the sources, and the write agrees', async () => {
+    const run = await ask();
+    const verdict = (await (await check(narrowedCookie, run.id, narrowSandbox)).json()) as {
+      allowed: boolean;
+      reason?: string;
+    };
+    expect(verdict.allowed).toBe(true);
+    // nothing to warn about: a warning on the safe direction is how people
+    // learn to click through the one that matters
+    expect(verdict.reason).toBeUndefined();
+
+    const write = await post(narrowedCookie, `/runs/${run.id}/sandbox-document`, {
+      sandboxId: narrowSandbox,
+    });
+    expect(write.status).toBe(201);
+  });
+
+  it("a colleague cannot preview carrying someone else's answer either", async () => {
+    // the preview inherits the write's refusal exactly: a colleague who may
+    // READ the run may not carry it anywhere, so they may not ask where it
+    // could go — the answer would be a fact about a document they cannot make
+    const run = await ask();
+    const colleagueCookie = await session(`t249-colleague-${stamp}@test.local`);
+    expect((await check(colleagueCookie, run.id, narrowSandbox)).status).toBe(404);
+  });
+
+  it('a destination the requester cannot reach does not exist to the preview', async () => {
+    const run = await ask();
+    const [foreign] = await db
+      .insert(s.sandboxes)
+      .values({
+        projectId,
+        name: `t295 foreign ${stamp}`,
+        scope: 'single_org',
+        owningOrganisationId: thirdOrg,
+        createdByParticipantId: narrowed,
+      })
+      .returning();
+    expect((await check(narrowedCookie, run.id, foreign!.id)).status).toBe(404);
+  });
+});
+
+// Declared BEFORE the write-back suite deliberately: its last case REVOKES the
+// narrowing to prove the label is computed rather than stored, and after that
+// these sources are no longer participant-narrowed. Top-level describes run in
+// declaration order, so this one sees the fixture as built.
 describe('label propagation on write-back (T-249, finding F2)', () => {
   it('refuses to carry a narrowed answer into a two-organisation sandbox, naming both labels', async () => {
     const run = await ask();

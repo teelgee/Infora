@@ -22,6 +22,8 @@ import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
 import { ContextChip, DataSourcesChip, ToolsChip, useGroundingScope } from '../composer-chips';
+import { DestinationSelector, DestinationWarning, useDestinations } from '../destination-selector';
+import type { Destination } from '../destination-selector';
 import { LensPicker, useLenses } from '../lens-picker';
 import type { LensChoice } from '../lens-picker';
 import { useMe } from '../session';
@@ -72,6 +74,12 @@ export function AskScreen() {
   // since an empty one means "narrowed to nothing" (T-248's `absent ≠ empty`).
   const groundingScope = useGroundingScope(participant.projectId);
   const [refinement, setRefinement] = useState<string[]>([]);
+  // T-295 — where answers are written. Per CONVERSATION, at the top of a new
+  // one: it carries permission consequences and is chosen before asking, not
+  // tidied away afterwards. `null` means the organisation's default working
+  // area, which is what the server picks when no sandbox is named (T-171).
+  const destinations = useDestinations(participant.projectId);
+  const [destination, setDestination] = useState<Destination>(null);
   const conversationRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
@@ -151,9 +159,11 @@ export function AskScreen() {
   // when the content arrived as an anonymous content update. The refusal
   // names both labels; the destination selector that offers the override
   // before the fact is T-295.
-  async function openInEditor(run: Run) {
+  async function openInEditor(run: Run, overrideReason?: string) {
     try {
-      const doc = await api.openRunInEditor(run.id);
+      // T-295 — the chosen destination rides the write. The server recomputes
+      // the labels and refuses on its own account; this only says WHERE.
+      const doc = await api.openRunInEditor(run.id, destination?.id, overrideReason);
       void navigate(`/projects/${participant.projectId}/editor/${doc.id}`);
     } catch (error) {
       // the refusal states both labels — a refusal a user cannot act on reads
@@ -241,6 +251,14 @@ export function AskScreen() {
 
         <div className="chat-scroll">
           <div className="chat-inner">
+            {/* T-295 — at the top of the conversation, above the first answer.
+                Where an answer is written decides who can read it, so it is
+                chosen before asking rather than discovered at the refusal. */}
+            <DestinationSelector
+              destinations={destinations}
+              value={destination}
+              onChange={setDestination}
+            />
             {messages.map((message) =>
               message.kind === 'user' ? (
                 <div key={message.id} className="msg user" style={{ marginLeft: 'auto', maxWidth: '78%' }}>
@@ -264,7 +282,8 @@ export function AskScreen() {
                   lens={message.lens}
                   plan={message.plan}
                   onOpenSource={setSourceOpen}
-                  onOpenInEditor={() => void openInEditor(message.run)}
+                  destination={destination}
+                  onOpenInEditor={(overrideReason) => void openInEditor(message.run, overrideReason)}
                 />
               ),
             )}
@@ -347,8 +366,9 @@ function AgentMessage(props: {
   run: Run;
   lens: LensChoice;
   plan: Plan | null;
+  destination: Destination;
   onOpenSource: (versionId: string) => void;
-  onOpenInEditor: () => void;
+  onOpenInEditor: (overrideReason?: string) => void;
 }) {
   const { run } = props;
   const outcomes = run.steps
@@ -371,10 +391,25 @@ function AgentMessage(props: {
       {run.response !== null && (
         <div style={{ margin: '6px 0 2px' }}>
           {/* T-106 — the answer carried onto the Editor canvas */}
-          <a className="location-chip" title="Carry this answer into a new sandbox document" onClick={props.onOpenInEditor}>
+          <a
+            className="location-chip"
+            title="Carry this answer into a new sandbox document"
+            onClick={() => props.onOpenInEditor()}
+          >
             ✎ Open in editor
+            {props.destination !== null && ` → ${props.destination.name}`}
           </a>
         </div>
+      )}
+      {/* T-295 — the block, stated per ANSWER, because the source label is
+          computed from that run's own source set: the same destination can be
+          legal for one answer in a conversation and refused for the next. */}
+      {run.response !== null && props.destination !== null && (
+        <DestinationWarning
+          runId={run.id}
+          destination={props.destination}
+          onOverride={(reason) => props.onOpenInEditor(reason)}
+        />
       )}
       {openWorld > 0 && (
         <div style={{ margin: '6px 0 2px' }}>

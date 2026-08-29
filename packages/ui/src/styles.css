@@ -1341,3 +1341,12 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 .cf-manifest li { display: flex; gap: 8px; line-height: 1.7; }
 .cf-register { color: var(--text-secondary); min-width: 68px; }
 .cf-absent { margin: 4px 0 0; font-style: italic; }
+
+/* T-295 — the output destination selector, at the top of a new conversation.
+   It sits above the transcript because where an answer goes is a permission
+   consequence chosen before asking, not a preference tidied away afterwards. */
+.destination-selector {
+  display: flex; align-items: center; gap: 6px; padding: 6px 0;
+  font-family: var(--ui-label-family); font-size: var(--ui-label-size); color: var(--text-muted);
+}
+.ds-label { color: var(--text-secondary); }

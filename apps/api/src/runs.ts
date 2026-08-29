@@ -15,6 +15,7 @@ import {
 } from '@infora/contracts';
 import type {
   ApiError,
+  DestinationCheckResponse,
   GetHistoryResponse,
   PlanMode,
   GetRunPlanResponse,
@@ -56,6 +57,21 @@ import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
 
 const notFound = { error: 'not_found' } satisfies ApiError;
 const invalid = (detail: string) => ({ error: 'invalid', detail }) satisfies ApiError;
+
+/**
+ * T-249's propagation decision, in one place — because T-295 needs it twice.
+ *
+ * The destination selector warns **before** the click and the write enforces
+ * **at** the click, and the two must be the same judgement: T-373's rule from
+ * the promotion window applies here exactly. Both labels are computed from the
+ * access facts as they stand, never from a stored value that could have gone
+ * stale behind a revoked share (T-249).
+ */
+async function propagationVerdict(db: Db, runId: string, sandboxId: string) {
+  const source = await runSourceAudience(db, runId);
+  const destination = await sandboxAudience(db, sandboxId);
+  return checkPropagation(source, destination);
+}
 
 export function runRoutes(deps: {
   db: Db;
@@ -369,10 +385,11 @@ export function runRoutes(deps: {
       }
 
       // the label, computed from the access facts as they stand — never a
-      // stored value that could have gone stale behind a revoked share
-      const source = await runSourceAudience(deps.db, runId);
-      const destination = await sandboxAudience(deps.db, sandboxId);
-      const verdict = checkPropagation(source, destination);
+      // stored value that could have gone stale behind a revoked share.
+      // T-295: the SAME call the destination selector's preflight makes, for
+      // T-373's reason one slice along — a preflight computed separately from
+      // the act it previews is a preflight that will eventually lie.
+      const verdict = await propagationVerdict(deps.db, runId, sandboxId);
 
       if (!verdict.allowed && body.data.override === undefined) {
         // named in full: a refusal a user cannot act on reads as a broken
@@ -420,6 +437,55 @@ export function runRoutes(deps: {
       });
 
       return c.json(toSandboxDocument(document), 201);
+    },
+  );
+
+  // T-295 — the destination selector's preflight. Same run scope as the write
+  // it previews, and the same refusal shape: a colleague who may READ the run
+  // may not carry it anywhere, so they may not preview carrying it either.
+  app.get(
+    '/runs/:runId/destination-check',
+    resourceScope(deps, 'runId', resourceHomes.run),
+    async (c) => {
+      const slice = c.get('slice');
+      const runId = c.req.param('runId');
+      const sandboxId = c.req.query('sandboxId');
+      if (sandboxId === undefined) return c.json(invalid('sandboxId required'), 400);
+
+      const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
+      if (!run || !(await runVisibleTo(deps.db, run, slice))) return c.json(notFound, 404);
+      if (run.requesterParticipantId !== slice.participantId) return c.json(notFound, 404);
+
+      // the destination must admit the requester exactly as the write demands
+      // — previewing a sandbox you cannot reach would answer a question about
+      // a place that, to you, does not exist
+      const [sandbox] = await deps.db
+        .select()
+        .from(s.sandboxes)
+        .where(eq(s.sandboxes.id, sandboxId))
+        .limit(1);
+      const grants = sandbox
+        ? await deps.db
+            .select()
+            .from(s.sandboxScopeGrants)
+            .where(
+              and(
+                eq(s.sandboxScopeGrants.sandboxId, sandbox.id),
+                isNull(s.sandboxScopeGrants.removedAt),
+              ),
+            )
+        : [];
+      if (!sandbox || sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) {
+        return c.json(notFound, 404);
+      }
+
+      const verdict = await propagationVerdict(deps.db, runId, sandboxId);
+      return c.json({
+        allowed: verdict.allowed,
+        sourceLabel: verdict.source,
+        destinationLabel: verdict.destination,
+        ...(verdict.allowed ? {} : { reason: verdict.reason }),
+      } satisfies DestinationCheckResponse);
     },
   );
 
