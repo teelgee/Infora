@@ -1,8 +1,15 @@
 # Infora — the parking lot
 
-**Proposals that cannot be built without amending an accepted decision.**
-Every entry here contradicts the decision record *by construction*. That is the
-entry criterion, not a defect of the file.
+**Proposals the owner has heard and not adopted.** *(Criterion re-cut
+2026-08-30, owner ruling: it previously admitted only proposals that could not
+be built without amending an accepted decision, which proved too narrow — an
+ordinary "no" had nowhere to be parked. P-002 was the case that forced it.)*
+Nothing here is on any roadmap and nothing here has standing in the decision
+record. An entry that *additionally* contradicts an accepted ADR is flagged
+with the ADR it contradicts, and reading one of those is actively poisonous.
+**Parked is not deferred:** the board's deferred register means *later, behind
+a named gate*; parked means *not unless the owner reopens it* — and the only
+way out is a design session that adopts the proposal.
 
 ---
 

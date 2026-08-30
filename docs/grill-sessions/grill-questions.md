@@ -19,11 +19,14 @@ readable inside it.
 > pointer here. A ruling written out in full in this file is a bug.
 
 **A third file joined this folder on 2026-08-17: [parking-lot.md](parking-lot.md)
-(`P-###`).** It holds proposals that cannot be built **without amending an
-accepted ADR** — which is why they are not open questions and are not listed
-here: a `Q` is a gap the *current* model owes an answer to (two accepted ADRs
-disagreeing counts), while a `P` is a change *to* the model that nobody has
-agreed to make. ⚠ **Do not open it during a grill session unless the owner has
+(`P-###`).** It holds proposals the owner has **heard
+and not adopted** *(criterion re-cut 2026-08-30 — previously only
+ADR-contradicting proposals qualified)* — which is why they are not open
+questions and are not listed here: a `Q` is a gap the *current* model owes an
+answer to (two accepted ADRs disagreeing counts), while a `P` has no standing
+at all — on no roadmap, returning only through a design session that adopts
+it. Entries that additionally contradict an accepted ADR are flagged with the
+ADR they contradict. ⚠ **Do not open it during a grill session unless the owner has
 named it.** Every entry is, by construction, a description of rules it would
 break, so reading one mid-session contaminates the session with positions the
 decision record does not hold. Nothing there may be cited, built against, or

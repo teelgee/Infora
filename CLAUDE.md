@@ -41,13 +41,19 @@ A document that answers neither layer's question is probably an **open question*
 `docs/grill-sessions/grill-history.md` (completed sessions, closed rulings).
 
 **Never load unless the owner names it** — `docs/grill-sessions/parking-lot.md`
-(`P-###`): proposals that cannot be built without **amending an accepted ADR**.
-Every entry contradicts the decision record by construction — that is its entry
-criterion — so an agent that reads one during a grill or a build session will
-produce work conflicting with both the ADRs and the built system, while
-sounding well-informed because it can cite a real file. It is not backlog, not
-design, and never a citation. Don't open it to "check if something is related";
-if a task seems to need it, stop and ask.
+(`P-###`): proposals the owner has **heard and not adopted** *(criterion
+re-cut 2026-08-30 — it previously admitted only proposals contradicting an
+accepted ADR, which proved too narrow)*. Nothing in the lot is on any roadmap
+and nothing in it has standing in the decision record; entries that
+*additionally* contradict an accepted ADR are flagged with the ADR they
+contradict, and those are actively poisonous to read. Either way, an agent
+that reads an entry mid-session risks building toward something nobody agreed
+to, while sounding well-informed because it can cite a real file. It is not
+backlog, not design, and never a citation. Don't open it to "check if
+something is related"; if a task seems to need it, stop and ask. **Parked vs
+deferred:** the board's deferred register means *later* — it has a gate, and
+clears into a slice; parked means *not unless the owner reopens it* through a
+design session. Entry is on the owner's instruction only.
 
 ## Working rules
 
@@ -87,9 +93,9 @@ if a task seems to need it, stop and ask.
   questions — never resolved inline. Derive the number with
   `pnpm run check:questions -- --next`, never by reading the counter line
   (T-343); `pnpm run check:tickets -- --next` is its equivalent for `T-###`.
-  A proposal that cannot be built **without amending an accepted ADR** is not
-  an open question — it is parked (`P-###`, `pnpm run check:parking -- --next`),
-  and only on the owner's instruction. Never park something to avoid ruling it.
+  A proposal the owner has **heard and not adopted** is not an open question —
+  it is parked (`P-###`, `pnpm run check:parking -- --next`), and only on the
+  owner's instruction. Never park something to avoid ruling it.
   A new ADR's number is derived the same way: `pnpm run check:adrs -- --next`.
 - `CONTEXT.md` is the vocabulary authority; ADRs are the decision record.
   Cite them, don't re-argue them.

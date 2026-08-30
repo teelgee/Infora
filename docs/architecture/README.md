@@ -40,7 +40,7 @@ The one question that decides it: **which layer's question does it answer?**
 - *What gets built first, and how* — the stored tables, the typed API, the package layout, the destination, the ticket board → **[`docs/build/`](../build/README.md)**.
 - *A decision with alternatives considered* → an **ADR** in [`adr/`](adr/), not a loose file here.
 - *An open question* → [`grill-questions.md`](../grill-sessions/grill-questions.md) as a `Q-###`. Never resolved inline, in either layer.
-- *A proposal that cannot be built without amending an accepted ADR* → the parking lot, and **only on the owner's instruction**.
+- *A proposal the owner has heard and not adopted* → the parking lot, and **only on the owner's instruction** *(criterion re-cut 2026-08-30; deferred-with-a-gate work goes to the board's deferred register instead)*.
 - *A visual or UI-system document* — rules, tokens, a mockup → **[`docs/design/`](../design/README.md)**, which is its own folder and **not** this one. Read its README for the mockup lifecycle before drawing one.
 - *External material Infora did not author* — a standard, a competitor teardown, a friction map → **[`docs/reference/`](../reference/)**. Context, never authority, and never a citation in an ADR.
 - *The closed record* — a ruled question, a closed slice → its `-history` sibling ([`grill-history.md`](../grill-sessions/grill-history.md), [`plan-history.md`](../build/plan-history.md)), moved in the same commit that closes it.
