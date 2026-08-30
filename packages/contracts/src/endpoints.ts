@@ -14,6 +14,7 @@ import type {
   DocumentRelationshipType,
   Id,
   Plan,
+  PlanStage,
   Resolution,
   Run,
   StepType,
@@ -2193,3 +2194,96 @@ export type AccessLabelName =
   | 'single_organisation'
   | 'multi_organisation'
   | 'project_wide';
+
+// ── T-309 — THE DOCUMENT CREATOR, AND THE PLAN IT SHOWS BEFORE THE CLICK ────
+//
+// *In plain terms: before anything is generated the system works out, in
+// ordinary code, which steps will run and roughly what they cost, and shows
+// that. It also states what the result will cover — and states it again in the
+// same shape afterwards, so "here is your document" is never an unqualified
+// claim about material the run did not reach.*
+//
+// The types are here and the FUNCTION that fills them is in `capabilities`,
+// because pricing needs the model rates and `contracts` depends on nothing.
+// They are here rather than there for the surface's sake: `apps/web` sees
+// `contracts` and `ui` alone, and a plan it cannot type is a plan it cannot
+// render.
+//
+// POST /projects/:id/tools/document-creation/plan   the plan, no spend
+// POST /projects/:id/tools/document-creation/runs   the plan, then the run
+export type PlannedToolStep = {
+  /** the declaring workflow's own step id */
+  key: string;
+  stage: PlanStage;
+  /** the capability that will run it, or null where the orchestrator does */
+  worker: string | null;
+  /** what this step does, in words a non-engineer reads */
+  label: string;
+  estimate: {
+    calls: number;
+    tokensPrompt: number;
+    tokensCompletion: number;
+    /**
+     * **null = this deployment declared no rate for the model, NEVER "free"**
+     * (T-254, finding F7). Zero is a price; null is nobody priced it, and a
+     * plausible zero is what a business case gets built on.
+     */
+    cost: number | null;
+  };
+};
+
+export type ToolPlan = {
+  workflowId: string;
+  workflowVersion: number;
+  steps: PlannedToolStep[];
+  /**
+   * ADR-0053 §5 — stated **before** the run and again beside the output after
+   * it, in the same shape. A first-class output, not a footnote: it is the only
+   * thing distinguishing a document built from four sources from one built from
+   * none.
+   */
+  coverage: string;
+  cost: {
+    /** null when any step is unpriced — a partial sum wearing a total's name */
+    total: number | null;
+    priced: boolean;
+  };
+  /**
+   * ADR-0053 §5 — refusal is reserved for the pathological case and is said in
+   * the plan, **before any spend**, never as a caveat under a finished result.
+   * Non-null means: do not offer the button.
+   */
+  refusal: string | null;
+};
+
+export const documentCreationBody = z.object({
+  templateId: z.string().min(1),
+  brief: z.string().min(1),
+  /**
+   * The library sources this draft may draw on, **chosen before drafting**. An
+   * id the requester cannot reach is not a way in — the builder reads their
+   * text through the assembly gateway, so an unreachable one returns nothing
+   * and is reported as unreachable rather than silently dropped.
+   */
+  sourceVersionIds: z.array(id),
+  destinationSandboxId: id,
+  title: z.string().min(1),
+});
+export type DocumentCreationBody = z.infer<typeof documentCreationBody>;
+
+export type DocumentCreationPlanResponse = { plan: ToolPlan };
+
+export type DocumentCreationRunResponse = {
+  run: Run;
+  /** the plan as it was shown before the click — the same object, recorded */
+  plan: ToolPlan;
+  /** ADR-0053 §5's second statement, in the SAME SHAPE as `plan.coverage` */
+  coverage: string;
+  /** null where the write was withheld: the label refused the destination */
+  documentId: Id | null;
+  manifest: Array<{ versionId: Id; usedFor: string }>;
+  /** both labels, named — a refusal a user cannot act on reads as a broken system */
+  label: { computed: string; destination: string; refusal: string | null };
+  withheld: string[];
+  unreachableSources: Id[];
+};

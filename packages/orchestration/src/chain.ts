@@ -279,12 +279,20 @@ export class RunHalted extends Error {
  * Runs the spine, writing each Step row with its audit fields as it runs.
  * A leaf failure finishes that step 'failed', the run 'failed', and stops
  * the chain; the record of what happened up to the failure stands.
+ *
+ * T-396 — `outputs` hands back what each CAPABILITY step returned, keyed on the
+ * declaring workflow's step id. A tool's caller needs the worker's own typed
+ * output (a manifest, a computed label, a list of unreachable sources) and
+ * cannot read it off the Run record, which stores an answer and an audit rather
+ * than a worker's return value. It is deliberately not persisted: a step output
+ * is a value in flight, and the durable facts — cost, model, source set — are
+ * already Step columns.
  */
 export async function runChain(
   db: Db,
   leaves: ChainLeaves,
   input: ChainInput,
-): Promise<{ run: RunRow; suggestionIds: Id[] }> {
+): Promise<{ run: RunRow; suggestionIds: Id[]; outputs: Record<string, unknown> }> {
   const run = await openRun(db, {
     conversationId: input.conversationId,
     agentId: CHAIN_AGENT_ID,
@@ -373,6 +381,12 @@ export async function runChain(
     throw new PlanNotExecutable(reason);
   };
 
+  // T-396 — what each capability step produced, keyed by the DECLARING step's
+  // id, so `{{steps.retrieve.output}}` on a later step resolves to the thing
+  // the earlier one actually returned, and so a tool's caller can read its
+  // worker's own typed output. In memory for the life of the walk.
+  const outputs = new Map<string, unknown>();
+
   // ── the walk ──────────────────────────────────────────────────────────────
   let ordered: PlannedStep[];
   try {
@@ -460,11 +474,6 @@ export async function runChain(
   // did not feed it.
   const failures: Array<{ stage: PlanStage; reason: string }> = [];
   const failed = new Set<Id>();
-  // T-396 — what each capability step produced, keyed by the DECLARING step's
-  // id, so `{{steps.retrieve.output}}` on a later step resolves to the thing
-  // the earlier one actually returned. In memory for the life of the walk: a
-  // step output is not a record, it is a value in flight.
-  const outputs = new Map<string, unknown>();
 
   for (const planned of ordered) {
     // a step whose dependencies did not run does not run either, and is
@@ -631,13 +640,13 @@ export async function runChain(
     await finishPlan(db, plan.id, 'failed');
     const finished = await finishRun(db, run.id, 'failed');
     if (failures.length > 0) throw new StepsFailed(failures);
-    return { run: finished, suggestionIds: [] };
+    return { run: finished, suggestionIds: [], outputs: Object.fromEntries(outputs) };
   }
 
   if (failures.length === 0) {
     await finishPlan(db, plan.id, 'complete');
     const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
-    return { run: finished, suggestionIds: cited.suggestionIds };
+    return { run: finished, suggestionIds: cited.suggestionIds, outputs: Object.fromEntries(outputs) };
   }
 
   // **The answer body reports what did not run**, not only the footer. This is
@@ -661,7 +670,7 @@ export async function runChain(
 
   await finishPlan(db, plan.id, 'complete');
   const finished = await finishRun(db, run.id, 'completed_with_failures', { response: answer });
-  return { run: finished, suggestionIds: cited.suggestionIds };
+  return { run: finished, suggestionIds: cited.suggestionIds, outputs: Object.fromEntries(outputs) };
 }
 
 /**

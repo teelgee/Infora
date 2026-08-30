@@ -10,9 +10,12 @@ import { bindWorkflow, WORKFLOW_RUNNER, WorkflowNotRunnable } from './runner';
 import { loadWorkflows } from './load';
 import type { KnownWorkers } from './validate';
 
+// the registry the shipped definitions are validated against — T-309 added
+// `document-creation.yaml`, which names the built writing capability
+const BUILT = ['corpus_retrieval', 'extractor', 'document_builder'];
 const workers: KnownWorkers = {
-  has: (worker) => worker === 'corpus_retrieval',
-  list: () => ['corpus_retrieval'],
+  has: (worker) => BUILT.includes(worker),
+  list: () => BUILT,
 };
 
 const shipped = () => loadWorkflows({ workers }).get('project-question')!;

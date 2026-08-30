@@ -79,3 +79,15 @@ export type {
   ClassifierVerdict,
   ClassifyInput,
 } from './classify';
+// T-309 — the document creator's plan: computed in CODE, priced before the
+// click, and stating its coverage before the run and after it in the same shape
+// (ADR-0053 §4/§5 — run semantics, not checker-specific).
+export {
+  coverageAfter,
+  coverageBefore,
+  planDocumentCreation,
+  SECTION_COMPLETION_TOKENS,
+  SOURCE_PROMPT_TOKENS,
+  TEMPLATE_PROMPT_TOKENS,
+} from './tool-plan';
+export type { DocumentCreationPlanInput } from './tool-plan';

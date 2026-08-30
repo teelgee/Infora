@@ -38,6 +38,7 @@ import { agentActRoutes } from './agent-acts';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
+import { documentCreationRoutes } from './document-creation';
 import { styleGuideRoutes } from './style-guide';
 import { uploadRoutes } from './upload';
 
@@ -156,14 +157,29 @@ export function buildApp(deps: AppDeps) {
   // schemas are read here, at boot, so a definition naming a template that does
   // not exist fails in front of whoever changed it (the workflow loader's own
   // rule, one layer along).
+  const templates = loadDocumentTemplates();
   const capabilities = createCapabilityRegistry({
     db: deps.db,
     router: deps.router,
     assemble,
-    templates: loadDocumentTemplates(),
+    templates,
     schemas: loadExtractionSchemas(),
     ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
   });
+  // T-309 — the leaves the chain binds, hoisted so the document creator's own
+  // route uses the SAME ones the Ask path does. Two bindings would be two
+  // answers to "what does a step of this deployment run".
+  const leaves = {
+    retrieve: createRetrieveLeaf(
+      { assemble },
+      { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) },
+    ),
+    draft: createDraftLeaf(deps.router, {
+      ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
+    }),
+    groundCheck: createGroundCheckLeaf(),
+    cite: createCiteLeaf(),
+  };
 
   app.route(
     '/',
@@ -171,20 +187,11 @@ export function buildApp(deps: AppDeps) {
       db: deps.db,
       narrowedRetrieve,
       capabilities,
-      leaves: {
-        // T-313 — the retrieve step now records what embedding the query cost,
-        // so it needs the same rate table the draft leaf has
-        retrieve: createRetrieveLeaf(
-          { assemble },
-          { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) },
-        ),
-        // T-254 — the rate table is bound HERE, at composition, where the
-        // deployment's configuration is known. Keyed by model id, so the price
-        // follows whichever model the router actually chose.
-        draft: createDraftLeaf(deps.router, { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) }),
-        groundCheck: createGroundCheckLeaf(),
-        cite: createCiteLeaf(),
-      },
+      // T-313 — the retrieve step records what embedding the query cost, so it
+      // needs the same rate table the draft leaf has; T-254 binds that table
+      // HERE, at composition, keyed by model id, so the price follows whichever
+      // model the router actually chose.
+      leaves,
       // T-299 — the registry is resolved at composition, not per request:
       // production reads the definitions once and freezes them, so a Lens
       // cannot change underneath a run already recording which produced it.
@@ -253,6 +260,21 @@ export function buildApp(deps: AppDeps) {
   // T-397 — the PROJECT style guide, project-scoped where the rulebook is
   // organisation-scoped: context is classified by ownership (ADR-0021).
   app.route('/', styleGuideRoutes(deps));
+
+  // T-309 — the document creator: the plan before the click, then the run.
+  app.route(
+    '/',
+    documentCreationRoutes({
+      db: deps.db,
+      leaves,
+      templates,
+      capabilities,
+      ...(deps.workflows !== undefined && { workflows: deps.workflows }),
+      ...(deps.workers !== undefined && { workers: deps.workers }),
+      ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
+      ...(deps.draftModelId !== undefined && { draftModelId: deps.draftModelId }),
+    }),
+  );
   app.route('/', uploadRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053

@@ -104,6 +104,13 @@ export type AppDeps = {
    * such — never 0, which reads as free.
    */
   modelRates?: ModelRates;
+  /**
+   * T-309 — the model id the drafting call is expected to be routed to, so the
+   * document creator's plan can PRICE ITSELF BEFORE THE CLICK against the rate
+   * table above. Absent means the estimate is unpriced — reported as `null`,
+   * never as free (T-254).
+   */
+  draftModelId?: string;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);

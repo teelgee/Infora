@@ -6,9 +6,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { loadWorkflows, WorkflowValidationError } from './load';
 import type { KnownWorkers } from './validate';
 
+// every worker the shipped definitions name — `document_builder` since T-309
 const workers: KnownWorkers = {
-  has: (worker) => worker === 'corpus_retrieval',
-  list: () => ['corpus_retrieval'],
+  has: (worker) => ['corpus_retrieval', 'extractor', 'document_builder'].includes(worker),
+  list: () => ['corpus_retrieval', 'extractor', 'document_builder'],
 };
 
 const dirs: string[] = [];

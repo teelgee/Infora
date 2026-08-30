@@ -1,0 +1,84 @@
+# T-309 -- the document creator's DAG. `document_builder` (T-280) wrapped in a
+# declared workflow, which is what makes the drafting path EVALUABLE END TO END
+# where an improvised one is not: same inputs, same steps, same order.
+#
+# ONE STEP, AND THE SINGLE STEP IS THE DESIGN RATHER THAN A SHORTCUT.
+# `document_builder` DOES NOT RETRIEVE. Its sources are version ids it is
+# handed, and the owner's own description of this tool is why: "you build the
+# structure of a document, define what content you want in it, and the sources
+# it will draw from in the library". Sources are chosen AHEAD of drafting, so
+# the run carries an explicit source manifest rather than a retrieval guess --
+# which is what makes the output auditable against what the author asked for.
+# A `corpus_retrieval` step here would be a search whose answer the builder
+# would then narrow away, and a step that spends money and changes nothing is
+# worse than no step.
+#
+# The builder still reaches those sources' TEXT only through the assembly
+# gateway, so an id the author cannot reach returns nothing and is reported as
+# unreachable rather than silently dropped (T-274's rule).
+#
+# `writes: sandbox_document` is load-bearing rather than descriptive. Since
+# T-396 a capability that writes runs ONLY inside a workflow that declared its
+# write and its label propagation, and the run refuses before any spend
+# otherwise -- so this is the declaration that makes validator rule 4 bite.
+# `refuse` and not `require_override`: the builder already withholds the write
+# and reports both labels when the sources are broader than the destination
+# (T-249's finding F2), and there is no override path in V1 for a tool nobody
+# has asked to override.
+id: document-creation
+version: 1
+label: Create a document
+description: >-
+  Draft a document into a named template from library sources the author chose,
+  recording what each source was used for and refusing a destination broader
+  than the sources allow.
+status: active
+
+parameters:
+  - name: template_id
+    type: string
+    required: true
+    description: Which outline to draft into, from the templates this deployment carries.
+  - name: brief
+    type: string
+    required: true
+    description: What this document is for, in your own words.
+  - name: sources
+    type: id_list
+    required: true
+    description: >-
+      The library documents this draft may draw on. Chosen before drafting, so
+      the result can be checked against what you asked for.
+  - name: destination_sandbox_id
+    type: id
+    required: true
+    description: The working area the draft is written into.
+  - name: title
+    type: string
+    required: true
+    description: What to call the document.
+
+output_schema:
+  document_id: the sandbox document written, or null where the write was withheld
+  manifest: every source used, with the template section it was used for
+  label: the computed access label, the source that set it, and the destination's
+  withheld: sentences that resolved to no source and were not written
+  unreachableSources: named sources the gateway did not return
+
+steps:
+  - id: build
+    stage: present
+    worker: document_builder
+    inputs:
+      template_id: '{{parameters.template_id}}'
+      brief: '{{parameters.brief}}'
+      sources: '{{parameters.sources}}'
+      destination_sandbox_id: '{{parameters.destination_sandbox_id}}'
+      title: '{{parameters.title}}'
+    depends_on: []
+
+requires_workers:
+  - document_builder
+
+writes: sandbox_document
+label_propagation: refuse

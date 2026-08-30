@@ -118,6 +118,9 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
       router: deps.router,
       assemble: deps.assemble,
       templates,
+      // T-396 — the rate table, so the drafting call's cost reaches the Step
+      // row the executor opens. Absent records `cost: null` (unpriced), never 0
+      ...(deps.rates !== undefined && { rates: deps.rates }),
     });
     built.set(DOCUMENT_BUILDER.name, {
       declaration: DOCUMENT_BUILDER,

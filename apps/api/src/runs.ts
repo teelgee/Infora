@@ -256,7 +256,16 @@ export function runRoutes(deps: {
       // and a deployment with neither runs the coded chain unchanged.
       const pinned =
         deps.askWorkflowId === undefined ? undefined : deps.workflows?.get(deps.askWorkflowId);
-      const available = deps.workflows?.list() ?? [];
+      // T-309 — **a chat turn is never classified into a workflow that WRITES.**
+      // The document creator is a tool the user launches deliberately, with a
+      // destination chosen and a plan seen first; a question that silently
+      // started writing a document into a sandbox would decide who can read the
+      // result (T-295) on the user's behalf, off a classification they never
+      // saw. So the candidate set is the read-only workflows, and the writing
+      // ones are reached through their own launcher.
+      const available = (deps.workflows?.list() ?? []).filter(
+        (candidate) => candidate.writes === 'none',
+      );
 
       const outcome =
         pinned !== undefined

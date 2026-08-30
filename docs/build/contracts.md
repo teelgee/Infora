@@ -837,3 +837,20 @@ are not recorded here.
   above a group's mechanical fixes and withhold it from its rewrites — and
   `apps/web` depends only on `contracts` and `ui`. So either the test lives here
   and both sides call it, or the surface guesses. One test, one answer.
+- **2026-08-30 (T-309) — the document creator's plan is a CONTRACT type whose
+  function lives elsewhere, and the split is the reason it exists.** `ToolPlan`
+  and `PlannedToolStep` are in `contracts`; `planDocumentCreation` is in
+  `capabilities`, because pricing needs the model rates and `contracts` depends
+  on nothing. The types are not there for tidiness: the surface that renders a
+  plan before the click sees `contracts` and `ui` alone, so a plan it cannot
+  type is a plan it cannot show — and ADR-0053 §5 makes showing it, before any
+  spend, the point. `estimate.cost` is `number | null` for T-254's reason
+  applied one step earlier than usual: an unpriced **estimate** must read as
+  unpriced, because a plausible zero in a preview is what a business case gets
+  built on.
+- **2026-08-30 (T-309) — `runChain` returns `outputs`.** A tool's caller needs
+  its worker's own typed return — a manifest, a computed label, a list of
+  sources the library did not have — and none of that is on the Run record,
+  which stores an answer and an audit. Keyed on the declaring workflow step's
+  id, in memory only: a step output is a value in flight, and the durable facts
+  (cost, model, source set) are already Step columns.
