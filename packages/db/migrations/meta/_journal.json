@@ -421,6 +421,13 @@
       "when": 1787942853173,
       "tag": "0059_agent-acts",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788111572934,
+      "tag": "0060_project-style-guide",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ export {
   parseClaims,
   SYSTEM_CHAT_CLAUSES,
   SYSTEM_DOCUMENT_CLAUSES,
+  STEER_PRECEDENCE,
 } from './grounded-draft';
 export type {
   DraftedClaim,

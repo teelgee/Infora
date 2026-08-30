@@ -8,8 +8,16 @@
 //     exactly the kind of thing ADR-0048 §6 calls an ethical-wall breach
 //     delivered by a feature nobody thinks of as crossing the wall.
 //
-// Plus the one that makes ADR-0048 §5 implementable: a guiding item carries a
-// clause address and NO source, so it can be quoted and can never be cited.
+// Plus the one that makes ADR-0048 §5 implementable: the item carries a clause
+// address and NO source, so it can be quoted and can never be cited.
+//
+// T-397 — THE CHANNEL MOVED FROM `guiding` TO `informing` and every assertion
+// below moved with it, unchanged in substance. ADR-0048 §4's dated addendum
+// (2026-08-30): ADR-0021 classifies context by OWNERSHIP, and a firm's drafting
+// manual is the firm's own IP. **Nothing about reach changed**, which is the
+// claim the whole file makes and which the relabel had to leave standing —
+// there is a test at the foot asserting exactly that, because "we only changed
+// a label" is the kind of sentence that needs evidence rather than assurance.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { AssemblyRequest } from '@infora/contracts';
@@ -98,18 +106,18 @@ afterAll(async () => {
 describe('org context is portable to every project the organisation touches', () => {
   it('reaches its own people on the project it was loaded beside', async () => {
     const { items } = await assemble(ask(ashcombeRequester, projectA));
-    const rules = items.filter((i) => i.channel === 'guiding');
+    const rules = items.filter((i) => i.channel === 'informing');
     expect(rules.map((r) => r.rule?.clause)).toEqual(['4.2', '7']);
   });
 
   it('reaches the same organisation on a DIFFERENT project — no project key exists', async () => {
     const { items } = await assemble(ask(ashcombeElsewhere, projectB));
-    expect(items.filter((i) => i.channel === 'guiding')).toHaveLength(2);
+    expect(items.filter((i) => i.channel === 'informing')).toHaveLength(2);
   });
 
   it('reaches nobody else, on the project they SHARE (ADR-0048 §6)', async () => {
     const { items } = await assemble(ask(rivalRequester, projectA));
-    expect(items.filter((i) => i.channel === 'guiding')).toEqual([]);
+    expect(items.filter((i) => i.channel === 'informing')).toEqual([]);
   });
 });
 
@@ -124,7 +132,7 @@ describe('quotable, and never citable (ADR-0048 §5)', () => {
 
   it('has NO source — the absence is the guarantee, not an omission', async () => {
     const { items } = await assemble(ask(ashcombeRequester, projectA));
-    for (const rule of items.filter((i) => i.channel === 'guiding')) {
+    for (const rule of items.filter((i) => i.channel === 'informing')) {
       expect(rule.source).toBeUndefined();
       expect(rule.corpus).toBeUndefined();
     }
@@ -135,7 +143,7 @@ describe('currency by state', () => {
   it('a retired rulebook stops steering and is not deleted', async () => {
     await db.update(s.rulebooks).set({ retiredAt: new Date() }).where(eq(s.rulebooks.id, rulebookId));
     const { items } = await assemble(ask(ashcombeRequester, projectA));
-    expect(items.filter((i) => i.channel === 'guiding')).toEqual([]);
+    expect(items.filter((i) => i.channel === 'informing')).toEqual([]);
     // the words a past finding quoted still resolve
     const clauses = await db
       .select()
@@ -143,5 +151,25 @@ describe('currency by state', () => {
       .where(eq(s.rulebookClauses.rulebookId, rulebookId));
     expect(clauses).toHaveLength(2);
     await db.update(s.rulebooks).set({ retiredAt: null }).where(eq(s.rulebooks.id, rulebookId));
+  });
+});
+
+// ── T-397 — THE RELABEL CHANGED THE LABEL AND NOTHING ELSE ──────────────────
+describe('the channel correction is a relabel, not a reach change (T-397)', () => {
+  it('the same three reach facts hold, stated once more against the new label', async () => {
+    // own people, own project
+    const own = await assemble(ask(ashcombeRequester, projectA));
+    expect(own.items.filter((i) => i.channel === 'informing')).toHaveLength(2);
+    // own people, a DIFFERENT project — no project key exists on this store
+    const elsewhere = await assemble(ask(ashcombeElsewhere, projectB));
+    expect(elsewhere.items.filter((i) => i.channel === 'informing')).toHaveLength(2);
+    // and nobody else, on the project they share
+    const rivalRead = await assemble(ask(rivalRequester, projectA));
+    expect(rivalRead.items.filter((i) => i.channel === 'informing')).toEqual([]);
+  });
+
+  it('NOTHING is on the guiding channel from this store — the label really moved', async () => {
+    const { items } = await assemble(ask(ashcombeRequester, projectA));
+    expect(items.filter((i) => i.channel === 'guiding')).toEqual([]);
   });
 });

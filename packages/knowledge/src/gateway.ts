@@ -12,7 +12,8 @@ import type { Attenuation, EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
-import { guidingRules } from './guiding';
+import { guidingStyleGuide } from './guiding';
+import { informingRules } from './informing';
 import { mergeChannels } from './merge';
 import { groundedLibrary } from './retrieval';
 
@@ -26,20 +27,27 @@ export type GatewayDeps = { db: Db; router: Router };
 // corpus within grounded — behind the one signature. The grounded library is
 // real (T-031); the authority corpus arrives with its slice.
 //
-// T-308 — GUIDING IS REAL NOW: the requester's own organisation's rulebook
-// (drawer 7, ADR-0048 §4). Informing is still empty; its store is a later
-// drawer. Note what the guiding pipeline does NOT take — the request text.
-// A rulebook rides the channel in its entirety and is not retrieved against
-// the question, so the parameter is unused here on purpose rather than by
-// oversight.
+// T-308 and T-397 — BOTH STEERING CHANNELS ARE REAL, and which is which is a
+// ruling rather than a preference. ADR-0021 classifies context by OWNERSHIP:
+//
+//   • GUIDING — the PROJECT's style guide (T-397). Project context, binding
+//     every organisation on the project, keyed on the project alone. This is
+//     the first material the guiding channel has ever carried.
+//   • INFORMING — the requester's own organisation's rulebook (T-308), keyed on
+//     the organisation alone. ADR-0048 §4 placed it on guiding; its own dated
+//     addendum (2026-08-30) corrects that, and the label moved with it.
+//
+// Note what NEITHER pipeline takes — the request text. Both ride their channel
+// in their entirety and are not retrieved against the question, so the
+// parameter is unused here on purpose rather than by oversight.
 type Pipeline = (
   deps: GatewayDeps,
   slice: EntitledSlice,
   request: AssemblyRequest['request'],
 ) => Promise<AssembledItem[]>;
 
-const guiding: Pipeline = async (deps, slice) => guidingRules(deps.db, slice.organisationId);
-const informing: Pipeline = async () => [];
+const guiding: Pipeline = async (deps, slice) => guidingStyleGuide(deps.db, slice.projectId);
+const informing: Pipeline = async (deps, slice) => informingRules(deps.db, slice.organisationId);
 
 // An unentitled requester gets an empty input AND an empty coverage: zero
 // candidates is the honest number, and it reads identically to an empty corpus

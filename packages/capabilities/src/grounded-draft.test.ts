@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AssembledInput } from '@infora/contracts';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, ChatRequest, EmbeddingAdapter } from '@infora/model';
-import { groundedDraft, parseClaims } from './grounded-draft';
+import { groundedDraft, parseClaims, STEER_PRECEDENCE } from './grounded-draft';
 
 const embeddings: EmbeddingAdapter = {
   modelId: 'unused',
@@ -127,5 +127,39 @@ describe('groundedDraft (T-043)', () => {
       { text: 'Hallucinated figure.', sourceRef: undefined },
       { text: 'And a bare assertion.' },
     ]);
+  });
+});
+
+// ── T-397 — the precedence, stated rather than left to ordering ────────────
+describe('the steering precedence (T-397, ADR-0029 refined 2026-07-06)', () => {
+  const retrieved = (channels: Array<'guiding' | 'informing'>) => ({
+    items: channels.map((channel) => ({ channel, content: `${channel} rule` })),
+    budget: { tokenLimit: 12000, tokensUsed: 10 },
+  });
+
+  it('states that the project guidance governs where the two conflict', async () => {
+    let prompt = '';
+    await groundedDraft(
+      routerReplying('ok', (req) => {
+        prompt = req.messages[0]!.content;
+      }),
+      { request: 'q', retrieved: retrieved(['guiding', 'informing']) as never },
+    );
+    expect(prompt).toContain(STEER_PRECEDENCE);
+  });
+
+  it('says NOTHING about precedence where only one channel is present', async () => {
+    // a precedence announced over one source describes a conflict that cannot
+    // arise, and steer that describes nothing is steer that gets ignored
+    for (const only of [['guiding'], ['informing']] as const) {
+      let prompt = '';
+      await groundedDraft(
+        routerReplying('ok', (req) => {
+          prompt = req.messages[0]!.content;
+        }),
+        { request: 'q', retrieved: retrieved([...only]) as never },
+      );
+      expect(prompt).not.toContain(STEER_PRECEDENCE);
+    }
   });
 });

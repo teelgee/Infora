@@ -399,9 +399,11 @@ agent can see an edge into a container the wall hides.
 
 ## Drawer 7 — Context
 *The scoped context stores (ADR-0020, component 4) — drawn and built 2026-08-27
-(T-308, ADR-0048, migration 0051). **Org context only so far:** the firm's
-rulebook. Programme and project context have no tables here and are not
-implied by these two.*
+(T-308, ADR-0048, migration 0051), **and widened to project context 2026-08-30**
+(T-397, ADR-0053 §3, migration 0060). **Two of the three scoped stores now have
+tables:** org context (the firm's rulebook) and project context (the project
+style guide). Programme context still has none and is not implied by these
+four.*
 **Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
 
 **A rulebook is a house drafting manual, and it steers rather than grounds**
@@ -433,6 +435,59 @@ a guessed address, because an invented one looks checkable.
 **Currency by state**: `retired_at` on the rulebook, never a delete, so a
 finding written against a rule that has since been withdrawn still resolves to
 the words it quoted.
+
+### The project style guide *(drawn 2026-08-30, T-397, migration 0060)*
+
+*In plain terms: a project can have its own writing rules — an owner's house
+style for the scheme — and every organisation working on that project is held
+to them. It is stored the same way a firm's own manual is, clause by clause, so
+a check can quote §4.2 rather than "page 11". The firm's manual still applies
+where the project's is silent; where the two disagree, the project's wins.*
+
+**Two tables, deliberately the rulebook's shape one store along.** ADR-0053 §3
+makes the project style guide *"project context, owner-curated, binding every
+organisation on the project"*, and *"clause-structured like the rulebook so a
+finding can quote §4.2"*. So the same two-table shape, the same nullable clause
+label with the same honest null, the same verbatim text and span, the same
+`retired_at` currency-by-state — and none of it copied for tidiness: every one
+of those decisions has the same reason here that it had there, and a store that
+diverged would make the checker's two style sources need two readers.
+
+**What differs is the key, and the key is the ruling.** A rulebook's only scope
+key is the **organisation**; a style guide's only scope key is the **project**.
+That is ADR-0021's classification by ownership applied twice: a firm's drafting
+manual is the firm's own IP and leaves when the firm leaves, so it is org
+context on the **informing** channel; a project style guide belongs to the
+project and binds everyone on it, so it is project context on the **guiding**
+channel — *the first material that channel has ever actually carried*
+(`CONTEXT.md`: *"the project's templates, style guides and guardrails"*).
+
+⚠ **`project_style_guides` has no `organisation_id`, and the absence is the
+point.** It is not org material scoped to a project; it is the project's. Adding
+an owning-organisation column would make it a firm's manual wearing a project's
+name, and the wall would then have two answers to *"who may read this clause"* —
+which is what makes a quoted style-guide clause **not** org-private, where a
+quoted rulebook clause is (ADR-0053 §9).
+
+**Fields drawn before the migration was written:**
+
+`project_style_guides` — `id`; `project_id` (the only scope key, FK to
+`projects`); `title`; `source_format`; `loaded_by_user_id` (**a named person**,
+registered in [personal-data.md](../architecture/personal-data.md) in the same
+commit, on the rulebook row's precedent); `loaded_at`; `retired_at` (nullable —
+currency by state, never a delete, so a finding still resolves to the words it
+quoted).
+
+`project_style_guide_clauses` — `id`; `style_guide_id` (FK, cascade);
+`ordinal` (reading order, unique per guide); `clause` (**nullable** — the
+manual's own number, digits and dots, and the null is honest); `heading`
+(nullable); `content` (verbatim); `span_start` / `span_end` into the extracted
+text, so a quote is checkable rather than merely precise.
+
+**One migration for both halves of T-397**, because the relabel half changes no
+schema at all: the rulebook moving from the *guiding* channel to the *informing*
+one is a code label and its tests, and the query is untouched — same table, same
+`organisation_id` key, **no wall predicate added and none removed**.
 
 ## Drawer 8 — Notifications
 *The telling: one persisted, event-shaped record per thing a person needs to

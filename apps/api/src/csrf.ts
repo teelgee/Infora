@@ -19,6 +19,8 @@ const multipartPaths = [
   /^\/projects\/[^/]+\/plan\/import$/,
   /^\/projects\/[^/]+\/naming-scheme\/import$/,
   /^\/organisation\/rulebooks$/,
+  // T-397 — the project style guide, the rulebook's twin one store along
+  /^\/projects\/[^/]+\/style-guides$/,
 ];
 
 export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHandler<AppEnv> {

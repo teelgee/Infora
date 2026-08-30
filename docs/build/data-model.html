@@ -866,6 +866,31 @@
       <h2>Drawer 7 — Context</h2>
       <p class="blurb">The scoped context stores (ADR-0020). Org context only so far: the firm’s rulebook and its verbatim clauses (T-308, ADR-0048).</p>
       <article class="card d7">
+        <h3>project_style_guide_clauses</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">style_guide_id</td><td class="type">uuid</td><td class="notes">→ project_style_guides.id</td></tr>
+          <tr><td class="col">ordinal</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">clause</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">heading</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">span_start</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">span_end</td><td class="type">integer</td><td class="notes"></td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d7">
+        <h3>project_style_guides</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">title</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">source_format</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">loaded_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">loaded_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d7">
         <h3>rulebook_clauses</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

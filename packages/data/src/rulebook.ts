@@ -198,3 +198,77 @@ export async function retireRulebook(
     .returning({ id: s.rulebooks.id });
   return retired.length > 0;
 }
+
+// ── T-397 — the project style guide, loaded by the SAME parser ───────────────
+//
+// `parseRulebook` is reused rather than copied, and the reuse is the design:
+// ADR-0053 §3 says the style guide is "clause-structured like the rulebook so a
+// finding can quote §4.2 rather than 'page 11'", and two parsers would be two
+// answers to what a clause is. The checker reads both sources through one
+// shape; a second parser is how they would drift.
+
+export async function loadStyleGuide(
+  db: Db,
+  input: {
+    /** the ONLY scope key — a style guide belongs to the project, not to a firm */
+    projectId: string;
+    title: string;
+    sourceFormat: string;
+    loadedByUserId: string;
+    text: string;
+  },
+): Promise<{ styleGuideId: string; clauses: number; labelled: number }> {
+  const parsed = parseRulebook(input.text);
+  const [guide] = await db
+    .insert(s.projectStyleGuides)
+    .values({
+      projectId: input.projectId,
+      title: input.title,
+      sourceFormat: input.sourceFormat,
+      loadedByUserId: input.loadedByUserId,
+    })
+    .returning({ id: s.projectStyleGuides.id });
+  if (parsed.clauses.length > 0) {
+    await db.insert(s.projectStyleGuideClauses).values(
+      parsed.clauses.map((clause) => ({
+        styleGuideId: guide!.id,
+        ordinal: clause.index,
+        clause: clause.clause,
+        heading: clause.heading,
+        content: clause.content,
+        spanStart: clause.start,
+        spanEnd: clause.end,
+      })),
+    );
+  }
+  return { styleGuideId: guide!.id, clauses: parsed.clauses.length, labelled: parsed.labelled };
+}
+
+/**
+ * Retire a style guide — currency by state, never a delete, for the rulebook's
+ * reason exactly: a finding written against a clause the project has since
+ * withdrawn still has to resolve to the words it quoted.
+ *
+ * **An amendment is a retire-and-reload**, not an edit, and that is deliberate
+ * rather than a limitation: the stored clause text is what past findings quote,
+ * so editing one in place would rewrite the evidence behind a review that has
+ * already happened.
+ */
+export async function retireStyleGuide(
+  db: Db,
+  input: { styleGuideId: string; projectId: string },
+): Promise<boolean> {
+  const retired = await db
+    .update(s.projectStyleGuides)
+    .set({ retiredAt: new Date() })
+    .where(
+      and(
+        eq(s.projectStyleGuides.id, input.styleGuideId),
+        // the ceiling binds here rather than being trusted from the caller
+        eq(s.projectStyleGuides.projectId, input.projectId),
+        isNull(s.projectStyleGuides.retiredAt),
+      ),
+    )
+    .returning({ id: s.projectStyleGuides.id });
+  return retired.length > 0;
+}

@@ -38,6 +38,7 @@ import { agentActRoutes } from './agent-acts';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
+import { styleGuideRoutes } from './style-guide';
 import { uploadRoutes } from './upload';
 
 export type { AppDeps } from './requester';
@@ -249,6 +250,9 @@ export function buildApp(deps: AppDeps) {
   // Upload + open-in-editor conversion (Slice A, ADR-0034) — T-122
   // T-308 — the firm's rulebook in org context (ADR-0048 §4)
   app.route('/', rulebookRoutes(deps));
+  // T-397 — the PROJECT style guide, project-scoped where the rulebook is
+  // organisation-scoped: context is classified by ownership (ADR-0021).
+  app.route('/', styleGuideRoutes(deps));
   app.route('/', uploadRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053

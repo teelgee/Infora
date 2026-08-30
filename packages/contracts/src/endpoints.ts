@@ -640,6 +640,24 @@ export type RulebookRecord = {
 };
 export type ListRulebooksResponse = { items: RulebookRecord[] };
 
+// T-397 — the PROJECT STYLE GUIDE (ADR-0053 §3). Project context, owner-curated,
+// binding every organisation on the project — so the route is project-scoped
+// where the rulebook's is organisation-scoped, and that difference is the whole
+// classification: context is classified by OWNERSHIP, not by purpose (ADR-0021).
+//
+// GET    /projects/:projectId/style-guides       every participant on the
+//                                                project — a guide that binds
+//                                                you is one you may read
+// POST   /projects/:projectId/style-guides       the OWNER organisation's super
+//                                                user only (see style-guide.ts)
+// DELETE /projects/:projectId/style-guides/:id   retire — never a delete
+//
+// The record is `RulebookRecord`'s shape and deliberately not a second type:
+// the two style sources are read by one checker through one shape, and a
+// separate record would be where they start to drift.
+export type StyleGuideRecord = RulebookRecord;
+export type ListStyleGuidesResponse = { items: StyleGuideRecord[] };
+
 export const enrolParticipantBody = z.object({ userId: id });
 export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;
 

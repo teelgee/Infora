@@ -821,3 +821,12 @@ are not recorded here.
   `BoundPlan` gains `writes` and `labelPropagation` for the same
   keep-it-checkable reason: the executor is where validator rule 4 finally
   bites, and it cannot bite on a declaration it was never handed.
+- **2026-08-30 (T-397) — `StyleGuideRecord` is an alias for `RulebookRecord`,
+  and the alias is the decision.** The project style guide is a second style
+  source with a different owner and a different channel, and the temptation was
+  a second record type. It gets the same one: ADR-0053 §3 has the checker read
+  **both** sources through one shape so a finding can quote *§4.2* whichever it
+  came from, and two records is where those shapes would drift. What differs is
+  the **route**, not the payload — `/projects/:projectId/style-guides` against
+  the rulebook's `/organisation/rulebooks` — because context is classified by
+  **ownership**, and a project style guide belongs to the project.

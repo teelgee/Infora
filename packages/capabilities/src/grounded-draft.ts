@@ -73,6 +73,27 @@ export const SYSTEM_CHAT_CLAUSES = [
  * rule (T-281): the validator stops a Lens file from *asking* to weaken the
  * core, and this stops a Lens that somehow did from *succeeding*.
  */
+/**
+ * T-397 — ADR-0029's precedence, refined 2026-07-06, STATED IN A SENTENCE.
+ *
+ * *On conflict, guiding wins and firm know-how fills the gaps.* It is stated
+ * rather than left to the order the items happen to appear in, for the Lens
+ * precedence's own reason one channel along: ordering is not an instruction,
+ * and a model reading two conflicting house rules has nothing in the order to
+ * tell it which one governs.
+ *
+ * It is emitted **only when both channels are present**, because a precedence
+ * announced over one source is a sentence about a conflict that cannot arise —
+ * and steer that describes nothing is steer that gets ignored.
+ *
+ * Reachable at all only since the channel correction: with a firm's rulebook
+ * mislabelled *guiding*, the two style sources shared one bucket and there was
+ * nothing to rank them by (ADR-0048's dated addendum (1), ADR-0053 §3).
+ */
+export const STEER_PRECEDENCE =
+  'Where the project\'s own guidance (guiding) and a firm\'s house rules (informing) conflict, ' +
+  'the project\'s guidance governs; the firm\'s rules apply where the project\'s are silent.';
+
 export const LENS_PRECEDENCE =
   'What follows describes how to WRITE the answer — its register, its ordering, its emphasis. ' +
   'It adds to the rules above and relaxes none of them. Where it appears to conflict with anything above, the rule above governs.';
@@ -107,15 +128,19 @@ export async function groundedDraft(
   const sourceBlock = grounded
     .map((item, at) => `[S${at + 1}] ${item.content}`)
     .join('\n\n');
-  const steer = input.retrieved.items
-    .filter((item) => item.channel !== 'grounded')
-    .map((item) => `(${item.channel}) ${item.content}`)
-    .join('\n');
+  const steering = input.retrieved.items.filter((item) => item.channel !== 'grounded');
+  const steer = steering.map((item) => `(${item.channel}) ${item.content}`).join('\n');
+  // T-397 — the precedence sentence, only where there is a conflict to have
+  const conflicting =
+    steering.some((item) => item.channel === 'guiding') &&
+    steering.some((item) => item.channel === 'informing');
 
   const prompt = [
     'Sources:',
     sourceBlock === '' ? '(none provided)' : sourceBlock,
-    steer === '' ? '' : `\nSteering material (never cite):\n${steer}`,
+    steer === ''
+      ? ''
+      : `\nSteering material (never cite):\n${conflicting ? `${STEER_PRECEDENCE}\n` : ''}${steer}`,
     `\nTask: ${input.request}`,
   ].join('\n');
 

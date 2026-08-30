@@ -9,4 +9,8 @@ export type { IngestSummary, IngestOptions, SweepOptions } from './ingest';
 // Deliberately NOT the chunker: a clause is stored as the manual reads it, so
 // a finding can quote it verbatim (see rulebook.ts).
 export { parseRulebook, loadRulebook, retireRulebook } from './rulebook';
+// T-397 — the project style guide, loaded by the SAME clause parser: two
+// parsers would be two answers to what a clause is, and the checker reads both
+// style sources through one shape.
+export { loadStyleGuide, retireStyleGuide } from './rulebook';
 export type { RulebookClause, RulebookParse } from './rulebook';
