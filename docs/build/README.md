@@ -15,18 +15,18 @@ No database migration or application code is written until the artefacts below e
 
 ## Artefacts
 
-**Two axes, deliberately kept apart** — a document can be perfectly settled *and* superseded, which the old single-column vocabulary could not say.
+Each document in the table carries two separate marks, because they answer two different questions. A document can be completely settled and also no longer current — one mark cannot say both.
 
-**Lifecycle** — is this worked from *now*?
+**Lifecycle** — is this document worked from *now*?
 ▶ **Live** (the current horizon) · ♻ **Living reference** (updated as the build moves) · ✅ **Finished** (settled or closed — nothing further is expected of it) · ⚙ **Derived** (regenerate, never hand-edit).
 
-> ⚠ **✅ means finished, not "don't read".** It was defined as *"Closed — superseded; precedent only, don't load by default"* until 2026-08-28, and that definition lost: of 295 ✅ marks across `docs/`, **two** were this lifecycle cell and the other 293 mean *built*, *ruled* or *agreed*. An agent that learned the old legend and then met `operating-envelope.md`'s own header — *"Status: ✅ agreed"* — would conclude the pilot's binding numbers were superseded and skip them. **What to load is carried elsewhere and always was:** the `-history` suffix below, and `CLAUDE.md`'s explicit *don't load by default* list. A glyph was never going to carry it.
+> ⚠ **✅ means finished. It does not mean "don't read this".** Until 2026-08-28 the legend defined ✅ as "superseded — don't load by default", and that definition had lost contact with how the mark was actually used: nearly every ✅ in `docs/` means *built*, *ruled* or *agreed*. Reading it the old way is dangerous — `operating-envelope.md` opens with "Status: ✅ agreed", and an agent using the old legend would skip the pilot's binding numbers as stale. If you want to know what *not* to load, that is carried by the `-history` naming rule below and by `CLAUDE.md`'s explicit don't-load list — never by this glyph.
 
 **Maturity** — how settled is the content? 🟢 settled · 🟡 drafted, under review · 🔴 open.
 
-> **Naming rule:** a closed companion takes the **`-history` suffix** beside its live sibling (`plan.md` → `plan-history.md`, `grill-questions.md` → `grill-history.md`). Suffix, never a subfolder — links stay stable, and the pair sorts adjacent so you cannot miss it.
+> **Naming rule:** when a document's closed material moves out, it moves to a companion file named with the **`-history` suffix** (`plan.md` → `plan-history.md`, `grill-questions.md` → `grill-history.md`). A suffix rather than a subfolder, so links stay stable and the pair sorts side by side.
 >
-> **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, both directions): it fails if a `.md` or `.html` file **sitting directly in this folder** is missing from the table below, or if the table names a file that does not exist. Non-recursive, and blind to every other file type. **Add a file here, add its row in the same commit.** The convention in prose is what let a 363-line superseded ticket pack sit in `docs/build/` unnoticed for five weeks; the convention in CI is what catches the next one — and as of 2026-08-28 it is genuinely in CI, which it had never been.
+> **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, in both directions): the build fails if a `.md` or `.html` file sitting directly in this folder is missing from the table below, or if the table names a file that does not exist. The guard does not look inside subfolders and ignores every other file type. **Add a file here, add its row in the same commit.** This rule used to live only in prose, and a 363-line superseded ticket pack sat unnoticed in this folder for five weeks; the guard is what catches the next one, and since 2026-08-28 it genuinely runs in CI.
 
 | Doc | Lifecycle | Purpose | Maturity |
 |-----|-----------|---------|----------|

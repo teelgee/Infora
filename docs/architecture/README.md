@@ -1,6 +1,6 @@
 # The architecture layer
 
-The design record: what Infora **is**, why each boundary sits where it does, and the standing records the pilot is measured and contracted against. This layer sits **above** [the build layer](../build/README.md) and is depended on by it — the gate runs one way, a concept is grilled into here first and translated into `docs/build/` second. Nothing in `docs/build/` invents design; where a build document meets a genuine design gap it goes back to the [grill tracker](../grill-sessions/grill-questions.md) as a `Q-###`, never resolved inline.
+This folder is the design record: what Infora **is**, why each boundary sits where it does, and the standing records the pilot is measured and contracted against. It sits **above** [the build layer](../build/README.md), and the dependency runs one way: a concept is decided here first (through a grill session — the owner's adversarial design review), and only then translated into `docs/build/` for building. Nothing in `docs/build/` invents design. When build work uncovers a genuine design gap, the gap goes to the [open-questions tracker](../grill-sessions/grill-questions.md) as a `Q-###` — it is never quietly resolved inside a build document.
 
 ## What lives here
 

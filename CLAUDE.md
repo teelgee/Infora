@@ -56,6 +56,15 @@ if a task seems to need it, stop and ask.
 > second copy — which is how "`pnpm run check` mirrors CI exactly" stayed wrong
 > for months. Point at a file the task already makes you open.
 
+- **Write for the owner, who is not an engineer** *(owner ruling, 2026-08-30)*.
+  The record had drifted into a dense house style, and agents learn their
+  register from these files — so this rule is about what you write, not just
+  what you say. Every new ADR, ruling, and board entry **opens with a short
+  plain-language paragraph**: what was decided and why, readable by a
+  non-engineer, before any mechanics. Prefer short sentences. Define a term of
+  art the first time you use it, or link `CONTEXT.md`. A report or question
+  addressed to the owner never uses internal shorthand at all. The existing
+  corpus is not rewritten wholesale — this rule is prospective.
 - Run `pnpm run check` before every commit. It is **CI's fast half** — every
   gate it runs, CI runs — but **green locally is not proof CI is green**: CI
   adds the dependency audit, migrate, seed, `eval:smoke`, `build` and e2e on a
