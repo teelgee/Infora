@@ -20,6 +20,7 @@
 // (T-254).
 import { eq } from 'drizzle-orm';
 import type { Assemble, Id } from '@infora/contracts';
+import { STEP_TYPES } from '@infora/contracts';
 import {
   CORPUS_RETRIEVAL,
   DOCUMENT_BUILDER,
@@ -184,5 +185,18 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
     });
   }
 
+  // A capability's name becomes the Step row's type when the executor runs it
+  // (chain.ts writes `planned.worker as StepType`), and `step_type` is a
+  // database enum. A name outside that vocabulary would fail at INSERT, mid-run
+  // — so it fails HERE instead, at composition, where the error names the fix
+  // (added in review, 2026-08-31).
+  for (const name of built.keys()) {
+    if (!(STEP_TYPES as readonly string[]).includes(name)) {
+      throw new Error(
+        `capability '${name}' is not in the step_type vocabulary (packages/contracts STEP_TYPES, ` +
+          `migration 0055) — add the enum value in a drawn migration before registering the capability`,
+      );
+    }
+  }
   return { get: (name) => built.get(name) };
 }

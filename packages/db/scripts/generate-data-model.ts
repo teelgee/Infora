@@ -48,7 +48,7 @@ const DRAWERS: Array<{ key: string; title: string; blurb: string; module: Record
   { key: 'd4', title: 'Drawer 4 — AI output & feedback', blurb: 'Suggestions, citations, and the Signal each resolution writes.', module: drawer4 },
   { key: 'd5', title: 'Drawer 5 — Review', blurb: 'The review cycle at two scopes: cycles, rounds, transmittals, comments, responses, appointments and shares.', module: drawer5 },
   { key: 'd6', title: 'Drawer 6 — The project ontology', blurb: 'The classification vocabulary and the typed edges between containers.', module: drawer6 },
-  { key: 'd7', title: 'Drawer 7 — Context', blurb: 'The scoped context stores (ADR-0020). Org context only so far: the firm’s rulebook and its verbatim clauses (T-308, ADR-0048).', module: drawer7 },
+  { key: 'd7', title: 'Drawer 7 — Context', blurb: 'The scoped context stores (ADR-0020). Org context (the firm’s rulebook, T-308) and project context (the project style guide, T-397) — programme context has no tables yet.', module: drawer7 },
   { key: 'd8', title: 'Drawer 8 — Notifications', blurb: 'The telling: an event-shaped record whose visibility follows the subject it points at, storing a pointer and never content (T-329, ADR-0049).', module: drawer8 },
 ];
 

@@ -281,8 +281,8 @@ export const MECHANICAL_SUMMARY_LIMIT = 80;
  *
  * Three conditions, all structural, and each rejects a real case:
  *
- *   1. **the difference is one contiguous substitution** — peel the common
- *      prefix and suffix and what is left is `find` → `replace`. Two unrelated
+ *   1. **the difference is one contiguous substitution** — the LCS word-token
+ *      diff below finds it, and what is left is `find` → `replace`. Two unrelated
  *      edits in one revision are two decisions and cannot be one click;
  *   2. **applying it everywhere reproduces the proposal exactly** — this is the
  *      "applied consistently" half, and it is what fails *avoid the passive

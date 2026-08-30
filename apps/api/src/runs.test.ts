@@ -603,6 +603,26 @@ describe('model-chosen orchestration and mode labelling (T-266)', () => {
     expect(seen).toEqual(['corpus_retrieval', 'extractor', 'document_builder']);
   });
 
+  it('a chat turn is never offered a workflow that writes (T-309)', async () => {
+    // the guarantee is a one-line filter in runs.ts, and it is section-12
+    // grade: a question that silently started writing a document would decide
+    // who can read the result off a classification the user never saw. Both
+    // shipped definitions are loaded above; only the read-only one may reach
+    // the classifier.
+    const cookie = await session(`t046-consultant-${stamp}@test.local`);
+    let offered: string[] = [];
+    await ask(
+      appWith(async (request) => {
+        offered = request.workflows.map((candidate) => candidate.id);
+        return { match: 'none' };
+      }),
+      cookie,
+      'anything',
+    );
+    expect(offered).toEqual(['project-question']);
+    expect(offered).not.toContain('document-creation');
+  });
+
   it('a deployment with no worker registry hands the classifier nothing — no slice, no workers', async () => {
     const cookie = await session(`t046-consultant-${stamp}@test.local`);
     let seen: string[] | null = null;
