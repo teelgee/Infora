@@ -117,6 +117,8 @@ entitlement rule), so the model is never told an unentitled worker exists.
 **Terms owned.** Capability, Compliance (the checking skill), **Finding**.
 **Depends on.** The model layer (component 1); Context (component 4) for the assembled input and the authority corpus; document management (component 5) for document anchors on results.
 
+**The checker's run semantics (ADR-0053, 2026-08-30).** ADR-0048 settled what a finding *is*; this settles how a **run** behaves. **The unit of work is a property of each check, not of the run** — six families, of which *readability* and *completeness* are **code** and cost nothing, *self-contradiction* is **one** call over section summaries that ride free on the section calls, and *style* and *corpus accuracy* fan out per section. **A planner, in code, computes the run's shape** from the document and the chosen checks: short documents run in one pass, ordinary ones fan out and then compare summaries, very long ones compare summaries in groups **and say so**. The planner being code rather than a model call is what keeps the run `declared` — a model-chosen shape would mean the same document producing different plans on different days. **When material will not fit, the planner splits rather than drops**, and **coverage is stated twice**: in the plan before the run and beside the findings after, as a first-class output rather than a footnote, because it is the only thing that distinguishes a clean result from an unexamined one. **Bulk acceptance is permitted for *mechanical* fixes only** — a consistent substitution, expressible as find-and-replace and shown in one line — and never for rewrites, which narrows ADR-0048 §3 to where it was aimed.
+
 **The checker's settled position (ADR-0048).** Output is a list of **findings** — structured records, never prose — each naming the input it arose from (corpus, attached document, or rulebook), an **anchor into the draft**, a severity and its evidence. Three properties are load-bearing:
 
 - **It checks; it does not write.** A finding may carry a proposed revision, but that revision enters the **existing accept/edit/reject Suggestion mechanism** and is never auto-applied — the checker gains no write path the drafting side lacks. Proposed fixes are collapsed by default and never applied in bulk, because a reviewer accepting patches instead of reading findings performs the human check in appearance only.
@@ -182,14 +184,23 @@ tree, and in most cases a child **Run** — `parent_run_id` / `parent_step_id` /
 usage, cost, egress facts, source set and rail outcomes are already Step
 columns; `step_type` gained the worker step types at T-263 (migration 0055).
 
-⚠ **What is built is the workers, not their reachability.** All three are
-callable, tested and typed, and **nothing executes one as a plan step**:
-`runChain` dispatches on **stage**, so the drafting stage runs the draft leaf
-whatever worker a step names. Executing an arbitrary worker — and a *writing*
-worker in particular — is unruled semantics touching ADR-0027's thinking/doing
-line and the destination guarantee, and is tracked on
-**[T-309](../../build/plan.md)**. Cost attribution is absent for the same
-reason: a cost is recorded on a Step row, and the row is opened by the executor.
+✅ **Reachability settled 2026-08-30 — [ADR-0053](../adr/0053-the-checkers-run-and-the-executor-rule.md) §7, built by T-396.** Until
+then all three were callable, tested and typed and **nothing executed one as a
+plan step**: `runChain` dispatched on **stage**, so the drafting stage ran the
+draft leaf whatever worker a step named. **The rule is that a plan step executes
+the capability it names.** Stage keeps two jobs — deciding what runs a step that
+names *no* worker, and being the vocabulary the plan and the completion footer
+are written in — and loses the job of choosing an executor for a step that named
+one. Four guards ride with it: the worker is resolved through the set
+**assembled** for this requester, so an unentitled one fails with the entitlement
+refusal rather than a generic error; the executor is a **dispatcher over the
+closed registry**, so the no-generic-worker rule above is untouched; a worker
+declaring `writes` runs **only** inside a workflow that declared `writes` and its
+label-propagation, which is what finally makes §4's validator rule 4 bite; and
+**classification stays design-time** — the executor reads a worker's declaration
+and never judges whether a step is code or a model call, which is the whole of
+what ADR-0027 protects. **Cost attribution follows**, because a cost is recorded
+on a Step row and the row is opened by the executor.
 
 **`corpus_retrieval`** — *ranked passages and a coverage note.* Inputs `query`,
 `classification_terms?` (the ADR-0045 ontology pre-filter), `doc_types?`,
@@ -307,6 +318,8 @@ run by the orchestrator's own leaf: `analyse` is the one thinking leaf and
 worker is a tool the agent may *call*, and the agent does not call its own
 drafting. A `verify` step may never name one, because the ground-check is code
 outside the plan and that step is its record.
+
+**A fan-out step, added 2026-08-30 (ADR-0053 §7).** The fields above hold a **fixed** `steps` list, which cannot express *"check every section"* becoming eleven steps. The template declares the fan-out; the **planner computes its width in code** at plan time; the plan records the resulting steps. The width is never model-chosen, which is what keeps a fanned-out run `declared`.
 
 **`workflow_runner` is the one non-leaf worker**, and the exception is narrow:
 it executes a **pre-declared** DAG and cannot compose one. That is why it is not

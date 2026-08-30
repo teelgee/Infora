@@ -56,7 +56,7 @@ month, and a junk drawer that shadows the ADRs is worse than no file at all.
 
 ## Conventions
 
-**Numbering.** `P-###` — **Next free number: P-002.** Derive it, don't trust
+**Numbering.** `P-###` — **Next free number: P-003.** Derive it, don't trust
 this line: `pnpm run check:parking -- --next`. The guard
 (`scripts/parking-rules.mjs`, the third configuration of the shared counter
 engine) scans this file, [grill-history.md](grill-history.md) and `git log`,
@@ -217,3 +217,70 @@ invisibly across months of separate conversations.
   settled *with* this rather than before it) and `Q-039` (a plan-locked shared
   sandbox disclosing the TIDP's shape — the same disclosure-through-structure
   exposure).
+
+- **P-002 — Citation integrity: does a cited source still support the sentence
+  attached to it?** *Raised 2026-08-30 (owner, the checker session; ruled out of
+  V1 and parked on the owner's explicit instruction).*
+
+  ⚠ **This entry does not meet the file's stated entry criterion, and is here
+  on the owner's explicit instruction of 2026-08-30.** It breaks no accepted
+  decision — see *What it breaks* below. In the same conversation the owner
+  ruled that **the parking lot's criterion is itself wrong** and instructed
+  that it be revised after the session; a parallel session carries that change,
+  together with the two decisions it needs — what the new criterion is, and
+  whether the read-gate above survives, since that gate's justification *is* the
+  current criterion. Until that lands, this entry is the file's one exception
+  and is flagged rather than filed quietly. It takes no row in the *Index by
+  amended decision* table, because it pressures no decision.
+
+  **The need, in user terms.** A consultant opens a 50-page chapter. One
+  sentence reads *"Bedford is in Cambridgeshire"* and carries a citation to a
+  library document. The citation is not fabricated: an agent drafted that
+  sentence correctly, cited the document, and a human later edited the sentence.
+  The cited document is still in the library, still live, still authoritative —
+  the citation resolves, the source chip opens, everything looks right. **What
+  the reader sees on screen is a grounded claim.** What is true is that the
+  passage behind it no longer says what the sentence says.
+
+  **The two halves, and only the second is hard.**
+  - **Structural** — code, free: does the citation resolve; is the source still
+    in the library; is the version superseded or withdrawn.
+  - **Support** — a model call per citation, batchable: does the cited passage
+    actually say what this sentence claims it says. An agent-assisted 50-page
+    chapter could carry ~200 citations.
+
+  **What it breaks: nothing, and that is the point of the flag above.** No
+  accepted ADR requires citations to be support-verified, and none forbids it.
+  Building it later needs nothing amended. Under this file's own discriminator
+  it is a feature that *fits* the model and is not scheduled — which is the
+  deferred register's definition, and the reason the owner concluded the
+  criterion is drawn too narrowly.
+
+  **The finding that outlives the parking, and does *not* live only here.**
+  [`groundCheck`](../../packages/governance/src/ground-check.ts) is a
+  **membership** test — `admitted.has(refKey(claim.sourceRef))` — asking only
+  whether a claim names a source the run actually saw, never reading that
+  source's text, and running **once, at generation**. It is a **fabrication
+  guard, not a support guard**. So a source chip in an Infora document
+  guarantees *"the model saw this source"*, not *"this source says this"*, and
+  nothing re-checks after a human edits an agent-written cited sentence. That
+  is a standing property of the platform rather than a missing feature, so it is
+  recorded in **[ADR-0053](../architecture/adr/0053-the-checkers-run-and-the-executor-rule.md)
+  §14** and is citable from there. Nothing in this entry needs to be read to
+  know it.
+
+  **Shape as understood — non-binding, no adversarial pass.** A check family
+  inside the QA checker, switchable at launch like the others: structural half
+  free and always on when the family is selected; support half batched several
+  citations to a call. **Provenance is not needed** — an earlier position in the
+  session held that the drift case required per-span records of which text an
+  agent wrote, which the build lacks; the owner's framing retired it, because
+  checking every citation against its sentence makes *how* it came to be wrong
+  irrelevant.
+
+  **What would make it live.** V1 shipping with agent-assisted drafting in real
+  use, so documents exist that carry citations across human edits — the
+  condition under which the defect can occur at all. Or the parking-lot
+  criterion being revised, at which point this is an ordinary deferral and
+  should move to [../build/plan.md](../build/plan.md)'s deferred register rather
+  than stay here.
