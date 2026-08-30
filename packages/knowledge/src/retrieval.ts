@@ -412,7 +412,20 @@ export async function groundingSources(
   slice: EntitledSlice,
   modelId: string,
   options: RetrievalOptions = {},
-): Promise<Array<{ containerId: string; documentReference: string; title: string | null }>> {
+): Promise<
+  Array<{
+    containerId: string;
+    /**
+     * T-335 — the LIVE VERSION a grounded draft would actually use. The
+     * document creator binds sources by version, not by container: a container
+     * is a series and a draft rests on one revision of it, and the manifest
+     * that records what the document was built from has to name which.
+     */
+    versionId: string;
+    documentReference: string;
+    title: string | null;
+  }>
+> {
   // the chunk index is under row-level security and the policy fails CLOSED
   // (T-247), so this declares its project scope exactly as retrieval's own two
   // arms do. Without it every requester's chip would read "no sources in
@@ -422,6 +435,7 @@ export async function groundingSources(
     tx
       .selectDistinctOn([s.containers.id], {
         containerId: s.containers.id,
+        versionId: s.versions.id,
         documentReference: s.containers.documentReference,
         title: s.workItems.title,
       })

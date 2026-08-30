@@ -854,3 +854,13 @@ are not recorded here.
   which stores an answer and an audit. Keyed on the declaring workflow step's
   id, in memory only: a step output is a value in flight, and the durable facts
   (cost, model, source set) are already Step columns.
+- **2026-08-30 (T-334/T-335) — `ToolSummary` has no `enabled` flag, and
+  `GroundingSource` gained a `versionId`.** The first is the assembled-not-
+  filtered rule made unrepresentable: a tool the requester cannot use is absent
+  from the response, so there is no field a surface could grey out and no way to
+  advertise a capability the viewer cannot reach. `unbuilt` is a separate state
+  from unentitled — it carries `waitsOn` and no `href` — because *"we have not
+  built it"* and *"it is not yours"* must never be the same sentence on screen.
+  The second is smaller and sharper: the creator binds sources **by version**,
+  since a container is a series and a draft rests on one revision of it, and the
+  manifest recording what the document was built from has to name which.

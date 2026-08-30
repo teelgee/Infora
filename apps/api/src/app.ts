@@ -40,6 +40,7 @@ import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
 import { documentCreationRoutes } from './document-creation';
 import { styleGuideRoutes } from './style-guide';
+import { toolRoutes } from './tools';
 import { uploadRoutes } from './upload';
 
 export type { AppDeps } from './requester';
@@ -260,6 +261,16 @@ export function buildApp(deps: AppDeps) {
   // T-397 — the PROJECT style guide, project-scoped where the rulebook is
   // organisation-scoped: context is classified by ownership (ADR-0021).
   app.route('/', styleGuideRoutes(deps));
+
+  // T-334 — the Tools section's own list, assembled per requester.
+  app.route(
+    '/',
+    toolRoutes({
+      db: deps.db,
+      ...(deps.workflows !== undefined && { workflows: deps.workflows }),
+      ...(deps.workers !== undefined && { workers: deps.workers }),
+    }),
+  );
 
   // T-309 — the document creator: the plan before the click, then the run.
   app.route(

@@ -31,7 +31,11 @@ import type {
   GetConversationResponse,
   GetHistoryResponse,
   DestinationCheckResponse,
+  DocumentCreationBody,
+  DocumentCreationPlanResponse,
+  DocumentCreationRunResponse,
   GetGroundingScopeResponse,
+  ListToolsResponse,
   GetLibraryResponse,
   GetPlanResponse,
   GetRunPlanResponse,
@@ -176,6 +180,20 @@ export const api = {
   // server computes this off the same pre-filter retrieval grounds on.
   groundingScope: (projectId: string) =>
     request<GetGroundingScopeResponse>(`/projects/${projectId}/grounding-scope`),
+  // T-334/T-335 — the Tools section, and the document creator's two calls. The
+  // plan and the run take the SAME body: they are one request seen twice, which
+  // is what stops the preview and the act disagreeing.
+  tools: (projectId: string) => request<ListToolsResponse>(`/projects/${projectId}/tools`),
+  documentCreationPlan: (projectId: string, body: DocumentCreationBody) =>
+    request<DocumentCreationPlanResponse>(`/projects/${projectId}/tools/document-creation/plan`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  documentCreationRun: (projectId: string, body: DocumentCreationBody) =>
+    request<DocumentCreationRunResponse>(`/projects/${projectId}/tools/document-creation/runs`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),

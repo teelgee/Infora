@@ -102,12 +102,10 @@ export function DestinationWarning(props: {
   onOverride: (reason: string) => void;
 }) {
   const [verdict, setVerdict] = useState<DestinationCheckResponse | null>(null);
-  const [reason, setReason] = useState('');
   const destinationId = props.destination?.id ?? null;
 
   useEffect(() => {
     setVerdict(null);
-    setReason('');
     if (destinationId === null) return;
     void api
       .destinationCheck(props.runId, destinationId)
@@ -122,13 +120,37 @@ export function DestinationWarning(props: {
   if (verdict === null || verdict.allowed) return null;
 
   return (
+    <DestinationBlock
+      verdict={verdict}
+      destinationName={props.destination?.name ?? ''}
+      onOverride={props.onOverride}
+    />
+  );
+}
+
+/**
+ * The block itself, separated from the fetch by T-395.
+ *
+ * It is split for one reason: **the two sentences below are the component**,
+ * and until `apps/web` had a test runner they shipped unpinned. A block whose
+ * copy lives behind an effect and a network call cannot be asserted at render,
+ * so the effect stays in `DestinationWarning` and the words live here, where a
+ * test can hold them. Nothing about the behaviour moved.
+ */
+export function DestinationBlock(props: {
+  verdict: DestinationCheckResponse;
+  destinationName: string;
+  onOverride: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  return (
     <div className="banner banner--warning" style={{ marginTop: 6 }}>
       <div>
         {/* both labels, named — the whole point of the refusal */}
-        This answer draws on material {LABEL_WORDS[verdict.sourceLabel]}. The selected destination
-        “{props.destination?.name}” is {LABEL_WORDS[verdict.destinationLabel]}. Writing it there
-        would widen who can read it, so it is blocked.
-        <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{verdict.reason}</div>
+        This answer draws on material {LABEL_WORDS[props.verdict.sourceLabel]}. The selected
+        destination “{props.destinationName}” is {LABEL_WORDS[props.verdict.destinationLabel]}.
+        Writing it there would widen who can read it, so it is blocked.
+        <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>{props.verdict.reason}</div>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
         <TextInput
@@ -139,7 +161,12 @@ export function DestinationWarning(props: {
         {/* the override is explicit, and its reason is mandatory — an override
             with no reason is a record that answers "somebody did it" and not
             "somebody did it because" */}
-        <Button size="sm" variant="quiet" disabled={reason.trim() === ''} onClick={() => props.onOverride(reason.trim())}>
+        <Button
+          size="sm"
+          variant="quiet"
+          disabled={reason.trim() === ''}
+          onClick={() => props.onOverride(reason.trim())}
+        >
           Write it there anyway
         </Button>
       </div>

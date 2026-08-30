@@ -91,6 +91,33 @@ Three properties are load-bearing and belong to this component to enforce, becau
 
 ---
 
+## 8. The Tools section, and the tools that live in it
+
+*Built 2026-08-30 — T-334 (the launcher) and T-335 (the document creator). Recorded here rather than in the [walkthrough](../user-stories.md) because it sits **outside** the user stories' one journey: it is a standalone place a consultant goes, not a beat of the review cycle, and forcing it into the walkthrough would photograph a screen the story never reaches.*
+
+**Responsibility.** Be the home of the standalone tools — the codified workflows a user opens and runs, as opposed to the drafting and review paths they live inside. The rail has carried a **Tools** item since T-109, and until now its own copy recorded why it was empty: *"tool launch beyond the chat/draft path is post-skeleton"*, ruled 2026-07-06. That deferral expired with **ADR-0053**.
+
+🔒 **Assembled from entitlements, not filtered.** T-269's rule applies to tools exactly as it does to workers: a tool the viewer cannot use is **absent**, never disabled and never greyed, so the section can never advertise a capability they have no way to reach. The set is built server-side per request from the same assembled worker set the classifier is handed; the surface has no `enabled` check and must never gain one.
+
+**V1's set is three, and they are in three different states — which is itself the design** (ADR-0053 §11):
+
+- the **document creator** (T-335) — built, and present for anyone whose assembled set carries `document_builder`;
+- the **QA checker** — specified (ADR-0053) and ticketed as **T-336**, not built. It appears as `unbuilt`, **naming what it waits on**, because a Tools section with one tile and no explanation reads as a product with one tool;
+- the **extractor** — deliberately **absent altogether**. Its tool is `Q-049` and unspecified: nothing says what a user picks, how a run is scoped, or where the output lands. A tile promising a screen nobody has designed is worse than no tile.
+
+**The document creator's shape is the ordering.** Choose the template, say what the document is for, **bind the library sources before anything generates**, choose where it goes — then **see the plan**, and only then run. Sources first is what makes the output auditable against what the author asked for rather than against a retrieval guess. **The plan is rendered and not editable** (ADR-0053 §4): it is shaped by changing the answers, which keeps the run `declared`; hand-editing a step list would not. **The launch keeps its state** — changing one answer discards the plan and keeps the rest, which is the pattern T-336 sets for the checker and must not be re-invented there.
+
+**Coverage is stated twice, in the same shape** (ADR-0053 §5): in the plan before the run, and beside the result after it. **Cost is stated before the click, and an unpriced deployment says so** rather than showing a plausible zero (T-254).
+
+⚠ **The bound-container path is refused with a pointer, not built.** Whether a bound deliverable's plan row seeds the structure is `Q-037` and unruled; arriving at the creator with a container bound says so and names the question, rather than ignoring the binding — which would look like it had worked.
+
+**Governing ADRs.** **0053** (the tool set, the plan, coverage, the executor rule); 0027 (thinking vs doing); 0049 §7 is unaffected.
+**Terms owned.** Tool, Tools section.
+**Depends on.** The engine (component 6) for the declared workflow and its executor; access model (component 2) for the assembled set.
+**Staging.** The **builder** — org-built and user-built tools — is `Q-014` and stays post-V1.
+
+---
+
 ## Deferred or handed to other components
 
 - **The document-management interface internals** (plan builder, PDF viewer, DRR table). Owned by document management (component 5); surfaces hosts them but the boundary is open.

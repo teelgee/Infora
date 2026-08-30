@@ -7,7 +7,8 @@ import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { HistoryScreen } from './screens/history';
 import { LibraryScreen } from './screens/library';
-import { EmptyState, ProjectHome, ProjectShell } from './screens/project';
+import { ProjectHome, ProjectShell } from './screens/project';
+import { DocumentCreatorScreen, ToolsScreen } from './screens/tools';
 import { NotificationsScreen } from './screens/notifications';
 import { PlanScreen } from './screens/plan';
 import { SchemaScreen } from './screens/schema';
@@ -48,15 +49,12 @@ const router = createBrowserRouter([
       { path: 'sandbox', element: <SandboxScreen /> },
       { path: 'history', element: <HistoryScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemScreen /> },
-      {
-        path: 'tools',
-        element: (
-          <EmptyState
-            title="Tools"
-            note="Infora's standard tools, your organisation's own, and the ones you build — each tool runs a codified workflow. Tool launch beyond the chat/draft path is post-skeleton (ruled 2026-07-06); the builder's shape is on the grill tracker."
-          />
-        ),
-      },
+      // T-334 — the Tools section stops being an empty state. The 2026-07-06
+      // "tool launch is post-skeleton" deferral expired with ADR-0053; the
+      // builder (org-built and user-built tools) is `Q-014` and stays post-V1.
+      { path: 'tools', element: <ToolsScreen /> },
+      // T-335 — the first tool that lives in it
+      { path: 'tools/document-creation', element: <DocumentCreatorScreen /> },
     ],
   },
 ]);

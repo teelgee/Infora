@@ -3,11 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "the web surface — one app, role-scoped views: workspace + project home, editor, chat, review",
+  "description": "the web surface \u2014 one app, role-scoped views: workspace + project home, editor, chat, review",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "test": "vitest run"
   },
   "dependencies": {
     "@infora/contracts": "workspace:*",
@@ -23,6 +24,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.8.3",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "vitest": "^4.1.10"
   }
 }

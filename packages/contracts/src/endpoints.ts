@@ -2154,6 +2154,13 @@ export type LibraryRemovalResponse = {
 // state Ask can be in and looks exactly like a good one.
 export type GroundingSource = {
   containerId: Id;
+  /**
+   * T-335 — the live version a grounded draft would actually use. The document
+   * creator binds sources **by version**: a container is a series, a draft
+   * rests on one revision of it, and the manifest recording what the document
+   * was built from has to name which.
+   */
+  versionId: Id;
   documentReference: string;
   /** the deliverable's title, absent for reference material (T-304) */
   title: string | null;
@@ -2287,3 +2294,36 @@ export type DocumentCreationRunResponse = {
   withheld: string[];
   unreachableSources: Id[];
 };
+
+// ── T-334 — THE TOOLS SECTION (Slice V1-T, ADR-0053 decision 1/11) ──────────
+//
+// *In plain terms: the rail has had a "Tools" item since the skeleton, and it
+// has been empty ever since. This is the list that fills it — the standalone
+// things a consultant can open and run.*
+//
+// 🔒 **ASSEMBLED FROM ENTITLEMENTS, NOT FILTERED** (T-269's rule, applied to
+// tools exactly as to workers). A tool the requester cannot use is **absent**,
+// never disabled and never greyed — so the section can never advertise a
+// capability the viewer has no way to reach. There is no `enabled` flag in this
+// shape, deliberately.
+//
+// **`unbuilt` is a different thing from unentitled, and the difference is why
+// it exists.** An unentitled tool is absent because it is not yours; an
+// `unbuilt` one is absent-from-use because nobody has built it yet, and saying
+// so is more honest than a section that quietly has one tile in it. It names
+// what it waits on, so the copy cannot go stale silently.
+export type ToolState = 'available' | 'unbuilt';
+
+export type ToolSummary = {
+  id: string;
+  label: string;
+  /** what it does, in the words a consultant would use */
+  description: string;
+  state: ToolState;
+  /** present exactly when `unbuilt` — what this is waiting on, named */
+  waitsOn?: string;
+  /** where launching it goes; present exactly when `available` */
+  href?: string;
+};
+
+export type ListToolsResponse = { items: ToolSummary[] };
