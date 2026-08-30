@@ -9,6 +9,7 @@
 // union on `input` gives it nowhere to put the citation.
 import { describe, expect, it } from 'vitest';
 import type { SandboxComment } from './endpoints';
+import { classifyFix, MECHANICAL_SUMMARY_LIMIT } from './finding';
 import type {
   Finding,
   FindingEvidence,
@@ -197,5 +198,91 @@ describe('ADR-0049 §7 — findings and threads are counted identically', () => 
     // every open finding blocks (ADR-0049 §7, against the recommendation to
     // warn); the breakdown says how much is outstanding, never what is optional
     expect(count.open).toBe(count.bySeverity.required + count.bySeverity.advisory);
+  });
+});
+
+// ── T-398 — the mechanical/rewrite test, which is CODE ──────────────────────
+//
+// ADR-0053 §6 permits bulk acceptance for mechanical fixes only, and the whole
+// safety of that narrowing rests on the classification being structural rather
+// than a field the model fills in. So these cases are the guard: each one is a
+// fix a model would plausibly call "a simple consistency change", and three of
+// them are not.
+describe('classifyFix (T-398, ADR-0053 §6)', () => {
+  it("THE CASE THE RULE EXISTS FOR: one substitution, applied everywhere, in one line", () => {
+    const original = 'The Scheme was assessed. The Scheme is in Bedford. The Scheme continues.';
+    const fix = classifyFix(original, original.split('Scheme').join('scheme'));
+    expect(fix.kind).toBe('mechanical');
+    if (fix.kind !== 'mechanical') throw new Error('unreachable');
+    expect(fix.find).toBe('Scheme');
+    expect(fix.replace).toBe('scheme');
+    expect(fix.occurrences).toBe(3);
+    // the one line a reviewer reads before taking the whole decision at once
+    expect(fix.summary).toBe('Scheme → scheme, 3 places');
+  });
+
+  it('THE CASE IT EXISTS TO STOP: fifty-five rewritten sentences are not one decision', () => {
+    // "avoid the passive voice" — each sentence is rewritten differently, so no
+    // single substitution reproduces the proposal, and this is precisely what
+    // would otherwise ride in behind an accept-all
+    const fix = classifyFix(
+      'The survey was carried out by the team. The report was written by Ada.',
+      'The team carried out the survey. Ada wrote the report.',
+    );
+    expect(fix.kind).toBe('rewrite');
+  });
+
+  it('a whole sentence replaced by another sentence is a REWRITE, not a substitution', () => {
+    // the reordering that makes it prose is exactly what stops one substitution
+    // reproducing it; where a sentence IS swapped wholesale the one-line cap is
+    // what catches it instead (the last case in this block)
+    const fix = classifyFix(
+      'The ground investigation recorded contamination at three of the trial pits.',
+      'Contamination was recorded at three trial pits during the ground investigation.',
+    );
+    expect(fix.kind).toBe('rewrite');
+  });
+
+  it('two unrelated edits in one revision are two decisions, and not bulk-acceptable', () => {
+    const fix = classifyFix(
+      'The Scheme was assessed in 2019 by the Applicant.',
+      'The scheme was assessed in 2021 by the Applicant.',
+    );
+    expect(fix.kind).toBe('rewrite');
+  });
+
+  it('a pure insertion has nothing to find, so it cannot be applied anywhere else', () => {
+    const fix = classifyFix(
+      'Contamination was recorded.',
+      'Contamination was recorded. It was found at three pits.',
+    );
+    expect(fix.kind).toBe('rewrite');
+    if (fix.kind !== 'rewrite') throw new Error('unreachable');
+    expect(fix.reason).toContain('inserts');
+  });
+
+  it('a proposal that changes nothing is not a fix at all', () => {
+    expect(classifyFix('unchanged', 'unchanged').kind).toBe('rewrite');
+  });
+
+  it('a single-occurrence substitution IS mechanical, and says "1 place"', () => {
+    // one occurrence is still one decision applied consistently; the count is
+    // there to tell the reviewer the SIZE of what they are accepting, not to
+    // set a threshold
+    const fix = classifyFix('Use SI units throughout.', 'Use metric units throughout.');
+    expect(fix.kind).toBe('mechanical');
+    if (fix.kind !== 'mechanical') throw new Error('unreachable');
+    expect(fix.summary).toBe('SI → metric, 1 place');
+  });
+
+  it('the one-line cap catches the substitution that is really prose', () => {
+    // a term swapped for a phrase nobody could read at a glance: it IS one
+    // substitution applied consistently, and it is still not something a
+    // reviewer can take fifty-five of on one click
+    const long = 'x'.repeat(MECHANICAL_SUMMARY_LIMIT);
+    const fix = classifyFix(`a ${long} b`, `a ${long}${long} b`);
+    expect(fix.kind).toBe('rewrite');
+    if (fix.kind !== 'rewrite') throw new Error('unreachable');
+    expect(fix.reason).toContain('one line');
   });
 });

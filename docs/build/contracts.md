@@ -830,3 +830,10 @@ are not recorded here.
   the **route**, not the payload — `/projects/:projectId/style-guides` against
   the rulebook's `/organisation/rulebooks` — because context is classified by
   **ownership**, and a project style guide belongs to the project.
+- **2026-08-30 (T-398) — `classifyFix` is a FUNCTION in `contracts`, and that is
+  the reason it is there.** ADR-0053 §6 permits bulk acceptance for mechanical
+  fixes only, and the narrowing is only safe because the test is code rather
+  than a field a model fills in. The findings surface has to render an accept-all
+  above a group's mechanical fixes and withhold it from its rewrites — and
+  `apps/web` depends only on `contracts` and `ui`. So either the test lives here
+  and both sides call it, or the surface guesses. One test, one answer.
