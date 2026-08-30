@@ -14,7 +14,9 @@ The design artefacts define what Infora does; this one-pager states the operatio
 | Documents (sandbox + library) | the **100–500 document corpus** plus sandbox work; ≤ 1,000 total |
 | Blob volume (natives + renditions) | ≤ 5 GB |
 | Concurrent active users | ≤ 10 |
-| Model-invoking runs | ≤ 200/day |
+| User-initiated model runs | **~200/day, indicative** — a sizing guide, not a constraint (see the 2026-08-30 note below). One run may fan out into many model **calls**: a batch tool such as the QA checker spends on the order of tens of calls per click, and the calls a day's runs spend are **unmeasured** — no confident figure exists yet |
+
+> ⚖ **Re-cut 2026-08-30 (owner ruling, arising from the checker design session).** The run figure was written when one user action meant one model call, and the QA checker under design is a batch sweep — so "runs" had quietly become two quantities sharing one name: user-initiated runs, and the model calls they fan out into. Two things this row now says plainly: **it is a sizing guide, not a constraint** — its job is that the build copes with pilot scale; it gates no feature, caps no run, and no feature decision may cite it as authority — and **it might simply be wrong**: an initial view, never measured. T-313 (2026-08-29) made usage measurable per run and per user, embedding calls included, so revisit trigger 5 below now has an instrument. *Attribution: owner ruling 2026-08-30; the checker session's ADR adds its reference here when it lands.*
 
 **Why three organisations does not move the other numbers.** Two of the three are operator-held, so users, projects and runs are unchanged — what changes is the *enforcement* obligation, not the load. The wall becomes a screen the buyer looks at rather than a property they take on trust, which is why the security floor below hardens rather than the capacity lines.
 
@@ -58,3 +60,4 @@ Measured server-side at the API, under the pilot's ≤ 10 concurrent users, **wi
 2. Any paid contract — availability and certification lines move from targets to commitments.
 3. \> 50 users or > 5,000 documents — performance work stops being deferrable, and the V1 ingest rewrite stops being sufficient.
 4. Any client naming a residency or classification requirement above OFFICIAL — ADR-0037's sovereign path activates.
+5. **Measured usage contradicts the scale assumptions** *(added 2026-08-30 with the run-figure re-cut above — an assumption that might simply be wrong needs a path to being corrected, and T-313's cost attribution is the instrument: per-run, per-user, embedding calls included).*
