@@ -27,7 +27,7 @@ Two constraints keep this from collapsing into generation:
 
 **Rejected: the checker rewriting the section.** It would be the most immediately impressive demonstration and it collapses checking into drafting — the same run that judges the work would produce its replacement, leaving nothing independent to check. ADR-0027's thinking-vs-doing line and the answer invariants both exist to prevent this.
 
-**4. The rulebook rides the guiding channel in its entirety.** It steers the checker's judgement; it is not a grounded source; it is never cited as project fact. Nothing in ADR-0021 is amended and the authority corpus stays out of V1 entirely.
+**4. The rulebook rides the guiding channel in its entirety.** *(Corrected 2026-08-30: the channel is **informing**, not guiding — see the dated amendment in the Status line above; everything else in this section stands.)* It steers the checker's judgement; it is not a grounded source; it is never cited as project fact. Nothing in ADR-0021 is amended and the authority corpus stays out of V1 entirely.
 
 **5. A finding may quote the rulebook *verbatim*, and that quote is not a citation.** This is the answer to `Q-007`'s stress test — *if the rulebook only steers, a finding cannot cite the rule it enforces* — and it is the third option the stress test itself hypothesised, not a carve-out from the channel model.
 
