@@ -39,6 +39,7 @@ import type { Classifier, WorkerRegistry } from '@infora/capabilities';
 import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import {
   canRerunPlan,
+  CapabilityRefused,
   createConversation,
   PlanNotExecutable,
   readPlanForRun,
@@ -47,7 +48,7 @@ import {
   RunHalted,
   runChain,
 } from '@infora/orchestration';
-import type { ChainLeaves, Revalidate, RunRow } from '@infora/orchestration';
+import type { CapabilityRegistry, ChainLeaves, Revalidate, RunRow } from '@infora/orchestration';
 import { projectScope, resolveSlice, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 import { resolveSession } from './sessions';
@@ -116,6 +117,13 @@ export function runRoutes(deps: {
    * rather than silently honoured by a different path.
    */
   narrowedRetrieve?: (narrowing: Attenuation) => ChainLeaves['retrieve'];
+  /**
+   * T-396 — the closed registry of built capabilities the executor dispatches
+   * over (ADR-0053 §7). Absent means this deployment executes none, and a plan
+   * step naming one is refused rather than silently running the orchestrator's
+   * own leaf.
+   */
+  capabilities?: CapabilityRegistry;
 }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -285,7 +293,18 @@ export function runRoutes(deps: {
         }
         try {
           const bound = bindWorkflow(workflow, outcome.parameters);
-          declared = { id: bound.workflowId, version: bound.workflowVersion };
+          // T-396 — `writes` and the label-propagation declaration travel to
+          // the executor, which is where validator rule 4 finally bites: a
+          // capability that writes runs only inside a workflow that declared
+          // both.
+          declared = {
+            id: bound.workflowId,
+            version: bound.workflowVersion,
+            writes: bound.writes,
+            ...(bound.labelPropagation !== undefined && {
+              labelPropagation: bound.labelPropagation,
+            }),
+          };
           stages = bound.stages;
         } catch (error) {
           if (!(error instanceof WorkflowNotRunnable)) throw error;
@@ -322,10 +341,26 @@ export function runRoutes(deps: {
           revalidate,
           workflow: declared,
           ...(stages !== undefined && { stages }),
+          // T-396 — the executor, and the set assembled for THIS requester.
+          // The chain does not resolve its own permissions: it is handed the
+          // names and can only refuse against them (component 2's rule, the
+          // same seam T-252 uses for revalidation).
+          ...(deps.capabilities !== undefined && { capabilities: deps.capabilities }),
+          entitledCapabilities: workers.map((worker) => worker.name),
           mode,
           assumptions,
         }));
       } catch (error) {
+        if (error instanceof CapabilityRefused) {
+          // The entitlement refusal reads as nonexistence, exactly as every
+          // other unreachable thing does (principle 4): telling a requester
+          // that a capability exists but is not theirs is the "absent, never
+          // disabled" rule failing at the last step. The other two reasons are
+          // deployment/authoring defects and say what is wrong.
+          return error.reason === 'not_entitled'
+            ? c.json(notFound, 404)
+            : c.json(invalid(error.message), 400);
+        }
         if (!(error instanceof RunHalted)) throw error;
         // 401 for a session that ended, 404 for entitlement lost. The second is
         // deliberate and not a softening: once the requester cannot reach the
@@ -627,6 +662,13 @@ export function runRoutes(deps: {
           worker: step.worker ?? null,
           inputs: step.inputs ?? {},
         })),
+        // T-396 — an edited plan's steps execute the capabilities they name,
+        // exactly as a declared workflow's do. The set is the same assembled
+        // one the loop above validated against; a WRITING capability is refused
+        // here whatever the edit says, because an edited plan comes from no
+        // workflow and so declared no write (ADR-0053 §7, §12).
+        ...(deps.capabilities !== undefined && { capabilities: deps.capabilities }),
+        entitledCapabilities: names,
         // An edited plan is `model_chosen` EVEN IF IT STARTED DECLARED. A
         // declared workflow promises the same inputs produce the same steps in
         // the same order; a hand-edited copy makes no such promise whatever it
@@ -635,6 +677,9 @@ export function runRoutes(deps: {
         mode: 'model_chosen',
       }));
     } catch (error) {
+      if (error instanceof CapabilityRefused && error.reason === 'not_entitled') {
+        return c.json(notFound, 404);
+      }
       if (error instanceof PlanNotExecutable) return c.json(invalid(error.message), 400);
       if (!(error instanceof RunHalted)) throw error;
       return error.reason === 'session_ended'

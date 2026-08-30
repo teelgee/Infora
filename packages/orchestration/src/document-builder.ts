@@ -34,7 +34,8 @@ import type { Db } from '@infora/db';
 import { checkPropagation, groundCheck } from '@infora/governance';
 import type { AccessLabel } from '@infora/governance';
 import { sandboxAudience, versionsAudience } from '@infora/knowledge';
-import type { Router } from '@infora/model';
+import { costOf } from '@infora/model';
+import type { ModelRates, Router } from '@infora/model';
 
 export type DocumentBuilderInput = {
   templateId: string;
@@ -74,6 +75,15 @@ export type DocumentBuilderOutput = {
    * matched the brief, and both are facts the caller asked for.
    */
   unreachableSources: Id[];
+  /**
+   * T-396 — what the drafting call spent, so the executor can record it on the
+   * Step row it opened. **Absent where no model call was made** — a refused
+   * write and a brief that reached no passages both return before the router is
+   * touched — and absent is not zero: an unpriced or un-made call must never
+   * read as a free one (T-254).
+   */
+  usage?: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
+  model?: { id: string; version: string };
 };
 
 export class UnknownDocumentTemplate extends Error {
@@ -88,12 +98,16 @@ export type DocumentBuilderDeps = {
   router: Router;
   assemble: Assemble;
   templates: TemplateRegistry;
+  /** T-396 — provider rates per model id, as the draft leaf takes them. Absent
+   *  records `cost: null` — unpriced, and reported as such. */
+  rates?: ModelRates;
 };
 
-// Cost attribution is NOT here, and its absence is a consequence rather than an
-// omission: a Step row is what a cost is recorded on, and nothing yet executes
-// this worker as a step (T-269's position, unchanged for `corpus_retrieval`).
-// It arrives with the executor, which is where the row is opened.
+// T-396 — COST ATTRIBUTION ARRIVED, exactly as this comment predicted it would.
+// A cost is recorded on a Step row and the row is opened by the executor; until
+// the executor rule (ADR-0053 §7) nothing executed this worker as a step, so
+// there was no row to record one on. The builder now reports what its drafting
+// call spent and the executor's adapter writes it.
 
 export function createDocumentBuilder(deps: DocumentBuilderDeps) {
   return async (
@@ -257,12 +271,21 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       })
       .returning();
 
+    const usage = {
+      tokensPrompt: result.usage.tokensPrompt,
+      tokensCompletion: result.usage.tokensCompletion,
+      // priced against the model that ACTUALLY served the call, never the one
+      // the deployment expected to be serving it
+      cost: costOf(deps.rates, result.model, result.usage),
+    };
     return {
       documentId: document!.id as Id,
       manifest,
       label,
       withheld: checked.withheld.map((claim) => claim.text),
       unreachableSources,
+      usage,
+      model: result.model,
     };
   };
 }

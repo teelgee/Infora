@@ -54,19 +54,22 @@ const validate = (
   return validateWorkflow(doc, { file: 'project-question.yaml', workers, production });
 };
 
-// Interim rule (review, 2026-08-28, see T-309 on the board): the runner
-// executes a named worker on NO stage yet, so a worker anywhere but the
-// retrieve step is refused at load rather than silently running the
-// orchestrator's own leaf. This test is DELETED when the executor rule lands.
-it('refuses a worker on a stage the runner does not execute', () => {
+const errorsOf = (result: ReturnType<typeof validate>) => (result.ok ? [] : result.errors);
+
+// T-396 — THE INTERIM REFUSAL, INVERTED, exactly as its own note said it would
+// be. Between 2026-08-28 and the executor rule a worker on any stage but the
+// retrieve step was refused at load, because the runner executed a named worker
+// on no stage and the definition would have silently run the orchestrator's own
+// leaf instead. The engine now runs what a step names (ADR-0053 §7), so the
+// definition must LOAD — and this test asserts loading rather than refusal.
+it('LOADS a capability on a stage the executor now runs — the interim refusal is gone', () => {
   const result = validate((doc) => {
     (doc.steps[1] as Record<string, unknown>)['worker'] = 'document_builder';
   });
-  const errors = (result.ok ? [] : result.errors).filter((e) => e.includes('silently run'));
-  if (errors.length !== 1) throw new Error(`expected the interim refusal, got: ${JSON.stringify(result)}`);
+  expect(errorsOf(result)).toEqual([]);
+  expect(result.ok && result.workflow.steps[1]!.worker).toBe('document_builder');
 });
 
-const errorsOf = (result: ReturnType<typeof validate>) => (result.ok ? [] : result.errors);
 
 describe('the declared-workflow validator (T-264)', () => {
   it('accepts a well-formed definition, and returns it in contracts shape', () => {
@@ -264,5 +267,77 @@ describe('worker is optional, and forbidden on `verify` (T-265)', () => {
   it('an empty `worker` is a mistake, not an omission, and says so', () => {
     const errors = errorsOf(validate((doc) => (doc.steps[0]!.worker = '  ')));
     expect(errors[0]).toContain('Omit it for a stage the orchestrator runs itself');
+  });
+});
+
+// ── T-396 — RULE 6: THE FAN-OUT ────────────────────────────────────────────
+//
+// The width is computed in code at plan time and is NEVER model-chosen. The
+// validator's whole contribution to that is where a `fan_out` may point: at a
+// declared `id_list` parameter, and nowhere else. A step's output can be
+// model-written, so a width read from one would make the plan's SHAPE
+// model-chosen while it still called itself declared — losing the one
+// guarantee (same inputs, same steps, same order) a declared workflow is sold
+// on.
+describe('the fan-out (T-396, ADR-0053 §7)', () => {
+  const withFanOut = (fanOut: unknown, type = 'id_list') =>
+    validate((doc) => {
+      (doc.parameters as Array<Record<string, unknown>>).push({
+        name: 'sections',
+        type,
+        required: true,
+        description: 'The sections to check, computed before the run.',
+      });
+      (doc.steps[1] as Record<string, unknown>)['fan_out'] = fanOut;
+      (doc.steps[1] as Record<string, unknown>)['inputs'] = { section: '{{item}}' };
+    });
+
+  it('accepts a fan-out over a declared id_list parameter', () => {
+    expect(errorsOf(withFanOut('{{parameters.sections}}'))).toEqual([]);
+  });
+
+  it('REFUSES a fan-out over a step output — that width would be model-chosen', () => {
+    const errors = errorsOf(withFanOut('{{steps.retrieve.output}}'));
+    expect(errors.join(' ')).toContain('model-chosen');
+  });
+
+  it('refuses a fan-out over a parameter that is not a list', () => {
+    const errors = errorsOf(withFanOut('{{parameters.sections}}', 'string'));
+    expect(errors.join(' ')).toContain("parameter 'sections' is `string`");
+  });
+
+  it('refuses a fan-out over a parameter nobody declared', () => {
+    const errors = errorsOf(
+      validate((doc) => {
+        (doc.steps[1] as Record<string, unknown>)['fan_out'] = '{{parameters.nope}}';
+      }),
+    );
+    expect(errors.join(' ')).toContain('names no declared parameter');
+  });
+
+  it('refuses a fan-out on a `verify` step — the ground-check runs once, outside the plan', () => {
+    const errors = errorsOf(
+      validate((doc) => {
+        (doc.parameters as Array<Record<string, unknown>>).push({
+          name: 'sections',
+          type: 'id_list',
+          required: true,
+          description: 'sections',
+        });
+        (doc.steps[1] as Record<string, unknown>)['stage'] = 'verify';
+        delete (doc.steps[1] as Record<string, unknown>)['worker'];
+        (doc.steps[1] as Record<string, unknown>)['fan_out'] = '{{parameters.sections}}';
+      }),
+    );
+    expect(errors.join(' ')).toContain('may not fan out');
+  });
+
+  it('refuses {{item}} on a step that does not fan out — it would resolve to nothing', () => {
+    const errors = errorsOf(
+      validate((doc) => {
+        (doc.steps[1] as Record<string, unknown>)['inputs'] = { section: '{{item}}' };
+      }),
+    );
+    expect(errors.join(' ')).toContain('only meaningful on a step that declares');
   });
 });

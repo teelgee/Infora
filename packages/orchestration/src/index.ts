@@ -7,7 +7,19 @@ export {
   openStep,
 } from './run-writer';
 export type { ConversationRow, RunRow, StepAudit, StepRow } from './run-writer';
-export { CHAIN_AGENT_ID, RunHalted, runChain, sourcesOf, StepsFailed } from './chain';
+export {
+  CHAIN_AGENT_ID,
+  CapabilityRefused,
+  RunHalted,
+  resolveStepInputs,
+  runChain,
+  sourcesOf,
+  StepsFailed,
+} from './chain';
+// T-396 — the executor's closed registry: capability name → the built thing
+// that runs it. A dispatcher, never a generic worker (ADR-0053 §7).
+export { createCapabilityRegistry } from './capability-registry';
+export type { CapabilityDeps } from './capability-registry';
 export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 // T-280 — `document_builder`'s implementation: it writes, so it lives here
@@ -49,6 +61,8 @@ export { readDocumentSuggestions, readRun } from './run-reader';
 export { resolveSuggestion } from './resolution';
 export type { ResolutionResult } from './resolution';
 export type {
+  Capability,
+  CapabilityRegistry,
   ChainInput,
   ChainLeaves,
   CiteOutput,

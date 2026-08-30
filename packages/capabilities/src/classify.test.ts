@@ -127,8 +127,18 @@ describe('the deterministic default (T-266)', () => {
 
 describe('the model-chosen dispatch plan (T-266)', () => {
   it('is built over the ENTITLED worker set — an unentitled worker is not in it', () => {
+    // T-396 — the entitlement decides whether the retrieval STAGE EXISTS, and
+    // no longer puts a name on it: under the executor rule a name is an
+    // instruction, and a model-chosen turn's retrieval is the orchestrator's
+    // own leaf. The presence of the step is the entitlement effect.
+    expect(modelChosenStages([CORPUS_RETRIEVAL]).map((stage) => stage.stage)).toEqual([
+      'search_corpus',
+      'analyse',
+      'verify',
+      'present',
+    ]);
     expect(modelChosenStages([CORPUS_RETRIEVAL]).map((stage) => stage.worker)).toEqual([
-      'corpus_retrieval',
+      null,
       null,
       null,
       null,

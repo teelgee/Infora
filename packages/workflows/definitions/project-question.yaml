@@ -8,14 +8,31 @@
 # what makes the run repeatable AND EVALUABLE END TO END, the whole of what
 # declared mode promises over model-chosen.
 #
-# Two steps name no worker on purpose. `analyse` is the orchestrator's own
-# thinking leaf and `present` is citation resolution (ADR-0027 section 6): a
-# worker is a tool the agent may CALL, and the agent does not call its own
-# drafting. And `verify` names none because it MAY not -- the ground-check is
-# code outside the plan, running on every answer in both modes, and this step is
-# its record rather than an instruction anything could decline.
+# NO STEP HERE NAMES A WORKER, and version 2 is where the last one stopped.
+# T-396 made a plan step execute the capability it names (ADR-0053 section 7),
+# and the retrieve step used to carry `worker: corpus_retrieval` DESCRIPTIVELY
+# -- the runner read it never, so it was a label rather than an instruction.
+# Under the executor rule a label is not available: what a step names is what
+# runs, and running the `corpus_retrieval` worker here would be a different
+# retrieval from the one Ask does. Ask's retrieval is the orchestrator's own
+# retrieve leaf -- baseline assembly plus the retrieval sub-agent's child run,
+# carrying the guiding and informing channels the draft step steers on, none of
+# which a leaf worker returns. So the step names nothing and the stage runs it,
+# which is exactly the job stage keeps.
+#
+# `analyse` is the orchestrator's own thinking leaf and `present` is citation
+# resolution (ADR-0027 section 6): a worker is a tool the agent may CALL, and
+# the agent does not call its own drafting. And `verify` names none because it
+# MAY not -- the ground-check is code outside the plan, running on every answer
+# in both modes, and this step is its record rather than an instruction anything
+# could decline.
+#
+# BEHAVIOUR IS UNCHANGED BY THE REMOVAL, which is the point: the runner ignored
+# the name, so deleting it changes nothing that ran. The version bump records
+# that the definition changed, so a complaint against v1 is never read as one
+# about v2.
 id: project-question
-version: 1
+version: 2
 label: Project question
 description: >-
   Answer a question from the project library, grounded in the documents the
@@ -35,7 +52,6 @@ output_schema:
 steps:
   - id: retrieve
     stage: search_corpus
-    worker: corpus_retrieval
     inputs:
       query: '{{parameters.question}}'
     depends_on: []
@@ -60,9 +76,6 @@ steps:
       checked: '{{steps.verify.output}}'
     depends_on:
       - verify
-
-requires_workers:
-  - corpus_retrieval
 
 # Reads and answers; the drafting write path is `document_builder` (T-280) in
 # its own workflow, which is why no label-propagation declaration belongs here.

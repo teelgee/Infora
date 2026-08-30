@@ -22,7 +22,17 @@
 // step is the RECORD of the check, bound to the Step row the check wrote; it is
 // never an instruction the executor consults. Asserted by `chain.test.ts`
 // against a plan with no `verify` step at all.
-import type { AssembledInput, Id, Lens, PlanMode, PlanStage } from '@infora/contracts';
+import type {
+  AssembledInput,
+  Id,
+  Lens,
+  PlanMode,
+  PlanStage,
+  StepType,
+  WorkerDeclaration,
+  WorkflowLabelPropagation,
+  WorkflowWrites,
+} from '@infora/contracts';
 import type { Db } from '@infora/db';
 import {
   CODED_CHAIN_PLAN,
@@ -89,6 +99,58 @@ export type ChainLeaves = {
   >; // doing (T-045)
 };
 
+/**
+ * T-396 — A CAPABILITY, AS THE EXECUTOR SEES IT (ADR-0053 §7).
+ *
+ * `declaration` is the same `WorkerDeclaration` the registry holds — read for
+ * one thing only, `writes`, which decides whether this capability may run at
+ * all in this workflow. The executor never judges whether a capability is code
+ * or a model call: ADR-0027 fixes that per capability at design time and the
+ * declaration is where it is fixed.
+ *
+ * `run` has the leaf's own shape on purpose. A capability step is a Step row in
+ * the same append-only tree as every other step, opened by the executor — which
+ * is exactly why per-step COST starts working here and could not before: a cost
+ * is recorded on a Step row, and until now nothing opened one for a worker.
+ */
+export type Capability = {
+  declaration: WorkerDeclaration;
+  run: (
+    ctx: LeafContext,
+    inputs: Record<string, unknown>,
+  ) => Promise<{ output: unknown; audit?: StepAudit }>;
+};
+
+/**
+ * The CLOSED registry of built capabilities. It is a lookup and nothing more:
+ * it cannot invent a capability, and there is no shape in which a plan hands it
+ * one — which is why the executor is a dispatcher rather than the generic
+ * worker non-negotiable 8 forbids.
+ */
+export type CapabilityRegistry = { get(name: string): Capability | undefined };
+
+/**
+ * Why a plan naming a capability was refused, BEFORE anything ran.
+ *
+ * Three reasons and not one message, because they are three different events
+ * and an operator reading the record needs to know which: a deployment that has
+ * not built the thing, a requester who may not use it, and a workflow that
+ * never declared it writes.
+ *
+ * `not_entitled` is **the entitlement refusal**, deliberately distinguished
+ * from a generic error (ADR-0053 §7). It extends `PlanNotExecutable` so every
+ * caller that already refuses an unrunnable plan keeps working unchanged.
+ */
+export class CapabilityRefused extends PlanNotExecutable {
+  constructor(
+    readonly reason: 'not_built' | 'not_entitled' | 'writes_undeclared',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'CapabilityRefused';
+  }
+}
+
 export type ChainInput = {
   conversationId: Id;
   request: string;
@@ -131,13 +193,55 @@ export type ChainInput = {
    * not assertable against a plan the caller cannot vary. A guarantee tested
    * only against the one plan that happens to include the thing is not tested.
    */
-  stages?: ReadonlyArray<{ stage: PlanStage; worker?: string | null; inputs?: Record<string, unknown> }>;
+  stages?: ReadonlyArray<{
+    stage: PlanStage;
+    worker?: string | null;
+    inputs?: Record<string, unknown>;
+    /**
+     * T-396 — the declaring workflow's own step id, so `{{steps.x.output}}`
+     * resolves between steps of one run. In memory for the walk only: a step
+     * output is a value in flight, not a record.
+     */
+    key?: string | null;
+  }>;
   /**
    * T-265 — the declared workflow these stages came from. Recorded on the plan
    * beside the stages themselves, so the evidence names the file and the
    * version rather than only the shape.
    */
-  workflow?: { id: string; version: number } | null;
+  workflow?: {
+    id: string;
+    version: number;
+    /**
+     * T-396 — what the workflow declared it does to the record, and how the
+     * label travels. The executor reads them to make **validator rule 4 bite**:
+     * a capability that writes may run only inside a workflow that declared
+     * both. Absent means a plan that came from no workflow, which declares
+     * nothing and therefore may run no writing capability at all.
+     */
+    writes?: WorkflowWrites;
+    labelPropagation?: WorkflowLabelPropagation;
+  } | null;
+  /**
+   * T-396 — the closed registry of capabilities this deployment has BUILT.
+   * Absent means this deployment executes none, and a plan naming one is
+   * refused rather than silently running the orchestrator's own leaf — the
+   * wrong answer nobody is told about that the interim validator guard existed
+   * to prevent.
+   */
+  capabilities?: CapabilityRegistry;
+  /**
+   * T-396 — the capability names ASSEMBLED for this requester (T-269), by the
+   * boundary that resolved their access. The chain does not resolve its own
+   * permissions (component 2): it is handed the set and can only refuse
+   * against it, never widen it.
+   *
+   * **Absent is empty, and that is the fail-safe direction.** A caller that
+   * supplied no assembled set has performed no entitlement check, and a step
+   * naming a capability is refused — rather than admitted because nobody said
+   * otherwise.
+   */
+  entitledCapabilities?: readonly string[];
   /**
    * T-266 — the orchestration mode this run was classified into. Stored on the
    * plan, never derived, because the labelling requirement is hard: a user must
@@ -217,7 +321,10 @@ export async function runChain(
    * the honest record of a check that ran outside the plan.
    */
   const step = async <In, Out>(
-    type: 'retrieve' | 'draft' | 'ground_check' | 'cite',
+    // T-396 — widened from the four chain types to the whole Step vocabulary:
+    // a capability invocation is a Step row of its own kind, which migration
+    // 0055 fixed the words for a wave early.
+    type: StepType,
     plannedStepId: Id | null,
     leaf: Leaf<In, Out>,
     leafInput: In,
@@ -287,6 +394,54 @@ export async function runChain(
     return fail('the plan produced no answer — it declared no "present" step');
   }
 
+  // ── T-396: THE THREE CAPABILITY GUARDS, ALL BEFORE ANY SPEND ──────────────
+  //
+  // Same reasoning as the refusal above, one ticket along: an unbuilt
+  // capability, an unentitled one and a write nobody declared are all defects
+  // in the PLAN. Discovering them half way through, with a retrieval and a
+  // model call already paid for, would be paying to learn something knowable
+  // for nothing — and, for the entitlement one, would mean a step had already
+  // run on behalf of somebody not entitled to the next.
+  const entitled = new Set(input.entitledCapabilities ?? []);
+  const declaresWrites = input.workflow?.writes !== undefined && input.workflow.writes !== 'none';
+  for (const planned of ordered) {
+    if (planned.worker === null) continue;
+    const capability = input.capabilities?.get(planned.worker);
+    if (capability === undefined) {
+      await finishPlan(db, plan.id, 'failed');
+      await finishRun(db, run.id, 'failed');
+      throw new CapabilityRefused(
+        'not_built',
+        `plan step "${planned.stage}" names the capability '${planned.worker}', which this deployment has not built. The executor dispatches over a closed registry and cannot invent one`,
+      );
+    }
+    if (!entitled.has(planned.worker)) {
+      // THE ENTITLEMENT REFUSAL, not a generic error (ADR-0053 §7). The set was
+      // assembled for this requester (T-269) and a capability outside it is
+      // absent, not disabled — so the message says the requester is not
+      // entitled to it and does not enumerate what they could have had.
+      await finishPlan(db, plan.id, 'failed');
+      await finishRun(db, run.id, 'failed');
+      throw new CapabilityRefused(
+        'not_entitled',
+        `plan step "${planned.stage}" names the capability '${planned.worker}', which this requester is not entitled to`,
+      );
+    }
+    if (capability.declaration.writes && !declaresWrites) {
+      // Validator rule 4, biting for the first time: a workflow that writes has
+      // to have said so AND said how the label travels, and it is only now that
+      // anything could actually write. A writing capability inside a workflow
+      // declaring `writes: none` would put a document in a sandbox under a
+      // recipe that promised it would not.
+      await finishPlan(db, plan.id, 'failed');
+      await finishRun(db, run.id, 'failed');
+      throw new CapabilityRefused(
+        'writes_undeclared',
+        `plan step "${planned.stage}" names '${planned.worker}', which writes, but the workflow this plan came from declared \`writes: ${input.workflow?.writes ?? 'none'}\`. A capability that writes runs only inside a workflow that declared its write and its label-propagation behaviour`,
+      );
+    }
+  }
+
   const mode: ChainMode = input.sandboxDocumentId != null ? 'document' : 'chat';
   // The `verify` step is the ground-check's RECORD, held aside before the walk
   // so it is never reached as an instruction. If the plan names none, the check
@@ -305,6 +460,11 @@ export async function runChain(
   // did not feed it.
   const failures: Array<{ stage: PlanStage; reason: string }> = [];
   const failed = new Set<Id>();
+  // T-396 — what each capability step produced, keyed by the DECLARING step's
+  // id, so `{{steps.retrieve.output}}` on a later step resolves to the thing
+  // the earlier one actually returned. In memory for the life of the walk: a
+  // step output is not a record, it is a value in flight.
+  const outputs = new Map<string, unknown>();
 
   for (const planned of ordered) {
     // a step whose dependencies did not run does not run either, and is
@@ -315,6 +475,36 @@ export async function runChain(
       // went wrong, and it did not run. `pending` would read as "not reached
       // yet", which is a claim about a run that has finished.
       await finishPlanStep(db, planned.id, 'skipped');
+      continue;
+    }
+
+    // ── T-396 — THE EXECUTOR RULE: THE STEP NAMES A CAPABILITY, IT RUNS ─────
+    //
+    // Before the stage switch, deliberately. Stage keeps exactly two jobs from
+    // here: deciding what runs a step naming NO capability, and being the
+    // vocabulary the plan and the completion footer are written in. It has lost
+    // the job of choosing an executor for a step that named one — which is the
+    // whole rule, and the reason the drafting stage used to run the draft leaf
+    // whatever a step said.
+    if (planned.worker !== null) {
+      const capability = input.capabilities!.get(planned.worker)!;
+      const ran = await step(
+        planned.worker as StepType,
+        planned.id,
+        (ctx, inputs: Record<string, unknown>) => capability.run(ctx, inputs),
+        resolveStepInputs(planned.inputs, outputs),
+      );
+      if (!ran.ok) {
+        failed.add(planned.id);
+        failures.push({ stage: planned.stage, reason: ran.reason });
+        continue;
+      }
+      if (planned.key !== null) outputs.set(planned.key, ran.output);
+      // A capability on the `present` stage IS the run's product — a built
+      // document rather than a cited answer. `answer: null` is the honest value
+      // and not a gap: the same shape a document-targeted chain run already
+      // produces, where the deliverable is the document and not the prose.
+      if (planned.stage === 'present') cited = { suggestionIds: [], answer: null };
       continue;
     }
 
@@ -528,4 +718,30 @@ export function sourcesOf(retrieved: AssembledInput): SourceRef[] {
     refs.push(ref);
   }
   return refs;
+}
+
+/**
+ * T-396 — `{{steps.x.output}}`, resolved at run time and nowhere else.
+ *
+ * `bindWorkflow` deliberately leaves these alone: step outputs do not exist
+ * until the plan runs, and resolving them at bind time would mean inventing
+ * them. A reference to a step that produced nothing resolves to `undefined`
+ * rather than to the literal template — a capability handed the string
+ * `"{{steps.retrieve.output}}"` would treat it as data, and the validator has
+ * already refused a reference that could not resolve.
+ */
+export function resolveStepInputs(
+  inputs: Record<string, unknown>,
+  outputs: ReadonlyMap<string, unknown>,
+): Record<string, unknown> {
+  const resolved: Record<string, unknown> = {};
+  for (const [field, value] of Object.entries(inputs)) {
+    if (typeof value !== 'string') {
+      resolved[field] = value;
+      continue;
+    }
+    const reference = /^\{\{\s*steps\.([A-Za-z0-9_#-]+)\.output\s*\}\}$/.exec(value);
+    resolved[field] = reference === null ? value : outputs.get(reference[1]!);
+  }
+  return resolved;
 }

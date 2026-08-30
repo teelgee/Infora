@@ -3,7 +3,9 @@ import { cors } from 'hono/cors';
 import type { ApiError } from '@infora/contracts';
 import { createAssembler } from '@infora/knowledge';
 import type { Attenuation } from '@infora/governance';
+import { loadDocumentTemplates, loadExtractionSchemas } from '@infora/capabilities';
 import {
+  createCapabilityRegistry,
   createCiteLeaf,
   createDraftLeaf,
   createGroundCheckLeaf,
@@ -147,11 +149,27 @@ export function buildApp(deps: AppDeps) {
       { assemble: createAssembler({ db: deps.db, router: deps.router }, narrowing) },
       { ...(deps.modelRates !== undefined && { rates: deps.modelRates }) },
     );
+  // T-396 — THE EXECUTOR'S REGISTRY, bound once at composition beside the
+  // leaves and for the same reason: what a deployment can run must not change
+  // underneath a run already recording that it ran it. Templates and extraction
+  // schemas are read here, at boot, so a definition naming a template that does
+  // not exist fails in front of whoever changed it (the workflow loader's own
+  // rule, one layer along).
+  const capabilities = createCapabilityRegistry({
+    db: deps.db,
+    router: deps.router,
+    assemble,
+    templates: loadDocumentTemplates(),
+    schemas: loadExtractionSchemas(),
+    ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
+  });
+
   app.route(
     '/',
     runRoutes({
       db: deps.db,
       narrowedRetrieve,
+      capabilities,
       leaves: {
         // T-313 — the retrieve step now records what embedding the query cost,
         // so it needs the same rate table the draft leaf has

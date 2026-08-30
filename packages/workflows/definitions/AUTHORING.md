@@ -81,8 +81,32 @@ already spent and an answer that will never arrive.
    rule as a draft Lens and an unentitled worker. A capability the viewer cannot
    use is never advertised to them.
 
-Each of the five has a fixture in `src/validate.test.ts` that fails it. A rule
+6. **A fan-out's width comes from a parameter, and from nowhere else.** A step
+   may carry `fan_out: '{{parameters.NAME}}'`, where `NAME` is a declared
+   `id_list` parameter, and becomes **one step per element** at plan time;
+   `{{item}}` inside that step's `inputs` is the element. A `fan_out` naming
+   `{{steps.x.output}}` is rejected, and the rejection is the point: a step's
+   output can be model-written, so a width read from one would make the plan's
+   **shape** model-chosen while the plan still called itself declared — losing
+   the one promise (same inputs, same steps, same order) a declared workflow is
+   sold on. The width is arithmetic over a list the *code that bound the
+   parameter* computed. A `verify` step may not fan out, for the same reason it
+   may not name a worker.
+
+Each of the six has a fixture in `src/validate.test.ts` that fails it. A rule
 with no failing fixture is a rule nobody has checked.
+
+## `worker:` is an instruction, not a label (T-396)
+
+Since the executor rule (ADR-0053 §7) **a step naming a capability runs that
+capability**. Before it, `runChain` dispatched on stage and read `worker` never,
+so a name was documentation — and `project-question.yaml` carried one that way.
+Do not do that. Omit `worker` for a stage the orchestrator runs itself
+(`analyse` is its own thinking leaf, `present` is citation resolution, `verify`
+is the ground-check's record), and name one only where you mean that thing to
+execute. A capability that `writes` will only run inside a workflow that
+declared `writes` **and** its `label_propagation`; the run refuses otherwise,
+before any spend.
 
 ## Messages
 

@@ -17,6 +17,20 @@ export type PlannedStep = {
   ordinal: number;
   stage: PlanStage;
   dependsOn: Id[];
+  /**
+   * T-396 — the capability this step names, or null for a step the
+   * orchestrator runs itself. THE EXECUTOR READS THIS; before T-396 the column
+   * was written and never read, which is the whole of what that ticket fixed.
+   */
+  worker: string | null;
+  /** T-396 — the step's bound inputs, handed to the capability that runs it */
+  inputs: Record<string, unknown>;
+  /**
+   * T-396 — the declaring workflow's own step id, carried in memory (never
+   * stored) so `{{steps.x.output}}` resolves between steps of one run. Null for
+   * a plan that came from no workflow.
+   */
+  key: string | null;
 };
 
 /** A plan that cannot be ordered is not executed at all — never half-executed. */

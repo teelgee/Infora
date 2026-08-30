@@ -9,7 +9,7 @@ const step = (
   ordinal: number,
   dependsOn: string[] = [],
   stage: PlannedStep['stage'] = 'analyse',
-): PlannedStep => ({ id, ordinal, stage, dependsOn });
+): PlannedStep => ({ id, ordinal, stage, dependsOn, worker: null, inputs: {}, key: null });
 
 describe('orderPlanSteps (T-262)', () => {
   it('walks a chain in dependency order, whatever order the rows arrive in', () => {

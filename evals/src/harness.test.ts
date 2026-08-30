@@ -133,23 +133,22 @@ describe('the eval harness (T-255)', () => {
     ]);
     expect(result.plan?.steps.every((step) => step.stepRowId !== null)).toBe(true);
 
-    // T-265 — the plan now names the DECLARED WORKFLOW it came from, and its
-    // retrieve step names the worker that realises it. **Everything above this
-    // line is unchanged**, which is this ticket's whole acceptance: the answer,
-    // the step rows and the stage order are byte-identical, and what is new is
-    // that the plan says where it came from.
+    // T-265 — the plan names the DECLARED WORKFLOW it came from. **Everything
+    // above this line is unchanged**, which was that ticket's whole acceptance:
+    // the answer, the step rows and the stage order are byte-identical, and
+    // what was new is that the plan says where it came from.
     expect(result.plan?.workflowId).toBe('project-question');
-    expect(result.plan?.workflowVersion).toBe(1);
-    expect(result.plan?.steps.map((step) => step.worker)).toEqual([
-      'corpus_retrieval',
-      // `analyse` and `present` are the orchestrator's own leaves and `verify`
-      // is the ground-check, which is code outside the plan — none of the three
-      // is a worker, and naming one for them would be a fiction
-      null,
-      null,
-      null,
-    ]);
-    expect(result.workersCalled).toEqual(['corpus_retrieval']);
+    // T-396 — v2, and NO step names a worker. Under the executor rule a named
+    // capability RUNS, so the retrieve step's `corpus_retrieval` — which the
+    // runner had always ignored — came off the definition. **`workersCalled` is
+    // therefore empty, and that is the truthful observation**: Ask's retrieval
+    // is the orchestrator's own retrieve leaf, and the assertion had been
+    // reading a LABEL rather than a call. `analyse` and `present` are the
+    // orchestrator's own leaves and `verify` is the ground-check, which is code
+    // outside the plan — none of the four is a worker.
+    expect(result.plan?.workflowVersion).toBe(2);
+    expect(result.plan?.steps.map((step) => step.worker)).toEqual([null, null, null, null]);
+    expect(result.workersCalled).toEqual([]);
   });
 
   it('is deterministic: ten executions, one verdict', async () => {
@@ -389,33 +388,35 @@ describe('the full assertion set (T-256)', () => {
     expect(typo.failures[0]).toContain("gold passage 'water_quality_v2#7'");
   });
 
-  // T-265 CLOSED THE DEFERRAL. The plan is readable (T-261), the registry
-  // exists (T-269) and the declared workflow's retrieve step names its worker
-  // — so `expect_calls` finally has an observation to work from, and the
-  // assertion that spent three tickets erroring rather than passing vacuously
-  // now does the thing it was written for.
+  // T-265 closed the deferral; T-396 CORRECTED WHAT IT HAD CLOSED IT ON.
+  // `expect_calls` reads the workers the plan recorded, and the Ask workflow's
+  // retrieve step used to record `corpus_retrieval` DESCRIPTIVELY — the runner
+  // read it never. So this assertion was passing on a label rather than on a
+  // call, which is the fiction the executor rule removed: Ask's retrieval is
+  // the orchestrator's own leaf and calls no worker at all.
+  //
+  // Against Ask the honest observation is therefore EMPTY, and both directions
+  // are still exercised here — `expect_calls` fails on a worker not called,
+  // `expect_not_called` passes on one that was not. The negative's teeth (a
+  // worker that WAS called failing `expect_not_called`) are held at unit grain
+  // in assertions.test.ts, against a supplied observation, which is where they
+  // belong: they are a property of the assertion, not of the Ask workflow.
   it('expect_calls / expect_not_called: observed off the plan, both ways', async () => {
-    const calls = await run('T256-expect-calls', { expect_calls: ['corpus_retrieval'] });
-    expect(calls.verdict).toBe('pass');
-    expect(calls.workersCalled).toEqual(['corpus_retrieval']);
-
-    // and it still has teeth: a worker the plan did not call fails, rather than
-    // passing because the observation is empty
-    const missing = await run('T256-expect-missing', { expect_calls: ['web_research'] });
+    // a worker the plan did not call fails, rather than erroring or passing
+    // because the observation is empty
+    const missing = await run('T256-expect-missing', { expect_calls: ['corpus_retrieval'] });
     expect(missing.verdict).toBe('fail');
-    expect(missing.failures[0]).toContain("the plan called no worker 'web_research'");
+    expect(missing.failures[0]).toContain("the plan called no worker 'corpus_retrieval'");
+    expect(missing.workersCalled).toEqual([]);
 
     const notCalled = await run('T256-expect-not-called', { expect_not_called: ['web_research'] });
     expect(notCalled.verdict).toBe('pass');
-    expect(notCalled.workersCalled).toEqual(['corpus_retrieval']);
+    expect(notCalled.workersCalled).toEqual([]);
 
-    // the negative's own teeth: `expect_not_called` on a worker the plan DID
-    // call must fail, or it is the vacuous pass this assertion spent three
-    // tickets refusing to be
-    const wrongly = await run('T256-expect-not-called-wrongly', {
-      expect_not_called: ['corpus_retrieval'],
-    });
-    expect(wrongly.verdict).toBe('fail');
+    // AND IT IS STILL NOT VACUOUS. The observation is empty because the plan is
+    // readable and recorded no worker — not because no plan was read, which
+    // remains an `Unevaluable` error rather than a pass (assertions.test.ts).
+    expect(notCalled.plan).not.toBeNull();
   });
 
   // ── T-257 — model-graded assertions, over a real run ─────────────────────────

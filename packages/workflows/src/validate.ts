@@ -66,6 +66,7 @@ const STEP_FIELDS = {
   worker: 'worker',
   inputs: 'inputs',
   depends_on: 'dependsOn',
+  fan_out: 'fanOut',
 } as const;
 
 const PARAMETER_FIELDS = {
@@ -100,6 +101,8 @@ const SCOPE_FIELDS = new Set([
 ]);
 
 const TEMPLATE = /\{\{\s*([^}]+?)\s*\}\}/g;
+/** T-396 — a fan-out may reference a parameter and nothing else (see readSteps) */
+const FAN_OUT_PARAMETER = /^\{\{\s*parameters\.([A-Za-z0-9_]+)\s*\}\}$/;
 
 export type ValidationOptions = {
   /** the file the definition came from — every message names it */
@@ -206,6 +209,9 @@ export function validateWorkflow(raw: unknown, options: ValidationOptions): Vali
   // reports success — which is the worst available outcome.
   errors.push(...checkTemplates(steps, parameters, options.file));
 
+  // T-396 — the fan-out's parameter is declared, and is a list
+  errors.push(...checkFanOut(steps, parameters, options.file));
+
   if (errors.length > 0) return { ok: false, errors };
 
   return {
@@ -224,6 +230,7 @@ export function validateWorkflow(raw: unknown, options: ValidationOptions): Vali
         ...(step.worker !== '' && { worker: step.worker }),
         inputs: step.inputs,
         dependsOn: step.dependsOn,
+        ...(step.fanOut !== '' && { fanOut: step.fanOut }),
       })),
       requiresWorkers,
       writes: writes!,
@@ -232,7 +239,15 @@ export function validateWorkflow(raw: unknown, options: ValidationOptions): Vali
   };
 }
 
-type RawStep = { id: string; stage: string; worker: string; inputs: Record<string, unknown>; dependsOn: string[] };
+type RawStep = {
+  id: string;
+  stage: string;
+  worker: string;
+  inputs: Record<string, unknown>;
+  dependsOn: string[];
+  /** T-396 — the `{{parameters.NAME}}` reference this step fans out over */
+  fanOut: string;
+};
 
 function readSteps(doc: Record<string, unknown>, at: (f: string, p: string) => void): RawStep[] {
   const raw = doc['steps'];
@@ -292,21 +307,41 @@ function readSteps(doc: Record<string, unknown>, at: (f: string, p: string) => v
         `'${worker}' — a \`verify\` step may not name a worker. The ground-check is code that runs outside the plan on every answer, and this step is its record, not an instruction`,
       );
     }
-    // Interim guard (review, 2026-08-28): the runner executes a named worker on
-    // NO stage yet — `runChain` dispatches on stage and never reads `worker`
-    // (T-309's stop). Until an executor rule is ruled at the checker session, a
-    // worker anywhere but the retrieve step — where the shipped definition
-    // carries it descriptively (T-265) — validated clean and SILENTLY ran the
-    // orchestrator's own leaf instead, which is a wrong answer nobody is told
-    // about. Refusing at load is the honest interim: a definition that names an
-    // executor the engine does not have must not load.
-    if (stage !== 'search_corpus' && stage !== 'verify' && worker !== '') {
-      at(
-        `${where}.worker`,
-        `'${worker}' — no stage but the retrieve step carries a worker yet: the runner executes ` +
-          `workers on no stage (the executor rule is undecided, see T-309 on the board), so this ` +
-          `step would silently run the orchestrator's own '${stage}' leaf instead of '${worker}'`,
-      );
+    // T-396 — THE INTERIM REFUSAL IS GONE, and its going is the ticket. Between
+    // 2026-08-28 and the executor rule (ADR-0053 §7) a worker on any stage but
+    // the retrieve step was refused at load, because `runChain` dispatched on
+    // stage and read `worker` never — so a definition naming an executor the
+    // engine did not have would have silently run the orchestrator's own leaf
+    // instead. The engine now runs the capability a step names, so the honest
+    // interim expires: a definition naming a capability on any stage LOADS, and
+    // what it names is what runs.
+
+    // ── T-396 — THE FAN-OUT, AND WHY ITS WIDTH MAY ONLY COME FROM A PARAMETER
+    //
+    // A definition holds a fixed `steps` list and cannot express "check every
+    // section". `fan_out` names the list the step becomes one step per element
+    // of — and it may name a PARAMETER and nothing else. A step's output can be
+    // model-written; a width read from one would make the plan's SHAPE
+    // model-chosen while the plan still called itself declared, which is the
+    // single guarantee (same inputs, same steps, same order) a declared
+    // workflow is sold on. The width is computed in code by whoever bound the
+    // parameter, at plan time, and this rule is what keeps that true.
+    const fanOut = step['fan_out'];
+    if (fanOut !== undefined) {
+      const reference = typeof fanOut === 'string' ? FAN_OUT_PARAMETER.exec(fanOut) : null;
+      if (reference === null) {
+        at(
+          `${where}.fan_out`,
+          `must be a reference to a declared parameter, written {{parameters.NAME}}. ` +
+            `A width taken from a step's output would be model-chosen, and a plan whose shape a model chose is not a declared workflow`,
+        );
+      }
+      if (stage === 'verify') {
+        at(
+          `${where}.fan_out`,
+          'a `verify` step may not fan out. The ground-check is code that runs once outside the plan, and this step is its record',
+        );
+      }
     }
 
     const inputs = step['inputs'];
@@ -324,6 +359,7 @@ function readSteps(doc: Record<string, unknown>, at: (f: string, p: string) => v
       worker,
       inputs: (inputs as Record<string, unknown>) ?? {},
       dependsOn: Array.isArray(dependsOn) ? dependsOn.filter((d): d is string => typeof d === 'string') : [],
+      fanOut: typeof fanOut === 'string' ? fanOut : '',
     });
   }
   return steps;
@@ -385,6 +421,17 @@ function checkTemplates(steps: RawStep[], parameters: WorkflowParameter[], file:
       const parameter = /^parameters\.([A-Za-z0-9_]+)$/.exec(reference);
       const output = /^steps\.([A-Za-z0-9_-]+)\.output$/.exec(reference);
 
+      // T-396 — `{{item}}` is this expansion's element of the fanned-out list,
+      // and exists only where there is a fan-out to be an element of. Outside
+      // one it resolves to nothing, which is the empty-input-reporting-success
+      // failure this whole function was written against.
+      if (reference === 'item') {
+        if (step.fanOut === '') {
+          errors.push(`${where} — {{item}} is only meaningful on a step that declares \`fan_out\``);
+        }
+        continue;
+      }
+
       if (parameter) {
         if (!parameterNames.has(parameter[1]!)) {
           errors.push(`${where} — {{${reference}}} names no declared parameter`);
@@ -404,6 +451,36 @@ function checkTemplates(steps: RawStep[], parameters: WorkflowParameter[], file:
       }
       errors.push(
         `${where} — {{${reference}}} is neither {{parameters.NAME}} nor {{steps.ID.output}}`,
+      );
+    }
+  }
+  return errors;
+}
+
+/**
+ * RULE 6 (T-396) — a fan-out's width comes from a declared `id_list` parameter.
+ *
+ * `id_list` and not any list: the width is a count of *things the plan will run
+ * a step against*, and the two callers this exists for — the checker's sections
+ * and the creator's bound sources — both hand it identifiers. A free-text list
+ * would admit a width computed from prose, which is the model-chosen door this
+ * rule closes from the other side.
+ */
+function checkFanOut(steps: RawStep[], parameters: WorkflowParameter[], file: string): string[] {
+  const errors: string[] = [];
+  const byName = new Map(parameters.map((parameter) => [parameter.name, parameter]));
+  for (const step of steps) {
+    if (step.fanOut === '') continue;
+    const reference = FAN_OUT_PARAMETER.exec(step.fanOut);
+    if (reference === null) continue; // already reported in readSteps
+    const parameter = byName.get(reference[1]!);
+    if (parameter === undefined) {
+      errors.push(`${file}: steps[${step.id}].fan_out — {{parameters.${reference[1]}}} names no declared parameter`);
+      continue;
+    }
+    if (parameter.type !== 'id_list') {
+      errors.push(
+        `${file}: steps[${step.id}].fan_out — parameter '${parameter.name}' is \`${parameter.type}\`, and a fan-out's width is the length of an \`id_list\`. A width taken from anything else is not a count of steps`,
       );
     }
   }

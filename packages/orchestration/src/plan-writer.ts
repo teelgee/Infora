@@ -46,7 +46,13 @@ export type OpenPlanInput = {
   projectId: Id;
   requesterParticipantId: Id;
   question: string;
-  stages: ReadonlyArray<{ stage: PlanStage; worker?: string | null; inputs?: Record<string, unknown> }>;
+  stages: ReadonlyArray<{
+    stage: PlanStage;
+    worker?: string | null;
+    inputs?: Record<string, unknown>;
+    /** T-396 — the declaring workflow's step id; in memory only, never stored */
+    key?: string | null;
+  }>;
   /**
    * T-265 — the declared workflow this plan came from, when it came from one.
    * Recorded on the plan rather than inferred: a `declared` plan naming no
@@ -141,7 +147,19 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       })
       .returning();
     stepIds.push(step!.id as Id);
-    steps.push({ id: step!.id as Id, ordinal, stage: stage.stage, dependsOn });
+    steps.push({
+      id: step!.id as Id,
+      ordinal,
+      stage: stage.stage,
+      dependsOn,
+      // T-396 — the executor's three reads. `worker` and `inputs` are the
+      // stored row's own values; `key` is the declaring step's id and is
+      // deliberately NOT a column: it is meaningful only while this run walks,
+      // and a stored copy would be a second name for a plan step.
+      worker: stage.worker ?? null,
+      inputs: stage.inputs ?? {},
+      key: stage.key ?? null,
+    });
   }
 
   // sealed: from here the plan says what it says, and only what it DID may

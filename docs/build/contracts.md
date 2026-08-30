@@ -808,3 +808,16 @@ are not recorded here.
   answers `404` rather than "exists but refused", which would make the preview a
   disclosure channel the write itself closes. `openRunInEditorBody` is unchanged
   — the override and its mandatory reason were already the shape this needed.
+- **2026-08-30 (T-396) — `WorkflowStep` gains `fanOut`, and the field exists to
+  make a width impossible to fake.** A definition holds a fixed `steps` list and
+  cannot express *"check every section"*, which the checker (T-336) and the
+  document creator both need. The field could have taken any reference; it takes
+  **only `{{parameters.NAME}}` against a declared `id_list`**, and a `fan_out`
+  pointing at `{{steps.x.output}}` fails to load. That restriction is the reason
+  the field is in the contract rather than in a runner: a step's output can be
+  model-written, so a width read from one would make the plan's **shape**
+  model-chosen while the plan still called itself `declared` — losing the one
+  promise (same inputs, same steps, same order) a declared workflow is sold on.
+  `BoundPlan` gains `writes` and `labelPropagation` for the same
+  keep-it-checkable reason: the executor is where validator rule 4 finally
+  bites, and it cannot bite on a declaration it was never handed.

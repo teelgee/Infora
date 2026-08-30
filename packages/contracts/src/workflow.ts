@@ -82,6 +82,22 @@ export type WorkflowStep = {
    */
   inputs: Record<string, unknown>;
   dependsOn: string[];
+  /**
+   * T-396 (ADR-0053 §7) — the fan-out: one declared step that becomes N steps
+   * at plan time, because the definition holds a fixed list and cannot express
+   * *"check every section"*.
+   *
+   * The value is a `{{parameters.NAME}}` reference to a declared `id_list`
+   * parameter, and **may never be `{{steps.X.output}}`**. That restriction is
+   * the whole guarantee: a step's output can be model-written, so a width read
+   * from one would be a model-chosen plan wearing a declared workflow's name.
+   * The width is therefore whatever the code that bound the parameter computed
+   * — never a number a model produced.
+   *
+   * Each expanded step's inputs may reference `{{item}}`, which is that
+   * element of the bound list.
+   */
+  fanOut?: string;
 };
 
 // The stage vocabulary is `PlanStage` in shared.ts and is not restated here;

@@ -470,21 +470,18 @@ describe('the first declared workflow (T-265)', () => {
     const chainPlan = await planOf(app, consultant, viaChain.id);
 
     expect(declaredPlan.workflowId).toBe('project-question');
-    expect(declaredPlan.workflowVersion).toBe(1);
     // the fallback stays legal and stays honest: a declared plan naming no
     // workflow is what the coded chain has always been
     expect(chainPlan.workflowId).toBeNull();
     expect(declaredPlan.mode).toBe('declared');
     expect(chainPlan.mode).toBe('declared');
 
-    // and the retrieve step names the worker that realises it — the fact the
-    // eval harness's `expect_calls` spent three tickets waiting for
-    expect(declaredPlan.steps.map((step) => step.worker)).toEqual([
-      'corpus_retrieval',
-      null,
-      null,
-      null,
-    ]);
+    // T-396 — and NO step names a capability, because under the executor rule a
+    // name is an instruction rather than a label. Ask's retrieval is the
+    // orchestrator's own retrieve leaf; the shipped definition dropped the
+    // descriptive `worker:` at v2 and the plan records what actually ran.
+    expect(declaredPlan.workflowVersion).toBe(2);
+    expect(declaredPlan.steps.map((step) => step.worker)).toEqual([null, null, null, null]);
     expect(chainPlan.steps.map((step) => step.stage)).toEqual(
       declaredPlan.steps.map((step) => step.stage),
     );
@@ -659,8 +656,13 @@ describe('plan edit and re-run (T-267)', () => {
       body: JSON.stringify({ steps }),
     });
 
+  // T-396 — the retrieve step names NO capability, and that is now a
+  // behavioural statement rather than a stylistic one: a step naming
+  // `corpus_retrieval` would run the leaf WORKER, whose output the
+  // orchestrator's own drafting leaf cannot read. An edit that reproduces the
+  // coded chain reproduces the coded chain's executors.
   const chainSteps = [
-    { stage: 'search_corpus', worker: 'corpus_retrieval' },
+    { stage: 'search_corpus' },
     { stage: 'analyse' },
     { stage: 'verify' },
     { stage: 'present' },
@@ -711,7 +713,7 @@ describe('plan edit and re-run (T-267)', () => {
     // away", and it changes nothing about whether the check runs (T-262)
     const body = (await (
       await rerun(cookie, first.id, [
-        { stage: 'search_corpus', worker: 'corpus_retrieval' },
+        { stage: 'search_corpus' },
         { stage: 'analyse' },
         { stage: 'present' },
       ])
@@ -792,7 +794,7 @@ describe('plan edit and re-run (T-267)', () => {
     const first = await askOnce(cookie);
     // no `present` stage: nothing can produce an answer, so the edit is refused
     // rather than producing a run that ends with nothing to show
-    const res = await rerun(cookie, first.id, [{ stage: 'search_corpus', worker: 'corpus_retrieval' }]);
+    const res = await rerun(cookie, first.id, [{ stage: 'search_corpus' }]);
     expect(res.status).toBe(400);
     expect(((await res.json()) as { detail: string }).detail).toContain('declared no "present" step');
   });

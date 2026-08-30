@@ -10,6 +10,9 @@ const step = (id: string, ordinal: number, dependsOn: string[] = []): PlannedSte
   ordinal,
   stage: 'analyse',
   dependsOn,
+  worker: null,
+  inputs: {},
+  key: null,
 });
 
 describe('dependantsOf (T-268)', () => {

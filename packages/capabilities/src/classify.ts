@@ -190,7 +190,15 @@ export function modelChosenStages(
 ): Array<{ stage: PlanStage; worker: string | null }> {
   const retrieval = workers.filter((worker) => worker.name === 'corpus_retrieval');
   return [
-    ...retrieval.map((worker) => ({ stage: 'search_corpus' as PlanStage, worker: worker.name })),
+    // T-396 — the step names NO capability, and the entitlement it was
+    // conditioned on still decides whether it exists at all. Before the
+    // executor rule the name was descriptive and the orchestrator's retrieve
+    // leaf ran regardless; now a name would be an instruction, and the leaf is
+    // what a model-chosen turn's retrieval actually is — baseline assembly plus
+    // the sub-agent's child run, carrying the steering channels the draft step
+    // reads. The presence of the step, not a label on it, is what a requester
+    // without `corpus_retrieval` loses.
+    ...retrieval.map(() => ({ stage: 'search_corpus' as PlanStage, worker: null })),
     { stage: 'analyse', worker: null },
     { stage: 'verify', worker: null },
     { stage: 'present', worker: null },

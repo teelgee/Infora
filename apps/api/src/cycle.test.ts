@@ -290,7 +290,12 @@ describe('promotion (T-120)', () => {
     expect(at.getUTCDay()).not.toBe(0);
     expect(at.getUTCDay()).not.toBe(6);
     const calendarDays = Math.round((at.getTime() - Date.now()) / 86_400_000);
-    expect(calendarDays).toBeGreaterThanOrEqual(13); // 10 working days spans ≥ 2 weekends
+    // 10 working days spans two weekends from a weekday and ONE from a Sunday,
+    // where the count starts on the Monday after — 12 calendar days, not 13.
+    // The old bound was 13 and this suite therefore failed every Sunday, which
+    // is a fault in the assertion rather than in the target it checks (found
+    // 2026-08-30, a Sunday, by the executor session; fixed in passing).
+    expect(calendarDays).toBeGreaterThanOrEqual(12);
     expect(calendarDays).toBeLessThanOrEqual(16);
   });
 
