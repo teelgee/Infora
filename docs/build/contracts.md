@@ -914,3 +914,19 @@ are not recorded here.
   list**, because they are two guarantees: one cites normally, the other never
   grounds and is never cited (ADR-0022), and a single field would let a user
   take the weak path without knowing.
+- **2026-08-31 (T-405) — `GroundingSource` and `PlanRow` gained
+  `description`, and `patchContainerBody` gained an optional, nullable one.**
+  *Plainly: a document's reference identifies it; it does not say what is in
+  it, and someone choosing sources for a draft was choosing off codes alone.*
+  It rides `GroundingSource` rather than being fetched per row because the
+  picker's whole job is telling one reference from another, and a picker that
+  has to make a call per row is one that renders without them. On
+  `patchContainerBody` it is **`.nullable().optional()`, and the two mean
+  different things on purpose**: absent says *"this request is not about the
+  description, leave it alone"*, `null` says *"clear it"*. A field that could
+  only carry a string would give a user who wrote a description by mistake no
+  way to take it back, and would make every metadata edit silently a
+  description edit as well. **Typed, never generated** (session Cr residual,
+  Claude-ruled 2026-08-31) — a model-written description would be an uncited
+  claim about a document, rendered beside that document's own grounded
+  content, which is the one distinction this product exists to hold.

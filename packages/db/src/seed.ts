@@ -237,12 +237,18 @@ await db.insert(s.workItems).values({
 type LibraryDoc = {
   reference: string;
   state?: 'live' | 'withdrawn';
+  // T-405 — what the document IS, as the person who filed it would say it.
+  // Seeded so the source picker can be read (and photographed) with real
+  // sentences in it rather than a column of codes. Typed, never generated.
+  description: string;
   versions: Array<{ ref: string; current: boolean; content: string }>;
 };
 
 const library: LibraryDoc[] = [
   {
     reference: 'WA-GEO-GIR-004',
+    description:
+      'Interprets the ground investigation at Wrenfield Sidings: what the made ground is, what contamination was found in it, and what the perched water means for construction dewatering.',
     versions: [
       {
         ref: 'v1',
@@ -271,6 +277,8 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-ENV-BAS-003',
+    description:
+      'The environmental baseline for the corridor — the existing conditions every assessment chapter measures its effects against.',
     versions: [
       {
         ref: 'v3',
@@ -290,6 +298,8 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-WAT-FRA-001',
+    description:
+      'The flood risk assessment for the corridor, including the Ashcombe Brook crossing and how surface water leaving the compounds is managed.',
     versions: [
       {
         ref: 'v1',
@@ -306,6 +316,8 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-CON-SCC-002',
+    description:
+      'How the community was consulted, when, and what they said — the record the routeing refinement was justified against.',
     versions: [
       {
         ref: 'v1',
@@ -321,6 +333,8 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-EIA-SCP-001',
+    description:
+      'Sets out what the Environmental Impact Assessment will and will not cover, and the register and structure every chapter is written to.',
     versions: [
       {
         ref: 'v1',
@@ -339,6 +353,8 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-HER-DBA-002',
+    description:
+      'The original heritage desk-based assessment. Withdrawn: its methodology was superseded, and it must not be relied on.',
     state: 'withdrawn', // stays in the library, leaves the grounded corpus (ADR-0013)
     versions: [
       {
@@ -361,6 +377,7 @@ for (const doc of library) {
       // owner organisation is its producing organisation (ADR-0033)
       producingOrganisationId: trentmoor!.id,
       documentReference: doc.reference,
+      description: doc.description,
       inLibrary: true,
       state: doc.state ?? 'live',
     })
@@ -488,6 +505,8 @@ const [redgateContainer] = await db
     projectId: project!.id,
     producingOrganisationId: redgate!.id,
     documentReference: 'WA-ECO-PEA-001',
+    description:
+      'Redgate’s preliminary ecological appraisal of the corridor — habitats, protected species and the survey work still outstanding.',
     inLibrary: true,
     state: 'live',
   })
@@ -584,6 +603,8 @@ const [marchwoodContainer] = await db
     projectId: ledbrook!.id,
     producingOrganisationId: marchwood!.id,
     documentReference: 'MQ-GEO-GIR-001',
+    description:
+      'The ground investigation report for the Ledbrook quarry extension — a different project entirely, and the wall test’s subject.',
     inLibrary: true,
     state: 'live',
   })

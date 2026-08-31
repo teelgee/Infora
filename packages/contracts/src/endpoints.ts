@@ -742,6 +742,14 @@ export type PlanRow = {
   producingOrganisationId: Id;
   producingOrganisationName: string;
   metadata: Record<string, unknown>;
+  /**
+   * T-405 — what the document IS, in a sentence or two, **typed by whoever
+   * files or edits it and never generated**. Null where nobody has written one.
+   * It rides the plan row because the plan is where document metadata is
+   * edited, and it is read again in `GroundingSource` because the source
+   * picker is where it does its work.
+   */
+  description: string | null;
   state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
   // T-389 — whether this deliverable has been published into the owner's
   // library. The surface needs it because `withdrawn` is TWO ACTS THAT SHARE A
@@ -819,6 +827,15 @@ export type CreatePlanRowBody = z.infer<typeof createPlanRowBody>;
 
 export const patchContainerBody = z.object({
   metadata: z.record(z.string(), z.unknown()),
+  /**
+   * T-405 — the document's own description, saved beside its metadata because
+   * it is edited in the same dialog by the same person under the same
+   * permission. **Optional and nullable are two different answers**: absent
+   * means "this request is not about the description, leave it alone", and
+   * `null` means "clear it". A caller that could only send a string would have
+   * no way to say a description was written by mistake.
+   */
+  description: z.string().nullable().optional(),
 });
 export type PatchContainerBody = z.infer<typeof patchContainerBody>;
 
@@ -2165,6 +2182,14 @@ export type GroundingSource = {
   documentReference: string;
   /** the deliverable's title, absent for reference material (T-304) */
   title: string | null;
+  /**
+   * T-405 — what the document IS, in a sentence or two, **typed by whoever
+   * filed or edited it and never generated**. Null where nobody has written
+   * one, which is most of an existing corpus: the picker then says nothing
+   * rather than inventing something, and a model-written description would be
+   * an uncited claim about a document sitting beside its own grounded content.
+   */
+  description: string | null;
 };
 export type GetGroundingScopeResponse = {
   sources: GroundingSource[];

@@ -424,6 +424,13 @@ export async function groundingSources(
     versionId: string;
     documentReference: string;
     title: string | null;
+    /**
+     * T-405 — what the document IS, in the words of whoever filed it. Read
+     * here rather than left to a second call: the source picker's whole job is
+     * telling one coded reference from another, and a picker that has to fetch
+     * a description per row is one that renders without them.
+     */
+    description: string | null;
   }>
 > {
   // the chunk index is under row-level security and the policy fails CLOSED
@@ -438,6 +445,7 @@ export async function groundingSources(
         versionId: s.versions.id,
         documentReference: s.containers.documentReference,
         title: s.workItems.title,
+        description: s.containers.description,
       })
       .from(s.versionChunks)
       .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))

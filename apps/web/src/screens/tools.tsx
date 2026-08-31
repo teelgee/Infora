@@ -135,6 +135,48 @@ export function ToolCard({ tool }: { tool: ToolSummary }) {
   );
 }
 
+/**
+ * T-405 — one row of the source picker: what this document is, not just what it
+ * is called.
+ *
+ * *In plain terms: choosing what a draft may draw on used to mean reading a
+ * list of coded references. A reference identifies a document; it does not say
+ * what is in it. The row now carries the reference, the title, and the
+ * description whoever filed the document typed.*
+ *
+ * **The description is absent, not blank, where nobody has written one.** Most
+ * of a real corpus predates the column, and a row that said "no description"
+ * would spend a line saying nothing. **It is never generated** — a
+ * model-written description would be an uncited claim about a document, shown
+ * next to that document's own grounded content.
+ *
+ * One component for both tools' pickers, because it is one control over one
+ * list doing one job; two copies is how the creator's rows and the checker's
+ * end up telling a user different things about the same document.
+ */
+export function SourceRow(props: {
+  source: GroundingSource;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="source-row">
+      <input type="checkbox" checked={props.checked} onChange={props.onToggle} />
+      <span className="source-row-body">
+        <span className="source-row-head">
+          <span className="mono">{props.source.documentReference}</span>
+          {props.source.title !== null && (
+            <span className="source-row-title">{props.source.title}</span>
+          )}
+        </span>
+        {props.source.description !== null && (
+          <span className="source-row-desc">{props.source.description}</span>
+        )}
+      </span>
+    </label>
+  );
+}
+
 /** The templates this deployment carries. Fixed for V1; the set is domain content. */
 const TEMPLATES = [
   { id: 'technical-note', label: 'Technical note' },
@@ -274,21 +316,18 @@ export function DocumentCreatorScreen() {
           </p>
         ) : (
           scope.sources.map((source: GroundingSource) => (
-            <label key={source.containerId} style={{ display: 'block', marginTop: 4 }}>
-              <input
-                type="checkbox"
-                checked={sources.includes(source.versionId)}
-                onChange={() =>
-                  change(setSources)(
-                    sources.includes(source.versionId)
-                      ? sources.filter((id) => id !== source.versionId)
-                      : [...sources, source.versionId],
-                  )
-                }
-              />{' '}
-              <span className="mono">{source.documentReference}</span>{' '}
-              {source.title !== null && <span>{source.title}</span>}
-            </label>
+            <SourceRow
+              key={source.containerId}
+              source={source}
+              checked={sources.includes(source.versionId)}
+              onToggle={() =>
+                change(setSources)(
+                  sources.includes(source.versionId)
+                    ? sources.filter((id) => id !== source.versionId)
+                    : [...sources, source.versionId],
+                )
+              }
+            />
           ))
         )}
       </Card>
@@ -666,21 +705,18 @@ export function QaCheckerScreen() {
           </p>
         ) : (
           scope.sources.map((source: GroundingSource) => (
-            <label key={source.containerId} style={{ display: 'block', marginTop: 4 }}>
-              <input
-                type="checkbox"
-                checked={scopeVersionIds.includes(source.versionId)}
-                onChange={() =>
-                  change(setScopeVersionIds)(
-                    scopeVersionIds.includes(source.versionId)
-                      ? scopeVersionIds.filter((id) => id !== source.versionId)
-                      : [...scopeVersionIds, source.versionId],
-                  )
-                }
-              />{' '}
-              <span className="mono">{source.documentReference}</span>{' '}
-              {source.title !== null && <span>{source.title}</span>}
-            </label>
+            <SourceRow
+              key={source.containerId}
+              source={source}
+              checked={scopeVersionIds.includes(source.versionId)}
+              onToggle={() =>
+                change(setScopeVersionIds)(
+                  scopeVersionIds.includes(source.versionId)
+                    ? scopeVersionIds.filter((id) => id !== source.versionId)
+                    : [...scopeVersionIds, source.versionId],
+                )
+              }
+            />
           ))
         )}
       </Card>

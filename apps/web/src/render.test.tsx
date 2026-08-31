@@ -14,12 +14,24 @@
 // sentence that cannot be rendered in a test is a sentence nobody is checking.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { DestinationCheckResponse, Finding, ToolPlan, ToolSummary } from '@infora/contracts';
+import type {
+  DestinationCheckResponse,
+  Finding,
+  GroundingSource,
+  ToolPlan,
+  ToolSummary,
+} from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
-import { AttachedCopy, CheckPlanCard, LibraryScopeCopy, ToolCard } from './screens/tools';
+import {
+  AttachedCopy,
+  CheckPlanCard,
+  LibraryScopeCopy,
+  SourceRow,
+  ToolCard,
+} from './screens/tools';
 
 describe('T-292 — the zero-source warning is a STATEMENT, not a menu', () => {
   const empty = { sources: [], assemblyTokenBudget: 12000 };
@@ -54,7 +66,13 @@ describe('T-292 — the zero-source warning is a STATEMENT, not a menu', () => {
       <DataSourcesChip
         scope={{
           sources: [
-            { containerId: 'c1', versionId: 'v1', documentReference: 'WA-GEO-001', title: 'GI' },
+            {
+              containerId: 'c1',
+              versionId: 'v1',
+              documentReference: 'WA-GEO-001',
+              title: 'GI',
+              description: null,
+            },
           ],
           assemblyTokenBudget: 12000,
         }}
@@ -164,6 +182,50 @@ describe('T-403 — a tool renders as a card with an icon and what it does', () 
     expect(html).toContain('<svg');
     // and nowhere to go — the card is not a link
     expect(html).not.toContain('<a ');
+  });
+});
+
+// ── T-405 — the source picker says what each document IS ───────────────────
+//
+// A coded reference identifies a document; it does not say what is in it.
+// Choosing what a draft may draw on off references alone is choosing blind,
+// which is the whole of this ticket. The absent case is pinned beside the
+// present one because it is the common one — most of a real corpus predates
+// the column, and a row that spent a line saying "no description" would be
+// worse than one that says nothing.
+describe('T-405 — a source row carries reference, title and description', () => {
+  const row = (over: Partial<GroundingSource>) =>
+    renderToStaticMarkup(
+      <SourceRow
+        source={{
+          containerId: 'c1',
+          versionId: 'v1',
+          documentReference: 'WA-ENV-0004',
+          title: 'Environmental baseline',
+          description: null,
+          ...over,
+        }}
+        checked={false}
+        onToggle={() => {}}
+      />,
+    );
+
+  it('shows all three when all three are there', () => {
+    const html = row({
+      description: 'The environmental baseline for the northern section.',
+    });
+    expect(html).toContain('WA-ENV-0004');
+    expect(html).toContain('Environmental baseline');
+    expect(html).toContain('The environmental baseline for the northern section.');
+  });
+
+  it('says nothing at all where nobody has written a description', () => {
+    const html = row({ description: null });
+    expect(html).toContain('WA-ENV-0004');
+    expect(html).not.toContain('source-row-desc');
+    // and no stand-in sentence in its place — an absent description is a state,
+    // not a gap to fill with copy
+    expect(html.toLowerCase()).not.toContain('no description');
   });
 });
 

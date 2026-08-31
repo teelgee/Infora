@@ -565,10 +565,20 @@ export const api = {
     form.append('file', file);
     return requestForm<SandboxDocument>(`/projects/${projectId}/sandbox-uploads`, form);
   },
-  setContainerMetadata: (containerId: string, metadata: Record<string, unknown>) =>
+  // T-405 — `description` is OMITTED when the caller passes nothing, which the
+  // server reads as "leave it alone"; `null` clears it. Sending `undefined`
+  // through `JSON.stringify` drops the key, which is exactly the wanted
+  // behaviour, so the conditional is written out rather than left to chance.
+  setContainerMetadata: (
+    containerId: string,
+    metadata: Record<string, unknown>,
+    description?: string | null,
+  ) =>
     request<{ ok: true }>(`/containers/${containerId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ metadata }),
+      body: JSON.stringify(
+        description === undefined ? { metadata } : { metadata, description },
+      ),
     }),
   conversation: (conversationId: string) =>
     request<GetConversationResponse>(`/conversations/${conversationId}`),

@@ -780,6 +780,9 @@ export function PlanScreen() {
           metadata={Object.fromEntries(
             Object.entries(metaRow.metadata).filter(([k]) => !IDENTITY_KEYS.has(k)),
           )}
+          // T-405 — the document's own description, edited where its metadata
+          // already is, by the same person under the same permission
+          description={metaRow.description}
           // schema-driven: the deliverable schema's metadata fields render as their
           // proper controls (selects with options), not raw custom text (T-192)
           suggestedFields={[
@@ -795,10 +798,10 @@ export function PlanScreen() {
             ...AUTHORING_FIELDS,
           ]}
           onClose={() => setMetaRow(null)}
-          onSave={async (authoring) => {
+          onSave={async (authoring, description) => {
             const merged: Record<string, unknown> = { ...authoring };
             if (metaRow.metadata['discipline'] !== undefined) merged['discipline'] = metaRow.metadata['discipline'];
-            await api.setContainerMetadata(metaRow.containerId, merged);
+            await api.setContainerMetadata(metaRow.containerId, merged, description);
             setMetaRow(null);
             load();
           }}

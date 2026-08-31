@@ -72,6 +72,20 @@ export const containers = pgTable(
     withdrawnByParticipantId: uuid('withdrawn_by_participant_id').references(
       (): AnyPgColumn => participants.id,
     ),
+    // T-405 (migration 0062, drawn in data-model.md drawer 2) — a sentence or
+    // two saying WHAT THE DOCUMENT IS, so a person choosing sources in the
+    // document creator can tell one reference from another.
+    //
+    // On the CONTAINER and not the version because it describes the series,
+    // not one revision — the same reason `document_reference` lives here.
+    //
+    // 🔒 **TYPED, NEVER GENERATED** (session Cr residual, Claude-ruled
+    // 2026-08-31). A model-written description would be an uncited claim about
+    // a document sitting beside that document's own grounded content, which is
+    // exactly the distinction the product exists to hold. Nullable because most
+    // of the corpus predates it and an absent description is honest.
+    // Not personal data: it describes a document, not a person.
+    description: text('description'),
     // plan-authored extras (ADR-0008); the per-project schema is deferred with
     // the naming scheme — at-a-glance columns are derived by query, never
     // duplicated here (2026-07-18 ruling)

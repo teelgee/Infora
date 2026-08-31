@@ -1,0 +1,26 @@
+-- T-405 -- WHAT THE DOCUMENT IS, in a sentence the person who filed it typed.
+--
+-- In plain terms: when you pick the library documents a draft may draw on, the
+-- picker showed you a coded reference and very little else. This column is the
+-- missing half -- a sentence or two saying what the document actually is, so
+-- one reference can be told from another without opening both.
+--
+-- ON THE CONTAINER, NOT THE VERSION. A container is the persistent home of a
+-- document's whole version series, and a description is a fact about the
+-- document rather than about one revision of it -- the same reason
+-- `document_reference` lives here. Putting it on the version would mean every
+-- revision restating the same sentence, and eventually two revisions of one
+-- document describing themselves differently.
+--
+-- TYPED, NEVER GENERATED (session Cr residual, Claude-ruled 2026-08-31). It is
+-- written by whoever files or edits the document's metadata. A model-written
+-- description would be an uncited claim about a document, sitting on screen
+-- beside that same document's grounded content -- which is precisely the
+-- distinction this product exists to hold.
+--
+-- Nullable, because most of a real corpus predates the column and an absent
+-- description is an honest state: the picker says nothing rather than
+-- inventing something. Not personal data -- it describes a document.
+--
+-- Drawn in docs/build/data-model.md drawer 2 before being written.
+ALTER TABLE "containers" ADD COLUMN "description" text;

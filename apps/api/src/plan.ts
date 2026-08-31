@@ -327,6 +327,8 @@ async function toPlanRows(
       producingOrganisationId: container.producingOrganisationId,
       producingOrganisationName: orgName.get(container.producingOrganisationId) ?? '',
       metadata: (container.metadata ?? {}) as Record<string, unknown>,
+      // T-405 — what the document is, typed by whoever filed it
+      description: container.description ?? null,
       state: container.state,
       inLibrary: container.inLibrary,
       workItem: workItem
@@ -710,7 +712,15 @@ export function containerRoutes(deps: { db: Db }) {
     if (!body.success) return invalid(c);
     const [updated] = await deps.db
       .update(s.containers)
-      .set({ metadata: body.data.metadata })
+      .set({
+        metadata: body.data.metadata,
+        // T-405 — ABSENT AND NULL ARE DIFFERENT ANSWERS. A body that does not
+        // mention the description leaves it exactly as it was; `null` clears
+        // it. Spreading an absent key would set it to undefined and drizzle
+        // would drop the column from the UPDATE, which happens to be right —
+        // but only by accident, so it is written out rather than relied on.
+        ...(body.data.description !== undefined && { description: body.data.description }),
+      })
       .where(eq(s.containers.id, container.id))
       .returning();
     const [row] = await toPlanRows(deps.db, [updated!], slice);

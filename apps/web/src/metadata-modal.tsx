@@ -6,7 +6,7 @@
 // window.prompt.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button, Modal, SelectInput, TextInput } from '@infora/ui';
+import { Button, Modal, SelectInput, TextArea, TextInput } from '@infora/ui';
 import { optionLabel } from '@infora/contracts';
 
 // a suggested field may be schema-driven: a select with a fixed option set (T-192),
@@ -34,7 +34,18 @@ export function MetadataModal(props: {
   metadata: Record<string, unknown>;
   suggestedFields?: SuggestedField[];
   editable: boolean;
-  onSave: (metadata: Record<string, string>) => Promise<void>;
+  /**
+   * T-405 — WHAT THE DOCUMENT IS, in a sentence or two.
+   *
+   * A real column on the container, not a key in the metadata bag, so it is
+   * passed and saved on its own: it is the sentence the source picker shows to
+   * tell one coded reference from another, and burying it among free-form
+   * key/value pairs would make it as findable as any custom field somebody
+   * invented. Absent for callers that have no description to edit (the sandbox
+   * freeze series has none).
+   */
+  description?: string | null;
+  onSave: (metadata: Record<string, string>, description?: string | null) => Promise<void>;
   onClose: () => void;
 }) {
   const initial = useMemo<Pair[]>(() => {
@@ -56,6 +67,7 @@ export function MetadataModal(props: {
   }, [props.metadata, props.suggestedFields]);
 
   const [pairs, setPairs] = useState<Pair[]>(initial);
+  const [description, setDescription] = useState(props.description ?? '');
   const [busy, setBusy] = useState(false);
 
   const setValue = (i: number, value: string) =>
@@ -69,7 +81,12 @@ export function MetadataModal(props: {
     setBusy(true);
     const metadata: Record<string, string> = {};
     for (const p of pairs) if (p.key.trim() && p.value.trim()) metadata[p.key.trim()] = p.value.trim();
-    await props.onSave(metadata);
+    // an emptied description is CLEARED, not left behind as an empty string —
+    // "nobody has written one" is a state the picker renders honestly
+    await props.onSave(
+      metadata,
+      props.description === undefined ? undefined : description.trim() || null,
+    );
   }
 
   return (
@@ -106,6 +123,27 @@ export function MetadataModal(props: {
           ))}
         </div>
       </div>
+
+      {props.description !== undefined && (
+        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+          <span className="field-label">
+            Description{props.editable ? '' : ' — read-only'}
+          </span>
+          <p className="field-hint" style={{ marginTop: 4 }}>
+            What this document is, in a sentence or two. Anyone choosing sources for a draft sees
+            it beside the reference — it is what tells one coded reference from another.
+          </p>
+          <div style={{ marginTop: 6 }}>
+            <TextArea
+              value={description}
+              onChange={setDescription}
+              rows={3}
+              disabled={!props.editable}
+              placeholder="e.g. The environmental baseline for the northern section, covering noise, air quality and ecology."
+            />
+          </div>
+        </div>
+      )}
 
       <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
         <span className="field-label">

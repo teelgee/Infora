@@ -154,6 +154,36 @@ describe('the per-organisation plan (ADR-0033)', () => {
     expect(byProducer.status).toBe(200);
     expect(((await byProducer.json()) as PlanRow).metadata).toEqual({ discipline: 'drainage' });
   });
+
+  // T-405 — the description is saved in the same act, under the same
+  // permission, and ABSENT AND NULL ARE DIFFERENT ANSWERS. A metadata edit
+  // that happens not to mention the description must not wipe it, and someone
+  // who wrote one by mistake must be able to take it back.
+  it('the description is written, left alone when unmentioned, and cleared by null', async () => {
+    const patch = (body: Record<string, unknown>) =>
+      app.request(`/containers/${rowId}`, {
+        method: 'PATCH',
+        headers: asJson(consultCookie),
+        body: JSON.stringify(body),
+      });
+
+    const written = await patch({
+      metadata: { discipline: 'drainage' },
+      description: 'The ecology chapter for the northern section.',
+    });
+    expect(((await written.json()) as PlanRow).description).toBe(
+      'The ecology chapter for the northern section.',
+    );
+
+    // a metadata-only edit says nothing about the description, so it stands
+    const untouched = await patch({ metadata: { discipline: 'ecology' } });
+    expect(((await untouched.json()) as PlanRow).description).toBe(
+      'The ecology chapter for the northern section.',
+    );
+
+    const cleared = await patch({ metadata: { discipline: 'ecology' }, description: null });
+    expect(((await cleared.json()) as PlanRow).description).toBeNull();
+  });
 });
 
 describe('appointments (ADR-0017/0033)', () => {

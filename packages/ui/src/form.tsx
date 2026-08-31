@@ -53,6 +53,10 @@ export function TextArea(props: {
   onChange: (v: string) => void;
   placeholder?: string;
   rows?: number;
+  // T-405 — a read-only viewer sees the words and cannot type over them. Every
+  // other control here already had this; the textarea did not, which is only
+  // because nothing had yet put prose behind a permission.
+  disabled?: boolean;
 }) {
   return (
     <textarea
@@ -60,6 +64,7 @@ export function TextArea(props: {
       rows={props.rows ?? 3}
       value={props.value}
       placeholder={props.placeholder}
+      disabled={props.disabled}
       onChange={(e) => props.onChange(e.target.value)}
     />
   );
