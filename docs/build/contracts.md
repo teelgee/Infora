@@ -977,3 +977,17 @@ are not recorded here.
   description stands"*, which is a different fact from an empty string. On
   `ToolPlan`, `proposal` is optional for the reason `shape` is: only the
   creator proposes a document — the checker reads one.
+- **2026-08-31 (T-409) — `reviseSectionBriefBody` and
+  `ReviseSectionBriefResult`, and the endpoint returns a proposal rather than
+  applying one.** *Plainly: the author tells an agent what is wrong with one
+  section's description, and the agent hands back a rewritten description for
+  them to keep or not.* The shape is the guarantee: the agent **returns** a
+  brief and the surface sets it through the same code path a typed correction
+  uses, so there is exactly one door into a parameter and the two cannot
+  produce different plans — which is the ticket's own acceptance test. An
+  endpoint that applied its own revision would have been a second write path
+  into the run's inputs. `followUp` rather than an error where the agent
+  cannot act, on the structure agent's pattern (T-364): an assistive agent
+  that cannot shape an answer should ask, not fail the surface. Exactly one of
+  the two fields is non-null, deliberately — a pane showing both would be
+  asking the author which of two answers is the answer.

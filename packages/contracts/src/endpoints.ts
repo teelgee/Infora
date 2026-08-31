@@ -2381,6 +2381,43 @@ export type DocumentCreationBody = z.infer<typeof documentCreationBody>;
 
 export type DocumentCreationPlanResponse = { plan: ToolPlan };
 
+// ── T-409 — THE AGENT PANE (ADR-0053 addendum A2, second half) ──────────────
+//
+// *In plain terms: beside the plan, a pane where the author can tell an agent
+// what it got wrong for one section — "no, this should set out X in bullets" —
+// and the agent rewrites that section's description. Then the plan redraws.*
+//
+// 🔒 **THE AGENT EDITS THE BRIEF AND ONLY THE BRIEF.** A brief is a parameter,
+// exactly like the launcher's answers, and the step list underneath is computed
+// in code from the parameters. So the model never touches a step list, the run
+// stays `declared`, and ADR-0053 §12 is not reopened — what changed is that one
+// more input became conversationally revisable *before* the run.
+//
+// **It PROPOSES; it does not apply.** The revised brief comes back to the
+// surface, which sets it through the same code path a typed correction takes
+// (T-408). There is deliberately no second door: two ways to change a brief is
+// two chances for them to produce different plans.
+export const reviseSectionBriefBody = z.object({
+  /** the section under revision — its heading, for the agent's context */
+  heading: z.string().min(1),
+  /** what the author said belongs in it */
+  purpose: z.string().min(1),
+  /** the description as it stands, whether computed or already corrected */
+  brief: z.string().min(1),
+  /** what the author says is wrong with it, in their own words */
+  ask: z.string().min(1),
+});
+export type ReviseSectionBriefBody = z.infer<typeof reviseSectionBriefBody>;
+
+/**
+ * The revised description, or a question.
+ *
+ * `followUp` rather than an error where the agent cannot act, on the structure
+ * agent's own pattern (T-364): an assistive agent that cannot shape an answer
+ * should **ask**, not fail the surface. Exactly one of the two is non-null.
+ */
+export type ReviseSectionBriefResult = { brief: string | null; followUp: string | null };
+
 export type DocumentCreationRunResponse = {
   run: Run;
   /** the plan as it was shown before the click — the same object, recorded */

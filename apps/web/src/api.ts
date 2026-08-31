@@ -36,6 +36,8 @@ import type {
   DocumentCreationRunResponse,
   GetGroundingScopeResponse,
   ListStartingOutlinesResponse,
+  ReviseSectionBriefBody,
+  ReviseSectionBriefResult,
   ListStyleGuidesResponse,
   ListToolsResponse,
   GetLibraryResponse,
@@ -571,6 +573,13 @@ export const api = {
   // server reads as "leave it alone"; `null` clears it. Sending `undefined`
   // through `JSON.stringify` drops the key, which is exactly the wanted
   // behaviour, so the conditional is written out rather than left to chance.
+  // T-409 — the agent pane. It PROPOSES a revised description; the caller
+  // applies it through the same path a typed correction takes.
+  reviseSectionBrief: (projectId: string, body: ReviseSectionBriefBody) =>
+    request<ReviseSectionBriefResult>(
+      `/projects/${projectId}/tools/document-creation/section-brief/revision`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   // T-407 — the starting outlines this deployment carries. A menu, never a
   // shape: the outline the run uses is the one the author composed in the body.
   startingOutlines: (projectId: string) =>

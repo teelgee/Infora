@@ -29,13 +29,14 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
-import { documentCreationBody } from '@infora/contracts';
+import { documentCreationBody, reviseSectionBriefBody } from '@infora/contracts';
 import type {
   ApiError,
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   Id,
   ListStartingOutlinesResponse,
+  ReviseSectionBriefResult,
   Run,
   ToolPlan,
 } from '@infora/contracts';
@@ -45,13 +46,14 @@ import { canAccessSandbox } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import type { ModelRates } from '@infora/model';
+import type { ModelRates, Router } from '@infora/model';
 import { TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
 import type { WorkerRegistry } from '@infora/capabilities';
+import { reviseSectionBrief } from './section-brief-agent';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -85,6 +87,8 @@ export function documentCreationRoutes(deps: {
   db: Db;
   leaves: ChainLeaves;
   templates: TemplateRegistry;
+  /** T-409 — the agent pane's one model call, on the `draft` task class */
+  router: Router;
   workflows?: WorkflowRegistry;
   capabilities?: CapabilityRegistry;
   workers?: WorkerRegistry;
@@ -178,6 +182,45 @@ export function documentCreationRoutes(deps: {
         })),
       })),
     } satisfies ListStartingOutlinesResponse),
+  );
+
+  /**
+   * T-409 (ADR-0053 addendum A2, second half) — revise ONE section's
+   * description by saying what is wrong with it.
+   *
+   * 🔒 **ENTITLEMENT-CHECKED LIKE THE TOOL IT BELONGS TO.** A requester whose
+   * assembled set carries no `document_builder` cannot reach the creator at
+   * all, and its agent pane must answer identically — **absent, not refused**
+   * (principle 4, the assembled-not-filtered rule). A pane that 403'd would
+   * tell someone a tool exists that they were never shown.
+   *
+   * **It proposes; it does not apply.** The revised text goes back to the
+   * surface, which sets it as `section.brief` and asks for a new plan through
+   * the same path a typed correction takes. Nothing here writes, nothing here
+   * runs, and no step list is touched by anything but the planner.
+   */
+  app.post(
+    '/projects/:projectId/tools/document-creation/section-brief/revision',
+    project,
+    async (c) => {
+      const slice = c.get('slice');
+      const entitled =
+        deps.workers?.assemble({
+          slice,
+          tier: 'standard',
+          authorityShelf: (await deps.authorityShelf?.(slice.organisationId)) ?? false,
+        }) ?? [];
+      if (
+        deps.workflows?.get(DOCUMENT_CREATION_WORKFLOW) === undefined ||
+        !entitled.some((worker) => worker.name === 'document_builder')
+      ) {
+        return notFound(c);
+      }
+      const parsed = reviseSectionBriefBody.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return invalid(c, 'heading, purpose, brief and ask');
+      const revision = await reviseSectionBrief(deps.router, parsed.data);
+      return c.json(revision satisfies ReviseSectionBriefResult);
+    },
   );
 
   app.post('/projects/:projectId/tools/document-creation/plan', project, async (c) => {

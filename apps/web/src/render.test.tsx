@@ -31,6 +31,7 @@ import {
   AttachedCopy,
   CheckPlanCard,
   ChosenNote,
+  AgentPane,
   LibraryScopeCopy,
   ProposedDocumentCard,
   SectionComposer,
@@ -257,30 +258,32 @@ describe('T-406 — the launcher explains each answer, and the style control is 
 // Two things on one page and only one of them editable, which is the whole of
 // ADR-0053 addendum A2. The tests that matter are the negative ones: a control
 // that edited a STEP would reopen §12, and it would look like a feature.
-describe('T-408 — the plan proposes a document, and only the briefs are editable', () => {
-  const plan: ToolPlan = {
-    workflowId: 'document-creation',
-    workflowVersion: 2,
-    steps: [
-      {
-        key: 'build',
-        stage: 'present',
-        worker: 'document_builder',
-        label: 'Draft 2 sections — Purpose, The evidence — from the 3 bound sources',
-        estimate: { calls: 1, tokensPrompt: 2200, tokensCompletion: 700, cost: 0.01 },
-      },
-    ],
-    coverage: '2 sections · 3 bound sources · 1 drafting pass',
-    cost: { total: 0.01, priced: true },
-    refusal: null,
-    proposal: {
-      overview: 'Does the baseline support the assessment? It will be written as a technical note.',
-      sections: [
-        { heading: 'Purpose', brief: 'State what this note answers.', edited: false },
-        { heading: 'The evidence', brief: 'No — set out X in bullets.', edited: true },
-      ],
+const proposedPlan: ToolPlan = {
+  workflowId: 'document-creation',
+  workflowVersion: 2,
+  steps: [
+    {
+      key: 'build',
+      stage: 'present',
+      worker: 'document_builder',
+      label: 'Draft 2 sections — Purpose, The evidence — from the 3 bound sources',
+      estimate: { calls: 1, tokensPrompt: 2200, tokensCompletion: 700, cost: 0.01 },
     },
-  };
+  ],
+  coverage: '2 sections · 3 bound sources · 1 drafting pass',
+  cost: { total: 0.01, priced: true },
+  refusal: null,
+  proposal: {
+    overview: 'Does the baseline support the assessment? It will be written as a technical note.',
+    sections: [
+      { heading: 'Purpose', brief: 'State what this note answers.', edited: false },
+      { heading: 'The evidence', brief: 'No — set out X in bullets.', edited: true },
+    ],
+  },
+};
+
+describe('T-408 — the plan proposes a document, and only the briefs are editable', () => {
+  const plan = proposedPlan;
 
   const render = (over: Partial<ToolPlan> = {}) =>
     renderToStaticMarkup(
@@ -320,6 +323,47 @@ describe('T-408 — the plan proposes a document, and only the briefs are editab
     const refused = render({ refusal: 'No sources are bound to this document.' });
     expect(refused).toContain('No sources are bound');
     expect(refused).not.toContain('Accept the plan and create the document');
+  });
+});
+
+// ── T-409 — the agent pane ─────────────────────────────────────────────────
+//
+// The pane is reached PER SECTION, and it writes back through the same door a
+// typed correction uses. What is pinnable here is that the chip is per section
+// and that the pane names the section it is targeted at — an agent told "the
+// second one is wrong" about a whole plan is an agent guessing which one.
+describe('T-409 — the agent pane is opened per section and named for it', () => {
+  it('gives every section its own chip, and none where no pane is wired', () => {
+    const withPane = renderToStaticMarkup(
+      <ProposedDocumentCard
+        plan={proposedPlan}
+        busy={false}
+        onEditBrief={() => {}}
+        onAsk={async () => null}
+        onAccept={() => {}}
+      />,
+    );
+    expect((withPane.match(/Ask the agent/g) ?? []).length).toBe(2);
+
+    const without = renderToStaticMarkup(
+      <ProposedDocumentCard
+        plan={proposedPlan}
+        busy={false}
+        onEditBrief={() => {}}
+        onAccept={() => {}}
+      />,
+    );
+    expect(without).not.toContain('Ask the agent');
+  });
+
+  it('names the section it is revising, and offers no way to touch a step', () => {
+    const html = renderToStaticMarkup(
+      <AgentPane heading="The evidence" busy={false} onAsk={async () => null} onClose={() => {}} />,
+    );
+    expect(html).toContain('The evidence');
+    expect(html).toContain('Revise this description');
+    // the pane's whole reach is one description
+    expect(html).not.toContain('step');
   });
 });
 

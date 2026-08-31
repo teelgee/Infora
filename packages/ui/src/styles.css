@@ -435,6 +435,15 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .proposal-section-heading { font-weight: 600; font-size: 12.5px; }
 .proposal-accept { margin-top: 16px; }
 
+/* T-409 — the agent pane, opened per section from that section's chip. */
+.agent-pane {
+  display: flex; flex-direction: column; gap: 8px;
+  border-top: 1px solid var(--border-default); padding-top: 12px; margin-top: 4px;
+}
+.agent-pane-controls { display: flex; gap: 8px; }
+.agent-pane-followup { color: var(--text-secondary); font-size: 12px; line-height: 1.5; margin: 0; }
+.proposal-section-ask { margin-left: auto; }
+
 /* T-406 — a plan note: what the run will do, said before the click. */
 .plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 4px 0 0; }
 

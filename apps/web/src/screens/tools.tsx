@@ -402,6 +402,64 @@ export function SectionComposer(props: {
 }
 
 /**
+ * T-409 (ADR-0053 addendum A2, second half) — THE AGENT PANE.
+ *
+ * *In plain terms: you tell the agent what it got wrong for this one section —
+ * "no, this should set out X in bullets" — and it rewrites that section's
+ * description. Nothing runs; the plan just redraws with the new wording, and
+ * you still have to accept it.*
+ *
+ * 🔒 **IT WRITES BACK THROUGH THE SAME DOOR A TYPED CORRECTION USES.** The
+ * revised text becomes `section.brief` — a parameter — through
+ * `onEditBrief`, and the plan is recomputed in code. There is deliberately no
+ * second path: two ways to change a brief would be two chances for them to
+ * produce different plans, and the whole claim of this design is that they
+ * cannot. The model never sees a step list, let alone edits one.
+ *
+ * **Per section, not per document.** The pane opens targeted at the section
+ * whose chip was pressed, because an agent told "the second one is wrong"
+ * about a whole plan is an agent guessing which one.
+ */
+export function AgentPane(props: {
+  heading: string;
+  busy: boolean;
+  onAsk: (ask: string) => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const [ask, setAsk] = useState('');
+  const [followUp, setFollowUp] = useState<string | null>(null);
+  const send = () => {
+    if (ask.trim() === '') return;
+    void props.onAsk(ask.trim()).then((question) => {
+      setFollowUp(question);
+      // the ask is kept where the agent asked a question back, cleared where it
+      // acted: a question is a conversation continuing, not a failed attempt
+      if (question === null) setAsk('');
+    });
+  };
+  return (
+    <div className="agent-pane">
+      <span className="field-label">Tell the agent what is wrong with “{props.heading}”</span>
+      <TextArea
+        value={ask}
+        onChange={setAsk}
+        rows={2}
+        placeholder="e.g. No — this should set out the three constraints in bullets, not prose."
+      />
+      {followUp !== null && <p className="agent-pane-followup">{followUp}</p>}
+      <div className="agent-pane-controls">
+        <Button size="sm" variant="primary" disabled={props.busy || ask.trim() === ''} onClick={send}>
+          Revise this description
+        </Button>
+        <Button size="sm" variant="quiet" onClick={props.onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * T-408 (ADR-0053 addendum A2) — THE PLAN IS THE PROPOSED DOCUMENT.
  *
  * *In plain terms: before anything runs you read the document you are about to
@@ -426,9 +484,12 @@ export function ProposedDocumentCard(props: {
   plan: ToolPlan;
   busy: boolean;
   onEditBrief: (index: number, brief: string) => void;
+  /** T-409 — absent where this deployment has no agent pane wired */
+  onAsk?: (index: number, ask: string) => Promise<string | null>;
   onAccept: () => void;
 }) {
   const { plan } = props;
+  const [asking, setAsking] = useState<number | null>(null);
   return (
     <Card>
       <strong>The document this will write</strong>
@@ -441,12 +502,30 @@ export function ProposedDocumentCard(props: {
                 <div className="proposal-section-head">
                   <span className="proposal-section-heading">{section.heading}</span>
                   {section.edited && <Badge tone="neutral">Your wording</Badge>}
+                  {props.onAsk !== undefined && (
+                    <span className="proposal-section-ask">
+                      <Chip
+                        title={`Tell the agent what is wrong with “${section.heading}”`}
+                        onClick={() => setAsking(asking === index ? null : index)}
+                      >
+                        Ask the agent
+                      </Chip>
+                    </span>
+                  )}
                 </div>
                 <TextArea
                   value={section.brief}
                   rows={3}
                   onChange={(brief) => props.onEditBrief(index, brief)}
                 />
+                {props.onAsk !== undefined && asking === index && (
+                  <AgentPane
+                    heading={section.heading}
+                    busy={props.busy}
+                    onAsk={(ask) => props.onAsk!(index, ask)}
+                    onClose={() => setAsking(null)}
+                  />
+                )}
               </li>
             ))}
           </ol>
@@ -646,6 +725,41 @@ export function DocumentCreatorScreen() {
       .finally(() => setBusy(false));
   };
 
+  /**
+   * T-409 — the agent's revision of one section's description.
+   *
+   * 🔒 It goes through **`editBrief`** — the very function a typed correction
+   * uses. That is the ticket's own guarantee made structural rather than
+   * remembered: there is one door into a brief, so the step list after an agent
+   * tweak cannot differ from the step list after the same edit made by hand.
+   *
+   * Returns the agent's follow-up question where it asked one instead of
+   * acting, so the pane can put it in front of the author rather than swallow
+   * it.
+   */
+  const askAgent = async (index: number, ask: string): Promise<string | null> => {
+    const section = sections[index];
+    const proposed = plan?.proposal?.sections[index];
+    if (projectId === undefined || section === undefined || proposed === undefined) return null;
+    setBusy(true);
+    setError(null);
+    try {
+      const revision = await api.reviseSectionBrief(projectId, {
+        heading: section.heading,
+        purpose: section.purpose,
+        brief: proposed.brief,
+        ask,
+      });
+      if (revision.brief !== null) editBrief(index, revision.brief);
+      return revision.followUp;
+    } catch (problem) {
+      setError((problem as Error).message);
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const run = () => {
     if (projectId === undefined) return;
     setBusy(true);
@@ -788,6 +902,7 @@ export function DocumentCreatorScreen() {
           plan={plan}
           busy={busy}
           onEditBrief={editBrief}
+          onAsk={askAgent}
           onAccept={run}
         />
       )}

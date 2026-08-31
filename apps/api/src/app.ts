@@ -285,6 +285,8 @@ export function buildApp(deps: AppDeps) {
       leaves,
       templates,
       capabilities,
+      // T-409 — the agent pane's one call
+      router: deps.router,
       ...(deps.workflows !== undefined && { workflows: deps.workflows }),
       ...(deps.workers !== undefined && { workers: deps.workers }),
       ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),

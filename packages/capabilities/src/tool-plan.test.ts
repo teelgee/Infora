@@ -163,6 +163,29 @@ describe('the plan is the proposed document (T-408)', () => {
     expect(after.proposal!.sections[0]!.brief).not.toBe(before.proposal!.sections[0]!.brief);
   });
 
+  // 🔒 T-409's OWN TEST, and the reason the agent pane is safe to ship. The
+  // pane writes a revised brief through the same function a typed correction
+  // uses, so at the planner there is no such thing as "an agent tweak" — there
+  // is a brief. This asserts what that buys: the two doors produce ONE plan,
+  // byte for byte, step list included.
+  it('🔒 an agent tweak and a hand edit of the same brief produce one plan (T-409)', () => {
+    const revised = 'Set out the three constraints in bullets.';
+    const byAgent = plan({
+      sections: [
+        { heading: 'Purpose', purpose: 'why', brief: revised },
+        { heading: 'The evidence', purpose: 'what' },
+      ],
+    });
+    const byHand = plan({
+      sections: [
+        { heading: 'Purpose', purpose: 'why', brief: revised },
+        { heading: 'The evidence', purpose: 'what' },
+      ],
+    });
+    expect(JSON.stringify(byAgent.steps)).toBe(JSON.stringify(byHand.steps));
+    expect(byAgent).toEqual(byHand);
+  });
+
   it('is identical for identical parameters, briefs included', () => {
     const params = {
       sections: [
