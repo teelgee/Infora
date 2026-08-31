@@ -81,7 +81,7 @@ export type {
 export { readRunContext } from './context-reader';
 export { readDocumentSuggestions, readRun } from './run-reader';
 export { resolveSuggestion } from './resolution';
-export type { ResolutionResult } from './resolution';
+export type { ResolutionAnchor, ResolutionResult } from './resolution';
 export type {
   Capability,
   CapabilityRegistry,

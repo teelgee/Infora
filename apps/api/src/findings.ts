@@ -297,3 +297,217 @@ function toFinding(row: FindingRow, closerName: string | null, suggestion: Sugge
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+// ── T-311 — THE MARKED-UP EDIT, over HTTP ───────────────────────────────────
+//
+// *In plain terms: the reviewer's side. Read the marks on a draft, take one
+// suggested correction or set it aside, and — where the corrections are the
+// same small change made over and over — take a whole group in one click.*
+//
+// **Two views of ONE set** (ADR-0053 §6, the owner's own sketch): the document
+// with marks anchored into the text, and a panel grouped by check that unrolls
+// to its findings. There is one endpoint behind both, deliberately — a second
+// read for the panel would be a second answer to *"what did the checker find"*,
+// and the two would eventually disagree about which marks exist.
+//
+// 🔒 **THE MECHANICAL/REWRITE SPLIT IS ENFORCED HERE, NOT ON THE SCREEN.** The
+// surface renders the accept-all above a group's mechanical fixes and withholds
+// it from its rewrites, and that is the honest fact being SHOWN — but a client
+// that sent a rewrite in a bulk batch anyway would be sending the exact request
+// ADR-0048 §3 exists to refuse. So the server checks every id first and refuses
+// the batch **whole**: a half-applied batch is a decision the reviewer never
+// took, landing on the half nobody looked at.
+import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { bulkResolveFindingsBody, resolveFindingBody } from '@infora/contracts';
+import type { ApiError, ListFindingsResponse, ResolveFindingsResponse } from '@infora/contracts';
+import { resolveSuggestion } from '@infora/orchestration';
+import { resourceHomes, resourceScope } from './requester';
+import type { AppEnv } from './requester';
+
+export function findingRoutes(deps: { db: Db }) {
+  const app = new Hono<AppEnv>();
+  const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
+
+  /**
+   * One document's marks, as this requester is entitled to see them.
+   *
+   * The wall predicate lives in `listFindings` above, on the same read that
+   * fetches the row — so a surface that forgot to hide an org-private quote
+   * would still never be handed one.
+   */
+  app.get('/sandbox-documents/:id/findings', documentScope, async (c) => {
+    const items = await listFindings(deps.db, c.get('slice'), c.req.param('id'));
+    return c.json({ items } satisfies ListFindingsResponse);
+  });
+
+  /**
+   * One mark, taken or set aside.
+   *
+   * `accepted` / `edited` require a proposed revision to resolve; `dismissed`
+   * needs none, and most findings have none — most are for a person to fix.
+   */
+  app.post('/sandbox-documents/:id/findings/:findingId/resolution', documentScope, async (c) => {
+    const body = resolveFindingBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c, 'resolution is accepted, edited or dismissed');
+    if ((body.data.resolution === 'edited') !== (body.data.editedContent !== undefined)) {
+      return invalid(c, 'editedContent is required for `edited` and refused otherwise');
+    }
+    const documentId = c.req.param('id');
+    const [row] = await deps.db
+      .select()
+      .from(s.findings)
+      .where(
+        and(eq(s.findings.id, c.req.param('findingId')), eq(s.findings.sandboxDocumentId, documentId)),
+      )
+      .limit(1);
+    // a finding this requester may not read does not exist to them, exactly as
+    // every other unreachable thing does (principle 4)
+    const visible = row === undefined ? [] : await readableRows(deps.db, c.get('slice'), [row]);
+    if (visible.length === 0) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    if (row!.status === 'closed') return c.json({ error: 'conflict' } satisfies ApiError, 409);
+
+    const outcome = await resolveOne(deps.db, row!, body.data, c.get('slice').participantId);
+    if (outcome === 'no_revision') {
+      return invalid(c, 'this finding proposes no revision — it can be dismissed, not accepted');
+    }
+    return c.json(
+      await respond(deps.db, documentId, {
+        applied: outcome === 'applied' ? [row!.id] : [],
+        dismissed: outcome === 'dismissed' ? [row!.id] : [],
+        drifted: outcome === 'drifted' ? [row!.id] : [],
+      }),
+    );
+  });
+
+  /**
+   * A group, in one act (ADR-0053 §6).
+   *
+   * **`accept` is mechanical-only and is checked before anything is applied.**
+   * **`dismiss` takes anything and records no reason** — declining forty
+   * advisory findings from one rule is one professional judgement, not forty
+   * skipped — and it **resolves** findings rather than overriding ADR-0049 §7's
+   * promotion gate, which goes on blocking until they are resolved and is
+   * unaffected in kind by how they were.
+   */
+  app.post('/sandbox-documents/:id/findings/bulk', documentScope, async (c) => {
+    const body = bulkResolveFindingsBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c, 'action and findingIds are required');
+    const documentId = c.req.param('id');
+
+    const rows = await deps.db
+      .select()
+      .from(s.findings)
+      .where(
+        and(
+          eq(s.findings.sandboxDocumentId, documentId),
+          inArray(s.findings.id, body.data.findingIds),
+        ),
+      );
+    const visible = await readableRows(deps.db, c.get('slice'), rows);
+    if (visible.length !== body.data.findingIds.length) {
+      return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    }
+    const open = visible.filter((row) => row.status === 'open');
+
+    if (body.data.action === 'accept') {
+      // 🔒 EVERY id is checked BEFORE any of them is applied. A batch holding
+      // one rewrite is refused whole: half-applying it would ship the reviewer
+      // a decision they did not take, on the half nobody read.
+      const rewrite = open.find((row) => (row.fix as { kind?: string } | null)?.kind !== 'mechanical');
+      if (rewrite !== undefined) {
+        return invalid(
+          c,
+          'a rewrite cannot be accepted in bulk — model-written prose is read one mark at a time',
+        );
+      }
+    }
+
+    const applied: string[] = [];
+    const dismissed: string[] = [];
+    const drifted: string[] = [];
+    // DESCENDING by anchor, so applying one span never moves the next one. The
+    // alternative is re-resolving every remaining anchor after each write,
+    // which is the same arithmetic done less reliably.
+    for (const row of [...open].sort((a, b) => spanStart(b) - spanStart(a))) {
+      const outcome = await resolveOne(
+        deps.db,
+        row,
+        {
+          resolution: body.data.action === 'accept' ? 'accepted' : 'dismissed',
+        },
+        c.get('slice').participantId,
+      );
+      if (outcome === 'drifted') drifted.push(row.id);
+      else if (outcome === 'dismissed') dismissed.push(row.id);
+      else if (outcome === 'applied') applied.push(row.id);
+    }
+    return c.json(await respond(deps.db, documentId, { applied, dismissed, drifted }));
+  });
+
+  return app;
+}
+
+/** What became of one finding's resolution. */
+type ResolveOutcome = 'applied' | 'dismissed' | 'drifted' | 'no_revision';
+
+/**
+ * One finding resolved: the Suggestion's Signal where there is one, the
+ * anchored apply where the fix was taken, and the finding closed with the name
+ * of whoever closed it.
+ *
+ * **`dismissed` writes no Signal and no reason.** A Signal is an opinion about
+ * a piece of proposed prose (ADR-0026's raw material); setting a defect aside
+ * is a judgement about the defect itself, and most findings carry no proposal
+ * at all — most are for a person to fix.
+ */
+async function resolveOne(
+  db: Db,
+  row: FindingRow,
+  body: { resolution: 'accepted' | 'edited' | 'dismissed'; editedContent?: string },
+  participantId: string,
+): Promise<ResolveOutcome> {
+  if (body.resolution !== 'dismissed') {
+    if (row.proposedRevisionId === null) return 'no_revision';
+    const anchor = row.anchor as Locator;
+    const result = await resolveSuggestion(db, {
+      suggestionId: row.proposedRevisionId as Id,
+      resolution: body.resolution,
+      ...(body.editedContent !== undefined && { editedContent: body.editedContent }),
+      resolvedByParticipantId: participantId as Id,
+      anchor: { start: anchor.span.start, end: anchor.span.end, verbatim: anchor.verbatim },
+    });
+    // a drifted anchor degrades, never blocks: the finding stays OPEN, because
+    // the defect it names has not been dealt with
+    if (result.outcome === 'drifted') return 'drifted';
+  }
+  await db
+    .update(s.findings)
+    .set({ status: 'closed', closedByParticipantId: participantId, closedAt: new Date() })
+    .where(eq(s.findings.id, row.id));
+  return body.resolution === 'dismissed' ? 'dismissed' : 'applied';
+}
+
+const spanStart = (row: FindingRow): number => (row.anchor as Locator).span.start;
+
+/** The lists, plus the document as it now stands. */
+async function respond(
+  db: Db,
+  documentId: string,
+  lists: { applied: string[]; dismissed: string[]; drifted: string[] },
+): Promise<ResolveFindingsResponse> {
+  const [document] = await db
+    .select({ content: s.sandboxDocuments.content })
+    .from(s.sandboxDocuments)
+    .where(eq(s.sandboxDocuments.id, documentId))
+    .limit(1);
+  return {
+    applied: lists.applied as Id[],
+    dismissed: lists.dismissed as Id[],
+    driftedAnchors: lists.drifted as Id[],
+    content: document?.content ?? null,
+  };
+}
+
+const invalid = (c: Context, detail: string) =>
+  c.json({ error: 'invalid', detail } satisfies ApiError, 400);

@@ -886,3 +886,16 @@ are not recorded here.
   untypeable, so the honest fourth treatment is *nothing external, nothing
   cited*. Flagged in T-310's record for the owner rather than treated as
   settled.
+- **2026-08-31 (T-311) — `resolveFindingBody` says `dismissed` where the
+  Suggestion path says `rejected`, and `ResolveFindingsResponse` reports
+  `driftedAnchors` as a first-class list.** The first is not a synonym avoided
+  for variety: a rejected **Suggestion** is a judgement about a piece of
+  proposed prose and writes a Signal (ADR-0026's raw material), while a
+  dismissed **finding** is a judgement about the defect itself — and most
+  findings carry no proposal at all, so there is nothing to have an opinion
+  about. Both close the finding; only one records an opinion. The second exists
+  because the sandbox head is mutable by design, so a mark can drift between the
+  run and the click: a drifted anchor **degrades and never blocks**, which means
+  a bulk acceptance can honestly half-succeed — and a response that reported
+  only what it applied would be handing the reviewer a silent partial success on
+  the marks that most need looking at.

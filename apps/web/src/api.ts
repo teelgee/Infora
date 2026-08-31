@@ -47,7 +47,9 @@ import type {
   MarkAllNotificationsReadResponse,
   MarkNotificationReadResponse,
   ListRosterResponse,
+  ListFindingsResponse,
   ListSandboxCommentsResponse,
+  ResolveFindingsResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
   ListWorkItemsResponse,
@@ -485,6 +487,38 @@ export const api = {
     request<SandboxComment>(`/sandbox-comments/${commentId}/status`, {
       method: 'POST',
       body: JSON.stringify({ status }),
+    }),
+  // T-311 — the marked-up edit. ONE read behind both views (the marks in the
+  // text and the grouped-by-check panel): a second read would be a second
+  // answer to "what did the checker find", and the two would eventually
+  // disagree about which marks exist.
+  findings: (sandboxDocumentId: string) =>
+    request<ListFindingsResponse>(`/sandbox-documents/${sandboxDocumentId}/findings`),
+  resolveFinding: (
+    sandboxDocumentId: string,
+    findingId: string,
+    resolution: 'accepted' | 'edited' | 'dismissed',
+    editedContent?: string,
+  ) =>
+    request<ResolveFindingsResponse>(
+      `/sandbox-documents/${sandboxDocumentId}/findings/${findingId}/resolution`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          resolution,
+          ...(editedContent !== undefined && { editedContent }),
+        }),
+      },
+    ),
+  /** 🔒 `accept` is refused server-side unless EVERY id is a mechanical fix. */
+  bulkResolveFindings: (
+    sandboxDocumentId: string,
+    action: 'accept' | 'dismiss',
+    findingIds: string[],
+  ) =>
+    request<ResolveFindingsResponse>(`/sandbox-documents/${sandboxDocumentId}/findings/bulk`, {
+      method: 'POST',
+      body: JSON.stringify({ action, findingIds }),
     }),
   patchSandboxDocument: (id: string, content: string) =>
     request<SandboxDocument>(`/sandbox-documents/${id}`, {

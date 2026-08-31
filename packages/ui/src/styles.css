@@ -971,6 +971,35 @@ nav a.sub.empty:hover { color: var(--text-muted); }
    (a momentary "you're here" pointer, not a status) — distinct from the
    warning-toned open-thread anchor above and from tracked-change green/red. */
 .canvas-mirror mark.flash { background: var(--feedback-info-tint); border-bottom-color: var(--feedback-info-text); }
+
+/* T-311 — the checker's marks share the mirror with comment anchors and must
+   not be confused with them: a comment is a colleague asking a question, a
+   finding is a check reporting a defect. Toned by severity, because `required`
+   and `advisory` are what a reviewer triages on — and neither is a verdict on
+   the document (T-328), so the advisory tone is deliberately quiet rather than
+   a second warning. */
+.canvas-mirror mark.mark--finding {
+  background: var(--feedback-danger-tint);
+  border-bottom-color: var(--feedback-danger-text);
+}
+.canvas-mirror mark.mark--finding[data-severity='advisory'] {
+  background: var(--surface-sunken);
+  border-bottom: 2px dashed var(--text-muted);
+}
+
+/* 🔒 T-311 — A QUOTED RULE IS NOT A SOURCE CHIP (ADR-0048 §5). A rule steers
+   the author and asserts nothing about the scheme; it does not resolve to a
+   document and it never enters the citation register. So it renders as a
+   quotation with its clause address — visually unlike `.source-chip` — because
+   the distinction survives in the model and dies on the screen otherwise. */
+.quoted-rule {
+  margin: 0; padding: 6px 10px;
+  border-left: 3px double var(--border-default);
+  background: var(--surface-sunken);
+  font-style: italic;
+}
+.quoted-rule .mono { font-style: normal; }
+.finding--focused { outline: 2px solid var(--feedback-info-tint); }
 .comment-thread.anchored { cursor: pointer; }
 .comment-thread.flash { box-shadow: 0 0 0 2px var(--feedback-info-tint); }
 

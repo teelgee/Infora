@@ -2327,3 +2327,67 @@ export type ToolSummary = {
 };
 
 export type ListToolsResponse = { items: ToolSummary[] };
+
+// ── T-311 — the marked-up edit: resolving findings ──────────────────────────
+//
+// *In plain terms: a reviewer works through what the checker found. Each mark
+// is either taken — the suggested wording replaces what is there — or set
+// aside. Corrections that are the same small change made over and over may be
+// taken in one click; new sentences the AI wrote may not, and must be read one
+// at a time.*
+//
+// **The three words are the reviewer's three acts, and `dismissed` is not
+// `rejected`.** A rejected *Suggestion* is a judgement about a piece of
+// proposed prose and writes a Signal (ADR-0026's raw material). A dismissed
+// *finding* is a judgement about the defect itself — *"this is not a problem,
+// or not one I am going to act on"* — and a finding with no proposed fix has no
+// Suggestion to reject at all. Both close the finding; only the first has an
+// opinion about wording to record.
+export const resolveFindingBody = z.object({
+  resolution: z.enum(['accepted', 'edited', 'dismissed']),
+  /** required for `edited`, refused otherwise — the reviewer's own wording */
+  editedContent: z.string().min(1).optional(),
+});
+export type ResolveFindingBody = z.infer<typeof resolveFindingBody>;
+
+/**
+ * Bulk triage (ADR-0053 §6), and the two halves are permitted on **different
+ * terms** rather than being one feature with a flag.
+ *
+ * 🔒 **`accept` is admitted for MECHANICAL fixes only**, and the server checks
+ * every id before applying any of them. Fifty-five identical capitalisations
+ * are one decision applied fifty-five times and clicking it fifty-five times
+ * adds nothing but fatigue — but a **rewrite** is model-written prose, and
+ * accepting new prose unread is exactly the act ADR-0048 §3 exists to prevent.
+ * A batch containing one rewrite is refused **whole**, so a client that grouped
+ * wrongly cannot half-apply a decision the reviewer did not take.
+ *
+ * **`dismiss` is admitted for anything and records no reason.** Dismissing
+ * changes no work product: declining forty advisory findings from one rule is
+ * one professional judgement, not forty skipped. It **resolves** findings; it
+ * does not override ADR-0049 §7's promotion gate, which blocks on *open*
+ * findings and is unaffected in kind.
+ */
+export const bulkResolveFindingsBody = z.object({
+  action: z.enum(['accept', 'dismiss']),
+  findingIds: z.array(id).min(1),
+});
+export type BulkResolveFindingsBody = z.infer<typeof bulkResolveFindingsBody>;
+
+/**
+ * What a resolution did, including the honest failure.
+ *
+ * `driftedAnchors` names findings whose anchor no longer matches the text under
+ * it — the sandbox head is mutable by design, so a mark can drift between the
+ * run and the click. **A drifted anchor degrades, never blocks** (the
+ * Suggestion pattern, T-112): the finding stays open, nothing is written over
+ * the wrong words, and the reviewer is told which ones need looking at rather
+ * than being handed a silent partial success.
+ */
+export type ResolveFindingsResponse = {
+  applied: Id[];
+  dismissed: Id[];
+  driftedAnchors: Id[];
+  /** the document as it now stands, where anything was applied */
+  content: string | null;
+};

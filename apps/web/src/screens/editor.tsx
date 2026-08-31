@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
+  Finding,
   MeResponse,
   PlanRow,
   ReviewComment,
@@ -49,6 +50,7 @@ import {
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
+import { FindingsPanel } from '../findings-panel';
 import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
@@ -233,9 +235,16 @@ export function EditorScreen() {
   const [editSuggestion, setEditSuggestion] = useState<Suggestion | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [comments, setComments] = useState<SandboxComment[]>([]); // T-112
+  // T-311 — the marked-up edit. ONE list behind both views: the marks in the
+  // canvas and the grouped-by-check panel are drawn from this, because a second
+  // read would be a second answer to "what did the checker find".
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [findingBusy, setFindingBusy] = useState(false);
+  const [drifted, setDrifted] = useState<string[]>([]);
+  const [focusedFinding, setFocusedFinding] = useState<{ id: string; at: number } | null>(null);
   const [cycle, setCycle] = useState<ReviewCycle | null>(null); // T-132: the review to answer
   const [boundRow, setBoundRow] = useState<PlanRow | null>(null); // T-366: the read-through row
-  const [panelTab, setPanelTab] = useState<'chat' | 'comments' | 'review'>('chat');
+  const [panelTab, setPanelTab] = useState<'chat' | 'comments' | 'review' | 'checks'>('chat');
   const reviewDefaulted = useRef(false);
   const [draftAnchor, setDraftAnchor] = useState<string | null>(null); // captured canvas selection
   const [selection, setSelection] = useState<{ from: number; to: number } | null>(null);
@@ -259,16 +268,20 @@ export function EditorScreen() {
 
   const load = useCallback(async () => {
     if (documentId === undefined) return;
-    const [document, list, threads] = await Promise.all([
+    const [document, list, threads, marks] = await Promise.all([
       api.sandboxDocument(documentId),
       api.documentSuggestions(documentId),
       api.documentComments(documentId),
+      // a failed read is not an empty finding list: rendering "nothing found"
+      // off a request that did not answer is a claim we cannot make
+      api.findings(documentId).catch(() => null),
     ]);
     setDoc(document);
     setContent(document.content);
     setDirty(false);
     setSuggestions(list.items);
     setComments(threads.items);
+    if (marks !== null) setFindings(marks.items);
     // T-132: if this draft's container is in review, pull the cycle so an
     // issued round's comments can be answered here, beside the canvas
     const cyc = document.containerId
@@ -456,6 +469,40 @@ export function EditorScreen() {
     window.setTimeout(() => setFlashThread((cur) => (cur === root.id ? null : cur)), 1400);
   }
 
+
+  // ── T-311 — the reviewer's side of the marked-up edit ─────────────────────
+  //
+  // Every path reloads from the server rather than patching local state,
+  // because an accepted fix REWRITES THE DRAFT: the canvas, every other mark's
+  // offsets and the open count all move together, and a client that guessed at
+  // the new text would paint the next mark in the wrong place.
+  function locateFinding(finding: Finding) {
+    const area = canvasRef.current;
+    const { start, end } = finding.anchor.span;
+    if (area !== null && area.value.slice(start, end) === finding.anchor.verbatim) {
+      area.focus({ preventScroll: true });
+      area.setSelectionRange(start, end);
+    }
+    document
+      .querySelector(`mark[data-thread="${finding.id}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlashThread(finding.id);
+    window.setTimeout(() => setFlashThread((cur) => (cur === finding.id ? null : cur)), 1400);
+  }
+
+  async function afterTriage(promise: Promise<{ driftedAnchors: string[] }>) {
+    setFindingBusy(true);
+    try {
+      const result = await promise;
+      setDrifted(result.driftedAnchors);
+      await load();
+    } catch (problem) {
+      setNote(describeApiError(errorCode(problem)), 'error');
+    } finally {
+      setFindingBusy(false);
+    }
+  }
+
   const wrapWith = (mark: string) => (text: string, from: number, to: number) => ({
     text: `${text.slice(0, from)}${mark}${text.slice(from, to)}${mark}${text.slice(to)}`,
     from: from + mark.length,
@@ -508,17 +555,44 @@ export function EditorScreen() {
   // (the same degrade rule as locate). Rendered on a mirror layer behind the
   // transparent-backed textarea, which never scrolls internally (it auto-
   // grows), so the two stay in lockstep.
-  const anchorRanges: Array<{ from: number; to: number; threadId: string }> = [];
+  //
+  // T-311 — the checker's marks ride the same mirror, and they anchor
+  // DIFFERENTLY: a comment's anchor is an advisory quote searched for in the
+  // text, where a finding carries real offsets (ADR-0048 §2). So a finding's
+  // span is used directly and then VERIFIED against the words under it — if the
+  // draft has been edited since the check ran, the mark simply is not painted,
+  // which is the same degrade rule one grain more precisely.
+  const anchorRanges: Array<{
+    from: number;
+    to: number;
+    threadId: string;
+    kind: 'thread' | 'finding';
+    severity?: 'required' | 'advisory';
+  }> = [];
   for (const c of comments) {
     if (c.parentCommentId !== null || c.status !== 'open' || c.anchor === null) continue;
     const at = content.indexOf(c.anchor);
     if (at === -1) continue;
     const to = at + c.anchor.length;
     if (!anchorRanges.some((r) => at < r.to && to > r.from)) {
-      anchorRanges.push({ from: at, to, threadId: c.id });
+      anchorRanges.push({ from: at, to, threadId: c.id, kind: 'thread' });
     }
   }
+  for (const finding of findings) {
+    if (finding.status !== 'open') continue;
+    const { start, end } = finding.anchor.span;
+    if (content.slice(start, end) !== finding.anchor.verbatim) continue;
+    if (anchorRanges.some((r) => start < r.to && end > r.from)) continue;
+    anchorRanges.push({
+      from: start,
+      to: end,
+      threadId: finding.id,
+      kind: 'finding',
+      severity: finding.severity,
+    });
+  }
   anchorRanges.sort((a, b) => a.from - b.from);
+  const openFindings = findings.filter((finding) => finding.status === 'open').length;
 
   return (
     <>
@@ -723,7 +797,14 @@ export function EditorScreen() {
                         {content.slice(at === 0 ? 0 : anchorRanges[at - 1]!.to, range.from)}
                         <mark
                           data-thread={range.threadId}
-                          className={flashThread === range.threadId ? 'flash' : undefined}
+                          data-kind={range.kind}
+                          data-severity={range.severity}
+                          className={[
+                            range.kind === 'finding' ? 'mark--finding' : null,
+                            flashThread === range.threadId ? 'flash' : null,
+                          ]
+                            .filter((name) => name !== null)
+                            .join(' ') || undefined}
                         >
                           {content.slice(range.from, range.to)}
                         </mark>
@@ -755,6 +836,13 @@ export function EditorScreen() {
                     const caret = area.selectionStart;
                     const hit = anchorRanges.find((r) => caret >= r.from && caret <= r.to);
                     if (hit === undefined) return;
+                    // two views of one set: clicking a mark opens the entry it
+                    // belongs to, in whichever panel owns it
+                    if (hit.kind === 'finding') {
+                      setPanelTab('checks');
+                      setFocusedFinding({ id: hit.threadId, at: Date.now() });
+                      return;
+                    }
                     setPanelTab('comments');
                     setFocusedThread({ id: hit.threadId, at: Date.now() });
                   }}
@@ -894,6 +982,17 @@ export function EditorScreen() {
               Comments
               {openThreads > 0 && ` (${openThreads})`}
             </a>
+            {/* T-311: the checker's marks, grouped by the check that raised
+                them. The tab is always present — an absent one would mean a
+                draft that has never been checked and a draft whose check found
+                nothing look the same. */}
+            <a
+              className={panelTab === 'checks' ? 'active' : undefined}
+              onClick={() => setPanelTab('checks')}
+            >
+              Checks
+              {openFindings > 0 && ` (${openFindings})`}
+            </a>
             {pendingSuggestions.length > 0 && (
               <a style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
                 {pendingSuggestions.length} pending in the document
@@ -903,6 +1002,22 @@ export function EditorScreen() {
 
           {panelTab === 'review' && reviewRound ? (
             <ReviewResponsePanel round={reviewRound} onResponded={() => void load()} />
+          ) : panelTab === 'checks' ? (
+            <FindingsPanel
+              findings={findings}
+              busy={findingBusy}
+              focused={focusedFinding}
+              drifted={drifted}
+              onLocate={locateFinding}
+              onResolve={(finding, resolution, edited) =>
+                void afterTriage(
+                  api.resolveFinding(doc.id, finding.id, resolution, edited),
+                )
+              }
+              onBulk={(action, findingIds) =>
+                void afterTriage(api.bulkResolveFindings(doc.id, action, findingIds))
+              }
+            />
           ) : panelTab === 'comments' ? (
             <CommentsPanel
               documentId={doc.id}

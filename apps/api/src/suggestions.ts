@@ -38,6 +38,17 @@ export function suggestionRoutes(deps: { db: Db }) {
           409,
         );
       }
+      // T-311 widened `ResolutionResult` with a `drifted` outcome for the
+      // ANCHORED apply. This path passes no anchor, so it cannot arise — the
+      // narrowing is here rather than a cast because "cannot arise" is a claim
+      // about the argument above, and a later edit that added an anchor would
+      // otherwise turn a new outcome into a silent 500.
+      if (result.outcome === 'drifted') {
+        return c.json(
+          { error: 'conflict', detail: 'the text under this suggestion has moved' } satisfies ApiError,
+          409,
+        );
+      }
       return c.json(
         {
           signalId: result.signalId,

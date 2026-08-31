@@ -14,6 +14,7 @@ import {
 import { administrationRoutes } from './administration';
 import { authRoutes } from './auth';
 import { commentRoutes } from './comments';
+import { findingRoutes } from './findings';
 import { conflictRoutes } from './conflict';
 import { costRoutes } from './costs';
 import { csrfGuard } from './csrf';
@@ -227,6 +228,9 @@ export function buildApp(deps: AppDeps) {
 
   // Sandbox comments (T-112) — working-draft threads, scope riding the document's
   app.route('/', commentRoutes(deps));
+  // T-311 — the marked-up edit: the checker's findings, and the reviewer's
+  // triage of them one mark at a time or a mechanical group at a time.
+  app.route('/', findingRoutes(deps));
 
   // Access administration + the roster (Slice A, ADR-0033) — T-117
   app.route('/', administrationRoutes(deps));
