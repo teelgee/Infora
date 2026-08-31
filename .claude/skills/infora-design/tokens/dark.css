@@ -21,6 +21,11 @@
   --green-tint: #1e3324;
   --red-500: #e08b83;
   --red-tint: #3a2320;
+  /* amber joined the dark set with T-411 (2026-08-31) — before this a
+     warning in dark mode resolved the light values and was near-unreadable */
+  --amber-500: #b8862f;
+  --amber-600: #d1a04e;
+  --amber-tint: #322a1a;
 
   --surface-pane: #1c1b17;
   --surface-sunken: #25241f;

@@ -443,15 +443,33 @@ describe('a file can be handed straight to a check, and is kept nowhere (T-399)'
   });
 
   it('🔒 the uploaded file becomes no document, no version and no style guide', async () => {
-    const before = {
-      documents: (await db.select().from(s.sandboxDocuments)).length,
-      versions: (await db.select().from(s.versions)).length,
-      guides: (await db.select().from(s.projectStyleGuides)).length,
-    };
+    // scoped to THIS project (review, 2026-08-31): the suite shares one
+    // database with concurrently running files, so a whole-table count races
+    // against whatever a neighbouring suite inserts in the window — the
+    // assertion is about what THIS run wrote, and this project is what it
+    // could have written into
+    const count = async () => ({
+      documents: (
+        await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.projectId, projectId))
+      ).length,
+      guides: (
+        await db.select().from(s.projectStyleGuides).where(eq(s.projectStyleGuides.projectId, projectId))
+      ).length,
+      // versions hang off containers, which hang off the project
+      versions: (
+        await db
+          .select({ id: s.versions.id })
+          .from(s.versions)
+          .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+          .where(eq(s.containers.projectId, projectId))
+      ).length,
+    });
+    const before = await count();
     await postForm(`/projects/${projectId}/tools/qa-check/runs`, withFile());
-    expect((await db.select().from(s.sandboxDocuments)).length).toBe(before.documents);
-    expect((await db.select().from(s.versions)).length).toBe(before.versions);
-    expect((await db.select().from(s.projectStyleGuides)).length).toBe(before.guides);
+    const after = await count();
+    expect(after.documents).toBe(before.documents);
+    expect(after.guides).toBe(before.guides);
+    expect(after.versions).toBe(before.versions);
   });
 
   it('refuses a file it cannot read, before any spend — the loader’s own vocabulary', async () => {
@@ -469,6 +487,31 @@ describe('a file can be handed straight to a check, and is kept nowhere (T-399)'
     const res = await postForm(`/projects/${projectId}/tools/qa-check/plan`, form);
     expect(res.status).toBe(400);
     expect(((await res.json()) as { detail?: string }).detail).toBe('unsupported_format');
+  });
+
+  // (review, 2026-08-31) — the transiency promise is an IN-MEMORY parse, this
+  // route is open to any project participant and never throttled (the plan
+  // legitimately recomputes on every changed answer), so the parse must be
+  // bounded before anything is buffered. Both refusals land before any spend
+  // and say what to do in words.
+  it('refuses a file over the size bound, before buffering it', async () => {
+    const form = new FormData();
+    form.append('body', JSON.stringify(body()));
+    form.append('file', new File([new Uint8Array(21 * 1024 * 1024)], 'enormous.docx'));
+    const res = await postForm(`/projects/${projectId}/tools/qa-check/plan`, form);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail?: string }).detail).toContain('too large');
+  });
+
+  it('refuses more files than the bound, naming the bound', async () => {
+    const form = new FormData();
+    form.append('body', JSON.stringify(body()));
+    for (let at = 0; at < 6; at++) {
+      form.append('file', new File([new Uint8Array(docx([`file ${at}`]))], `f${at}.docx`));
+    }
+    const res = await postForm(`/projects/${projectId}/tools/qa-check/plan`, form);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail?: string }).detail).toContain('5 at most');
   });
 
   it('leaves the JSON request exactly as it was — an upload is an addition, not a new shape', async () => {

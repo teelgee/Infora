@@ -671,10 +671,31 @@ describe('a warning notice carries the warning tone (T-411)', () => {
   it('is distinct from the neutral notice and from the error tone', () => {
     // neutral: `.banner` itself paints --panel and an --accent left border
     expect(warning).not.toContain('var(--panel)');
+    expect(warning).not.toContain('var(--accent)');
     const error = ruleOf('.banner--error');
     expect(error).not.toBe('');
     expect(error).not.toContain('var(--feedback-warning-text)');
     expect(error).not.toContain('var(--feedback-warning-tint)');
+  });
+
+  // (review, 2026-08-31) — the assertion above is about token NAMES; this one
+  // is about VALUES, because a token retargeted to another tone's colour would
+  // sail through a name check. The warning's resolved colours must differ from
+  // danger's and from the neutral accent, in the light block and the dark one.
+  it('resolves to its own colours, not another tone’s, in both themes', () => {
+    const valueOf = (block: string, name: string) =>
+      new RegExp(`${name}:\\s*([^;]+);`).exec(block)?.[1]?.trim() ?? '';
+    const light = /:root \{([\s\S]*?)\n\}/.exec(tokens)?.[1] ?? '';
+    const dark = /:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/.exec(tokens)?.[1] ?? '';
+    for (const block of [light, dark]) {
+      expect(block).not.toBe('');
+      for (const half of ['text', 'tint'] as const) {
+        const warningValue = valueOf(block, `--feedback-warning-${half}`);
+        expect(warningValue).not.toBe('');
+        expect(warningValue).not.toBe(valueOf(block, `--feedback-danger-${half}`));
+        expect(warningValue).not.toBe(valueOf(block, `--feedback-success-${half}`));
+      }
+    }
   });
 
   // §F.6 — a feedback colour must carry light AND dark values. Warning carried
@@ -685,5 +706,6 @@ describe('a warning notice carries the warning tone (T-411)', () => {
     const dark = /:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/.exec(tokens)?.[1] ?? '';
     expect(dark).toContain('--feedback-warning-text:');
     expect(dark).toContain('--feedback-warning-tint:');
+    expect(dark).toContain('--feedback-warning-dot:');
   });
 });

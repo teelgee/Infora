@@ -47,6 +47,24 @@ describe('content-type gate (T-218)', () => {
     const res = await app.request('/auth/session', { method: 'DELETE' });
     expect(res.status).toBe(204);
   });
+
+  // (review, 2026-08-31) — T-399 put two DUAL-MODE routes on the multipart
+  // allowlist: they take JSON without a file and multipart with one. The
+  // allowlist admits the path for multipart only; a JSON-shaped request to
+  // the same path must still take this content-type gate, or listing a path
+  // would quietly loosen its JSON half.
+  it('a form-content-type POST to an allowlisted dual-mode route still takes the JSON gate', async () => {
+    const res = await app.request('/projects/whatever/tools/qa-check/plan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'families=style',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'invalid',
+      detail: 'content-type must be application/json',
+    });
+  });
 });
 
 describe('multipart upload Origin check (T-218)', () => {

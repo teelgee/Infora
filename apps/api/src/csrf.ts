@@ -45,7 +45,14 @@ export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHand
       (contentLength !== undefined ? contentLength !== '0' : c.req.raw.body !== null);
     if (!hasBody) return next();
 
-    if (multipartPaths.some((pattern) => pattern.test(c.req.path))) {
+    // the allowlist admits the PATH for multipart; a JSON request to a
+    // dual-mode route (the two check endpoints accept both) still takes the
+    // content-type gate below, so listing a path here never loosens its
+    // JSON half (review, 2026-08-31)
+    const isMultipart = (c.req.header('content-type') ?? '')
+      .toLowerCase()
+      .includes('multipart/form-data');
+    if (isMultipart && multipartPaths.some((pattern) => pattern.test(c.req.path))) {
       const site = c.req.header('sec-fetch-site');
       if (site !== undefined && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
         return c.json({ error: 'forbidden', detail: 'cross-site upload' } satisfies ApiError, 403);

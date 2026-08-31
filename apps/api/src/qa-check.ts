@@ -89,6 +89,12 @@ const uploadFormats: Record<string, ExtractableFormat> = {
   pdf: 'pdf',
 };
 
+// generous for a real chapter, and a bound rather than a budget: the whole
+// request is parsed in memory (that is the transiency promise), so the bound
+// is on what one request may make the server hold
+const MAX_UPLOAD_FILES = 5;
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 /**
  * What the RECORD keeps about an upload: enough to say exactly which file the
  * run was shown, and not a word of what it said.
@@ -123,12 +129,27 @@ async function readUploads(
   const files = (Array.isArray(entry) ? entry : [entry]).filter(
     (candidate): candidate is File => candidate instanceof File,
   );
+  // bounded BEFORE anything is buffered (review, 2026-08-31): this route is
+  // open to any project participant and never throttled — the plan
+  // legitimately recomputes on every changed answer — so an unbounded
+  // in-memory parse here was the one place a member could spend the server's
+  // memory freely. The caps are generous for real chapters and refused in
+  // words a person can act on.
+  if (files.length > MAX_UPLOAD_FILES) {
+    return { ok: false, detail: `too many files attached — ${MAX_UPLOAD_FILES} at most per check` };
+  }
 
   const attachments: RunAttachment[] = [];
   const fingerprints: UploadFingerprint[] = [];
   for (const file of files) {
     const format = uploadFormats[file.name.split('.').at(-1)?.toLowerCase() ?? ''];
     if (!format) return { ok: false, detail: 'unsupported_format' };
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return {
+        ok: false,
+        detail: `"${file.name}" is too large to check — ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB at most per file`,
+      };
+    }
     const bytes = Buffer.from(await file.arrayBuffer());
     const extracted = extractText(format, bytes);
     if (!extracted.ok) return { ok: false, detail: extracted.reason };
