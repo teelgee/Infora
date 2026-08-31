@@ -293,11 +293,11 @@ h1.page { font-family: var(--primitive-font-family-serif); font-size: 27px; font
    `--card-padding` (16px) and a 12px gutter are both in the design system
    (design-rules §A spacing, §C "the gutter is 12px") and neither had ever
    reached this rule: `.card` set a background, a radius and a shadow and
-   stopped. Every screen that noticed compensated with an inline
-   `padding: 16` wrapper of its own — settings does it seven times, login,
-   cycle and workspace once each — which is the §A hard rule ("never hardcode
-   a raw px value in app code") broken at eleven call sites and the same value
-   re-decided at each. The creator's cards wrap FORM FIELDS rather than a
+   stopped. Every screen that noticed compensated with an inline padding
+   wrapper of its own — settings at 16 seven times, cycle and workspace at 18,
+   login at 22×24 — which is the §A hard rule ("never hardcode a raw px value
+   in app code") broken at ten call sites with the value re-decided (and
+   re-decided differently) at each. The creator's cards wrap FORM FIELDS rather than a
    padded table, so they had nothing to hide behind and the fields sat flush
    against the card edge with no gap between one card and the next. That is
    the "cramped" the owner saw.

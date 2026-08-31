@@ -125,7 +125,17 @@ const sectionsOf = (value: unknown): DocumentSection[] =>
         (item as DocumentSection).heading.trim() !== '' &&
         (item as DocumentSection).purpose.trim() !== '',
     )
-    .map((item) => ({ heading: item.heading, purpose: item.purpose }));
+    .map((item) => ({
+      heading: item.heading,
+      purpose: item.purpose,
+      // the author's corrected brief (T-408) rides only when it is real text:
+      // absent means "the planner's description stands", and an empty string
+      // arriving here must not overwrite the purpose fallback downstream
+      ...(typeof (item as DocumentSection).brief === 'string' &&
+      (item as DocumentSection).brief!.trim() !== ''
+        ? { brief: (item as DocumentSection).brief }
+        : {}),
+    }));
 
 /** A step input that may be JSON text, or may already be the value. */
 function parsedJson(value: unknown): unknown {

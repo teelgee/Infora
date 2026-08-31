@@ -369,4 +369,108 @@ describe('the run (T-309)', () => {
     expect(body.plan.cost).toBeDefined();
     expect(typeof body.plan.cost.priced).toBe('boolean');
   });
+
+  // T-408 (review) — THE CORRECTED BRIEF REACHES THE DRAFTING CALL, not just
+  // the plan. The defect this pins was found once and fixed twice: the client
+  // dropped `brief` from the run body (caught in T-404), and the step-input
+  // parser then dropped it again on the server (caught in review) — so the
+  // plan showed the author's correction and the document was drafted without
+  // it, with every other test green either side. The only honest assertion is
+  // at the far end: the words the author typed, in the prompt the model saw.
+  it("drafts with the author's corrected brief, not the description it replaced (T-408)", async () => {
+    const seen: string[] = [];
+    const capturing = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter((system, prompt) => {
+        seen.push(`${system}\n${prompt}`);
+        return 'The investigation recorded contamination exceedances. [S1]';
+      }),
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+      modelRates: { 'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 } },
+      draftModelId: 'fake-chat',
+    });
+    const res = await capturing.request(`/projects/${projectId}/tools/document-creation/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(
+        request({
+          sections: [
+            { heading: 'Purpose', purpose: 'State what question this note answers and for whom.' },
+            {
+              heading: 'The evidence',
+              purpose: 'Set out what the project record says.',
+              brief: 'set out the recorded exceedances as bullets, one per trial pit',
+            },
+            { heading: 'Implication', purpose: 'State what follows for the design or the programme.' },
+          ],
+        }),
+      ),
+    });
+    expect(res.status).toBe(201);
+    const drafting = seen.filter((call) =>
+      call.includes('set out the recorded exceedances as bullets, one per trial pit'),
+    );
+    expect(drafting.length).toBeGreaterThan(0);
+    // and the brief REPLACED the planner's description rather than joining it
+    expect(
+      drafting.some((call) => call.includes('The evidence — Set out what the project record says.')),
+    ).toBe(false);
+  });
+
+  // 🔒 T-409 (review) — THE TWO DOORS PRODUCE ONE PLAN, asserted through the
+  // real doors. A brief revised by the agent endpoint — the model's actual
+  // reply, through the actual parse — and the same words typed by hand must
+  // yield byte-identical plans, because both are nothing but a parameter by
+  // the time the planner sees them. (An earlier version of this test lived at
+  // the planner and compared two identical literals, which could not fail.)
+  it('🔒 an agent tweak and a hand edit of the same brief produce one plan (T-409)', async () => {
+    const revised = 'Set out the three constraints in bullets, one per consent condition.';
+    const agentApp = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter(() => JSON.stringify({ brief: revised, followUp: null })),
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+      modelRates: { 'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 } },
+      draftModelId: 'fake-chat',
+    });
+    const revision = await agentApp.request(
+      `/projects/${projectId}/tools/document-creation/section-brief/revision`,
+      {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          heading: 'The evidence',
+          purpose: 'Set out what the project record says.',
+          brief: 'Set out what the project record says.',
+          ask: 'no, this should set out the constraints in bullets',
+        }),
+      },
+    );
+    expect(revision.status).toBe(200);
+    const { brief } = (await revision.json()) as { brief: string | null };
+    expect(brief).toBe(revised);
+
+    const sectionsWith = (theBrief: string) => [
+      { heading: 'Purpose', purpose: 'State what question this note answers and for whom.' },
+      { heading: 'The evidence', purpose: 'Set out what the project record says.', brief: theBrief },
+      { heading: 'Implication', purpose: 'State what follows for the design or the programme.' },
+    ];
+    const byAgent = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      request({ sections: sectionsWith(brief!) }),
+    );
+    const byHand = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      request({ sections: sectionsWith(revised) }),
+    );
+    const agentPlan = (await byAgent.json()) as DocumentCreationPlanResponse;
+    const handPlan = (await byHand.json()) as DocumentCreationPlanResponse;
+    expect(JSON.stringify(agentPlan.plan.steps)).toBe(JSON.stringify(handPlan.plan.steps));
+    expect(agentPlan).toEqual(handPlan);
+  });
 });
