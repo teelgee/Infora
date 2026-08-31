@@ -35,6 +35,7 @@ import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   Id,
+  ListStartingOutlinesResponse,
   Run,
   ToolPlan,
 } from '@infora/contracts';
@@ -48,13 +49,7 @@ import type { ModelRates } from '@infora/model';
 import { TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
-import {
-  CapabilityRefused,
-  UNSECTIONED,
-  createConversation,
-  readRun,
-  runChain,
-} from '@infora/orchestration';
+import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
 import type { WorkerRegistry } from '@infora/capabilities';
 import { projectScope } from './requester';
@@ -115,23 +110,13 @@ export function documentCreationRoutes(deps: {
         ok: false,
         response: invalid(
           c,
-          'templateId, brief, purpose, language, documentType, styleGuideIds, sourceVersionIds, destinationSandboxId, title',
+          'sections (at least one, each with a heading and a purpose), brief, purpose, language, documentType, styleGuideIds, sourceVersionIds, destinationSandboxId, title',
         ),
       };
     }
     const workflow = deps.workflows?.get(DOCUMENT_CREATION_WORKFLOW);
     if (workflow === undefined) {
       return { ok: false, response: notFound(c) }; // this deployment carries no creator
-    }
-    const template = deps.templates.get(parsed.data.templateId);
-    if (template === undefined) {
-      return {
-        ok: false,
-        response: invalid(
-          c,
-          `no document template "${parsed.data.templateId}" — this deployment has: ${deps.templates.ids().join(', ')}`,
-        ),
-      };
     }
     // the destination is checked here, before the plan is priced: writing
     // somewhere you cannot reach is not a plan with a refusal on it, it is a
@@ -145,7 +130,11 @@ export function documentCreationRoutes(deps: {
       body: parsed.data,
       plan: planDocumentCreation({
         workflow,
-        template,
+        // T-407 — the outline the AUTHOR composed. There is no template lookup
+        // here any more and no "no such template" refusal: a starting outline
+        // is a menu the surface fills, and by the time a request arrives the
+        // sections in it are the author's own.
+        sections: parsed.data.sections,
         sourceCount: parsed.data.sourceVersionIds.length,
         // T-406 — the four answers reach the planner, because the plan has to
         // SAY what it is about to write and under which resolution
@@ -159,6 +148,36 @@ export function documentCreationRoutes(deps: {
       }),
     };
   };
+
+  /**
+   * T-407 — the starting outlines this deployment carries.
+   *
+   * *In plain terms: the two shipped templates, offered as a way to begin
+   * rather than a shape to fit into.* Choosing one gives the author a list of
+   * sections whose purposes are the template's own per-part guidance — all of
+   * them editable, reorderable and removable, and starting from nothing is
+   * equally valid. **The outline the run draws its shape from is the author's
+   * list**, sent in the request body; nothing here is binding, which is the
+   * whole difference between a starting outline and the "shape" A1 retired.
+   *
+   * Project-scoped like every other tool route so the entitlement check runs;
+   * the content itself is the deployment's, not the project's.
+   */
+  app.get('/projects/:projectId/tools/document-creation/starting-outlines', project, (c) =>
+    c.json({
+      items: deps.templates.list().map((template) => ({
+        id: template.id,
+        label: template.label,
+        description: template.description,
+        sections: template.sections.map((section) => ({
+          heading: section.heading,
+          // the template's per-part guidance BECOMES the section's purpose —
+          // the same words, now the author's to edit (A1)
+          purpose: section.guidance,
+        })),
+      })),
+    } satisfies ListStartingOutlinesResponse),
+  );
 
   app.post('/projects/:projectId/tools/document-creation/plan', project, async (c) => {
     const computed = await plan(c);
@@ -179,7 +198,12 @@ export function documentCreationRoutes(deps: {
     let bound;
     try {
       bound = bindWorkflow(workflow, {
-        template_id: computed.body.templateId,
+        // T-407 — as JSON, which is the shape `families` takes in the
+        // checker's own definition: the declared parameter types carry no "list
+        // of objects", and widening that fixed set is an owner decision rather
+        // than a build one. `sectionsOf` in the capability registry parses it
+        // back and drops anything malformed, exactly as `familiesOf` does.
+        sections: JSON.stringify(computed.body.sections),
         brief: computed.body.brief,
         purpose: computed.body.purpose,
         language: computed.body.language,
@@ -242,13 +266,15 @@ export function documentCreationRoutes(deps: {
     }
 
     const manifest = (output['manifest'] as Array<{ versionId: Id; usedFor: string }>) ?? [];
-    // T-402 — the `unsectioned` bucket is NOT a section. The assembly writes the
-    // template's own sections and nothing else, so counting the bucket reported
-    // a section written into a document that had none. What the run wrote
-    // outside the outline is stated separately, below.
-    const sectionsWritten = new Set(
-      manifest.map((entry) => entry.usedFor).filter((usedFor) => usedFor !== UNSECTIONED),
-    ).size;
+    // T-402, moved to its right home by T-407. The `unsectioned` bucket is NOT
+    // a section — the assembly writes the outline's own sections and nothing
+    // else, so counting the bucket reported a section written into a document
+    // that had none. The count is now taken **by the builder**, beside the
+    // assembly that decides it, rather than derived here from the manifest's
+    // headings: two sections of one author-composed outline may honestly share
+    // a heading, and a count off those names would under-report, which is the
+    // same class of error the other way round.
+    const sectionsWritten = (output['sectionsWritten'] as number | undefined) ?? 0;
     const label = (output['label'] as {
       computedLabel: string;
       destinationLabel: string;
@@ -267,7 +293,7 @@ export function documentCreationRoutes(deps: {
         // fact rather than something they have to go looking for.
         coverage: coverageAfter({
           sectionsWritten,
-          sectionsPlanned: deps.templates.get(computed.body.templateId)!.sections.length,
+          sectionsPlanned: computed.body.sections.length,
           sourcesUsed: new Set(manifest.map((entry) => entry.versionId)).size,
           sourcesBound: computed.body.sourceVersionIds.length,
           unreachableSources: unreachableSources.length,

@@ -10,21 +10,16 @@
 // other test stays green.*
 import { describe, expect, it } from 'vitest';
 import { STYLE_PRECEDENCE } from '@infora/contracts';
-import { composeTemplatePrompt } from './document-builder';
-import type { DocumentTemplate } from './templates';
+import { composeDraftingPrompt } from './document-builder';
+import type { DocumentSection } from '@infora/contracts';
 
-const template: DocumentTemplate = {
-  id: 'technical-note',
-  version: 1,
-  label: 'Technical note',
-  description: 'A short note answering one question.',
-  sections: [
-    { id: 'purpose', heading: 'Purpose', guidance: 'Say what this answers.' },
-    { id: 'evidence', heading: 'The evidence', guidance: 'Set out what the record says.' },
-  ],
-};
+// T-407 — the outline the author composed, which is what the prompt now takes
+const sections: DocumentSection[] = [
+  { heading: 'Purpose', purpose: 'Say what this answers.' },
+  { heading: 'The evidence', purpose: 'Set out what the record says.' },
+];
 
-const character = (over: Partial<Parameters<typeof composeTemplatePrompt>[2]> = {}) => ({
+const character = (over: Partial<Parameters<typeof composeDraftingPrompt>[2]> = {}) => ({
   purpose: 'technical-note' as const,
   language: 'technical' as const,
   documentType: 'whole-document' as const,
@@ -33,8 +28,8 @@ const character = (over: Partial<Parameters<typeof composeTemplatePrompt>[2]> = 
   ...over,
 });
 
-const prompt = (over: Partial<Parameters<typeof composeTemplatePrompt>[2]> = {}) =>
-  composeTemplatePrompt(template, 'does the baseline support the assessment?', character(over));
+const prompt = (over: Partial<Parameters<typeof composeDraftingPrompt>[2]> = {}) =>
+  composeDraftingPrompt(sections, 'does the baseline support the assessment?', character(over));
 
 describe('the drafting prompt consumes the style guides (T-406)', () => {
   const clauses = [

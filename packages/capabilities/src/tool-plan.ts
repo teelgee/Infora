@@ -25,6 +25,7 @@
 import type {
   DocumentLanguage,
   DocumentPurpose,
+  DocumentSection,
   DocumentType,
   PlannedToolStep,
   ToolPlan,
@@ -33,7 +34,7 @@ import type {
 import { STYLE_PRECEDENCE, languageLabel, purposeLabel, typeLabel } from '@infora/contracts';
 import { costOf } from '@infora/model';
 import type { ModelRates } from '@infora/model';
-import type { DocumentTemplate } from './workers/templates';
+
 
 // `PlannedToolStep` and `ToolPlan` are declared in `contracts`, not here: the
 // surface that renders a plan (T-335) sees `contracts` and `ui` alone, and a
@@ -41,7 +42,7 @@ import type { DocumentTemplate } from './workers/templates';
 // because pricing needs the model rates, and `contracts` depends on nothing.
 
 /**
- * What one section of a template is expected to cost the drafting call.
+ * What one section of the outline is expected to cost the drafting call.
  *
  * Fixed numbers, deliberately: a plan whose estimate came from a model would be
  * a model call taken to avoid a model call, and would vary run to run for the
@@ -52,12 +53,18 @@ import type { DocumentTemplate } from './workers/templates';
 export const SECTION_COMPLETION_TOKENS = 350;
 /** what a bound source contributes to the prompt, at the assembly's own grain */
 export const SOURCE_PROMPT_TOKENS = 600;
-/** the template's own headings and guidance, once */
-export const TEMPLATE_PROMPT_TOKENS = 400;
+/** the outline's own headings and purposes, once */
+export const OUTLINE_PROMPT_TOKENS = 400;
 
 export type DocumentCreationPlanInput = {
   workflow: Workflow;
-  template: DocumentTemplate;
+  /**
+   * T-407 — **the outline the author composed**, not a template. A template is
+   * a starting outline the surface copies into these sections; by the time a
+   * plan is computed there is no template left in the request, which is what
+   * "a template seeds but never locks" means once it reaches code.
+   */
+  sections: ReadonlyArray<DocumentSection>;
   /** how many library sources the author bound, chosen AHEAD of drafting (T-335) */
   sourceCount: number;
   /**
@@ -79,11 +86,11 @@ export type DocumentCreationPlanInput = {
 };
 
 export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan {
-  const sections = input.template.sections.length;
+  const sections = input.sections.length;
   // capped at the assembly budget: the gateway will not hand the builder more
   // than this, so an estimate above it would describe a call that cannot happen
   const promptTokens = Math.min(
-    TEMPLATE_PROMPT_TOKENS + input.sourceCount * SOURCE_PROMPT_TOKENS,
+    OUTLINE_PROMPT_TOKENS + input.sourceCount * SOURCE_PROMPT_TOKENS,
     input.tokenLimit,
   );
   const completionTokens = sections * SECTION_COMPLETION_TOKENS;
@@ -98,7 +105,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
       stage: step.stage,
       worker: step.worker ?? null,
       label: drafting
-        ? `Draft ${sections} section${sections === 1 ? '' : 's'} into "${input.template.label}" from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}`
+        ? `Draft ${sections} section${sections === 1 ? '' : 's'} — ${input.sections.map((section) => section.heading).join(', ')} — from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}`
         : `Run ${step.worker ?? step.stage}`,
       estimate: {
         calls: 1,
@@ -123,7 +130,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
     workflowId: input.workflow.id,
     workflowVersion: input.workflow.version,
     steps,
-    coverage: coverageBefore(input.template, input.sourceCount),
+    coverage: coverageBefore(input.sections.length, input.sourceCount),
     cost: { total, priced },
     refusal: refusalOf(input.sourceCount),
     notes: notesOf(input),
@@ -178,9 +185,9 @@ function refusalOf(sourceCount: number): string | null {
 }
 
 /** Before the run — what it WILL cover. */
-export function coverageBefore(template: DocumentTemplate, sourceCount: number): string {
+export function coverageBefore(sectionCount: number, sourceCount: number): string {
   return [
-    `${template.sections.length} section${template.sections.length === 1 ? '' : 's'}`,
+    `${sectionCount} section${sectionCount === 1 ? '' : 's'}`,
     `${sourceCount} bound source${sourceCount === 1 ? '' : 's'}`,
     '1 drafting pass',
   ].join(' · ');

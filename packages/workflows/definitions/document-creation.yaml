@@ -25,11 +25,13 @@
 # and reports both labels when the sources are broader than the destination
 # (T-249's finding F2), and there is no override path in V1 for a tool nobody
 # has asked to override.
-# v2 (T-406, ADR-0053 addendum A1): the launcher's four answers become
-# parameters. `shape` never existed here as a word -- it lived on the screen as
-# a label for `template_id` -- and it is retired on the screen with this
-# version. A version bump rather than an edit in place, because a plan records
-# the version it ran and a plan from v1 named four fewer inputs.
+# v2 (T-406 and T-407, ADR-0053 addendum A1): the launcher's four answers
+# become parameters, and `template_id` is REPLACED BY `sections` -- the outline
+# the author composed. `shape` never existed here as a word (it lived on the
+# screen as a label for `template_id`) and is retired on the screen with this
+# version; a template is now a starting outline the surface copies from, so by
+# the time a run is bound there is no template left in it. A version bump
+# rather than an edit in place, because a plan records the version it ran.
 id: document-creation
 version: 2
 label: Create a document
@@ -40,10 +42,16 @@ description: >-
 status: active
 
 parameters:
-  - name: template_id
+  - name: sections
     type: string
     required: true
-    description: Which outline to draft into, from the templates this deployment carries.
+    description: >-
+      The outline the author composed, as JSON: a heading and a purpose for
+      each section, in the order they are to be written. A STRING carrying a
+      structure, which is the same shape `families` takes in qa-check.yaml --
+      the declared parameter types are string, number, boolean, id and id_list,
+      none of which is a list of objects, and widening that fixed set is an
+      owner decision rather than a build one (T-407, reported).
   - name: brief
     type: string
     required: true
@@ -99,7 +107,7 @@ steps:
     stage: present
     worker: document_builder
     inputs:
-      template_id: '{{parameters.template_id}}'
+      sections: '{{parameters.sections}}'
       brief: '{{parameters.brief}}'
       purpose: '{{parameters.purpose}}'
       language: '{{parameters.language}}'

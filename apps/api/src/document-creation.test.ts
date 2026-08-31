@@ -19,6 +19,7 @@ import { createDb, hashPassword, schema as s } from '@infora/db';
 import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
+  ListStartingOutlinesResponse,
 } from '@infora/contracts';
 import { loadWorkflows } from '@infora/workflows';
 import { createWorkerRegistry } from '@infora/capabilities';
@@ -56,7 +57,14 @@ const post = (who: string, path: string, body: unknown) =>
   });
 
 const request = (overrides: Record<string, unknown> = {}) => ({
-  templateId: 'technical-note',
+  // T-407 — the outline the author composed. The shipped `technical-note`
+  // starting outline seeds exactly this; here it is written out, because that
+  // is what a request now carries.
+  sections: [
+    { heading: 'Purpose', purpose: 'State what question this note answers and for whom.' },
+    { heading: 'The evidence', purpose: 'Set out what the project record says.' },
+    { heading: 'Implication', purpose: 'State what follows for the design or the programme.' },
+  ],
   brief: 'what did the ground investigation record?',
   // T-406 — the launcher's four answers, at their defaults
   purpose: 'technical-note',
@@ -235,14 +243,39 @@ describe('the plan, before the click (T-309, ADR-0053 §4)', () => {
     expect(run.status).toBe(400);
   });
 
-  it('names the templates it has rather than failing opaquely', async () => {
-    const res = await post(
-      cookie,
-      `/projects/${projectId}/tools/document-creation/plan`,
-      request({ templateId: 'not-a-template' }),
+  // T-407 — this test used to assert that naming a template this deployment
+  // does not carry failed by NAMING the ones it does. That failure mode is gone
+  // with the template lookup: the outline arrives composed. Its replacement is
+  // the refusal that took its place — an outline that is not one.
+  it('refuses an empty outline, and a section with no heading or no purpose', async () => {
+    for (const bad of [
+      { sections: [] },
+      { sections: [{ heading: '', purpose: 'something' }] },
+      { sections: [{ heading: 'Purpose', purpose: '' }] },
+    ]) {
+      const res = await post(
+        cookie,
+        `/projects/${projectId}/tools/document-creation/plan`,
+        request(bad),
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+
+  // T-407 — the starting outlines are OFFERED, and offering them is all they
+  // do: the run draws its shape from the body's sections, never from these.
+  it('offers the starting outlines with their guidance as section purposes', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      { headers: { cookie } },
     );
-    expect(res.status).toBe(400);
-    expect(((await res.json()) as { detail: string }).detail).toContain('technical-note');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ListStartingOutlinesResponse;
+    const note = body.items.find((outline) => outline.id === 'technical-note');
+    expect(note).toBeDefined();
+    expect(note!.sections[0]!.heading).toBe('Purpose');
+    // the template's per-part guidance BECOMES the section's purpose
+    expect(note!.sections[0]!.purpose).toContain('what question this note answers');
   });
 
   it('a destination the requester cannot reach is nonexistence, not a refusal', async () => {
@@ -295,6 +328,8 @@ describe('the run (T-309)', () => {
       body.manifest.map((entry) => entry.usedFor).filter((usedFor) => usedFor !== 'unsectioned'),
     ).size;
     expect(body.coverage.startsWith(`${outlineSections} of 3 sections written`)).toBe(true);
+    // T-407 — and the manifest names sections by the author's own headings
+    expect(body.manifest.every((entry) => entry.usedFor !== 'purpose')).toBe(true);
   });
 
   it('writes a real sandbox document under the template’s own headings', async () => {

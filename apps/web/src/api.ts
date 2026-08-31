@@ -35,6 +35,7 @@ import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   GetGroundingScopeResponse,
+  ListStartingOutlinesResponse,
   ListStyleGuidesResponse,
   ListToolsResponse,
   GetLibraryResponse,
@@ -570,6 +571,12 @@ export const api = {
   // server reads as "leave it alone"; `null` clears it. Sending `undefined`
   // through `JSON.stringify` drops the key, which is exactly the wanted
   // behaviour, so the conditional is written out rather than left to chance.
+  // T-407 — the starting outlines this deployment carries. A menu, never a
+  // shape: the outline the run uses is the one the author composed in the body.
+  startingOutlines: (projectId: string) =>
+    request<ListStartingOutlinesResponse>(
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+    ),
   // T-406 — the project's style guides. T-397 built the endpoint; the creator's
   // launcher is its first surface, because a guide the drafting call follows is
   // one the author has to be able to pick.

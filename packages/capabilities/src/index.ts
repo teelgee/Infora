@@ -62,7 +62,7 @@ export type {
 } from './workers/extraction-schemas';
 // T-280 — `document_builder`'s declaration and its template prompt; the
 // implementation writes, so it lives in `@infora/orchestration`.
-export { DOCUMENT_BUILDER, composeTemplatePrompt } from './workers/document-builder';
+export { DOCUMENT_BUILDER, composeDraftingPrompt } from './workers/document-builder';
 export {
   DocumentTemplateError,
   TEMPLATES_DIR,
@@ -88,7 +88,7 @@ export {
   planDocumentCreation,
   SECTION_COMPLETION_TOKENS,
   SOURCE_PROMPT_TOKENS,
-  TEMPLATE_PROMPT_TOKENS,
+  OUTLINE_PROMPT_TOKENS,
 } from './tool-plan';
 export type { DocumentCreationPlanInput } from './tool-plan';
 // T-310 — the checker's five families and their three grains (ADR-0053 §2).

@@ -21,11 +21,11 @@
 import type {
   DocumentLanguage,
   DocumentPurpose,
+  DocumentSection,
   DocumentType,
   WorkerDeclaration,
 } from '@infora/contracts';
 import { STYLE_PRECEDENCE, purposeLabel } from '@infora/contracts';
-import type { DocumentTemplate } from './templates';
 
 export const DOCUMENT_BUILDER: WorkerDeclaration = {
   name: 'document_builder',
@@ -33,7 +33,7 @@ export const DOCUMENT_BUILDER: WorkerDeclaration = {
     'Draft a document into a named template from an explicit set of library sources, recording what each source was used for.',
   tier: 'frontier',
   inputSchema: {
-    template_id: 'the outline to draft into (the shipped template set)',
+    sections: 'the outline the author composed — a heading and a purpose each',
     brief: 'what this document is for, in the requester’s own words',
     // T-406 (ADR-0053 addendum A1) — the launcher's four answers, declared here
     // because a worker's inputs are its contract with the executor
@@ -110,8 +110,17 @@ const TYPE_INSTRUCTION: Record<DocumentType, string> = {
 };
 
 /**
- * The system prompt. The template's headings and guidance travel verbatim; the
- * source markers are the same `[S#]` convention the draft leaf uses, so the
+ * The system prompt.
+ *
+ * **T-407 — the outline is the AUTHOR'S, not a template's.** The headings and
+ * the per-section purposes travel verbatim, exactly as a template's guidance
+ * used to, and are held to the same rule the template authoring guide states:
+ * a purpose says what belongs in a section, **never what to conclude**. An
+ * outline that told the drafting call what to find would make every document
+ * agree with its outline rather than with its sources — which is the failure
+ * this whole tool exists to avoid.
+ *
+ * The source markers are the same `[S#]` convention the draft leaf uses, so the
  * ground-check and the citation resolver need no second parser.
  *
  * 🔒 **THE PRECEDENCE IS A SENTENCE, NOT AN ORDERING** — the same rule
@@ -120,14 +129,13 @@ const TYPE_INSTRUCTION: Record<DocumentType, string> = {
  * nothing in the order of them to say which governs. `STYLE_PRECEDENCE` is one
  * exported constant so the prompt, the plan and the tests read the same words.
  */
-export function composeTemplatePrompt(
-  template: DocumentTemplate,
+export function composeDraftingPrompt(
+  sections: ReadonlyArray<DocumentSection>,
   brief: string,
   character: DraftingCharacter,
 ): string {
   return [
-    `You are drafting a "${template.label}". ${template.description}`,
-    `It is a ${purposeLabel(character.purpose).toLowerCase()}. ${TYPE_INSTRUCTION[character.documentType]}`,
+    `You are drafting a ${purposeLabel(character.purpose).toLowerCase()}. ${TYPE_INSTRUCTION[character.documentType]}`,
     '',
     `The brief: ${brief}`,
     '',
@@ -135,9 +143,7 @@ export function composeTemplatePrompt(
     '',
     ...styleBlock(character),
     'Write the document under these headings, in this order:',
-    ...template.sections.map(
-      (section, at) => `  ${at + 1}. ${section.heading} — ${section.guidance}`,
-    ),
+    ...sections.map((section, at) => `  ${at + 1}. ${section.heading} — ${section.purpose}`),
     '',
     'Every sentence must rest on one of the numbered sources and carry its marker, e.g. [S2].',
     'Write nothing the sources do not support: a sentence with no source is removed before anyone reads it, so an unsupported sentence is wasted rather than persuasive.',

@@ -2315,14 +2315,24 @@ export type ToolPlan = {
   caveats?: string[];
 };
 
+export const documentSectionBody = z.object({
+  heading: z.string().min(1),
+  purpose: z.string().min(1),
+});
+
 export const documentCreationBody = z.object({
   /**
-   * The starting outline. **This is no longer "the shape"** — T-406 retired
-   * that word with its control; T-407 moves this control into the
-   * define-sections step, where a template pre-fills an outline the author can
-   * edit or discard.
+   * T-407 (ADR-0053 addendum A1) — **the outline the author composed**, and
+   * the body's `templateId` is gone with it. A template is now a *starting
+   * outline* the surface reads from `GET …/starting-outlines` and copies into
+   * these sections; by the time a request is made, what the run draws its
+   * shape from is the author's list and nothing else. That is what "a template
+   * seeds but never locks" means at the wire.
+   *
+   * At least one section, because a document with no sections is not a
+   * document — and refusing here is refusing before any spend.
    */
-  templateId: z.string().min(1),
+  sections: z.array(documentSectionBody).min(1),
   brief: z.string().min(1),
   /**
    * T-406 (ADR-0053 addendum A1) — the launcher's four answers. **Run

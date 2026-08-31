@@ -28,8 +28,10 @@ import type {
   DocumentCreationRunResponse,
   DocumentLanguage,
   DocumentPurpose,
+  DocumentSection,
   DocumentType,
   GroundingSource,
+  StartingOutline,
   QaCheckRunResponse,
   Sandbox,
   SandboxDocument,
@@ -50,9 +52,18 @@ import {
   DOCUMENT_PURPOSE_CATALOGUE,
   DOCUMENT_TYPE_CATALOGUE,
 } from '@infora/contracts';
-import { ClipboardCheck, FileText, Wrench } from 'lucide-react';
+import { ArrowDown, ArrowUp, ClipboardCheck, FileText, Plus, Wrench, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Badge, Button, Card, Field, SelectInput, TextArea, TextInput } from '@infora/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Field,
+  IconButton,
+  SelectInput,
+  TextArea,
+  TextInput,
+} from '@infora/ui';
 import { api } from '../api';
 import { useGroundingScope } from '../composer-chips';
 
@@ -260,11 +271,134 @@ export function StyleGuidePicker(props: {
   );
 }
 
-/** The templates this deployment carries. Fixed for V1; the set is domain content. */
-const TEMPLATES = [
-  { id: 'technical-note', label: 'Technical note' },
-  { id: 'chapter-section', label: 'Chapter section' },
-];
+/**
+ * T-407 — THE OUTLINE, COMPOSED (ADR-0053 addendum A1).
+ *
+ * *In plain terms: instead of an outline arriving ready-made, the author builds
+ * it. Add a section, say what should go in it — "an introductory section
+ * setting out the site, the constraints and the programme" — add the next.
+ * Reorder them, edit them, take one out. A starting outline can be chosen and
+ * then it is a copy: every section it produced is as editable as one typed by
+ * hand, and starting from nothing is the primary path rather than the fallback.*
+ *
+ * 🔒 **A PURPOSE SAYS WHAT BELONGS IN A SECTION, NEVER WHAT TO CONCLUDE.** It
+ * is the rule the shipped templates' own authoring guide has always held their
+ * per-part guidance to, and it did not stop mattering when the words became the
+ * author's: an outline that told the drafting call what to find would make
+ * every document agree with its outline rather than with its sources.
+ *
+ * **The list starts empty, deliberately.** Seeding it from a default template
+ * would be an outline arriving ready-made wearing a different name, which is
+ * precisely what A1 retired.
+ */
+export function SectionComposer(props: {
+  sections: DocumentSection[];
+  outlines: StartingOutline[];
+  onChange: (sections: DocumentSection[]) => void;
+}) {
+  const at = (index: number, section: DocumentSection) =>
+    props.onChange(props.sections.map((existing, i) => (i === index ? section : existing)));
+  const move = (index: number, by: number) => {
+    const to = index + by;
+    if (to < 0 || to >= props.sections.length) return;
+    const next = [...props.sections];
+    [next[index], next[to]] = [next[to]!, next[index]!];
+    props.onChange(next);
+  };
+
+  return (
+    <Card>
+      <strong>The outline</strong>
+      <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+        Build the document section by section: a heading, and what should go in it. Say what belongs
+        there, not what you expect it to conclude — the draft rests on the sources, not on the
+        outline.
+      </p>
+
+      {props.outlines.length > 0 && (
+        <div className="outline-seeds">
+          <span className="field-hint">Start from:</span>
+          {props.outlines.map((outline) => (
+            <Button
+              key={outline.id}
+              size="sm"
+              variant="quiet"
+              title={outline.description}
+              onClick={() => props.onChange([...props.sections, ...outline.sections])}
+            >
+              {outline.label}
+            </Button>
+          ))}
+          {/* a seed is a COPY — every section it adds is as editable and as
+              removable as one typed by hand, which is the whole of "seeds but
+              never locks" */}
+          <span className="field-hint">— every section it adds stays yours to edit or remove.</span>
+        </div>
+      )}
+
+      {props.sections.length === 0 ? (
+        <p className="field-hint" style={{ marginTop: 8 }}>
+          No sections yet. Add the first one, or start from an outline above.
+        </p>
+      ) : (
+        <ol className="outline-sections">
+          {props.sections.map((section, index) => (
+            <li key={index} className="outline-section">
+              <div className="outline-section-controls">
+                <span className="outline-section-n">{index + 1}</span>
+                <IconButton
+                  aria-label="Move up"
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  <ArrowUp size={13} strokeWidth={2} />
+                </IconButton>
+                <IconButton
+                  aria-label="Move down"
+                  disabled={index === props.sections.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  <ArrowDown size={13} strokeWidth={2} />
+                </IconButton>
+                <IconButton
+                  aria-label="Remove section"
+                  onClick={() =>
+                    props.onChange(props.sections.filter((_, i) => i !== index))
+                  }
+                >
+                  <X size={13} strokeWidth={2} />
+                </IconButton>
+              </div>
+              <div className="outline-section-fields">
+                <TextInput
+                  value={section.heading}
+                  onChange={(heading) => at(index, { ...section, heading })}
+                  placeholder="Heading"
+                />
+                <TextArea
+                  value={section.purpose}
+                  onChange={(purpose) => at(index, { ...section, purpose })}
+                  rows={2}
+                  placeholder="What should go in this section?"
+                />
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div style={{ marginTop: 8 }}>
+        <Button
+          size="sm"
+          variant="quiet"
+          onClick={() => props.onChange([...props.sections, { heading: '', purpose: '' }])}
+        >
+          <Plus size={13} strokeWidth={2} /> Add a section
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 export function DocumentCreatorScreen() {
   const { projectId } = useParams();
@@ -272,13 +406,17 @@ export function DocumentCreatorScreen() {
   const scope = useGroundingScope(projectId ?? '');
   const [destinations, setDestinations] = useState<Sandbox[]>([]);
 
-  const [templateId, setTemplateId] = useState(TEMPLATES[0]!.id);
   // T-406 (ADR-0053 addendum A1) — the four questions that replaced "shape"
   const [purpose, setPurpose] = useState<DocumentPurpose>(DEFAULT_DOCUMENT_PURPOSE);
   const [language, setLanguage] = useState<DocumentLanguage>(DEFAULT_DOCUMENT_LANGUAGE);
   const [documentType, setDocumentType] = useState<DocumentType>(DEFAULT_DOCUMENT_TYPE);
   const [styleGuides, setStyleGuides] = useState<StyleGuideRecord[] | null>(null);
   const [styleGuideIds, setStyleGuideIds] = useState<string[]>([]);
+  // T-407 — the outline the author composes. Starts empty on purpose: a
+  // pre-filled outline is a shape arriving ready-made, which is the thing A1
+  // retired. A starting outline can be chosen, and then it is a copy.
+  const [outlines, setOutlines] = useState<StartingOutline[]>([]);
+  const [sections, setSections] = useState<DocumentSection[]>([]);
   const [brief, setBrief] = useState('');
   const [title, setTitle] = useState('');
   const [sources, setSources] = useState<string[]>([]);
@@ -303,6 +441,13 @@ export function DocumentCreatorScreen() {
       .styleGuides(projectId)
       .then((res) => setStyleGuides(res.items.filter((guide) => guide.retiredAt === null)))
       .catch(() => setStyleGuides(null));
+    // T-407 — the starting outlines. An empty list is survivable: composing
+    // from nothing is the primary path, and a deployment with no templates
+    // simply offers no shortcut.
+    void api
+      .startingOutlines(projectId)
+      .then((res) => setOutlines(res.items))
+      .catch(() => setOutlines([]));
   }, [projectId]);
 
   // ⚠ **THE BOUND-CONTAINER PATH IS REFUSED, WITH A POINTER.** `Q-037` — whether
@@ -334,10 +479,21 @@ export function DocumentCreatorScreen() {
     setError(null);
   };
 
-  const ready = brief.trim() !== '' && title.trim() !== '' && destination !== '';
+  const ready =
+    brief.trim() !== '' &&
+    title.trim() !== '' &&
+    destination !== '' &&
+    // T-407 — an outline with no sections is not a document, and a section with
+    // no heading or no purpose is not a section. Refused here AND at the API,
+    // because the server may never trust a surface.
+    sections.length > 0 &&
+    sections.every((section) => section.heading.trim() !== '' && section.purpose.trim() !== '');
 
   const body = () => ({
-    templateId,
+    sections: sections.map((section) => ({
+      heading: section.heading.trim(),
+      purpose: section.purpose.trim(),
+    })),
     brief: brief.trim(),
     purpose,
     language,
@@ -434,20 +590,14 @@ export function DocumentCreatorScreen() {
         </Field>
       </Card>
 
+      {/* T-407 (ADR-0053 addendum A1) — THE OUTLINE IS COMPOSED, not chosen. */}
+      <SectionComposer
+        sections={sections}
+        outlines={outlines}
+        onChange={change(setSections)}
+      />
+
       <Card>
-        {/* ⏳ TRANSITIONAL — T-407 moves this control into the define-sections
-            step, where a template becomes an optional STARTING outline whose
-            per-part guidance pre-fills section purposes the author can edit or
-            discard (A1). It is not "the shape" and is no longer labelled as
-            one; it is here so the tool still has an outline to draft into until
-            the sections step exists. */}
-        <Field label="Starting outline">
-          <SelectInput
-            value={templateId}
-            onChange={change(setTemplateId)}
-            options={TEMPLATES.map((template) => ({ value: template.id, label: template.label }))}
-          />
-        </Field>
         <Field label="What is this document for?">
           <TextArea value={brief} onChange={change(setBrief)} rows={3} />
         </Field>

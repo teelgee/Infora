@@ -19,7 +19,7 @@
 // EMPTY rather than zero — an unpriced step must not read as a free one
 // (T-254).
 import { eq, inArray } from 'drizzle-orm';
-import type { Assemble, CheckFamily, Id } from '@infora/contracts';
+import type { Assemble, CheckFamily, DocumentSection, Id } from '@infora/contracts';
 import {
   CHECK_FAMILIES,
   DEFAULT_CORPUS_DEPTH,
@@ -99,6 +99,46 @@ const text = (value: unknown, fallback = ''): string =>
  */
 const oneOf = <T extends string>(allowed: readonly T[], value: unknown, fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback;
+
+/**
+ * T-407 — the composed outline out of a step input.
+ *
+ * **It arrives as a JSON string**, which is `familiesOf`'s shape one function
+ * up and for the same reason: a workflow parameter's declared type is one of
+ * string, number, boolean, id or id_list, none of which is a list of objects,
+ * and widening that fixed set is an owner decision rather than a build one.
+ *
+ * Sections with no heading or no purpose are DROPPED rather than passed
+ * through empty: an unnamed section cannot be written into, matched against, or
+ * counted, and one that reached the prompt would produce a heading the document
+ * has no way to carry. The API's own schema already refuses them at the door;
+ * this is the second gate, on the path a workflow definition could also take.
+ */
+const sectionsOf = (value: unknown): DocumentSection[] =>
+  (Array.isArray(parsedJson(value)) ? (parsedJson(value) as unknown[]) : [])
+    .filter(
+      (item): item is DocumentSection =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as DocumentSection).heading === 'string' &&
+        typeof (item as DocumentSection).purpose === 'string' &&
+        (item as DocumentSection).heading.trim() !== '' &&
+        (item as DocumentSection).purpose.trim() !== '',
+    )
+    .map((item) => ({ heading: item.heading, purpose: item.purpose }));
+
+/** A step input that may be JSON text, or may already be the value. */
+function parsedJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    // malformed is EMPTY rather than a crash: the caller's own schema is the
+    // gate that refuses a bad outline, and a run that got here with one is a
+    // run whose outline nobody can honour
+    return [];
+  }
+}
 
 /**
  * Version ids out of a step input that may be either a bare list or the
@@ -223,13 +263,17 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
     },
   });
 
+  // T-407 — the GATE stays and the DEPENDENCY goes, and the difference is
+  // worth naming. `document_builder` no longer needs the template registry: the
+  // outline arrives composed, in the request. But the registry is still what a
+  // deployment says when it says "I carry the document creator's domain
+  // content" — the starting outlines an author begins from — and a deployment
+  // that carries none should not be offering the tool.
   if (deps.templates !== undefined) {
-    const templates = deps.templates;
     const documentBuilder = createDocumentBuilder({
       db: deps.db,
       router: deps.router,
       assemble: deps.assemble,
-      templates,
       // T-396 — the rate table, so the drafting call's cost reaches the Step
       // row the executor opens. Absent records `cost: null` (unpriced), never 0
       ...(deps.rates !== undefined && { rates: deps.rates }),
@@ -241,7 +285,11 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
           await requesterOf(ctx.db, ctx.run.requesterParticipantId),
           { projectId: ctx.run.environmentKey },
           {
-            templateId: text(inputs['template_id']),
+            // T-407 — the outline the author composed. Narrowed off `unknown`
+            // like everything else here: a step input is data until something
+            // checks it, and an outline that arrived malformed must not reach
+            // the prompt as a shrug.
+            sections: sectionsOf(inputs['sections']),
             brief: text(inputs['brief']),
             // T-406 — the launcher's four answers. **Validated here rather than
             // trusted**: a step input is a string until something says

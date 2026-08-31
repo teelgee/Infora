@@ -5,18 +5,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type { Assemble, AssembledInput } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
-import { loadDocumentTemplates } from '@infora/capabilities';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
-import {
-  createDocumentBuilder,
-  builtDocumentContent,
-  UNSECTIONED,
-  UnknownDocumentTemplate,
-} from './document-builder';
+import { createDocumentBuilder, builtDocumentContent, UNSECTIONED } from './document-builder';
 
 const { db, pool } = createDb();
-const templates = loadDocumentTemplates();
 
 let organisationId: string;
 let otherOrganisationId: string;
@@ -163,6 +156,17 @@ const gateway = (...items: ReturnType<typeof passage>[]): Assemble => {
 const requester = () => ({ organisationId, participantId });
 
 /**
+ * T-407 — the outline these tests compose. It is what the shipped
+ * `technical-note` starting outline seeds, written out here as the author's own
+ * list, because that is what the builder now takes.
+ */
+const outline = [
+  { heading: 'Purpose', purpose: 'State what question this note answers and for whom.' },
+  { heading: 'The evidence', purpose: 'Set out what the project record says.' },
+  { heading: 'Implication', purpose: 'State what follows for the design or the programme.' },
+];
+
+/**
  * T-406's four launcher answers, at their defaults. Spread into every input so
  * the tests below keep saying what they were written to say — the drafting
  * character is its own subject, tested where it is tested rather than smeared
@@ -193,11 +197,10 @@ describe('document_builder (T-280)', () => {
         passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
         passage(sharedVersionId, 'T280-B', 'the mitigation commits to a five-year maintenance period'),
       ),
-      templates,
     });
 
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'does the baseline support the assessment?',
       ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
@@ -207,7 +210,12 @@ describe('document_builder (T-280)', () => {
     expect(output.documentId).not.toBeNull();
     // the manifest says what each source was USED FOR — the difference between
     // "these documents were in scope" and "this section rests on this document"
-    expect(output.manifest.map((entry) => entry.usedFor)).toEqual(['purpose', 'evidence', 'implication']);
+    // T-407 — by the section's HEADING, because a manifest is read by people
+    expect(output.manifest.map((entry) => entry.usedFor)).toEqual([
+      'Purpose',
+      'The evidence',
+      'Implication',
+    ]);
     expect(output.manifest[1]!.versionId).toBe(openVersionId);
     expect(output.manifest[1]!.documentReference).toBe('T280-A');
     expect(output.unreachableSources).toEqual([]);
@@ -262,10 +270,9 @@ describe('document_builder (T-280)', () => {
       db,
       router: answering('Purpose\n\nA sentence [S1].'),
       assemble: gateway(passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances')),
-      templates,
     });
     await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'a brief',
       ...character,
       language: 'simple-english',
@@ -299,11 +306,10 @@ describe('document_builder (T-280)', () => {
         passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
         passage(sharedVersionId, 'T280-B', 'the mitigation commits to a five-year maintenance period'),
       ),
-      templates,
     });
 
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'does the baseline support the assessment?',
       ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
@@ -326,10 +332,9 @@ describe('document_builder (T-280)', () => {
       db,
       router: answering('Purpose\n\nA sentence [S1].'),
       assemble: gateway(passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances')),
-      templates,
     });
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'b',
       ...character,
       sources: { versionIds: [openVersionId] },
@@ -348,10 +353,9 @@ describe('document_builder (T-280)', () => {
       db,
       router,
       assemble: gateway(passage(openVersionId, 'T280-A', 'text')),
-      templates,
     });
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'b',
       ...character,
       sources: { versionIds: [openVersionId] },
@@ -371,10 +375,9 @@ describe('document_builder (T-280)', () => {
       db,
       router: answering('Purpose\n\nA sentence [S1].'),
       assemble: gateway(passage(openVersionId, 'T280-A', 'text')),
-      templates,
     });
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'b',
       ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
@@ -389,10 +392,9 @@ describe('document_builder (T-280)', () => {
       db,
       router: answering('Purpose\n\nA sourced sentence [S1].\n\nAn invented one with no marker at all.'),
       assemble: gateway(passage(openVersionId, 'T280-A', 'text')),
-      templates,
     });
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'b',
       ...character,
       sources: { versionIds: [openVersionId] },
@@ -406,22 +408,75 @@ describe('document_builder (T-280)', () => {
     expect(row!.content).not.toContain('An invented one');
   });
 
-  it('names the available templates when asked for one that does not exist', async () => {
+  // T-407 — this test used to assert that asking for a template this deployment
+  // does not carry named the ones it does. That failure mode no longer exists:
+  // the outline arrives composed in the request, so there is nothing to look up
+  // and nothing to be missing. What replaces it is the case that DOES still
+  // matter — the outline is the author's, and the document comes out under
+  // their headings rather than any template's.
+  it('drafts into the AUTHOR’S headings, not a template’s (T-407)', async () => {
     const builder = createDocumentBuilder({
       db,
-      router: answering('x'),
-      assemble: gateway(),
-      templates,
+      router: answering(
+        [
+          '3.2 Baseline conditions, including the 2025 survey.',
+          'The baseline survey recorded three exceedances [S1].',
+        ].join('\n\n'),
+      ),
+      assemble: gateway(
+        passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
+      ),
     });
-    await expect(
-      builder(requester(), { projectId }, {
-        templateId: 'invoice',
-        brief: 'b',
-        ...character,
-        sources: { versionIds: [] },
-        destination: { sandboxId, title: 'x' },
-      }),
-    ).rejects.toThrow(UnknownDocumentTemplate);
+    const output = await builder(requester(), { projectId }, {
+      sections: [
+        {
+          heading: '3.2 Baseline conditions, including the 2025 survey.',
+          purpose: 'set out the baseline as the record establishes it',
+        },
+      ],
+      brief: 'b',
+      ...character,
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't407 composed note' },
+    });
+    const content = await builtDocumentContent(db, output.documentId!);
+    // 🔒 written as MARKDOWN — T-336's heading finding, applied to a heading a
+    // person typed. This one is long AND ends in a full stop, so every rule the
+    // checker's splitter uses to GUESS at an unmarked heading fails on it; `##`
+    // is not a guess.
+    expect(content).toContain('## 3.2 Baseline conditions, including the 2025 survey.');
+    expect(output.sectionsWritten).toBe(1);
+    // and the manifest names the section by the author's own heading
+    expect(output.manifest[0]!.usedFor).toBe('3.2 Baseline conditions, including the 2025 survey.');
+  });
+
+  // T-407 — two sections may honestly share a heading, and the count must not
+  // merge them. This is why sections are identified by POSITION internally.
+  it('counts two same-named sections as two (T-407)', async () => {
+    const builder = createDocumentBuilder({
+      db,
+      router: answering(
+        ['Mitigation', 'A first point [S1].', 'Mitigation', 'A second point [S1].'].join('\n\n'),
+      ),
+      assemble: gateway(
+        passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
+      ),
+    });
+    const output = await builder(requester(), { projectId }, {
+      sections: [
+        { heading: 'Mitigation', purpose: 'noise' },
+        { heading: 'Mitigation', purpose: 'ecology' },
+      ],
+      brief: 'b',
+      ...character,
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't407 repeated heading' },
+    });
+    // the splitter maps a repeated heading to its FIRST position, so only one
+    // section fills — but the count is of sections, never of heading names, and
+    // the second stays honestly unwritten rather than being merged away
+    expect(output.sectionsWritten).toBe(1);
+    expect(await builtDocumentContent(db, output.documentId!)).toContain('## Mitigation');
   });
 
   // THE BUILDER DOES NOT RETRIEVE: everything outside the named ids is dropped,
@@ -434,10 +489,9 @@ describe('document_builder (T-280)', () => {
         passage(openVersionId, 'T280-A', 'wanted'),
         passage(sharedVersionId, 'T280-B', 'not asked for'),
       ),
-      templates,
     });
     const output = await builder(requester(), { projectId }, {
-      templateId: 'technical-note',
+      sections: outline,
       brief: 'b',
       ...character,
       sources: { versionIds: [openVersionId] },

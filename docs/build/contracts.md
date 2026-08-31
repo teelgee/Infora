@@ -948,3 +948,19 @@ are not recorded here.
   no migration. The workflow definition went to **v2** rather than being edited
   in place: a plan records the version it ran, and a v1 plan named four fewer
   inputs.
+- **2026-08-31 (T-407) — `documentCreationBody` lost `templateId` and gained
+  `sections`, and a `GET …/starting-outlines` endpoint took the template's
+  place.** *Plainly: the outline stopped arriving ready-made from a template
+  and became something the author builds.* The shape of the change is the
+  ruling: a starting outline is now **a menu the surface reads and copies
+  from**, so by the time a request is made there is no template in it and the
+  run draws its shape from the author's own list. That is what "a template
+  seeds but never locks" means once it reaches the wire — leaving `templateId`
+  beside `sections` would have left two answers to one question and a server
+  free to prefer the wrong one. `UnknownDocumentTemplate` is gone with it: it
+  named a failure this ticket removed rather than moved. **The workflow
+  parameter carries the outline as a JSON string**, which is the shape
+  `families` already takes in `qa-check.yaml` — the declared parameter types
+  are `string | number | boolean | id | id_list`, none of which is a list of
+  objects, and widening that fixed union is an owner decision rather than a
+  build one. Reported, with a recommendation, rather than done quietly.

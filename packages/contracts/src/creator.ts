@@ -152,3 +152,46 @@ export function languageLabel(value: DocumentLanguage): string {
 export function typeLabel(value: DocumentType): string {
   return DOCUMENT_TYPE_CATALOGUE.find((option) => option.value === value)!.label;
 }
+
+// ── T-407 — THE OUTLINE IS COMPOSED (ADR-0053 addendum A1) ──────────────────
+//
+// *In plain terms: the outline no longer arrives ready-made from a template.
+// The author builds it — add a section, say what it should contain ("an
+// introductory section setting out X, Y and Z"), add the next. A template can
+// still be chosen as a starting point, and choosing one fills the sections in
+// so they can be edited or thrown away, but it never locks anything.*
+//
+// This is T-335's own spec coming back through the front door, **as re-cut by
+// A1**: sections carry a purpose each, and **source binding stays
+// whole-document** — the per-section binding half of T-335's spec is
+// superseded, and the walkthrough's gap card closes to this design rather than
+// to the old one.
+
+/**
+ * One section of the outline the author composed.
+ *
+ * `heading` is what a reader sees at the top of the section. `purpose` is what
+ * the author says belongs in it — **scope, never a conclusion**, which is the
+ * same rule a template's per-part guidance has always been held to: an outline
+ * that told the drafting call what to find would make every document agree
+ * with its outline rather than with its sources.
+ */
+export type DocumentSection = {
+  heading: string;
+  purpose: string;
+};
+
+/**
+ * A starting outline this deployment carries — a template, as A1 leaves them:
+ * **a seed, never a lock**. Choosing one pre-fills sections whose purposes are
+ * its per-part guidance; every one of them can then be edited, reordered or
+ * removed, and the author can start from nothing instead.
+ */
+export type StartingOutline = {
+  id: string;
+  label: string;
+  description: string;
+  sections: DocumentSection[];
+};
+
+export type ListStartingOutlinesResponse = { items: StartingOutline[] };

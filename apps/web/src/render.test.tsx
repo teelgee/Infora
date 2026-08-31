@@ -32,6 +32,7 @@ import {
   CheckPlanCard,
   ChosenNote,
   LibraryScopeCopy,
+  SectionComposer,
   SourceRow,
   StyleGuidePicker,
   ToolCard,
@@ -247,6 +248,68 @@ describe('T-406 — the launcher explains each answer, and the style control is 
     expect(html).toContain('Drawing conventions');
     expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
     expect(html).not.toContain('<select');
+  });
+});
+
+// ── T-407 — the outline is composed ────────────────────────────────────────
+//
+// The empty state is the one worth pinning hardest: a composer that helpfully
+// pre-filled itself would be an outline arriving ready-made wearing a new
+// name, which is exactly what A1 retired.
+describe('T-407 — the author composes the outline', () => {
+  const outline = {
+    id: 'technical-note',
+    label: 'Technical note',
+    description: 'A short note.',
+    sections: [{ heading: 'Purpose', purpose: 'why' }],
+  };
+
+  it('starts empty, and says so rather than seeding itself', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[outline]} onChange={() => {}} />,
+    );
+    expect(html).toContain('No sections yet');
+    expect(html).toContain('Add a section');
+  });
+
+  it('offers a starting outline as a start, and says it stays editable', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[outline]} onChange={() => {}} />,
+    );
+    expect(html).toContain('Start from:');
+    expect(html).toContain('Technical note');
+    // "seeds but never locks" is on the screen, not only in an ADR
+    expect(html).toContain('stays yours to edit or remove');
+  });
+
+  it('gives every section a heading, a purpose and the controls to move it', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer
+        sections={[
+          { heading: 'Purpose', purpose: 'why' },
+          { heading: 'The evidence', purpose: 'what' },
+        ]}
+        outlines={[]}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain('Purpose');
+    expect(html).toContain('The evidence');
+    expect(html).toContain('Move up');
+    expect(html).toContain('Move down');
+    expect(html).toContain('Remove section');
+    // the first cannot move up and the last cannot move down
+    expect((html.match(/disabled/g) ?? []).length).toBe(2);
+  });
+
+  it('tells the author a purpose is scope, not a conclusion', () => {
+    // the rule the shipped templates' guidance was always held to, now that
+    // the words are the author's: an outline that said what to conclude would
+    // make every document agree with its outline rather than with its sources
+    const html = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[]} onChange={() => {}} />,
+    );
+    expect(html).toContain('not what you expect it to conclude');
   });
 });
 

@@ -30,11 +30,11 @@ import type {
   AssembledItem,
   DocumentLanguage,
   DocumentPurpose,
+  DocumentSection,
   DocumentType,
   Id,
 } from '@infora/contracts';
-import { composeTemplatePrompt } from '@infora/capabilities';
-import type { TemplateRegistry } from '@infora/capabilities';
+import { composeDraftingPrompt } from '@infora/capabilities';
 import { parseClaims } from '@infora/capabilities';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -45,7 +45,14 @@ import { costOf } from '@infora/model';
 import type { ModelRates, Router } from '@infora/model';
 
 export type DocumentBuilderInput = {
-  templateId: string;
+  /**
+   * T-407 (ADR-0053 addendum A1) — **the outline the author composed**, and
+   * `templateId` is gone with it. A template is a starting outline the surface
+   * copies into these sections before the request is made, so the builder
+   * drafts into what the author actually asked for and there is nothing left
+   * for a template to lock.
+   */
+  sections: DocumentSection[];
   brief: string;
   /**
    * T-406 (ADR-0053 addendum A1) — the launcher's four answers, as run
@@ -87,7 +94,12 @@ export type ManifestEntry = {
   documentReference: string | null;
   versionReference: string | null;
   locator: AssembledItem['locator'];
-  /** the template section whose text rests on this source */
+  /**
+   * The section whose text rests on this source, **by its heading** (T-407) —
+   * or `unsectioned` for material that matched no heading at all. A heading and
+   * not a position, because a manifest is read by people: "the evidence" says
+   * what a source was used for and "s1" does not.
+   */
   usedFor: string;
 };
 
@@ -123,6 +135,13 @@ export type DocumentBuilderOutput = {
    */
   outsideOutline: number;
   /**
+   * T-407 — how many of the outline's sections the document actually has,
+   * counted where the assembly decides it. Never the `unsectioned` bucket
+   * (T-402), and never derived from the manifest's headings, which two
+   * sections of one outline may honestly share.
+   */
+  sectionsWritten: number;
+  /**
    * T-396 — what the drafting call spent, so the executor can record it on the
    * Step row it opened. **Absent where no model call was made** — a refused
    * write and a brief that reached no passages both return before the router is
@@ -133,18 +152,18 @@ export type DocumentBuilderOutput = {
   model?: { id: string; version: string };
 };
 
-export class UnknownDocumentTemplate extends Error {
-  constructor(id: string, available: string[]) {
-    super(`no document template "${id}" — this deployment has: ${available.join(', ')}`);
-    this.name = 'UnknownDocumentTemplate';
-  }
-}
-
+/**
+ * T-407 — the outline arrives composed, so there is nothing to look up and
+ * nothing to refuse. `UnknownDocumentTemplate` is gone: it named a failure
+ * mode — *"you asked for a template this deployment does not carry"* — that
+ * this ticket removed rather than moved. A starting outline that does not
+ * exist is now a menu the surface could not fill, and an author who picks
+ * nothing composes their own sections instead.
+ */
 export type DocumentBuilderDeps = {
   db: Db;
   router: Router;
   assemble: Assemble;
-  templates: TemplateRegistry;
   /** T-396 — provider rates per model id, as the draft leaf takes them. Absent
    *  records `cost: null` — unpriced, and reported as such. */
   rates?: ModelRates;
@@ -162,11 +181,6 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     environment: { projectId: Id },
     input: DocumentBuilderInput,
   ): Promise<DocumentBuilderOutput> => {
-    const template = deps.templates.get(input.templateId);
-    if (template === undefined) {
-      throw new UnknownDocumentTemplate(input.templateId, deps.templates.ids());
-    }
-
     // the gateway, then narrowed to the ids the caller named — the extractor's
     // shape, and for the same reason: a second path to the store is the one
     // thing a worker may never have
@@ -221,6 +235,7 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         withheld: [],
         unreachableSources,
         outsideOutline: 0,
+        sectionsWritten: 0,
       };
     }
 
@@ -232,6 +247,7 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         withheld: [],
         unreachableSources,
         outsideOutline: 0,
+        sectionsWritten: 0,
       };
     }
 
@@ -256,7 +272,7 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       passages.map((passage, at) => [`S${at + 1}`, passage] as const),
     );
     const result = await deps.router.chat('draft', {
-      system: composeTemplatePrompt(template, input.brief, {
+      system: composeDraftingPrompt(input.sections, input.brief, {
         purpose: input.purpose,
         language: input.language,
         documentType: input.documentType,
@@ -288,7 +304,7 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       sourceRef?: ReturnType<typeof parseClaims>[number]['sourceRef'];
       section: string;
     }> = [];
-    for (const block of splitByHeadings(result.text, template.sections)) {
+    for (const block of splitByHeadings(result.text, input.sections)) {
       for (const claim of parseClaims(block.body, sourceByMarker as never)) {
         sectioned.push({
           text: claim.text,
@@ -314,25 +330,43 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     //
     // Built from the SURVIVING claims, not from the sources handed in: "what
     // this document rests on" is a different set from "what was offered to it",
-    // and only the first is a manifest. `usedFor` is the template section the
-    // sentence landed under, which is what makes the entry checkable against the
-    // document rather than against the request.
+    // and only the first is a manifest. `usedFor` is the section the sentence
+    // landed under, by its heading, which is what makes the entry checkable
+    // against the document rather than against the request.
     const survived = new Set(checked.surviving.map((claim) => claim.text));
+    const headingOf = new Map(input.sections.map((section, at) => [sectionKey(at), section.heading]));
     const manifest = manifestOf(
       sectioned.filter((claim) => survived.has(claim.text)),
       passages,
+      headingOf,
     );
 
-    // the template's headings are written back into the document, and a section
+    // The outline's headings are written back into the document, and a section
     // that survived nothing is OMITTED rather than left as an empty heading —
-    // an empty section reads as "the record says nothing here", which is a claim
-    // this run has not made
-    const content = template.sections
-      .map((section) => {
+    // an empty section reads as "the record says nothing here", which is a
+    // claim this run has not made.
+    //
+    // 🔒 **HEADINGS ARE WRITTEN AS MARKDOWN (`## …`), which is T-336's heading
+    // finding applied to an AUTHOR'S outline** (T-407). T-336 found the
+    // checker's splitter reading a heading only where a blank line sat above
+    // it — the shape `document_builder` happened to write — and it also treats
+    // a line as a heading only when it is short and unpunctuated. Those rules
+    // are safe guesses about a heading nobody marked up, and they were fine
+    // while every heading came from one of two templates. An author types
+    // *"3.2 Baseline conditions, including the 2025 survey"* and the guess
+    // fails, so the section the creator wrote becomes prose the checker never
+    // sees as a section. An explicit `##` is not a guess: `ATX` matches it
+    // unconditionally, whatever its length or punctuation, and the editor
+    // renders it as the heading it is.
+    const written = new Set<string>();
+    const content = input.sections
+      .map((section, at) => {
         const lines = sectioned
-          .filter((claim) => claim.section === section.id && survived.has(claim.text))
+          .filter((claim) => claim.section === sectionKey(at) && survived.has(claim.text))
           .map((claim) => claim.text);
-        return lines.length === 0 ? null : [section.heading, ...lines].join('\n\n');
+        if (lines.length === 0) return null;
+        written.add(sectionKey(at));
+        return [`## ${section.heading}`, ...lines].join('\n\n');
       })
       .filter((block): block is string => block !== null)
       .join('\n\n');
@@ -359,6 +393,13 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     return {
       documentId: document!.id as Id,
       manifest,
+      // T-402/T-407 — counted HERE, beside the assembly that decided it, and
+      // not derived downstream from the manifest. The manifest names a section
+      // by its heading because that is what a reader needs; two sections of one
+      // outline may honestly share a heading, so a count taken off those names
+      // would under-report, which is the same class of error as T-402's
+      // over-report.
+      sectionsWritten: written.size,
       label,
       withheld: checked.withheld.map((claim) => claim.text),
       unreachableSources,
@@ -412,7 +453,7 @@ async function mostRestrictive(db: Db, versionIds: Id[]): Promise<Id | null> {
 }
 
 /**
- * Split the model's answer at the template's own heading lines.
+ * Split the model's answer at the outline's own heading lines.
  *
  * Matched on a line of its own, whitespace- and case-insensitively and ignoring
  * markdown hashes, because the one thing a model reliably varies is decoration.
@@ -421,21 +462,45 @@ async function mostRestrictive(db: Db, versionIds: Id[]): Promise<Id | null> {
  * and losing it silently would make the manifest describe a document that is
  * not the one written.
  *
- * ⚠ **`unsectioned` is not one of the template's sections and must never be
- * counted as one** (T-402). The assembly below writes only the template's own
+ * ⚠ **`unsectioned` is not one of the outline's sections and must never be
+ * counted as one** (T-402). The assembly below writes only the outline's own
  * sections, so this bucket's material never reaches the document; a tally that
  * counted it reported a section written into a document that has none.
+ *
+ * **T-407 — sections are identified by POSITION, not by heading.** An author
+ * composing an outline may reasonably write "Mitigation" twice, in two
+ * chapters' worth of sections; keying on the heading would silently merge them
+ * and report one section where the document has two.
  */
+const sectionKey = (index: number) => `s${index}`;
+
+/**
+ * One normalisation, applied to BOTH sides of the match (T-407).
+ *
+ * It used to normalise only the model's line — hashes stripped, trailing
+ * punctuation dropped, case and whitespace folded — while the outline's own
+ * heading was compared raw. That was safe while every heading came from a
+ * template, because a template author would not write a heading ending in a
+ * full stop. An author composing their own outline will, and the section they
+ * defined would then match nothing the model wrote under it.
+ */
+const asHeading = (line: string) =>
+  line.trim().replace(/^#+\s*/, '').replace(/[:.]$/, '').trim().toLowerCase();
+
 function splitByHeadings(
   text: string,
-  sections: ReadonlyArray<{ id: string; heading: string }>,
+  sections: ReadonlyArray<DocumentSection>,
 ): Array<{ section: string; body: string }> {
-  const byHeading = new Map(
-    sections.map((section) => [section.heading.trim().toLowerCase(), section.id]),
-  );
+  // FIRST position wins a repeated heading: two sections may honestly share
+  // one, and the earlier is the one the model reaches first.
+  const byHeading = new Map<string, string>();
+  for (const [at, section] of sections.entries()) {
+    const key = asHeading(section.heading);
+    if (!byHeading.has(key)) byHeading.set(key, sectionKey(at));
+  }
   const blocks: Array<{ section: string; body: string[] }> = [{ section: UNSECTIONED, body: [] }];
   for (const line of text.split('\n')) {
-    const heading = byHeading.get(line.trim().replace(/^#+\s*/, '').replace(/[:.]$/, '').toLowerCase());
+    const heading = byHeading.get(asHeading(line));
     if (heading !== undefined) blocks.push({ section: heading, body: [] });
     else blocks[blocks.length - 1]!.body.push(line);
   }
@@ -456,6 +521,7 @@ function manifestOf(
     versionReference: string | null;
     locator: AssembledItem['locator'];
   }>,
+  headingOf: ReadonlyMap<string, string>,
 ): ManifestEntry[] {
   const byVersion = new Map(passages.map((passage) => [passage.versionId, passage]));
   const entries: ManifestEntry[] = [];
@@ -474,7 +540,7 @@ function manifestOf(
       documentReference: passage?.documentReference ?? null,
       versionReference: passage?.versionReference ?? null,
       locator: passage?.locator,
-      usedFor: claim.section,
+      usedFor: headingOf.get(claim.section) ?? claim.section,
     });
   }
   return entries;

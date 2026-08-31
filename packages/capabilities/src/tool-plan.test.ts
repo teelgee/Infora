@@ -3,21 +3,16 @@
 // produce the same plan, every time, and the price is honest about what it does
 // not know.
 import { describe, expect, it } from 'vitest';
-import type { Workflow } from '@infora/contracts';
+import type { DocumentSection, Workflow } from '@infora/contracts';
 import { STYLE_PRECEDENCE } from '@infora/contracts';
 import { coverageAfter, coverageBefore, planDocumentCreation } from './tool-plan';
-import type { DocumentTemplate } from './workers/templates';
 
-const template: DocumentTemplate = {
-  id: 'technical-note',
-  version: 1,
-  label: 'Technical note',
-  description: 'a note',
-  sections: [
-    { id: 'purpose', heading: 'Purpose', guidance: 'why' },
-    { id: 'evidence', heading: 'The evidence', guidance: 'what' },
-  ],
-};
+// T-407 — the outline the AUTHOR composed. A template is a starting point the
+// surface copies from; nothing template-shaped reaches the planner any more.
+const sections: DocumentSection[] = [
+  { heading: 'Purpose', purpose: 'why' },
+  { heading: 'The evidence', purpose: 'what' },
+];
 
 const workflow: Workflow = {
   id: 'document-creation',
@@ -36,7 +31,7 @@ const workflow: Workflow = {
 const plan = (overrides: Partial<Parameters<typeof planDocumentCreation>[0]> = {}) =>
   planDocumentCreation({
     workflow,
-    template,
+    sections,
     sourceCount: 3,
     purpose: 'technical-note',
     language: 'technical',
@@ -120,10 +115,10 @@ describe('the plan states the four answers and the style precedence (T-406)', ()
 
 describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
   it('before the run: what it WILL cover', () => {
-    expect(coverageBefore(template, 3)).toBe('2 sections · 3 bound sources · 1 drafting pass');
+    expect(coverageBefore(2, 3)).toBe('2 sections · 3 bound sources · 1 drafting pass');
     // singular, because a coverage sentence that reads wrongly is one nobody
     // trusts the numbers in
-    expect(coverageBefore(template, 1)).toBe('2 sections · 1 bound source · 1 drafting pass');
+    expect(coverageBefore(2, 1)).toBe('2 sections · 1 bound source · 1 drafting pass');
   });
 
   it('after it: what it DID, and the absences the document itself cannot show', () => {
