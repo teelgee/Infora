@@ -71,7 +71,11 @@ design session. Entry is on the owner's instruction only.
   art the first time you use it, or link `CONTEXT.md`. A report or question
   addressed to the owner never uses internal shorthand at all. The existing
   corpus is not rewritten wholesale — this rule is prospective.
-- Run `pnpm run check` before every commit. It is **CI's fast half** — every
+- Run `pnpm run check` before every commit — and **read its exit code
+  directly, never through a pipe**: `pnpm run check | tail` reports the
+  pipe's status, not the check's, and three separate sessions (a reviewer
+  included) have taken a green tail over a failed check. `pnpm run check;
+  echo $?` or redirect to a file and check `$?` first. It is **CI's fast half** — every
   gate it runs, CI runs — but **green locally is not proof CI is green**: CI
   adds the dependency audit, migrate, seed, `eval:smoke`, `build` and e2e on a
   clean machine with an empty database. The two lists are `package.json`'s

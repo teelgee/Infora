@@ -106,12 +106,12 @@ describe('T-334/T-335 — the Tools section and the creator’s own copy', () =>
       label: 'QA checker',
       description: 'Check a draft.',
       state: 'unbuilt',
-      waitsOn: 'being built as T-336',
+      waitsOn: 'being built as T-000 (a fixture — any unbuilt tool renders this way)',
     };
     // the shape the surface renders from — an `unbuilt` tool carries no href,
     // which is what stops a tile promising a screen that does not exist
     expect(checker.href).toBeUndefined();
-    expect(checker.waitsOn).toContain('T-336');
+    expect(checker.waitsOn).toContain('T-000');
   });
 });
 
@@ -195,6 +195,25 @@ describe('T-311 — the accept-all sits above the mechanical fixes and NO rewrit
     // whole difference between bulk acceptance and bulk inattention
     expect(html).toContain('Accept 1 mechanical correction');
     expect(html).toContain('Scheme → scheme, 55 places');
+  });
+
+  it("the drift banner states the degrade path's one user-visible sentence", () => {
+    // review, 2026-08-31 — the only copy a reviewer sees when accepting a fix
+    // failed because the draft moved underneath it; previously untested
+    const html = renderToStaticMarkup(
+      <FindingsPanel
+        findings={[mechanical, rewrite]}
+        busy={false}
+        focused={null}
+        drifted={['f-1', 'f-2']}
+        onLocate={() => {}}
+        onResolve={() => {}}
+        onBulk={() => {}}
+      />,
+    );
+    expect(html).toContain('2 marks have moved');
+    expect(html).toContain('nothing was written');
+    expect(html).toContain('rather than taking the suggestion blind');
   });
 
   it('🔒 offers NO accept-all to a group that is only rewrites', () => {

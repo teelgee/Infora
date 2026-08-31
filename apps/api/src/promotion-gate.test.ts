@@ -7,9 +7,10 @@
 // happy-path suite unchanged.
 //
 // **The empty-findings case is asserted explicitly rather than incidentally**,
-// which is the ticket's own instruction. The finding SCHEMA exists (T-328) and
-// nothing produces findings yet — the checker (T-310) is unbuilt — so the
-// findings count is structurally zero today. A suite that only exercised
+// which is the ticket's own instruction. Written when nothing produced
+// findings; since T-310 the checker writes real rows and countOpenFindings
+// reads them (findings.test.ts covers the populated gate), so this suite's
+// empty case is now the clean-draft half rather than the only reachable one. A suite that only exercised
 // threads would leave the second half of the gate untested *and* untestable,
 // and nobody would know which.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

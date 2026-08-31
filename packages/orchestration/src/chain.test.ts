@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { asc, eq } from 'drizzle-orm';
 import type { AssembledInput } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
-import { runChain, StepsFailed } from './chain';
+import { runChain, StepsFailed, resolveStepInputs } from './chain';
 import type { ChainLeaves } from './chain';
 
 const { db, pool } = createDb();
@@ -366,4 +366,15 @@ describe('partial failure semantics (T-268)', () => {
     expect(run.state).toBe('completed');
     expect(run.response).not.toContain('Not everything');
   });
+});
+
+// Review, 2026-08-31 — the fan-out ordering guarantee, pinned at its own level.
+// `{{steps.x.output}}` over an expanded step returns section outputs in section
+// order BY NUMERIC SUFFIX; eleven expansions is the case a string sort fails
+// (#10 would file between #1 and #2) and insertion order alone cannot promise.
+it('a fanned-out step reads back in section order, eleven sections deep', () => {
+  const outputs = new Map<string, unknown>();
+  for (const i of [3, 10, 0, 7, 1, 9, 4, 2, 8, 5, 6]) outputs.set(`check#${i}`, `section-${i}`);
+  const resolved = resolveStepInputs({ sections: '{{steps.check.output}}' }, outputs);
+  expect(resolved['sections']).toEqual(Array.from({ length: 11 }, (_, i) => `section-${i}`));
 });

@@ -767,14 +767,20 @@ export function resolveStepInputs(
  * array's length is the same number the plan already stated.
  *
  * The exact key wins where one exists, so nothing that references an ordinary
- * step changes. The expansions come back in **plan order**, because a
- * comparison over sections in an arbitrary order would produce a different
- * answer for the same document — the guarantee this whole path exists for.
+ * step changes. The expansions come back in **section order, sorted by their
+ * numeric suffix in code** — insertion order happens to agree today, but a
+ * guarantee the whole path exists for ("the same document produces the same
+ * answer") belongs in code, not in how a Map was filled; and a string sort
+ * would file section 10 after section 1 (hardened in review, 2026-08-31).
  */
 function outputOf(outputs: ReadonlyMap<string, unknown>, key: string): unknown {
   if (outputs.has(key)) return outputs.get(key);
   const prefix = `${key}#`;
-  const expansions: unknown[] = [];
-  for (const [name, output] of outputs) if (name.startsWith(prefix)) expansions.push(output);
-  return expansions.length === 0 ? undefined : expansions;
+  const expansions: Array<{ index: number; output: unknown }> = [];
+  for (const [name, output] of outputs) {
+    if (name.startsWith(prefix)) expansions.push({ index: Number(name.slice(prefix.length)), output });
+  }
+  if (expansions.length === 0) return undefined;
+  expansions.sort((a, b) => a.index - b.index);
+  return expansions.map((entry) => entry.output);
 }
