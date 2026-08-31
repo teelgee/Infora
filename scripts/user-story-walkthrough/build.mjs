@@ -660,9 +660,9 @@ const toolSections = [
         img: 't2-04-attach',
         lane: CONSULTANT,
         screen: 'Tools · QA checker',
-        title: 'Two ways to give it something to read, and one that is not built',
+        title: 'Three ways to give it something to read, and two different guarantees',
         prose:
-          'The two document controls are named differently because they are two different guarantees, and the copy under each says which you get. Narrowing the library scope yields findings that <strong>cite normally</strong> and resolve to a place in a source document; attaching one of your own drafts yields findings that are <strong>never cited</strong> and quote an excerpt instead. Attaching a library document would silently take the weaker path, which is why neither control is called “choose a document”. Below them is the second honest refusal on this page: handing the checker a file directly is not built, the control says so in plain words rather than sitting there doing nothing, and the absence now has a ticket of its own (T-399).',
+          'The document controls are named differently because they are two different guarantees, and the copy under each says which you get. Narrowing the library scope yields findings that <strong>cite normally</strong> and resolve to a place in a source document; attaching a document yields findings that are <strong>never cited</strong> and quote an excerpt instead. Attaching a library document would silently take the weaker path, which is why neither control is called “choose a document”. <strong>T-399 filled the gap this beat used to photograph:</strong> a file can now be handed straight to the check, and it takes the second guarantee rather than a third — an attachment is an attachment however it arrived. The copy under the upload control makes the other promise the ticket turns on, in plain words on the screen and not only in the record: the file is read for this check and <strong>kept nowhere afterwards</strong>, the record keeping its name, size and content hash and never its text, so running the check again means attaching it again.',
         adrs: ['ADR-0053', 'ADR-0022'],
       },
       {
