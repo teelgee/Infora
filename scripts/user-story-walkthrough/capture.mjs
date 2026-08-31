@@ -54,6 +54,16 @@ const { chromium, request } = requireFromE2e('@playwright/test');
 const API = 'http://localhost:3210';
 const WEB = 'http://localhost:5273';
 const OUT = path.join(fileURLToPath(new URL('.', import.meta.url)), 'shots');
+// 🔒 EMPTIED FIRST, and this is not tidiness (found by T-404's recapture).
+// `shots/` is gitignored, so it accumulates across runs — and when a beat is
+// RENAMED, its old file stays behind. The downscale step in the recipe above
+// copies `shots/*.png` wholesale, so six screenshots of the creator as it was
+// BEFORE this slice re-cut it were copied into the committed folder beside
+// their replacements and would have shipped as part of the page's asset set.
+// The duplicate-shot guard could not catch it: it checksums the frames this
+// run wrote, not the directory it wrote them into. Emptying the directory is
+// the only place the two can be made the same thing.
+fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 
 const PASSWORD = 'wrenfield-dev';
