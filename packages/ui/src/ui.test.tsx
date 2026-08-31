@@ -627,3 +627,20 @@ describe('CompletionFooter (T-294)', () => {
     expect(html).toContain('Ran a declared workflow');
   });
 });
+
+// T-401 — the notice style is the thing under test, not any one screen. Every
+// notice in the product is a `.banner`, so a layout rule that breaks sentences
+// breaks all of them at once; this pins the rule at its single source.
+describe('a notice reads as one sentence (T-401)', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  const bannerRule = /\n\.banner \{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+  it('lays its children out in normal text flow, not as flex columns', () => {
+    expect(bannerRule).toContain('display: block');
+    expect(bannerRule).not.toContain('display: flex');
+  });
+
+  it('gives a dismissible notice its own rule rather than a flex row', () => {
+    expect(css).toContain('.banner--dismissible');
+  });
+});

@@ -557,9 +557,16 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .kv dt { color: var(--muted); }
 .kv dd { color: var(--ink); }
 
+/* T-401 — a notice is a SENTENCE, so it lays out in normal text flow.
+   It was `display: flex` with no direction, which made every inline child —
+   a <code>, a <a>, a <span class="mono"> — its own flex column, so a notice
+   carrying a link or a question code read as three separate blocks side by
+   side instead of one sentence (worst case: the creator's Q-037 refusal).
+   Anything inside a notice that genuinely wants a row lays its OWN row out,
+   the way destination-selector's override control already does. */
 .banner {
-  display: flex; gap: 10px; align-items: flex-start;
-  font-size: 12.5px; color: var(--ink-soft);
+  display: block;
+  font-size: 12.5px; line-height: 1.55; color: var(--ink-soft);
   background: var(--panel); border: 1px solid var(--hairline);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 22px;
@@ -567,6 +574,11 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 /* toned notices (T-228): success and error read at a glance */
 .banner--success { border-left-color: var(--accent); background: var(--accent-soft); }
 .banner--error { border-left-color: var(--danger); background: var(--danger-soft); }
+/* A notice you can close. The dismiss control used to be pushed right by
+   `margin-left: auto` inside the flex row; with the row gone it is taken out
+   of the sentence's flow instead, so the words still read as one sentence. */
+.banner--dismissible { position: relative; padding-right: 42px; }
+.banner--dismissible > .modal-x { position: absolute; top: 8px; right: 10px; }
 
 /* ---------- Workspace zone (rail, above project switcher) ---------- */
 .ws-zone {

@@ -279,9 +279,9 @@ export function DeliverableStatusScreen() {
       </div>
 
       {notice && (
-        <div className="banner banner--error" style={{ marginBottom: 8 }}>
+        <div className="banner banner--error banner--dismissible" style={{ marginBottom: 8 }}>
           {notice}
-          <button className="modal-x" aria-label="Dismiss" onClick={() => setNotice(null)} style={{ marginLeft: 'auto' }}>
+          <button className="modal-x" aria-label="Dismiss" onClick={() => setNotice(null)}>
             <X size={14} strokeWidth={2} />
           </button>
         </div>
