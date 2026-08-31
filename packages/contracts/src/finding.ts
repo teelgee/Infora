@@ -29,17 +29,37 @@
 // two answers is a wall with one bug.
 
 import type { Locator } from './assembly';
+import type { CheckFamily } from './checker';
 import type { Citation, Id, Suggestion } from './shared';
 
 /**
- * Which of the checker's three inputs a finding arose from (ADR-0048 §7).
+ * Which of the checker's inputs a finding arose from (ADR-0048 §7).
  *
  * This is not a label for the surface: it DECIDES the citation treatment, and
  * that is why it discriminates `FindingEvidence` rather than sitting beside it.
  * The corpus grounds and cites; an attached document never grounds and is never
  * cited (ADR-0022); the rulebook is quoted verbatim and never cited (§5).
+ *
+ * ⚠ **`draft` was added by T-310, and it is a consequence of ADR-0053 §2 rather
+ * than a fourth treatment invented here.** ADR-0048 §7 named the three inputs
+ * the checker *checks against*, written when the checker was conceived as
+ * reading a draft against external material. ADR-0053 §2 then ruled five check
+ * families, and **three of them check the draft against nothing external at
+ * all**: self-contradiction compares the draft's own sections with each other,
+ * readability is arithmetic over its sentences, and completeness compares it
+ * with the template it declares. None of those has a corpus passage, an
+ * attached excerpt or a clause to point at, and forcing one into `corpus` with
+ * an empty `citations` array would produce exactly the object the union above
+ * exists to make untypeable.
+ *
+ * The treatment is the honest one and it reopens nothing: **nothing external,
+ * so nothing cited**. `DraftEvidence` carries no `Citation` and no clause — it
+ * names what the finding was measured against, in words, and the reader already
+ * holds the thing being quoted. Recorded rather than smuggled: this is the one
+ * place T-310 extends a type ADR-0048 fixed, and it is flagged in the board
+ * record for the owner to rule on if it should have been a question.
  */
-export type FindingInput = 'corpus' | 'attached' | 'rulebook';
+export type FindingInput = 'corpus' | 'attached' | 'rulebook' | 'draft';
 
 /**
  * Severity — **decided by this ticket**, which ADR-0048 left open deliberately
@@ -126,9 +146,62 @@ export type RulebookEvidence = {
   quote: string;
   /** the rulebook document this clause came from, for the org-privacy check */
   rulebookRef: string;
+  /**
+   * T-310 — **which of the two style sources this clause came from**, and the
+   * field the wall predicate reads (ADR-0053 §9).
+   *
+   * When ADR-0048 §6 made a quoted rule org-private, the firm's rulebook was
+   * the only style source there was. ADR-0053 §3 built a second one — the
+   * **project style guide**, owner-curated and binding every organisation on
+   * the project — and quoting *that* across the wall is the point of it. So the
+   * privacy posture is a property of the **source's scope**, not of the word
+   * "rulebook": `organisation` stays private to the firm whose manual it is,
+   * `project` is quotable to everyone on the project.
+   *
+   * Both remain quotable-but-never-cited, so §7's three treatments are
+   * untouched — this discriminates the privacy, not the citation.
+   *
+   * 🔒 The value is a pointer to **which store to ask**, never the answer:
+   * `rulebookRef` resolves through `rulebooks` (which knows its organisation)
+   * or `project_style_guides` (which knows its project), and the server's read
+   * does the resolving. Copying the owning organisation onto the finding would
+   * give the wall a second answer.
+   */
+  scope: 'organisation' | 'project';
 };
 
-export type FindingEvidence = CorpusEvidence | AttachedEvidence | RulebookEvidence;
+/**
+ * T-310 — the draft measured against **itself or its own template**.
+ *
+ * Self-contradiction, readability and completeness (ADR-0053 §2) all land here.
+ * There is deliberately **no `Citation` and no clause** in this shape: there is
+ * nothing external to cite, and a source chip on a finding that rests on the
+ * reader's own document would be the render lie ADR-0048 §5 forbids in the
+ * other direction.
+ *
+ * `basis` says what the measurement was against, in the words the finding will
+ * be read in — *"section 7 of this draft"*, *"the project's grade-14 reading
+ * target"*, *"the technical-note template's 'Assessment' section"*. It is a
+ * statement, never a link.
+ *
+ * `otherAnchor` is present only for self-contradiction, where the second half
+ * of the finding is a real span in the same draft and the reviewer needs to get
+ * to it. Anchoring is the whole point (§2), and a contradiction that names only
+ * one of its two ends is half a finding.
+ */
+export type DraftEvidence = {
+  input: 'draft';
+  /** what it was measured against, stated. Never a citation, never a chip */
+  basis: string;
+  /** the other end of a self-contradiction, in this same draft */
+  otherAnchor?: Locator;
+};
+
+export type FindingEvidence =
+  | CorpusEvidence
+  | AttachedEvidence
+  | RulebookEvidence
+  | DraftEvidence;
 
 /**
  * Open or closed, and the vocabulary is **the sandbox comment's, deliberately**
@@ -149,6 +222,17 @@ export type Finding = {
   id: Id;
   /** the run that produced it (ADR-0028) — a finding is always attributable */
   runId: Id;
+  /**
+   * T-310 — which of ADR-0053 §2's check families raised it.
+   *
+   * On the finding rather than derivable from the evidence, because the two ask
+   * different questions and the answers cross: *style* and *corpus accuracy*
+   * both arise from a section read, and a `rulebook` evidence shape does not
+   * say whether the rule was a house-style clause or a completeness rule
+   * quoting one. T-311 groups the marked-up edit **by check**, so the grouping
+   * key has to be stored rather than inferred.
+   */
+  checkFamily: CheckFamily;
   /**
    * the draft it is against. Also the org-privacy anchor (§6) and the grain
    * ADR-0049 §7's promotion count is taken at.

@@ -56,6 +56,28 @@ export type { OpenedPlan, PlanRow, PlanStepRow } from './plan-writer';
 export { dependantsOf, orderPlanSteps, PlanNotExecutable } from './plan-order';
 export type { PlannedStep } from './plan-order';
 // T-253 — the assembled context a run saw, at passage grain
+// T-310 — the checker's three capabilities, wired to the stores they read. The
+// declarations, the prompts and the admission rules are in `@infora/capabilities`;
+// only the half that touches a store is here (document_builder's split exactly).
+export {
+  clauseSlice,
+  createQaContradictionCheck,
+  createQaDocumentCheck,
+  createQaSectionCheck,
+  MAX_ASSERTIONS_PER_SECTION,
+  readStyleClauses,
+  UnknownDraftSection,
+} from './qa-checker';
+export type {
+  CheckAudit,
+  QaCheckerDeps,
+  QaContradictionCheckInput,
+  QaContradictionCheckOutput,
+  QaDocumentCheckInput,
+  QaDocumentCheckOutput,
+  QaSectionCheckInput,
+  QaSectionCheckOutput,
+} from './qa-checker';
 export { readRunContext } from './context-reader';
 export { readDocumentSuggestions, readRun } from './run-reader';
 export { resolveSuggestion } from './resolution';

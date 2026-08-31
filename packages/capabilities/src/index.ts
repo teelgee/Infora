@@ -91,3 +91,37 @@ export {
   TEMPLATE_PROMPT_TOKENS,
 } from './tool-plan';
 export type { DocumentCreationPlanInput } from './tool-plan';
+// T-310 — the checker's five families and their three grains (ADR-0053 §2).
+// The declarations, the prompts and the ADMISSION RULES live here; the halves
+// that touch a store — the draft, the style guides, the corpus — are in
+// `@infora/orchestration`, on `document_builder`'s split exactly.
+export {
+  QA_CONTRADICTION_CHECK,
+  QA_DOCUMENT_CHECK,
+  QA_SECTION_CHECK,
+  admitContradictionFindings,
+  admitSectionFindings,
+  composeContradictionPrompt,
+  composeSectionCheckPrompt,
+} from './workers/qa-checker';
+export type {
+  CheckExcerpt,
+  CheckPassage,
+  SectionCheckMaterial,
+  SectionCheckResult,
+  SectionSummary,
+  StyleClause,
+} from './workers/qa-checker';
+export {
+  anchorInto,
+  completenessCheck,
+  fleschKincaidGrade,
+  readabilityCheck,
+  splitIntoSections,
+} from './workers/qa-sections';
+export type {
+  CompletenessCoverage,
+  DraftFinding,
+  DraftSection,
+  ReadabilityScore,
+} from './workers/qa-sections';

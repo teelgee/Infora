@@ -7,24 +7,24 @@
 // stops you and the other does not, which is why they are counted here, side by
 // side, in one call rather than at two call sites that could diverge.
 //
-// ⚠ **The findings half counts a store that does not exist yet, and that is
-// stated rather than hidden.** T-328 built the finding *schema*; the checker
-// (T-310) that produces findings is unbuilt and gated on open questions, so
-// there is no `findings` table for this to read. The count is therefore
-// structurally zero today — and the gate is still built over BOTH lists,
-// because T-332's Deps say so and because the alternative is a second ticket
-// later that has to find every place the count should have been. **This
-// function is the one place the checker's store attaches**; nothing else in the
-// promotion path knows a finding exists.
+// ✅ **THE FINDINGS HALF IS WIRED — T-310, 2026-08-31.** It used to count a
+// store that did not exist: T-328 built the finding *schema*, the checker that
+// produces findings was unbuilt, and the count was therefore a structural zero
+// stated in a comment rather than hidden. The gate was still built over BOTH
+// lists, because the alternative was a second ticket later that had to find
+// every place the count should have been.
 //
-// Building it as a seam rather than as an omission is what makes the empty case
-// testable: `promotion-gate.test.ts` asserts zero explicitly, so a build that
-// wired findings in and broke the shape fails loudly instead of quietly
-// counting nothing forever.
+// **Building it as a seam rather than as an omission is what made this cheap**,
+// and it is worth recording that it worked as intended: closing it changed one
+// function body, in one file, and no caller — the signature was already the one
+// the real query needed. `promotion-gate.test.ts`'s empty case still asserts
+// zero on a document with no findings, and it still passes, which is the other
+// half of what the seam bought.
 import { and, eq, isNull } from 'drizzle-orm';
 import type { OpenFindingCount } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { countOpenFindings } from './findings';
 
 export type OpenItems = { threads: number; findings: OpenFindingCount };
 
@@ -56,23 +56,20 @@ export async function countOpenItems(db: Db, sandboxDocumentId: string): Promise
 }
 
 /**
- * The findings half — **the seam, and the only place it is**.
+ * The findings half — **the seam, now closed** (T-310).
  *
- * `OpenFindingCount` is T-328's own type, so when the checker lands this body
- * changes and nothing that reads it does. The parameters are the ones the real
- * query needs (`sandbox_document_id` is the grain ADR-0049 §7's count is taken
- * at, per T-328's own note on the field), so the signature does not change
- * either.
+ * The real query lives in [findings.ts](findings.ts) beside the writes, so
+ * there is one file that knows the store's shape. It is re-exported through
+ * this module's own name so every caller of the gate still reaches it here:
+ * this function is, as it always said it was, **the one place the checker's
+ * store attaches to promotion**, and nothing else in the promotion path knows a
+ * finding exists.
+ *
+ * ⚠ `NO_FINDINGS` stays exported. It is no longer this function's answer, but
+ * it is still the shape a caller with nothing to count wants, and deleting it
+ * would churn call sites for nothing.
  */
-/* eslint-disable @typescript-eslint/no-unused-vars --
- * The parameters are unused ON PURPOSE and are kept rather than added later:
- * they are exactly what the real query needs, so when the checker's store lands
- * only this body changes and no caller does. Deleting them would make the seam
- * cheaper to write and more expensive to close. */
-function countOpenFindings(db: Db, sandboxDocumentId: string): Promise<OpenFindingCount> {
-  return Promise.resolve(NO_FINDINGS);
-}
-/* eslint-enable @typescript-eslint/no-unused-vars */
+export { countOpenFindings };
 
 /** Does this document have loose ends? Both lists, one answer — §7's whole
  * point is that the surface never distinguishes them. */

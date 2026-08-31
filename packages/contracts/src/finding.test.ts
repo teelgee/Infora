@@ -30,6 +30,7 @@ const anchor: Locator = {
 const base = {
   id: 'f-1',
   runId: 'r-1',
+  checkFamily: 'corpus_accuracy' as const,
   sandboxDocumentId: 'sd-1',
   anchor,
   defect: 'This paragraph asserts a 12% figure with no source in the library.',
@@ -69,6 +70,7 @@ describe('ADR-0048 §7 — three inputs, three honest treatments, one schema', (
         clause: '§4.2',
         quote: 'Avoid the passive voice.',
         rulebookRef: 'ashcombe-drafting-manual',
+        scope: 'organisation',
       },
     };
     expect(finding.evidence.input).toBe('rulebook');

@@ -864,3 +864,25 @@ are not recorded here.
   The second is smaller and sharper: the creator binds sources **by version**,
   since a container is a series and a draft rests on one revision of it, and the
   manifest recording what the document was built from has to name which.
+- **2026-08-31 (T-310) — `Finding` gained `checkFamily`, `RulebookEvidence`
+  gained `scope`, and `FindingInput` gained `draft`.** Three additions to a
+  schema T-328 wrote before the run semantics existed, and each is forced by a
+  ruling rather than convenient. **`checkFamily`** is stored rather than derived
+  because the two questions cross: *style* and *corpus accuracy* both arise from
+  a section read, so a `rulebook` evidence shape does not say which family
+  raised it — and T-311 groups the marked-up edit **by check**, which makes it a
+  grouping key rather than a label. **`scope`** is what the wall predicate
+  reads: ADR-0053 §9 makes org-privacy a property of the **source's scope**
+  rather than of the word "rulebook", and with two style sources the existing
+  shape could not say which of them a quote came from — so the server's read had
+  nothing to key on and a project style guide, which binds every organisation,
+  would have been hidden like a firm's manual. **`draft`** is the one this
+  session would have preferred not to make: ADR-0048 §7 named the three inputs
+  the checker checks *against*, and ADR-0053 §2 then ruled five families of
+  which **three check the draft against nothing external** — self-contradiction
+  against its own sections, readability against arithmetic, completeness against
+  its template. Forcing one of those into `corpus` with an empty `citations`
+  array would store exactly the object the evidence union exists to make
+  untypeable, so the honest fourth treatment is *nothing external, nothing
+  cited*. Flagged in T-310's record for the owner rather than treated as
+  settled.

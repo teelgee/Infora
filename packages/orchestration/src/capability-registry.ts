@@ -19,21 +19,33 @@
 // EMPTY rather than zero — an unpriced step must not read as a free one
 // (T-254).
 import { eq } from 'drizzle-orm';
-import type { Assemble, Id } from '@infora/contracts';
-import { STEP_TYPES } from '@infora/contracts';
+import type { Assemble, CheckFamily, Id } from '@infora/contracts';
+import { CHECK_FAMILIES, DEFAULT_CORPUS_DEPTH, STEP_TYPES } from '@infora/contracts';
 import {
   CORPUS_RETRIEVAL,
   DOCUMENT_BUILDER,
   EXTRACTOR,
+  QA_CONTRADICTION_CHECK,
+  QA_DOCUMENT_CHECK,
+  QA_SECTION_CHECK,
   createCorpusRetrieval,
   createExtractor,
 } from '@infora/capabilities';
-import type { ExtractionSchemaRegistry, TemplateRegistry } from '@infora/capabilities';
+import type {
+  ExtractionSchemaRegistry,
+  SectionSummary,
+  TemplateRegistry,
+} from '@infora/capabilities';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { ModelRates, Router } from '@infora/model';
 import type { Capability, CapabilityRegistry, LeafContext, SourceRef } from './chain';
 import { createDocumentBuilder } from './document-builder';
+import {
+  createQaContradictionCheck,
+  createQaDocumentCheck,
+  createQaSectionCheck,
+} from './qa-checker';
 import type { StepAudit } from './run-writer';
 
 export type CapabilityDeps = {
@@ -83,6 +95,47 @@ function versionIdsOf(value: unknown): Id[] {
     return [...seen] as Id[];
   }
   return [];
+}
+
+
+/** The families a plan step named, filtered to the ones this deployment knows. */
+function familiesOf(value: unknown): CheckFamily[] {
+  if (!Array.isArray(value)) return [...CHECK_FAMILIES];
+  return value.filter((family): family is CheckFamily =>
+    (CHECK_FAMILIES as readonly string[]).includes(family as string),
+  );
+}
+
+/**
+ * The style-clause pass a step carries (ADR-0053 §5's split-rather-than-drop).
+ * Computed by T-336's planner in code; read here and never invented.
+ */
+function clausePassOf(value: unknown): { index: number; of: number } | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+  const pass = value as { index?: unknown; of?: unknown };
+  if (typeof pass.index !== 'number' || typeof pass.of !== 'number') return undefined;
+  return { index: pass.index, of: pass.of };
+}
+
+/** The section summaries the section checks handed over, as a previous step's output. */
+function summariesOf(value: unknown): SectionSummary[] {
+  const rows = Array.isArray(value)
+    ? value
+    : value !== null && typeof value === 'object' && Array.isArray((value as { summaries?: unknown }).summaries)
+      ? ((value as { summaries: unknown[] }).summaries)
+      : [];
+  const summaries: SectionSummary[] = [];
+  for (const row of rows) {
+    if (row === null || typeof row !== 'object') continue;
+    const entry = row as { section?: unknown; heading?: unknown; summary?: unknown };
+    if (typeof entry.section !== 'number' || typeof entry.summary !== 'string') continue;
+    summaries.push({
+      section: entry.section,
+      heading: typeof entry.heading === 'string' ? entry.heading : null,
+      summary: entry.summary,
+    });
+  }
+  return summaries;
 }
 
 export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegistry {
@@ -184,6 +237,112 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
       },
     });
   }
+
+  // ── T-310 — THE CHECKER'S THREE ───────────────────────────────────────────
+  //
+  // Registered unconditionally where the other three are conditional, and the
+  // asymmetry is real rather than an oversight: `document_builder` and
+  // `extractor` need domain content a deployment may not carry (templates,
+  // extraction schemas), and a deployment without it builds no such worker. The
+  // checker's families need no content at all — a project with no style guide
+  // and no rulebook loaded still gets a corpus check, a contradiction check and
+  // the two arithmetic families, and its coverage statement says which sources
+  // it had. Making the whole capability absent for want of a style guide would
+  // turn a stated coverage gap into a missing tool.
+  built.set(QA_SECTION_CHECK.name, {
+    declaration: QA_SECTION_CHECK,
+    run: async (ctx: LeafContext, inputs) => {
+      const sectionCheck = createQaSectionCheck({
+        db: ctx.db,
+        router: deps.router,
+        assemble: deps.assemble,
+        ...(deps.rates !== undefined && { rates: deps.rates }),
+      });
+      const output = await sectionCheck(
+        await requesterOf(ctx.db, ctx.run.requesterParticipantId),
+        { projectId: ctx.run.environmentKey },
+        {
+          sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
+          section: typeof inputs['section'] === 'number' ? inputs['section'] : 1,
+          families: familiesOf(inputs['families']),
+          depth: inputs['depth'] === 'quick' ? 'quick' : DEFAULT_CORPUS_DEPTH,
+          ...(clausePassOf(inputs['clause_pass']) !== undefined && {
+            clausePass: clausePassOf(inputs['clause_pass'])!,
+          }),
+        },
+      );
+      // every step records the access-resolved source set it saw (ADR-0028 §7).
+      // A finding's citation and the Step row's source set are then the same
+      // passages, which is what makes the audit answer "what did it see".
+      const sourceSet: SourceRef[] = [];
+      for (const finding of output.findings) {
+        if (finding.evidence.input !== 'corpus') continue;
+        for (const citation of finding.evidence.citations) {
+          if ('versionId' in citation.source) sourceSet.push({ versionId: citation.source.versionId });
+        }
+      }
+      return {
+        output,
+        audit: {
+          sourceSet,
+          // absent, never zero, where no call was made (T-254)
+          ...(output.audit !== undefined && {
+            model: output.audit.model,
+            usage: output.audit.usage,
+          }),
+        },
+      };
+    },
+  });
+
+  built.set(QA_CONTRADICTION_CHECK.name, {
+    declaration: QA_CONTRADICTION_CHECK,
+    run: async (ctx: LeafContext, inputs) => {
+      const contradictionCheck = createQaContradictionCheck({
+        db: ctx.db,
+        router: deps.router,
+        ...(deps.rates !== undefined && { rates: deps.rates }),
+      });
+      const output = await contradictionCheck({
+        sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
+        summaries: summariesOf(inputs['summaries']),
+      });
+      return {
+        output,
+        audit: {
+          // nothing is retrieved: the input is the draft's own summaries, so
+          // the source set is genuinely empty rather than unrecorded
+          sourceSet: [],
+          ...(output.audit !== undefined && {
+            model: output.audit.model,
+            usage: output.audit.usage,
+          }),
+        },
+      };
+    },
+  });
+
+  built.set(QA_DOCUMENT_CHECK.name, {
+    declaration: QA_DOCUMENT_CHECK,
+    run: async (ctx: LeafContext, inputs) => {
+      // 🔒 no router is passed, and none is available to pass: the CODE
+      // declaration is structural here rather than a promise in a comment.
+      const documentCheck = createQaDocumentCheck({
+        db: ctx.db,
+        ...(deps.templates !== undefined && { templates: deps.templates }),
+      });
+      const output = await documentCheck({
+        sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
+        ...(typeof inputs['template_id'] === 'string' && { templateId: inputs['template_id'] }),
+        ...(typeof inputs['readability_target'] === 'number' && {
+          readabilityTarget: inputs['readability_target'],
+        }),
+      });
+      // no model, no usage, no cost — and the audit says so by carrying none.
+      // A zero here would read as a call that cost nothing (T-254).
+      return { output, audit: { sourceSet: [] } };
+    },
+  });
 
   // A capability's name becomes the Step row's type when the executor runs it
   // (chain.ts writes `planned.worker as StepType`), and `step_type` is a

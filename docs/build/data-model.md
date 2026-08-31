@@ -687,6 +687,80 @@ records.
 After an undo the subject is gone, and a receipt naming only a uuid answers
 *"something happened"* and nothing else.
 
+## Drawn 2026-08-31 — the checker's findings (T-310, migration 0061)
+
+*Plainly: when someone runs the QA checker over a draft, what it produces has
+to be kept somewhere. This is that store — one row per problem found, saying
+what is wrong, where in the draft it is, what evidence it rests on, and whether
+anybody has dealt with it yet. Until now the promotion gate counted findings
+through a function that always answered nought, because there was nothing to
+count.*
+
+*Drawn here first and built the same day, so per the state rule at the head of
+this file the field list below is gone again and
+[drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the
+authority on its shape; migration 0061. ADR-0048 settled what a finding IS —
+structured, anchored, never auto-applied — and T-328 built that as a type a year
+of surfaces can be written against. What was missing was the table.*
+
+**Drawer 4 — `findings`.** AI output and the human resolution of it, which is
+what drawer 4 is for: a finding is `suggestions`' sibling rather than
+`sandbox_comments`' — it is produced by a run, it may carry a Suggestion as its
+proposed fix, and its resolution is a human act on an agent's output. It is
+**mutable, like the sandbox it annotates**, and for the sandbox comment's reason
+exactly: the thing being annotated is itself mutable by design, so an
+append-only finding would need a second table to say it had been cleared.
+
+**One row is one finding, and every column is T-328's type made storable** —
+`run_id`, `sandbox_document_id`, the check family that raised it, the input it
+arose from, its evidence, its anchor, the defect in words, its severity, the
+Suggestion it proposes (nullable), the fix classification that rides with that
+Suggestion (nullable), and the open/closed pair with the person and the time.
+Nothing here is invented beside the type; where the two could disagree the
+database is made to refuse.
+
+**Three CHECK constraints, each closing a way the row could lie:**
+
+- `evidence->>'input'` must equal the `input` column. The column exists so the
+  wall predicate and the grouping query are ordinary SQL rather than jsonb
+  digging; the copy is safe only because the database refuses the version where
+  they differ.
+- the fix classification is present **exactly when** the proposed revision is —
+  T-328's own words about `Finding.fix`, and the reason it matters is T-311's
+  accept-all: a fix with no classification would have to be treated as one kind
+  or the other, and either default is wrong.
+- a closed finding **names who closed it and when**; an open one names neither.
+  The `users.removed_by_user_id` pattern: a resolution with nobody's name on it
+  is not an audit record.
+
+**No `organisation_id`, deliberately, and T-328 says why in the type**: findings
+inherit the producing-organisation-private posture of the sandbox document they
+hang off, which already knows whose it is, and a wall with two answers is a wall
+with one bug. The one privacy fact that is **not** derivable that way is which
+of the two style sources a quoted rule came from — a firm's rulebook is
+org-private and a project's style guide is not (ADR-0053 §9) — and that is
+carried in the evidence's own `scope`, resolved through `rulebooks` /
+`project_style_guides` at read time rather than copied onto the finding.
+
+**Per run of one document, and nothing across runs.** A finding names the run
+that produced it and the draft it is against, and there is no column, index or
+key that relates one run's findings to the previous run's. That is not an
+omission: **whether findings persist across runs of the same document** — so
+that a dismissal is remembered and a re-raised finding is recognised — is
+ADR-0048's own open lifecycle question, given a driver by ADR-0053 §13 and
+deliberately not ruled. Building a carry-over now would be answering it in
+schema.
+
+**Drawer 3 — `step_type` gains three values**, per the T-391/T-332 precedent of
+drawing an enum widening rather than slipping it in: `qa_section_check`,
+`qa_contradiction_check` and `qa_document_check`. Three and not one, because
+**the grain is the capability boundary** (ADR-0053 §2): the per-section families
+take one section, self-contradiction is one call over the section summaries, and
+readability and completeness are **code** over the whole document. ADR-0027
+fixes code-or-model **per capability at design time**, so a single capability
+mixing an arithmetic family with a model call would have no honest declaration
+to make.
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are

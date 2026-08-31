@@ -53,6 +53,15 @@ export const stepType = pgEnum('step_type', [
   'workflow_runner',
   'document_builder',
   'verifier',
+  // T-310 — the checker's three, and THREE because the grain is the capability
+  // boundary (ADR-0053 §2): the per-section families take one section,
+  // self-contradiction is one call over the section summaries, and readability
+  // and completeness are CODE over the whole document. ADR-0027 fixes
+  // code-or-model per capability at design time, so one capability spanning an
+  // arithmetic family and a model call would have no honest declaration.
+  'qa_section_check',
+  'qa_contradiction_check',
+  'qa_document_check',
 ]);
 export const stepStatus = pgEnum('step_status', ['running', 'completed', 'failed']);
 export const agentProvenance = pgEnum('agent_provenance', ['infora', 'custom']);

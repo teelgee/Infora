@@ -27,6 +27,13 @@ const LABEL: Record<Step['type'], string> = {
   workflow_runner: 'Ran a workflow',
   document_builder: 'Built a document',
   verifier: 'Verified',
+  // T-310 — the checker's three. Found unlabelled the same way T-331 found the
+  // last set: `STEP_TYPES` widened and this map did not, and it typechecks
+  // until the turbo cache is cold. The words are what a person watching a run
+  // would say happened, not the capability's name.
+  qa_section_check: 'Checked a section',
+  qa_contradiction_check: 'Compared the sections',
+  qa_document_check: 'Scored and checked the draft',
 };
 
 const tick = (status: Step['status']) =>
