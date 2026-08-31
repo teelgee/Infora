@@ -18,7 +18,8 @@ import type { DestinationCheckResponse, Finding, ToolPlan, ToolSummary } from '@
 import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
-import { AttachedCopy, CheckPlanCard, LibraryScopeCopy } from './screens/tools';
+import { MemoryRouter } from 'react-router';
+import { AttachedCopy, CheckPlanCard, LibraryScopeCopy, ToolCard } from './screens/tools';
 
 describe('T-292 — the zero-source warning is a STATEMENT, not a menu', () => {
   const empty = { sources: [], assemblyTokenBudget: 12000 };
@@ -112,6 +113,57 @@ describe('T-334/T-335 — the Tools section and the creator’s own copy', () =>
     // which is what stops a tile promising a screen that does not exist
     expect(checker.href).toBeUndefined();
     expect(checker.waitsOn).toContain('T-000');
+  });
+});
+
+// ── T-403 — the Tools page becomes cards ───────────────────────────────────
+//
+// The card form is more inviting than the row it replaces, and that is exactly
+// what makes the assembled-not-filtered rule worth pinning here rather than
+// trusting to review: the pull of an even grid is towards rendering a tool the
+// viewer cannot use as a greyed card. These tests pin what a card must say and
+// what it must never contain.
+describe('T-403 — a tool renders as a card with an icon and what it does', () => {
+  const card = (tool: ToolSummary) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ToolCard tool={tool} />
+      </MemoryRouter>,
+    );
+
+  const creator: ToolSummary = {
+    id: 'document-creation',
+    label: 'Document creator',
+    description: 'Build a document’s structure, and choose the sources it draws on.',
+    state: 'available',
+    href: '/projects/p1/tools/document-creation',
+  };
+
+  it('carries the name, an icon and the description inside one card', () => {
+    const html = card(creator);
+    expect(html).toContain('tool-card');
+    expect(html).toContain('Document creator');
+    // the icon is an SVG the card draws itself, not a decoration the copy names
+    expect(html).toContain('<svg');
+    expect(html).toContain('choose the sources it draws on');
+    expect(html).toContain('/projects/p1/tools/document-creation');
+  });
+
+  it('gives an unbuilt tool the same card form, with its note inside it', () => {
+    const html = card({
+      id: 'not-a-real-tool',
+      label: 'Extractor',
+      description: 'Pull structured rows out of the record.',
+      state: 'unbuilt',
+      waitsOn: 'being built as T-000 (a fixture — any unbuilt tool renders this way)',
+    });
+    expect(html).toContain('tool-card--unbuilt');
+    expect(html).toContain('Not built yet');
+    expect(html).toContain('T-000');
+    // a tool this deployment's icon map has never met still gets a card
+    expect(html).toContain('<svg');
+    // and nowhere to go — the card is not a link
+    expect(html).not.toContain('<a ');
   });
 });
 

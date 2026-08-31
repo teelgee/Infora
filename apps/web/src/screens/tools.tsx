@@ -39,6 +39,8 @@ import {
   DEFAULT_CHECK_PRESET,
   DEFAULT_CORPUS_DEPTH,
 } from '@infora/contracts';
+import { ClipboardCheck, FileText, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Badge, Button, Card, Field, SelectInput, TextArea, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { useGroundingScope } from '../composer-chips';
@@ -68,23 +70,67 @@ export function ToolsScreen() {
       {tools === null ? (
         <p className="page-sub">Loading…</p>
       ) : (
-        <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+        <div className="tool-cards">
           {tools.map((tool) => (
-            <Card key={tool.id}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <strong>{tool.label}</strong>
-                {tool.state === 'unbuilt' && <Badge tone="neutral">Not built yet</Badge>}
-              </div>
-              <p style={{ marginTop: 4 }}>{tool.description}</p>
-              {tool.state === 'available' && tool.href !== undefined ? (
-                <Link to={tool.href}>Open</Link>
-              ) : (
-                <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>{tool.waitsOn}</p>
-              )}
-            </Card>
+            <ToolCard key={tool.id} tool={tool} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The icon a tool wears, by tool id.
+ *
+ * **A presentation decision, made here rather than sent over the wire.** What a
+ * tool *is* — its name, what it does, whether the viewer may reach it — is the
+ * server's to say, and does. Which glyph sits beside it is not: putting an icon
+ * name in the contract would make the API answerable for the icon set, and the
+ * next surface that wanted a different one would have to change the server.
+ * A tool this map has not met falls back to a neutral glyph and still renders
+ * as a card, which is the honest failure — a tile is never dropped for want of
+ * a picture.
+ */
+const TOOL_ICONS: Record<string, LucideIcon> = {
+  'document-creation': FileText,
+  'qa-check': ClipboardCheck,
+};
+
+/**
+ * T-403 — one tool, as a card.
+ *
+ * 🔒 **THE ASSEMBLED-NOT-FILTERED RULE IS UNTOUCHED, AND THE CARD FORM IS WHY
+ * IT IS WORTH RESTATING.** A card is a more inviting shape than a row, and the
+ * temptation a card form creates is to render an unentitled tool greyed out so
+ * the grid stays even. It must not: a tool the requester cannot use never
+ * reaches this component, and there is no `enabled` prop here to add one with.
+ * `unbuilt` is a different thing — the tool exists, nobody has built it, and it
+ * says so **inside its own card** rather than as a note beside the grid.
+ */
+export function ToolCard({ tool }: { tool: ToolSummary }) {
+  const Icon = TOOL_ICONS[tool.id] ?? Wrench;
+  const body = (
+    <>
+      <span className="tool-card-head">
+        <span className="tool-card-icon">
+          <Icon size={16} strokeWidth={2} />
+        </span>
+        <span className="tool-card-name">{tool.label}</span>
+        {tool.state === 'unbuilt' && <Badge tone="neutral">Not built yet</Badge>}
+      </span>
+      <p className="tool-card-desc">{tool.description}</p>
+    </>
+  );
+
+  return tool.state === 'available' && tool.href !== undefined ? (
+    <Link className="tool-card" to={tool.href}>
+      {body}
+    </Link>
+  ) : (
+    <div className="tool-card tool-card--unbuilt">
+      {body}
+      <p className="tool-card-waits">{tool.waitsOn}</p>
     </div>
   );
 }

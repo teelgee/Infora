@@ -378,6 +378,35 @@ td .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .sandbox-card-meta .ficon { display: inline-flex; color: var(--table-icon-color); }
 .sandbox-card-shared { color: var(--text-muted); font-size: 11.5px; padding-left: 20px; }
 
+/* ---------- Tool cards (T-403) ----------
+   The sandbox selector's card idiom, applied to the Tools page: the two
+   screens now read as the same kind of thing to pick from. Elevation 3, the
+   nested-card level a card inside a pane gets (design-rules §A); the grid is
+   §C's stated default for a column count nobody has designed, `auto-fill /
+   minmax(260px, 1fr)`. Every value here is a multiple of 4. */
+.tool-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px; margin-top: 12px;
+}
+.tool-card {
+  display: flex; flex-direction: column; gap: 8px; text-align: left;
+  background: var(--surface-pane); border: 1px solid var(--border-default);
+  border-radius: var(--primitive-radius-md); box-shadow: var(--level3-popout);
+  padding: 16px; color: var(--text-primary); text-decoration: none;
+  transition: box-shadow 120ms, border-color 120ms;
+}
+a.tool-card:hover { box-shadow: var(--level4-overlay); }
+a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-active); }
+/* A tool nobody has built yet is not a thing to click, so it does not float or
+   respond — but it keeps the card form, because what it says about itself
+   belongs INSIDE the card rather than beside it. */
+.tool-card--unbuilt { box-shadow: none; background: var(--surface-sunken); }
+.tool-card-head { display: flex; align-items: center; gap: 8px; }
+.tool-card-icon { display: inline-flex; color: var(--table-icon-color); }
+.tool-card-name { font-weight: 600; font-size: 13.5px; }
+.tool-card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; margin: 0; }
+.tool-card-waits { color: var(--text-muted); font-size: 11.5px; margin: 0; }
+
 /* ---------- Folder-structure builder (interactive tree, no whitespace) ---------- */
 .folder-builder { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; padding: 2px; }
 .fb-row { display: flex; align-items: center; gap: 6px; }
