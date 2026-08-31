@@ -544,15 +544,24 @@ describe('T-336 — the plan is rendered, not editable, and says what it is weak
     expect(html).not.toContain('Run the check');
   });
 
-  it('an unpriced deployment says so rather than showing a plausible £0.00 (T-254)', () => {
-    const html = render({ cost: { total: null, priced: false } });
-    expect(html).toContain('not priced');
-    expect(html).not.toContain('£0.0000');
+  // T-410 (ADR-0053 addendum A3, owner 2026-08-31) — THESE TWO TESTS ARE
+  // INVERTED, NOT DELETED. They used to assert that an unpriced deployment said
+  // "not priced" rather than showing a plausible £0.00, and that a real total
+  // rendered. The owner ruled the price off the plan surfaces, so the same two
+  // cases now assert its ABSENCE — a deleted test would leave the surface free
+  // to grow the line back without anything noticing.
+  it('shows no price at all, priced or not (T-410)', () => {
+    expect(render({ cost: { total: null, priced: false } })).not.toContain('not priced');
+    expect(render()).not.toContain('£');
+    expect(render()).not.toContain('Estimated cost');
   });
 
-  it('a code step priced at zero is a real price, and is shown as part of a real total', () => {
-    // 0 is a price (it genuinely spends nothing); null is nobody priced it
-    expect(render()).toContain('£0.0180');
+  it('says nothing about cost even when every step carries a real one', () => {
+    // the plan still CARRIES the estimate — per-step cost recording is
+    // untouched (§7), and only the display retired
+    const html = render();
+    expect(html).not.toContain('£0.0180');
+    expect(html).toContain('Run the check');
   });
 });
 

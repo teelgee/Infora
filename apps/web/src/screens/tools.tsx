@@ -358,14 +358,14 @@ export function DocumentCreatorScreen() {
           <p>
             <strong>Covers:</strong> {plan.coverage}
           </p>
-          <p>
-            <strong>Estimated cost:</strong>{' '}
-            {/* null is NOT zero: an unpriced deployment says so rather than
-                showing a plausible £0.00 (T-254) */}
-            {plan.cost.priced && plan.cost.total !== null
-              ? `£${plan.cost.total.toFixed(4)}`
-              : 'not priced — this deployment has no rate for the model that would run it'}
-          </p>
+          {/* 🚫 NO PRICE HERE, AND ITS ABSENCE IS A RULING (T-410, ADR-0053
+              addendum A3, owner 2026-08-31). An estimate was on this surface
+              because §4 deliberately put it there, so taking it off is a
+              decision rather than a tidy-up, and putting it back is one too.
+              PER-STEP COST IS UNTOUCHED (§7): every Step row still records what
+              it spent, as an audit and operations fact. What retired is the
+              display — including the "not priced" wording that guarded it
+              against a plausible £0.00. */}
           {plan.refusal !== null ? (
             <div className="banner banner--warning">{plan.refusal}</div>
           ) : (
@@ -510,14 +510,9 @@ export function CheckPlanCard(props: { plan: ToolPlan; busy: boolean; onRun: () 
           {caveat}
         </div>
       ))}
-      <p>
-        <strong>Estimated cost:</strong>{' '}
-        {/* null is NOT zero: an unpriced deployment says so rather than showing
-            a plausible £0.00 (T-254) */}
-        {plan.cost.priced && plan.cost.total !== null
-          ? `£${plan.cost.total.toFixed(4)}`
-          : 'not priced — this deployment has no rate for the model that would run it'}
-      </p>
+      {/* 🚫 NO PRICE HERE, AND ITS ABSENCE IS A RULING — T-410 / ADR-0053
+          addendum A3, the same ruling that took it off the creator's plan.
+          Per-step cost recording (§7) is unchanged; only the display retired. */}
       {plan.refusal !== null ? (
         // ADR-0053 §5 — refusal is said BEFORE any spend, and the button is
         // absent rather than offered-and-refused

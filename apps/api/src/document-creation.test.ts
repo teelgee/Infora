@@ -312,4 +312,21 @@ describe('the run (T-309)', () => {
     // opened the row a cost is recorded on
     expect(drafting!.usage?.cost).not.toBeNull();
   });
+
+  // T-410 (ADR-0053 addendum A3) — the price came OFF THE SCREEN and stayed in
+  // the record. This is the half of that ruling nothing else would catch: a
+  // later tidy-up that removed the estimate from the plan object, or the cost
+  // from the Step row, would look like finishing the job and would quietly
+  // destroy an audit and operations fact.
+  it('still records cost per step and still computes the estimate, with neither shown (T-410)', async () => {
+    const res = await post(cookie, `/projects/${projectId}/tools/document-creation/runs`, request());
+    const body = (await res.json()) as DocumentCreationRunResponse;
+    for (const step of body.run.steps) {
+      // every step the executor opened carries its own usage record
+      expect(step.usage).toBeDefined();
+    }
+    // and the plan still carries its estimate — it is simply not rendered
+    expect(body.plan.cost).toBeDefined();
+    expect(typeof body.plan.cost.priced).toBe('boolean');
+  });
 });
