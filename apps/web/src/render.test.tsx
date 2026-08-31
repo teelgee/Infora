@@ -18,6 +18,7 @@ import type {
   DestinationCheckResponse,
   Finding,
   GroundingSource,
+  StyleGuideRecord,
   ToolPlan,
   ToolSummary,
 } from '@infora/contracts';
@@ -25,11 +26,14 @@ import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
+import { DOCUMENT_PURPOSE_CATALOGUE } from '@infora/contracts';
 import {
   AttachedCopy,
   CheckPlanCard,
+  ChosenNote,
   LibraryScopeCopy,
   SourceRow,
+  StyleGuidePicker,
   ToolCard,
 } from './screens/tools';
 
@@ -182,6 +186,67 @@ describe('T-403 — a tool renders as a card with an icon and what it does', () 
     expect(html).toContain('<svg');
     // and nowhere to go — the card is not a link
     expect(html).not.toContain('<a ');
+  });
+});
+
+// ── T-406 — the launcher asks four plain questions ─────────────────────────
+//
+// The four answers reach the drafting call, and their prompt half is pinned in
+// `capabilities`. What is pinnable HERE is the copy an author reads before
+// answering — which is the half a rename or a tidy-up would silently lose, and
+// the half the word "shape" failed at: it named a control without telling
+// anybody what they were being asked.
+describe('T-406 — the launcher explains each answer, and the style control is honest', () => {
+  it('shows the chosen option’s own sentence, not just its label', () => {
+    const html = renderToStaticMarkup(
+      <ChosenNote catalogue={DOCUMENT_PURPOSE_CATALOGUE} value="external-document" />,
+    );
+    expect(html).toContain('Written to leave your firm');
+  });
+
+  it('says a project has no style guide rather than hiding the control (A1)', () => {
+    // "honestly empty rather than absent" — a missing control reads as "style
+    // is handled" when in fact nobody has set the project up
+    const html = renderToStaticMarkup(
+      <StyleGuidePicker guides={[]} selected={[]} onToggle={() => {}} />,
+    );
+    expect(html).toContain('No style guide is loaded');
+    expect(html).toContain('will invent no house rules');
+  });
+
+  it('🔒 tells a FAILED READ apart from an empty one', () => {
+    // saying "no style guide is loaded" off a request that did not answer is a
+    // claim about the project this screen cannot make
+    const html = renderToStaticMarkup(
+      <StyleGuidePicker guides={null} selected={[]} onToggle={() => {}} />,
+    );
+    expect(html).toContain('could not be read');
+    expect(html).toContain('not the same as there being none');
+    expect(html).not.toContain('No style guide is loaded');
+  });
+
+  it('lets more than one guide be selected — it is a checklist, not a select', () => {
+    const guide = (id: string, title: string): StyleGuideRecord => ({
+      id,
+      title,
+      sourceFormat: 'docx',
+      clauses: 12,
+      labelled: 12,
+      loadedBy: { userId: 'u1', name: 'A person' },
+      loadedAt: '2026-08-31T00:00:00.000Z',
+      retiredAt: null,
+    });
+    const html = renderToStaticMarkup(
+      <StyleGuidePicker
+        guides={[guide('g1', 'Project style guide'), guide('g2', 'Drawing conventions')]}
+        selected={['g1', 'g2']}
+        onToggle={() => {}}
+      />,
+    );
+    expect(html).toContain('Project style guide');
+    expect(html).toContain('Drawing conventions');
+    expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
+    expect(html).not.toContain('<select');
   });
 });
 

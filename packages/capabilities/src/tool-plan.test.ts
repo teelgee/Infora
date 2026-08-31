@@ -4,6 +4,7 @@
 // not know.
 import { describe, expect, it } from 'vitest';
 import type { Workflow } from '@infora/contracts';
+import { STYLE_PRECEDENCE } from '@infora/contracts';
 import { coverageAfter, coverageBefore, planDocumentCreation } from './tool-plan';
 import type { DocumentTemplate } from './workers/templates';
 
@@ -37,6 +38,10 @@ const plan = (overrides: Partial<Parameters<typeof planDocumentCreation>[0]> = {
     workflow,
     template,
     sourceCount: 3,
+    purpose: 'technical-note',
+    language: 'technical',
+    documentType: 'whole-document',
+    styleGuideCount: 0,
     draftModelId: 'a-model',
     rates: { 'a-model': { promptPerMTok: 3, completionPerMTok: 15 } },
     tokenLimit: 12000,
@@ -75,6 +80,41 @@ describe('the document creator’s plan is computed in code (T-309, ADR-0053 §4
     // a caveat under an empty document
     expect(plan({ sourceCount: 0 }).refusal).toContain('No sources are bound');
     expect(plan().refusal).toBeNull();
+  });
+});
+
+// T-406 (ADR-0053 addendum A1) — the plan SAYS what the run will do that the
+// step list cannot show, and states the ruled precedence before the click.
+describe('the plan states the four answers and the style precedence (T-406)', () => {
+  it('says what it is writing, in which register', () => {
+    const notes = plan({
+      purpose: 'external-document',
+      language: 'simple-english',
+      documentType: 'chapter',
+    }).notes!;
+    expect(notes[0]).toContain('an external document');
+    expect(notes[0]).toContain('chapter');
+    expect(notes[0]).toContain('Simple English');
+  });
+
+  it('states the RULED PRECEDENCE when guides are selected, in the shared words', () => {
+    const notes = plan({ styleGuideCount: 2 }).notes!;
+    expect(notes.join(' ')).toContain('2 project style guides');
+    // the one exported constant the drafting prompt also uses — a second copy
+    // is how two copies start resolving the conflict differently
+    expect(notes.join(' ')).toContain(STYLE_PRECEDENCE);
+  });
+
+  it('says so when none was selected rather than falling silent', () => {
+    const notes = plan({ styleGuideCount: 0 }).notes!;
+    expect(notes.join(' ')).toContain('No style guide was selected');
+    // nothing to resolve, so no resolution is asserted
+    expect(notes.join(' ')).not.toContain(STYLE_PRECEDENCE);
+  });
+
+  it('is still identical for identical answers — the declared guarantee holds', () => {
+    const answers = { purpose: 'planning-document' as const, styleGuideCount: 1 };
+    expect(plan(answers)).toEqual(plan(answers));
   });
 });
 

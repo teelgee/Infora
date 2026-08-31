@@ -25,8 +25,13 @@
 # and reports both labels when the sources are broader than the destination
 # (T-249's finding F2), and there is no override path in V1 for a tool nobody
 # has asked to override.
+# v2 (T-406, ADR-0053 addendum A1): the launcher's four answers become
+# parameters. `shape` never existed here as a word -- it lived on the screen as
+# a label for `template_id` -- and it is retired on the screen with this
+# version. A version bump rather than an edit in place, because a plan records
+# the version it ran and a plan from v1 named four fewer inputs.
 id: document-creation
-version: 1
+version: 2
 label: Create a document
 description: >-
   Draft a document into a named template from library sources the author chose,
@@ -43,6 +48,30 @@ parameters:
     type: string
     required: true
     description: What this document is for, in your own words.
+  - name: purpose
+    type: string
+    required: true
+    description: >-
+      What kind of document this is -- a technical note, a planning document,
+      an internal document or an external one.
+  - name: language
+    type: string
+    required: true
+    description: >-
+      The register to write in -- technical, non-technical or Simple English.
+      Where it disagrees with a style guide, this wins on register and the
+      guide wins on terms and vocabulary.
+  - name: document_type
+    type: string
+    required: true
+    description: Whether this is a whole document, a chapter or a section.
+  - name: style_guide_ids
+    type: id_list
+    required: true
+    description: >-
+      Which of the project's style guides this document is written to. More
+      than one may apply; an empty list is a real answer and means the draft
+      follows the register instruction and ordinary professional convention.
   - name: sources
     type: id_list
     required: true
@@ -72,6 +101,10 @@ steps:
     inputs:
       template_id: '{{parameters.template_id}}'
       brief: '{{parameters.brief}}'
+      purpose: '{{parameters.purpose}}'
+      language: '{{parameters.language}}'
+      document_type: '{{parameters.document_type}}'
+      style_guide_ids: '{{parameters.style_guide_ids}}'
       sources: '{{parameters.sources}}'
       destination_sandbox_id: '{{parameters.destination_sandbox_id}}'
       title: '{{parameters.title}}'

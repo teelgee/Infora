@@ -5,6 +5,7 @@
 export * from './agent-act';
 export * from './assembly';
 export * from './checker';
+export * from './creator';
 export * from './external';
 export * from './finding';
 export * from './lens';

@@ -22,6 +22,7 @@ let organisationId: string;
 let otherOrganisationId: string;
 let projectId: string;
 let participantId: string;
+let userId: string;
 let sandboxId: string;
 let narrowSandboxId: string;
 let openVersionId: string;
@@ -36,16 +37,21 @@ const embeddings: EmbeddingAdapter = {
     model: { id: 'fake-embed', version: '1' },
   }),
 };
+/** The last system prompt the router was handed — T-406's subject. */
+let lastSystemPrompt = '';
 const answering = (text: string): Router => {
   const chat: ChatAdapter = {
     modelId: 'fake-chat',
     attributes: SELF_HOSTED_UK,
     endpoint: 'https://fake.example',
-    chat: async () => ({
-      text,
-      model: { id: 'fake-chat', version: 'fake-1' },
-      usage: { tokensPrompt: 10, tokensCompletion: 10 },
-    }),
+    chat: async (request) => {
+      lastSystemPrompt = request.system ?? '';
+      return {
+        text,
+        model: { id: 'fake-chat', version: 'fake-1' },
+        usage: { tokensPrompt: 10, tokensCompletion: 10 },
+      };
+    },
   };
   return new Router(chat, embeddings);
 };
@@ -81,6 +87,7 @@ beforeAll(async () => {
     .insert(s.users)
     .values({ name: 't280', email: `t280-${stamp}@test.local`, organisationId })
     .returning();
+  userId = user!.id;
   const [participant] = await db
     .insert(s.participants)
     .values({ userId: user!.id, projectId })
@@ -155,6 +162,19 @@ const gateway = (...items: ReturnType<typeof passage>[]): Assemble => {
 
 const requester = () => ({ organisationId, participantId });
 
+/**
+ * T-406's four launcher answers, at their defaults. Spread into every input so
+ * the tests below keep saying what they were written to say — the drafting
+ * character is its own subject, tested where it is tested rather than smeared
+ * across every case that happens to build a document.
+ */
+const character = {
+  purpose: 'technical-note' as const,
+  language: 'technical' as const,
+  documentType: 'whole-document' as const,
+  styleGuideIds: [],
+};
+
 describe('document_builder (T-280)', () => {
   it('drafts into the template and records what each source was used for', async () => {
     const builder = createDocumentBuilder({
@@ -179,6 +199,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'does the baseline support the assessment?',
+      ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
       destination: { sandboxId, title: 't280 built note' },
     });
@@ -190,6 +211,76 @@ describe('document_builder (T-280)', () => {
     expect(output.manifest[1]!.versionId).toBe(openVersionId);
     expect(output.manifest[1]!.documentReference).toBe('T280-A');
     expect(output.unreachableSources).toEqual([]);
+  });
+
+  // T-406 — THE WHOLE PATH, not just the prompt composer: a style guide loaded
+  // into the store, selected by id, reaching the actual model call. The
+  // composer's own unit tests live beside it in `capabilities`; this is the
+  // wiring between the store and the router, which is the half that would break
+  // silently and leave every one of those tests green.
+  it('reads the SELECTED style guides from the store and puts their clauses in the call (T-406)', async () => {
+    const [guide] = await db
+      .insert(s.projectStyleGuides)
+      .values({
+        projectId,
+        title: 't406 project style guide',
+        sourceFormat: 'docx',
+        loadedByUserId: userId,
+      })
+      .returning();
+    const [other] = await db
+      .insert(s.projectStyleGuides)
+      .values({
+        projectId,
+        title: 't406 a guide nobody selected',
+        sourceFormat: 'docx',
+        loadedByUserId: userId,
+      })
+      .returning();
+    await db.insert(s.projectStyleGuideClauses).values([
+      {
+        styleGuideId: guide!.id,
+        ordinal: 1,
+        clause: '4.2',
+        heading: 'Terminology',
+        content: 'Write “made ground”, never “fill”.',
+        spanStart: 0,
+        spanEnd: 40,
+      },
+      {
+        styleGuideId: other!.id,
+        ordinal: 1,
+        clause: '1.1',
+        heading: 'Unselected',
+        content: 'A rule about some other document entirely.',
+        spanStart: 0,
+        spanEnd: 40,
+      },
+    ]);
+
+    const builder = createDocumentBuilder({
+      db,
+      router: answering('Purpose\n\nA sentence [S1].'),
+      assemble: gateway(passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances')),
+      templates,
+    });
+    await builder(requester(), { projectId }, {
+      templateId: 'technical-note',
+      brief: 'a brief',
+      ...character,
+      language: 'simple-english',
+      styleGuideIds: [guide!.id],
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't406 styled note' },
+    });
+
+    expect(lastSystemPrompt).toContain('Write “made ground”, never “fill”.');
+    expect(lastSystemPrompt).toContain('4.2 Terminology');
+    // 🔒 a guide the author did NOT select is a rule about another document,
+    // and must not reach this draft
+    expect(lastSystemPrompt).not.toContain('some other document entirely');
+    // and the register answer travelled with it
+    expect(lastSystemPrompt).toContain('short sentences');
   });
 
   // T-402 — THE MISCOUNT'S ROOT, pinned at the builder. A drafting call whose
@@ -214,6 +305,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'does the baseline support the assessment?',
+      ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
       destination: { sandboxId, title: 't402 headingless note' },
     });
@@ -239,6 +331,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'b',
+      ...character,
       sources: { versionIds: [openVersionId] },
       destination: { sandboxId, title: 't280 label note' },
     });
@@ -260,6 +353,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'b',
+      ...character,
       sources: { versionIds: [openVersionId] },
       destination: { sandboxId: narrowSandboxId, title: 't280 refused' },
     });
@@ -282,6 +376,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'b',
+      ...character,
       sources: { versionIds: [openVersionId, sharedVersionId] },
       destination: { sandboxId, title: 't280 partial' },
     });
@@ -299,6 +394,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'b',
+      ...character,
       sources: { versionIds: [openVersionId] },
       destination: { sandboxId, title: 't280 withheld' },
     });
@@ -321,6 +417,7 @@ describe('document_builder (T-280)', () => {
       builder(requester(), { projectId }, {
         templateId: 'invoice',
         brief: 'b',
+        ...character,
         sources: { versionIds: [] },
         destination: { sandboxId, title: 'x' },
       }),
@@ -342,6 +439,7 @@ describe('document_builder (T-280)', () => {
     const output = await builder(requester(), { projectId }, {
       templateId: 'technical-note',
       brief: 'b',
+      ...character,
       sources: { versionIds: [openVersionId] },
       destination: { sandboxId, title: 't280 explicit' },
     });

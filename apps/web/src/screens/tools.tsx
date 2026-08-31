@@ -24,11 +24,16 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import type {
   CheckFamily,
   CorpusDepth,
+  CreatorOption,
   DocumentCreationRunResponse,
+  DocumentLanguage,
+  DocumentPurpose,
+  DocumentType,
   GroundingSource,
   QaCheckRunResponse,
   Sandbox,
   SandboxDocument,
+  StyleGuideRecord,
   ToolSummary,
   ToolPlan,
 } from '@infora/contracts';
@@ -38,6 +43,12 @@ import {
   CHECK_PRESETS,
   DEFAULT_CHECK_PRESET,
   DEFAULT_CORPUS_DEPTH,
+  DEFAULT_DOCUMENT_LANGUAGE,
+  DEFAULT_DOCUMENT_PURPOSE,
+  DEFAULT_DOCUMENT_TYPE,
+  DOCUMENT_LANGUAGE_CATALOGUE,
+  DOCUMENT_PURPOSE_CATALOGUE,
+  DOCUMENT_TYPE_CATALOGUE,
 } from '@infora/contracts';
 import { ClipboardCheck, FileText, Wrench } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -177,6 +188,78 @@ export function SourceRow(props: {
   );
 }
 
+/**
+ * T-406 — the sentence under a chosen answer.
+ *
+ * The catalogue already carries one per option and it does the work the label
+ * cannot: *"External document"* is a category, *"written to leave your firm;
+ * every statement stands on its own"* is what choosing it does. Showing it for
+ * the CURRENT choice only, rather than all of them at once, keeps the launcher
+ * a form rather than a page of documentation.
+ */
+export function ChosenNote<T extends string>(props: {
+  catalogue: readonly CreatorOption<T>[];
+  value: T;
+}) {
+  const chosen = props.catalogue.find((option) => option.value === props.value);
+  return chosen === undefined ? null : <p className="field-hint">{chosen.description}</p>;
+}
+
+/**
+ * T-406 — which of the project's style guides this document is written to.
+ *
+ * **More than one may apply**, and the store has always been able to hold more
+ * than one, so this is a checklist rather than a select. Three states, and all
+ * three are said out loud:
+ *
+ *   • guides loaded — pick any number, none is a real answer;
+ *   • **none loaded** — the control is *honestly empty* rather than absent (A1),
+ *     because a missing control reads as "style is handled" when in fact
+ *     nobody has set the project up;
+ *   • **the read failed** — which is NOT the same as none loaded, and saying
+ *     "no style guide is loaded" off a request that did not answer would be a
+ *     claim about the project this screen cannot make.
+ */
+export function StyleGuidePicker(props: {
+  guides: StyleGuideRecord[] | null;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  if (props.guides === null) {
+    return (
+      <p className="field-hint">
+        This project’s style guides could not be read, so none can be selected. That is not the same
+        as there being none — reload the page before drafting to a guide.
+      </p>
+    );
+  }
+  if (props.guides.length === 0) {
+    return (
+      <p className="field-hint">
+        No style guide is loaded for this project. The draft will follow the language you chose and
+        ordinary professional convention, and will invent no house rules.
+      </p>
+    );
+  }
+  return (
+    <div className="style-guide-picker">
+      {props.guides.map((guide) => (
+        <label key={guide.id} className="style-guide-option">
+          <input
+            type="checkbox"
+            checked={props.selected.includes(guide.id)}
+            onChange={() => props.onToggle(guide.id)}
+          />
+          <span>{guide.title}</span>
+          <span className="style-guide-clauses">
+            {guide.clauses} clause{guide.clauses === 1 ? '' : 's'}
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 /** The templates this deployment carries. Fixed for V1; the set is domain content. */
 const TEMPLATES = [
   { id: 'technical-note', label: 'Technical note' },
@@ -190,6 +273,12 @@ export function DocumentCreatorScreen() {
   const [destinations, setDestinations] = useState<Sandbox[]>([]);
 
   const [templateId, setTemplateId] = useState(TEMPLATES[0]!.id);
+  // T-406 (ADR-0053 addendum A1) — the four questions that replaced "shape"
+  const [purpose, setPurpose] = useState<DocumentPurpose>(DEFAULT_DOCUMENT_PURPOSE);
+  const [language, setLanguage] = useState<DocumentLanguage>(DEFAULT_DOCUMENT_LANGUAGE);
+  const [documentType, setDocumentType] = useState<DocumentType>(DEFAULT_DOCUMENT_TYPE);
+  const [styleGuides, setStyleGuides] = useState<StyleGuideRecord[] | null>(null);
+  const [styleGuideIds, setStyleGuideIds] = useState<string[]>([]);
   const [brief, setBrief] = useState('');
   const [title, setTitle] = useState('');
   const [sources, setSources] = useState<string[]>([]);
@@ -206,6 +295,14 @@ export function DocumentCreatorScreen() {
       .sandboxes(projectId)
       .then((res) => setDestinations(res.items))
       .catch(() => setDestinations([]));
+    // T-406 — the guides this project has loaded. A failed read is NOT an empty
+    // list: rendering "no style guide is loaded" off a request that did not
+    // answer is a claim about this project we cannot make, so `null` stays null
+    // and the control says it could not read them.
+    void api
+      .styleGuides(projectId)
+      .then((res) => setStyleGuides(res.items.filter((guide) => guide.retiredAt === null)))
+      .catch(() => setStyleGuides(null));
   }, [projectId]);
 
   // ⚠ **THE BOUND-CONTAINER PATH IS REFUSED, WITH A POINTER.** `Q-037` — whether
@@ -242,6 +339,10 @@ export function DocumentCreatorScreen() {
   const body = () => ({
     templateId,
     brief: brief.trim(),
+    purpose,
+    language,
+    documentType,
+    styleGuideIds,
     sourceVersionIds: sources,
     destinationSandboxId: destination,
     title: title.trim(),
@@ -273,13 +374,74 @@ export function DocumentCreatorScreen() {
     <div className="content">
       <h1 className="page">Document creator</h1>
       <p className="page-sub">
-        Choose the shape, say what it is for, and pick the library documents it may draw on — before
-        anything is drafted. The sources are chosen first so the result can be checked against what
-        you asked for.
+        Say what kind of document this is, what language it should be in, which style guides apply
+        and whether it is a whole document, a chapter or a section — then pick the library documents
+        it may draw on. The sources are chosen before anything is drafted, so the result can be
+        checked against what you asked for.
       </p>
 
+      {/* T-406 (ADR-0053 addendum A1) — FOUR PLAIN QUESTIONS, NOT A "SHAPE".
+          The word is retired: it named one control that picked one of two
+          templates, and it told an author nothing about what they were being
+          asked. Each control carries the chosen option's own sentence beneath
+          it, so the answer explains itself rather than being a term of art. */}
       <Card>
-        <Field label="Shape">
+        <Field label="What kind of document is this?">
+          <SelectInput
+            value={purpose}
+            onChange={change((value: string) => setPurpose(value as DocumentPurpose))}
+            options={DOCUMENT_PURPOSE_CATALOGUE.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <ChosenNote catalogue={DOCUMENT_PURPOSE_CATALOGUE} value={purpose} />
+        </Field>
+        <Field label="What language should it be written in?">
+          <SelectInput
+            value={language}
+            onChange={change((value: string) => setLanguage(value as DocumentLanguage))}
+            options={DOCUMENT_LANGUAGE_CATALOGUE.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <ChosenNote catalogue={DOCUMENT_LANGUAGE_CATALOGUE} value={language} />
+        </Field>
+        <Field label="Which style guides apply?">
+          <StyleGuidePicker
+            guides={styleGuides}
+            selected={styleGuideIds}
+            onToggle={(id) =>
+              change(setStyleGuideIds)(
+                styleGuideIds.includes(id)
+                  ? styleGuideIds.filter((other) => other !== id)
+                  : [...styleGuideIds, id],
+              )
+            }
+          />
+        </Field>
+        <Field label="Is this a whole document, a chapter or a section?">
+          <SelectInput
+            value={documentType}
+            onChange={change((value: string) => setDocumentType(value as DocumentType))}
+            options={DOCUMENT_TYPE_CATALOGUE.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <ChosenNote catalogue={DOCUMENT_TYPE_CATALOGUE} value={documentType} />
+        </Field>
+      </Card>
+
+      <Card>
+        {/* ⏳ TRANSITIONAL — T-407 moves this control into the define-sections
+            step, where a template becomes an optional STARTING outline whose
+            per-part guidance pre-fills section purposes the author can edit or
+            discard (A1). It is not "the shape" and is no longer labelled as
+            one; it is here so the tool still has an outline to draft into until
+            the sections step exists. */}
+        <Field label="Starting outline">
           <SelectInput
             value={templateId}
             onChange={change(setTemplateId)}
@@ -358,6 +520,16 @@ export function DocumentCreatorScreen() {
           <p>
             <strong>Covers:</strong> {plan.coverage}
           </p>
+          {/* T-406 — what the run will DO that the step list does not show:
+              what it is writing, in which register, to which guides, and
+              A1's RULED PRECEDENCE where those two disagree. It is here,
+              before the click, because a resolution an author only meets in
+              the output is one they had no chance to argue with. */}
+          {plan.notes?.map((note) => (
+            <p key={note} className="plan-note">
+              {note}
+            </p>
+          ))}
           {/* 🚫 NO PRICE HERE, AND ITS ABSENCE IS A RULING (T-410, ADR-0053
               addendum A3, owner 2026-08-31). An estimate was on this surface
               because §4 deliberately put it there, so taking it off is a

@@ -35,6 +35,7 @@ import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   GetGroundingScopeResponse,
+  ListStyleGuidesResponse,
   ListToolsResponse,
   GetLibraryResponse,
   GetPlanResponse,
@@ -569,6 +570,11 @@ export const api = {
   // server reads as "leave it alone"; `null` clears it. Sending `undefined`
   // through `JSON.stringify` drops the key, which is exactly the wanted
   // behaviour, so the conditional is written out rather than left to chance.
+  // T-406 — the project's style guides. T-397 built the endpoint; the creator's
+  // launcher is its first surface, because a guide the drafting call follows is
+  // one the author has to be able to pick.
+  styleGuides: (projectId: string) =>
+    request<ListStyleGuidesResponse>(`/projects/${projectId}/style-guides`),
   setContainerMetadata: (
     containerId: string,
     metadata: Record<string, unknown>,

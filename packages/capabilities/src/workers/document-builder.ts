@@ -18,7 +18,13 @@
 // in `@infora/orchestration`, because this worker WRITES and `capabilities`
 // holds no `Db` by design. That split is the same one the draft leaf already
 // makes for the same reason.
-import type { WorkerDeclaration } from '@infora/contracts';
+import type {
+  DocumentLanguage,
+  DocumentPurpose,
+  DocumentType,
+  WorkerDeclaration,
+} from '@infora/contracts';
+import { STYLE_PRECEDENCE, purposeLabel } from '@infora/contracts';
 import type { DocumentTemplate } from './templates';
 
 export const DOCUMENT_BUILDER: WorkerDeclaration = {
@@ -29,6 +35,13 @@ export const DOCUMENT_BUILDER: WorkerDeclaration = {
   inputSchema: {
     template_id: 'the outline to draft into (the shipped template set)',
     brief: 'what this document is for, in the requester’s own words',
+    // T-406 (ADR-0053 addendum A1) — the launcher's four answers, declared here
+    // because a worker's inputs are its contract with the executor
+    purpose: 'what kind of document this is — technical note, planning, internal, external',
+    language: 'the register — technical, non-technical or Simple English',
+    document_type: 'whole document, chapter or section',
+    style_guide_ids:
+      'which of the project’s style guides this document is written to; empty is a real answer',
     sources: 'the version ids to draw on — explicit; this worker does not search',
     destination: 'the sandbox this document is written into',
   },
@@ -53,16 +66,74 @@ export const DOCUMENT_BUILDER: WorkerDeclaration = {
 };
 
 /**
+ * T-406 — the four launcher answers, as the prompt needs them, plus the style
+ * material the drafting call now consumes.
+ *
+ * **Until T-406 the drafting call read NO style material at all** — project
+ * style guides existed only for the checker to mark a finished draft against,
+ * which meant the product could tell you that you had broken a rule it had
+ * never told the writer about. This closes that: what the checker marks
+ * against, the drafting call is now given.
+ */
+export type DraftingCharacter = {
+  purpose: DocumentPurpose;
+  language: DocumentLanguage;
+  documentType: DocumentType;
+  /**
+   * The clauses of the guides the author selected, verbatim and in reading
+   * order. Empty means either no guide was selected or none is loaded, and the
+   * prompt says which — silence would leave the model to assume house style.
+   */
+  styleClauses: ReadonlyArray<{ clause: string | null; heading: string | null; text: string }>;
+  /** whether this project has any style guide loaded at all */
+  anyStyleGuideLoaded: boolean;
+};
+
+/** How the register reads as an instruction, not as a label. */
+const REGISTER_INSTRUCTION: Record<DocumentLanguage, string> = {
+  technical:
+    'Write in full technical register for a reader in the discipline. Use the discipline’s own vocabulary without glossing it.',
+  'non-technical':
+    'Write in plain professional English for an informed reader outside the discipline. Where a technical term is unavoidable, say what it means the first time.',
+  'simple-english':
+    'Write in Simple English: short sentences, one idea each, everyday words wherever an everyday word will do, and any technical term explained in the same sentence.',
+};
+
+/** What the document is, as the drafting call needs to hear it. */
+const TYPE_INSTRUCTION: Record<DocumentType, string> = {
+  'whole-document':
+    'This is a whole document. It stands alone and introduces its own subject.',
+  chapter:
+    'This is a chapter of a larger document. Do not re-introduce the project or restate the document’s overall purpose.',
+  section:
+    'This is one section of a chapter. Carry no framing of its own — begin at the subject.',
+};
+
+/**
  * The system prompt. The template's headings and guidance travel verbatim; the
  * source markers are the same `[S#]` convention the draft leaf uses, so the
  * ground-check and the citation resolver need no second parser.
+ *
+ * 🔒 **THE PRECEDENCE IS A SENTENCE, NOT AN ORDERING** — the same rule
+ * `guiding.ts` states for the checker's prompt, and for the same reason: a
+ * model reading a house rule and a register instruction that disagree has
+ * nothing in the order of them to say which governs. `STYLE_PRECEDENCE` is one
+ * exported constant so the prompt, the plan and the tests read the same words.
  */
-export function composeTemplatePrompt(template: DocumentTemplate, brief: string): string {
+export function composeTemplatePrompt(
+  template: DocumentTemplate,
+  brief: string,
+  character: DraftingCharacter,
+): string {
   return [
     `You are drafting a "${template.label}". ${template.description}`,
+    `It is a ${purposeLabel(character.purpose).toLowerCase()}. ${TYPE_INSTRUCTION[character.documentType]}`,
     '',
     `The brief: ${brief}`,
     '',
+    REGISTER_INSTRUCTION[character.language],
+    '',
+    ...styleBlock(character),
     'Write the document under these headings, in this order:',
     ...template.sections.map(
       (section, at) => `  ${at + 1}. ${section.heading} — ${section.guidance}`,
@@ -72,4 +143,34 @@ export function composeTemplatePrompt(template: DocumentTemplate, brief: string)
     'Write nothing the sources do not support: a sentence with no source is removed before anyone reads it, so an unsupported sentence is wasted rather than persuasive.',
     'Use the heading text exactly as given, on its own line, before that section’s sentences.',
   ].join('\n');
+}
+
+/**
+ * The style half, and **its empty cases are stated rather than skipped**.
+ *
+ * A prompt that simply said nothing about style would leave the model to fall
+ * back on whatever house voice it has, and the author would have no way to tell
+ * that from a guide having been followed. So: no guide loaded says so, none
+ * selected says so, and the difference between the two is kept — one is a
+ * project that has not been set up, the other is an author's choice.
+ */
+function styleBlock(character: DraftingCharacter): string[] {
+  if (character.styleClauses.length === 0) {
+    return [
+      character.anyStyleGuideLoaded
+        ? 'No style guide was selected for this document, so follow the register instruction above and ordinary professional convention. Do not invent house rules.'
+        : 'This project has no style guide loaded, so follow the register instruction above and ordinary professional convention. Do not invent house rules.',
+      '',
+    ];
+  }
+  return [
+    'Write to these style-guide clauses, which are the rules this document will be checked against:',
+    ...character.styleClauses.map((clause) => {
+      const address = [clause.clause, clause.heading].filter(Boolean).join(' ');
+      return `  • ${address ? `${address} — ` : ''}${clause.text}`;
+    }),
+    '',
+    STYLE_PRECEDENCE,
+    '',
+  ];
 }

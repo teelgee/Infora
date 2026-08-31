@@ -20,7 +20,17 @@
 // (T-254).
 import { eq, inArray } from 'drizzle-orm';
 import type { Assemble, CheckFamily, Id } from '@infora/contracts';
-import { CHECK_FAMILIES, DEFAULT_CORPUS_DEPTH, STEP_TYPES } from '@infora/contracts';
+import {
+  CHECK_FAMILIES,
+  DEFAULT_CORPUS_DEPTH,
+  DEFAULT_DOCUMENT_LANGUAGE,
+  DEFAULT_DOCUMENT_PURPOSE,
+  DEFAULT_DOCUMENT_TYPE,
+  DOCUMENT_LANGUAGES,
+  DOCUMENT_PURPOSES,
+  DOCUMENT_TYPES,
+  STEP_TYPES,
+} from '@infora/contracts';
 import {
   CORPUS_RETRIEVAL,
   DOCUMENT_BUILDER,
@@ -78,6 +88,17 @@ async function requesterOf(db: Db, participantId: Id) {
 
 const text = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : fallback;
+
+/**
+ * T-406 — a step input narrowed to one of a declared set, or the default.
+ *
+ * Step inputs arrive as `unknown` and a bad one is not a crash, it is a
+ * silently odd document: an unrecognised register would reach the prompt as
+ * itself and the model would improvise a meaning for it. Falling back to the
+ * declared default is the same discipline `text` above already takes.
+ */
+const oneOf = <T extends string>(allowed: readonly T[], value: unknown, fallback: T): T =>
+  allowed.includes(value as T) ? (value as T) : fallback;
 
 /**
  * Version ids out of a step input that may be either a bare list or the
@@ -222,6 +243,17 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
           {
             templateId: text(inputs['template_id']),
             brief: text(inputs['brief']),
+            // T-406 — the launcher's four answers. **Validated here rather than
+            // trusted**: a step input is a string until something says
+            // otherwise, and a `purpose` the catalogue has never heard of must
+            // fall back to a real default rather than reaching the prompt as
+            // itself. The API's zod schema already rejects a bad value at the
+            // door; this is the second gate, on the path a workflow definition
+            // or a future caller could also take.
+            purpose: oneOf(DOCUMENT_PURPOSES, inputs['purpose'], DEFAULT_DOCUMENT_PURPOSE),
+            language: oneOf(DOCUMENT_LANGUAGES, inputs['language'], DEFAULT_DOCUMENT_LANGUAGE),
+            documentType: oneOf(DOCUMENT_TYPES, inputs['document_type'], DEFAULT_DOCUMENT_TYPE),
+            styleGuideIds: versionIdsOf(inputs['style_guide_ids']),
             sources: { versionIds: versionIdsOf(inputs['sources']) },
             destination: {
               sandboxId: text(inputs['destination_sandbox_id']) as Id,

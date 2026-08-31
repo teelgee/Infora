@@ -22,7 +22,15 @@
 // deployment that declared no rate for the model serving the draft call must
 // read as *not priced*, because a plausible-looking zero is what a business
 // case gets built on. `priced: false` is the plan saying so out loud.
-import type { PlannedToolStep, ToolPlan, Workflow } from '@infora/contracts';
+import type {
+  DocumentLanguage,
+  DocumentPurpose,
+  DocumentType,
+  PlannedToolStep,
+  ToolPlan,
+  Workflow,
+} from '@infora/contracts';
+import { STYLE_PRECEDENCE, languageLabel, purposeLabel, typeLabel } from '@infora/contracts';
 import { costOf } from '@infora/model';
 import type { ModelRates } from '@infora/model';
 import type { DocumentTemplate } from './workers/templates';
@@ -52,6 +60,17 @@ export type DocumentCreationPlanInput = {
   template: DocumentTemplate;
   /** how many library sources the author bound, chosen AHEAD of drafting (T-335) */
   sourceCount: number;
+  /**
+   * T-406 (ADR-0053 addendum A1) — the launcher's four answers. They reach the
+   * planner because the plan's job is to say **what is about to happen**, and
+   * "draft 3 sections" said nothing about the register the sections would be in
+   * or the guides they would follow.
+   */
+  purpose: DocumentPurpose;
+  language: DocumentLanguage;
+  documentType: DocumentType;
+  /** how many project style guides the author selected; 0 is a real answer */
+  styleGuideCount: number;
   /** the model that would serve the drafting call, for the rate lookup */
   draftModelId: string;
   rates?: ModelRates;
@@ -107,8 +126,42 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
     coverage: coverageBefore(input.template, input.sourceCount),
     cost: { total, priced },
     refusal: refusalOf(input.sourceCount),
+    notes: notesOf(input),
   };
 }
+
+/**
+ * T-406 — what the run will do that the step list does not show.
+ *
+ * 🔒 **THE RULED PRECEDENCE IS STATED HERE BECAUSE A1 SAYS THE PLAN STATES
+ * IT.** A style guide and a register instruction can disagree, and A1 resolves
+ * it — guide on terms and vocabulary, the author's Language answer on register.
+ * A resolution the author only meets in the output is one they had no chance to
+ * argue with, so it goes on the plan, before the click, in the exported words
+ * the prompt itself uses.
+ *
+ * The style note is stated in **all three** of its states, not only when guides
+ * are selected: "none selected" and "none loaded" are different facts about a
+ * project, and a plan silent on both would let an author who forgot to pick a
+ * guide read the same screen as one whose project has none.
+ */
+function notesOf(input: DocumentCreationPlanInput): string[] {
+  const notes = [
+    `Written as ${aOrAn(purposeLabel(input.purpose).toLowerCase())}, ${typeLabel(input.documentType).toLowerCase()}, in ${languageLabel(input.language)} register.`,
+  ];
+  if (input.styleGuideCount > 0) {
+    notes.push(
+      `Written to ${input.styleGuideCount} project style guide${input.styleGuideCount === 1 ? '' : 's'}. ${STYLE_PRECEDENCE}`,
+    );
+  } else {
+    notes.push(
+      'No style guide was selected, so the draft follows the register above and ordinary professional convention.',
+    );
+  }
+  return notes;
+}
+
+const aOrAn = (word: string) => `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`;
 
 /**
  * The pathological case, and the ONLY one (ADR-0053 §5).

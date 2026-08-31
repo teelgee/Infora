@@ -26,6 +26,7 @@ import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
 import { CHECK_FAMILIES } from './checker';
+import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -2295,6 +2296,15 @@ export type ToolPlan = {
    */
   shape?: string;
   /**
+   * T-406 — statements about **how the run will behave**, said before the
+   * click. A note is not a `caveat`: a caveat is a degradation ("a
+   * contradiction between two sections in different groups will not be
+   * found"), and diluting that word with anything else would cost it its
+   * meaning. A note is a resolution the user is entitled to see coming — the
+   * ruled style precedence is the first and, today, the only one.
+   */
+  notes?: string[];
+  /**
    * T-336 — what this plan is **weaker at**, said before the run rather than
    * discovered after it (ADR-0053 §4: *"it degrades loudly or not at all"*).
    * The very-long shape compares section summaries in groups, so a
@@ -2306,8 +2316,33 @@ export type ToolPlan = {
 };
 
 export const documentCreationBody = z.object({
+  /**
+   * The starting outline. **This is no longer "the shape"** — T-406 retired
+   * that word with its control; T-407 moves this control into the
+   * define-sections step, where a template pre-fills an outline the author can
+   * edit or discard.
+   */
   templateId: z.string().min(1),
   brief: z.string().min(1),
+  /**
+   * T-406 (ADR-0053 addendum A1) — the launcher's four answers. **Run
+   * parameters**: recorded on the run, carried into the manifest, and the step
+   * list is computed in code from them, so the same answers give the same
+   * steps. The catalogues, their copy and the ruled precedence sentence live in
+   * `creator.ts`.
+   */
+  purpose: z.enum(DOCUMENT_PURPOSES),
+  language: z.enum(DOCUMENT_LANGUAGES),
+  documentType: z.enum(DOCUMENT_TYPES),
+  /**
+   * Which of the project's style guides apply — **more than one may be
+   * selected**, and the store has always been able to hold more than one, so
+   * this needed no migration. An empty list is a real answer: a project with no
+   * guides loaded shows the control honestly empty rather than hiding it, and
+   * the drafting call is then told there are none rather than being told
+   * nothing.
+   */
+  styleGuideIds: z.array(id),
   /**
    * The library sources this draft may draw on, **chosen before drafting**. An
    * id the requester cannot reach is not a way in — the builder reads their

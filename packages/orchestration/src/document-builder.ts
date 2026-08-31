@@ -25,7 +25,14 @@
 // a second path to the store bypasses the wall — and a named source the gateway
 // did not return is REPORTED, never silently dropped: the caller asked about it.
 import { eq } from 'drizzle-orm';
-import type { Assemble, AssembledItem, Id } from '@infora/contracts';
+import type {
+  Assemble,
+  AssembledItem,
+  DocumentLanguage,
+  DocumentPurpose,
+  DocumentType,
+  Id,
+} from '@infora/contracts';
 import { composeTemplatePrompt } from '@infora/capabilities';
 import type { TemplateRegistry } from '@infora/capabilities';
 import { parseClaims } from '@infora/capabilities';
@@ -33,13 +40,30 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { checkPropagation, groundCheck } from '@infora/governance';
 import type { AccessLabel } from '@infora/governance';
-import { sandboxAudience, versionsAudience } from '@infora/knowledge';
+import { guidingStyleGuide, sandboxAudience, versionsAudience } from '@infora/knowledge';
 import { costOf } from '@infora/model';
 import type { ModelRates, Router } from '@infora/model';
 
 export type DocumentBuilderInput = {
   templateId: string;
   brief: string;
+  /**
+   * T-406 (ADR-0053 addendum A1) — the launcher's four answers, as run
+   * parameters. `purpose` and `documentType` tell the drafting call what it is
+   * writing; `language` sets the register and **wins on register** where a
+   * style guide disagrees; `styleGuideIds` names the guides this document is
+   * written to.
+   *
+   * **The style guides are read HERE and not handed in as text**, which is the
+   * same rule `sources` follows one line down for the opposite reason: sources
+   * are explicit because the builder must not choose what it sees, and clauses
+   * are read here because the caller must not be able to put words in a guide's
+   * mouth. Both are the propagation guarantee, from its two ends.
+   */
+  purpose: DocumentPurpose;
+  language: DocumentLanguage;
+  documentType: DocumentType;
+  styleGuideIds: Id[];
   /** EXPLICIT, never "whatever you find" — the builder does not search */
   sources: { versionIds: Id[] };
   destination: { sandboxId: Id; title: string };
@@ -211,11 +235,34 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       };
     }
 
+    // T-406 — the style material the drafting call now consumes. Read from the
+    // store, narrowed to the guides the AUTHOR SELECTED: a guide they did not
+    // choose is a rule about another document, not a rule this draft broke.
+    // `anyStyleGuideLoaded` is a SECOND, deliberately separate question,
+    // because "you selected none" and "this project has none" are two different
+    // things to tell a model, and a prompt that conflated them would let a
+    // project nobody had set up look like a deliberate choice.
+    const styleClauses = (
+      await guidingStyleGuide(deps.db, environment.projectId, input.styleGuideIds)
+    ).map((item) => ({
+      clause: item.rule?.clause ?? null,
+      heading: item.rule?.heading ?? null,
+      text: item.content,
+    }));
+    const anyStyleGuideLoaded =
+      styleClauses.length > 0 || (await guidingStyleGuide(deps.db, environment.projectId)).length > 0;
+
     const sourceByMarker = new Map(
       passages.map((passage, at) => [`S${at + 1}`, passage] as const),
     );
     const result = await deps.router.chat('draft', {
-      system: composeTemplatePrompt(template, input.brief),
+      system: composeTemplatePrompt(template, input.brief, {
+        purpose: input.purpose,
+        language: input.language,
+        documentType: input.documentType,
+        styleClauses,
+        anyStyleGuideLoaded,
+      }),
       messages: [
         {
           role: 'user',

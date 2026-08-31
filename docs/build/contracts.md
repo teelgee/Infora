@@ -930,3 +930,21 @@ are not recorded here.
   Claude-ruled 2026-08-31) — a model-written description would be an uncited
   claim about a document, rendered beside that document's own grounded
   content, which is the one distinction this product exists to hold.
+- **2026-08-31 (T-406) — a new `creator.ts` module carries the launcher's four
+  answers, `documentCreationBody` takes them, and `ToolPlan` gained `notes`.**
+  *Plainly: the creator's first screen stopped asking for a "shape" and now
+  asks four plain questions, and those answers have to reach the thing that
+  writes the draft.* The catalogues live in `contracts` **because the launcher
+  renders them** — the same reason `checker.ts`'s families do, and a set of
+  answers a surface cannot name is one nobody can give. `STYLE_PRECEDENCE` is
+  exported as **one constant** because ADR-0053 addendum A1's ruled resolution
+  has to appear in two places at once — the drafting prompt and the plan — and
+  a second copy is how two copies start resolving the same conflict
+  differently. **`notes` is not `caveats`**, and keeping them apart is the
+  point: a caveat is a **degradation** said before the run button, and putting
+  a non-degradation in that list would cost the word its meaning. A note is a
+  resolution the author is entitled to see coming. `styleGuideIds` is a list
+  because more than one guide may apply, which the store has always allowed —
+  no migration. The workflow definition went to **v2** rather than being edited
+  in place: a plan records the version it ran, and a v1 plan named four fewer
+  inputs.

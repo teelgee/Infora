@@ -113,7 +113,10 @@ export function documentCreationRoutes(deps: {
     if (!parsed.success) {
       return {
         ok: false,
-        response: invalid(c, 'templateId, brief, sourceVersionIds, destinationSandboxId, title'),
+        response: invalid(
+          c,
+          'templateId, brief, purpose, language, documentType, styleGuideIds, sourceVersionIds, destinationSandboxId, title',
+        ),
       };
     }
     const workflow = deps.workflows?.get(DOCUMENT_CREATION_WORKFLOW);
@@ -144,6 +147,12 @@ export function documentCreationRoutes(deps: {
         workflow,
         template,
         sourceCount: parsed.data.sourceVersionIds.length,
+        // T-406 — the four answers reach the planner, because the plan has to
+        // SAY what it is about to write and under which resolution
+        purpose: parsed.data.purpose,
+        language: parsed.data.language,
+        documentType: parsed.data.documentType,
+        styleGuideCount: parsed.data.styleGuideIds.length,
         draftModelId: deps.draftModelId ?? 'unpriced',
         ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
         tokenLimit: TOKEN_LIMIT,
@@ -172,6 +181,10 @@ export function documentCreationRoutes(deps: {
       bound = bindWorkflow(workflow, {
         template_id: computed.body.templateId,
         brief: computed.body.brief,
+        purpose: computed.body.purpose,
+        language: computed.body.language,
+        document_type: computed.body.documentType,
+        style_guide_ids: computed.body.styleGuideIds,
         sources: computed.body.sourceVersionIds,
         destination_sandbox_id: computed.body.destinationSandboxId,
         title: computed.body.title,

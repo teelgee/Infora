@@ -58,6 +58,11 @@ const post = (who: string, path: string, body: unknown) =>
 const request = (overrides: Record<string, unknown> = {}) => ({
   templateId: 'technical-note',
   brief: 'what did the ground investigation record?',
+  // T-406 — the launcher's four answers, at their defaults
+  purpose: 'technical-note',
+  language: 'technical',
+  documentType: 'whole-document',
+  styleGuideIds: [],
   sourceVersionIds: [versionId],
   destinationSandboxId: sandboxId,
   title: 't309 built note',

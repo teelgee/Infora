@@ -29,7 +29,7 @@
 // precedence in a SENTENCE rather than leaving it to ordering, because ordering
 // is not an instruction — a model reading two conflicting house rules has
 // nothing in the order to tell it which one governs.
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { AssembledItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -43,7 +43,24 @@ import type { Db } from '@infora/db';
  * only thing that narrows this — and for a CHECKER it does not narrow it at
  * all, because ADR-0053 §5 makes the planner split rather than drop.
  */
-export async function guidingStyleGuide(db: Db, projectId: string): Promise<AssembledItem[]> {
+/**
+ * T-406 — `styleGuideIds` narrows the read to the guides the author SELECTED.
+ *
+ * The checker reads every live guide, because a rule that binds you binds you
+ * whether you remembered it or not. **Drafting is the other case**: the author
+ * says which guides this document is written to, and a guide they did not
+ * choose is not a rule the draft broke — it is a rule about another document.
+ * Omitting the argument keeps the checker's behaviour exactly as it was; an
+ * **empty array is a real answer** and returns nothing, which is different
+ * again from "no guides are loaded" and is why it is not folded into the
+ * undefined case.
+ */
+export async function guidingStyleGuide(
+  db: Db,
+  projectId: string,
+  styleGuideIds?: readonly string[],
+): Promise<AssembledItem[]> {
+  if (styleGuideIds !== undefined && styleGuideIds.length === 0) return [];
   const rows = await db
     .select({
       styleGuideId: s.projectStyleGuides.id,
@@ -61,6 +78,11 @@ export async function guidingStyleGuide(db: Db, projectId: string): Promise<Asse
       and(
         eq(s.projectStyleGuides.projectId, projectId),
         isNull(s.projectStyleGuides.retiredAt),
+        // the project key is still the ceiling: a selected id belonging to
+        // another project matches nothing rather than reaching across
+        ...(styleGuideIds === undefined
+          ? []
+          : [inArray(s.projectStyleGuides.id, [...styleGuideIds])]),
       ),
     )
     .orderBy(asc(s.projectStyleGuides.loadedAt), asc(s.projectStyleGuideClauses.ordinal));
