@@ -135,6 +135,7 @@ export function documentCreationRoutes(deps: {
         // is a menu the surface fills, and by the time a request arrives the
         // sections in it are the author's own.
         sections: parsed.data.sections,
+        brief: parsed.data.brief,
         sourceCount: parsed.data.sourceVersionIds.length,
         // T-406 — the four answers reach the planner, because the plan has to
         // SAY what it is about to write and under which resolution

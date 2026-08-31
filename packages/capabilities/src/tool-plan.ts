@@ -28,6 +28,7 @@ import type {
   DocumentSection,
   DocumentType,
   PlannedToolStep,
+  ProposedDocument,
   ToolPlan,
   Workflow,
 } from '@infora/contracts';
@@ -65,6 +66,8 @@ export type DocumentCreationPlanInput = {
    * "a template seeds but never locks" means once it reaches code.
    */
   sections: ReadonlyArray<DocumentSection>;
+  /** what the author said the document is for, in their own words */
+  brief: string;
   /** how many library sources the author bound, chosen AHEAD of drafting (T-335) */
   sourceCount: number;
   /**
@@ -134,8 +137,73 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
     cost: { total, priced },
     refusal: refusalOf(input.sourceCount),
     notes: notesOf(input),
+    proposal: proposalOf(input),
   };
 }
+
+/**
+ * T-408 (ADR-0053 addendum A2) — THE PROPOSED DOCUMENT.
+ *
+ * *In plain terms: the plan page stops being a list of machinery and becomes a
+ * prospectus of the document about to be written — what the instructions are
+ * as a whole, then what will go into each section.*
+ *
+ * 🔒 **COMPUTED IN CODE, FROM PARAMETERS, LIKE EVERY OTHER PART OF A PLAN.**
+ * A2 lets the author correct a section's description; what they are correcting
+ * is `section.brief`, **a parameter**. This function reads it and redraws. The
+ * step list is computed by the same call from the same inputs, is editable by
+ * nobody, and regenerates when a brief changes — so §4's guarantee (same
+ * inputs, same steps) holds and §12 stays closed.
+ *
+ * That is also why an author-edited brief and an agent-edited brief (T-409)
+ * cannot produce different plans: there is one door into this function, and it
+ * is the parameter.
+ */
+function proposalOf(input: DocumentCreationPlanInput): ProposedDocument {
+  return {
+    overview: overviewOf(input),
+    sections: input.sections.map((section) => ({
+      heading: section.heading,
+      brief: section.brief ?? computedBrief(section, input),
+      // said out loud, so a corrected description does not read as one the
+      // planner wrote — and so the author can see what they have changed
+      edited: section.brief !== undefined,
+    })),
+  };
+}
+
+/** The overarching instructions, in the words the author gave and chose. */
+function overviewOf(input: DocumentCreationPlanInput): string {
+  const sections = input.sections.length;
+  return [
+    `${sentence(input.brief)}`,
+    `It will be written as ${aOrAn(purposeLabel(input.purpose).toLowerCase())}, ${typeLabel(input.documentType).toLowerCase()}, in ${languageLabel(input.language)} register, in ${sections} section${sections === 1 ? '' : 's'}, drawing on ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}.`,
+    input.styleGuideCount > 0
+      ? `It follows ${input.styleGuideCount} project style guide${input.styleGuideCount === 1 ? '' : 's'}.`
+      : 'No style guide was selected for it.',
+  ].join(' ');
+}
+
+/**
+ * What will be written into one section, where the author has not said.
+ *
+ * It is the section's own purpose turned into a statement of intent, plus the
+ * two constraints that govern every sentence in it. **Stating the grounding
+ * constraint per section is not padding**: the difference between "this section
+ * will cover the baseline" and "this section will cover the baseline, from the
+ * bound sources only, leaving out anything they do not support" is the
+ * difference between a description of a document and a description of THIS
+ * product's document.
+ */
+function computedBrief(section: DocumentSection, input: DocumentCreationPlanInput): string {
+  return `${sentence(section.purpose)} Written in ${languageLabel(input.language)} register, from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'} only — anything the record does not support is left out.`;
+}
+
+/** An author's phrase, ended like a sentence. */
+const sentence = (text: string) => {
+  const trimmed = text.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+};
 
 /**
  * T-406 — what the run will do that the step list does not show.

@@ -22,6 +22,7 @@ import type {
   Surface,
 } from './shared';
 import { PLAN_STAGES } from './shared';
+import type { ProposedDocument } from './creator';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
@@ -2305,6 +2306,13 @@ export type ToolPlan = {
    */
   notes?: string[];
   /**
+   * T-408 (ADR-0053 addendum A2) — **the document this plan proposes**, above
+   * the step list: an overview, then a short description per section. Optional
+   * because only the creator has one — the checker proposes no document, it
+   * reads one.
+   */
+  proposal?: ProposedDocument;
+  /**
    * T-336 — what this plan is **weaker at**, said before the run rather than
    * discovered after it (ADR-0053 §4: *"it degrades loudly or not at all"*).
    * The very-long shape compares section summaries in groups, so a
@@ -2318,6 +2326,12 @@ export type ToolPlan = {
 export const documentSectionBody = z.object({
   heading: z.string().min(1),
   purpose: z.string().min(1),
+  /**
+   * T-408 — the author's replacement for the planner's own description of this
+   * section. A **parameter**, exactly like the answers above it; the step list
+   * is computed from it and is editable by nobody (ADR-0053 addendum A2).
+   */
+  brief: z.string().min(1).optional(),
 });
 
 export const documentCreationBody = z.object({

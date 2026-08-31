@@ -58,6 +58,7 @@ import {
   Badge,
   Button,
   Card,
+  Chip,
   Field,
   IconButton,
   SelectInput,
@@ -400,6 +401,109 @@ export function SectionComposer(props: {
   );
 }
 
+/**
+ * T-408 (ADR-0053 addendum A2) — THE PLAN IS THE PROPOSED DOCUMENT.
+ *
+ * *In plain terms: before anything runs you read the document you are about to
+ * get — a short overview of the instructions as a whole, then, section by
+ * section, a short description of what will be written into each. Anything
+ * wrong you click and correct there and then, and the page redraws. A chip at
+ * the bottom accepts the plan and creates the document.*
+ *
+ * 🔒 **TWO THINGS ON THIS PAGE, AND ONLY ONE OF THEM IS EDITABLE.** The
+ * descriptions are **briefs — parameters of the run**, and correcting one asks
+ * for a new plan computed from the new inputs. The **step list** underneath is
+ * computed in code, is editable by nobody (human or model), and regenerates
+ * when a brief changes. That is what keeps the run `declared` and ADR-0053 §12
+ * closed: no step list is ever hand-edited; one more input simply became
+ * correctable before the run.
+ *
+ * The step list is kept on the page rather than hidden behind the prospectus.
+ * A page that showed only the pretty half would be a page that stopped saying
+ * what the machine will actually do.
+ */
+export function ProposedDocumentCard(props: {
+  plan: ToolPlan;
+  busy: boolean;
+  onEditBrief: (index: number, brief: string) => void;
+  onAccept: () => void;
+}) {
+  const { plan } = props;
+  return (
+    <Card>
+      <strong>The document this will write</strong>
+      {plan.proposal !== undefined && (
+        <>
+          <p className="proposal-overview">{plan.proposal.overview}</p>
+          <ol className="proposal-sections">
+            {plan.proposal.sections.map((section, index) => (
+              <li key={`${section.heading}-${index}`} className="proposal-section">
+                <div className="proposal-section-head">
+                  <span className="proposal-section-heading">{section.heading}</span>
+                  {section.edited && <Badge tone="neutral">Your wording</Badge>}
+                </div>
+                <TextArea
+                  value={section.brief}
+                  rows={3}
+                  onChange={(brief) => props.onEditBrief(index, brief)}
+                />
+              </li>
+            ))}
+          </ol>
+          <p className="field-hint">
+            Correct any description above and the plan redraws. Every other answer stays as it is.
+          </p>
+        </>
+      )}
+
+      {/* 🔒 Rendered, NOT editable (ADR-0053 §4 and §12). The descriptions above
+          are parameters; this is what the parameters produce. You change it by
+          changing an answer and watching it regenerate — hand-editing a step
+          list is what would make the run `model_chosen` rather than
+          `declared`. */}
+      <p className="field-hint" style={{ marginTop: 12 }}>
+        And this is what will run. The steps are computed from the answers above and are not
+        editable, which is what makes the run repeatable.
+      </p>
+      <ul>
+        {plan.steps.map((step) => (
+          <li key={step.key}>{step.label}</li>
+        ))}
+      </ul>
+      <p>
+        <strong>Covers:</strong> {plan.coverage}
+      </p>
+      {/* T-406 — what the run will DO that the step list does not show: what it
+          is writing, in which register, to which guides, and A1's RULED
+          PRECEDENCE where those two disagree. Before the click, because a
+          resolution an author only meets in the output is one they had no
+          chance to argue with. */}
+      {plan.notes?.map((note) => (
+        <p key={note} className="plan-note">
+          {note}
+        </p>
+      ))}
+      {/* 🚫 NO PRICE HERE, AND ITS ABSENCE IS A RULING (T-410, ADR-0053
+          addendum A3, owner 2026-08-31). An estimate was on this surface
+          because §4 deliberately put it there, so taking it off is a decision
+          rather than a tidy-up, and putting it back is one too. PER-STEP COST
+          IS UNTOUCHED (§7): every Step row still records what it spent, as an
+          audit and operations fact. What retired is the display. */}
+      {plan.refusal !== null ? (
+        // ADR-0053 §5 — refusal is said BEFORE any spend, and the chip is
+        // absent rather than offered-and-refused
+        <div className="banner banner--warning">{plan.refusal}</div>
+      ) : (
+        <div className="proposal-accept">
+          <Chip disabled={props.busy} onClick={props.onAccept}>
+            Accept the plan and create the document
+          </Chip>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function DocumentCreatorScreen() {
   const { projectId } = useParams();
   const [params] = useSearchParams();
@@ -510,6 +614,33 @@ export function DocumentCreatorScreen() {
     setError(null);
     void api
       .documentCreationPlan(projectId, body())
+      .then((res) => setPlan(res.plan))
+      .catch((problem: Error) => setError(problem.message))
+      .finally(() => setBusy(false));
+  };
+
+  /**
+   * T-408 (ADR-0053 addendum A2) — correcting one section's description.
+   *
+   * 🔒 **WHAT CHANGES IS A PARAMETER.** The brief goes onto the section, the
+   * plan is asked for again, and the step list underneath is recomputed in
+   * code from the new inputs. Nothing here edits a plan, and there is no code
+   * path that could. That is what keeps the run `declared` and §12 closed.
+   *
+   * Every OTHER answer survives — the launch-keeps-its-state rule (ADR-0053
+   * §1), one step deeper — so correcting one description does not cost the
+   * author the outline they built.
+   */
+  const editBrief = (index: number, brief: string) => {
+    const next = sections.map((section, at) =>
+      at === index ? { ...section, brief: brief.trim() || undefined } : section,
+    );
+    setSections(next);
+    if (projectId === undefined) return;
+    setBusy(true);
+    setError(null);
+    void api
+      .documentCreationPlan(projectId, { ...body(), sections: next })
       .then((res) => setPlan(res.plan))
       .catch((problem: Error) => setError(problem.message))
       .finally(() => setBusy(false));
@@ -653,49 +784,12 @@ export function DocumentCreatorScreen() {
       {error !== null && <div className="banner banner--warning">{error}</div>}
 
       {plan !== null && (
-        <Card>
-          <strong>The plan</strong>
-          {/* Rendered, NOT editable (ADR-0053 §4). You shape it by changing the
-              answers above and the plan regenerates — which is what keeps the
-              run `declared`; hand-editing a step list would not. */}
-          <p style={{ color: 'var(--text-muted)' }}>
-            This is what will run. Change an answer above to change it — the steps are not editable,
-            which is what makes the run repeatable.
-          </p>
-          <ul>
-            {plan.steps.map((step) => (
-              <li key={step.key}>{step.label}</li>
-            ))}
-          </ul>
-          <p>
-            <strong>Covers:</strong> {plan.coverage}
-          </p>
-          {/* T-406 — what the run will DO that the step list does not show:
-              what it is writing, in which register, to which guides, and
-              A1's RULED PRECEDENCE where those two disagree. It is here,
-              before the click, because a resolution an author only meets in
-              the output is one they had no chance to argue with. */}
-          {plan.notes?.map((note) => (
-            <p key={note} className="plan-note">
-              {note}
-            </p>
-          ))}
-          {/* 🚫 NO PRICE HERE, AND ITS ABSENCE IS A RULING (T-410, ADR-0053
-              addendum A3, owner 2026-08-31). An estimate was on this surface
-              because §4 deliberately put it there, so taking it off is a
-              decision rather than a tidy-up, and putting it back is one too.
-              PER-STEP COST IS UNTOUCHED (§7): every Step row still records what
-              it spent, as an audit and operations fact. What retired is the
-              display — including the "not priced" wording that guarded it
-              against a plausible £0.00. */}
-          {plan.refusal !== null ? (
-            <div className="banner banner--warning">{plan.refusal}</div>
-          ) : (
-            <Button variant="primary" disabled={busy} onClick={run}>
-              Create the document
-            </Button>
-          )}
-        </Card>
+        <ProposedDocumentCard
+          plan={plan}
+          busy={busy}
+          onEditBrief={editBrief}
+          onAccept={run}
+        />
       )}
 
       {result !== null && (

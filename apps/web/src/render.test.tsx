@@ -32,6 +32,7 @@ import {
   CheckPlanCard,
   ChosenNote,
   LibraryScopeCopy,
+  ProposedDocumentCard,
   SectionComposer,
   SourceRow,
   StyleGuidePicker,
@@ -248,6 +249,77 @@ describe('T-406 — the launcher explains each answer, and the style control is 
     expect(html).toContain('Drawing conventions');
     expect((html.match(/type="checkbox"/g) ?? []).length).toBe(2);
     expect(html).not.toContain('<select');
+  });
+});
+
+// ── T-408 — the plan is the proposed document ──────────────────────────────
+//
+// Two things on one page and only one of them editable, which is the whole of
+// ADR-0053 addendum A2. The tests that matter are the negative ones: a control
+// that edited a STEP would reopen §12, and it would look like a feature.
+describe('T-408 — the plan proposes a document, and only the briefs are editable', () => {
+  const plan: ToolPlan = {
+    workflowId: 'document-creation',
+    workflowVersion: 2,
+    steps: [
+      {
+        key: 'build',
+        stage: 'present',
+        worker: 'document_builder',
+        label: 'Draft 2 sections — Purpose, The evidence — from the 3 bound sources',
+        estimate: { calls: 1, tokensPrompt: 2200, tokensCompletion: 700, cost: 0.01 },
+      },
+    ],
+    coverage: '2 sections · 3 bound sources · 1 drafting pass',
+    cost: { total: 0.01, priced: true },
+    refusal: null,
+    proposal: {
+      overview: 'Does the baseline support the assessment? It will be written as a technical note.',
+      sections: [
+        { heading: 'Purpose', brief: 'State what this note answers.', edited: false },
+        { heading: 'The evidence', brief: 'No — set out X in bullets.', edited: true },
+      ],
+    },
+  };
+
+  const render = (over: Partial<ToolPlan> = {}) =>
+    renderToStaticMarkup(
+      <ProposedDocumentCard
+        plan={{ ...plan, ...over }}
+        busy={false}
+        onEditBrief={() => {}}
+        onAccept={() => {}}
+      />,
+    );
+
+  it('sets out the overarching instructions, then a description per section', () => {
+    const html = render();
+    expect(html).toContain('Does the baseline support the assessment?');
+    expect(html).toContain('Purpose');
+    expect(html).toContain('State what this note answers.');
+    expect(html).toContain('No — set out X in bullets.');
+  });
+
+  it('says which descriptions the author replaced', () => {
+    // a corrected page must not read as one the planner wrote
+    expect(render()).toContain('Your wording');
+  });
+
+  it('🔒 offers an editable control for every BRIEF and none for any STEP', () => {
+    const html = render();
+    // one textarea per section brief, and no more
+    expect((html.match(/<textarea/g) ?? []).length).toBe(2);
+    // the step is rendered as text, with nothing to edit it with
+    expect(html).toContain('Draft 2 sections');
+    expect(html).toContain('are not editable');
+    expect(html).not.toContain('Edit step');
+  });
+
+  it('accepts the plan with a chip, and a refusal replaces it rather than sitting beside it', () => {
+    expect(render()).toContain('Accept the plan and create the document');
+    const refused = render({ refusal: 'No sources are bound to this document.' });
+    expect(refused).toContain('No sources are bound');
+    expect(refused).not.toContain('Accept the plan and create the document');
   });
 });
 

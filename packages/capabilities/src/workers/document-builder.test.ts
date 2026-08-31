@@ -86,6 +86,24 @@ describe('the drafting prompt carries the register and the type (T-406)', () => 
     expect(prompt({ purpose: 'planning-document' })).toContain('planning document');
   });
 
+  // T-408 (ADR-0053 addendum A2) — a correction the plan page showed and the
+  // draft ignored would be the worst of both worlds: a page that invited an
+  // edit and a document that did not take it.
+  it('follows the author’s corrected description where they gave one (T-408)', () => {
+    const corrected = composeDraftingPrompt(
+      [
+        { heading: 'Purpose', purpose: 'Say what this answers.', brief: 'Set out X in bullets.' },
+        { heading: 'The evidence', purpose: 'Set out what the record says.' },
+      ],
+      'a brief',
+      character(),
+    );
+    expect(corrected).toContain('Purpose — Set out X in bullets.');
+    // the uncorrected section keeps its purpose
+    expect(corrected).toContain('The evidence — Set out what the record says.');
+    expect(corrected).not.toContain('Purpose — Say what this answers.');
+  });
+
   it('keeps everything the prompt already guaranteed', () => {
     // the grounding instructions are the reason this worker is trustworthy at
     // all; a style rewrite that lost one of them would look like a success

@@ -964,3 +964,16 @@ are not recorded here.
   are `string | number | boolean | id | id_list`, none of which is a list of
   objects, and widening that fixed union is an owner decision rather than a
   build one. Reported, with a recommendation, rather than done quietly.
+- **2026-08-31 (T-408) — `DocumentSection` gained an optional `brief`, and
+  `ToolPlan` a `proposal`.** *Plainly: the plan page now shows the document
+  about to be written — an overview, then what will go in each section — and
+  the author can correct any of those descriptions before accepting.* The
+  shape carries ADR-0053 addendum A2's whole point: **`brief` sits on the
+  section, in the request body, beside every other answer**, because what the
+  author corrects has to be *a parameter* and nothing else. Had it been a
+  field on the plan, correcting it would have meant editing a plan, the run
+  would have stopped being `declared`, and §12 would have reopened. It is
+  `.optional()` rather than defaulted because absent means *"the planner's own
+  description stands"*, which is a different fact from an empty string. On
+  `ToolPlan`, `proposal` is optional for the reason `shape` is: only the
+  creator proposes a document — the checker reads one.

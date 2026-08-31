@@ -32,6 +32,7 @@ const plan = (overrides: Partial<Parameters<typeof planDocumentCreation>[0]> = {
   planDocumentCreation({
     workflow,
     sections,
+    brief: 'does the baseline support the assessment?',
     sourceCount: 3,
     purpose: 'technical-note',
     language: 'technical',
@@ -110,6 +111,66 @@ describe('the plan states the four answers and the style precedence (T-406)', ()
   it('is still identical for identical answers — the declared guarantee holds', () => {
     const answers = { purpose: 'planning-document' as const, styleGuideCount: 1 };
     expect(plan(answers)).toEqual(plan(answers));
+  });
+});
+
+// T-408 (ADR-0053 addendum A2) — the plan proposes a document, and what the
+// author edits is a PARAMETER. The determinism test is the load-bearing one:
+// it is the whole reason a brief may be conversationally revised at all.
+describe('the plan is the proposed document (T-408)', () => {
+  it('states the overarching instructions, then one description per section', () => {
+    const proposal = plan().proposal!;
+    expect(proposal.overview).toContain('does the baseline support the assessment?');
+    expect(proposal.overview).toContain('2 sections');
+    expect(proposal.overview).toContain('3 bound sources');
+    expect(proposal.sections.map((section) => section.heading)).toEqual([
+      'Purpose',
+      'The evidence',
+    ]);
+    // a computed description says what will go in, and the constraint every
+    // sentence in it is held to
+    expect(proposal.sections[0]!.brief).toContain('why.');
+    expect(proposal.sections[0]!.brief).toContain('anything the record does not support is left out');
+  });
+
+  it('takes the author’s own wording over its own, and says which is which', () => {
+    const edited = plan({
+      sections: [
+        { heading: 'Purpose', purpose: 'why', brief: 'No — set out X in bullets.' },
+        { heading: 'The evidence', purpose: 'what' },
+      ],
+    }).proposal!;
+    expect(edited.sections[0]!.brief).toBe('No — set out X in bullets.');
+    expect(edited.sections[0]!.edited).toBe(true);
+    // 🔒 and the OTHER section is untouched — editing one description does not
+    // redraw the rest
+    expect(edited.sections[1]!.brief).toBe(plan().proposal!.sections[1]!.brief);
+    expect(edited.sections[1]!.edited).toBe(false);
+  });
+
+  it('🔒 regenerates the STEP LIST from the new brief and leaves it computed', () => {
+    // ADR-0053 §12 is not reopened: a brief is one more input, and the steps
+    // are what the inputs produce. Editing a brief must change the plan
+    // WITHOUT any hand-editing of a step ever having happened.
+    const before = plan();
+    const after = plan({
+      sections: [
+        { heading: 'Purpose', purpose: 'why', brief: 'Something else entirely.' },
+        { heading: 'The evidence', purpose: 'what' },
+      ],
+    });
+    expect(after.steps).toEqual(before.steps);
+    expect(after.proposal!.sections[0]!.brief).not.toBe(before.proposal!.sections[0]!.brief);
+  });
+
+  it('is identical for identical parameters, briefs included', () => {
+    const params = {
+      sections: [
+        { heading: 'Purpose', purpose: 'why', brief: 'A corrected description.' },
+        { heading: 'The evidence', purpose: 'what' },
+      ],
+    };
+    expect(plan(params)).toEqual(plan(params));
   });
 });
 

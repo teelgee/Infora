@@ -143,7 +143,16 @@ export function composeDraftingPrompt(
     '',
     ...styleBlock(character),
     'Write the document under these headings, in this order:',
-    ...sections.map((section, at) => `  ${at + 1}. ${section.heading} — ${section.purpose}`),
+    // T-408 — the AUTHOR'S corrected description wins, where they gave one.
+    // A correction the plan showed and the draft ignored would be the worst of
+    // both: a page that invited an edit and a document that did not take it.
+    // Where they gave none, the section's purpose stands — the planner's
+    // computed description is derived from that same purpose plus boilerplate
+    // about register and grounding, both of which this prompt already carries
+    // above, and re-injecting them would be saying it twice.
+    ...sections.map(
+      (section, at) => `  ${at + 1}. ${section.heading} — ${section.brief ?? section.purpose}`,
+    ),
     '',
     'Every sentence must rest on one of the numbered sources and carry its marker, e.g. [S2].',
     'Write nothing the sources do not support: a sentence with no source is removed before anyone reads it, so an unsupported sentence is wasted rather than persuasive.',

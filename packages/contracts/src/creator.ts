@@ -179,6 +179,23 @@ export function typeLabel(value: DocumentType): string {
 export type DocumentSection = {
   heading: string;
   purpose: string;
+  /**
+   * T-408 (ADR-0053 addendum A2) — **the author's own words for what will be
+   * written into this section**, replacing the one the planner computed.
+   *
+   * 🔒 **A BRIEF IS A PARAMETER, AND THE STEP LIST IS NOT.** This is the whole
+   * of A2. The plan page shows a proposed document — an overview, then a short
+   * description per section — and the author corrects any of those
+   * descriptions before accepting. What they are editing is *this field*: one
+   * more input to a plan that is still computed in code from its inputs. The
+   * step list underneath regenerates and is editable by nobody, human or
+   * model, so §4's guarantee (same inputs, same steps) holds and §12 is not
+   * reopened.
+   *
+   * Absent means "the planner's own description stands", which is different
+   * from an empty string and is why it is optional rather than defaulted.
+   */
+  brief?: string;
 };
 
 /**
@@ -195,3 +212,21 @@ export type StartingOutline = {
 };
 
 export type ListStartingOutlinesResponse = { items: StartingOutline[] };
+
+/**
+ * T-408 (ADR-0053 addendum A2) — **the proposed document**: what the plan page
+ * shows above the step list.
+ *
+ * *In plain terms: before anything runs, you read the document you are about
+ * to get — a short overview of the instructions as a whole, then section by
+ * section a short description of what will be written into each. Anything that
+ * is wrong you correct there and then, and the plan redraws.*
+ *
+ * Computed in code from the run's parameters, like everything else in a plan.
+ * `edited` says which descriptions the author (or the agent, T-409) replaced,
+ * so a page that has been corrected does not read as one the planner wrote.
+ */
+export type ProposedDocument = {
+  overview: string;
+  sections: Array<{ heading: string; brief: string; edited: boolean }>;
+};

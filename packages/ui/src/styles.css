@@ -421,6 +421,20 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .outline-section-n { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
 .outline-section-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 
+/* ---------- The proposed document (T-408) ----------
+   The plan page's top half: what the document will be, section by section,
+   with each description correctable in place. */
+.proposal-overview { font-size: 12.5px; line-height: 1.6; color: var(--text-primary); margin: 8px 0 0; }
+.proposal-sections { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.proposal-section {
+  background: var(--surface-sunken); border: 1px solid var(--border-subtle);
+  border-radius: var(--primitive-radius-md); padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.proposal-section-head { display: flex; align-items: center; gap: 8px; }
+.proposal-section-heading { font-weight: 600; font-size: 12.5px; }
+.proposal-accept { margin-top: 16px; }
+
 /* T-406 — a plan note: what the run will do, said before the click. */
 .plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 4px 0 0; }
 
