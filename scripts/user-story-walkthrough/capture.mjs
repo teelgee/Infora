@@ -32,6 +32,15 @@
 // is frozen, an internal lead reviewer is staffed, the org-private round runs
 // and accepts, and promotion then issues the QA-accepted frozen version. Both
 // promotions in this script take that road; the gate is never turned off.
+//
+// T-400 (2026-08-31) added THE TOOLS, at the foot of this script and at the
+// foot of the page: a section per tool — the document creator, then the QA
+// checker — photographed action by action. They run LAST on purpose. The
+// journey's acts have to photograph the world the story leaves them, and a
+// tool that writes a draft into the sandbox halfway through would put a stray
+// document in Act II's shots. The checker's own section works a draft of its
+// own, because by the time it runs the journey's draft has been frozen,
+// promoted and accepted, and a frozen head is read-only.
 /* global document, window, MouseEvent */ // page.evaluate bodies run in the browser
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -196,6 +205,19 @@ async function composerCleared(page) {
     await page.waitForTimeout(250);
   }
   throw new Error('comment composer never cleared');
+}
+
+// The findings panel scrolls INSIDE the page rather than with it, so
+// `scrollIntoView` moves the wrong thing and leaves the beat photographing
+// whatever the panel happened to be showing. Walk up to whatever actually
+// scrolls and put the target at its top.
+async function panelTop(locator) {
+  await locator.evaluate((el) => {
+    let box = el.parentElement;
+    while (box !== null && box.scrollHeight <= box.clientHeight) box = box.parentElement;
+    if (box === null) return;
+    box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  });
 }
 
 async function selectText(page, needle, fallbackIndex = 0) {
@@ -406,23 +428,19 @@ await shot(e, '09-editor');
 // substrate's fake router answers the check prompt with one MECHANICAL fix and
 // one REWRITE, which is what makes the accept-all-above-the-rewrites layout
 // visible rather than merely asserted.
+// T-400 — THE PLAN AND THE COVERAGE STATEMENT ARE NO LONGER SHOT HERE. They
+// were beats 09a and 09b, and they are now the checker's own section at the
+// foot of this page, photographed step by step. One journey beat per tool is
+// the rule the owner's 2026-08-31 ruling came with: the story says what
+// happened, the tool's section shows how. The RUN still happens here, because
+// the story depends on it — an open finding blocks promotion at Act III.
 console.log('checker lane —');
 await e.getByRole('button', { name: 'Check this draft' }).click();
 await e.getByRole('heading', { name: 'QA checker' }).waitFor();
 await e.getByRole('button', { name: 'See the plan' }).click();
 await e.getByText('This is what will run').waitFor();
-// the plan is the BEAT, and it lands below the fold on this form — the
-// explicit scroll is the recipe's own rule for a below-fold section. Scroll to
-// the RUN BUTTON, which sits under the plan: bringing the top of the plan into
-// view still leaves its coverage sentence off the bottom, and that sentence is
-// the half worth photographing.
-await e.getByRole('button', { name: 'Run the check' }).scrollIntoViewIfNeeded();
-await e.waitForTimeout(300);
-await shot(e, '09a-checker-plan');
-
 await e.getByRole('button', { name: 'Run the check' }).click();
 await e.getByText('What was checked').waitFor({ timeout: 30_000 });
-await shot(e, '09b-checker-coverage');
 
 await e.getByRole('link', { name: /Open the draft/ }).click();
 // the panel tabs are anchors WITHOUT hrefs, so they carry no link role
@@ -776,6 +794,236 @@ await e.getByText('WA-EIA-MST-001').first().waitFor();
 await e.getByText('WA-EIA-MST-001').first().click();
 await e.getByText('Not used for AI answers', { exact: false }).first().waitFor();
 await shot(e, '30-context-state');
+
+
+// ══ THE TOOLS — a section per tool, photographed action by action (T-400) ═══
+//
+// The owner's ruling of 2026-08-31 widened this page's charter: it carries the
+// journey AND the tools, so that no product surface ships without a picture.
+// These run LAST and deliberately: the journey's acts have to photograph the
+// world the story leaves, and a tool that writes a draft into the sandbox
+// halfway through would put a stray document in Act II's shots. Nothing below
+// is in the user stories — the tools are things a consultant opens, not beats
+// in the deliverable's life — so nothing below writes to user-stories.md
+// either.
+
+// ── the document creator ────────────────────────────────────────────────────
+console.log('the document creator —');
+await e.goto(`${WEB}/projects/${projectId}/tools`);
+await e.getByText('Document creator').first().waitFor();
+await e.getByText('QA checker').first().waitFor();
+await shot(e, 't1-01-tools');
+
+const creatorTile = e.locator('.card').filter({ hasText: 'Document creator' });
+await creatorTile.getByRole('link', { name: 'Open' }).click();
+await e.getByRole('heading', { name: 'Document creator' }).waitFor();
+await e.getByText('Sources this draft may use').waitFor();
+await shot(e, 't1-02-launcher');
+
+// the outline is CHOSEN rather than typed: a template is the outline a built
+// document is drafted into, and each of its sections carries its own guidance
+await e.getByLabel('Shape').selectOption({ label: 'Chapter section' });
+await e
+  .getByLabel('What is this document for?')
+  .fill(
+    'The land contamination section for the Ashcombe Lane parcels: the test it answers, the ' +
+      'baseline as the ground investigation records it, the effect on the parcels and the ' +
+      'mitigation the record already commits to.',
+  );
+await e.getByLabel('Title').fill('Land contamination — Ashcombe Lane parcels');
+await e.getByLabel('Where it goes').selectOption({ label: sandbox.name });
+await shot(e, 't1-03-brief');
+
+// the sources are bound BEFORE anything is drafted — that ordering is the
+// design, not a form's field order (T-335)
+const sourceBoxes = e
+  .locator('.card')
+  .filter({ hasText: 'Sources this draft may use' })
+  .locator('input[type=checkbox]');
+await sourceBoxes.nth(0).check();
+await sourceBoxes.nth(2).check();
+await e
+  .getByText('Sources this draft may use')
+  .evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-04-sources');
+
+await e.getByRole('button', { name: 'See the plan' }).click();
+await e.getByText('This is what will run').waitFor();
+// the plan lands below the fold; scroll the RUN BUTTON to the bottom of the
+// viewport so the coverage sentence and the cost above it are in the frame —
+// scrollIntoViewIfNeeded is a no-op when the target already peeks in, which is
+// how a beat comes out byte-identical to its neighbour
+await e
+  .getByRole('button', { name: 'Create the document' })
+  .evaluate((el) => el.scrollIntoView({ block: 'end' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-05-plan');
+
+await e.getByRole('button', { name: 'Create the document' }).click();
+await e.getByText('What was made').waitFor({ timeout: 60_000 });
+await e.getByText('What was made').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-06-result');
+
+// where it landed: the working area the launcher named. The SANDBOX rather
+// than the editor, and that is the honest frame — see the gap card this beat
+// carries. The substrate's deterministic stand-in answers the drafting call in
+// prose with none of the template's headings, so every sentence lands
+// `unsectioned` and the document is created EMPTY; photographing the open
+// editor would photograph the stand-in rather than the tool.
+await openOrgSandbox(e);
+await e.getByText('Land contamination — Ashcombe Lane parcels').first().waitFor();
+await e.waitForTimeout(400);
+await shot(e, 't1-07-landing');
+
+// the first honest refusal: arriving from a deliverable in the plan. Q-037 is
+// raised and unruled, so the route says so rather than guessing at the answer.
+await e.goto(`${WEB}/projects/${projectId}/tools/document-creation?containerId=${containerId}`);
+await e.getByText('is not built', { exact: false }).waitFor();
+await shot(e, 't1-08-bound-refusal');
+
+// ── the QA checker ──────────────────────────────────────────────────────────
+//
+// On a draft of its own, and that is honest rather than convenient: the
+// journey's draft has been frozen, promoted, reviewed and accepted by now, and
+// a frozen head is read-only — the triage below rewrites the text it works on.
+console.log('the QA checker —');
+const CHECK_TITLE = 'Land Quality method statement — Ashcombe Lane working copy';
+const checkDoc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, {
+  title: CHECK_TITLE,
+});
+await eleanorApi.patch(`/sandbox-documents/${checkDoc.id}`, { content: DRAFT_V1 });
+
+// The Tools page itself is photographed once, at the head of the creator's
+// section above — the checker's tile stands beside the creator's in that one
+// shot, and a second frame of the same page would be a byte-identical
+// duplicate rather than a beat.
+await e.goto(`${WEB}/projects/${projectId}/tools`);
+await e.locator('.card').filter({ hasText: 'QA checker' }).getByRole('link', { name: 'Open' }).click();
+await e.getByRole('heading', { name: 'QA checker' }).waitFor();
+await e.getByLabel('Which draft').selectOption({ label: CHECK_TITLE });
+await e.waitForTimeout(200);
+await shot(e, 't2-02-draft');
+
+// a preset is a starting point, not a mode: Quick, and then one check turned
+// off by hand — the families and the depth stay individually adjustable, and
+// the depth select is only there because the accuracy check is still on
+await e.getByRole('button', { name: 'Quick check' }).click();
+await e
+  .locator('label')
+  .filter({ hasText: 'Internal consistency' })
+  .locator('input[type=checkbox]')
+  .uncheck();
+await e.waitForTimeout(200);
+await shot(e, 't2-03-adjusted');
+
+// the two document-selection affordances, named differently because they are
+// two guarantees — and the second honest refusal, which lives on THIS screen
+// rather than the creator's: uploading a file straight into a check is not
+// built (T-399), and the control says so instead of standing there doing
+// nothing
+await e
+  .locator('.card')
+  .filter({ hasText: 'Attach a document' })
+  .locator('label')
+  .filter({ hasText: WORKING_TITLE })
+  .locator('input[type=checkbox]')
+  .check();
+await e.waitForTimeout(200);
+await shot(e, 't2-04-attach');
+
+await e.getByRole('button', { name: 'See the plan' }).click();
+await e.getByText('This is what will run').waitFor();
+await e
+  .getByRole('button', { name: 'Run the check' })
+  .evaluate((el) => el.scrollIntoView({ block: 'end' }));
+await e.waitForTimeout(200);
+await shot(e, 't2-05-plan');
+
+await e.getByRole('button', { name: 'Run the check' }).click();
+await e.getByText('What was checked').waitFor({ timeout: 60_000 });
+// the result card is the LAST thing on a long form. `block: 'end'` aligns its
+// HEADING with the bottom edge and leaves the coverage sentence under it out of
+// frame, and the page's own scroll is not the window's — this surface scrolls
+// an inner container. Put the heading at the TOP of whatever scrolls.
+await panelTop(e.getByText('What was checked'));
+await e.waitForTimeout(300);
+await shot(e, 't2-06-run');
+
+// into the draft: the marks, anchored in the text they are about
+await e.getByRole('link', { name: /Open the draft/ }).click();
+await e.locator('.panel-tabs a').filter({ hasText: 'Checks' }).click();
+await e.getByText(/open finding/).waitFor();
+await e.locator('mark[data-thread]').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await e.waitForTimeout(300);
+await shot(e, 't2-07-marks');
+
+// two views of ONE set: the panel groups the findings by the check that raised
+// them, and an entry points into the draft. Clicking "Go to it" selects the
+// passage in the text and flashes its mark — which is the visible half of the
+// claim that the marks and the list came from one read rather than two.
+// (Clicking the mark itself does the reverse; it leaves no lasting mark on the
+// screen, so this direction is the one that can be photographed.)
+await e.locator('.finding').filter({ hasText: 'passive' }).getByText('Go to it').click();
+await e.waitForTimeout(250);
+await shot(e, 't2-08-panel');
+
+// ── the drift banner, staged rather than skipped ────────────────────────────
+// The degrade path's only visible sentence: edit the text a finding points at,
+// then try to take its fix. The anchor no longer matches, so nothing is
+// written and the screen says so — the finding stays OPEN rather than being
+// applied to the wrong words.
+const canvas = e.locator('.doc-body textarea').first();
+await canvas.evaluate((el) => {
+  const at = el.value.indexOf('the former works');
+  el.focus();
+  el.setSelectionRange(at, at + 'the former works'.length);
+});
+await e.keyboard.type('the former railway works at Wrenfield Sidings');
+await canvas.evaluate((el) => el.blur());
+await e.waitForTimeout(800);
+const mechanicalCard = e.locator('.finding').filter({ hasText: 'named informally' });
+await mechanicalCard.getByRole('button', { name: 'Accept', exact: true }).click();
+await e.getByText(/moved since the check ran/).waitFor();
+await e.waitForTimeout(300);
+await shot(e, 't2-09-drift');
+
+// the sentence goes back exactly as the check read it, so the anchors match
+// again — otherwise every beat below would photograph the same refusal
+await eleanorApi.patch(`/sandbox-documents/${checkDoc.id}`, { content: DRAFT_V1 });
+await e.reload();
+await e.locator('.panel-tabs a').filter({ hasText: 'Checks' }).click();
+await e.getByText(/open finding/).waitFor();
+
+// the accept-all, and what sits below it with none. The panel scrolls
+// independently of the page, so the scroll is driven on the panel's own
+// scrolling ancestor — `scrollIntoView` would move the PAGE and leave the
+// panel where it was.
+await panelTop(e.getByRole('button', { name: /^Accept \d+ mechanical/ }));
+await e.waitForTimeout(300);
+await shot(e, 't2-10-accept-all');
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).click();
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).waitFor({ state: 'hidden' });
+
+// the rewrite, read before it is taken — one at a time, by hand, and with no
+// accept-all anywhere near it now that the mechanical fix has gone
+const rewriteCard = e.locator('.finding').filter({ hasText: 'passive' });
+await panelTop(rewriteCard);
+await e.waitForTimeout(300);
+await shot(e, 't2-11-rewrite');
+await rewriteCard.getByRole('button', { name: 'Accept', exact: true }).click();
+await rewriteCard.waitFor({ state: 'detached' });
+
+// the bulk dismissal: declining a whole group is one professional judgement,
+// not one per finding — and it records no reason, deliberately
+const remaining = e.locator('.suggest-panel').getByRole('button', { name: 'Dismiss all' }).first();
+await panelTop(remaining);
+await e.waitForTimeout(300);
+await shot(e, 't2-12-dismiss');
+await remaining.click();
+await e.waitForTimeout(500);
+console.log('the tools — done');
 
 await browser.close();
 await eleanorApi.ctx.dispose();

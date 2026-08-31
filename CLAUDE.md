@@ -105,7 +105,13 @@ design session. Entry is on the owner's instruction only.
   Cite them, don't re-argue them.
 - **A surface is not finished when it merges.** Built work **inside** the user
   stories' one journey is captured in `docs/architecture/user-stories.md` and in
-  the walkthrough; built work **outside** it belongs in its component doc and is
+  the walkthrough. The walkthrough **also carries a section per standalone
+  tool** *(owner ruling, 2026-08-31: its charter is the journey **and** the
+  tools, because a product surface nobody has photographed is one nobody has
+  read back)* — a tool gets no user story, since `user-stories.md` follows one
+  deliverable's life, and the journey keeps **at most one beat per tool**,
+  saying what happened in the story and pointing into that tool's section. All
+  other built work outside the journey belongs in its component doc and is
   never forced into the walkthrough — a beat that cannot be photographed stays a
   card saying so. The mockup that proposed it **dies at capture**:
   [docs/design/README.md](docs/design/README.md) owns that lifecycle, and the

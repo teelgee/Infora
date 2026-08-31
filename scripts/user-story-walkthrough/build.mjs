@@ -153,30 +153,12 @@ const acts = [
         adrs: ['ADR-0011'],
       },
       {
-        img: '09a-checker-plan',
-        lane: CONSULTANT,
-        screen: 'Tools · QA checker',
-        title: 'The plan, before anything is spent',
-        prose:
-          'The Check button in the editor’s toolbar opens the QA checker with this draft already chosen — the same launcher Tools opens, with its first step filled in, because one run shape and one place the scope is stated is the whole point. Eleanor picks how hard to look and is shown the plan: which shape the run took and why, every step it will execute, roughly what it will cost, and — the sentence that matters most — exactly what it will cover. The plan is computed in ordinary code before any AI is involved, which is what makes the checker a declared workflow at all: the same document produces the same plan tomorrow. It is rendered and it is not editable. You shape it by changing an answer above and watching it regenerate, because hand-editing a step list would make the plan the model’s composition rather than a promise the tool can keep.',
-        adrs: ['ADR-0053', 'ADR-0027'],
-      },
-      {
-        img: '09b-checker-coverage',
-        lane: CONSULTANT,
-        screen: 'Tools · QA checker',
-        title: '“No findings” always means “no findings in what was read”',
-        prose:
-          'The run finishes and the coverage sentence comes back in the same shape it took before the run, with what actually happened in it: how many sections were read, how many checks ran, how much of the record was searched, how many of the style guide’s clauses were applied and in how many passes. That sentence is not a footnote — it is the only thing that distinguishes a clean result from an unexamined one, and it is why a style guide too long for one pass is split rather than quietly truncated. A manual growing from sixty clauses to ninety changes the plan visibly and costs slightly more; there is no day on which the checker silently starts covering less.',
-        adrs: ['ADR-0053'],
-      },
-      {
         img: '09c-checker-marks',
         lane: CONSULTANT,
         screen: 'Editor · Checks',
-        title: 'Two views of one set, and the accept-all that stops at rewrites',
+        title: 'The draft is checked before anyone else sees it',
         prose:
-          'Back in the draft, the findings are marks anchored into the text and a panel grouped by the check that raised each one — two views of one set, from one read. Every finding says what is wrong, points into the paragraph, and shows what it rests on: a passage of the record renders as a source chip, while a quoted writing rule renders as a quotation with its clause number and never as a chip, because a rule steers the author and asserts nothing about the scheme. Fifty-five identical capitalisations are one decision applied fifty-five times, so a group’s mechanical corrections carry an accept-all that states the size of what is being accepted. The rewrites sit below it with no such button and the screen says why: accepting new prose unread is not the same act as normalising a capital letter. Nothing is ever applied automatically — every change to the draft is still a person’s.',
+          'Before the draft goes anywhere, Eleanor runs the QA checker over it from the editor’s own toolbar, and works through what it found. The findings are marks anchored into the text and a panel grouped by the check that raised each one — two views of one set, from one read. She takes the mechanical corrections as a group, reads the rewritten wording one at a time, and clears the rest; nothing is applied automatically, and an open finding would stop the promotion two beats below exactly as an open comment thread would. That is what the story needs from the tool. How the tool itself works — the plan before the spend, the sentence that says what was covered, the accept-all that stops at rewrites, and the banner that appears when the text has moved under a finding — is its own section at the foot of this page, photographed step by step.',
         adrs: ['ADR-0048', 'ADR-0053'],
       },
     ],
@@ -504,8 +486,234 @@ const acts = [
   },
 ];
 
+// ── the tools ───────────────────────────────────────────────────────────────
+//
+// T-400, on the owner's ruling of 2026-08-31: this page's charter is the
+// journey AND the tools, because no product surface should ship without a
+// picture. A tool is not a user story and gets none — `user-stories.md`
+// follows one deliverable through its life, and a tool is a standalone thing
+// opened on any day against whatever is in hand — so these sections live
+// after the acts rather than inside them, and nothing here was written into
+// the stories. The rule that keeps the two from saying the same thing twice:
+// AT MOST ONE journey beat per tool, saying what happened in the story and
+// pointing here; the granular shots live here.
+const toolSections = [
+  {
+    key: 'creator',
+    title: 'The document creator',
+    lede:
+      'Instead of opening a blank editor, you build a document: choose its shape, say what it is for, pick the library documents it may draw on, and see what will run — and what it will and will not cover — before a word is drafted. The order is the design rather than a form’s field order: the sources are chosen ahead of the drafting, so the result can be checked against what was asked for rather than against whatever retrieval happened to find.',
+    beats: [
+      {
+        img: 't1-01-tools',
+        lane: CONSULTANT,
+        screen: 'Tools',
+        title: 'Two tiles, and a third tool with none',
+        prose:
+          'Tools holds Infora’s standard tools, each with what it does written under its name: the document creator and the QA checker. The list is assembled for the person asking rather than filtered on the way out, so a tool somebody cannot use is absent from this page rather than sitting on it disabled — the section can never advertise a capability the viewer has no way to reach. There is a third built tool, the extractor, and it has no tile at all: what a user would pick first, and where its output would land, is an unruled design question, and a tile promising a screen nobody has designed is worse than no tile.',
+        adrs: ['ADR-0053', 'ADR-0027'],
+      },
+      {
+        img: 't1-02-launcher',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'What it asks, before anything is drafted',
+        prose:
+          'The launcher as it opens: the shape, what the document is for, its title, the working area it goes to, and the library documents it may use. Nothing has run and nothing can yet — the only button is <em>See the plan</em>. The answers survive being shown a plan, so a change of mind about one of them does not mean re-entering the rest; what a change does discard is the plan itself, because a plan is about the inputs it was computed from and a stale one shown beside changed answers would be a lie the reader cannot see.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-03-brief',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The outline is chosen, and the intent is stated',
+        prose:
+          'Eleanor picks the assessment chapter section — the test, the baseline, the effect and the mitigation, in the order a reader expects them — says in her own words what this one is for, names it, and sends it to Calder & Hale’s working area. The outline is chosen rather than composed: the shape carries its own four parts and each part its own guidance, and the guidance says what belongs in the part and never what to conclude, because a template that told the model what to find would make every document produced from it agree with the template rather than with the sources. What the brief cannot do here is speak to one section at a time; that gap has a card at the foot of this section.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-04-sources',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The sources are bound before a word is written',
+        prose:
+          'Two of the five library documents Eleanor can reach: the ground investigation report and the environmental baseline. Binding them here rather than letting the run go looking is what gives the draft an explicit source manifest — a list of what it actually rests on, checkable against the document afterwards. The five are the ones her access resolves to and no more: a document she could not reach is absent from this list rather than greyed out in it, so the picker cannot reveal that it exists.',
+        adrs: ['ADR-0011', 'ADR-0053'],
+      },
+      {
+        img: 't1-05-plan',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The plan, and a price that refuses to be zero',
+        prose:
+          'One step — draft four sections into the chosen shape from the two bound sources — with what it covers stated beneath it and the cost beneath that. The plan is computed in ordinary code before any model is involved, which is what lets the tool promise the same steps in the same order for the same inputs tomorrow; it is rendered and it is not editable, and you shape it by changing an answer above and watching it regenerate. The cost here reads <em>not priced — this deployment has no rate for the model that would run it</em>, and that sentence is the point: this substrate’s model has no rate, and an unpriced step says so rather than showing a plausible £0.00 that somebody builds a business case on.',
+        adrs: ['ADR-0053', 'ADR-0027'],
+      },
+      {
+        img: 't1-06-result',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The same sentence afterwards, with what happened in it',
+        prose:
+          'The run finishes and its coverage comes back in the same shape it took before: one of four sections written, one of the two bound sources used, one drafting pass — and one sentence withheld for resting on no source. Reading the two lines against each other is the whole design: <em>four sections</em> becoming <em>one of four</em> is a fact the reader meets rather than something to go looking for. The withheld sentence was an unsupported figure, and it was not written at all rather than written and flagged, because a built document gets no weaker guarantee than a grounded answer does.',
+        adrs: ['ADR-0053', 'ADR-0011'],
+      },
+      {
+        img: 't1-07-landing',
+        lane: CONSULTANT,
+        screen: 'Sandbox',
+        title: 'Where it landed',
+        prose:
+          'The working area named in the launcher, with the new draft in it: v0.1, unbound, sitting at the root of the plan-locked tree beside the discipline folders. It is an ordinary sandbox document from the moment it exists — it can be edited, checked, bound to a plan row and promoted exactly as a hand-written one can, and the tool has no privileged write path of its own.',
+        adrs: ['ADR-0038', 'ADR-0040'],
+      },
+      {
+        img: 't1-08-bound-refusal',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The first honest refusal, and a layout that is not honest at all',
+        prose:
+          'Arriving at the creator from a deliverable in the plan instead of from Tools, the screen refuses and says why: whether a bound deliverable’s plan row should seed the document’s structure is an open design question (Q-037), and a structure invented here would be shaped by an answer nobody has given. Refusing and naming the question is right. The rendering is not: the notice is laid out as a row, so its clause number and its link are thrown into columns and the sentence is close to unreadable. That is a real defect in the shared notice component rather than anything about this tool, it affects every notice carrying a link or a code, and it is photographed rather than cropped out — this capture is where it was found.',
+        adrs: ['ADR-0053'],
+      },
+    ],
+    gaps: [
+      {
+        title: 'Per-section intent, and sources bound per section',
+        prose:
+          'The tool was specified as compose the outline, state the intent for each section, and bind library sources per section before anything generates. What is built asks for one brief and one set of sources for the whole document, and takes the outline and its per-part guidance from the shipped shape. The ordering that matters — sources before drafting — is built and is the half that makes the output auditable; the per-section grain is not, and it has no ticket.',
+      },
+      {
+        flag: 'Found by this capture',
+        title: 'The coverage sentence counted a section the document does not have',
+        prose:
+          'The document this run created is empty, while the sentence above it says one of four sections was written. Both halves are explicable and only one is defensible. The drafting call here is served by the substrate’s deterministic stand-in, which answers in prose with none of the shape’s headings in it — so every sentence lands outside any section, which is why nothing was written into the document and why this beat photographs the working area rather than the open editor. But the count is drawn from the same unsectioned material and reports it as a section written, and that is the after-statement overstating, on the one surface whose entire job is to be the difference between a clean result and an unexamined one. Not ticketed here — this session was allowed one number, and it spent it on the walkthrough.',
+      },
+    ],
+  },
+  {
+    key: 'checker',
+    title: 'The QA checker',
+    lede:
+      'Read a draft against the writing rules that bind it and the project record it rests on, and get findings anchored in the text that a person takes or leaves one at a time. Its tile stands beside the creator’s in the Tools shot at the head of the section above — one page, two tiles, and a second photograph of it would have been the same picture. The draft below is a working copy of its own: by this point in the story the journey’s draft has been frozen, promoted, reviewed and accepted, and a frozen head is read-only, while everything here rewrites the text it works on.',
+    beats: [
+      {
+        img: 't2-02-draft',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'One document, chosen first',
+        prose:
+          'A check covers one document, and the screen says so: its findings are marks in that draft, not a report about several. The same launcher opens from the editor’s Check button with this first step already filled in — one run shape, one place the scope is stated — rather than a second, quieter path that would run a check with no plan and no coverage statement. Below the draft, the launcher opens on the full check rather than the quick one, deliberately: a too-cheap default fails invisibly, and a too-expensive one fails visibly.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-03-adjusted',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'How hard to look — and a preset that is a starting point, not a mode',
+        prose:
+          'Eleanor takes the quick check and then turns one check off by hand. A preset sets the five families and the record’s search depth together, as one honest choice, and every part of it stays individually adjustable afterwards — which is why the internal-consistency box can be cleared without leaving the preset. Two of the five say <em>No AI</em> on their face: readability and completeness are arithmetic, they cost nothing, and a checker described as so many model calls would have been describing half of itself. The depth select is present only because the accuracy check is still on, and it names its own trade in the option text: once per section is faster and will miss a figure the section is not mainly about.',
+        adrs: ['ADR-0053', 'ADR-0027'],
+      },
+      {
+        img: 't2-04-attach',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'Two ways to give it something to read, and one that is not built',
+        prose:
+          'The two document controls are named differently because they are two different guarantees, and the copy under each says which you get. Narrowing the library scope yields findings that <strong>cite normally</strong> and resolve to a place in a source document; attaching one of your own drafts yields findings that are <strong>never cited</strong> and quote an excerpt instead. Attaching a library document would silently take the weaker path, which is why neither control is called “choose a document”. Below them is the second honest refusal on this page: handing the checker a file directly is not built, the control says so in plain words rather than sitting there doing nothing, and the absence now has a ticket of its own (T-399).',
+        adrs: ['ADR-0053', 'ADR-0022'],
+      },
+      {
+        img: 't2-05-plan',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'The plan says what shape it took, and why',
+        prose:
+          'The plan opens by explaining itself: one pass over the whole draft, because it all fits in a single read — and the consistency check comes free in that shape, since one reader genuinely sees everything and there is nothing left to compare afterwards. Then the steps, then what will be covered, then the cost. Beside them a notice states the price of the attached document before the run rather than after it: it is read but never cited, and if citations are wanted the way to get them is to scope to the library document instead. Every caveat this plan carries is stated before the button, never under the result — a run that reported its findings and then admitted it had not looked everywhere would be degrading quietly, which is the one thing the tool must not do.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-06-run',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'The same sentence, before and after, in one frame',
+        prose:
+          'The run finishes under the plan that promised it, and both sentences are visible at once: six sections, four checks, the library searched once per section, five of five style clauses, one attached document — and then six of six sections read, four checks, five passages of the record read, five of five clauses, one attached excerpt never cited. Three findings. That coverage line is not a footnote: it is the only thing that distinguishes a clean result from an unexamined one, which is why <em>no findings</em> here would have to be read as <em>no findings in what was read</em>. It also appends what the findings list cannot show — sections the library said nothing about, and suggested findings thrown away for not pointing at real text — and this run had neither to report.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-07-marks',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The findings are marks in the draft',
+        prose:
+          'Opening the draft, the findings are where they belong: underlined in the text they are about, and listed beside it under the check that raised each one. Every finding says what is wrong and shows what it rests on, and the three kinds of evidence are rendered as three different things. A quoted writing rule appears as a quotation with its clause number — §2.1 of the project style guide, §4.2 of Calder & Hale’s own manual — and deliberately never as a source chip, because a rule steers the author and asserts nothing about the scheme; only a finding grounded in the record gets a chip. Where the project’s guide and the firm’s own disagree, the project’s wins and the firm’s fills the gaps.',
+        adrs: ['ADR-0048'],
+      },
+      {
+        img: 't2-08-panel',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'Two views of one set',
+        prose:
+          'Clicking an entry in the panel selects the passage it is about in the draft — here the passive sentence about the conceptual site model, highlighted in the text with its mark still underlined and the informal “the former works” underlined a few lines below it. The document carries the marks, the panel carries the list, and both are drawn from a single read: they are two views of one set rather than two lists that have to be kept in step. The link runs both ways — clicking a mark in the text opens its entry in the panel — and a finding whose text has since been edited simply points at nothing rather than at the wrong words.',
+        adrs: ['ADR-0048', 'ADR-0053'],
+      },
+      {
+        img: 't2-09-drift',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'Edit the text under a finding, and the fix refuses',
+        prose:
+          'Eleanor rewrites the sentence herself — “the former works” becomes “the former railway works at Wrenfield Sidings”, visible at the foot of the draft — and then asks the checker to apply its own correction to it. It does not. The banner at the top of the panel says one mark has moved since the check ran, that nothing was written for it, and that the text it pointed at has been edited, so she should look at it herself rather than take the suggestion blind. The finding stays open rather than being applied to words that have changed under it. This is the degrade path’s only visible sentence, and it is the honest failure: the alternative is a fix landing quietly on the wrong text.',
+        adrs: ['ADR-0048'],
+      },
+      {
+        img: 't2-10-accept-all',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The accept-all sits above the mechanical fixes, and no rewrite gets one',
+        prose:
+          'With the sentence put back, the group’s layout is the ruling made visible. A mechanical correction — the same substitution applied consistently, stated in one line as <em>former works → scheme</em> — sits under a button that accepts the lot and says how many places that is; here it is one, and at fifty-five it would be one decision applied fifty-five times rather than fifty-five decisions. Below it the screen states in plain words that the rest are rewritten wording and are read one at a time, and the rewrite that follows has no accept-all anywhere near it. Which kind a fix is comes from the text of the fix itself, computed in code — never from a judgement made on the screen, and never from the model that proposed it.',
+        adrs: ['ADR-0053', 'ADR-0048'],
+      },
+      {
+        img: 't2-11-rewrite',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The rewrite, read one at a time',
+        prose:
+          'The mechanical correction is taken and gone, and what is left in House style is the one rewrite: the rule it rests on, the sentence the model proposes in its place, and three buttons — accept it, edit it into your own words, or set it aside. There is no button here that takes it unread, and there never will be: accepting new prose is not the same act as normalising a capital letter. The counter above has moved to one resolved, and the note at the foot says what resolved means — the promotion gate counts what is still open, not how it was cleared, so dismissing a finding with a reason of your own is as final as accepting it.',
+        adrs: ['ADR-0048', 'ADR-0049'],
+      },
+      {
+        img: 't2-12-dismiss',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'Declining a whole group is one judgement, not forty',
+        prose:
+          'The rewrite has been accepted and the draft now reads “Calder & Hale has prepared a conceptual site model…”, which is the paragraph in the text behind the panel. What remains is the readability finding — a grade against the project’s reading-age target and the draft’s own median, offered as a measurement and never as a pass or a fail — and above it a control that dismisses the whole group at once. Bulk dismissal takes anything and records no reason, deliberately: declining forty advisory findings from one rule is one professional judgement, and demanding forty typed reasons would buy a record nobody would ever read.',
+        adrs: ['ADR-0053', 'ADR-0048'],
+      },
+    ],
+  },
+];
+
 // ── page assembly ───────────────────────────────────────────────────────────
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+// T-400 — PROSE MAY CARRY A LITTLE EMPHASIS, and until now it could not: `esc`
+// escaped the `<` of a `<strong>` written into a beat, so Act IV's moderation
+// beat had been rendering a literal `&lt;strong>` on the page since T-356.
+// `<strong>` and `<em>` pass through and NOTHING ELSE does — one pass over the
+// split, so an escaped `&` can never be unescaped by a later replace, and a
+// beat still writes "Calder & Hale" rather than spelling out an entity.
+const rich = (s) =>
+  s
+    .split(/(<\/?(?:strong|em)>)/)
+    .map((part, at) => (at % 2 === 1 ? part : esc(part)))
+    .join('');
 
 function beatHtml(beat, src) {
   const chips = beat.adrs.map((a) => `<span class="tag">${a}</span>`).join('');
@@ -517,7 +725,7 @@ function beatHtml(beat, src) {
   </div>
   <figcaption>
     <h3>${esc(beat.title)}</h3>
-    <p>${esc(beat.prose)}</p>
+    <p>${rich(beat.prose)}</p>
     <p class="tags">${chips}</p>
   </figcaption>
 </figure>`;
@@ -527,15 +735,39 @@ function gapHtml(gap) {
   const drawn = gap.mockup
     ? `\n  <p class="gap-mockup">Drawn: <a href="../design/mockups/${gap.mockup}">${gap.mockup}</a></p>`
     : '';
+  // T-400 — the flag is a field now. Most cards say "designed, not yet
+  // surfaced", which is a claim about a DESIGN that ran ahead of the build; a
+  // card recording something the capture itself walked into is a different
+  // claim, and wearing the wrong label would make it a softer one.
   return `
 <aside class="gap">
-  <span class="gap-flag">Designed, not yet surfaced</span>
+  <span class="gap-flag">${esc(gap.flag ?? 'Designed, not yet surfaced')}</span>
   <h4>${esc(gap.title)}</h4>
-  <p>${esc(gap.prose)}</p>${drawn}
+  <p>${rich(gap.prose)}</p>${drawn}
 </aside>`;
 }
 
 function build(srcFor) {
+  // The tools' sections render with the acts' furniture and a different head:
+  // they are not acts, they are not numbered, and the reader should be able to
+  // see at a glance that the story has ended and something else has started.
+  const toolsHtml = toolSections
+    .map(
+      (tool) => `
+<section class="act tool">
+  <header class="act-head">
+    <span class="act-num tool-num">Tool</span>
+    <div>
+      <h2>${esc(tool.title)}</h2>
+      <p class="lede">${rich(tool.lede)}</p>
+    </div>
+  </header>
+  ${tool.beats.map((b) => beatHtml(b, srcFor(b.img))).join('\n')}
+  ${(tool.gaps ?? []).map(gapHtml).join('\n')}
+</section>`,
+    )
+    .join('\n');
+
   const actsHtml = acts
     .map(
       (act) => `
@@ -555,7 +787,7 @@ function build(srcFor) {
 
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Infora — the document management journey, on screen</title>
+<title>Infora — the document management journey and its tools, on screen</title>
 <style>
   :root {
     --paper: #f7f5f0;
@@ -630,6 +862,14 @@ function build(srcFor) {
   .tags { display: flex; gap: 6px; flex-wrap: wrap; }
   .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--sunken); border-radius: 4px; padding: 2px 7px; }
 
+  /* the tools' part: not acts, and the page should say so before the reader
+     has to work it out from the headings */
+  .part-break { margin-top: 84px; border-top: 2px solid var(--frame); padding-top: 26px; }
+  .part-break h2 { font-family: var(--serif); font-size: 30px; font-weight: 600; margin: 0 0 8px; }
+  .part-break p { margin: 0; color: var(--muted); max-width: 68ch; }
+  .act.tool { margin-top: 44px; }
+  .tool-num { font-family: var(--sans); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+
   /* gaps */
   .gap { background: var(--gap-tint); border: 1px dashed var(--gap-edge); border-radius: 8px; padding: 14px 18px; margin: 0 0 18px; max-width: 76ch; }
   .gap-flag { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #8a6d1f; font-weight: 600; }
@@ -659,7 +899,7 @@ function build(srcFor) {
     <span class="doc">docs/architecture · Recaptured 2026-08-31</span>
   </header>
 
-  <h1>The document management journey, on screen</h1>
+  <h1>The document management journey, and its tools, on screen</h1>
   <div class="intro">
     <p>This is <a href="user-stories.md">user-stories.md</a> rendered as the built product: the owner who decides what a
     deliverable is described by, the consultant who produces a Land Quality method statement, the colleague who checks it
@@ -667,6 +907,11 @@ function build(srcFor) {
     Every screenshot is the real application, driven live through the whole cycle on the seeded Wrenfield world — nothing
     is a mockup, and nothing was staged for the photograph. Where the written story runs ahead of the build, the beat is
     flagged <em>designed, not yet surfaced</em> and points at its ticket, or at the session that ruled it where the ticket is not yet minted.</p>
+    <p>After the seven acts come <strong>the tools</strong> — the document creator and the QA checker, each photographed
+    action by action. The owner's ruling of 2026-08-31 widened this page's charter to cover them: a product surface that
+    has never been photographed is a surface nobody has read back. The tools are not user stories and are deliberately
+    not written into one; the journey keeps at most a single beat per tool, saying what happened in the story and
+    pointing into the tool's own section.</p>
     <p class="prov">Recaptured 2026-08-31 against the e2e substrate (deterministic model providers, seeded corpus).
     This page is now the single rendering of the two journeys: the companion decision map
     (<code>user-stories-graphic.html</code>) was deleted on 2026-08-18, its accurate content absorbed into the beats and
@@ -676,16 +921,20 @@ function build(srcFor) {
     window, the appointment the named person accepts for themselves, and the review record as one appended table
     (T-371–T-375). The drawings that proposed them have been deleted, which is what a mockup is for — the capture is the
     record now, and their reasoning lives in the ADR addenda of the same date.</p>
+    <p class="prov">The tools’ two sections were added the same day (T-400), on the ruling that widened the charter.
+    Nineteen of the fifty-nine shots below are theirs. Two beats left the journey to make room for them without saying
+    the same thing twice: the checker’s plan and its coverage statement were beats in Act II and are now the checker’s
+    own section, which photographs both in one frame.</p>
   </div>
 
   <div class="cast">
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--consultant)"></span>Eleanor Price</div>
-      <p>Environmental consultant and lead author at Calder &amp; Hale, the appointed consultancy — and its super-user on this project. Sets the sandbox up, drafts, promotes, answers the review.</p>
+      <p>Environmental consultant and lead author at Calder & Hale, the appointed consultancy — and its super-user on this project. Sets the sandbox up, drafts, promotes, answers the review.</p>
     </div>
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--internal)"></span>Owen Vance</div>
-      <p>Colleague of Eleanor’s at Calder &amp; Hale. Checks her work in the organisation’s own QA round, before anything crosses the wall.</p>
+      <p>Colleague of Eleanor’s at Calder & Hale. Checks her work in the organisation’s own QA round, before anything crosses the wall.</p>
     </div>
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--reviewer)"></span>Rachel Bowen</div>
@@ -699,6 +948,18 @@ function build(srcFor) {
 
   ${actsHtml}
 
+  <section class="part-break">
+    <h2>The tools</h2>
+    <p>Two standalone tools, each photographed action by action. They appear on this page without a user
+    story of their own because they do not have one and should not: <a href="user-stories.md">user-stories.md</a>
+    follows a single deliverable through its life, while a tool is a thing a consultant opens on any day
+    against whatever is in front of them. They are here because a product surface that has never been
+    photographed is a surface nobody has read back — the owner's ruling of 2026-08-31, which widened this
+    page's charter from the journey to the journey and the tools.</p>
+  </section>
+
+  ${toolsHtml}
+
   <footer class="prov-foot">
     <p><strong>Provenance.</strong> Recaptured 2026-08-31 from the running application: e2e API substrate with deterministic
     model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas.
@@ -709,7 +970,19 @@ function build(srcFor) {
     draft into its deliverable folder. Running the cycle: appointing the internal reviewer and the re-freeze that opens the
     QA round (both explained in Act III’s gap card), version two’s acknowledgement — round 1’s is the beat-16 click —
     and version two’s internal QA pass and promotion, which repeat Act III’s road and are narrated rather than
-    re-photographed. Everything a screenshot on this page shows being done was done on that screen.</p>
+    re-photographed. In the tools’ sections: the working copy the checker reads, created and filled through the API
+    because it exists only to be checked, and the single act of putting its edited sentence back after the drift beat —
+    which is a reset rather than a step of the tool. Everything a screenshot on this page shows being done was done on
+    that screen.</p>
+    <p><strong>What the tools’ capture walked into, recorded rather than staged around.</strong> Three things, all
+    photographed as found. The estimated cost on both tools reads <em>not priced</em>, because this substrate’s model
+    carries no rate and an unpriced step says so rather than showing a plausible £0.00. The creator’s bound-deliverable
+    refusal renders its clause number and its link as columns — a layout defect in the shared notice component, not in
+    the tool, affecting every notice that carries a link. And the creator’s run reports one of four sections written into
+    a document that is empty: the substrate’s deterministic stand-in answers in prose with none of the shape’s headings,
+    so nothing landed under a section, and the count reports that unsectioned material as a section written anyway. The
+    last two have gap cards on the creator’s section and no ticket; this session was allowed one number and spent it on
+    the page.</p>
     <p><strong>What moved under the last capture.</strong> An owner-directed walk of the previous version of this page
     produced nine rulings, built the same day as tickets T-355 and T-358–T-366. Five of them are new beats here: the schema
     screen the story now opens on, the structure builder and its assistant, the three-way folder mode beside the promotion
