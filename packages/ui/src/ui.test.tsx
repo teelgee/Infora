@@ -644,3 +644,46 @@ describe('a notice reads as one sentence (T-401)', () => {
     expect(css).toContain('.banner--dismissible');
   });
 });
+
+// T-411 — pinned at the same single source T-401 is, and for the same reason:
+// nine call sites say `banner--warning`, and whether any of them reads as a
+// warning is decided entirely by whether this one rule exists and what it
+// resolves to. The absence of the rule is exactly what the ticket found, so the
+// test asserts the rule is present, is toned from the warning token rather than
+// a raw value, and lands somewhere different from both neutral and error.
+describe('a warning notice carries the warning tone (T-411)', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  const tokens = readFileSync(new URL('./tokens.generated.css', import.meta.url), 'utf8');
+  const ruleOf = (selector: string) =>
+    new RegExp(`\\n\\${selector} \\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+  const warning = /\n\.banner--warning \{([^}]*)\}/.exec(css)?.[1] ?? '';
+
+  it('exists at all — its absence is what left nine notices grey', () => {
+    expect(warning).not.toBe('');
+  });
+
+  it('is toned from the warning token, never a raw colour', () => {
+    expect(warning).toContain('var(--feedback-warning-text)');
+    expect(warning).toContain('var(--feedback-warning-tint)');
+    expect(warning).not.toMatch(/#[0-9a-fA-F]{3,8}/);
+  });
+
+  it('is distinct from the neutral notice and from the error tone', () => {
+    // neutral: `.banner` itself paints --panel and an --accent left border
+    expect(warning).not.toContain('var(--panel)');
+    const error = ruleOf('.banner--error');
+    expect(error).not.toBe('');
+    expect(error).not.toContain('var(--feedback-warning-text)');
+    expect(error).not.toContain('var(--feedback-warning-tint)');
+  });
+
+  // §F.6 — a feedback colour must carry light AND dark values. Warning carried
+  // only light until this ticket, so a dark-mode warning would have painted a
+  // dark brown on a dark panel. Pinned because the regeneration is mechanical
+  // and a future token edit could silently drop the dark half again.
+  it('resolves in dark mode as well as light', () => {
+    const dark = /:root\[data-theme='dark'\] \{([\s\S]*?)\n\}/.exec(tokens)?.[1] ?? '';
+    expect(dark).toContain('--feedback-warning-text:');
+    expect(dark).toContain('--feedback-warning-tint:');
+  });
+});

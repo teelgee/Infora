@@ -161,6 +161,9 @@
   --press: var(--primitive-motion-duration-fast) var(--primitive-motion-easing-standard);
   --primitive-amber-500: #c4901f;
   --primitive-amber-600: #8a5a12;
+  --primitive-amber-dark-500: #b8862f;
+  --primitive-amber-dark-600: #d1a04e;
+  --primitive-amber-dark-tint: #322a1a;
   --primitive-amber-tint: #f8efdd;
   --primitive-border-hairline: 1px solid;
   --primitive-border-none: none;
@@ -348,6 +351,9 @@
   --feedback-success-dot: var(--primitive-green-dark-500);
   --feedback-success-text: var(--primitive-green-dark-600);
   --feedback-success-tint: var(--primitive-green-dark-tint);
+  --feedback-warning-dot: var(--primitive-amber-dark-500);
+  --feedback-warning-text: var(--primitive-amber-dark-600);
+  --feedback-warning-tint: var(--primitive-amber-dark-tint);
   --focus-ring: var(--primitive-focus-ring-dark);
   --level2-pane: var(--primitive-shadow-level2-dark);
   --level3-popout: var(--primitive-shadow-level3-dark);

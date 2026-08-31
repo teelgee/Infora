@@ -724,6 +724,22 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 /* toned notices (T-228): success and error read at a glance */
 .banner--success { border-left-color: var(--accent); background: var(--accent-soft); }
 .banner--error { border-left-color: var(--danger); background: var(--danger-soft); }
+/* T-411 — the third tone. Nine notices across the product are WRITTEN as
+   warnings (the checker's weaker-coverage caveats among them) and every one of
+   them rendered in the default neutral grey, because this rule did not exist:
+   a caution and an ordinary remark were the same object on screen. One rule
+   here heals all nine, which is why none of the call sites changed.
+   It is built on the NEW feedback tokens rather than the old `--amber` pair
+   its two neighbours still use: `feedback.warning` is the design system's own
+   name for this tone, and the two sets resolve to the same values in light
+   mode anyway (#8a5a12 / #f8efdd), so this adds no visual seam — it just stops
+   a new rule from being written onto the deprecated set. The dark values did
+   not exist before this ticket; they were added to design-tokens.json, since
+   success and danger both carried a dark value and warning carried none. */
+.banner--warning {
+  border-left-color: var(--feedback-warning-text);
+  background: var(--feedback-warning-tint);
+}
 /* A notice you can close. The dismiss control used to be pushed right by
    `margin-left: auto` inside the flex row; with the row gone it is taken out
    of the sentence's flow instead, so the words still read as one sentence. */
