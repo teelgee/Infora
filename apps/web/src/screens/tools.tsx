@@ -1014,9 +1014,9 @@ export function LibraryScopeCopy() {
 export function AttachedCopy() {
   return (
     <p style={{ color: 'var(--text-muted)' }}>
-      One of your own drafts, read as background. Findings from an attached document are{' '}
-      <strong>never cited</strong> — they quote an excerpt instead of resolving to a source. If you
-      want citations, scope to the library document above instead.
+      One of your own drafts, or a file you upload here, read as background. Findings from an
+      attached document are <strong>never cited</strong> — they quote an excerpt instead of
+      resolving to a source. If you want citations, scope to the library document above instead.
     </p>
   );
 }
@@ -1090,6 +1090,10 @@ export function QaCheckerScreen() {
   const [depth, setDepth] = useState<CorpusDepth>(DEFAULT_CORPUS_DEPTH);
   const [scopeVersionIds, setScopeVersionIds] = useState<string[]>([]);
   const [attached, setAttached] = useState<string[]>([]);
+  // T-399 — files handed straight to this check. They live in the browser until
+  // the request carries them, are parsed server-side for the run, and are
+  // stored nowhere: leaving the page loses them, which is the design.
+  const [uploads, setUploads] = useState<File[]>([]);
 
   const [plan, setPlan] = useState<ToolPlan | null>(null);
   const [result, setResult] = useState<QaCheckRunResponse | null>(null);
@@ -1141,7 +1145,7 @@ export function QaCheckerScreen() {
     setBusy(true);
     setError(null);
     void api
-      .qaCheckPlan(projectId, body())
+      .qaCheckPlan(projectId, body(), uploads)
       .then((res) => setPlan(res.plan))
       .catch((problem: Error) => setError(problem.message))
       .finally(() => setBusy(false));
@@ -1152,7 +1156,7 @@ export function QaCheckerScreen() {
     setBusy(true);
     setError(null);
     void api
-      .qaCheckRun(projectId, body())
+      .qaCheckRun(projectId, body(), uploads)
       .then(setResult)
       .catch((problem: Error) => setError(problem.message))
       .finally(() => setBusy(false));
@@ -1285,12 +1289,42 @@ export function QaCheckerScreen() {
               {draft.title}
             </label>
           ))}
+        {/* T-399 — the other half ADR-0053 §3 names: a file handed straight to
+            the check, without being filed in the working area first. It is read
+            for this run and kept nowhere, which the copy says plainly rather
+            than leaving the user to assume either way. */}
+        <div style={{ marginTop: 12 }}>
+          <label className="btn" style={{ display: 'inline-block', cursor: 'pointer' }}>
+            Upload a file…
+            <input
+              type="file"
+              multiple
+              accept=".docx,.xlsx,.pptx,.pdf"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const chosen = Array.from(event.target.files ?? []);
+                if (chosen.length > 0) change(setUploads)([...uploads, ...chosen]);
+                // the input is cleared so the same file can be chosen again
+                // after it has been removed
+                event.target.value = '';
+              }}
+            />
+          </label>
+          {uploads.map((file, index) => (
+            <div key={`${file.name}-${index}`} style={{ marginTop: 6 }}>
+              <span className="mono">{file.name}</span>{' '}
+              <Button
+                onClick={() => change(setUploads)(uploads.filter((_, at) => at !== index))}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
         <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>
-          {/* stated rather than left as a dead affordance — uploading a file
-              here is not built, and a control that looked available and did
-              nothing would be worse than its absence */}
-          Uploading a file straight into a check is not built yet. Put it in your working area
-          first, and it appears here.
+          Word, Excel, PowerPoint or PDF. An uploaded file is read for this check and{' '}
+          <strong>kept nowhere afterwards</strong> — the record keeps its name, size and content
+          hash, never its text — so running the check again means attaching it again.
         </p>
       </Card>
 

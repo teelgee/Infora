@@ -21,6 +21,12 @@ const multipartPaths = [
   /^\/organisation\/rulebooks$/,
   // T-397 — the project style guide, the rulebook's twin one store along
   /^\/projects\/[^/]+\/style-guides$/,
+  // T-399 — a file handed straight to a check. BOTH endpoints, because the
+  // plan must be computed over the same attachment the run will read: a
+  // preflight that could not see the upload would be a preflight that lies
+  // about the run's coverage, which is the one thing this tool sells.
+  /^\/projects\/[^/]+\/tools\/qa-check\/plan$/,
+  /^\/projects\/[^/]+\/tools\/qa-check\/runs$/,
 ];
 
 export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHandler<AppEnv> {

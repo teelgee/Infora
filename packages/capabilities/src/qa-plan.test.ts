@@ -52,6 +52,7 @@ const input = (over: Partial<Parameters<typeof planQaCheck>[0]> = {}) => ({
   styleClauses: { count: 12, tokens: 900 },
   scopedDocuments: 0,
   attachedDocuments: 0,
+  attachedUploads: [] as readonly string[],
   checkModelId: 'check-model',
   rates: RATES,
   tokenLimit: 4000,

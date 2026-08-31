@@ -12,6 +12,7 @@
 // before any event handler runs. A component whose sentence lives behind a
 // network call has that fetch split out (see `DestinationBlock`), because a
 // sentence that cannot be rendered in a test is a sentence nobody is checking.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type {
@@ -822,5 +823,42 @@ describe('T-336 — the two document-selection affordances are two guarantees (A
     const html = renderToStaticMarkup(<AttachedCopy />);
     expect(html).toContain('never cited');
     expect(html).toContain('scope to the library document above instead');
+  });
+
+  // T-399 — the copy now covers BOTH ways a document gets attached, because the
+  // upload is the same ADR-0022 treatment and copy naming only one of them
+  // would leave the other looking like a different guarantee.
+  it('names the uploaded file as an attachment too, under the same rule', () => {
+    const html = renderToStaticMarkup(<AttachedCopy />);
+    expect(html).toContain('a file you upload here');
+    expect(html).toContain('never cited');
+  });
+});
+
+// T-399 — the sentence this ticket DELETED is the one worth pinning: it stated
+// an absence, and an absence that has been filled and still says so is worse
+// than the original gap. Pinned as a source assertion rather than a render one
+// because the control sits inside the checker screen, which needs a router and
+// a project to render at all — and the claim under test is about the words on
+// the page, which the source carries exactly.
+describe('T-399 — a file can be handed straight to a check', () => {
+  const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+
+  it('no longer says uploading into a check is not built', () => {
+    expect(source).not.toContain('Uploading a file straight into a check is not built yet');
+    expect(source).not.toContain('not built yet');
+  });
+
+  it('offers the upload control, in the formats the extractor actually reads', () => {
+    expect(source).toContain('Upload a file…');
+    expect(source).toContain('.docx,.xlsx,.pptx,.pdf');
+  });
+
+  // the transient rule is a promise made to the user, so it is made ON SCREEN
+  // and not only in the record
+  it('says on screen that the file is kept nowhere and must be attached again', () => {
+    expect(source).toContain('kept nowhere afterwards');
+    expect(source).toContain('never its text');
+    expect(source).toContain('attaching it again');
   });
 });

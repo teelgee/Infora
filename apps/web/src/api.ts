@@ -149,6 +149,16 @@ async function requestForm<T>(path: string, form: FormData): Promise<T> {
   return (await res.json()) as T;
 }
 
+// T-399 — the check request, as multipart: the same JSON body in one field and
+// the files beside it. One body shape either way, because a second one would be
+// a second answer to what a check request is.
+function checkForm(body: QaCheckBody, uploads: readonly File[]): FormData {
+  const form = new FormData();
+  form.append('body', JSON.stringify(body));
+  for (const file of uploads) form.append('file', file);
+  return form;
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<void>('/auth/session', { method: 'POST', body: JSON.stringify({ email, password }) }),
@@ -530,16 +540,32 @@ export const api = {
   // T-336 — the QA checker as a tool. TWO endpoints and ONE planner behind
   // them: a preflight computed separately from the act it previews is a
   // preflight that will eventually lie (T-309's rule, one tool along).
-  qaCheckPlan: (projectId: string, body: QaCheckBody) =>
-    request<QaCheckPlanResponse>(`/projects/${projectId}/tools/qa-check/plan`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  qaCheckRun: (projectId: string, body: QaCheckBody) =>
-    request<QaCheckRunResponse>(`/projects/${projectId}/tools/qa-check/runs`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+  //
+  // T-399 — a file may ride either call. It goes multipart ONLY when there is a
+  // file, so the ordinary check request stays the JSON one it has always been;
+  // and it rides BOTH calls because the plan has to be computed over the same
+  // attachment the run will read, or the preflight would understate the
+  // coverage of the thing it is previewing.
+  qaCheckPlan: (projectId: string, body: QaCheckBody, uploads: readonly File[] = []) =>
+    uploads.length > 0
+      ? requestForm<QaCheckPlanResponse>(
+          `/projects/${projectId}/tools/qa-check/plan`,
+          checkForm(body, uploads),
+        )
+      : request<QaCheckPlanResponse>(`/projects/${projectId}/tools/qa-check/plan`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+  qaCheckRun: (projectId: string, body: QaCheckBody, uploads: readonly File[] = []) =>
+    uploads.length > 0
+      ? requestForm<QaCheckRunResponse>(
+          `/projects/${projectId}/tools/qa-check/runs`,
+          checkForm(body, uploads),
+        )
+      : request<QaCheckRunResponse>(`/projects/${projectId}/tools/qa-check/runs`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
   patchSandboxDocument: (id: string, content: string) =>
     request<SandboxDocument>(`/sandbox-documents/${id}`, {
       method: 'PATCH',

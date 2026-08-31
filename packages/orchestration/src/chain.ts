@@ -71,10 +71,52 @@ export type CiteOutput = {
   answer: string | null; // the grounded, cited answer text — the run's response
 };
 
+/**
+ * T-399 — ONE ATTACHMENT THE RUN WAS HANDED DIRECTLY, ALREADY PARSED.
+ *
+ * *In plain terms: a file the user uploaded straight into a run, rather than
+ * one they had filed in their working area first.*
+ *
+ * 🔒 **This is why it rides the CONTEXT and not a workflow parameter.** A
+ * declared workflow's bound parameters are written to `plan_steps.inputs`, a
+ * `jsonb` column, for every step the executor walks. A parameter carrying the
+ * upload's text would therefore write the user's file into the run record —
+ * which is the file being *stored*, and T-337's transient-input rule (parsed
+ * in-request, deliberately stored nowhere, never quietly corpus) forbids
+ * exactly that. The mechanism would have violated the rule it was built to
+ * satisfy, invisibly.
+ *
+ * So the text travels the way T-299's Lens does: resolved at the API boundary,
+ * carried in memory for the life of the walk, never persisted. What IS
+ * persisted is the fingerprint — name, byte size, content hash — bound as an
+ * ordinary parameter, so the record still says exactly what the run was shown
+ * without holding what it was shown.
+ *
+ * **The consequence is real and is the design, not a gap:** a run with an
+ * upload cannot be re-executed from its record alone. Relaunching it means
+ * re-attaching the file.
+ *
+ * `attachedSourceId` is minted per run. It is a handle, not a stored document's
+ * id — the fingerprint bound alongside is what says which file the handle meant.
+ */
+export type RunAttachment = {
+  attachedSourceId: Id;
+  /** the uploaded file's name, as the fingerprint and the coverage sentence use it */
+  name: string;
+  /** the excerpt the check is shown — never grounds, never cited (ADR-0022) */
+  excerpt: string;
+};
+
 export type LeafContext = {
   db: Db;
   run: RunRow; // the open run — the retrieval sub-agent opens child runs against it
   stepId: Id; // the executing step — a delegating leaf records it as the parent
+  /**
+   * T-399 — the run's directly-uploaded attachments, parsed in the request and
+   * held in memory only. Empty for every run that uploaded nothing, which is
+   * every run that existed before this ticket.
+   */
+  attachments: readonly RunAttachment[];
 };
 
 // A leaf returns its output plus what the Step row must record (ADR-0028 §7).
@@ -162,6 +204,12 @@ export type ChainInput = {
   // named none; there is no default substituted here, because a Lens the user
   // did not ask for would be recorded on the plan as though they had.
   lens?: Lens | null;
+  /**
+   * T-399 — files uploaded straight into this run, parsed at the API boundary
+   * and carried in memory. Never written to the plan, the steps, or any store:
+   * see `RunAttachment` for why a workflow parameter could not hold them.
+   */
+  attachments?: readonly RunAttachment[];
   /**
    * T-252 — re-resolve the requester's entitlement BEFORE each step runs
    * (finding F4, half two).
@@ -359,7 +407,10 @@ export async function runChain(
     const row = await openStep(db, { runId: run.id, type });
     if (plannedStepId !== null) await startPlanStep(db, plannedStepId, row.id);
     try {
-      const { output, audit } = await leaf({ db, run, stepId: row.id }, leafInput);
+      const { output, audit } = await leaf(
+        { db, run, stepId: row.id, attachments: input.attachments ?? [] },
+        leafInput,
+      );
       await finishStep(db, row.id, 'completed', { ...auditFrom(output), ...audit });
       if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'complete');
       return { ok: true, output };

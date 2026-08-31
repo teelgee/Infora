@@ -388,7 +388,22 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
       const pass = parsePassKey(text(inputs['pass']));
       // ADR-0022's working set, read from the requester's OWN sandbox
       // documents: never grounds, never cited, evidence is an excerpt.
-      const excerpts = await excerptsOf(ctx.db, idsOf(inputs['attached_document_ids']));
+      //
+      // T-399 — and the SAME door, one source along: a file uploaded straight
+      // into this run arrives already parsed on the context, because its text
+      // may not touch a persisted parameter (see `RunAttachment`). The two are
+      // deliberately indistinguishable from here down — an attachment is an
+      // attachment however it got here, and the check, the excerpt markers and
+      // the coverage count treat them identically. The pinned ones come first
+      // so a plan's `[A1]` marker keeps meaning the same thing across a
+      // re-plan that adds an upload.
+      const excerpts = [
+        ...(await excerptsOf(ctx.db, idsOf(inputs['attached_document_ids']))),
+        ...ctx.attachments.map((attachment) => ({
+          attachedSourceId: attachment.attachedSourceId,
+          excerpt: `${attachment.name}: ${attachment.excerpt.slice(0, ATTACHED_EXCERPT_CHARS)}`,
+        })),
+      ];
       const output = await sectionCheck(
         await requesterOf(ctx.db, ctx.run.requesterParticipantId),
         { projectId: ctx.run.environmentKey },

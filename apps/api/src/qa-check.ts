@@ -27,6 +27,7 @@
 // opens the same launcher with the document already bound.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import { qaCheckBody } from '@infora/contracts';
 import type {
@@ -51,7 +52,9 @@ import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
 import { readStyleClauses } from '@infora/orchestration';
-import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
+import type { CapabilityRegistry, ChainLeaves, RunAttachment } from '@infora/orchestration';
+import { extractText } from './extract';
+import type { ExtractableFormat } from './extract';
 import { writeFindings } from './findings';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
@@ -61,6 +64,108 @@ export const QA_CHECK_WORKFLOW = 'qa-check';
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context, detail: string) =>
   c.json({ error: 'invalid', detail } satisfies ApiError, 400);
+
+// ── T-399 — A FILE HANDED STRAIGHT TO A CHECK ───────────────────────────────
+//
+// *In plain terms: you can now give the checker a file directly, instead of
+// having to file it in your working area first.*
+//
+// **The same extractor the style guide and the corpus use** (T-397, T-303), for
+// the reason that loader already gives: two parsers would be two answers to
+// what a document says. An unreadable file is refused in the same vocabulary,
+// while the person is still holding it.
+//
+// 🔒 **THE FILE IS TRANSIENT AND THE MECHANISM HAS TO PROVE IT.** T-337's rule
+// is parsed in-request, deliberately stored nowhere, never quietly corpus. So:
+// the bytes are read from the request, the text goes into memory, and NOTHING
+// writes either one. It does not become a sandbox document, a version, a chunk
+// or a style guide, and — the trap this ticket walked into once — it does not
+// ride a workflow parameter either, because bound parameters are persisted to
+// `plan_steps.inputs`. What persists is the FINGERPRINT below.
+const uploadFormats: Record<string, ExtractableFormat> = {
+  docx: 'docx',
+  xlsx: 'xlsx',
+  pptx: 'pptx',
+  pdf: 'pdf',
+};
+
+/**
+ * What the RECORD keeps about an upload: enough to say exactly which file the
+ * run was shown, and not a word of what it said.
+ *
+ * The hash is the honest half. A name and a size identify a file loosely; a
+ * content hash makes the claim checkable — someone holding the same file can
+ * confirm it is the one the run read, which is what an audit of an unstored
+ * input can offer instead of the input itself.
+ */
+type UploadFingerprint = { attachedSourceId: string; name: string; bytes: number; sha256: string };
+
+/**
+ * Read the uploaded files off a multipart request, parse each one, and split
+ * the result into the half that persists and the half that never does.
+ *
+ * Returns the refusal string instead where a file cannot be read — refused
+ * BEFORE any spend and before the plan is computed, like every other thing this
+ * tool declines to guess at.
+ */
+async function readUploads(
+  c: Context<AppEnv>,
+): Promise<
+  { ok: true; attachments: RunAttachment[]; fingerprints: UploadFingerprint[] } | { ok: false; detail: string }
+> {
+  const type = c.req.header('content-type') ?? '';
+  if (!type.toLowerCase().includes('multipart/form-data')) {
+    return { ok: true, attachments: [], fingerprints: [] };
+  }
+  const body = await c.req.parseBody({ all: true }).catch(() => null);
+  if (body === null) return { ok: false, detail: 'this upload could not be read' };
+  const entry = body['file'];
+  const files = (Array.isArray(entry) ? entry : [entry]).filter(
+    (candidate): candidate is File => candidate instanceof File,
+  );
+
+  const attachments: RunAttachment[] = [];
+  const fingerprints: UploadFingerprint[] = [];
+  for (const file of files) {
+    const format = uploadFormats[file.name.split('.').at(-1)?.toLowerCase() ?? ''];
+    if (!format) return { ok: false, detail: 'unsupported_format' };
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const extracted = extractText(format, bytes);
+    if (!extracted.ok) return { ok: false, detail: extracted.reason };
+    // minted per run: a HANDLE, not a stored document's id. The fingerprint
+    // bound beside it is what says which file the handle meant.
+    const attachedSourceId = randomUUID();
+    attachments.push({ attachedSourceId, name: file.name, excerpt: extracted.text });
+    fingerprints.push({
+      attachedSourceId,
+      name: file.name,
+      bytes: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  }
+  return { ok: true, attachments, fingerprints };
+}
+
+/**
+ * The launcher posts JSON today and multipart the moment a file is attached, so
+ * the body is read from whichever arrived. One schema either way — the file is
+ * the only thing multipart adds, and a second body shape would be a second
+ * answer to what a check request is.
+ */
+async function readBody(c: Context<AppEnv>): Promise<unknown> {
+  const type = c.req.header('content-type') ?? '';
+  if (!type.toLowerCase().includes('multipart/form-data')) {
+    return c.req.json().catch(() => null);
+  }
+  const body = await c.req.parseBody({ all: true }).catch(() => null);
+  const field = body?.['body'];
+  if (typeof field !== 'string') return null;
+  try {
+    return JSON.parse(field);
+  } catch {
+    return null;
+  }
+}
 
 export function qaCheckRoutes(deps: {
   db: Db;
@@ -91,13 +196,21 @@ export function qaCheckRoutes(deps: {
         body: ReturnType<typeof qaCheckBody.parse>;
         sectionCount: number;
         clauseCount: number;
+        /** T-399 — parsed here, held in memory, never written anywhere */
+        attachments: RunAttachment[];
+        fingerprints: UploadFingerprint[];
       }
     | { ok: false; response: Response }
   > => {
-    const parsed = qaCheckBody.safeParse(await c.req.json().catch(() => null));
+    const parsed = qaCheckBody.safeParse(await readBody(c));
     if (!parsed.success) {
       return { ok: false, response: invalid(c, 'sandboxDocumentId, families and depth are required') };
     }
+    // T-399 — an unreadable upload is refused BEFORE the plan is computed and
+    // long before anything is spent, the same place every other refusal this
+    // tool makes happens.
+    const uploads = await readUploads(c);
+    if (!uploads.ok) return { ok: false, response: invalid(c, uploads.detail) };
     const workflow = deps.workflows?.get(QA_CHECK_WORKFLOW);
     if (workflow === undefined) return { ok: false, response: notFound(c) };
 
@@ -144,6 +257,8 @@ export function qaCheckRoutes(deps: {
       body: parsed.data,
       sectionCount: sections.length,
       clauseCount: clauses.length,
+      attachments: uploads.attachments,
+      fingerprints: uploads.fingerprints,
       computed: planQaCheck({
         workflow,
         sections,
@@ -155,6 +270,9 @@ export function qaCheckRoutes(deps: {
         },
         scopedDocuments: parsed.data.scopeVersionIds.length,
         attachedDocuments: parsed.data.attachedDocumentIds.length,
+        // named, not counted: an upload is stored nowhere, so its name is the
+        // only handle the plan and the record will ever have for it
+        attachedUploads: uploads.attachments.map((attachment) => attachment.name),
         checkModelId: deps.checkModelId ?? 'unpriced',
         ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
         tokenLimit: TOKEN_LIMIT,
@@ -192,6 +310,12 @@ export function qaCheckRoutes(deps: {
         depth: computed.body.depth,
         scope_version_ids: computed.body.scopeVersionIds,
         attached_document_ids: computed.body.attachedDocumentIds,
+        // 🔒 THE FINGERPRINT, NEVER THE TEXT. This is a bound parameter, so it
+        // lands in `plan_steps.inputs` and stays in the record — which is
+        // exactly why the file's words are not in it (see the workflow's own
+        // note on this parameter, and `RunAttachment`).
+        attached_uploads:
+          computed.fingerprints.length > 0 ? JSON.stringify(computed.fingerprints) : '',
         template_id: computed.body.templateId ?? '',
         readability_target: 14,
       });
@@ -229,6 +353,10 @@ export function qaCheckRoutes(deps: {
           ...(bound.labelPropagation !== undefined && { labelPropagation: bound.labelPropagation }),
         },
         stages: bound.stages,
+        // T-399 — the TEXT, in memory only, for the life of this walk. It
+        // reaches the section check through the same door the sandbox-pinned
+        // excerpts use, one step earlier.
+        ...(computed.attachments.length > 0 && { attachments: computed.attachments }),
         ...(deps.capabilities !== undefined && { capabilities: deps.capabilities }),
         entitledCapabilities: workers.map((worker) => worker.name),
         mode: 'declared',
@@ -269,6 +397,10 @@ export function qaCheckRoutes(deps: {
           passagesRead: gathered.passagesRead,
           sectionsWithNoPassages: gathered.sectionsWithNoPassages,
           attachedRead: gathered.attachedRead,
+          // the same shape as the plan's sentence (ADR-0053 §5)
+          ...(computed.attachments.length > 0 && {
+            attachedUploads: computed.attachments.map((attachment) => attachment.name),
+          }),
           discarded: gathered.discarded,
           contradictionGroups: Math.max(1, groups.length),
         }),

@@ -991,3 +991,23 @@ are not recorded here.
   that cannot shape an answer should ask, not fail the surface. Exactly one of
   the two fields is non-null, deliberately — a pane showing both would be
   asking the author which of two answers is the answer.
+- **2026-08-31 (T-399) — the two QA-check endpoints accept `multipart/form-data`
+  as well as JSON, and the checker's workflow gains an `attached_uploads`
+  parameter carrying a fingerprint.** *Plainly: you can now hand the checker a
+  file directly instead of filing it in your working area first.* The
+  request-body **type** did not change — `qaCheckBody` is the same schema, sent
+  as a form field when a file rides along — because an upload is an addition to
+  a check request and a second body shape would have been a second answer to
+  what a check request is. **The reason the new workflow parameter carries a
+  fingerprint and not the file's text** is the whole ticket: a declared
+  workflow's bound parameters are persisted to `plan_steps.inputs`, so a
+  parameter holding the text would have written the user's file into the run
+  record — the exact storage T-337's transient-input rule and this ticket's own
+  "stored nowhere" clause forbid, and it would have happened invisibly, with
+  every other acceptance test still passing. The text rides the run's in-memory
+  context instead (`RunAttachment`, the door T-299's Lens already uses); the
+  record keeps name, byte size and content hash, which is what an audit of an
+  unstored input can honestly offer. **The consequence is the design, not a
+  gap:** a run with an upload cannot be re-executed from its record alone.
+  **The plan endpoint takes the file too**, because a preflight that could not
+  see the attachment would understate the coverage of the very run it previews.

@@ -237,7 +237,7 @@ describe('a superseded source is flagged in the prose (T-273)', () => {
   it('marks the sentence itself, not only the manifest', async () => {
     const { run, stepId } = await openCiteStep();
     const result = await createCiteLeaf()(
-      { db, run, stepId },
+      { db, run, stepId, attachments: [] },
       {
         checked: { surviving: [claim()], withheld: [] },
         retrieved: retrieved(true),
@@ -254,7 +254,7 @@ describe('a superseded source is flagged in the prose (T-273)', () => {
   it('leaves a current source alone — a mark on everything makes the mark invisible', async () => {
     const { run, stepId } = await openCiteStep();
     const result = await createCiteLeaf()(
-      { db, run, stepId },
+      { db, run, stepId, attachments: [] },
       {
         checked: { surviving: [claim()], withheld: [] },
         retrieved: retrieved(false),
@@ -269,7 +269,7 @@ describe('a superseded source is flagged in the prose (T-273)', () => {
   it('the citation span covers the flagged text, not the unflagged text', async () => {
     const { run, stepId } = await openCiteStep();
     const result = await createCiteLeaf()(
-      { db, run, stepId },
+      { db, run, stepId, attachments: [] },
       {
         checked: { surviving: [claim()], withheld: [] },
         retrieved: retrieved(true),

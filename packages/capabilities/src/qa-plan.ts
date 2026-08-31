@@ -74,6 +74,17 @@ export type QaCheckPlanInput = {
   /** how many library documents the run was narrowed to; 0 = the whole library */
   scopedDocuments: number;
   attachedDocuments: number;
+  /**
+   * T-399 — the NAMES of files uploaded straight into this run.
+   *
+   * Names rather than a count, and the asymmetry with `attachedDocuments` is
+   * deliberate: a sandbox pin can be looked up later by its id, so a count plus
+   * the record is enough to say what was read. An upload is stored nowhere, so
+   * its name is the only handle the record will ever have for it — a coverage
+   * sentence saying "1 attached document" would name a thing the reader cannot
+   * then identify.
+   */
+  attachedUploads: readonly string[];
   /** the model the check calls would route to, for the estimate */
   checkModelId: string;
   rates?: ModelRates;
@@ -293,9 +304,19 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
       `This draft has ${input.sections.length} sections — too many to compare all at once — so they are compared in ${groups.length} groups. A contradiction between two sections in different groups will not be found.`,
     );
   }
-  if (input.attachedDocuments > 0) {
+  const attachedTotal = input.attachedDocuments + input.attachedUploads.length;
+  if (attachedTotal > 0) {
     caveats.push(
-      `${input.attachedDocuments} attached ${input.attachedDocuments === 1 ? 'document is' : 'documents are'} read but never cited — findings from ${input.attachedDocuments === 1 ? 'it' : 'them'} quote an excerpt instead of resolving to a source (ADR-0022). Scope to a library document instead if you want citations.`,
+      `${attachedTotal} attached ${attachedTotal === 1 ? 'document is' : 'documents are'} read but never cited — findings from ${attachedTotal === 1 ? 'it' : 'them'} quote an excerpt instead of resolving to a source (ADR-0022). Scope to a library document instead if you want citations.`,
+    );
+  }
+  // T-399 — the upload's own consequence, said in the plan BEFORE any spend
+  // like every other property of the run. It is the design and not a defect: the
+  // file is parsed for this run and deliberately stored nowhere, so the record
+  // keeps its fingerprint and not its text, and there is nothing to re-read.
+  if (input.attachedUploads.length > 0) {
+    caveats.push(
+      `${input.attachedUploads.length === 1 ? 'The uploaded file is' : 'The uploaded files are'} read for this run and kept nowhere afterwards — the record keeps ${input.attachedUploads.length === 1 ? 'its name, size and content hash' : 'their names, sizes and content hashes'}, never ${input.attachedUploads.length === 1 ? 'its' : 'their'} text. Running this check again means attaching ${input.attachedUploads.length === 1 ? 'the file' : 'the files'} again.`,
     );
   }
 
@@ -374,6 +395,11 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
       `${input.attachedDocuments} attached document${input.attachedDocuments === 1 ? '' : 's'}, quoted and never cited`,
     );
   }
+  // T-399 — named, for the reason on `attachedUploads`: nothing else in the
+  // record will ever say which file this was.
+  if (input.attachedUploads.length > 0) {
+    parts.push(`attached: ${input.attachedUploads.join(', ')} — never grounds, never cited`);
+  }
   return parts.join(' · ');
 }
 
@@ -407,6 +433,8 @@ export function coverageAfterQaCheck(result: {
   passagesRead: number;
   sectionsWithNoPassages: number;
   attachedRead: number;
+  /** T-399 — the uploaded files this run was handed, by name */
+  attachedUploads?: readonly string[];
   discarded: number;
   contradictionGroups: number;
 }): string {
@@ -426,6 +454,11 @@ export function coverageAfterQaCheck(result: {
   }
   if (result.attachedRead > 0) {
     parts.push(`${result.attachedRead} attached excerpt${result.attachedRead === 1 ? '' : 's'}, never cited`);
+  }
+  // T-399 — the SAME shape as the plan's sentence (ADR-0053 §5): if the plan
+  // named the file, the result names it too, or the two stop being comparable.
+  if (result.attachedUploads !== undefined && result.attachedUploads.length > 0) {
+    parts.push(`attached: ${result.attachedUploads.join(', ')} — never grounds, never cited`);
   }
   if (result.contradictionGroups > 1) {
     parts.push(`sections compared in ${result.contradictionGroups} groups`);

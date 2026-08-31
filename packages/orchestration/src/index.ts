@@ -91,5 +91,8 @@ export type {
   LeafContext,
   Revalidate,
   RevalidationFailure,
+  // T-399 — one file uploaded straight into a run, parsed at the boundary and
+  // carried in memory. Never persisted; see the type for why.
+  RunAttachment,
   SourceRef,
 } from './chain';

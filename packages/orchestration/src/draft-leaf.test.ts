@@ -107,7 +107,7 @@ describe('the draft leaf records what the router attempted (T-285)', () => {
     const { run, stepId } = await openDraftStep();
 
     const result = await createDraftLeaf(router)(
-      { db, run, stepId },
+      { db, run, stepId, attachments: [] },
       { request: 'draft it', retrieved, mode: 'chat', lens: null },
     );
 
@@ -126,7 +126,7 @@ describe('the draft leaf records what the router attempted (T-285)', () => {
     const { run, stepId } = await openDraftStep();
 
     await createDraftLeaf(router)(
-      { db, run, stepId },
+      { db, run, stepId, attachments: [] },
       { request: 'draft it', retrieved, mode: 'chat', lens: null },
     );
 
@@ -144,7 +144,7 @@ describe('the draft leaf records what the router attempted (T-285)', () => {
 
     await expect(
       createDraftLeaf(router)(
-        { db, run, stepId },
+        { db, run, stepId, attachments: [] },
         { request: 'draft it', retrieved, mode: 'chat', lens: null },
       ),
     ).rejects.toThrow(/every conforming route failed/);

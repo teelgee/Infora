@@ -197,7 +197,7 @@ describe('embedding cost attribution (T-313)', () => {
     );
     const { run, stepId } = await openRetrieveStep();
 
-    const result = await leaf({ db, run, stepId }, { request: 'q' });
+    const result = await leaf({ db, run, stepId, attachments: [] }, { request: 'q' });
 
     // the parent's own call, priced against the EMBEDDING model's rate
     expect(result.audit?.model).toEqual({ id: 'voyage-3.5', version: 'voyage-3.5' });
@@ -227,7 +227,7 @@ describe('embedding cost attribution (T-313)', () => {
   it('records an unpriced embedding as null cost, never zero', async () => {
     const leaf = createRetrieveLeaf({ assemble: async () => embedded(100) }); // no rates
     const { run, stepId } = await openRetrieveStep();
-    const result = await leaf({ db, run, stepId }, { request: 'q' });
+    const result = await leaf({ db, run, stepId, attachments: [] }, { request: 'q' });
     expect(result.audit?.usage?.cost).toBeNull();
   });
 
@@ -237,7 +237,7 @@ describe('embedding cost attribution (T-313)', () => {
       assemble: async () => ({ items: [], budget: { tokenLimit: 12000, tokensUsed: 0 } }),
     });
     const { run, stepId } = await openRetrieveStep();
-    const result = await leaf({ db, run, stepId }, { request: 'q' });
+    const result = await leaf({ db, run, stepId, attachments: [] }, { request: 'q' });
     expect(result.audit?.model).toBeUndefined();
     expect(result.audit?.usage).toBeUndefined();
   });

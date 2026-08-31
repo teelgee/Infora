@@ -49,7 +49,9 @@ session the same day. The frontier is now **[Slice Creator 2](#building-for-v1)*
 — T-403–T-410, the creator's re-cut, with the already-open creator defects
 T-401 and T-402 building in the same pass — plus **T-399** (upload into a
 check), the one other unblocked build ticket. Build order and the clean stop
-are on the slice's own header.
+are on the slice's own header. *(Updated 2026-08-31: all of the above have now
+landed. T-399 and T-411 closed last, in the same pass; the slice is complete
+and the next frontier is not yet named.)*
 
 **▶ The frontier moved 2026-08-27.** Waypoint A's floor and the corpus's format
 reach are **complete** — T-300 through T-307, plus T-337 and the T-276 spike, in
@@ -394,7 +396,7 @@ entry naming its gate and where its design lives.
 - ~~**T-392** — the C revision issues only on a contractual code.~~ ✅ **Built 2026-08-28** — moved record in [plan-history.md](plan-history.md#slice-document-status--follow-ups)
 - ~~**T-401 — A notice with inline children reads as one sentence again.**~~ ✅ **Built 2026-08-31** — moved record in [plan-history.md](plan-history.md#slice-creator-2--the-document-creator-re-cut)
 - ~~**T-402 — The creator's coverage sentence stops counting a section the document does not have.**~~ ✅ **Built 2026-08-31** — moved record in [plan-history.md](plan-history.md#slice-creator-2--the-document-creator-re-cut)
-- **T-399 — Upload a file straight into a check.** *(Minted 2026-08-31 in review — the absence was stated on screen and in T-336's record, and owned by nobody.)* *Plainly: today you can only check a draft that already lives in your working area; handing the checker a file directly is the other half ADR-0053 §3 names.* The parse-and-store path exists in the style-guide loader (T-397) and the checker's scope statement already covers attached documents; this wires an upload into that path and removes the "not built yet" copy at its control. Transient-input rules apply as T-337 established them: parsed in-request unless deliberately stored, never quietly corpus. | *(Deps: T-336)*
+- ~~**T-399 — Upload a file straight into a check.**~~ ✅ **Built 2026-08-31** (no migration) — moved record in [plan-history.md](plan-history.md#waypoint-c--the-checker)
 - ~~**T-395 — `apps/web` gets a test runner, and the load-bearing sentences get pinned.**~~ ✅ **Built 2026-08-30** — moved record in [plan-history.md](plan-history.md#waypoint-c--the-executor-rule-the-style-guide-and-the-document-creator)
 - ~~**T-393 — The ingest sweep's test is scoped to its own fixtures.**~~ ✅ **Built 2026-08-28** (no migration) — moved record in [plan-history.md](plan-history.md#slice-document-status--follow-ups)
 - ~~**T-394 — The e2e suite survives its own substrate: the lazy `Sandbox` card.**~~ ✅ **Built 2026-08-28** (no migration; walkthrough recaptured) — moved record in [plan-history.md](plan-history.md#slice-document-status--follow-ups)

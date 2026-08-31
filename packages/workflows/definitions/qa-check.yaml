@@ -88,6 +88,25 @@ parameters:
       Documents the user pinned from their own sandbox. Never grounds, never
       cited (ADR-0022) -- the evidence is an excerpt.
     default: []
+  - name: attached_uploads
+    type: string
+    required: false
+    description: >-
+      T-399 -- the FINGERPRINT of every file uploaded straight into this run:
+      name, byte size and content hash, as JSON. Never the file's text. A
+      declared workflow's bound parameters are written to `plan_steps.inputs`,
+      so a parameter carrying the text would store the user's file in the run
+      record -- which T-337's transient-input rule forbids and which this
+      ticket's own "stored nowhere" clause forbids twice. The TEXT rides the
+      run's in-memory context instead (`RunAttachment`); this is what lets the
+      record still say exactly what the run was shown without holding it.
+      JSON rather than the comma-joined idiom `families` uses because a hash
+      beside a size beside a name is structure, and flattening it would make
+      the audit's one useful field ambiguous.
+      CONSEQUENCE, stated because it is the design and not a gap: a run with an
+      upload cannot be re-executed from its record alone. Relaunching means
+      re-attaching the file.
+    default: ''
   - name: template_id
     type: string
     required: false
@@ -118,6 +137,7 @@ steps:
       depth: '{{parameters.depth}}'
       scope_version_ids: '{{parameters.scope_version_ids}}'
       attached_document_ids: '{{parameters.attached_document_ids}}'
+      attached_uploads: '{{parameters.attached_uploads}}'
     depends_on: []
 
   # The comparison runs AFTER the section reads and takes their summaries, which
