@@ -701,7 +701,9 @@ const toolSections = [
 ];
 
 // ── page assembly ───────────────────────────────────────────────────────────
-const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+// `"` too (review, 2026-08-31): esc feeds attribute values (alt=), where an
+// unescaped quote would end the attribute early.
 
 // T-400 — PROSE MAY CARRY A LITTLE EMPHASIS, and until now it could not: `esc`
 // escaped the `<` of a `<strong>` written into a beat, so Act IV's moderation
@@ -709,6 +711,9 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 // `<strong>` and `<em>` pass through and NOTHING ELSE does — one pass over the
 // split, so an escaped `&` can never be unescaped by a later replace, and a
 // beat still writes "Calder & Hale" rather than spelling out an entity.
+// rich() covers beat.prose, gap.prose, tool.lede and act ledes; titles,
+// screen labels and alt text stay esc-only ON PURPOSE — markup there is a
+// bug, and adding <strong> to one reproduces the T-356 literal-tag failure.
 const rich = (s) =>
   s
     .split(/(<\/?(?:strong|em)>)/)
@@ -776,7 +781,7 @@ function build(srcFor) {
     <span class="act-num">${act.num}</span>
     <div>
       <h2>${esc(act.title)}</h2>
-      <p class="lede">${esc(act.lede)}</p>
+      <p class="lede">${rich(act.lede)}</p>
     </div>
   </header>
   ${act.beats.map((b) => [beatHtml(b, srcFor(b.img)), ...(b.gapAfter ?? []).map(gapHtml)].join('\n')).join('\n')}

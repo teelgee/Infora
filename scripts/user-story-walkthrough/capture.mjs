@@ -165,10 +165,23 @@ async function signIn(page, email) {
 }
 
 let shotCount = 0;
+// The duplicate guard, IN CODE (review, 2026-08-31): byte-identical pairs are
+// the capture's known failure — a shot of the wrong thing that happens to
+// match its neighbour — and until now catching them was a manual checksum
+// step a record once described as automated. Every shot's hash is kept; the
+// run FAILS at the end if any two match, naming the pair.
+import { createHash } from 'node:crypto';
+const shotHashes = new Map();
 async function shot(page, name) {
   await page.waitForTimeout(450); // let fonts/hover states settle
   const file = path.join(OUT, `${name}.png`);
   await page.screenshot({ path: file });
+  const digest = createHash('sha1').update(fs.readFileSync(file)).digest('hex');
+  const twin = shotHashes.get(digest);
+  if (twin !== undefined) {
+    throw new Error(`duplicate shot: ${name}.png is byte-identical to ${twin}.png — the capture photographed the wrong thing`);
+  }
+  shotHashes.set(digest, name);
   shotCount++;
   console.log(`  shot ${name}`);
 }
@@ -988,6 +1001,17 @@ await mechanicalCard.getByRole('button', { name: 'Accept', exact: true }).click(
 await e.getByText(/moved since the check ran/).waitFor();
 await e.waitForTimeout(300);
 await shot(e, 't2-09-drift');
+
+// "nothing is written" is the beat's whole claim, so it is ASSERTED, not
+// implied (review, 2026-08-31): the document must still hold the drifted
+// sentence — the fix must NOT have been applied — before the restore below,
+// which would otherwise mask a write that had happened.
+{
+  const after = await eleanorApi.get(`/sandbox-documents/${checkDoc.id}`);
+  if (!after.content.includes('the former railway works at Wrenfield Sidings')) {
+    throw new Error('drift beat: the accept wrote despite the drift — the banner is photographing a lie');
+  }
+}
 
 // the sentence goes back exactly as the check read it, so the anchors match
 // again — otherwise every beat below would photograph the same refusal
