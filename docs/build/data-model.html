@@ -574,6 +574,26 @@
         </tbody></table>
       </article>
       <article class="card d4">
+        <h3>findings</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">check_family</td><td class="type">check_family</td><td class="notes"></td></tr>
+          <tr><td class="col">input</td><td class="type">finding_input</td><td class="notes"></td></tr>
+          <tr><td class="col">evidence</td><td class="type">jsonb</td><td class="notes"></td></tr>
+          <tr><td class="col">anchor</td><td class="type">jsonb</td><td class="notes"></td></tr>
+          <tr><td class="col">defect</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">severity</td><td class="type">finding_severity</td><td class="notes"></td></tr>
+          <tr><td class="col">proposed_revision_id</td><td class="type">uuid</td><td class="notes">→ suggestions.id · nullable</td></tr>
+          <tr><td class="col">fix</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">status</td><td class="type">finding_status</td><td class="notes">default</td></tr>
+          <tr><td class="col">closed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">closed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d4">
         <h3>signals <span class="badge">append-only</span></h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

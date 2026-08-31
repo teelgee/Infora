@@ -899,3 +899,18 @@ are not recorded here.
   a bulk acceptance can honestly half-succeed — and a response that reported
   only what it applied would be handing the reviewer a silent partial success on
   the marks that most need looking at.
+- **2026-08-31 (T-336) — `ToolPlan` gained an optional `shape` and `caveats`,
+  and the checker's own request/response landed beside the creator's.** The two
+  new fields are optional because the document creator has one shape and naming
+  it would be noise; the checker has three, and ADR-0053 §4 requires the plan to
+  **say which it took**. `caveats` is the sharper of the pair: the very-long
+  shape compares section summaries in **groups**, so a contradiction between two
+  sections in different groups is not looked for — and a plan that did not say
+  so would let a run report a clean cross-section result it had not earned. It
+  is a list on the plan rather than a sentence in the coverage string because it
+  must render **before** the run button, and a caveat discovered after the
+  result is the silent degradation §4 exists to forbid. `qaCheckBody` names
+  `scopeVersionIds` and `attachedDocumentIds` **separately and never as one
+  list**, because they are two guarantees: one cites normally, the other never
+  grounds and is never cited (ADR-0022), and a single field would let a user
+  take the weak path without knowing.

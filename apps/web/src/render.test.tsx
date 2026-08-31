@@ -14,10 +14,11 @@
 // sentence that cannot be rendered in a test is a sentence nobody is checking.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { DestinationCheckResponse, Finding, ToolSummary } from '@infora/contracts';
+import type { DestinationCheckResponse, Finding, ToolPlan, ToolSummary } from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
+import { AttachedCopy, CheckPlanCard, LibraryScopeCopy } from './screens/tools';
 
 describe('T-292 — the zero-source warning is a STATEMENT, not a menu', () => {
   const empty = { sources: [], assemblyTokenBudget: 12000 };
@@ -340,5 +341,100 @@ describe('T-311 — a quoted rule renders differently from a grounded citation (
     expect(html).toContain('Measured against the project’s grade-14 reading target');
     expect(html).not.toContain('source-chip');
     expect(html).not.toContain('quoted-rule');
+  });
+});
+
+// ── T-336 — the launcher's load-bearing sentences ──────────────────────────
+//
+// The plan is what a user reads **before any spend**, and three of its
+// sentences are the ticket rather than decoration: what the run will cover,
+// what it is weaker at, and that it cannot be edited. The two
+// document-selection affordances are a fourth — they are two guarantees, and a
+// user who could not tell them apart would take the weak path without knowing.
+describe('T-336 — the plan is rendered, not editable, and says what it is weaker at', () => {
+  const plan: ToolPlan = {
+    workflowId: 'qa-check',
+    workflowVersion: 1,
+    steps: [
+      {
+        key: 'check#0',
+        stage: 'analyse',
+        worker: 'qa_section_check',
+        label: 'Read section 1 against 12 writing rules and the project record',
+        estimate: { calls: 2, tokensPrompt: 4000, tokensCompletion: 400, cost: 0.018 },
+      },
+      {
+        key: 'measure',
+        stage: 'present',
+        worker: 'qa_document_check',
+        label: 'Score the draft for readability and check it for gaps and placeholders',
+        estimate: { calls: 0, tokensPrompt: 0, tokensCompletion: 0, cost: 0 },
+      },
+    ],
+    coverage: '11 sections · 4 checks · style guide 80 of 80 clauses, in 2 passes',
+    cost: { total: 0.018, priced: true },
+    refusal: null,
+    shape: 'A pass per section over 11 sections, then one comparison of what they each assert.',
+  };
+
+  const render = (over: Partial<ToolPlan> = {}) =>
+    renderToStaticMarkup(<CheckPlanCard plan={{ ...plan, ...over }} busy={false} onRun={() => {}} />);
+
+  it('states the coverage BEFORE the run, in the shape the after-statement repeats', () => {
+    const html = render();
+    expect(html).toContain('11 sections · 4 checks · style guide 80 of 80 clauses, in 2 passes');
+    expect(html).toContain('A pass per section over 11 sections');
+  });
+
+  it('says the steps are not editable, and offers no control that would edit one', () => {
+    const html = render();
+    expect(html).toContain('the steps are not editable');
+    // shaping the run is changing an ANSWER; hand-editing a step list would make
+    // the plan `model_chosen` (ADR-0053 §12)
+    expect(html).not.toContain('Edit step');
+    expect(html).not.toContain('<input');
+  });
+
+  it('🔒 a caveat is shown BEFORE the run button — it degrades loudly or not at all', () => {
+    const html = render({
+      caveats: [
+        'This draft has 400 sections — too many to compare all at once — so they are compared in 4 groups. A contradiction between two sections in different groups will not be found.',
+      ],
+    });
+    expect(html).toContain('will not be found');
+    expect(html.indexOf('will not be found')).toBeLessThan(html.indexOf('Run the check'));
+  });
+
+  it('a refusal REPLACES the button rather than sitting beside it (ADR-0053 §5)', () => {
+    const html = render({ refusal: 'Section 2 is too long to check even on its own.' });
+    expect(html).toContain('too long to check');
+    expect(html).not.toContain('Run the check');
+  });
+
+  it('an unpriced deployment says so rather than showing a plausible £0.00 (T-254)', () => {
+    const html = render({ cost: { total: null, priced: false } });
+    expect(html).toContain('not priced');
+    expect(html).not.toContain('£0.0000');
+  });
+
+  it('a code step priced at zero is a real price, and is shown as part of a real total', () => {
+    // 0 is a price (it genuinely spends nothing); null is nobody priced it
+    expect(render()).toContain('£0.0180');
+  });
+});
+
+describe('T-336 — the two document-selection affordances are two guarantees (ADR-0053 §3)', () => {
+  it('scoping to the library says findings CITE NORMALLY', () => {
+    const html = renderToStaticMarkup(<LibraryScopeCopy />);
+    expect(html).toContain('cite normally');
+    expect(html).toContain('the whole library you can reach');
+  });
+
+  it('attaching says findings are NEVER CITED, and points at the other path', () => {
+    // attaching a LIBRARY document silently yields the strictly worse result,
+    // so the copy has to say which you get
+    const html = renderToStaticMarkup(<AttachedCopy />);
+    expect(html).toContain('never cited');
+    expect(html).toContain('scope to the library document above instead');
   });
 });

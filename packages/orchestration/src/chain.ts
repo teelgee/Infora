@@ -750,7 +750,31 @@ export function resolveStepInputs(
       continue;
     }
     const reference = /^\{\{\s*steps\.([A-Za-z0-9_#-]+)\.output\s*\}\}$/.exec(value);
-    resolved[field] = reference === null ? value : outputs.get(reference[1]!);
+    resolved[field] = reference === null ? value : outputOf(outputs, reference[1]!);
   }
   return resolved;
+}
+
+/**
+ * T-336 — **a reference to a FANNED-OUT step resolves to the array of its
+ * expansions' outputs.**
+ *
+ * `bindWorkflow` keys expansions `check#0`, `check#1`… so a step naming
+ * `{{steps.check.output}}` would otherwise resolve to `undefined` — and the
+ * checker's comparison step exists precisely to read what every section read
+ * produced. Collecting them is the natural completion of the fan-out rather
+ * than a new mechanism: the width was computed in code before the run, so the
+ * array's length is the same number the plan already stated.
+ *
+ * The exact key wins where one exists, so nothing that references an ordinary
+ * step changes. The expansions come back in **plan order**, because a
+ * comparison over sections in an arbitrary order would produce a different
+ * answer for the same document — the guarantee this whole path exists for.
+ */
+function outputOf(outputs: ReadonlyMap<string, unknown>, key: string): unknown {
+  if (outputs.has(key)) return outputs.get(key);
+  const prefix = `${key}#`;
+  const expansions: unknown[] = [];
+  for (const [name, output] of outputs) if (name.startsWith(prefix)) expansions.push(output);
+  return expansions.length === 0 ? undefined : expansions;
 }

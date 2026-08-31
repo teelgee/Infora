@@ -761,6 +761,24 @@ export function EditorScreen() {
               <MessageSquare size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
               Comment
             </button>
+            {/* T-336 — THE TOOL CHIP, and it is NOT A SECOND FLOW. It opens the
+                Tools launcher with this draft already chosen: the editor route
+                is the Tools route with its first step pre-filled, so there is
+                ONE run shape and ONE place the scope is stated (ADR-0053 §1).
+                A checker that ran straight off this button would be a second
+                launcher with no plan and no coverage statement. */}
+            <button
+              aria-label="Check this draft"
+              title="Check this draft — opens the QA checker with this document chosen"
+              onClick={() =>
+                void navigate(
+                  `/projects/${participant.projectId}/tools/qa-check?documentId=${doc.id}`,
+                )
+              }
+            >
+              <Check size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Check
+            </button>
             <span style={{ marginLeft: 'auto' }} />
             <button
               className={previewing ? undefined : 'active'}

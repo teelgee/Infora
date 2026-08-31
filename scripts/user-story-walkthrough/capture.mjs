@@ -397,6 +397,54 @@ await e.goto(`${WEB}/projects/${projectId}/editor/${doc.id}`);
 await e.getByText('Conceptual site model', { exact: false }).first().waitFor();
 await shot(e, '09-editor');
 
+// ── T-336/T-311 — a colleague runs the QA checker over the draft ────────────
+//
+// v1.md's journey names this beat and until now nothing could photograph it.
+// The launcher is reached from the EDITOR's tool chip, which opens the Tools
+// route with this draft already chosen — one launcher, one run shape, one place
+// the scope is stated (ADR-0053 §1). The run is deterministic here: the
+// substrate's fake router answers the check prompt with one MECHANICAL fix and
+// one REWRITE, which is what makes the accept-all-above-the-rewrites layout
+// visible rather than merely asserted.
+console.log('checker lane —');
+await e.getByRole('button', { name: 'Check this draft' }).click();
+await e.getByRole('heading', { name: 'QA checker' }).waitFor();
+await e.getByRole('button', { name: 'See the plan' }).click();
+await e.getByText('This is what will run').waitFor();
+// the plan is the BEAT, and it lands below the fold on this form — the
+// explicit scroll is the recipe's own rule for a below-fold section. Scroll to
+// the RUN BUTTON, which sits under the plan: bringing the top of the plan into
+// view still leaves its coverage sentence off the bottom, and that sentence is
+// the half worth photographing.
+await e.getByRole('button', { name: 'Run the check' }).scrollIntoViewIfNeeded();
+await e.waitForTimeout(300);
+await shot(e, '09a-checker-plan');
+
+await e.getByRole('button', { name: 'Run the check' }).click();
+await e.getByText('What was checked').waitFor({ timeout: 30_000 });
+await shot(e, '09b-checker-coverage');
+
+await e.getByRole('link', { name: /Open the draft/ }).click();
+// the panel tabs are anchors WITHOUT hrefs, so they carry no link role
+await e.locator('.panel-tabs a').filter({ hasText: 'Checks' }).click();
+await e.getByText(/mechanical correction/).waitFor();
+await shot(e, '09c-checker-marks');
+
+// ⚠ AND THE MARKS ARE WORKED THROUGH BEFORE ACT III, because they have to be:
+// an open finding blocks promotion exactly as an open comment thread does
+// (ADR-0049 §7), so a capture that left them open would meet the open-items
+// gate at the next beat instead of the QA-source one it is there to show. The
+// mechanical group goes in one click; the rewrite is read and set aside, which
+// is the distinction ADR-0053 §6 exists to keep on the screen.
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).click();
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).waitFor({ state: 'hidden' });
+for (;;) {
+  const dismiss = e.getByRole('button', { name: 'Dismiss all' }).first();
+  if ((await dismiss.count()) === 0) break;
+  await dismiss.click();
+  await e.waitForTimeout(300);
+}
+
 // ── Act III — the internal QA round, and the gate ───────────────────────────
 console.log('internal QA lane —');
 // the gate, refusing: this sandbox does not promote a live head until the

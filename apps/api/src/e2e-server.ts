@@ -6,6 +6,8 @@ import { serve } from '@hono/node-server';
 import { ingestAllVersions } from '@infora/data';
 import { createDb } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
+import { createWorkerRegistry } from '@infora/capabilities';
+import { loadWorkflows } from '@infora/workflows';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
@@ -25,6 +27,46 @@ const router = fakeRouter((system) => {
         { name: 'Geotechnical', children: [{ name: 'Ground investigation' }] },
       ],
       followUp: null,
+    });
+  }
+  // T-336 — the checker's two prompts, for the same reason the branch above
+  // exists: the substrate has to be able to drive a check through a browser
+  // without a provider. The section check returns ONE MECHANICAL fix and ONE
+  // REWRITE, which is what makes the accept-all-above-the-rewrites layout
+  // (ADR-0053 §6) photographable rather than merely asserted.
+  if (system.includes('checkable factual assertions')) {
+    return 'the reduction in contaminant loading';
+  }
+  if (system.includes('summaries of what each section')) {
+    return JSON.stringify({ findings: [] });
+  }
+  if (system.includes('You are checking one section of a draft')) {
+    return JSON.stringify({
+      summary: 'The section sets out the conceptual site model and its residual uncertainty.',
+      findings: [
+        // MECHANICAL — one substitution, applied consistently, statable in one
+        // line. R1 is the PROJECT style guide, so the quote crosses the wall.
+        {
+          family: 'style',
+          quote: 'the former works',
+          defect:
+            'The works are named informally here; the project style guide fixes “the scheme”.',
+          severity: 'advisory',
+          rule: 'R1',
+          replacement: 'the scheme',
+        },
+        // A REWRITE — model-written prose, per-mark always. R4 is the FIRM's
+        // own manual, so this quote is private to Calder & Hale.
+        {
+          family: 'style',
+          quote: 'A conceptual site model has been prepared for each land parcel crossed by the route.',
+          defect: 'This sentence is passive, so the party who prepared the model is not named.',
+          severity: 'advisory',
+          rule: 'R4',
+          replacement:
+            'Calder & Hale has prepared a conceptual site model for each land parcel the route crosses.',
+        },
+      ],
     });
   }
   const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
@@ -49,6 +91,15 @@ const app = buildApp({
   // Lenses a real user is offered, and a suite that could reach the draft
   // Commercial Lens would be testing a configuration nobody ships.
   lenses: loadLenses({ production: true }),
+  // T-336 — the substrate carries the DECLARED WORKFLOWS and the worker
+  // registry, which it never had. Without them the Tools section is empty here
+  // and the checker's routes 404 — so a tool shipped in T-334/T-335 could not
+  // be driven through a browser at all, and the walkthrough could not
+  // photograph one. The registries are the production ones, because a harness
+  // that composed the app differently from a deployment is evidence about a
+  // configuration nobody ships (the eval harness's own rule).
+  workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+  workers: createWorkerRegistry(),
   // T-283 — the default is config, and the substrate declares one so the
   // picker's preselected state is exercised rather than assumed
   defaultLensId: 'planning-environmental',

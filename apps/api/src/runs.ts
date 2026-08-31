@@ -263,8 +263,18 @@ export function runRoutes(deps: {
       // result (T-295) on the user's behalf, off a classification they never
       // saw. So the candidate set is the read-only workflows, and the writing
       // ones are reached through their own launcher.
+      //
+      // T-336 — **and never into a workflow whose SHAPE a planner computes.**
+      // A fan-out's width comes from a bound `id_list` that ordinary code works
+      // out before the run (T-396's rule 6), and a chat turn runs no planner —
+      // so a classifier that matched the checker would bind a width of zero and
+      // report success over a run that did nothing, or fail on an unbound list
+      // in front of somebody who only asked a question. The checker is a tool
+      // its user launches deliberately, with the plan seen first; that is the
+      // whole of ADR-0053 §4, and this is where it holds for the Ask path.
       const available = (deps.workflows?.list() ?? []).filter(
-        (candidate) => candidate.writes === 'none',
+        (candidate) =>
+          candidate.writes === 'none' && !candidate.steps.some((step) => step.fanOut !== undefined),
       );
 
       const outcome =

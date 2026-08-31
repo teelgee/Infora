@@ -138,7 +138,13 @@ export function clauseSlice(
 
 export type QaSectionCheckInput = {
   sandboxDocumentId: Id;
-  /** 1-based, the number the plan and the findings both speak in */
+  /**
+   * 1-based, the number the plan and the findings both speak in — and **0
+   * means the whole draft**, which is the short shape (ADR-0053 §4). Reading
+   * everything in one call is not a section that happens to be big; it is the
+   * shape in which self-contradiction comes free, because one reader genuinely
+   * sees the lot.
+   */
   section: number;
   families: readonly CheckFamily[];
   depth: CorpusDepth;
@@ -146,6 +152,13 @@ export type QaSectionCheckInput = {
   clausePass?: { index: number; of: number };
   /** ADR-0022's working set: never grounds, never cited. Supplied by the run */
   excerpts?: readonly CheckExcerpt[];
+  /**
+   * Library documents the run was narrowed to (ADR-0053 §3, `Q-028`'s
+   * **explicit** case: a scope selected pre-retrieval, recorded on the plan,
+   * visible to the user). **Empty means the whole access-resolved library**,
+   * which is the default — never "nothing".
+   */
+  scopeVersionIds?: readonly Id[];
 };
 
 export type QaSectionCheckOutput = {
@@ -182,7 +195,17 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
   ): Promise<QaSectionCheckOutput> => {
     const draft = await readDraft(deps.db, input.sandboxDocumentId);
     if (draft === null) throw new UnknownDraftSection(input.section, 0);
-    const section = draft.sections[input.section - 1];
+    // section 0 is the whole draft read as one unit — the short shape
+    const section =
+      input.section === 0
+        ? {
+            index: 0,
+            heading: null,
+            start: 0,
+            end: draft.content.length,
+            text: draft.content,
+          }
+        : draft.sections[input.section - 1];
     if (section === undefined) throw new UnknownDraftSection(input.section, draft.sections.length);
 
     const wantsStyle = input.families.includes('style');
@@ -202,6 +225,14 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
           : await checkableAssertions(deps, section);
       if (input.depth === 'full') assertionsSearched = searches.length;
       passages = await retrieveFor(deps, requester, environment, searches);
+      // the narrowing is applied to what the gateway RETURNED, never passed
+      // into it: `AssemblyRequest` has no field that widens or redirects
+      // anything, which is the wall's signature guarantee (ADR-0053 §8). A
+      // scope is a filter over what the requester could already reach.
+      if (input.scopeVersionIds !== undefined && input.scopeVersionIds.length > 0) {
+        const wanted = new Set<string>(input.scopeVersionIds);
+        passages = passages.filter((passage) => wanted.has(passage.versionId));
+      }
     }
 
     const material = {
@@ -324,11 +355,17 @@ async function retrieveFor(
 export type QaContradictionCheckInput = {
   sandboxDocumentId: Id;
   summaries: readonly SectionSummary[];
+  /**
+   * ADR-0053 §4's very-long shape: the summaries themselves exceed one call, so
+   * they are compared in **groups**. The plan says cross-section checking is
+   * weaker when this is set — it degrades loudly or not at all.
+   */
+  group?: { index: number; of: number };
 };
 
 export type QaContradictionCheckOutput = {
   findings: DraftFinding[];
-  coverage: { summariesCompared: number; discarded: number };
+  coverage: { summariesCompared: number; discarded: number; groups: number };
   audit?: CheckAudit;
 };
 
@@ -339,12 +376,20 @@ export function createQaContradictionCheck(deps: {
 }) {
   return async (input: QaContradictionCheckInput): Promise<QaContradictionCheckOutput> => {
     const draft = await readDraft(deps.db, input.sandboxDocumentId);
-    const summaries = input.summaries.filter((entry) => entry.summary.trim() !== '');
+    const all = input.summaries.filter((entry) => entry.summary.trim() !== '');
+    const summaries = groupOf(all, input.group);
     // fewer than two summaries is not a weak comparison, it is no comparison —
     // and reporting "no contradictions" from one section would be the clean
     // result that means nothing was looked at
     if (draft === null || summaries.length < 2) {
-      return { findings: [], coverage: { summariesCompared: summaries.length, discarded: 0 } };
+      return {
+        findings: [],
+        coverage: {
+          summariesCompared: summaries.length,
+          discarded: 0,
+          groups: input.group?.of ?? 1,
+        },
+      };
     }
     const result = await deps.router.chat('verify', {
       system: composeContradictionPrompt(summaries),
@@ -353,14 +398,42 @@ export function createQaContradictionCheck(deps: {
     const admitted = admitContradictionFindings(draft.content, draft.sections, result.text);
     return {
       findings: admitted.findings,
-      coverage: { summariesCompared: summaries.length, discarded: admitted.discarded },
+      coverage: {
+        summariesCompared: summaries.length,
+        discarded: admitted.discarded,
+        groups: input.group?.of ?? 1,
+      },
       audit: auditOf(deps.rates, result),
     };
   };
 }
 
+/**
+ * One group's slice of the summaries, **contiguous and in plan order**.
+ *
+ * Contiguous rather than interleaved because neighbouring sections are the ones
+ * most likely to contradict each other — a figure restated three paragraphs
+ * later, not one restated forty. Splitting them apart would maximise exactly
+ * the comparison the grouping already cannot make.
+ */
+function groupOf(
+  summaries: readonly SectionSummary[],
+  group?: { index: number; of: number },
+): SectionSummary[] {
+  if (group === undefined || group.of <= 1) return [...summaries];
+  const size = Math.ceil(summaries.length / group.of);
+  return summaries.slice(group.index * size, (group.index + 1) * size);
+}
+
 export type QaDocumentCheckInput = {
   sandboxDocumentId: Id;
+  /**
+   * Which of the two arithmetic families to run. **Every family is switchable
+   * at launch** (ADR-0053 §2), and a capability that ran both regardless would
+   * report findings from a check the user turned off — which is worse than
+   * missing one, because nothing on the screen would explain where it came from.
+   */
+  families?: readonly CheckFamily[];
   /** absent runs the placeholder half of completeness only, and says so */
   templateId?: string;
   readabilityTarget?: number;
@@ -393,13 +466,19 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
         },
       };
     }
+    const families = input.families ?? (['readability', 'completeness'] as const);
     const target = input.readabilityTarget ?? DEFAULT_READABILITY_TARGET;
+    // the scores are computed either way, because the coverage statement has to
+    // be able to say the family ran — it is the findings that are withheld
     const readability = readabilityCheck(draft.content, draft.sections, target);
     const template =
       input.templateId === undefined ? undefined : deps.templates?.get(input.templateId);
     const completeness = completenessCheck(draft.content, draft.sections, template);
     return {
-      findings: [...readability.findings, ...completeness.findings],
+      findings: [
+        ...(families.includes('readability') ? readability.findings : []),
+        ...(families.includes('completeness') ? completeness.findings : []),
+      ],
       coverage: {
         sections: draft.sections.length,
         readability: { target, scores: readability.scores },

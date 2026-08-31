@@ -121,11 +121,20 @@ describe('the registry (T-269)', () => {
       'corpus_retrieval',
       'extractor',
       'document_builder',
+      // T-310 — the checker's three joined the set when they acquired
+      // implementations, on the same terms: this list is what entitlement is
+      // assembled from, so a capability absent here is one no plan step can name
+      'qa_section_check',
+      'qa_contradiction_check',
+      'qa_document_check',
     ]);
     expect(BUILT_WORKERS.map((worker) => worker.name)).toEqual([
       'corpus_retrieval',
       'extractor',
       'document_builder',
+      'qa_section_check',
+      'qa_contradiction_check',
+      'qa_document_check',
     ]);
   });
 

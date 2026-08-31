@@ -600,15 +600,27 @@ describe('model-chosen orchestration and mode labelling (T-266)', () => {
     // T-274 added `extractor` to the built set; the property under test is
     // that this is the ASSEMBLED set for this requester, not that it has one
     // member.
-    expect(seen).toEqual(['corpus_retrieval', 'extractor', 'document_builder']);
+    expect(seen).toEqual([
+      'corpus_retrieval',
+      'extractor',
+      'document_builder',
+      // T-310 — the checker's three joined the deployment's built set, and the
+      // point of this assertion is unchanged: it is the set ASSEMBLED for this
+      // requester, not a fixed list
+      'qa_section_check',
+      'qa_contradiction_check',
+      'qa_document_check',
+    ]);
   });
 
-  it('a chat turn is never offered a workflow that writes (T-309)', async () => {
+  it('a chat turn is never offered a workflow that WRITES (T-309) or one a PLANNER shapes (T-336)', async () => {
     // the guarantee is a one-line filter in runs.ts, and it is section-12
-    // grade: a question that silently started writing a document would decide
-    // who can read the result off a classification the user never saw. Both
-    // shipped definitions are loaded above; only the read-only one may reach
-    // the classifier.
+    // grade. Two reasons, and they are different: a question that silently
+    // started writing a document would decide who can read the result off a
+    // classification the user never saw; and a workflow whose step count is a
+    // fan-out width computed by a planner cannot be bound by a classifier at
+    // all — a chat turn runs no planner, so matching it would bind a width of
+    // zero and report success over a run that did nothing.
     const cookie = await session(`t046-consultant-${stamp}@test.local`);
     let offered: string[] = [];
     await ask(
@@ -620,7 +632,8 @@ describe('model-chosen orchestration and mode labelling (T-266)', () => {
       'anything',
     );
     expect(offered).toEqual(['project-question']);
-    expect(offered).not.toContain('document-creation');
+    expect(offered).not.toContain('document-creation'); // it writes
+    expect(offered).not.toContain('qa-check'); // a planner computes its shape
   });
 
   it('a deployment with no worker registry hands the classifier nothing — no slice, no workers', async () => {

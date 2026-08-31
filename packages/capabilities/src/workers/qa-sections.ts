@@ -59,12 +59,18 @@ const SENTENCE_END = /[.,;:!?]$/;
 /**
  * Cut a draft into sections, deterministically.
  *
- * **A heading is either an ATX heading, or a short line standing alone** — one
- * preceded by a blank line (or the start of the document), followed by a blank
- * line, not ending in sentence punctuation, and short enough to be a title.
- * That is exactly the shape `document_builder` writes (`heading\n\nbody`), and
- * it is the shape a person typing a draft in the editor produces without being
- * told to.
+ * **A heading is either an ATX heading, or a short line that opens a block** —
+ * one preceded by a blank line (or the start of the document), not ending in
+ * sentence punctuation, and short enough to be a title. That covers both the
+ * shape `document_builder` writes (`heading\n\nbody`) and the far more common
+ * one a person types (`heading\nbody`).
+ *
+ * ⚠ **The blank line BELOW was a condition and is deliberately not one.** It
+ * was written against the builder's own output and fails on ordinary prose: a
+ * numbered heading with its paragraph starting on the next line — which is how
+ * most real chapters are written — was read as body text, so a whole document
+ * became one section and the per-section fan-out never fired. Found by running
+ * the planner over the walkthrough's own draft.
  *
  * **A draft with no headings is ONE section, and that is honest rather than a
  * fallback.** It is also what makes ADR-0053 §4's *short document → one pass,
@@ -91,10 +97,9 @@ export function splitIntoSections(content: string): DraftSection[] {
     if (trimmed.length > HEADING_MAX) return false;
     if (SENTENCE_END.test(trimmed)) return false;
     const before = index === 0 ? '' : lines[index - 1]!.trim();
-    const after = index + 1 >= lines.length ? '' : lines[index + 1]!.trim();
-    // standing alone: blank above (or the very top) and blank below. A line
-    // with prose immediately under it is the first line of a paragraph.
-    return before === '' && after === '';
+    // opens a block: blank above, or the very top. A short unpunctuated line in
+    // the MIDDLE of a paragraph is a wrapped line, not a heading.
+    return before === '';
   };
 
   const starts = lines.map((_, index) => index).filter(isHeading);

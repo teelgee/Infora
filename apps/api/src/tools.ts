@@ -17,9 +17,10 @@
 //
 //   • the **document creator** — built (T-309), and available to anyone whose
 //     assembled set carries `document_builder`;
-//   • the **QA checker** — ticketed as T-336 and NOT BUILT. It appears as
-//     `unbuilt` naming what it waits on, because a Tools section with one tile
-//     and no explanation reads as a product with one tool;
+//   • the **QA checker** — ✅ **built 2026-08-31 (T-336)**, and the tile flips
+//     from `unbuilt` to `available` in that ticket's own commit. It carried a
+//     `waitsOn` naming T-336 by name, which is exactly the copy that goes stale
+//     silently if the flip is left to a later tidy-up;
 //   • the **extractor** — deliberately absent altogether. Its tool is
 //     unspecified and is `Q-049`: nothing says what a user picks, how a run is
 //     scoped, or where the output lands. A tile promising a screen nobody has
@@ -30,6 +31,7 @@ import type { Db } from '@infora/db';
 import type { WorkerRegistry } from '@infora/capabilities';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { DOCUMENT_CREATION_WORKFLOW } from './document-creation';
+import { QA_CHECK_WORKFLOW } from './qa-check';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -73,15 +75,24 @@ export function toolRoutes(deps: {
       });
     }
 
-    items.push({
-      id: 'qa-checker',
-      label: 'QA checker',
-      description:
-        'Check a draft against the project style guide, your firm’s own rules and the project library, and get anchored findings you accept or reject one at a time.',
-      state: 'unbuilt',
-      waitsOn:
-        'Specified 2026-08-30 (ADR-0053) and being built as T-336 — the launcher, the plan and the run.',
-    });
+    // The checker is present on the same two conditions the creator is: this
+    // deployment carries the declared workflow, AND this requester is entitled
+    // to the capability it names. Either missing makes the tool absent rather
+    // than broken — a tile that launches a run the executor would refuse is a
+    // promise the product cannot keep.
+    if (
+      deps.workflows?.get(QA_CHECK_WORKFLOW) !== undefined &&
+      entitled.has('qa_section_check')
+    ) {
+      items.push({
+        id: QA_CHECK_WORKFLOW,
+        label: 'QA checker',
+        description:
+          'Check a draft against the project style guide, your firm’s own rules and the project library, and get anchored findings you accept or reject one at a time.',
+        state: 'available',
+        href: `/projects/${slice.projectId}/tools/qa-check`,
+      });
+    }
 
     return c.json({ items } satisfies ListToolsResponse);
   });

@@ -152,6 +152,33 @@ const acts = [
           'The draft in the Editor, the drafting assistant alongside. Its reach is the project library — the curated set of accepted material the owner trusts — so the text it helps produce is anchored to the project’s real positions, not to whatever half-finished files are lying around.',
         adrs: ['ADR-0011'],
       },
+      {
+        img: '09a-checker-plan',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'The plan, before anything is spent',
+        prose:
+          'The Check button in the editor’s toolbar opens the QA checker with this draft already chosen — the same launcher Tools opens, with its first step filled in, because one run shape and one place the scope is stated is the whole point. Eleanor picks how hard to look and is shown the plan: which shape the run took and why, every step it will execute, roughly what it will cost, and — the sentence that matters most — exactly what it will cover. The plan is computed in ordinary code before any AI is involved, which is what makes the checker a declared workflow at all: the same document produces the same plan tomorrow. It is rendered and it is not editable. You shape it by changing an answer above and watching it regenerate, because hand-editing a step list would make the plan the model’s composition rather than a promise the tool can keep.',
+        adrs: ['ADR-0053', 'ADR-0027'],
+      },
+      {
+        img: '09b-checker-coverage',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: '“No findings” always means “no findings in what was read”',
+        prose:
+          'The run finishes and the coverage sentence comes back in the same shape it took before the run, with what actually happened in it: how many sections were read, how many checks ran, how much of the record was searched, how many of the style guide’s clauses were applied and in how many passes. That sentence is not a footnote — it is the only thing that distinguishes a clean result from an unexamined one, and it is why a style guide too long for one pass is split rather than quietly truncated. A manual growing from sixty clauses to ninety changes the plan visibly and costs slightly more; there is no day on which the checker silently starts covering less.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: '09c-checker-marks',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'Two views of one set, and the accept-all that stops at rewrites',
+        prose:
+          'Back in the draft, the findings are marks anchored into the text and a panel grouped by the check that raised each one — two views of one set, from one read. Every finding says what is wrong, points into the paragraph, and shows what it rests on: a passage of the record renders as a source chip, while a quoted writing rule renders as a quotation with its clause number and never as a chip, because a rule steers the author and asserts nothing about the scheme. Fifty-five identical capitalisations are one decision applied fifty-five times, so a group’s mechanical corrections carry an accept-all that states the size of what is being accepted. The rewrites sit below it with no such button and the screen says why: accepting new prose unread is not the same act as normalising a capital letter. Nothing is ever applied automatically — every change to the draft is still a person’s.',
+        adrs: ['ADR-0048', 'ADR-0053'],
+      },
     ],
     gaps: [
       {

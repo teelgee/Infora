@@ -1,0 +1,157 @@
+# T-336 -- the QA checker's DAG. The five check families (T-310) wrapped in a
+# declared workflow, which is what makes the checking path EVALUABLE END TO END
+# where an improvised one is not: same inputs, same steps, same order.
+#
+# THE WIDTH OF EVERY FAN-OUT IS COMPUTED IN CODE, BEFORE THE RUN.
+# `passes` and `groups` are `id_list` parameters the PLANNER binds
+# (packages/capabilities/src/qa-plan.ts), and the validator refuses a `fan_out`
+# pointing at a step's output -- which is the whole guarantee. A step's output
+# can be model-written, so a width read from one would make the plan's SHAPE
+# model-chosen while it still called itself declared, losing the one promise
+# (same inputs, same steps, same order) a declared workflow is sold on
+# (ADR-0053 section 4).
+#
+# ONE ELEMENT OF `passes` IS ONE UNIT OF WORK, and it carries everything that
+# unit needs: `s3p1of2` is "section 3, the second of two style-clause passes".
+# The compact key is a consequence of the fan-out's own rule -- the width is the
+# length of a bound list and nothing else may set it, so per-expansion detail
+# has to ride in the element.
+#
+# THE SPLIT IS WHY THERE IS A PASS INDEX AT ALL (ADR-0053 section 5). A style
+# guide that will not fit alongside a section is run over that section in two
+# passes, half the clauses each: another call, and the whole manual covered. The
+# context limit stops being a silent truncator and becomes something the plan
+# routes around.
+#
+# `writes: none` is honest rather than modest. The checker CHECKS: a proposed
+# fix is a Suggestion the reviewer accepts through the path the drafting side
+# already uses (ADR-0048 section 3), so the checker acquires no write path of
+# its own, and validator rule 4 has nothing to bite on here.
+id: qa-check
+version: 1
+label: Check a document
+description: >-
+  Read a draft against the writing rules that bind it and the project record it
+  rests on, score it for readability and completeness, and return anchored
+  findings with a statement of what was covered.
+status: active
+
+parameters:
+  - name: sandbox_document_id
+    type: id
+    required: true
+    description: The draft under check. A run covers one document.
+  - name: passes
+    type: id_list
+    required: true
+    description: >-
+      One element per execution of the section check, computed by the planner in
+      code before the run. `s3p1of2` is section 3, the second of two
+      style-clause passes.
+  - name: measures
+    type: id_list
+    required: false
+    description: >-
+      Always one element. It is a list rather than a flag because every step
+      count in this plan is the length of a bound list, so the plan and the run
+      cannot disagree about what runs -- and this is the step that TOTALS UP
+      WHAT WAS READ, which the run's coverage statement is built from. It runs
+      even where neither arithmetic family was selected.
+    default: ['code']
+  - name: groups
+    type: id_list
+    required: false
+    description: >-
+      One element per comparison of the section summaries. Empty where the draft
+      fits one pass -- there is then nothing to compare, because one reader saw
+      everything.
+    default: []
+  - name: families
+    type: string
+    required: true
+    description: The check families this run was launched with, comma-separated.
+  - name: depth
+    type: string
+    required: true
+    description: How hard the corpus check looks -- `quick` or `full`.
+  - name: scope_version_ids
+    type: id_list
+    required: false
+    description: >-
+      Library documents the run was narrowed to. Empty is the DEFAULT and means
+      the whole access-resolved library -- never "nothing".
+    default: []
+  - name: attached_document_ids
+    type: id_list
+    required: false
+    description: >-
+      Documents the user pinned from their own sandbox. Never grounds, never
+      cited (ADR-0022) -- the evidence is an excerpt.
+    default: []
+  - name: template_id
+    type: string
+    required: false
+    description: >-
+      The template completeness is checked against. Absent runs the placeholder
+      half only, and the coverage says the other did not run.
+    default: ''
+  - name: readability_target
+    type: number
+    required: false
+    description: The project's reading-level target, as a US grade.
+    default: 14
+
+output_schema:
+  findings: every anchored finding, with the input it arose from and its evidence
+  summaries: what each section asserts, produced as a by-product of the section reads
+  coverage: what was actually read -- sections, clauses, passages, and what was discarded
+
+steps:
+  - id: check
+    stage: analyse
+    worker: qa_section_check
+    fan_out: '{{parameters.passes}}'
+    inputs:
+      sandbox_document_id: '{{parameters.sandbox_document_id}}'
+      pass: '{{item}}'
+      families: '{{parameters.families}}'
+      depth: '{{parameters.depth}}'
+      scope_version_ids: '{{parameters.scope_version_ids}}'
+      attached_document_ids: '{{parameters.attached_document_ids}}'
+    depends_on: []
+
+  # The comparison runs AFTER the section reads and takes their summaries, which
+  # ride free as a by-product of those calls -- so the whole-document view no
+  # per-section call can have costs one extra call rather than N squared.
+  - id: compare
+    stage: analyse
+    worker: qa_contradiction_check
+    fan_out: '{{parameters.groups}}'
+    inputs:
+      sandbox_document_id: '{{parameters.sandbox_document_id}}'
+      summaries: '{{steps.check.output}}'
+      group: '{{item}}'
+    depends_on: [check]
+
+  # CODE, and the checker's `present` step: its answer is its COVERAGE, not
+  # prose. Readability is arithmetic and completeness is a template comparison
+  # and a placeholder search, so this spends nothing -- and its cost is a
+  # genuine zero rather than an unpriced null (T-254). It runs even where
+  # neither arithmetic family was selected, because a run that produced findings
+  # and no statement of what it read would be the failure ADR-0053 section 5
+  # exists to prevent.
+  - id: measure
+    stage: present
+    worker: qa_document_check
+    fan_out: '{{parameters.measures}}'
+    inputs:
+      sandbox_document_id: '{{parameters.sandbox_document_id}}'
+      families: '{{parameters.families}}'
+      template_id: '{{parameters.template_id}}'
+      readability_target: '{{parameters.readability_target}}'
+    depends_on: []
+
+requires_workers:
+  - qa_section_check
+
+writes: none

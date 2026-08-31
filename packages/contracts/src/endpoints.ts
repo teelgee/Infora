@@ -24,7 +24,8 @@ import type {
 import { PLAN_STAGES } from './shared';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
-import type { OpenFindingCount } from './finding';
+import type { Finding, OpenFindingCount } from './finding';
+import { CHECK_FAMILIES } from './checker';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -2261,6 +2262,22 @@ export type ToolPlan = {
    * Non-null means: do not offer the button.
    */
   refusal: string | null;
+  /**
+   * T-336 — **which shape the planner took**, in the user's words (ADR-0053
+   * §4). *"One pass over the whole draft"*, *"a pass per section, then a
+   * comparison"*, *"…compared in groups"*. Optional because the document
+   * creator has one shape and naming it would be noise.
+   */
+  shape?: string;
+  /**
+   * T-336 — what this plan is **weaker at**, said before the run rather than
+   * discovered after it (ADR-0053 §4: *"it degrades loudly or not at all"*).
+   * The very-long shape compares section summaries in groups, so a
+   * contradiction between two sections in different groups is not looked for —
+   * and a run that did not say so would report a clean cross-section result it
+   * had not earned.
+   */
+  caveats?: string[];
 };
 
 export const documentCreationBody = z.object({
@@ -2390,4 +2407,60 @@ export type ResolveFindingsResponse = {
   driftedAnchors: Id[];
   /** the document as it now stands, where anything was applied */
   content: string | null;
+};
+
+// ── T-336 — THE QA CHECKER AS A TOOL ────────────────────────────────────────
+//
+// *In plain terms: you pick a draft, pick which checks to run and how hard to
+// look, and are shown a plan — which steps will run, roughly what they will
+// cost, and exactly what the run will and will not cover. Only then does
+// anything happen. Afterwards the same coverage sentence comes back with what
+// actually happened in it, beside the findings.*
+//
+// **Two endpoints and ONE planner**, T-309's rule one tool along: a preflight
+// computed separately from the act it previews is a preflight that will
+// eventually lie. The plan the user saw and the plan the run executed cannot
+// differ, because there is only one.
+//
+// POST /projects/:id/tools/qa-check/plan   the plan, no spend
+// POST /projects/:id/tools/qa-check/runs   the plan, then the run
+export const qaCheckBody = z.object({
+  /** a run covers ONE document (ADR-0053 §1) */
+  sandboxDocumentId: id,
+  families: z.array(z.enum(CHECK_FAMILIES)).min(1),
+  depth: z.enum(['quick', 'full']),
+  /**
+   * Library documents to narrow to. **Empty is the DEFAULT and means the whole
+   * access-resolved library** — never "nothing". `Q-028`'s explicit case: a
+   * scope selected pre-retrieval, recorded on the plan, visible to the user.
+   */
+  scopeVersionIds: z.array(id).default([]),
+  /**
+   * Documents pinned from the user's own sandbox (ADR-0022's working set).
+   * **Never grounds, never cited** — the evidence is an excerpt. Pinning a
+   * *library* document here would silently yield the weaker treatment, which is
+   * why the launcher names the two affordances differently.
+   */
+  attachedDocumentIds: z.array(id).default([]),
+  /** completeness checks against this; absent runs the placeholder half only */
+  templateId: z.string().optional(),
+});
+export type QaCheckBody = z.infer<typeof qaCheckBody>;
+
+export type QaCheckPlanResponse = { plan: ToolPlan };
+
+export type QaCheckRunResponse = {
+  run: Run;
+  /** the plan as it was shown before the click — the same object, recorded */
+  plan: ToolPlan;
+  /**
+   * ADR-0053 §5's second statement, in the SAME SHAPE as `plan.coverage`.
+   *
+   * 🔒 It is an output **beside** the findings and not a footnote under them,
+   * because it is the only thing distinguishing a clean result from an
+   * unexamined one: *"no findings"* must always read as *"no findings in what
+   * was read"*, and this sentence is what makes that true on the screen.
+   */
+  coverage: string;
+  findings: Finding[];
 };

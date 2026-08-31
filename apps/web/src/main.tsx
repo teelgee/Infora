@@ -8,7 +8,7 @@ import { EditorScreen } from './screens/editor';
 import { HistoryScreen } from './screens/history';
 import { LibraryScreen } from './screens/library';
 import { ProjectHome, ProjectShell } from './screens/project';
-import { DocumentCreatorScreen, ToolsScreen } from './screens/tools';
+import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
 import { NotificationsScreen } from './screens/notifications';
 import { PlanScreen } from './screens/plan';
 import { SchemaScreen } from './screens/schema';
@@ -55,6 +55,10 @@ const router = createBrowserRouter([
       { path: 'tools', element: <ToolsScreen /> },
       // T-335 — the first tool that lives in it
       { path: 'tools/document-creation', element: <DocumentCreatorScreen /> },
+      // T-336 — the checker's launcher. The EDITOR route is this route with its
+      // first step pre-filled (`?documentId=`), not a second flow: one run
+      // shape, and one place the scope is stated (ADR-0053 §1).
+      { path: 'tools/qa-check', element: <QaCheckerScreen /> },
     ],
   },
 ]);

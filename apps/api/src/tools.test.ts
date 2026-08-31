@@ -78,14 +78,25 @@ describe('the Tools section (T-334)', () => {
     expect(creator.href).toBe(`/projects/${projectId}/tools/document-creation`);
   });
 
-  it('says out loud that the checker is not built, and what it waits on', async () => {
-    // a Tools section with one tile and no explanation reads as a product with
-    // one tool; the note names the ticket so the copy cannot go stale silently
+  it('carries the QA checker, live (T-336 — the tile flipped in that ticket’s own commit)', async () => {
+    // It shipped as `unbuilt` with a `waitsOn` naming T-336 BY NAME, which is
+    // exactly the copy that goes stale silently if the flip is left to a later
+    // tidy-up. The pin moved with the build rather than outliving it.
     const { items } = await tools(full, cookie);
-    const checker = items.find((tool) => tool.id === 'qa-checker')!;
-    expect(checker.state).toBe('unbuilt');
-    expect(checker.waitsOn).toContain('T-336');
-    expect(checker.href).toBeUndefined();
+    const checker = items.find((tool) => tool.id === 'qa-check')!;
+    expect(checker.state).toBe('available');
+    expect(checker.href).toBe(`/projects/${projectId}/tools/qa-check`);
+    expect(checker.waitsOn).toBeUndefined();
+    // and nothing anywhere still says it is waiting on something
+    expect(JSON.stringify(items)).not.toContain('T-336');
+  });
+
+  it('a deployment entitled to no checker capability shows NO checker tile', async () => {
+    // absent, never disabled: a tile that launches a run the executor would
+    // refuse is a promise the product cannot keep
+    const { items } = await tools(withoutBuilder, cookie);
+    expect(items.map((tool) => tool.id)).not.toContain('qa-check');
+    expect(JSON.stringify(items)).not.toContain('QA checker');
   });
 
   it('OFFERS NO EXTRACTOR AT ALL — its tool is Q-049 and unspecified', async () => {

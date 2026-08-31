@@ -40,6 +40,7 @@ import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
 import { documentCreationRoutes } from './document-creation';
+import { qaCheckRoutes } from './qa-check';
 import { styleGuideRoutes } from './style-guide';
 import { toolRoutes } from './tools';
 import { uploadRoutes } from './upload';
@@ -288,6 +289,21 @@ export function buildApp(deps: AppDeps) {
       ...(deps.workers !== undefined && { workers: deps.workers }),
       ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
       ...(deps.draftModelId !== undefined && { draftModelId: deps.draftModelId }),
+    }),
+  );
+  // T-336 — the QA checker as a tool. The SAME leaves and the SAME capability
+  // registry the creator and the Ask path use: two bindings would be two
+  // answers to "what does a step of this deployment run".
+  app.route(
+    '/',
+    qaCheckRoutes({
+      db: deps.db,
+      leaves,
+      capabilities,
+      ...(deps.workflows !== undefined && { workflows: deps.workflows }),
+      ...(deps.workers !== undefined && { workers: deps.workers }),
+      ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
+      ...(deps.draftModelId !== undefined && { checkModelId: deps.draftModelId }),
     }),
   );
   app.route('/', uploadRoutes(deps));

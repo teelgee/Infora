@@ -18,7 +18,7 @@
 // for a worker until now. Where a worker reports no usage the audit stays
 // EMPTY rather than zero — an unpriced step must not read as a free one
 // (T-254).
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Assemble, CheckFamily, Id } from '@infora/contracts';
 import { CHECK_FAMILIES, DEFAULT_CORPUS_DEPTH, STEP_TYPES } from '@infora/contracts';
 import {
@@ -30,6 +30,8 @@ import {
   QA_SECTION_CHECK,
   createCorpusRetrieval,
   createExtractor,
+  parseGroupKey,
+  parsePassKey,
 } from '@infora/capabilities';
 import type {
   ExtractionSchemaRegistry,
@@ -98,24 +100,59 @@ function versionIdsOf(value: unknown): Id[] {
 }
 
 
-/** The families a plan step named, filtered to the ones this deployment knows. */
+/**
+ * The families a plan step named, filtered to the ones this deployment knows.
+ *
+ * Accepts a list or the comma-separated string a workflow parameter carries —
+ * the definition format has no list-of-enum type, and a `string` parameter is
+ * the honest shape for a fixed vocabulary rather than an `id_list` of things
+ * that are not ids.
+ */
 function familiesOf(value: unknown): CheckFamily[] {
-  if (!Array.isArray(value)) return [...CHECK_FAMILIES];
-  return value.filter((family): family is CheckFamily =>
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',').map((entry) => entry.trim())
+      : null;
+  if (raw === null) return [...CHECK_FAMILIES];
+  return raw.filter((family): family is CheckFamily =>
     (CHECK_FAMILIES as readonly string[]).includes(family as string),
   );
 }
 
-/**
- * The style-clause pass a step carries (ADR-0053 §5's split-rather-than-drop).
- * Computed by T-336's planner in code; read here and never invented.
- */
-function clausePassOf(value: unknown): { index: number; of: number } | undefined {
-  if (value === null || typeof value !== 'object') return undefined;
-  const pass = value as { index?: unknown; of?: unknown };
-  if (typeof pass.index !== 'number' || typeof pass.of !== 'number') return undefined;
-  return { index: pass.index, of: pass.of };
+/** A bound `id_list`, as strings. */
+function idsOf(value: unknown): Id[] {
+  return Array.isArray(value) ? value.filter((entry): entry is Id => typeof entry === 'string') : [];
 }
+
+/**
+ * The excerpts a run pinned from the requester's own sandbox (ADR-0022).
+ *
+ * ⚠ **Read only where the requester's own organisation owns the document**,
+ * which is the sandbox document's existing posture everywhere else in the
+ * build. A pin is the user saying *"look at this too"*, not a route to material
+ * they could not otherwise open.
+ */
+async function excerptsOf(db: Db, documentIds: readonly Id[]) {
+  if (documentIds.length === 0) return [];
+  const rows = await db
+    .select({
+      id: s.sandboxDocuments.id,
+      title: s.sandboxDocuments.title,
+      content: s.sandboxDocuments.content,
+    })
+    .from(s.sandboxDocuments)
+    .where(inArray(s.sandboxDocuments.id, [...documentIds]));
+  return rows.map((row) => ({
+    attachedSourceId: row.id as Id,
+    // the excerpt is what makes the finding intelligible; it is not a citation
+    // and must not render as one
+    excerpt: `${row.title}: ${row.content.slice(0, ATTACHED_EXCERPT_CHARS)}`,
+  }));
+}
+
+/** How much of an attached document one section check is shown. */
+const ATTACHED_EXCERPT_CHARS = 4000;
 
 /** The section summaries the section checks handed over, as a previous step's output. */
 function summariesOf(value: unknown): SectionSummary[] {
@@ -258,17 +295,28 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
         assemble: deps.assemble,
         ...(deps.rates !== undefined && { rates: deps.rates }),
       });
+      const pass = parsePassKey(text(inputs['pass']));
+      // ADR-0022's working set, read from the requester's OWN sandbox
+      // documents: never grounds, never cited, evidence is an excerpt.
+      const excerpts = await excerptsOf(ctx.db, idsOf(inputs['attached_document_ids']));
       const output = await sectionCheck(
         await requesterOf(ctx.db, ctx.run.requesterParticipantId),
         { projectId: ctx.run.environmentKey },
         {
           sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
-          section: typeof inputs['section'] === 'number' ? inputs['section'] : 1,
+          // 🔒 the unit of work comes off the PASS KEY the planner computed in
+          // code, never off anything a model produced. An unreadable key is
+          // section 1 rather than a guess at a wider one — the fail-safe
+          // direction, since a wrong section reads the wrong text and reports
+          // findings against it.
+          section: pass?.section ?? 1,
           families: familiesOf(inputs['families']),
           depth: inputs['depth'] === 'quick' ? 'quick' : DEFAULT_CORPUS_DEPTH,
-          ...(clausePassOf(inputs['clause_pass']) !== undefined && {
-            clausePass: clausePassOf(inputs['clause_pass'])!,
+          ...(pass !== null && pass.of > 1 && { clausePass: { index: pass.index, of: pass.of } }),
+          ...(idsOf(inputs['scope_version_ids']).length > 0 && {
+            scopeVersionIds: idsOf(inputs['scope_version_ids']),
           }),
+          ...(excerpts.length > 0 && { excerpts }),
         },
       );
       // every step records the access-resolved source set it saw (ADR-0028 §7).
@@ -303,9 +351,11 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
         router: deps.router,
         ...(deps.rates !== undefined && { rates: deps.rates }),
       });
+      const group = parseGroupKey(text(inputs['group']));
       const output = await contradictionCheck({
         sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
         summaries: summariesOf(inputs['summaries']),
+        ...(group !== null && group.of > 1 && { group }),
       });
       return {
         output,
@@ -333,7 +383,9 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
       });
       const output = await documentCheck({
         sandboxDocumentId: text(inputs['sandbox_document_id']) as Id,
-        ...(typeof inputs['template_id'] === 'string' && { templateId: inputs['template_id'] }),
+        families: familiesOf(inputs['families']),
+        ...(typeof inputs['template_id'] === 'string' &&
+          inputs['template_id'] !== '' && { templateId: inputs['template_id'] }),
         ...(typeof inputs['readability_target'] === 'number' && {
           readabilityTarget: inputs['readability_target'],
         }),

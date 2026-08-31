@@ -140,3 +140,69 @@ export const DEFAULT_CORPUS_DEPTH: CorpusDepth = 'full';
  * an outlier or whether the whole draft simply reads that way.
  */
 export const DEFAULT_READABILITY_TARGET = 14;
+
+// ── T-336 — THE LAUNCHER'S TWO PRESETS ──────────────────────────────────────
+//
+// *In plain terms: two buttons that set everything at once. "Full check" reads
+// every section against every rule and looks the project record up statement by
+// statement. "Quick check" does less of the last part. You can still change any
+// individual setting after picking one.*
+//
+// **They set the families and the depth TOGETHER**, which is why they are one
+// object rather than two switches: the honest choice a user is making is *how
+// hard should this look*, and a preset that set the depth but left the families
+// alone would answer half of it.
+//
+// 🔒 **FULL IS THE DEFAULT** (ADR-0053 §2), and the argument is about which way
+// a wrong default fails. A too-cheap default fails **invisibly** — findings that
+// never appear, under a clean result — and a too-expensive one fails **visibly**:
+// it took longer and it cost more. A system should prefer the failure its user
+// can see.
+export type CheckPreset = {
+  id: 'full' | 'quick';
+  label: string;
+  description: string;
+  families: readonly CheckFamily[];
+  depth: CorpusDepth;
+};
+
+export const CHECK_PRESETS: readonly CheckPreset[] = [
+  {
+    id: 'full',
+    label: 'Full check',
+    description:
+      'Every check, and the project record looked up for each checkable statement rather than once per section. Slower and more expensive — and it is what catches a wrong figure buried in a paragraph about something else.',
+    families: CHECK_FAMILIES,
+    depth: 'full',
+  },
+  {
+    id: 'quick',
+    label: 'Quick check',
+    description:
+      'Every check, but the project record is searched once per section rather than statement by statement. Faster, and it will miss a figure the section is not mainly about.',
+    families: CHECK_FAMILIES,
+    depth: 'quick',
+  },
+];
+
+/** The preset a launcher opens on. Never `quick`; see the lock above. */
+export const DEFAULT_CHECK_PRESET = 'full';
+
+/**
+ * How a run reaches the project record (ADR-0053 §3), and **the two are named
+ * differently on screen because they are two guarantees.**
+ *
+ * `library` — the default is the **whole access-resolved library**, narrowable
+ * to named documents by a picker. Findings from it **cite normally**, resolve
+ * to a locator and carry currency.
+ *
+ * `attached` — a document the user uploads or pins from their own sandbox
+ * (ADR-0022's working set). It **never grounds and is never cited**; the
+ * evidence is an excerpt.
+ *
+ * ⚠ Attaching a *library* document silently yields the strictly worse result —
+ * no citation, no locator, no currency — so the copy has to say which you get.
+ * A user choosing "select a document to check against" would otherwise have no
+ * way to know they took the weak path.
+ */
+export type CheckAgainst = 'library' | 'attached';

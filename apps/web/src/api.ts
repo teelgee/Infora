@@ -48,6 +48,9 @@ import type {
   MarkNotificationReadResponse,
   ListRosterResponse,
   ListFindingsResponse,
+  QaCheckBody,
+  QaCheckPlanResponse,
+  QaCheckRunResponse,
   ListSandboxCommentsResponse,
   ResolveFindingsResponse,
   ListSandboxDocumentsResponse,
@@ -519,6 +522,19 @@ export const api = {
     request<ResolveFindingsResponse>(`/sandbox-documents/${sandboxDocumentId}/findings/bulk`, {
       method: 'POST',
       body: JSON.stringify({ action, findingIds }),
+    }),
+  // T-336 — the QA checker as a tool. TWO endpoints and ONE planner behind
+  // them: a preflight computed separately from the act it previews is a
+  // preflight that will eventually lie (T-309's rule, one tool along).
+  qaCheckPlan: (projectId: string, body: QaCheckBody) =>
+    request<QaCheckPlanResponse>(`/projects/${projectId}/tools/qa-check/plan`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  qaCheckRun: (projectId: string, body: QaCheckBody) =>
+    request<QaCheckRunResponse>(`/projects/${projectId}/tools/qa-check/runs`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   patchSandboxDocument: (id: string, content: string) =>
     request<SandboxDocument>(`/sandbox-documents/${id}`, {

@@ -34,6 +34,7 @@ import type { DeploymentTier } from '@infora/model';
 import { CORPUS_RETRIEVAL } from './corpus-retrieval';
 import { EXTRACTOR } from './extractor';
 import { DOCUMENT_BUILDER } from './document-builder';
+import { QA_CONTRADICTION_CHECK, QA_DOCUMENT_CHECK, QA_SECTION_CHECK } from './qa-checker';
 
 /** The facts assembly reads. Nothing here is supplied by the request. */
 export type WorkerAssemblyFacts = {
@@ -97,6 +98,13 @@ export const BUILT_WORKERS: readonly WorkerDeclaration[] = [
   CORPUS_RETRIEVAL,
   EXTRACTOR,
   DOCUMENT_BUILDER,
+  // T-310 — the checker's three, declared here because THIS is the set
+  // entitlement is assembled from: a capability the executor can dispatch but
+  // that no requester is ever entitled to is a capability no plan step can
+  // name. The three land together because they are one tool's three grains.
+  QA_SECTION_CHECK,
+  QA_CONTRADICTION_CHECK,
+  QA_DOCUMENT_CHECK,
 ];
 
 export function createWorkerRegistry(

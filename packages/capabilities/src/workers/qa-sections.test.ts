@@ -73,6 +73,34 @@ describe('a draft is cut into sections the same way every time (ADR-0053 §4)', 
     const sections = splitIntoSections(['It rained.', '', 'It stopped.'].join('\n'));
     expect(sections).toHaveLength(1);
   });
+
+  it('a heading with its body on the NEXT line is still a heading', () => {
+    // ⚠ the blank line below was a condition and is deliberately not one: a
+    // numbered heading with its paragraph starting immediately under it is how
+    // most real chapters are written, and requiring the blank made a whole
+    // document one section — so the per-section fan-out never fired
+    const real = [
+      '1. Introduction',
+      'This chapter assesses land quality across the route corridor.',
+      '',
+      '2. Baseline sources',
+      'The desk study draws on the Phase 2 Ground Investigation Report.',
+    ].join('\n');
+    const sections = splitIntoSections(real);
+    expect(sections.map((section) => section.heading)).toEqual([
+      '1. Introduction',
+      '2. Baseline sources',
+    ]);
+  });
+
+  it('a wrapped line in the MIDDLE of a paragraph is not a heading', () => {
+    const wrapped = [
+      'Heading',
+      'The desk study draws on the Phase 2 Ground Investigation Report and the',
+      'Environmental Baseline Report.',
+    ].join('\n');
+    expect(splitIntoSections(wrapped)).toHaveLength(1);
+  });
 });
 
 describe('an anchor is resolved against the real text and never supplied (ADR-0048 §2)', () => {

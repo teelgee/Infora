@@ -125,3 +125,23 @@ export type {
   DraftSection,
   ReadabilityScore,
 } from './workers/qa-sections';
+// T-336 — the checker's planner: CODE, shown before the run, and stating its
+// coverage before and after in the same shape (ADR-0053 §4/§5).
+export {
+  CHARS_PER_TOKEN,
+  CHECK_COMPLETION_TOKENS,
+  CHECK_OVERHEAD_TOKENS,
+  PASSAGES_FULL,
+  PASSAGES_QUICK,
+  PASSAGE_PROMPT_TOKENS,
+  SUMMARY_TOKENS,
+  coverageAfterQaCheck,
+  coverageBefore as qaCoverageBefore,
+  groupKey,
+  parseGroupKey,
+  parsePassKey,
+  passKey,
+  planQaCheck,
+  tokensIn,
+} from './qa-plan';
+export type { PassKey, QaCheckPlan, QaCheckPlanInput, QaPlanShape } from './qa-plan';

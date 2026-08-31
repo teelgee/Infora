@@ -12,7 +12,17 @@ import type { KnownWorkers } from './validate';
 
 // the registry the shipped definitions are validated against — T-309 added
 // `document-creation.yaml`, which names the built writing capability
-const BUILT = ['corpus_retrieval', 'extractor', 'document_builder'];
+// T-336 — the checker's three join the built set. This list stands in for the
+// real registry, so a definition naming a capability the deployment carries
+// must load here too, or the suite fails on a workflow that is perfectly fine.
+const BUILT = [
+  'corpus_retrieval',
+  'extractor',
+  'document_builder',
+  'qa_section_check',
+  'qa_contradiction_check',
+  'qa_document_check',
+];
 const workers: KnownWorkers = {
   has: (worker) => BUILT.includes(worker),
   list: () => BUILT,

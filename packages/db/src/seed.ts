@@ -23,6 +23,7 @@ await db.execute(sql`
     document_relationships, container_classifications, classification_terms, classification_facets,
     sandbox_document_versions, sandbox_documents, sandbox_scope_grants, sandboxes, renditions,
     versions, containers, work_items,
+    project_style_guide_clauses, project_style_guides, rulebook_clauses, rulebooks,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
 
@@ -97,6 +98,93 @@ await seedProjectAcceptanceCodes(db, project!.id);
 // Infora's default Uniclass 2015 / ISO 19650 scheme, COPIED to the project at
 // creation — the same copy-not-reference discipline as the acceptance codes.
 await seedProjectOntology(db, project!.id);
+
+// ── Drawer 7: the two style sources (T-397, T-336) ──────────────────────────
+//
+// T-397 built both stores and NOTHING SEEDED EITHER, so the QA checker's style
+// family had nothing to bind, the walkthrough could not photograph a quoted
+// rule, and a developer running the app locally saw a feature that looked
+// broken. Found by building T-336 against the seeded world.
+//
+// 🔒 **THE TWO ARE SEEDED DIFFERENTLY BECAUSE THEY ARE SCOPED DIFFERENTLY**
+// (ADR-0053 §9), and the seed is where that becomes visible: the PROJECT style
+// guide belongs to Wrenfield and binds every organisation on it, so a finding
+// quoting it crosses the wall; the RULEBOOK belongs to Calder & Hale and
+// travels with them, so a finding quoting it is private to that firm. Both are
+// quoted verbatim and neither is ever cited.
+const [projectStyleGuide] = await db
+  .insert(s.projectStyleGuides)
+  .values({
+    projectId: project!.id,
+    title: 'Wrenfield–Ashcombe Project Style Guide',
+    sourceFormat: 'docx',
+    loadedByUserId: rachel!.id, // the owner's super user curates project context
+  })
+  .returning();
+await db.insert(s.projectStyleGuideClauses).values(
+  [
+    {
+      clause: '§2.1',
+      heading: 'Naming the works',
+      content:
+        'Refer to the works as “the scheme”, in lower case, throughout. Do not capitalise it as a proper noun.',
+    },
+    {
+      clause: '§2.4',
+      heading: 'Figures',
+      content:
+        'State every quantitative result with its unit and its source. A figure without a unit is not a result.',
+    },
+    {
+      clause: '§3.2',
+      heading: 'Commitments',
+      content:
+        'Write a commitment as a single sentence naming who does what, and by when. Do not spread one commitment over a paragraph.',
+    },
+  ].map((clause, at) => ({
+    styleGuideId: projectStyleGuide!.id,
+    ordinal: at + 1,
+    clause: clause.clause,
+    heading: clause.heading,
+    content: clause.content,
+    spanStart: at * 200,
+    spanEnd: at * 200 + clause.content.length,
+  })),
+);
+
+const [calderHaleRulebook] = await db
+  .insert(s.rulebooks)
+  .values({
+    organisationId: calderHale!.id,
+    title: 'Calder & Hale Drafting Manual',
+    sourceFormat: 'docx',
+    loadedByUserId: eleanor!.id,
+  })
+  .returning();
+await db.insert(s.rulebookClauses).values(
+  [
+    {
+      clause: '§4.2',
+      heading: 'Voice',
+      content:
+        'Avoid the passive voice. Name the party who acts, so a reader can tell who is responsible for what.',
+    },
+    {
+      clause: '§4.7',
+      heading: 'Hedging',
+      content:
+        'Do not hedge a conclusion the evidence supports. State it, and state the evidence beside it.',
+    },
+  ].map((clause, at) => ({
+    rulebookId: calderHaleRulebook!.id,
+    ordinal: at + 1,
+    clause: clause.clause,
+    heading: clause.heading,
+    content: clause.content,
+    spanStart: at * 200,
+    spanEnd: at * 200 + clause.content.length,
+  })),
+);
 
 // ── Drawer 3: the governed-work anchor for M3–M5 ────────────────────────────
 // The work item's record half (ADR-0032 addendum): a planned, not-yet-produced
