@@ -502,7 +502,7 @@ const toolSections = [
     key: 'creator',
     title: 'The document creator',
     lede:
-      'Instead of opening a blank editor, you build a document: choose its shape, say what it is for, pick the library documents it may draw on, and see what will run — and what it will and will not cover — before a word is drafted. The order is the design rather than a form’s field order: the sources are chosen ahead of the drafting, so the result can be checked against what was asked for rather than against whatever retrieval happened to find.',
+      'Instead of opening a blank editor, you build a document: say what kind of document it is and what language it should be in, choose the style guides it follows, compose its outline section by section, pick the library documents it may draw on — then read the document it proposes to write, correct anything wrong with it, and only then accept. The order is the design rather than a form’s field order: the sources are chosen ahead of the drafting, so the result can be checked against what was asked for rather than against whatever retrieval happened to find. <strong>Re-cut on the owner’s own review of these photographs</strong> (2026-08-31): “shape” retired, the outline became something you build, the plan became the document it proposes, and drafting was given the project’s writing rules for the first time.',
     beats: [
       {
         img: 't1-01-tools',
@@ -519,47 +519,101 @@ const toolSections = [
         screen: 'Tools · Document creator',
         title: 'What it asks, before anything is drafted',
         prose:
-          'The launcher as it opens: the shape, what the document is for, its title, the working area it goes to, and the library documents it may use. Nothing has run and nothing can yet — the only button is <em>See the plan</em>. The answers survive being shown a plan, so a change of mind about one of them does not mean re-entering the rest; what a change does discard is the plan itself, because a plan is about the inputs it was computed from and a stale one shown beside changed answers would be a lie the reader cannot see.',
+          'The launcher as it opens. It used to ask for a “shape”, which meant picking one of two templates and told an author nothing about what they were being asked; it now asks four plain questions — what kind of document this is, what language it should be written in, which style guides apply, and whether it is a whole document, a chapter or a section — and then lets the outline be built rather than chosen. Nothing has run and nothing can yet: the only button is <em>See the plan</em>. The answers survive being shown a plan, so a change of mind about one does not mean re-entering the rest; what a change does discard is the plan itself, because a plan is about the inputs it was computed from and a stale one shown beside changed answers would be a lie the reader cannot see.',
         adrs: ['ADR-0053'],
       },
       {
-        img: 't1-03-brief',
+        img: 't1-03-characteristics',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'The outline is chosen, and the intent is stated',
+        title: 'Four answers, each explaining itself',
         prose:
-          'Eleanor picks the assessment chapter section — the test, the baseline, the effect and the mitigation, in the order a reader expects them — says in her own words what this one is for, names it, and sends it to Calder & Hale’s working area. The outline is chosen rather than composed: the shape carries its own four parts and each part its own guidance, and the guidance says what belongs in the part and never what to conclude, because a template that told the model what to find would make every document produced from it agree with the template rather than with the sources. What the brief cannot do here is speak to one section at a time; that gap has a card at the foot of this section.',
+          'An external document, in non-technical language, as a chapter — and the project’s style guide selected. Each control carries the chosen option’s own sentence beneath it, because <em>External document</em> is a category and <em>written to leave your firm; every statement stands on its own</em> is what choosing it does. The style control is the one that changed most underneath: until this pass the thing that wrote a draft was never shown the project’s writing rules at all — they existed only for the checker to mark a finished draft against, which meant the product could tell you that you had broken a rule it had never told the writer about. The selected guides’ clauses now travel into the drafting call verbatim, and where a guide and the language answer disagree the plan says which wins before anything runs: the guide on terms and vocabulary, the language answer on register. More than one guide may apply; a project with none loaded shows the control honestly empty rather than hiding it, and a project whose guides could not be read says <em>that</em> instead, because those are two different facts.',
+        adrs: ['ADR-0053', 'ADR-0029'],
+      },
+      {
+        img: 't1-04-outline-seeded',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The outline is composed, and a template only starts it',
+        prose:
+          'The outline no longer arrives ready-made. Eleanor builds it section by section — a heading, and what should go in it — and the two shipped outlines survive only as a way to begin: pressing <em>Assessment chapter section</em> fills in its four parts, whose per-part guidance becomes four editable section purposes. The list starts empty on purpose, because an outline that pre-filled itself would be a ready-made shape wearing a new name. What a purpose says is scope, never a conclusion: an outline that told the drafting call what to find would make every document agree with its outline rather than with its sources, and that rule did not stop mattering when the words became the author’s.',
         adrs: ['ADR-0053'],
       },
       {
-        img: 't1-04-sources',
+        img: 't1-05-outline-edited',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'The sources are bound before a word is written',
+        title: 'Seeds, never locks',
         prose:
-          'Two of the five library documents Eleanor can reach: the ground investigation report and the environmental baseline. Binding them here rather than letting the run go looking is what gives the draft an explicit source manifest — a list of what it actually rests on, checkable against the document afterwards. The five are the ones her access resolves to and no more: a document she could not reach is absent from this list rather than greyed out in it, so the picker cannot reveal that it exists.',
+          'The first section’s purpose rewritten in Eleanor’s own words, and the last section removed outright. Every section a starting outline puts on screen is as editable and as removable as one typed by hand — which is the whole difference between a starting outline and the shape it replaced. Sections carry their own headings from here, and the assembly writes them into the document as markdown headings rather than as bare lines: the checker’s reader guesses at an unmarked heading by its length and its punctuation, and a heading a person actually typed — <em>3.2 Baseline conditions, including the 2025 survey.</em> — breaks every one of those guesses.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-06-brief',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'What it is for, and where it goes',
+        prose:
+          'The overarching brief in her own words, the title, and the working area it will be written into. The brief governs the document as a whole; each section’s own purpose governs that section, and the two are separate answers rather than one answer doing both jobs.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-07-sources',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'The sources say what each document is',
+        prose:
+          'Two of the library documents Eleanor can reach: the ground investigation report and the environmental baseline. Each row now carries the document’s reference, its title <em>and</em> a sentence saying what it actually is — a coded reference identifies a document, it does not say what is in it, and choosing sources off references alone was choosing blind. The description is typed by whoever filed the document and is never generated: a model-written description would be an uncited claim about a document sitting on screen beside that same document’s grounded content. Where nobody has written one the row says nothing rather than inventing something. Binding them here rather than letting the run go looking is what gives the draft an explicit source manifest, checkable against the document afterwards; and the list is the one her access resolves to, so a document she could not reach is absent rather than greyed out.',
         adrs: ['ADR-0011', 'ADR-0053'],
       },
       {
-        img: 't1-05-plan',
+        img: 't1-08-proposal',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'The plan, and a price that refuses to be zero',
+        title: 'The plan is the document it proposes',
         prose:
-          'One step — draft four sections into the chosen shape from the two bound sources — with what it covers stated beneath it and the cost beneath that. The plan is computed in ordinary code before any model is involved, which is what lets the tool promise the same steps in the same order for the same inputs tomorrow; it is rendered and it is not editable, and you shape it by changing an answer above and watching it regenerate. The cost here reads <em>not priced — this deployment has no rate for the model that would run it</em>, and that sentence is the point: this substrate’s model has no rate, and an unpriced step says so rather than showing a plausible £0.00 that somebody builds a business case on.',
+          'The plan page stopped being a list of machinery. It now sets out the document about to be written — a short overview of the overarching instructions, then, section by section, a short description of what will go into each — and every one of those descriptions can be corrected in place before anything runs. What is being corrected is a <em>parameter</em> of the run, exactly like the four answers above, and the plan is recomputed from it. That distinction is doing all the work: the step list underneath is computed in code, is editable by nobody, and regenerates when a description changes, so the run stays a declared one and no step list is ever hand-edited.',
         adrs: ['ADR-0053', 'ADR-0027'],
       },
       {
-        img: 't1-06-result',
+        img: 't1-09-agent-pane',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'Or tell an agent what it got wrong',
+        prose:
+          'Beside each section, a chip opens a pane targeted at that section alone: say what is wrong with its description — <em>no, set the three ground constraints out as bullets</em> — and an agent rewrites it. It is reached per section rather than per document, because an agent told “the second one is wrong” about a whole plan is an agent guessing which one. The pane reads no project material at all: not a source, not a document, not the library. A description of what a section will contain is an instruction, and an agent that reached into the record to write one would be drafting the document a step early — ungrounded, uncited, and in the one field that then steers the grounded call.',
+        adrs: ['ADR-0053', 'ADR-0027'],
+      },
+      {
+        img: 't1-10-agent-revised',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'One door into a parameter',
+        prose:
+          'The revised description in place, marked <em>Your wording</em> so a corrected page never reads as one the planner wrote — and the other sections untouched. The agent proposes and the surface applies, through the very same code path a typed correction takes, so there is exactly one way a description can change. That is not tidiness: two ways to change a description would be two chances for them to produce different plans, and the guarantee this tool is sold on is that the same inputs give the same steps. The step list after the agent’s tweak is byte-identical to the step list after the same edit made by hand.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-11-steps',
+        lane: CONSULTANT,
+        screen: 'Tools · Document creator',
+        title: 'And what will actually run',
+        prose:
+          'Below the proposed document, the steps themselves: one drafting pass over the composed sections from the bound sources, what the run will cover, and what it will do that the step list cannot show — the register it is writing in, the guides it follows, and which wins where those two disagree. There is no price anywhere on this page any more. It was there deliberately, and it came off deliberately: the estimate is still computed and every step still records what it spent, as an audit and operations fact — it simply stopped being shown to the person launching the tool. The chip at the bottom is what accepts the plan and creates the document.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't1-12-result',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
         title: 'The same sentence afterwards, with what happened in it',
         prose:
-          'The run finishes and its coverage comes back in the same shape it took before: one of four sections written, one of the two bound sources used, one drafting pass — and one sentence withheld for resting on no source. Reading the two lines against each other is the whole design: <em>four sections</em> becoming <em>one of four</em> is a fact the reader meets rather than something to go looking for. The withheld sentence was an unsupported figure, and it was not written at all rather than written and flagged, because a built document gets no weaker guarantee than a grounded answer does.',
+          'The run finishes and its coverage comes back in the same shape it took before — sections written of sections planned, sources used of sources bound, one drafting pass — with the absences the document itself cannot show appended: sentences withheld for resting on no source, and anything written outside the outline and therefore left out. Reading the two lines against each other is the whole design: <em>three sections</em> becoming <em>three of three sections written</em> is a fact the reader meets rather than something to go looking for. The count is of sections of the outline and of nothing else. It used to include material the drafting call wrote before any heading, which the assembly correctly never writes into the document — so a run that produced an empty document once reported one of four sections written, on the one surface whose entire job is to be the difference between a clean result and an unexamined one. Where that material exists now, the sentence names it instead of counting it.',
         adrs: ['ADR-0053', 'ADR-0011'],
       },
       {
-        img: 't1-07-landing',
+        img: 't1-13-landing',
         lane: CONSULTANT,
         screen: 'Sandbox',
         title: 'Where it landed',
@@ -568,26 +622,13 @@ const toolSections = [
         adrs: ['ADR-0038', 'ADR-0040'],
       },
       {
-        img: 't1-08-bound-refusal',
+        img: 't1-14-bound-refusal',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'The first honest refusal, and a layout that is not honest at all',
+        title: 'The first honest refusal, now legible',
         prose:
-          'Arriving at the creator from a deliverable in the plan instead of from Tools, the screen refuses and says why: whether a bound deliverable’s plan row should seed the document’s structure is an open design question (Q-037), and a structure invented here would be shaped by an answer nobody has given. Refusing and naming the question is right. The rendering is not: the notice is laid out as a row, so its clause number and its link are thrown into columns and the sentence is close to unreadable. That is a real defect in the shared notice component rather than anything about this tool, it affects every notice carrying a link or a code, and it is photographed rather than cropped out — this capture is where it was found.',
+          'Arriving at the creator from a deliverable in the plan instead of from Tools, the screen refuses and says why: whether a bound deliverable’s plan row should seed the document’s structure is an open design question (Q-037), and a structure invented here would be shaped by an answer nobody has given. Refusing and naming the question is right. The previous capture found the <em>rendering</em> wrong — the notice was laid out as a row, so its clause number and its link were thrown into separate columns and the sentence was close to unreadable. That was a defect in the shared notice component rather than anything about this tool, and it affected every notice in the product carrying a link or a code. It is fixed at that component, so every notice healed at once, and the sentence here reads as a sentence.',
         adrs: ['ADR-0053'],
-      },
-    ],
-    gaps: [
-      {
-        title: 'Per-section intent, and sources bound per section',
-        prose:
-          'The tool was specified as compose the outline, state the intent for each section, and bind library sources per section before anything generates. What is built asks for one brief and one set of sources for the whole document, and takes the outline and its per-part guidance from the shipped shape. The ordering that matters — sources before drafting — is built and is the half that makes the output auditable; the per-section grain is not, and it has no ticket.',
-      },
-      {
-        flag: 'Found by this capture',
-        title: 'The coverage sentence counted a section the document does not have',
-        prose:
-          'The document this run created is empty, while the sentence above it says one of four sections was written. Both halves are explicable and only one is defensible. The drafting call here is served by the substrate’s deterministic stand-in, which answers in prose with none of the shape’s headings in it — so every sentence lands outside any section, which is why nothing was written into the document and why this beat photographs the working area rather than the open editor. But the count is drawn from the same unsectioned material and reports it as a section written, and that is the after-statement overstating, on the one surface whose entire job is to be the difference between a clean result and an unexamined one. Not ticketed here — this session was allowed one number, and it spent it on the walkthrough.',
       },
     ],
   },

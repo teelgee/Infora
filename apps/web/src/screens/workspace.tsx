@@ -186,7 +186,7 @@ export function WorkspaceLanding() {
           </div>
           {me.participants.length === 0 && (
             <Card>
-              <div style={{ padding: 18, color: 'var(--text-muted)', fontSize: 13 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                 No project access yet — a project owner adds you as a Participant.
               </div>
             </Card>

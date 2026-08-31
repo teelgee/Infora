@@ -89,7 +89,7 @@ export function SettingsScreen() {
 
         <SectionLabel>Profile</SectionLabel>
         <Card>
-          <div style={{ padding: 16, display: 'grid', gap: 10, fontSize: 13 }}>
+          <div style={{ display: 'grid', gap: 10, fontSize: 13 }}>
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Email · </span>
               {/* identity, not a setting — sign-in moves to Entra SSO in production */}
@@ -122,7 +122,7 @@ export function SettingsScreen() {
 
         <SectionLabel>Appearance</SectionLabel>
         <Card>
-          <div style={{ padding: 16, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
             <span style={{ color: 'var(--text-muted)' }}>Theme</span>
             <Button
               size="sm"
@@ -144,7 +144,7 @@ export function SettingsScreen() {
 
         <SectionLabel>Password</SectionLabel>
         <Card>
-          <form onSubmit={changePassword} style={{ padding: 16, display: 'grid', gap: 10, maxWidth: 420 }}>
+          <form onSubmit={changePassword} style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
             <label style={{ display: 'grid', gap: 4, fontSize: 12.5, color: 'var(--text-muted)' }}>
               Current password
               <input
@@ -186,7 +186,7 @@ export function SettingsScreen() {
 
         <SectionLabel>Session</SectionLabel>
         <Card>
-          <div style={{ padding: 16, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
             <Button size="sm" variant="danger" onClick={() => void signOut()}>
               Sign out
             </Button>
@@ -247,7 +247,7 @@ function AdministrationPanel() {
     <>
       <SectionLabel>Administration</SectionLabel>
       <Card>
-        <div style={{ padding: 16, display: 'grid', gap: 12, fontSize: 13 }}>
+        <div style={{ display: 'grid', gap: 12, fontSize: 13 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ color: 'var(--text-muted)' }}>Project</span>
             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={fieldStyle}>
@@ -358,7 +358,7 @@ function ConflictRegisterPanel() {
     <>
       <SectionLabel>Ethical walls</SectionLabel>
       <Card>
-        <div style={{ padding: 16, display: 'grid', gap: 12, fontSize: 13 }}>
+        <div style={{ display: 'grid', gap: 12, fontSize: 13 }}>
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>
             Where working on one scheme should bar working on another. Visible only inside{' '}
             {me.organisationName} — no client and no other organisation can see this register.
@@ -510,7 +510,7 @@ function AttestationPanel() {
     <>
       <SectionLabel>Conflict attestations</SectionLabel>
       <Card>
-        <div style={{ padding: 16, display: 'grid', gap: 12, fontSize: 13 }}>
+        <div style={{ display: 'grid', gap: 12, fontSize: 13 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ color: 'var(--text-muted)' }}>Project</span>
             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} style={fieldStyle}>

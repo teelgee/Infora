@@ -34,7 +34,7 @@ export function Login(props: { onLoggedIn: () => Promise<void> }) {
         In<span>fora</span>
       </div>
       <Card>
-        <form onSubmit={submit} style={{ padding: '22px 24px', display: 'grid', gap: 12 }}>
+        <form onSubmit={submit} style={{ display: 'grid', gap: 12 }}>
           <label style={{ display: 'grid', gap: 6, fontSize: 12.5, fontWeight: 600 }}>
             Email
             <input

@@ -309,8 +309,8 @@ export function SectionComposer(props: {
 
   return (
     <Card>
-      <strong>The outline</strong>
-      <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+      <span className="card-title">The outline</span>
+      <p className="card-lede">
         Build the document section by section: a heading, and what should go in it. Say what belongs
         there, not what you expect it to conclude — the draft rests on the sources, not on the
         outline.
@@ -338,57 +338,61 @@ export function SectionComposer(props: {
       )}
 
       {props.sections.length === 0 ? (
-        <p className="field-hint" style={{ marginTop: 8 }}>
+        <p className="card-lede" style={{ marginTop: 12 }}>
           No sections yet. Add the first one, or start from an outline above.
         </p>
       ) : (
         <ol className="outline-sections">
           {props.sections.map((section, index) => (
             <li key={index} className="outline-section">
-              <div className="outline-section-controls">
+              {/* T-404 — the number, the heading and the controls read as ONE
+                  row: the controls used to stack down the left of a two-field
+                  group, which left the remove button floating beside a
+                  textarea it does not act on. */}
+              <div className="outline-section-head">
                 <span className="outline-section-n">{index + 1}</span>
-                <IconButton
-                  aria-label="Move up"
-                  disabled={index === 0}
-                  onClick={() => move(index, -1)}
-                >
-                  <ArrowUp size={13} strokeWidth={2} />
-                </IconButton>
-                <IconButton
-                  aria-label="Move down"
-                  disabled={index === props.sections.length - 1}
-                  onClick={() => move(index, 1)}
-                >
-                  <ArrowDown size={13} strokeWidth={2} />
-                </IconButton>
-                <IconButton
-                  aria-label="Remove section"
-                  onClick={() =>
-                    props.onChange(props.sections.filter((_, i) => i !== index))
-                  }
-                >
-                  <X size={13} strokeWidth={2} />
-                </IconButton>
-              </div>
-              <div className="outline-section-fields">
                 <TextInput
                   value={section.heading}
                   onChange={(heading) => at(index, { ...section, heading })}
                   placeholder="Heading"
                 />
-                <TextArea
-                  value={section.purpose}
-                  onChange={(purpose) => at(index, { ...section, purpose })}
-                  rows={2}
-                  placeholder="What should go in this section?"
-                />
+                <span className="outline-section-controls">
+                  <IconButton
+                    aria-label="Move up"
+                    disabled={index === 0}
+                    onClick={() => move(index, -1)}
+                  >
+                    <ArrowUp size={13} strokeWidth={2} />
+                  </IconButton>
+                  <IconButton
+                    aria-label="Move down"
+                    disabled={index === props.sections.length - 1}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDown size={13} strokeWidth={2} />
+                  </IconButton>
+                  <IconButton
+                    aria-label="Remove section"
+                    onClick={() =>
+                      props.onChange(props.sections.filter((_, i) => i !== index))
+                    }
+                  >
+                    <X size={13} strokeWidth={2} />
+                  </IconButton>
+                </span>
               </div>
+              <TextArea
+                value={section.purpose}
+                onChange={(purpose) => at(index, { ...section, purpose })}
+                rows={2}
+                placeholder="What should go in this section?"
+              />
             </li>
           ))}
         </ol>
       )}
 
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 12 }}>
         <Button
           size="sm"
           variant="quiet"
@@ -492,7 +496,7 @@ export function ProposedDocumentCard(props: {
   const [asking, setAsking] = useState<number | null>(null);
   return (
     <Card>
-      <strong>The document this will write</strong>
+      <span className="card-title">The document this will write</span>
       {plan.proposal !== undefined && (
         <>
           <p className="proposal-overview">{plan.proposal.overview}</p>
@@ -529,7 +533,7 @@ export function ProposedDocumentCard(props: {
               </li>
             ))}
           </ol>
-          <p className="field-hint">
+          <p className="card-lede">
             Correct any description above and the plan redraws. Every other answer stays as it is.
           </p>
         </>
@@ -540,16 +544,16 @@ export function ProposedDocumentCard(props: {
           changing an answer and watching it regenerate — hand-editing a step
           list is what would make the run `model_chosen` rather than
           `declared`. */}
-      <p className="field-hint" style={{ marginTop: 12 }}>
+      <p className="card-lede" style={{ marginTop: 16 }}>
         And this is what will run. The steps are computed from the answers above and are not
         editable, which is what makes the run repeatable.
       </p>
-      <ul>
+      <ul className="plan-steps">
         {plan.steps.map((step) => (
           <li key={step.key}>{step.label}</li>
         ))}
       </ul>
-      <p>
+      <p className="plan-covers">
         <strong>Covers:</strong> {plan.coverage}
       </p>
       {/* T-406 — what the run will DO that the step list does not show: what it
@@ -574,7 +578,7 @@ export function ProposedDocumentCard(props: {
         <div className="banner banner--warning">{plan.refusal}</div>
       ) : (
         <div className="proposal-accept">
-          <Chip disabled={props.busy} onClick={props.onAccept}>
+          <Chip tone="primary" disabled={props.busy} onClick={props.onAccept}>
             Accept the plan and create the document
           </Chip>
         </div>
@@ -676,6 +680,13 @@ export function DocumentCreatorScreen() {
     sections: sections.map((section) => ({
       heading: section.heading.trim(),
       purpose: section.purpose.trim(),
+      // ⚠ **THE CORRECTED DESCRIPTION TRAVELS WITH THE RUN.** This mapping
+      // dropped `brief` when it was written (T-407, before briefs existed) and
+      // kept dropping it after T-408 added them, because the plan path passes
+      // its own sections and only the RUN path goes through here. So the plan
+      // showed a correction and the draft would have been written without it —
+      // found by T-404's audit, fixed here rather than left for a later ticket.
+      ...(section.brief !== undefined && { brief: section.brief.trim() }),
     })),
     brief: brief.trim(),
     purpose,
@@ -787,6 +798,8 @@ export function DocumentCreatorScreen() {
           asked. Each control carries the chosen option's own sentence beneath
           it, so the answer explains itself rather than being a term of art. */}
       <Card>
+        <span className="card-title">What this document is</span>
+        <div className="card-stack">
         <Field label="What kind of document is this?">
           <SelectInput
             value={purpose}
@@ -833,6 +846,7 @@ export function DocumentCreatorScreen() {
           />
           <ChosenNote catalogue={DOCUMENT_TYPE_CATALOGUE} value={documentType} />
         </Field>
+        </div>
       </Card>
 
       {/* T-407 (ADR-0053 addendum A1) — THE OUTLINE IS COMPOSED, not chosen. */}
@@ -843,31 +857,34 @@ export function DocumentCreatorScreen() {
       />
 
       <Card>
-        <Field label="What is this document for?">
-          <TextArea value={brief} onChange={change(setBrief)} rows={3} />
-        </Field>
-        <Field label="Title">
-          <TextInput value={title} onChange={change(setTitle)} />
-        </Field>
-        <Field label="Where it goes">
-          <SelectInput
-            value={destination}
-            onChange={change(setDestination)}
-            options={[
-              { value: '', label: 'Choose a working area…' },
-              ...destinations.map((sandbox) => ({ value: sandbox.id, label: sandbox.name })),
-            ]}
-          />
-        </Field>
+        <span className="card-title">The brief, and where it goes</span>
+        <div className="card-stack">
+          <Field label="What is this document for?">
+            <TextArea value={brief} onChange={change(setBrief)} rows={3} />
+          </Field>
+          <Field label="Title">
+            <TextInput value={title} onChange={change(setTitle)} />
+          </Field>
+          <Field label="Where it goes">
+            <SelectInput
+              value={destination}
+              onChange={change(setDestination)}
+              options={[
+                { value: '', label: 'Choose a working area…' },
+                ...destinations.map((sandbox) => ({ value: sandbox.id, label: sandbox.name })),
+              ]}
+            />
+          </Field>
+        </div>
       </Card>
 
       <Card>
-        <strong>Sources this draft may use</strong>
+        <span className="card-title">Sources this draft may use</span>
         {/* The list is `grounding-scope` — the SAME pre-filter retrieval runs, so
             a document offered here is one the draft could actually have used
             (T-292). Nothing unreachable is greyed: it is absent. */}
         {scope === null || scope.sources.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>
+          <p className="card-lede">
             Nothing in this project’s library is in scope for a grounded draft. Without at least one
             source there is nothing to draft from, and the plan will say so.
           </p>
@@ -889,7 +906,7 @@ export function DocumentCreatorScreen() {
         )}
       </Card>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <div className="card-actions">
         <Button variant="primary" disabled={!ready || busy} onClick={seePlan}>
           See the plan
         </Button>
@@ -909,11 +926,11 @@ export function DocumentCreatorScreen() {
 
       {result !== null && (
         <Card>
-          <strong>What was made</strong>
+          <span className="card-title">What was made</span>
           {/* Coverage again, in the SAME SHAPE as the plan's — so the difference
               between what was promised and what happened is visible at a
               glance rather than something to go looking for (ADR-0053 §5). */}
-          <p>
+          <p className="card-lede">
             <strong>Covered:</strong> {result.coverage}
           </p>
           {result.label.refusal !== null ? (
@@ -930,14 +947,14 @@ export function DocumentCreatorScreen() {
             </p>
           )}
           {result.unreachableSources.length > 0 && (
-            <p style={{ color: 'var(--text-muted)' }}>
+            <p className="card-lede">
               {result.unreachableSources.length} source
               {result.unreachableSources.length === 1 ? '' : 's'} you named returned nothing from the
               library — either out of reach, or nothing in them matched the brief.
             </p>
           )}
           {result.withheld.length > 0 && (
-            <p style={{ color: 'var(--text-muted)' }}>
+            <p className="card-lede">
               {result.withheld.length} sentence{result.withheld.length === 1 ? '' : 's'} rested on no
               source and {result.withheld.length === 1 ? 'was' : 'were'} not written.
             </p>

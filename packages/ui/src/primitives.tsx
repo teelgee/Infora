@@ -39,13 +39,20 @@ export function Chip(props: {
   onClick?: () => void;
   title?: string;
   disabled?: boolean;
-  tone?: 'warning';
+  /**
+   * T-404 — `primary` joins `warning`. A chip is normally a quiet control, and
+   * the creator's plan page put the page's ONE primary action in one (the owner
+   * asked for a chip by name), so the strongest thing on the screen was
+   * rendering as the faintest. Design-rules §A reserves the near-black accent
+   * for a primary action; this is that accent, in a chip's shape.
+   */
+  tone?: 'warning' | 'primary';
 }) {
   return (
     <button
       type="button"
       className={
-        `chip${props.disabled ? ' disabled' : ''}${props.tone === 'warning' ? ' chip-warning' : ''}`
+        `chip${props.disabled ? ' disabled' : ''}${props.tone !== undefined ? ` chip-${props.tone}` : ''}`
       }
       onClick={props.onClick}
       title={props.title}

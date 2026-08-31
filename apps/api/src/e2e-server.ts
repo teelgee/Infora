@@ -69,6 +69,33 @@ const router = fakeRouter((system) => {
       ],
     });
   }
+  // T-409 — the creator's agent pane, for the same reason the two branches
+  // above exist: the substrate has to be able to drive the propose-confirm path
+  // through a browser without a provider.
+  if (system.includes('revise ONE section’s description')) {
+    return JSON.stringify({
+      brief:
+        'Set out the three constraints in bullets — the made ground, the perched water and the ' +
+        'PAH hotspots — one line each, with no commentary between them.',
+      followUp: null,
+    });
+  }
+  // T-407 — THE DRAFTING CALL, under the AUTHOR'S OWN HEADINGS. Until the
+  // outline was composed there was nothing to answer under: the fallback below
+  // returns prose, every sentence landed outside every section, and the creator
+  // could only ever be photographed producing an EMPTY document. The headings
+  // are read back off the prompt's own numbered outline, which is the same tell
+  // the branches above use, and one grounded sentence is written under each so
+  // the coverage statement has something true to report.
+  const outline = [...system.matchAll(/^ {2}\d+\. (.+?) — /gm)].map((match) => match[1]);
+  if (outline.length > 0) {
+    return outline
+      .map(
+        (heading) =>
+          `${heading}\n\nThe investigation recorded contamination exceedances at the compound. [S1]`,
+      )
+      .join('\n\n');
+  }
   const reader = /Write for this reader: ([^.]+)\./.exec(system)?.[1];
   const answer = 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.';
   return reader === undefined ? answer : `${reader}. ${answer}`;

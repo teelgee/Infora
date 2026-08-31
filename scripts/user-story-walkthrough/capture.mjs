@@ -827,15 +827,47 @@ await e.getByText('Document creator').first().waitFor();
 await e.getByText('QA checker').first().waitFor();
 await shot(e, 't1-01-tools');
 
-const creatorTile = e.locator('.card').filter({ hasText: 'Document creator' });
-await creatorTile.getByRole('link', { name: 'Open' }).click();
+// T-403 — the tiles are CARDS now, and the whole card is the link
+const creatorTile = e.getByRole('link', { name: /Document creator/ });
+await creatorTile.click();
 await e.getByRole('heading', { name: 'Document creator' }).waitFor();
-await e.getByText('Sources this draft may use').waitFor();
+await e.getByText('What this document is').waitFor();
 await shot(e, 't1-02-launcher');
 
-// the outline is CHOSEN rather than typed: a template is the outline a built
-// document is drafted into, and each of its sections carries its own guidance
-await e.getByLabel('Shape').selectOption({ label: 'Chapter section' });
+// T-406 — four plain questions where "shape" used to be. Each one carries the
+// chosen option's own sentence, so the answer explains itself.
+await e.getByLabel('What kind of document is this?').selectOption({ label: 'External document' });
+await e.getByLabel('What language should it be written in?').selectOption({ label: 'Non-technical' });
+await e.getByLabel('Is this a whole document, a chapter or a section?').selectOption({ label: 'Chapter' });
+// the style guide the project loaded — the first thing drafting has ever been
+// given to write TO, rather than only to be marked against
+const styleBox = e.locator('.style-guide-option input[type=checkbox]').first();
+if (await styleBox.count()) await styleBox.check();
+await shot(e, 't1-03-characteristics');
+
+// T-407 — the outline is COMPOSED. A shipped outline seeds it, and every
+// section it puts on screen is then the author's to edit or remove.
+await e.getByRole('button', { name: 'Assessment chapter section' }).click();
+await e.getByPlaceholder('Heading').first().waitFor();
+await e
+  .getByText('The outline')
+  .first()
+  .evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-04-outline-seeded');
+
+// and edited: one section's purpose rewritten in the author's own words, and
+// one removed outright — a template seeds, it does not lock
+await e
+  .getByPlaceholder('What should go in this section?')
+  .first()
+  .fill(
+    'The statutory test this section answers, in one paragraph, and where in the record it comes from.',
+  );
+await e.getByRole('button', { name: 'Remove section' }).last().click();
+await e.waitForTimeout(200);
+await shot(e, 't1-05-outline-edited');
+
 await e
   .getByLabel('What is this document for?')
   .fill(
@@ -845,10 +877,14 @@ await e
   );
 await e.getByLabel('Title').fill('Land contamination — Ashcombe Lane parcels');
 await e.getByLabel('Where it goes').selectOption({ label: sandbox.name });
-await shot(e, 't1-03-brief');
+await e
+  .getByText('The brief, and where it goes')
+  .evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-06-brief');
 
-// the sources are bound BEFORE anything is drafted — that ordering is the
-// design, not a form's field order (T-335)
+// T-405 — the sources say WHAT EACH DOCUMENT IS, not only what it is called.
+// They are bound BEFORE anything is drafted; that ordering is the design.
 const sourceBoxes = e
   .locator('.card')
   .filter({ hasText: 'Sources this draft may use' })
@@ -859,42 +895,64 @@ await e
   .getByText('Sources this draft may use')
   .evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await e.waitForTimeout(200);
-await shot(e, 't1-04-sources');
+await shot(e, 't1-07-sources');
 
+// T-408 — the plan is the PROPOSED DOCUMENT: an overview, then what will be
+// written into each section, every description correctable in place.
 await e.getByRole('button', { name: 'See the plan' }).click();
-await e.getByText('This is what will run').waitFor();
-// the plan lands below the fold; scroll the RUN BUTTON to the bottom of the
-// viewport so the coverage sentence and the cost above it are in the frame —
-// scrollIntoViewIfNeeded is a no-op when the target already peeks in, which is
-// how a beat comes out byte-identical to its neighbour
+await e.getByText('The document this will write').waitFor();
 await e
-  .getByRole('button', { name: 'Create the document' })
+  .getByText('The document this will write')
+  .evaluate((el) => el.scrollIntoView({ block: 'start' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-08-proposal');
+
+// T-409 — and the agent pane: say what is wrong with one section's
+// description and the agent rewrites that one description. It edits a
+// PARAMETER; the step list below is computed in code and nothing here can
+// reach it.
+await e.getByRole('button', { name: /Ask the agent/ }).first().click();
+await e.getByPlaceholder(/this should set out/).waitFor();
+await e
+  .getByPlaceholder(/this should set out/)
+  .fill('No — set the three ground constraints out as bullets, one line each.');
+await e.getByRole('button', { name: 'Revise this description' }).evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-09-agent-pane');
+
+await e.getByRole('button', { name: 'Revise this description' }).click();
+await e.getByText('Your wording').first().waitFor({ timeout: 30_000 });
+await e.getByText('Your wording').first().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-10-agent-revised');
+
+// T-410 — no price anywhere on this page, and the step list is still here and
+// still not editable. The chip at the bottom is what creates the document.
+await e
+  .getByRole('button', { name: 'Accept the plan and create the document' })
   .evaluate((el) => el.scrollIntoView({ block: 'end' }));
 await e.waitForTimeout(200);
-await shot(e, 't1-05-plan');
+await shot(e, 't1-11-steps');
 
-await e.getByRole('button', { name: 'Create the document' }).click();
+await e.getByRole('button', { name: 'Accept the plan and create the document' }).click();
 await e.getByText('What was made').waitFor({ timeout: 60_000 });
 await e.getByText('What was made').evaluate((el) => el.scrollIntoView({ block: 'start' }));
 await e.waitForTimeout(200);
-await shot(e, 't1-06-result');
+await shot(e, 't1-12-result');
 
-// where it landed: the working area the launcher named. The SANDBOX rather
-// than the editor, and that is the honest frame — see the gap card this beat
-// carries. The substrate's deterministic stand-in answers the drafting call in
-// prose with none of the template's headings, so every sentence lands
-// `unsectioned` and the document is created EMPTY; photographing the open
-// editor would photograph the stand-in rather than the tool.
+// where it landed: the working area the launcher named, opened, under the
+// author's own headings
 await openOrgSandbox(e);
 await e.getByText('Land contamination — Ashcombe Lane parcels').first().waitFor();
 await e.waitForTimeout(400);
-await shot(e, 't1-07-landing');
+await shot(e, 't1-13-landing');
 
 // the first honest refusal: arriving from a deliverable in the plan. Q-037 is
 // raised and unruled, so the route says so rather than guessing at the answer.
+// T-401 — and its clause number and its link now read as one sentence.
 await e.goto(`${WEB}/projects/${projectId}/tools/document-creation?containerId=${containerId}`);
 await e.getByText('is not built', { exact: false }).waitFor();
-await shot(e, 't1-08-bound-refusal');
+await shot(e, 't1-14-bound-refusal');
 
 // ── the QA checker ──────────────────────────────────────────────────────────
 //
@@ -913,7 +971,8 @@ await eleanorApi.patch(`/sandbox-documents/${checkDoc.id}`, { content: DRAFT_V1 
 // shot, and a second frame of the same page would be a byte-identical
 // duplicate rather than a beat.
 await e.goto(`${WEB}/projects/${projectId}/tools`);
-await e.locator('.card').filter({ hasText: 'QA checker' }).getByRole('link', { name: 'Open' }).click();
+// T-403 — the tiles are cards, and the whole card is the link
+await e.getByRole('link', { name: /QA checker/ }).click();
 await e.getByRole('heading', { name: 'QA checker' }).waitFor();
 await e.getByLabel('Which draft').selectOption({ label: CHECK_TITLE });
 await e.waitForTimeout(200);

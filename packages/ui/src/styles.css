@@ -289,11 +289,29 @@ h1.page { font-family: var(--primitive-font-family-serif); font-size: 27px; font
 .command .hint { margin-left: auto; font-size: 11px; border: 1px solid var(--border-default); border-radius: var(--control-sm); padding: 2px 7px; color: var(--text-muted); background: var(--surface-pane); }
 
 /* ---------- Cards (card-shaped content only — tabular data uses Table) ---------- */
+/* T-404 — A CARD HAS PADDING AND A GUTTER, AND IT GETS THEM HERE.
+   `--card-padding` (16px) and a 12px gutter are both in the design system
+   (design-rules §A spacing, §C "the gutter is 12px") and neither had ever
+   reached this rule: `.card` set a background, a radius and a shadow and
+   stopped. Every screen that noticed compensated with an inline
+   `padding: 16` wrapper of its own — settings does it seven times, login,
+   cycle and workspace once each — which is the §A hard rule ("never hardcode
+   a raw px value in app code") broken at eleven call sites and the same value
+   re-decided at each. The creator's cards wrap FORM FIELDS rather than a
+   padded table, so they had nothing to hide behind and the fields sat flush
+   against the card edge with no gap between one card and the next. That is
+   the "cramped" the owner saw.
+   `:has(> .table)` is the one exception and is deliberate: a table sets its
+   own cell padding, and a padded card around it would inset the header rule
+   from the card edge. */
 .card {
   background: var(--surface-sunken); border: none;
   border-radius: var(--primitive-radius-md); box-shadow: var(--level3-popout);
-  overflow: hidden;
+  overflow: hidden; padding: var(--card-padding); margin-bottom: 12px;
 }
+.card:has(> table), .card:has(> .table) { padding: 0; }
+/* a card's first child never adds a second top margin to the padding */
+.card > :first-child { margin-top: 0; }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 thead th {
   text-align: left; font-size: 11px; letter-spacing: .7px; text-transform: uppercase;
@@ -407,19 +425,42 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .tool-card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; margin: 0; }
 .tool-card-waits { color: var(--text-muted); font-size: 11.5px; margin: 0; }
 
+/* ---------- Card interior rhythm (T-404) ----------
+   The creator's cards wrap FORM FIELDS, and a form is where the absence of
+   vertical rhythm shows first: `.field` sets 4px between a label and its
+   input and nothing at all between one field and the next, so four questions
+   ran together as one block. These three classes are the rulebook's own
+   spacing (§A: `gap.loose` = 12px, `gap.default` = 8px) and type (§A: the
+   UI scale, never a serif in chrome) applied where a card had been leaving
+   each screen to re-decide them inline. */
+.card-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.card-lede { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 4px 0 0; }
+/* the card's own vertical rhythm: one gap value, decided once */
+.card-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+/* a step list reads as a list of what will happen, not as browser furniture */
+.plan-steps { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.plan-steps li { font-size: 12.5px; color: var(--text-primary); padding-left: 14px; position: relative; }
+.plan-steps li::before { content: '·'; position: absolute; left: 2px; color: var(--text-muted); }
+/* the row of buttons that follows a card, on the same 12px rhythm */
+.card-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+
 /* ---------- The composed outline (T-407) ----------
    A numbered list of sections the author builds: each a heading and what
    should go in it, with the controls that move and remove it. */
 .outline-seeds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .outline-sections { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .outline-section {
-  display: flex; gap: 12px; align-items: flex-start;
-  background: var(--surface-sunken); border: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--surface-pane); border: 1px solid var(--border-subtle);
   border-radius: var(--primitive-radius-md); padding: 12px;
 }
-.outline-section-controls { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.outline-section-n { font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
-.outline-section-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.outline-section-head { display: flex; align-items: center; gap: 8px; }
+.outline-section-head .field-input { flex: 1; min-width: 0; font-weight: 600; }
+.outline-section-controls { display: flex; align-items: center; gap: 4px; }
+.outline-section-n {
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-muted);
+  width: 16px; text-align: right; flex: none;
+}
 
 /* ---------- The proposed document (T-408) ----------
    The plan page's top half: what the document will be, section by section,
@@ -444,8 +485,11 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .agent-pane-followup { color: var(--text-secondary); font-size: 12px; line-height: 1.5; margin: 0; }
 .proposal-section-ask { margin-left: auto; }
 
-/* T-406 — a plan note: what the run will do, said before the click. */
-.plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 4px 0 0; }
+/* T-406 — a plan note: what the run will do, said before the click. T-404 gave
+   the coverage sentence and the notes below it their own rhythm; they used to
+   run into the step list above them as one undifferentiated block. */
+.plan-covers { font-size: 12.5px; margin: 12px 0 0; }
+.plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 6px 0 0; }
 
 /* ---------- Style-guide picker (T-406) ----------
    A checklist, not a select: more than one guide may apply to one document. */
@@ -532,6 +576,21 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .chip-warning:disabled:hover {
   color: var(--feedback-warning-text); background: var(--feedback-warning-tint);
   border-color: var(--feedback-warning-text);
+}
+
+/* T-404 — a chip carrying a PRIMARY action. The creator's plan page accepts
+   with a chip (the owner asked for one by name), and a page whose single
+   primary action renders as its faintest control is one that reads wrongly.
+   design-rules §A: the near-black accent is what a primary action wears. */
+.chip-primary {
+  color: var(--action-primary-text); background: var(--action-primary-bg);
+  border-color: var(--action-primary-bg);
+  font-weight: 600;
+}
+.chip-primary:hover { background: var(--action-primary-bg-active); border-color: var(--action-primary-bg-active); }
+.chip-primary:disabled, .chip-primary:disabled:hover {
+  opacity: .45; color: var(--action-primary-text);
+  background: var(--action-primary-bg); border-color: var(--action-primary-bg);
 }
 
 /* sources (citation pills) */

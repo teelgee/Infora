@@ -351,7 +351,7 @@ export function CycleScreen() {
 
       {!cycle && (
         <Card>
-          <div style={{ padding: 18, color: 'var(--text-muted)', fontSize: 13 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             Not yet promoted — the review cycle launches when the lead author promotes the first
             version from the sandbox draft.
           </div>
