@@ -752,6 +752,11 @@ function gapHtml(gap) {
 </aside>`;
 }
 
+// anchors for the contents nav (T-400 follow-up, 2026-08-31): stable ids per
+// act and per tool, derived from what is already unique — the act's numeral,
+// the tool's title
+const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 function build(srcFor) {
   // The tools' sections render with the acts' furniture and a different head:
   // they are not acts, they are not numbered, and the reader should be able to
@@ -759,7 +764,7 @@ function build(srcFor) {
   const toolsHtml = toolSections
     .map(
       (tool) => `
-<section class="act tool">
+<section class="act tool" id="tool-${slug(tool.title)}">
   <header class="act-head">
     <span class="act-num tool-num">Tool</span>
     <div>
@@ -776,7 +781,7 @@ function build(srcFor) {
   const actsHtml = acts
     .map(
       (act) => `
-<section class="act">
+<section class="act" id="act-${act.num}">
   <header class="act-head">
     <span class="act-num">${act.num}</span>
     <div>
@@ -869,6 +874,15 @@ function build(srcFor) {
 
   /* the tools' part: not acts, and the page should say so before the reader
      has to work it out from the headings */
+  .contents { margin: 34px 0 8px; padding: 18px 22px; background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; }
+  .contents-head { display: block; font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+  .contents ol { list-style: none; margin: 0 0 14px; padding: 0; columns: 2; column-gap: 28px; }
+  .contents ol.c-tools { margin-bottom: 0; }
+  .contents li { break-inside: avoid; margin: 0 0 6px; }
+  .contents a { color: var(--ink); text-decoration: none; }
+  .contents a:hover { text-decoration: underline; }
+  .c-num { display: inline-block; min-width: 34px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 640px) { .contents ol { columns: 1; } }
   .part-break { margin-top: 84px; border-top: 2px solid var(--frame); padding-top: 26px; }
   .part-break h2 { font-family: var(--serif); font-size: 30px; font-weight: 600; margin: 0 0 8px; }
   .part-break p { margin: 0; color: var(--muted); max-width: 68ch; }
@@ -931,6 +945,17 @@ function build(srcFor) {
     the same thing twice: the checker’s plan and its coverage statement were beats in Act II and are now the checker’s
     own section, which photographs both in one frame.</p>
   </div>
+
+  <nav class="contents" aria-label="Contents">
+    <span class="contents-head">Contents</span>
+    <ol>
+      ${acts.map((act) => `<li><a href="#act-${act.num}"><span class="c-num">${act.num}</span> ${esc(act.title)}</a></li>`).join('\n      ')}
+    </ol>
+    <span class="contents-head">The tools</span>
+    <ol class="c-tools">
+      ${toolSections.map((tool) => `<li><a href="#tool-${slug(tool.title)}"><span class="c-num">Tool</span> ${esc(tool.title)}</a></li>`).join('\n      ')}
+    </ol>
+  </nav>
 
   <div class="cast">
     <div class="card">

@@ -77,6 +77,15 @@
 
   /* the tools' part: not acts, and the page should say so before the reader
      has to work it out from the headings */
+  .contents { margin: 34px 0 8px; padding: 18px 22px; background: var(--card); border: 1px solid var(--hairline); border-radius: 10px; }
+  .contents-head { display: block; font-family: var(--mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+  .contents ol { list-style: none; margin: 0 0 14px; padding: 0; columns: 2; column-gap: 28px; }
+  .contents ol.c-tools { margin-bottom: 0; }
+  .contents li { break-inside: avoid; margin: 0 0 6px; }
+  .contents a { color: var(--ink); text-decoration: none; }
+  .contents a:hover { text-decoration: underline; }
+  .c-num { display: inline-block; min-width: 34px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 640px) { .contents ol { columns: 1; } }
   .part-break { margin-top: 84px; border-top: 2px solid var(--frame); padding-top: 26px; }
   .part-break h2 { font-family: var(--serif); font-size: 30px; font-weight: 600; margin: 0 0 8px; }
   .part-break p { margin: 0; color: var(--muted); max-width: 68ch; }
@@ -140,6 +149,24 @@
     own section, which photographs both in one frame.</p>
   </div>
 
+  <nav class="contents" aria-label="Contents">
+    <span class="contents-head">Contents</span>
+    <ol>
+      <li><a href="#act-I"><span class="c-num">I</span> The plan decides first</a></li>
+      <li><a href="#act-II"><span class="c-num">II</span> Drafting in the sandbox</a></li>
+      <li><a href="#act-III"><span class="c-num">III</span> The organisation checks its own work first</a></li>
+      <li><a href="#act-IV"><span class="c-num">IV</span> Promotion opens the round</a></li>
+      <li><a href="#act-V"><span class="c-num">V</span> Issue, then answer every comment</a></li>
+      <li><a href="#act-VI"><span class="c-num">VI</span> Acceptance makes it true</a></li>
+      <li><a href="#act-VII"><span class="c-num">VII</span> Ending a deliverable that is no longer current</a></li>
+    </ol>
+    <span class="contents-head">The tools</span>
+    <ol class="c-tools">
+      <li><a href="#tool-the-document-creator"><span class="c-num">Tool</span> The document creator</a></li>
+      <li><a href="#tool-the-qa-checker"><span class="c-num">Tool</span> The QA checker</a></li>
+    </ol>
+  </nav>
+
   <div class="cast">
     <div class="card">
       <div class="who"><span class="dot" style="background:var(--consultant)"></span>Eleanor Price</div>
@@ -160,7 +187,7 @@
   </div>
 
   
-<section class="act">
+<section class="act" id="act-I">
   <header class="act-head">
     <span class="act-num">I</span>
     <div>
@@ -243,7 +270,7 @@
   
 </section>
 
-<section class="act">
+<section class="act" id="act-II">
   <header class="act-head">
     <span class="act-num">II</span>
     <div>
@@ -343,7 +370,7 @@
 </aside>
 </section>
 
-<section class="act">
+<section class="act" id="act-III">
   <header class="act-head">
     <span class="act-num">III</span>
     <div>
@@ -431,7 +458,7 @@
 </aside>
 </section>
 
-<section class="act">
+<section class="act" id="act-IV">
   <header class="act-head">
     <span class="act-num">IV</span>
     <div>
@@ -550,7 +577,7 @@
   
 </section>
 
-<section class="act">
+<section class="act" id="act-V">
   <header class="act-head">
     <span class="act-num">V</span>
     <div>
@@ -614,7 +641,7 @@
 </aside>
 </section>
 
-<section class="act">
+<section class="act" id="act-VI">
   <header class="act-head">
     <span class="act-num">VI</span>
     <div>
@@ -697,7 +724,7 @@
   
 </section>
 
-<section class="act">
+<section class="act" id="act-VII">
   <header class="act-head">
     <span class="act-num">VII</span>
     <div>
@@ -760,7 +787,7 @@
   </section>
 
   
-<section class="act tool">
+<section class="act tool" id="tool-the-document-creator">
   <header class="act-head">
     <span class="act-num tool-num">Tool</span>
     <div>
@@ -878,7 +905,7 @@
 </aside>
 </section>
 
-<section class="act tool">
+<section class="act tool" id="tool-the-qa-checker">
   <header class="act-head">
     <span class="act-num tool-num">Tool</span>
     <div>
