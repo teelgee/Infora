@@ -95,9 +95,46 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
         sourcesBound: 3,
         unreachableSources: 1,
         withheld: 2,
+        outsideOutline: 0,
       }),
     ).toBe(
       '1 of 2 sections written · 1 of 3 bound sources used · 1 drafting pass · 1 named source the library did not return · 2 sentences withheld for resting on no source',
+    );
+  });
+
+  // T-402 — the defect this clause exists for: a run whose prose matched no
+  // heading reported a section written into a document with none. The
+  // corrected sentence says zero sections and says where the words went,
+  // in the shape the checker states its discards.
+  it('states material written outside the outline rather than counting it as a section', () => {
+    expect(
+      coverageAfter({
+        sectionsWritten: 0,
+        sectionsPlanned: 4,
+        sourcesUsed: 1,
+        sourcesBound: 1,
+        unreachableSources: 0,
+        withheld: 0,
+        outsideOutline: 3,
+      }),
+    ).toBe(
+      '0 of 4 sections written · 1 of 1 bound sources used · 1 drafting pass · 3 sentences written outside the outline and left out of the document',
+    );
+  });
+
+  it('says it in the singular when one sentence fell outside', () => {
+    expect(
+      coverageAfter({
+        sectionsWritten: 2,
+        sectionsPlanned: 2,
+        sourcesUsed: 1,
+        sourcesBound: 1,
+        unreachableSources: 0,
+        withheld: 0,
+        outsideOutline: 1,
+      }),
+    ).toBe(
+      '2 of 2 sections written · 1 of 1 bound sources used · 1 drafting pass · 1 sentence written outside the outline and left out of the document',
     );
   });
 
@@ -110,6 +147,7 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
         sourcesBound: 3,
         unreachableSources: 0,
         withheld: 0,
+        outsideOutline: 0,
       }),
     ).toBe('2 of 2 sections written · 3 of 3 bound sources used · 1 drafting pass');
   });

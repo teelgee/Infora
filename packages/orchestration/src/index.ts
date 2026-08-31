@@ -24,6 +24,7 @@ export { createRetrieveLeaf, RETRIEVAL_AGENT_ID } from './retrieve-leaf';
 export { createDraftLeaf } from './draft-leaf';
 // T-280 — `document_builder`'s implementation: it writes, so it lives here
 export {
+  UNSECTIONED,
   UnknownDocumentTemplate,
   builtDocumentContent,
   createDocumentBuilder,

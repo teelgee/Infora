@@ -45,6 +45,18 @@ export type DocumentBuilderInput = {
   destination: { sandboxId: Id; title: string };
 };
 
+/**
+ * The bucket a drafted sentence lands in when it matched none of the template's
+ * heading lines (T-402).
+ *
+ * It is a `usedFor` value the manifest can carry, **not a section**: nothing
+ * filed under it is written into the document, so any count of "sections
+ * written" that includes it overstates. Named here rather than spelled as a
+ * string at each site, because the miscount happened at a site that had no way
+ * of knowing the string was special.
+ */
+export const UNSECTIONED = 'unsectioned';
+
 /** One source, and what it was used for — the whole point of a manifest. */
 export type ManifestEntry = {
   versionId: Id;
@@ -75,6 +87,17 @@ export type DocumentBuilderOutput = {
    * matched the brief, and both are facts the caller asked for.
    */
   unreachableSources: Id[];
+  /**
+   * T-402 — how many grounded sentences the drafting call wrote **outside the
+   * outline**, matching none of the template's headings, and which the assembly
+   * therefore did not write into the document.
+   *
+   * Reported rather than dropped, in the same spirit as `withheld` and
+   * `unreachableSources`: it is material the run produced and the document does
+   * not contain, which is exactly the kind of absence the document itself
+   * cannot show.
+   */
+  outsideOutline: number;
   /**
    * T-396 — what the drafting call spent, so the executor can record it on the
    * Step row it opened. **Absent where no model call was made** — a refused
@@ -173,11 +196,19 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         label: { ...label, refusal: verdict.reason },
         withheld: [],
         unreachableSources,
+        outsideOutline: 0,
       };
     }
 
     if (passages.length === 0) {
-      return { documentId: null, manifest: [], label, withheld: [], unreachableSources };
+      return {
+        documentId: null,
+        manifest: [],
+        label,
+        withheld: [],
+        unreachableSources,
+        outsideOutline: 0,
+      };
     }
 
     const sourceByMarker = new Map(
@@ -284,6 +315,12 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       label,
       withheld: checked.withheld.map((claim) => claim.text),
       unreachableSources,
+      // T-402 — grounded sentences that matched no heading. They survived the
+      // ground check and were still not written, because the assembly above
+      // writes the template's sections and nothing else.
+      outsideOutline: sectioned.filter(
+        (claim) => claim.section === UNSECTIONED && survived.has(claim.text),
+      ).length,
       usage,
       model: result.model,
     };
@@ -336,6 +373,11 @@ async function mostRestrictive(db: Db, versionIds: Id[]): Promise<Id | null> {
  * sentence the model wrote outside the outline is still a sentence it wrote,
  * and losing it silently would make the manifest describe a document that is
  * not the one written.
+ *
+ * ⚠ **`unsectioned` is not one of the template's sections and must never be
+ * counted as one** (T-402). The assembly below writes only the template's own
+ * sections, so this bucket's material never reaches the document; a tally that
+ * counted it reported a section written into a document that has none.
  */
 function splitByHeadings(
   text: string,
@@ -344,7 +386,7 @@ function splitByHeadings(
   const byHeading = new Map(
     sections.map((section) => [section.heading.trim().toLowerCase(), section.id]),
   );
-  const blocks: Array<{ section: string; body: string[] }> = [{ section: 'unsectioned', body: [] }];
+  const blocks: Array<{ section: string; body: string[] }> = [{ section: UNSECTIONED, body: [] }];
   for (const line of text.split('\n')) {
     const heading = byHeading.get(line.trim().replace(/^#+\s*/, '').replace(/[:.]$/, '').toLowerCase());
     if (heading !== undefined) blocks.push({ section: heading, body: [] });

@@ -282,6 +282,14 @@ describe('the run (T-309)', () => {
     expect(body.coverage).toContain('of 1 bound sources used');
     // and the plan the run executed is the plan the user was shown
     expect(body.plan.coverage).toBe('3 sections · 1 bound source · 1 drafting pass');
+    // T-402 — the tally counts sections OF THE OUTLINE. The `unsectioned`
+    // bucket is a report of where words went, never a section written, and a
+    // count that included it once said "1 of 4 sections written" into an empty
+    // document.
+    const outlineSections = new Set(
+      body.manifest.map((entry) => entry.usedFor).filter((usedFor) => usedFor !== 'unsectioned'),
+    ).size;
+    expect(body.coverage.startsWith(`${outlineSections} of 3 sections written`)).toBe(true);
   });
 
   it('writes a real sandbox document under the template’s own headings', async () => {

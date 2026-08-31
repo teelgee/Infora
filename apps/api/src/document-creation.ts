@@ -48,7 +48,13 @@ import type { ModelRates } from '@infora/model';
 import { TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
-import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
+import {
+  CapabilityRefused,
+  UNSECTIONED,
+  createConversation,
+  readRun,
+  runChain,
+} from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
 import type { WorkerRegistry } from '@infora/capabilities';
 import { projectScope } from './requester';
@@ -223,6 +229,13 @@ export function documentCreationRoutes(deps: {
     }
 
     const manifest = (output['manifest'] as Array<{ versionId: Id; usedFor: string }>) ?? [];
+    // T-402 — the `unsectioned` bucket is NOT a section. The assembly writes the
+    // template's own sections and nothing else, so counting the bucket reported
+    // a section written into a document that had none. What the run wrote
+    // outside the outline is stated separately, below.
+    const sectionsWritten = new Set(
+      manifest.map((entry) => entry.usedFor).filter((usedFor) => usedFor !== UNSECTIONED),
+    ).size;
     const label = (output['label'] as {
       computedLabel: string;
       destinationLabel: string;
@@ -240,12 +253,13 @@ export function documentCreationRoutes(deps: {
         // which is what makes "4 bound sources" becoming "2 sources used" a
         // fact rather than something they have to go looking for.
         coverage: coverageAfter({
-          sectionsWritten: new Set(manifest.map((entry) => entry.usedFor)).size,
+          sectionsWritten,
           sectionsPlanned: deps.templates.get(computed.body.templateId)!.sections.length,
           sourcesUsed: new Set(manifest.map((entry) => entry.versionId)).size,
           sourcesBound: computed.body.sourceVersionIds.length,
           unreachableSources: unreachableSources.length,
           withheld: withheld.length,
+          outsideOutline: (output['outsideOutline'] as number | undefined) ?? 0,
         }),
         documentId: (output['documentId'] as Id | null) ?? null,
         manifest: manifest.map((entry) => ({ versionId: entry.versionId, usedFor: entry.usedFor })),

@@ -8,7 +8,12 @@ import { createDb, schema as s } from '@infora/db';
 import { loadDocumentTemplates } from '@infora/capabilities';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
-import { createDocumentBuilder, UnknownDocumentTemplate } from './document-builder';
+import {
+  createDocumentBuilder,
+  builtDocumentContent,
+  UNSECTIONED,
+  UnknownDocumentTemplate,
+} from './document-builder';
 
 const { db, pool } = createDb();
 const templates = loadDocumentTemplates();
@@ -185,6 +190,41 @@ describe('document_builder (T-280)', () => {
     expect(output.manifest[1]!.versionId).toBe(openVersionId);
     expect(output.manifest[1]!.documentReference).toBe('T280-A');
     expect(output.unreachableSources).toEqual([]);
+  });
+
+  // T-402 — THE MISCOUNT'S ROOT, pinned at the builder. A drafting call whose
+  // prose matches none of the template's headings writes NOTHING into the
+  // document: the assembly writes the template's own sections and nothing else.
+  // The material is still reported — as `outsideOutline`, and in the manifest
+  // under the `unsectioned` bucket — so the surface above can say where the
+  // words went instead of counting the bucket as a section written.
+  it('writes nothing for prose that matched no heading, and reports how much fell outside', async () => {
+    const builder = createDocumentBuilder({
+      db,
+      router: answering(
+        'The baseline survey recorded three exceedances [S1]. The mitigation commits to a five-year maintenance period [S2].',
+      ),
+      assemble: gateway(
+        passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
+        passage(sharedVersionId, 'T280-B', 'the mitigation commits to a five-year maintenance period'),
+      ),
+      templates,
+    });
+
+    const output = await builder(requester(), { projectId }, {
+      templateId: 'technical-note',
+      brief: 'does the baseline support the assessment?',
+      sources: { versionIds: [openVersionId, sharedVersionId] },
+      destination: { sandboxId, title: 't402 headingless note' },
+    });
+
+    expect(await builtDocumentContent(db, output.documentId!)).toBe('');
+    expect(output.outsideOutline).toBeGreaterThan(0);
+    // every manifest entry is the bucket, and not one of them is a section of
+    // the outline — which is precisely what the old tally counted
+    expect(output.manifest.map((entry) => entry.usedFor)).toEqual(
+      output.manifest.map(() => UNSECTIONED),
+    );
   });
 
   // the label is not decoration: a write path that refused correctly and said

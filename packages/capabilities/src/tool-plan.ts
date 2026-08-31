@@ -139,17 +139,30 @@ export function coverageBefore(template: DocumentTemplate, sourceCount: number):
  * The same shape matters more than the same words: a reader comparing the two
  * sentences should be able to see the difference at a glance, which is what
  * makes *"4 bound sources"* becoming *"2 sources used"* a fact rather than
- * something they would have to go looking for. Unreachable sources and withheld
- * sentences are appended because both are absences the document itself cannot
- * show.
+ * something they would have to go looking for. Unreachable sources, withheld
+ * sentences and material written outside the outline are appended because all
+ * three are absences the document itself cannot show.
+ *
+ * 🔒 **`sectionsWritten` counts SECTIONS OF THE OUTLINE, and nothing else**
+ * (T-402). The run reported *"1 of 4 sections written"* into a document that
+ * was empty: the drafting call wrote prose before any heading, that material
+ * was filed under `unsectioned`, the assembly correctly wrote none of it, and
+ * the tally counted the bucket as a section anyway. This is the one surface
+ * whose whole job is the difference between a clean result and an unexamined
+ * one, so the overstatement is the worst kind of defect it could carry. What
+ * the run did produce and did not write is now **stated**, in the shape the
+ * checker states its discards — appended, named, and never silently absorbed.
  */
 export function coverageAfter(result: {
+  /** sections OF THE OUTLINE written — never the `unsectioned` bucket (T-402) */
   sectionsWritten: number;
   sectionsPlanned: number;
   sourcesUsed: number;
   sourcesBound: number;
   unreachableSources: number;
   withheld: number;
+  /** grounded sentences that matched no heading, so were not written (T-402) */
+  outsideOutline: number;
 }): string {
   const parts = [
     `${result.sectionsWritten} of ${result.sectionsPlanned} sections written`,
@@ -164,6 +177,11 @@ export function coverageAfter(result: {
   if (result.withheld > 0) {
     parts.push(
       `${result.withheld} sentence${result.withheld === 1 ? '' : 's'} withheld for resting on no source`,
+    );
+  }
+  if (result.outsideOutline > 0) {
+    parts.push(
+      `${result.outsideOutline} sentence${result.outsideOutline === 1 ? '' : 's'} written outside the outline and left out of the document`,
     );
   }
   return parts.join(' · ');
