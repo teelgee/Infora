@@ -158,6 +158,17 @@ ADR-0032). Versions are **append-only**, and only versions whose container is
 at-a-glance columns are **derived by query, never duplicated into a metadata
 table** — the ProjectWise B4 lesson: no hand-built views, no drift.
 
+> ✏️ **Drawn 2026-08-31, unbuilt — T-405 (migration 0062).** `containers`
+> gains **`description`** — `text`, nullable. *Plainly: a sentence or two
+> saying what the document is, typed by whoever files or edits it, so a
+> person choosing sources in the document creator can tell the documents
+> apart.* On the **container** and not the version because it describes the
+> series, not one revision — the same reason `document_reference` lives
+> there. Never generated (session Cr residual): a model-written description
+> would be an uncited claim about a document sitting beside its own grounded
+> content. Not personal data. When built, this block reduces to narrative
+> per the state rule above.
+
 **Version chunk** is the retrieval index, co-located with the relational
 access data so ADR-0022's access and state rules apply as SQL **pre-filters in
 the same query** as vector search (ADR-0024). Derived and rebuildable — every

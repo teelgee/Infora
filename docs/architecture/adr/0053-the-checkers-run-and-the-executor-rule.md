@@ -2,7 +2,7 @@
 
 *In plain terms (added in review, 2026-08-30 — the opening the register rule asks of every new ADR):* when someone runs the QA checker over a document, the system works out up front — in ordinary code, before any AI is involved — which checks will run and roughly what they will cost, and shows that plan. A document too big to check in one pass is split and every piece is checked; nothing is silently dropped. Every run states what it covered, before and after, so "no findings" always means "no findings in what was read" — said out loud, never implied. Reviewers still resolve the AI's suggested wording changes one at a time; only purely mechanical corrections may be accepted in bulk. And the engine rule every tool was waiting for: a step in a plan now genuinely runs the tool it names, under guards this document sets out.
 
-**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md).
+**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md). **Carries three dated addenda of its own (owner-ruled 2026-08-31, the document-creator feedback session — the section at the foot of this file): the creator's launch re-cut, the content plan editable as a parameter, and the price line removed from the tools' plan surfaces.**
 
 **Context:** ADR-0048 settled what a finding is and stopped the checker becoming a rewriter. It settled nothing about **how a run behaves** — and the board recorded that gap honestly rather than building around it: the QA checker was held as **fog** in Slice V1-T, deliberately not ticketed because it could be *stated* and not *specified*, and the document-creation DAG (T-309) stopped mid-build on the discovery that `runChain` dispatches on **stage** and reads a step's named worker never. Three tracker questions and one build stop were pointing at the same missing thing.
 
@@ -125,3 +125,63 @@ copy** (this section names them without restating them, because a second copy
 is how two copies start disagreeing; deduplicated in review, 2026-08-30):
 §4's channel corrected from *guiding* to *informing*, and §3's no-bulk-accept
 rule narrowed to rewrites (decision 6 above).
+
+---
+
+## Addenda (2026-08-31, owner-ruled — the document-creator feedback session)
+
+The owner reviewed the built creator against its photographs and re-ruled
+three things. Each is dated and additive; nothing above is rewritten. The
+session's full record is in
+[grill-history.md](../../grill-sessions/grill-history.md); the tickets are
+T-403–T-410.
+
+**A1 — The creator's launch is re-cut, and drafting consumes style guides for
+the first time.** *In plain terms: the creator's first screen stops asking for
+a "shape" and instead asks four plain questions — what kind of document this
+is, what language register it should use, which style guides apply, and
+whether it is a whole document, a chapter or a section. Then, instead of the
+outline arriving ready-made from a template, the author builds it: add a
+section, say what it should contain, add the next.* The launcher asks
+**Purpose** (technical note / planning document / internal document / external
+document), **Language** (technical / non-technical / simple English),
+**Style** (which project style guide or guides apply — more than one may be
+selected, and the store has always been able to hold more than one), and
+**Type** (whole document / chapter / section). *Shape* retires as a term and
+as a mechanism; the two shipped templates survive only as optional starting
+outlines inside the define-sections step, their per-part guidance becoming
+pre-filled section purposes the author can edit or discard. **The drafting
+call consumes the selected style guides and the Language answer** — until now
+style material existed only for the checker to mark against, never for
+drafting to follow. On conflict between the two, **a style guide wins on
+terms and vocabulary; the author's Language answer wins on register — and the
+plan states both**, so the resolution is visible rather than discovered in
+the output *(this precedence was Claude-ruled as a session residual under the
+standing arrangement and stands unless the owner re-cuts it)*. **Source
+binding stays whole-document**: the owner's re-cut describes one source
+binding for the document, superseding T-335's per-section binding, and the
+walkthrough's gap card closes to this design rather than to the old one.
+
+**A2 — The creator's plan is a proposed document, editable as a parameter —
+and the step list underneath stays code.** *In plain terms: the plan page
+becomes a short prospectus of the document about to be written — an overview
+of the overarching instructions, then section by section what will go in each
+— and the author can fix it before anything runs: click a section and edit
+its description directly, or ask the agent beside the plan to revise it
+("no, this should set out X in bullets"). Accepting the plan is what creates
+the document.* What the author or the agent edits is the **brief** — a
+parameter of the run, exactly like the launcher's answers. The **step list**
+underneath remains computed in code from those parameters, is not editable by
+anyone, human or model, and regenerates when a brief changes. So §4's
+guarantee holds — same inputs, same steps — and **§12 is not reopened**: no
+step list is ever hand-edited; what changed is that one more input became
+conversationally revisable before the run.
+
+**A3 — The price line is removed from both tools' plan surfaces.** *In plain
+terms: the owner ruled the on-screen cost estimate off — it is not needed at
+launch.* It was on screen because §4 above deliberately put it there, so its
+removal is this ruling and not a build defect. **Per-step cost attribution
+(§7) is unchanged** — cost is still recorded on every step as an audit and
+operations fact; it simply stops being shown to the person launching the
+tool. §4's estimate machinery (including the refusal to show a false £0.00)
+retires from the display layer only.
