@@ -1413,3 +1413,135 @@ describe('T-418 — the run-progress box', () => {
     expect(source).toContain("step.status !== 'running'");
   });
 });
+
+// ── T-419 — THE MARKED-UP EDIT MEETS THE DESIGN GUIDE ─────────────────────
+//
+// *In plain terms: this panel was written before the design system covered it,
+// so it styled itself with numbers typed into the file and two of its controls
+// could not be reached by keyboard at all. What is pinned here is what the
+// audit tightened — because a design fix nothing asserts is a design fix that
+// comes back.*
+//
+// The findings are enumerated in T-419's record; these are the ones with a
+// visible or behavioural consequence worth a test rather than an eye.
+describe('T-419 — the findings panel, audited against design-rules.md', () => {
+  const raw = readFileSync(new URL('./findings-panel.tsx', import.meta.url), 'utf8');
+  // 🔒 THE ASSERTIONS BELOW ARE ABOUT THE CODE, NOT ABOUT THE FILE. The
+  // comments in this panel deliberately name what the audit REMOVED —
+  // `var(--danger)`, a bare `<textarea>` — because a removal nobody recorded is
+  // one that comes back wearing an innocent face. Asserting over the raw file
+  // would make keeping that record impossible, so the comments are stripped
+  // first and the claim stays "the code no longer does this".
+  const source = raw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//'))
+    .join('\n');
+  const css = readFileSync(
+    new URL('../../../packages/ui/src/styles.css', import.meta.url),
+    'utf8',
+  );
+
+  const finding: Finding = {
+    id: 'f-419',
+    runId: 'r-1',
+    checkFamily: 'style',
+    sandboxDocumentId: 'sd-1',
+    anchor: { span: { start: 0, end: 10 }, paragraph: 0, verbatim: 'The Scheme' },
+    defect: 'The works are capitalised.',
+    severity: 'required',
+    status: 'open',
+    closedBy: null,
+    closedAt: null,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    evidence: {
+      input: 'rulebook',
+      clause: '§2.1',
+      quote: 'Refer to the works as “the scheme”.',
+      rulebookRef: 'guide-1',
+      scope: 'project',
+    },
+  };
+  const panel = (over: Partial<Finding> = {}) =>
+    renderToStaticMarkup(
+      <FindingsPanel
+        findings={[{ ...finding, ...over }]}
+        busy={false}
+        focused={null}
+        drifted={[]}
+        onLocate={() => {}}
+        onResolve={() => {}}
+        onBulk={() => {}}
+      />,
+    );
+
+  it('🔒 carries NO inline styles at all — every value is on the system', () => {
+    // §A's hard rule: never hardcode a raw hex or px value in app code. The
+    // panel had twenty-odd of them, and 6px, 3px and 2px are not even on the
+    // 4px scale.
+    expect(source).not.toContain('style={{');
+  });
+
+  it('🔒 has no coloured left-border accent on a finding — §E removed that pattern', () => {
+    // "a rounded container with a left-border accent" is exactly what §E
+    // deleted when `.proposed` migrated, in favour of the plain nested-card
+    // treatment. Severity is the badge's job.
+    expect(source).not.toContain('borderLeft');
+    expect(source).not.toContain('var(--danger)');
+    const start = css.indexOf('.finding {');
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).not.toContain('border-left');
+    // and it is a level-3 nested card: radius, no shadow of its own
+    expect(block).toContain('--primitive-radius-md');
+    expect(block).not.toContain('box-shadow');
+  });
+
+  it('🔒 severity still reaches the reader, by a word and not by a colour alone (§D)', () => {
+    // the bar carried severity by colour alone; the badge pairs it with a word,
+    // which is the rule the bar could never satisfy
+    expect(panel({ severity: 'required' })).toContain('Required');
+    expect(panel({ severity: 'advisory' })).toContain('Advisory');
+  });
+
+  it('🔒 both actions are BUTTONS — an <a> with no href cannot be focused (§D)', () => {
+    // "Go to it" and the group's collapse were anchors with an onClick, so
+    // neither could be reached by keyboard or show a focus ring at all
+    expect(source).not.toContain('<a onClick');
+    const html = panel();
+    expect(html).toContain('class="finding-locate"');
+    expect(html).toContain('class="finding-group-toggle"');
+    // and the collapse says which way it is going, rather than leaving the
+    // state to be inferred from what is below it
+    expect(html).toContain('aria-expanded="true"');
+  });
+
+  it('both controls meet the 32px minimum hit target (§D)', () => {
+    for (const selector of ['.finding-group-toggle', '.finding-locate']) {
+      const start = css.indexOf(`${selector} {`);
+      expect(start).toBeGreaterThan(-1);
+      expect(css.slice(start, css.indexOf('}', start))).toContain('min-height: 32px');
+    }
+  });
+
+  it('uses the shared TextArea rather than growing its own <textarea>', () => {
+    // this was the one editing surface in the product with its own font, its
+    // own border and its own focus behaviour
+    expect(source).not.toContain('<textarea');
+    expect(source).toContain('<TextArea value={editing}');
+  });
+
+  it('🔒 the focused finding is outlined in a LINE colour, not in a background tint', () => {
+    // `feedback.info.tint` as a 2px outline is near-invisible against a pane,
+    // and is not the pairing §D's contrast table measures — the tint is the
+    // fill and the text colour is the line
+    const start = css.indexOf('.finding--focused {');
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).toContain('outline: 2px solid var(--feedback-info-text)');
+    expect(block).toContain('background: var(--feedback-info-tint)');
+  });
+
+  it('the suggested wording is on the system, beside the quoted rule it sits next to', () => {
+    expect(source).toContain('className="suggested-wording"');
+    expect(css).toContain('.suggested-wording {');
+  });
+});

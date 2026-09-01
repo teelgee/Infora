@@ -1288,7 +1288,94 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   font-style: italic;
 }
 .quoted-rule .mono { font-style: normal; }
-.finding--focused { outline: 2px solid var(--feedback-info-tint); }
+.quoted-rule-scope { color: var(--text-muted); font-style: normal; }
+
+/* ---------- The findings panel (T-311, audited onto the system by T-419) ----
+   *In plain terms: what the checker found, grouped by the check that found it.*
+
+   This panel predates the design system covering it, so every size in it was a
+   number typed into the component — and 6px, 3px and 2px are not on the 4px
+   scale at all (§A). It is on the scale here now, and the two rules below are
+   the ones worth naming rather than merely applying:
+
+     • **no coloured left-border accent on a finding.** §E removed exactly that
+       pattern when `.proposed` migrated — "a rounded container with a
+       left-border accent" — in favour of the plain nested-card treatment. What
+       carries severity is the badge, which pairs its colour with a word and so
+       satisfies §D's colour-independence rule that a bar never could.
+     • **a finding is a level-3 nested card inside a level-2 pane** (§A), so it
+       takes `radius.md` and NO shadow of its own: the panel it sits in already
+       carries elevation 2, and a list of twelve shadowed slabs is the "if you
+       can't say which of the four levels it is, make it flat" case. */
+.findings-panel { font-size: var(--ui-default-size); }
+.findings-empty, .findings-count, .findings-resolved, .finding-note {
+  color: var(--text-muted);
+}
+.findings-empty { font-size: var(--ui-default-size); }
+.findings-resolved { margin-top: 12px; }
+.finding-note { margin: 4px 0 0; }
+
+.finding-group { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-default); }
+.finding-group-head { display: flex; align-items: center; gap: 8px; }
+.finding-group-actions { margin-left: auto; }
+/* §D — a real control: focusable, with the shared focus ring, and a 32px hit
+   target that the label alone would not have given it */
+.finding-group-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 0; padding: 4px; margin: -4px 0 -4px -4px;
+  /* §D — a 32px minimum hit target, which the label's own height would not
+     have given it. `collapse-toggle-size` (22px) is the SQUARE icon control's
+     token and does not apply to a text-and-chevron row; its colour and radius
+     tokens do, and are used, so this stays the system's collapse affordance
+     rather than a second one. */
+  min-height: 32px; cursor: pointer; font: inherit;
+  color: var(--collapse-toggle-color-default);
+  border-radius: var(--collapse-toggle-radius);
+}
+.finding-group-toggle:hover {
+  background: var(--collapse-toggle-background-hover);
+  color: var(--collapse-toggle-color-hover);
+}
+.finding-mechanical { margin-top: 8px; }
+.finding-rewrites { margin-top: 8px; }
+
+.finding {
+  margin-top: 8px; padding: 12px;
+  background: var(--surface-pane);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--primitive-radius-md);
+  display: flex; flex-direction: column; gap: 4px;
+}
+/* the focused finding is the one the reader just clicked in the text. It was
+   outlined in `feedback.info.TINT` — a background colour used as a line, which
+   is near-invisible against a pane and is not the pairing §D's contrast table
+   measures. The tint is the fill and the text colour is the line. */
+.finding--focused {
+  outline: 2px solid var(--feedback-info-text);
+  outline-offset: 1px;
+  background: var(--feedback-info-tint);
+}
+.finding-head { display: flex; align-items: center; gap: 8px; }
+.finding-defect { margin: 4px 0 0; }
+.finding-evidence { margin-top: 4px; }
+.finding-fix { margin-top: 8px; }
+.finding-editing { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+.finding-actions { display: flex; gap: 8px; margin-top: 8px; }
+.finding-substitution { font-size: var(--ui-default-size); margin: 0; }
+/* §D — "Go to it" was an `<a>` with no href: unfocusable, so unreachable by
+   keyboard. A button that looks like a link, rather than a link that is not one. */
+.finding-locate {
+  background: none; border: 0; padding: 4px; margin: -4px;
+  min-height: 32px; cursor: pointer; font: inherit;
+  color: var(--action-primary-bg); text-decoration: underline;
+  border-radius: var(--primitive-radius-sm);
+}
+/* the suggested wording, on the system beside `.quoted-rule` — which sits in
+   the same panel and had a class while this had three inline pixel values */
+.suggested-wording {
+  margin: 4px 0 0; padding: 4px 0 4px 8px;
+  border-left: 2px solid var(--border-default);
+}
 .comment-thread.anchored { cursor: pointer; }
 .comment-thread.flash { box-shadow: 0 0 0 2px var(--feedback-info-tint); }
 

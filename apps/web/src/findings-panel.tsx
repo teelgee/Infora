@@ -23,10 +23,31 @@
 // it renders as a quotation with its clause address, visually unlike the
 // `SourceChip` a grounded citation gets — because the distinction survives in
 // the model and dies on the screen otherwise.
+//
+// ── T-419 — AUDITED AGAINST `docs/design/design-rules.md` (2026-09-01) ──────
+//
+// *In plain terms: this panel was written before the design system covered it,
+// so it styled itself with numbers typed into the file. It now uses the
+// system's own spacing, tones and controls, and two of its actions became
+// reachable by keyboard for the first time.*
+//
+// The findings and their fixes are enumerated in this ticket's record. The two
+// that changed how the panel LOOKS rather than how it is built:
+//
+//   • **the coloured left-border accent on a finding card is gone.** §E removed
+//     exactly that pattern — *"a rounded container with a left-border accent"* —
+//     when `.proposed` was migrated, and replaced it with the plain nested-card
+//     treatment. Severity is carried by the badge, which already pairs its
+//     colour with a word (§D colour-independence) and therefore says more than
+//     a bar did;
+//   • **the panel's own spacing is on the 4px scale**, in `styles.css`, rather
+//     than inline pixel values — several of which (6px, 2px, 3px) were not on
+//     the scale at all.
 import { useState } from 'react';
 import type { CheckFamily, Finding, MechanicalFix } from '@infora/contracts';
 import { CHECK_FAMILY_CATALOGUE } from '@infora/contracts';
-import { Badge, Button, SourceChip } from '@infora/ui';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Badge, Button, SourceChip, TextArea } from '@infora/ui';
 
 export type FindingsPanelProps = {
   findings: Finding[];
@@ -50,7 +71,7 @@ export function FindingsPanel(props: FindingsPanelProps) {
 
   if (props.findings.length === 0) {
     return (
-      <p style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>
+      <p className="findings-empty">
         {/* ⚠ NEVER an unqualified "your document is fine". The coverage
             statement beside a run (T-336) is what says how much was read; this
             panel is only entitled to say that nothing has been recorded. */}
@@ -63,8 +84,8 @@ export function FindingsPanel(props: FindingsPanelProps) {
   const families = [...new Set(open.map((finding) => finding.checkFamily))];
 
   return (
-    <div style={{ fontSize: 12.5 }}>
-      <p style={{ color: 'var(--text-muted)' }}>
+    <div className="findings-panel">
+      <p className="findings-count">
         {open.length} open {open.length === 1 ? 'finding' : 'findings'}
         {closed > 0 && `, ${closed} resolved`}. Each one points into the draft — click it to go
         there.
@@ -86,7 +107,7 @@ export function FindingsPanel(props: FindingsPanelProps) {
         />
       ))}
       {closed > 0 && (
-        <p style={{ color: 'var(--text-muted)', marginTop: 12 }}>
+        <p className="findings-resolved">
           {closed} {closed === 1 ? 'finding has' : 'findings have'} been resolved. Resolved is
           resolved either way — the promotion gate counts what is still open, not how it was
           cleared.
@@ -105,12 +126,29 @@ function CheckGroup(props: FindingsPanelProps & { family: CheckFamily; findings:
   const rest = props.findings.filter((finding) => !isMechanical(finding));
 
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid var(--border-default)', paddingTop: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <a onClick={() => setUnrolled(!unrolled)} style={{ cursor: 'pointer' }}>
+    <div className="finding-group">
+      <div className="finding-group-head">
+        {/* T-419 — a BUTTON, not an anchor with an onClick. An `<a>` with no
+            `href` is not keyboard-focusable at all, so this control could not
+            be reached by keyboard and could not show a focus ring (§D). The
+            chevron is the system's own collapse affordance (§B
+            `component.collapseToggle`), Lucide at 2px in `currentColor` (§F.7),
+            and it says which way the group is going rather than leaving the
+            state to be inferred from what is below it. */}
+        <button
+          type="button"
+          className="finding-group-toggle"
+          aria-expanded={unrolled}
+          onClick={() => setUnrolled(!unrolled)}
+        >
+          {unrolled ? (
+            <ChevronDown size={13} strokeWidth={2} />
+          ) : (
+            <ChevronRight size={13} strokeWidth={2} />
+          )}
           <strong>{LABELS.get(props.family) ?? props.family}</strong> ({props.findings.length})
-        </a>
-        <span style={{ marginLeft: 'auto' }}>
+        </button>
+        <span className="finding-group-actions">
           {/* bulk DISMISSAL takes anything and records no reason: declining
               forty advisory findings from one rule is one professional
               judgement, not forty skipped (ADR-0053 §6) */}
@@ -125,7 +163,7 @@ function CheckGroup(props: FindingsPanelProps & { family: CheckFamily; findings:
       {unrolled && (
         <>
           {mechanical.length > 0 && (
-            <div style={{ marginTop: 6 }}>
+            <div className="finding-mechanical">
               <Button
                 variant="primary"
                 disabled={props.busy}
@@ -134,7 +172,7 @@ function CheckGroup(props: FindingsPanelProps & { family: CheckFamily; findings:
                 Accept {mechanical.length} mechanical{' '}
                 {mechanical.length === 1 ? 'correction' : 'corrections'}
               </Button>
-              <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+              <p className="finding-note">
                 The same substitution, applied consistently — one decision, {mechanical.length}{' '}
                 {mechanical.length === 1 ? 'place' : 'places'}.
               </p>
@@ -144,9 +182,9 @@ function CheckGroup(props: FindingsPanelProps & { family: CheckFamily; findings:
             </div>
           )}
           {rest.length > 0 && (
-            <div style={{ marginTop: 8 }}>
+            <div className="finding-rewrites">
               {mechanical.length > 0 && (
-                <p style={{ color: 'var(--text-muted)' }}>
+                <p className="finding-note">
                   {/* the honest fact, on the screen rather than only in the ADR */}
                   The rest are rewritten wording, so they are read one at a time.
                 </p>
@@ -168,46 +206,46 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
   const focused = props.focused?.id === finding.id;
 
   return (
-    <div
-      className={focused ? 'finding finding--focused' : 'finding'}
-      style={{
-        marginTop: 6,
-        padding: 8,
-        borderLeft: `3px solid ${finding.severity === 'required' ? 'var(--danger)' : 'var(--border-default)'}`,
-        background: focused ? 'var(--surface-sunken)' : undefined,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+    // 🔒 T-419 — NO COLOURED LEFT-BORDER ACCENT. §E removed exactly this
+    // pattern when `.proposed` migrated — "a rounded container with a
+    // left-border accent" — in favour of the plain nested-card treatment, and
+    // this card had grown one back with a raw `var(--danger)` at that. Severity
+    // is the badge's job, and the badge pairs its colour with a word, which is
+    // what §D's colour-independence rule asks for and a bar cannot do.
+    <div className={focused ? 'finding finding--focused' : 'finding'}>
+      <div className="finding-head">
         {/* neither word is a verdict on the document (T-328): they describe
             what the reviewer must do about the finding */}
         <Badge tone={finding.severity === 'required' ? 'warning' : 'neutral'}>
           {finding.severity === 'required' ? 'Required' : 'Advisory'}
         </Badge>
-        <a onClick={() => props.onLocate(finding)} style={{ cursor: 'pointer' }}>
+        {/* T-419 — a real button, for the reason the group toggle is one */}
+        <button type="button" className="finding-locate" onClick={() => props.onLocate(finding)}>
           Go to it
-        </a>
+        </button>
       </div>
-      <p style={{ marginTop: 4 }}>{finding.defect}</p>
+      <p className="finding-defect">{finding.defect}</p>
       <Evidence finding={finding} />
 
       {finding.proposedRevision !== undefined && (
-        <div style={{ marginTop: 6 }}>
+        <div className="finding-fix">
           {finding.fix?.kind === 'mechanical' ? (
-            <p className="mono" style={{ fontSize: 12 }}>
-              {finding.fix.summary}
-            </p>
+            <p className="mono finding-substitution">{finding.fix.summary}</p>
           ) : (
             <>
-              <p style={{ color: 'var(--text-muted)' }}>
+              <p className="finding-note">
                 Suggested wording — {finding.fix?.kind === 'rewrite' ? finding.fix.reason : 'read it before taking it'}:
               </p>
-              <blockquote style={{ margin: '4px 0', paddingLeft: 8, borderLeft: '2px solid var(--border-default)' }}>
+              {/* T-419 — on the system beside `.quoted-rule`, which sits four
+                  lines up the same panel and had a class while this had three
+                  inline pixel values */}
+              <blockquote className="suggested-wording">
                 {finding.proposedRevision.content}
               </blockquote>
             </>
           )}
           {editing === null ? (
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <div className="finding-actions">
               <Button disabled={props.busy} onClick={() => props.onResolve(finding, 'accepted')}>
                 Accept
               </Button>
@@ -222,14 +260,12 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
               </Button>
             </div>
           ) : (
-            <div style={{ marginTop: 4 }}>
-              <textarea
-                value={editing}
-                rows={3}
-                style={{ width: '100%' }}
-                onChange={(e) => setEditing(e.target.value)}
-              />
-              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <div className="finding-editing">
+              {/* T-419 — the shared control, not a bare `<textarea>`. This was
+                  the one editing surface in the product growing its own font,
+                  its own border and its own focus behaviour. */}
+              <TextArea value={editing} rows={3} onChange={setEditing} />
+              <div className="finding-actions">
                 <Button
                   variant="primary"
                   disabled={props.busy || editing.trim() === ''}
@@ -248,7 +284,7 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
       )}
 
       {finding.proposedRevision === undefined && (
-        <div style={{ marginTop: 6 }}>
+        <div className="finding-fix">
           {/* most findings are for a person to fix — there is nothing to
               accept, only the defect and the decision to act on it or not */}
           <Button disabled={props.busy} onClick={() => props.onResolve(finding, 'dismissed')}>
@@ -275,7 +311,7 @@ function Evidence(props: { finding: Finding }) {
   const { evidence } = props.finding;
   if (evidence.input === 'corpus') {
     return (
-      <div style={{ marginTop: 4 }}>
+      <div className="finding-evidence">
         {evidence.citations.map((citation) => (
           <SourceChip key={citation.id} corpus="library">
             {'versionId' in citation.source
@@ -288,7 +324,7 @@ function Evidence(props: { finding: Finding }) {
   }
   if (evidence.input === 'attached') {
     return (
-      <p style={{ marginTop: 4, color: 'var(--text-muted)' }}>
+      <p className="finding-evidence finding-note">
         From a document you attached — not a project source, so it is quoted rather than cited:{' '}
         <em>“{evidence.excerpt}”</em>
       </p>
@@ -296,9 +332,9 @@ function Evidence(props: { finding: Finding }) {
   }
   if (evidence.input === 'rulebook') {
     return (
-      <blockquote className="quoted-rule" style={{ marginTop: 4 }}>
+      <blockquote className="quoted-rule finding-evidence">
         <span className="mono">{evidence.clause}</span>{' '}
-        <span style={{ color: 'var(--text-muted)' }}>
+        <span className="quoted-rule-scope">
           ({evidence.scope === 'project' ? 'project style guide' : 'your firm’s rulebook'})
         </span>
         <div>“{evidence.quote}”</div>
@@ -308,6 +344,6 @@ function Evidence(props: { finding: Finding }) {
   // the draft measured against itself or its own template: nothing external,
   // so nothing cited and nothing to chip
   return (
-    <p style={{ marginTop: 4, color: 'var(--text-muted)' }}>Measured against {evidence.basis}.</p>
+    <p className="finding-evidence finding-note">Measured against {evidence.basis}.</p>
   );
 }
