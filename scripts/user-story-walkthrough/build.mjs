@@ -622,13 +622,13 @@ const toolSections = [
         adrs: ['ADR-0038', 'ADR-0040'],
       },
       {
-        img: 't1-14-bound-refusal',
+        img: 't1-14-from-the-working-area',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'The first honest refusal, now legible',
+        title: 'Started from where the document belongs',
         prose:
-          'Arriving at the creator from a deliverable in the plan instead of from Tools, the screen refuses and says why: whether a bound deliverable’s plan row should seed the document’s structure is an open design question (Q-037), and a structure invented here would be shaped by an answer nobody has given. Refusing and naming the question is right. The previous capture found the <em>rendering</em> wrong — the notice was laid out as a row, so its clause number and its link were thrown into separate columns and the sentence was close to unreadable. That was a defect in the shared notice component rather than anything about this tool, and it affected every notice in the product carrying a link or a code. It is fixed at that component, so every notice healed at once, and the sentence here reads as a sentence.',
-        adrs: ['ADR-0053'],
+          'The creator has a second front door, and it is the working area itself: <em>Create with AI</em> in the sandbox opens this same launcher with the destination already set to the location you were standing in, and says so under the control rather than leaving a pre-filled answer to read as your own choice. It stays changeable — one launcher, starting on a different answer, not a second screen with a fixed one. This beat replaced a refusal. Arriving at the creator from a deliverable in the owner’s plan used to render a screen naming an open design question: whether a plan row should seed the document’s structure. The owner ruled that question on 1 September by cutting the link rather than by deciding what may cross it — you never start the creator from the plan — so the refusal has nothing left to refuse, and the door that does exist is the one worth photographing. The doorway carries the location and nothing else: no deliverable, no title, no reference, because a doorway that passed those along would re-open at the back what the ruling closed at the front.',
+        adrs: ['ADR-0053', 'ADR-0038'],
       },
     ],
   },

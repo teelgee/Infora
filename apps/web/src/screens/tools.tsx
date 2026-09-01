@@ -730,11 +730,49 @@ export function DocumentCreatorScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 🔒 **T-413 (ADR-0053 addendum A4) — THERE IS NO PATH FROM THE OWNER'S PLAN
+  // INTO THIS SCREEN, AND ITS ABSENCE IS A RULING.**
+  //
+  // The creator used to answer `?containerId=` with a refusal naming `Q-037`,
+  // because whether a plan row seeded the outline was raised and unruled. The
+  // owner ruled it on 2026-09-01 by **cutting the link** rather than by
+  // deciding what may cross it: *"starting doc creator from a deliverable in
+  // the plan should not be possible"*. So the refusal has no reason to exist
+  // and is gone with the question — but taking a screen out is exactly the
+  // kind of change that grows back quietly, which is why the render suite now
+  // asserts its absence rather than simply having dropped the test that
+  // asserted its presence. **Nothing here reads a plan row, and nothing
+  // anywhere hands one to this route.**
+  //
+  // What replaced it is the other half of A4: `?sandboxId=` — the creator
+  // opened from a **location in your own working area**, with the destination
+  // already set to that location. That is producing-side authoring start to
+  // finish, so it never enters `Q-034`'s wall-through-content territory the
+  // way a plan-row seed would have.
+  const launchedFrom = params.get('sandboxId');
+
   useEffect(() => {
     if (projectId === undefined) return;
     void api
       .sandboxes(projectId)
-      .then((res) => setDestinations(res.items))
+      .then((res) => {
+        setDestinations(res.items);
+        // T-413 — the destination arrives pre-filled when the creator was
+        // opened from a working-area location, **and stays changeable**: it is
+        // the same one control the Tools path uses, starting on a different
+        // answer.
+        //
+        // 🔒 ASSEMBLED, NOT FILTERED, ONE LEVEL ALONG. The list is what the
+        // server says this requester can reach, so a `sandboxId` they cannot
+        // reach is simply not in it and pre-fills nothing — the select stays
+        // on "Choose a working area…". Trusting the parameter instead would
+        // let a hand-typed URL put an id on screen that the requester's own
+        // sandbox list does not contain, which is a surface answering "does
+        // this exist" for something it was never shown.
+        if (launchedFrom !== null && res.items.some((sandbox) => sandbox.id === launchedFrom)) {
+          setDestination(launchedFrom);
+        }
+      })
       .catch(() => setDestinations([]));
     // T-406 — the guides this project has loaded. A failed read is NOT an empty
     // list: rendering "no style guide is loaded" off a request that did not
@@ -751,28 +789,7 @@ export function DocumentCreatorScreen() {
       .startingOutlines(projectId)
       .then((res) => setOutlines(res.items))
       .catch(() => setOutlines([]));
-  }, [projectId]);
-
-  // ⚠ **THE BOUND-CONTAINER PATH IS REFUSED, WITH A POINTER.** `Q-037` — whether
-  // a bound container's plan row seeds this structure — is raised and unruled,
-  // and inventing the answer here would build toward something nobody agreed
-  // to. The unbound path is the tool; arriving bound says so rather than
-  // quietly ignoring the binding, which would look like it had worked.
-  const boundContainerId = params.get('containerId');
-  if (boundContainerId !== null) {
-    return (
-      <div className="content">
-        <h1 className="page">Document creator</h1>
-        <div className="banner banner--warning">
-          Starting the creator from a deliverable in the plan is not built. Whether a bound
-          container’s plan row seeds the structure is an open design question (
-          <span className="mono">Q-037</span>), and guessing at it here would produce a document
-          shaped by an answer nobody has given. Open the creator from{' '}
-          <Link to={`/projects/${projectId}/tools`}>Tools</Link> and choose the sources yourself.
-        </div>
-      </div>
-    );
-  }
+  }, [projectId, launchedFrom]);
 
   /** Any change to the answers discards the plan — a plan is about the inputs it was computed from. */
   const change = <T,>(set: (value: T) => void) => (value: T) => {
@@ -1012,6 +1029,15 @@ export function DocumentCreatorScreen() {
                 ...destinations.map((sandbox) => ({ value: sandbox.id, label: sandbox.name })),
               ]}
             />
+            {/* T-413 — said out loud when the answer was filled in for you.
+                A pre-filled control the user did not set, and is not told
+                about, is one they read as their own choice. */}
+            {launchedFrom !== null && destination === launchedFrom && (
+              <p className="field-hint">
+                Set from the working area you started in. Change it here if the document belongs
+                somewhere else.
+              </p>
+            )}
           </Field>
         </div>
       </Card>

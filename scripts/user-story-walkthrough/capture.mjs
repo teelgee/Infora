@@ -957,12 +957,20 @@ await e.getByText('Land contamination — Ashcombe Lane parcels').first().waitFo
 await e.waitForTimeout(400);
 await shot(e, 't1-13-landing');
 
-// the first honest refusal: arriving from a deliverable in the plan. Q-037 is
-// raised and unruled, so the route says so rather than guessing at the answer.
-// T-401 — and its clause number and its link now read as one sentence.
-await e.goto(`${WEB}/projects/${projectId}/tools/document-creation?containerId=${containerId}`);
-await e.getByText('is not built', { exact: false }).waitFor();
-await shot(e, 't1-14-bound-refusal');
+// T-413 (ADR-0053 addendum A4) — the creator's OTHER front door, and the beat
+// that replaced the bound-container refusal. `Q-037` was ruled on 2026-09-01 by
+// cutting the plan→creator link rather than by deciding what may cross it, so
+// the refusal screen has no reason to exist and neither has its photograph.
+// What is worth photographing instead is the door that does exist: started from
+// the working area you are standing in, with the destination already set to it.
+await e.getByRole('button', { name: 'Create with AI' }).click();
+await e.getByRole('heading', { name: 'Document creator' }).waitFor();
+await e.getByText('Set from the working area you started in').waitFor();
+await e
+  .getByText('Set from the working area you started in')
+  .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await e.waitForTimeout(200);
+await shot(e, 't1-14-from-the-working-area');
 
 // ── the QA checker ──────────────────────────────────────────────────────────
 //

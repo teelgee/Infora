@@ -42,6 +42,7 @@ import {
   Send,
   Settings,
   Snowflake,
+  Sparkles,
   Upload,
   User,
   Users,
@@ -1775,6 +1776,28 @@ export function SandboxScreen() {
           <Button size="sm" variant="primary" onClick={() => setModal('doc')}>
             <FilePlus2 size={14} strokeWidth={2} /> New document
           </Button>
+          {/* T-413 (ADR-0053 addendum A4) — the creator's OTHER front door, and
+              the only one besides Tools. *In plain terms: start the document
+              creator from the working area you are standing in, and the
+              document is created there.*
+
+              🔒 It carries the sandbox and **nothing else**. The owner's
+              ruling cut the plan→creator link rather than deciding what may
+              cross it, so a doorway that helpfully passed along a deliverable,
+              a title or a reference would be re-opening by the back door the
+              thing that was closed at the front. One parameter, and it names a
+              place to write to. */}
+          {selected !== null && (
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={() =>
+                navigate(`/projects/${projectId}/tools/document-creation?sandboxId=${selected}`)
+              }
+            >
+              <Sparkles size={14} strokeWidth={2} /> Create with AI
+            </Button>
+          )}
           {/* upload a native Office file, kept canonical (T-122 wired to the
               surface); the hidden input is the file picker the button opens */}
           <Button size="sm" variant="quiet" disabled={uploading} onClick={() => uploadInput.current?.click()}>

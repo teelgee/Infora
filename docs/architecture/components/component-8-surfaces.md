@@ -109,7 +109,7 @@ Three properties are load-bearing and belong to this component to enforce, becau
 
 **Coverage is stated twice, in the same shape** (ADR-0053 §5): in the plan before the run, and beside the result after it. **Cost is stated before the click, and an unpriced deployment says so** rather than showing a plausible zero (T-254).
 
-⚠ **The bound-container path is refused with a pointer, not built.** Whether a bound deliverable's plan row seeds the structure is `Q-037` and unruled; arriving at the creator with a container bound says so and names the question, rather than ignoring the binding — which would look like it had worked.
+🔒 **The creator is never launched from the owner's plan, and its two front doors are Tools and a working-area location** (T-413, ADR-0053 **addendum A4**, owner-ruled 2026-09-01). `Q-037` — whether a bound deliverable's plan row seeds the structure — closed by **cutting the link** rather than by ruling what may cross it, so the bound-container refusal screen and every doorway to it are gone. *Create with AI* in a sandbox opens the same launcher with the destination pre-filled to that location and still changeable; the doorway carries the location and nothing else, so nothing of the owner-controlled plan reaches producing-side authoring and `Q-034`'s wall-through-content territory is never entered.
 
 **Governing ADRs.** **0053** (the tool set, the plan, coverage, the executor rule); 0027 (thinking vs doing); 0049 §7 is unaffected.
 **Terms owned.** Tool, Tools section.

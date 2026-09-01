@@ -935,3 +935,63 @@ describe('T-399 — a file can be handed straight to a check', () => {
     expect(source).toContain('attaching it again');
   });
 });
+
+// ── T-413 (ADR-0053 addendum A4) — THE PLAN IS NOT A DOOR INTO THE CREATOR ──
+//
+// **These assertions are INVERTED, not deleted.** The creator used to answer
+// `?containerId=` with a refusal naming `Q-037`; the owner ruled the question
+// on 2026-09-01 by cutting the link rather than by deciding what may cross it,
+// so the refusal has no reason to exist. A test that was simply removed would
+// leave the screen free to grow the doorway back with nothing noticing — which
+// is the same argument T-410's inverted price tests already carry, one ruling
+// along.
+//
+// Pinned as source assertions rather than render ones for T-399's reason: the
+// controls sit inside the creator screen, which needs a router and a project to
+// render at all, and the claim under test is about what the file does and does
+// not contain.
+describe('T-413 — the creator starts from a working-area location, never from the plan', () => {
+  const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+  const sandbox = readFileSync(new URL('./screens/sandbox.tsx', import.meta.url), 'utf8');
+
+  it('no longer refuses a bound container, because there is nothing to refuse', () => {
+    expect(source).not.toContain('Starting the creator from a deliverable in the plan is not built');
+    // and it no longer puts an open design question in front of a user, which
+    // is what the refusal screen did. The question's number still appears in a
+    // comment above the removal, recording WHY the screen went — that is the
+    // record doing its job, not the screen.
+    expect(source).not.toContain('is an open design question');
+    expect(source).not.toContain('choose the sources yourself');
+  });
+
+  it('READS NO PLAN ROW AT ALL — the parameter that carried one is gone', () => {
+    // the ruling is the absence: nothing of the owner-controlled plan reaches
+    // producing-side authoring, so `Q-034`'s wall-through-content territory is
+    // never entered
+    expect(source).not.toContain("params.get('containerId')");
+    expect(source).not.toContain('boundContainerId');
+  });
+
+  it('opens with the destination pre-filled from the working area it was started in', () => {
+    expect(source).toContain("params.get('sandboxId')");
+    expect(source).toContain('setDestination(launchedFrom)');
+    // and it stays CHANGEABLE — one launcher (ADR-0053 §1), starting on a
+    // different answer rather than a second screen with a fixed one
+    expect(source).toContain('Change it here if the document belongs');
+  });
+
+  it('pre-fills only from the assembled list, never from the parameter itself', () => {
+    // an id the requester cannot reach is absent from their own sandbox list,
+    // so it fills nothing — a surface that trusted the URL would be answering
+    // "does this exist" for something it was never shown
+    expect(source).toContain('res.items.some((sandbox) => sandbox.id === launchedFrom)');
+  });
+
+  it('the working area offers the door, and hands over the location and NOTHING else', () => {
+    expect(sandbox).toContain('Create with AI');
+    expect(sandbox).toContain('tools/document-creation?sandboxId=');
+    // no deliverable, no title, no reference riding along — a doorway that
+    // passed those would re-open at the back what the ruling closed at the front
+    expect(sandbox).not.toContain('tools/document-creation?containerId=');
+  });
+});
