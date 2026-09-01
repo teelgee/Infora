@@ -136,8 +136,11 @@ precedent is the PDF-extraction row in the register, where a corpus of
 correspondence names members of the public. All four are typed by a person.
 They are the **project owner's own material**, deleted on request in use and at
 exit (ADR-0050 §6), with the transmittal event itself retained on the same
-footing as every other issue record. Registered in
-[personal-data.md](../personal-data.md) in the commit that builds it.
+footing as every other issue record. **Registered in
+[personal-data.md](../personal-data.md) at ruling** — the row landed with this
+ADR; the commit that builds the store keeps it true rather than adding it
+*(phrasing corrected in review 2026-09-01: the original said "in the commit
+that builds it", contradicting this ADR's own Status line and the register)*.
 
 **Consequences:** `Q-040` closes, and with it the last open shape in V1's
 scope. **Slice External Issue, T-431–T-432.** The transmittal table gains a

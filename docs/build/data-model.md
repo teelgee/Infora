@@ -342,6 +342,28 @@ not.
 wall-crossing project cycle. (ADR-0002–0017, 0032, 0033, 0035.)*
 **Shape:** [drawer5-review.ts](../../packages/db/src/schema/drawer5-review.ts)
 
+> ✏️ **Drawn 2026-09-01 (in review of Session K), unbuilt — T-431 (migration
+> 0065).** External issue (ADR-0055). *Plainly: a finished document can be
+> sent to a person with no Infora account — a landowner, a consultee — as an
+> expiring link; the record keeps who sent what to whom and why.* Drawer 5
+> and not drawer 1, because the recipient is **not a party**: never an
+> Organisation, Participant or Membership — the record belongs to the issue
+> event, exactly as the transmittal does. Two changes:
+> **`transmittals.kind`** gains `external` as a third value; the existing
+> CHECK keeping `round_id`/`direction` null off the review kind extends to
+> it (no round, no lock, no snapshot).
+> **`external_recipients`** — `id` uuid PK; `transmittal_id` FK; `name`
+> text; `email` text; `reason` text; `message` text; `link_token` (opaque,
+> the access — there is no grant to resolve); `expires_at`;
+> `issued_by_participant_id` FK. **`name`, `email`, `reason` and `message`
+> are the platform's first stored data about a person with no account** —
+> already registered in personal-data.md at ruling (ADR-0055 decision 9);
+> owner's material, deleted on request and at exit per ADR-0050 §6, the
+> transmittal event itself retained like every issue record. Two
+> whole-project settings (the standard message; who may issue) join the
+> Project row's owner-super-user set, the ADR-0046/T-371 pattern. When
+> built, this block reduces to narrative per the state rule.
+
 The **cycle** is the instance and the DRR is its record — one live,
 append-only record per cycle (ADR-0009). The appointed sides are **interval
 grant tables** read live at all times — there is no copy at launch, so "who
@@ -416,7 +438,36 @@ style guide). Programme context still has none and is not implied by these
 four.*
 **Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
 
-### Saved starting outlines *(drawn 2026-09-01, built the same day — T-414, ADR-0053 addendum A5, migration 0063)*
+> ✏️ **Drawn 2026-09-01 (in review of Session K), unbuilt — T-423 (migration
+> 0064).** The **rule set**: a project style guide gains a versioned set of
+> typed rules beside its clauses (ADR-0054 — the clause store is NOT replaced;
+> an extracted rule points at a clause so a quoted finding stays verbatim).
+> *Plainly: the writing rules somebody accepted, stored one by one with what
+> each applies to and where it does not, so most of them can be checked by
+> ordinary code.* Two tables:
+> **`rule_set_versions`** — `id` uuid PK; `style_guide_id` FK (the guide the
+> set belongs to); `version` integer, unique per guide; `accepted_by_user_id`
+> FK — **a named person, already registered in personal-data.md at ruling**;
+> `accepted_at`; `drafting_brief` text (the judgement rules compiled once at
+> save, ADR-0054 decision 6). Append-only — a new acceptance is a new
+> version row, never an edit, which is what makes the run's version stamp
+> (decision 7) meaningful.
+> **`rules`** — `id` uuid PK; `rule_set_version_id` FK; `kind` (term |
+> pattern | structure | measured | judgement); `origin` (extracted | typed |
+> infora_proposed); `clause_id` nullable FK into
+> `project_style_guide_clauses`, **non-null exactly when origin is
+> extracted** (CHECK) — the pointer ADR-0048 §5's quotation resolves
+> through; `scope` (document | section | paragraph | sentence | heading |
+> list | caption | table — the vocabulary as amended in review, T-430);
+> `excepted_contexts` (enumerated: quotations, references, code, headings…)
+> and `excepted_terms` (text[], authored tokens) — **two typed halves, split
+> in review per T-430's finding**; `register` (the creator's
+> DOCUMENT_LANGUAGES + all); `enforcement` (raises_findings | steers_only);
+> `severity`; the kind-specific payload as jsonb (a term rule's swap pair, a
+> pattern rule's expression, a judgement rule's sentence). Proposals (T-426)
+> ride the same shape with a state column and the proposer's id — the
+> proposer is the second named person, also registered at ruling. When
+> built, this block reduces to narrative per the state rule.
 
 *In plain terms: an outline somebody built in the document creator and kept, so
 a colleague can start from it next time. It appears beside the outlines Infora

@@ -183,14 +183,27 @@ what a writing rule is.
 **Every rule additionally carries three things**, and the first two are what
 make a deterministic check accurate rather than noisy:
 
-- **Scope — what it applies to:** the whole document, a section, a sentence, a
-  heading, a caption, a table. This is ADR-0053's *the unit of work is a
-  property of each check* applied one level down, at rule grain, and it is what
-  lets the planner batch correctly.
-- **Exceptions — where it does not apply:** inside quotations, inside proper
-  names, inside references. Without this, *use "scheme", not "project"* fires on
-  the Project Board and on every quoted document title, and the consultant
-  switches the check off.
+- **Scope — what it applies to:** the whole document, a section, a paragraph,
+  a sentence, a heading, a list, a caption, a table. This is ADR-0053's *the
+  unit of work is a property of each check* applied one level down, at rule
+  grain, and it is what lets the planner batch correctly. *(Amended in review
+  2026-09-01, on T-430's evaluation: `paragraph` and `list` added — the ruled
+  vocabulary omitted `paragraph` while this decision's own example rule, "one
+  idea per paragraph", needs it; and the names deliberately match the
+  document-part vocabulary the evaluated external engine also uses, which is
+  what keeps a later engine swap a swap.)*
+- **Exceptions — where it does not apply, in two typed halves** *(split in
+  review 2026-09-01, on T-430's evaluation — its named "finding that matters
+  most": a single mixed field would make later engine adoption a migration of
+  every accepted rule, and "proper names" as a context would require a
+  detector nobody has built)*: **excepted contexts** — an enumerated set:
+  inside quotations, inside references, inside code, inside headings — and
+  **excepted terms** — an authored list of exact words and phrases the rule
+  leaves alone, which is also the honest mechanism for proper names: *the
+  Project Board* is spared because somebody named it, not because software
+  guessed it was a name. Without exceptions, *use "scheme", not "project"*
+  fires on the Project Board and on every quoted document title, and the
+  consultant switches the check off.
 - **Whether it raises findings, or only steers drafting.** Real standards
   contain aspirations — *write with the reader in mind* — that cannot be
   checked. Marked drafting-only, they improve the writing and generate no noise
@@ -316,14 +329,18 @@ importing a published standard rule pack a real option. The spike evaluates
 exactly this and may overturn it.
 
 **Consequences:** `Q-050` closes. The three stores gain their first surfaces —
-**Slice Knowledge, T-422–T-430**. `project_style_guides` gains a rule set
+**Slice Knowledge, T-422–T-430 and T-433–T-434**. `project_style_guides` gains a rule set
 beside its clauses; the clause store is **not replaced**, because an extracted
 rule points at a clause and ADR-0048 §5's verbatim quotation resolves through
 it. **A migration is required** and is drawn in
 [data-model.md](../../build/data-model.md) drawer 7 before it is written, per
 the standing rule. **Named people ride it** — who loaded a standard, who
-proposed a rule, who accepted one — registered in
-[personal-data.md](../personal-data.md) in the commit that builds it. The
+proposed a rule, who accepted one — **registered in
+[personal-data.md](../personal-data.md) at ruling** (the rows landed with this
+ADR); the commit that builds the store keeps them true rather than adding them
+*(phrasing corrected in review 2026-09-01 — the original said "in the commit
+that builds it" while the rows already existed, and a builder following it
+would have duplicated them)*. The
 checker's style-guide check stops being wholly a model call and becomes four
 code checks plus one model call, which **improves coverage** in ADR-0053 §5's
 sense at lower cost. The workspace rail's `knowledge` placeholder stops being a
