@@ -438,37 +438,6 @@ style guide). Programme context still has none and is not implied by these
 four.*
 **Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
 
-> ✏️ **Drawn 2026-09-01 (in review of Session K), unbuilt — T-423 (migration
-> 0064).** The **rule set**: a project style guide gains a versioned set of
-> typed rules beside its clauses (ADR-0054 — the clause store is NOT replaced;
-> an extracted rule points at a clause so a quoted finding stays verbatim).
-> *Plainly: the writing rules somebody accepted, stored one by one with what
-> each applies to and where it does not, so most of them can be checked by
-> ordinary code.* Two tables:
-> **`rule_set_versions`** — `id` uuid PK; `style_guide_id` FK (the guide the
-> set belongs to); `version` integer, unique per guide; `accepted_by_user_id`
-> FK — **a named person, already registered in personal-data.md at ruling**;
-> `accepted_at`; `drafting_brief` text (the judgement rules compiled once at
-> save, ADR-0054 decision 6). Append-only — a new acceptance is a new
-> version row, never an edit, which is what makes the run's version stamp
-> (decision 7) meaningful.
-> **`rules`** — `id` uuid PK; `rule_set_version_id` FK; `kind` (term |
-> pattern | structure | measured | judgement); `origin` (extracted | typed |
-> infora_proposed); `clause_id` nullable FK into
-> `project_style_guide_clauses`, **non-null exactly when origin is
-> extracted** (CHECK) — the pointer ADR-0048 §5's quotation resolves
-> through; `scope` (document | section | paragraph | sentence | heading |
-> list | caption | table — the vocabulary as amended in review, T-430);
-> `excepted_contexts` (enumerated: quotations, references, code, headings…)
-> and `excepted_terms` (text[], authored tokens) — **two typed halves, split
-> in review per T-430's finding**; `register` (the creator's
-> DOCUMENT_LANGUAGES + all); `enforcement` (raises_findings | steers_only);
-> `severity`; the kind-specific payload as jsonb (a term rule's swap pair, a
-> pattern rule's expression, a judgement rule's sentence). Proposals (T-426)
-> ride the same shape with a state column and the proposer's id — the
-> proposer is the second named person, also registered at ruling. When
-> built, this block reduces to narrative per the state rule.
-
 *In plain terms: an outline somebody built in the document creator and kept, so
 a colleague can start from it next time. It appears beside the outlines Infora
 ships, marked as the firm's own, for that firm only.*
@@ -578,6 +547,58 @@ text, so a quote is checkable rather than merely precise.
 schema at all: the rulebook moving from the *guiding* channel to the *informing*
 one is a code label and its tests, and the query is untouched — same table, same
 `organisation_id` key, **no wall predicate added and none removed**.
+
+### The rule set *(drawn 2026-09-01, built 2026-09-02, T-423, migration 0064)*
+
+*In plain terms: a project's style guide stops being only a document and gains
+a list of rules — the writing rules somebody accepted, stored one by one with
+what each applies to and where it does not, so most of them can be checked by
+ordinary code rather than by asking the AI.*
+
+**Two tables, `project_style_guide_rule_sets` and `project_style_guide_rules`,
+and the names are the register's rather than the drawing's.** The drawing called
+them `rule_set_versions` and `rules`; [personal-data.md](../architecture/personal-data.md)
+had already registered the second as `project_style_guide_rules` when ADR-0054
+landed, and a bare `rules` in a schema this size names nothing. Both now sit
+beside `project_style_guides` and `project_style_guide_clauses`, which is where
+a reader looks for them.
+
+🔒 **The clause store is not replaced, and that is the design.** An extracted
+rule **points at** the clause it came from, because ADR-0048 §5's verbatim
+quotation resolves through it: a finding quotes the words the client's guide
+really carries, never Infora's restructuring of them. The pointer is non-null
+**exactly when** the origin is `extracted`, carried as a CHECK rather than as a
+convention. A typed or Infora-proposed rule has no pointer and its findings say
+so — the same discipline as the nullable clause label one table up, and as
+T-305's rule for `page`: never a guessed address, because an invented one looks
+checkable.
+
+**A version is immutable once saved**, on T-397's retire-never-edit precedent.
+The stored rule text is what past findings quoted, so an amendment is a **new
+version** and never an edit — enforced by two triggers on the T-008 pattern,
+because ADR-0054 decision 7's stored version stamp means nothing if the thing it
+points at can change underneath it. **The one mutation this store permits** is a
+*pending* proposal being decided, and only its two decision columns move.
+
+**Proposals ride the same table** (T-426), carrying a state, the proposer and
+the decider. A proposal **is** a rule that has not been accepted; two tables
+would be two answers to what binds. Accepting one copies it into a new version
+rather than flipping something in place, and a declined one records **no
+reason**, on the finding-dismissal precedent. Ordering is a property of the
+saved set, so the ordinal's unique index is partial — proposals sit outside it.
+
+**Three named people ride these tables** — who accepted a set, who proposed a
+rule, and who decided the proposal — all three registered in
+[personal-data.md](../architecture/personal-data.md) when ADR-0054 was ruled;
+the build keeps that row true rather than adding one.
+
+**The kind-specific half is `jsonb` and the rest is columns**, and the split is
+the same one `starting_outlines.sections` makes for the opposite reason: every
+read of a set filters or groups on the scope, the register, the origin and the
+enforcement, so those are columns; a term rule's swap pair and a judgement
+rule's examples are read by exactly one matcher each, and five sparse column
+families would be a schema describing the union badly.
+
 
 ## Drawer 8 — Notifications
 *The telling: one persisted, event-shaped record per thing a person needs to

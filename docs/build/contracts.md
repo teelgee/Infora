@@ -1075,3 +1075,19 @@ are not recorded here.
   what order, named how) must have **one answer** across the planner, the
   splitter, the manifest and the web surface, and four copies of a
   flattening loop is how a sub-section gets counted by three of them.
+
+- **2026-09-02 (T-423) — `contracts` gains `rule-set.ts`: a style guide's rules
+  as a type.** *Plainly: a style guide used to be a document. It is now also a
+  list of rules, and this is that list's shape on the wire.* The **reason it is
+  its own file rather than a section of `checker.ts`** is that both consumers
+  read it and neither owns it — the checker runs rules and the creator drafts
+  against them, and putting the shape inside either would make the other's
+  dependency an accident. The **reason `ProposedRule` is a separate type from
+  `StyleRule`, rather than `StyleRule` with optional ids**, is that a proposed
+  rule cannot be quoted and cannot be run against anything: a type that let one
+  be mistaken for the other is how something nobody accepted ends up binding
+  somebody. And the **reason the register vocabulary is `DocumentLanguage |
+  'all'` rather than a list of its own** is ADR-0054 decision 5 — a rule tagged
+  with a word the creator's launcher does not use can never match a document,
+  so a second vocabulary would make the gap-filling fail silently, which is the
+  failure mode that ADR refuses everywhere else.

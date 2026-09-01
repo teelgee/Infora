@@ -31,7 +31,9 @@
 // organisation. That is also the authority-corpus spike's Finding 4 applied
 // early — a store walled by a different rule than `version_chunks`' must not
 // sit inside the table whose entire purpose is enforcing that one.
+import { sql } from 'drizzle-orm';
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { organisations, projects, users } from './drawer1-parties.js';
 
 export const rulebooks = pgTable(
@@ -227,4 +229,142 @@ export const startingOutlines = pgTable(
     retiredAt: timestamp('retired_at', { withTimezone: true }),
   },
   (t) => [index('starting_outlines_organisation_idx').on(t.organisationId)],
+);
+
+// ── T-423 — THE RULE SET: a style guide's typed rules, and its versions ─────
+//
+// *In plain terms: a project's style guide stops being only a document and
+// gains a list of rules — the writing rules somebody accepted, stored one by
+// one with what each applies to and where it does not, so most of them can be
+// checked by ordinary code rather than by asking the AI.* ADR-0054 decisions
+// 2–5, drawn in docs/build/data-model.md drawer 7 before this was written.
+//
+// 🔒 **`project_style_guide_clauses` IS NOT REPLACED, AND THAT IS THE POINT.**
+// An extracted rule POINTS AT the clause it came from, because ADR-0048 §5's
+// verbatim quotation resolves through it: a finding quotes the words the
+// client's guide really carries, never Infora's restructuring of them. The
+// pointer is non-null **exactly when** the origin is `extracted`, and the
+// migration carries that as a CHECK rather than as a convention.
+//
+// **A version is immutable once saved**, on T-397's retire-never-edit
+// precedent one store along: the stored rule text is what past findings quoted,
+// so an amendment is a NEW version and never an edit. Enforced by trigger
+// (`0064`), not by care — which is what makes the run's version stamp
+// (decision 7) mean anything at all.
+//
+// **Proposals ride the same table** (T-426), carrying a state, the proposer and
+// the decider. Two shapes for "a rule" would be two answers to what binds: a
+// proposal is a rule that has not been accepted, and accepting one copies it
+// into a new version rather than flipping something in place.
+
+/**
+ * One saved version of one guide's rule set. Append-only.
+ *
+ * `accepted_by_user_id` is **a named person** — registered in
+ * docs/architecture/personal-data.md at ADR-0054's own ruling, alongside the
+ * proposer and the decider below; this table keeps that row true rather than
+ * adding one. USER grain, matching `loaded_by_user_id` two tables up and for
+ * the same reason: accepting a project's writing standard is an act by a
+ * person, and a control nobody can see operating is a control nobody can audit.
+ */
+export const projectStyleGuideRuleSets = pgTable(
+  'project_style_guide_rule_sets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    styleGuideId: uuid('style_guide_id')
+      .notNull()
+      .references(() => projectStyleGuides.id, { onDelete: 'cascade' }),
+    /** 1, 2, 3 … within one guide. An amendment is the next one, never an edit */
+    version: integer('version').notNull(),
+    acceptedByUserId: uuid('accepted_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * T-429 — the judgement rules compiled ONCE, here, at save (ADR-0054
+     * decision 6). Same rules in, same brief out, so a drafting run keeps a
+     * declared workflow's kind of guarantee; and the owner's super user can
+     * read exactly what the drafting model is told. Empty where the set has no
+     * judgement rules, which is a real answer and not a missing one.
+     */
+    draftingBrief: text('drafting_brief').notNull().default(''),
+  },
+  (t) => [
+    uniqueIndex('project_style_guide_rule_sets_version_unique').on(t.styleGuideId, t.version),
+    index('project_style_guide_rule_sets_guide_idx').on(t.styleGuideId),
+  ],
+);
+
+/**
+ * One rule. **Typed by HOW IT IS ENFORCED, not by what it is about** (decision
+ * 4) — which is what decides whether checking it costs a model call.
+ *
+ * The three fields every rule carries beyond its kind are the ones that make a
+ * deterministic check accurate rather than noisy: its **scope**, its
+ * **exceptions in two typed halves**, and whether it **raises findings or only
+ * steers drafting**. Without the exceptions, *use "scheme", not "project"*
+ * fires on the Project Board and on every quoted document title, and the
+ * consultant switches the check off.
+ */
+export const projectStyleGuideRules = pgTable(
+  'project_style_guide_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ruleSetVersionId: uuid('rule_set_version_id')
+      .notNull()
+      .references(() => projectStyleGuideRuleSets.id, { onDelete: 'cascade' }),
+    /** reading order within the version; the stable sort key the review screen uses */
+    ordinal: integer('ordinal').notNull(),
+    /** term | pattern | structure | measured | judgement */
+    kind: text('kind').notNull(),
+    /** extracted | typed | infora_proposed */
+    origin: text('origin').notNull(),
+    /**
+     * 🔒 The pointer ADR-0048 §5's quotation resolves through — **non-null
+     * exactly when `origin` is `extracted`** (CHECK in 0064). No cascade: a
+     * clause is never deleted, only its guide retired, and a rule whose clause
+     * vanished would be a quote nobody can check.
+     */
+    clauseId: uuid('clause_id').references(() => projectStyleGuideClauses.id),
+    /** the rule in one sentence — Infora's restructuring, never quoted as the client's */
+    statement: text('statement').notNull(),
+    /** document | section | paragraph | sentence | heading | list | caption | table */
+    scope: text('scope').notNull(),
+    /** the enumerated half: quotations | references | code | headings */
+    exceptedContexts: text('excepted_contexts').array().notNull().default([]),
+    /** the authored half: exact words the rule leaves alone — the honest proper-name mechanism */
+    exceptedTerms: text('excepted_terms').array().notNull().default([]),
+    /** the creator's own DOCUMENT_LANGUAGES, plus `all`. Not a new vocabulary (decision 5) */
+    register: text('register').notNull(),
+    /** raises_findings | steers_only */
+    enforcement: text('enforcement').notNull(),
+    /** ADR-0048's existing two levels: required | advisory */
+    severity: text('severity').notNull(),
+    /** the kind-specific half — a term's swap pair, a pattern's expression, a judgement's examples */
+    payload: jsonb('payload').notNull().default({}),
+    /**
+     * T-426 — **null for a rule of the saved set**; `pending`, `accepted` or
+     * `declined` for a proposal. One table, because a proposal IS a rule that
+     * has not been accepted, and two tables would be two answers to what binds.
+     */
+    proposalState: text('proposal_state'),
+    /** the rule this proposal would change; null where it adds one */
+    supersedesRuleId: uuid('supersedes_rule_id').references((): AnyPgColumn => projectStyleGuideRules.id),
+    /** **a named person** — the proposer, registered at ADR-0054's ruling */
+    proposedByUserId: uuid('proposed_by_user_id').references(() => users.id),
+    proposedAt: timestamp('proposed_at', { withTimezone: true }),
+    /** **a named person** — who accepted or declined. There is deliberately no reason column */
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    // ordering is a property of the SET, so proposals are outside it
+    uniqueIndex('project_style_guide_rules_ordinal_unique')
+      .on(t.ruleSetVersionId, t.ordinal)
+      .where(sql`${t.proposalState} IS NULL`),
+    index('project_style_guide_rules_version_idx').on(t.ruleSetVersionId),
+    index('project_style_guide_rules_proposal_idx')
+      .on(t.proposalState)
+      .where(sql`${t.proposalState} IS NOT NULL`),
+  ],
 );

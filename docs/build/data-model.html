@@ -900,6 +900,42 @@
         </tbody></table>
       </article>
       <article class="card d7">
+        <h3>project_style_guide_rule_sets <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">style_guide_id</td><td class="type">uuid</td><td class="notes">→ project_style_guides.id</td></tr>
+          <tr><td class="col">version</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">accepted_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id</td></tr>
+          <tr><td class="col">accepted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">drafting_brief</td><td class="type">text</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d7">
+        <h3>project_style_guide_rules</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">rule_set_version_id</td><td class="type">uuid</td><td class="notes">→ project_style_guide_rule_sets.id</td></tr>
+          <tr><td class="col">ordinal</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">kind</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">origin</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">clause_id</td><td class="type">uuid</td><td class="notes">→ project_style_guide_clauses.id · nullable</td></tr>
+          <tr><td class="col">statement</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">scope</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">excepted_contexts</td><td class="type">text[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">excepted_terms</td><td class="type">text[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">register</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">enforcement</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">severity</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">payload</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">proposal_state</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">supersedes_rule_id</td><td class="type">uuid</td><td class="notes">→ project_style_guide_rules.id · nullable</td></tr>
+          <tr><td class="col">proposed_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
+          <tr><td class="col">proposed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">decided_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
+          <tr><td class="col">decided_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d7">
         <h3>project_style_guides</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

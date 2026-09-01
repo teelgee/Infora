@@ -10,6 +10,7 @@ export * from './external';
 export * from './finding';
 export * from './lens';
 export * from './notification';
+export * from './rule-set';
 export * from './worker';
 export * from './workflow';
 export * from './shared';

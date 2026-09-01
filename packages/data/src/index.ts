@@ -14,3 +14,8 @@ export { parseRulebook, loadRulebook, retireRulebook } from './rulebook';
 // style sources through one shape.
 export { loadStyleGuide, retireStyleGuide } from './rulebook';
 export type { RulebookClause, RulebookParse } from './rulebook';
+// T-423 (ADR-0054 decisions 2–5) — the rule set: saved as a NEW version every
+// time, read back with each extracted rule's client wording resolved from the
+// clause store it points at.
+export { saveRuleSet, readCurrentRuleSet, readRules, UnknownClausePointer } from './rule-set';
+export type { RuleToSave, StoredRule, StoredRuleSet } from './rule-set';
