@@ -876,6 +876,18 @@ await e
   );
 await e.getByRole('button', { name: 'Remove section' }).last().click();
 await e.waitForTimeout(200);
+
+// T-412 — AND ONE SECTION GAINS A SUB-SECTION, which is the beat's whole
+// subject and was missing from the first recapture of this slice: the controls
+// were on screen and nothing had been composed with them, so the feature was
+// built, tested and unphotographed. Found by reading the shot back rather than
+// by reasoning from the code, which is what §G.1 exists to catch.
+await e.getByRole('button', { name: 'Add a sub-section' }).nth(1).click();
+await e.getByPlaceholder('Sub-section heading').fill('Survey dates and limitations');
+await e
+  .getByPlaceholder('What should go in this sub-section?')
+  .fill('When each survey was carried out, and what the record says it did not cover.');
+await e.waitForTimeout(200);
 await shot(e, 't1-05-outline-edited');
 
 await e
@@ -1031,12 +1043,37 @@ await e
 await e.waitForTimeout(200);
 await shot(e, 't2-05-plan');
 
-// T-418 — the run in flight. The progress box replaces the plan card the
-// moment the run starts, so this frame is taken WITHOUT waiting for the
-// result: the shot is of a check working, which is the whole point of the box.
-// It is raced against a fast stand-in router deliberately — if the run beats
-// the screenshot the box is gone, so the click and the frame are as close
-// together as the harness allows, and the beat says so if it comes back empty.
+// T-418 — the run in flight.
+//
+// ⚠ **THE FIRST ATTEMPT AT THIS BEAT PHOTOGRAPHED THE PLAN CARD**, and the
+// shot was indistinguishable from `t2-05-plan`. The progress box lives exactly
+// as long as the run does, and against the stand-in router a whole check
+// finishes in a couple of hundred milliseconds — so the box appeared, the
+// `waitFor` passed, and the run was over before the shutter. Found by reading
+// the photograph back, not by reasoning about the code.
+//
+// 🔒 **THE FIX IS IN THIS RECIPE, NOT IN THE PRODUCT AND NOT IN THE SUBSTRATE.**
+// The run response is held for two seconds by a route handler in the BROWSER,
+// which is a property of this capture and of nothing else: no product code
+// knows about it, the e2e server is untouched, and the delay cannot leak into
+// the e2e suite or into anyone's dev environment. Teaching the substrate to be
+// slow would have put a performance fiction into a shared fixture to make one
+// screenshot work.
+//
+// `times: 1` rather than a route-then-unroute pair: the handler is still in
+// flight while the page is being screenshotted, and unrouting under it raced
+// — the second run of the walkthrough hit a half-torn-down handler and the
+// capture died after this beat with "Route is already handled". One shot,
+// self-retiring, no teardown to get wrong.
+await e.route(
+  '**/tools/qa-check/runs',
+  async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await route.fulfill({ response });
+  },
+  { times: 1 },
+);
 await e.getByRole('button', { name: 'Run the check' }).click();
 await e.getByText('Running the check').waitFor({ timeout: 30_000 });
 await shot(e, 't2-06-progress');

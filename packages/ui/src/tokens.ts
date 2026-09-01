@@ -124,6 +124,8 @@ export const designTokens = {
   'level2-pane': 'var(--level2-pane)',
   'level3-popout': 'var(--level3-popout)',
   'level4-overlay': 'var(--level4-overlay)',
+  'measure-prose': 'var(--measure-prose)',
+  'measure-ui': 'var(--measure-ui)',
   'mono-code-family': 'var(--mono-code-family)',
   'mono-code-size': 'var(--mono-code-size)',
   'nav-rail-background': 'var(--nav-rail-background)',

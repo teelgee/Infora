@@ -120,6 +120,8 @@
   --level2-pane: var(--primitive-shadow-level2);
   --level3-popout: var(--primitive-shadow-level3);
   --level4-overlay: var(--primitive-shadow-level4);
+  --measure-prose: 600px;
+  --measure-ui: 780px;
   --mono-code-family: var(--primitive-font-family-mono);
   --mono-code-size: var(--primitive-font-size-300);
   --nav-rail-background: transparent;

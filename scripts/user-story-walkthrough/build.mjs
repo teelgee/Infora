@@ -544,9 +544,9 @@ const toolSections = [
         img: 't1-05-outline-edited',
         lane: CONSULTANT,
         screen: 'Tools · Document creator',
-        title: 'Seeds, never locks',
+        title: 'Seeds, never locks — and a section that carries sub-sections',
         prose:
-          'The first section’s purpose rewritten in Eleanor’s own words, and the last section removed outright. Every section a starting outline puts on screen is as editable and as removable as one typed by hand — which is the whole difference between a starting outline and the shape it replaced. Sections carry their own headings from here, and the assembly writes them into the document as markdown headings rather than as bare lines: the checker’s reader guesses at an unmarked heading by its length and its punctuation, and a heading a person actually typed — <em>3.2 Baseline conditions, including the 2025 survey.</em> — breaks every one of those guesses.',
+          'The first section’s purpose rewritten in Eleanor’s own words, the last section removed outright, and <strong>a sub-section added under the baseline</strong> — numbered 2.1, with its own heading and its own statement of what belongs in it. A sub-section is a section of its own: it is drafted separately, it gets its own description on the plan, it is counted in both coverage sentences, and the finished document carries it under its parent’s heading. What it has that a top-level section does not is a parent. One level, and one level only, which the code enforces by giving a sub-section no nesting of its own rather than by asking every reader of an outline to remember the rule. Every section a starting outline puts on screen is as editable and as removable as one typed by hand — which is the whole difference between a starting outline and the shape it replaced. Sections carry their own headings from here, and the assembly writes them into the document as markdown headings rather than as bare lines: the checker’s reader guesses at an unmarked heading by its length and its punctuation, and a heading a person actually typed — <em>3.2 Baseline conditions, including the 2025 survey.</em> — breaks every one of those guesses.',
         adrs: ['ADR-0053'],
       },
       {

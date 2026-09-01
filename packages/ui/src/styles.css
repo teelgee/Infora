@@ -269,7 +269,15 @@ a { color: inherit; text-decoration: none; }
 .content { flex: 1; overflow-y: auto; padding: 30px 32px 60px; max-width: 1120px; width: 100%; margin: 0 auto; }
 
 h1.page { font-family: var(--primitive-font-family-serif); font-size: 27px; font-weight: 500; letter-spacing: .1px; }
-.page-sub { color: var(--text-muted); margin-top: 6px; font-size: 13.5px; }
+/* ⚠ T-420 — THIS ONE RULE TOUCHES SEVENTEEN SCREENS, and that is the point of
+   fixing at the component: every page in the product opens with a sentence that
+   was running edge-to-edge. 13.5px was on no step of the type scale (the
+   neighbours are 13 and 15.5) and the 6px margin was on no step of the spacing
+   scale; both are snapped to the nearest, per §F.5. */
+.page-sub {
+  color: var(--text-muted); margin-top: 8px; font-size: var(--body-dense-size);
+  line-height: 1.55; max-width: var(--measure-ui);
+}
 
 .section-label {
   font-family: var(--ui-micro-family); font-size: var(--ui-micro-size);
@@ -434,7 +442,19 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    UI scale, never a serif in chrome) applied where a card had been leaving
    each screen to re-decide them inline. */
 .card-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
-.card-lede { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 4px 0 0; }
+/* 🔒 T-420 — A MEASURE ON UI PROSE (design-rules §C, extended by this ticket).
+   §C already caps document prose at 560–600px with the reasoning "never let
+   editor text run edge-to-edge", and had no rule at all for the prose that
+   explains a control. At the 1440px the tools are used at, every lede, hint and
+   check description was running ~170 characters to the line — roughly twice the
+   45–75 a reader tracks comfortably, and the largest single contributor to the
+   owner's "cluttered and compressed" impression of both tools. The cap is the
+   same principle one surface along, on its own token so it is one decision
+   rather than a number repeated at each site. */
+.card-lede {
+  color: var(--text-secondary); font-size: var(--ui-default-size);
+  line-height: 1.55; margin: 4px 0 0; max-width: var(--measure-ui);
+}
 /* the card's own vertical rhythm: one gap value, decided once */
 .card-stack { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 /* a step list reads as a list of what will happen, not as browser furniture */
@@ -446,7 +466,7 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    an unordered list of five sentences says these things happen; a numbered
    workflow says this happens, then this. Rendering only — nothing here sorts,
    because the planner already emits its steps in run order. */
-.plan-shape { font-size: 12.5px; line-height: 1.55; margin: 8px 0 0; }
+.plan-shape { font-size: var(--ui-default-size); line-height: 1.55; margin: 8px 0 0; max-width: var(--measure-ui); }
 .plan-workflow {
   list-style: none; margin: 12px 0 0; padding: 0;
   display: flex; flex-direction: column; gap: 8px;
@@ -464,7 +484,7 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
   font-family: var(--mono); font-size: 11px; line-height: 18px; text-align: center;
   color: var(--text-secondary); position: relative; z-index: 1;
 }
-.plan-workflow-label { font-size: 12.5px; line-height: 1.55; padding-top: 1px; }
+.plan-workflow-label { font-size: var(--ui-default-size); line-height: 1.55; padding-top: 2px; max-width: var(--measure-ui); }
 
 /* T-418 — the same workflow, watched. A finished step is marked and steps back;
    the one in flight is the only thing carrying emphasis, because a progress box
@@ -535,7 +555,7 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 /* ---------- The proposed document (T-408) ----------
    The plan page's top half: what the document will be, section by section,
    with each description correctable in place. */
-.proposal-overview { font-size: 12.5px; line-height: 1.6; color: var(--text-primary); margin: 8px 0 0; }
+.proposal-overview { font-size: var(--ui-default-size); line-height: 1.6; color: var(--text-primary); margin: 8px 0 0; max-width: var(--measure-ui); }
 .proposal-sections { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .proposal-section {
   background: var(--surface-sunken); border: 1px solid var(--border-subtle);
@@ -561,15 +581,18 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 /* T-406 — a plan note: what the run will do, said before the click. T-404 gave
    the coverage sentence and the notes below it their own rhythm; they used to
    run into the step list above them as one undifferentiated block. */
-.plan-covers { font-size: 12.5px; margin: 12px 0 0; }
-.plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 6px 0 0; }
+.plan-covers { font-size: var(--ui-default-size); margin: 16px 0 0; max-width: var(--measure-ui); }
+.plan-note { color: var(--text-secondary); font-size: var(--ui-default-size); line-height: 1.55; margin: 6px 0 0; max-width: var(--measure-ui); }
 
 /* ---------- The checker's check list (T-415) ----------
    Each check is a tick, a name, what it looks for, and — when it is on — its
    own settings underneath. There is deliberately no global settings block:
    ADR-0053 §2 makes every option a property of one check, and a global block is
    where the next one quietly lands. */
-.check-presets { display: flex; gap: 8px; margin-top: 8px; }
+/* T-420 — the presets, and the chosen one's sentence under them with room to
+   breathe: it was sitting hard against the buttons and read as their caption
+   rather than as the answer to "what does this one do". */
+.check-presets { display: flex; gap: 8px; margin: 12px 0 8px; }
 .check-families { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .check-family {
   border: 1px solid var(--border-subtle); border-radius: var(--primitive-radius-md);
@@ -581,8 +604,9 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .check-family-head { display: flex; align-items: center; gap: 8px; }
 .check-family-name { font-weight: 600; font-size: 12.5px; }
 .check-family-desc {
-  color: var(--text-muted); font-size: 12px; line-height: 1.5;
-  margin: 4px 0 0; padding-left: 22px;
+  /* 12px was on no step of the scale; ui.default is the nearest (§F.5) */
+  color: var(--text-muted); font-size: var(--ui-default-size); line-height: 1.5;
+  margin: 4px 0 0; padding-left: 22px; max-width: var(--measure-ui);
 }
 .check-family-options {
   margin: 12px 0 0 22px; padding-left: 12px;
@@ -593,7 +617,10 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .check-family-option { display: flex; flex-direction: column; gap: 4px; }
 /* the search box over a list already on the page, with its own count beside it:
    "3 of 24" tells a search that found little from a library that holds little */
-.list-search { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+/* T-420 — the search and its count are one control, so the count sits beside
+   the input rather than at the far end of a 1200px row with nothing to anchor
+   it to. The row takes the UI measure for the same reason the prose does. */
+.list-search { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; max-width: var(--measure-ui); }
 .list-search .field-input { flex: 1; min-width: 0; }
 .list-search-count { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
 .attach-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-top: 4px; }
@@ -621,8 +648,13 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .source-row > input { margin-top: 2px; }
 .source-row-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .source-row-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.source-row-title { font-weight: 600; font-size: 12.5px; }
-.source-row-desc { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+/* T-420 — 12px is on no step of the type scale; ui.default is the nearest
+   (§F.5), and a document's description is prose, so it takes the measure. */
+.source-row-title { font-weight: 600; font-size: var(--ui-default-size); }
+.source-row-desc {
+  color: var(--text-secondary); font-size: var(--ui-default-size);
+  line-height: 1.5; max-width: var(--measure-ui);
+}
 
 /* ---------- Folder-structure builder (interactive tree, no whitespace) ---------- */
 .folder-builder { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; padding: 2px; }
@@ -872,9 +904,14 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    pane background. */
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .chat-scroll { flex: 1; overflow: auto; }
-.chat-inner { max-width: 780px; margin: 0 auto; padding: 30px 26px 10px; }
+/* ⚠ T-420 — THE VALUE WAS ALREADY HERE, TWICE, WITHOUT A NAME. The chat column
+   had capped itself at 780px since it was built, which is independent
+   corroboration of the measure this ticket ruled into §C — and is also exactly
+   the "a decision made once and re-made by accident thereafter" case a token
+   exists to prevent. Both sites now name it. */
+.chat-inner { max-width: var(--measure-ui); margin: 0 auto; padding: 30px 26px 10px; }
 .chat-composer { border-top: 1px solid var(--border-default); background: var(--pane-background); border-radius: 0 0 var(--pane-radius) var(--pane-radius); }
-.chat-composer .inner { max-width: 780px; margin: 0 auto; padding: 14px 26px 20px; }
+.chat-composer .inner { max-width: var(--measure-ui); margin: 0 auto; padding: 14px 26px 20px; }
 .composer-chips { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 11.5px; color: var(--text-muted); }
 
 /* run trace (the coded chain rendered as a progressive checklist) */
@@ -1476,19 +1513,37 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 
 .field { display: grid; gap: 4px; }
 .field-label {
-  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  font-size: var(--ui-label-size); font-weight: 600; color: var(--text-secondary);
   letter-spacing: .01em;
 }
 .field-input {
-  font: inherit; font-size: var(--body-dense-size, 12.5px);
+  font: inherit; font-size: var(--body-dense-size);
   color: var(--text-primary); background: var(--surface-pane);
   border: 1px solid var(--border-default); border-radius: var(--primitive-radius-sm);
-  padding: 7px 10px; width: 100%; outline: none;
+  /* T-420 — 7px/10px were on no step of the 4px scale (§A). The literal
+     fallback on the font size said 12.5px while `body.dense` is 13px, so the
+     rule disagreed with the token it was falling back from — a fallback that
+     changes the design is worse than no fallback. */
+  padding: 8px 12px; width: 100%; outline: none;
 }
 .field-input:focus { box-shadow: var(--primitive-shadow-focus-ring-shadow, 0 0 0 3px var(--focus-ring)); border-color: var(--text-muted); }
 .field-input:disabled { background: var(--surface-sunken); color: var(--text-muted); cursor: not-allowed; }
-.field-textarea { resize: vertical; min-height: 64px; }
-.field-hint { font-size: 11px; color: var(--text-muted); }
+/* 🔒 T-420 — `min-height` NO LONGER OVERRIDES `rows`, and this was the single
+   biggest density defect in either tool. `TextArea` takes a `rows` prop and
+   callers set it deliberately per context — 2 for a section's purpose, 3 for a
+   brief — and a 64px floor silently discarded every value below three lines,
+   making every `rows={2}` box ~40% taller than the component was asked for. In
+   the creator's outline that turned each section into mostly empty box, which
+   is the "cluttered and compressed" impression arriving from the opposite
+   direction: not too dense, too inflated. The floor is now one line plus the
+   padding, so it still cannot collapse to nothing and it no longer fights the
+   prop. Fixed at the component, so every textarea in the product heals. */
+.field-textarea { resize: vertical; min-height: 34px; }
+/* 11px is on no step of the type scale (the neighbours are 10.5 and 11.5) */
+.field-hint {
+  font-size: var(--ui-label-size); color: var(--text-muted);
+  line-height: 1.5; max-width: var(--measure-ui);
+}
 .field-error { font-size: 11px; color: var(--danger-text, var(--feedback-danger-text)); }
 .field-select-wrap { position: relative; }
 .field-select { appearance: none; padding-right: 28px; cursor: pointer; }

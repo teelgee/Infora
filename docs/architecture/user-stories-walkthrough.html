@@ -847,11 +847,11 @@
 <figure class="beat">
   <div class="shot shot--consultant">
     <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Tools · Document creator</span></div>
-    <img src="user-story-screens/t1-05-outline-edited.png" alt="Seeds, never locks — Tools · Document creator screen" loading="lazy">
+    <img src="user-story-screens/t1-05-outline-edited.png" alt="Seeds, never locks — and a section that carries sub-sections — Tools · Document creator screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>Seeds, never locks</h3>
-    <p>The first section’s purpose rewritten in Eleanor’s own words, and the last section removed outright. Every section a starting outline puts on screen is as editable and as removable as one typed by hand — which is the whole difference between a starting outline and the shape it replaced. Sections carry their own headings from here, and the assembly writes them into the document as markdown headings rather than as bare lines: the checker’s reader guesses at an unmarked heading by its length and its punctuation, and a heading a person actually typed — <em>3.2 Baseline conditions, including the 2025 survey.</em> — breaks every one of those guesses.</p>
+    <h3>Seeds, never locks — and a section that carries sub-sections</h3>
+    <p>The first section’s purpose rewritten in Eleanor’s own words, the last section removed outright, and <strong>a sub-section added under the baseline</strong> — numbered 2.1, with its own heading and its own statement of what belongs in it. A sub-section is a section of its own: it is drafted separately, it gets its own description on the plan, it is counted in both coverage sentences, and the finished document carries it under its parent’s heading. What it has that a top-level section does not is a parent. One level, and one level only, which the code enforces by giving a sub-section no nesting of its own rather than by asking every reader of an outline to remember the rule. Every section a starting outline puts on screen is as editable and as removable as one typed by hand — which is the whole difference between a starting outline and the shape it replaced. Sections carry their own headings from here, and the assembly writes them into the document as markdown headings rather than as bare lines: the checker’s reader guesses at an unmarked heading by its length and its punctuation, and a heading a person actually typed — <em>3.2 Baseline conditions, including the 2025 survey.</em> — breaks every one of those guesses.</p>
     <p class="tags"><span class="tag">ADR-0053</span></p>
   </figcaption>
 </figure>
@@ -955,12 +955,12 @@
 <figure class="beat">
   <div class="shot shot--consultant">
     <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Tools · Document creator</span></div>
-    <img src="user-story-screens/t1-14-bound-refusal.png" alt="The first honest refusal, now legible — Tools · Document creator screen" loading="lazy">
+    <img src="user-story-screens/t1-14-from-the-working-area.png" alt="Started from where the document belongs — Tools · Document creator screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>The first honest refusal, now legible</h3>
-    <p>Arriving at the creator from a deliverable in the plan instead of from Tools, the screen refuses and says why: whether a bound deliverable’s plan row should seed the document’s structure is an open design question (Q-037), and a structure invented here would be shaped by an answer nobody has given. Refusing and naming the question is right. The previous capture found the <em>rendering</em> wrong — the notice was laid out as a row, so its clause number and its link were thrown into separate columns and the sentence was close to unreadable. That was a defect in the shared notice component rather than anything about this tool, and it affected every notice in the product carrying a link or a code. It is fixed at that component, so every notice healed at once, and the sentence here reads as a sentence.</p>
-    <p class="tags"><span class="tag">ADR-0053</span></p>
+    <h3>Started from where the document belongs</h3>
+    <p>The creator has a second front door, and it is the working area itself: <em>Create with AI</em> in the sandbox opens this same launcher with the destination already set to the location you were standing in, and says so under the control rather than leaving a pre-filled answer to read as your own choice. It stays changeable — one launcher, starting on a different answer, not a second screen with a fixed one. This beat replaced a refusal. Arriving at the creator from a deliverable in the owner’s plan used to render a screen naming an open design question: whether a plan row should seed the document’s structure. The owner ruled that question on 1 September by cutting the link rather than by deciding what may cross it — you never start the creator from the plan — so the refusal has nothing left to refuse, and the door that does exist is the one worth photographing. The doorway carries the location and nothing else: no deliverable, no title, no reference, because a doorway that passed those along would re-open at the back what the ruling closed at the front.</p>
+    <p class="tags"><span class="tag">ADR-0053</span><span class="tag">ADR-0038</span></p>
   </figcaption>
 </figure>
   
@@ -990,11 +990,11 @@
 <figure class="beat">
   <div class="shot shot--consultant">
     <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Tools · QA checker</span></div>
-    <img src="user-story-screens/t2-03-adjusted.png" alt="How hard to look — and a preset that is a starting point, not a mode — Tools · QA checker screen" loading="lazy">
+    <img src="user-story-screens/t2-03-adjusted.png" alt="Tick a check, and its own settings appear under it — Tools · QA checker screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>How hard to look — and a preset that is a starting point, not a mode</h3>
-    <p>Eleanor takes the quick check and then turns one check off by hand. A preset sets the five families and the record’s search depth together, as one honest choice, and every part of it stays individually adjustable afterwards — which is why the internal-consistency box can be cleared without leaving the preset. Two of the five say <em>No AI</em> on their face: readability and completeness are arithmetic, they cost nothing, and a checker described as so many model calls would have been describing half of itself. The depth select is present only because the accuracy check is still on, and it names its own trade in the option text: once per section is faster and will miss a figure the section is not mainly about.</p>
+    <h3>Tick a check, and its own settings appear under it</h3>
+    <p>Eleanor takes the quick check and then turns one check off by hand. A preset sets the five checks and the record’s search depth together, as one honest choice, and every part of it stays individually adjustable afterwards — which is why the internal-consistency box can be cleared without leaving the preset. Two of the five say <em>No AI</em> on their face: readability and completeness are arithmetic, they cost nothing, and a checker described as so many model calls would have been describing half of itself. <strong>Each check now carries its own options, unfolded beneath its own tick</strong>, and nothing appears under a check that is switched off. That is a correction the owner made by reading the previous photograph: how hard to look at the project record is a property of the accuracy check alone, and the screen had been showing it as a global setting at the foot of the card — so it read as though it governed all five. It now sits under Accuracy, where the design always put it, and there is no global settings block left for the next option to land on. Ticking house style shows which rules will actually be applied — the project’s guides by name, and the firm’s own manual filling the gaps where they are silent — because that check does not offer a choice and a screen that said nothing would leave the author to guess.</p>
     <p class="tags"><span class="tag">ADR-0053</span><span class="tag">ADR-0027</span></p>
   </figcaption>
 </figure>
@@ -1006,7 +1006,7 @@
   </div>
   <figcaption>
     <h3>Three ways to give it something to read, and two different guarantees</h3>
-    <p>The document controls are named differently because they are two different guarantees, and the copy under each says which you get. Narrowing the library scope yields findings that <strong>cite normally</strong> and resolve to a place in a source document; attaching a document yields findings that are <strong>never cited</strong> and quote an excerpt instead. Attaching a library document would silently take the weaker path, which is why neither control is called “choose a document”. <strong>T-399 filled the gap this beat used to photograph:</strong> a file can now be handed straight to the check, and it takes the second guarantee rather than a third — an attachment is an attachment however it arrived. The copy under the upload control makes the other promise the ticket turns on, in plain words on the screen and not only in the record: the file is read for this check and <strong>kept nowhere afterwards</strong>, the record keeping its name, size and content hash and never its text, so running the check again means attaching it again.</p>
+    <p>The document controls are named differently because they are two different guarantees, and the copy under each says which you get. <strong>Both now carry a search</strong>, and both show titles rather than coded references alone — a reference identifies a document, it does not say what is in it. What each search runs over is the list already on the page, and that list was resolved against the wall on the server before it was sent: the library scope is the same access-resolved set a grounded answer would draw on, and the attach list is the requester’s own drafts. So a document out of reach is not greyed and not ranked low — it never reached the browser, and no search can bring it back. A search that asked a server to find matches and then hid the unreachable ones on the way out would disclose that they exist by the shape of what came back, which is the failure this design forecloses rather than guards against. The library scope has also moved: it now sits under the accuracy check, which is the only check it governs. Narrowing the library scope yields findings that <strong>cite normally</strong> and resolve to a place in a source document; attaching a document yields findings that are <strong>never cited</strong> and quote an excerpt instead. Attaching a library document would silently take the weaker path, which is why neither control is called “choose a document”. <strong>T-399 filled the gap this beat used to photograph:</strong> a file can now be handed straight to the check, and it takes the second guarantee rather than a third — an attachment is an attachment however it arrived. The copy under the upload control makes the other promise the ticket turns on, in plain words on the screen and not only in the record: the file is read for this check and <strong>kept nowhere afterwards</strong>, the record keeping its name, size and content hash and never its text, so running the check again means attaching it again.</p>
     <p class="tags"><span class="tag">ADR-0053</span><span class="tag">ADR-0022</span></p>
   </figcaption>
 </figure>
@@ -1014,12 +1014,24 @@
 <figure class="beat">
   <div class="shot shot--consultant">
     <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Tools · QA checker</span></div>
-    <img src="user-story-screens/t2-05-plan.png" alt="The plan says what shape it took, and why — Tools · QA checker screen" loading="lazy">
+    <img src="user-story-screens/t2-05-plan.png" alt="The plan reads as a workflow: this, then this — Tools · QA checker screen" loading="lazy">
   </div>
   <figcaption>
-    <h3>The plan says what shape it took, and why</h3>
-    <p>The plan opens by explaining itself: one pass over the whole draft, because it all fits in a single read — and the consistency check comes free in that shape, since one reader genuinely sees everything and there is nothing left to compare afterwards. Then the steps, then what will be covered, then the cost. Beside them a notice states the price of the attached document before the run rather than after it: it is read but never cited, and if citations are wanted the way to get them is to scope to the library document instead. Every caveat this plan carries is stated before the button, never under the result — a run that reported its findings and then admitted it had not looked everywhere would be degrading quietly, which is the one thing the tool must not do.</p>
+    <h3>The plan reads as a workflow: this, then this</h3>
+    <p>The plan opens by explaining itself: one pass over the whole draft, because it all fits in a single read — and the consistency check comes free in that shape, since one reader genuinely sees everything and there is nothing left to compare afterwards. Then <strong>the steps, numbered and threaded in the order they will happen</strong>, then what will be covered. The change is in the reading, not in the machinery: it is the same list, computed in ordinary code from the answers above, and editable by nobody. An unordered list of five sentences says <em>these things happen</em>; a numbered workflow says <em>this happens, then this</em>, which is what a person came to the page to find out. Nothing on the surface sorts it — the planner emits its steps in the order it will execute them, and a page that re-ordered them would be a second opinion about what the run does. Beside them a notice states the price of the attached document before the run rather than after it: it is read but never cited, and if citations are wanted the way to get them is to scope to the library document instead. Every caveat this plan carries is stated before the button, never under the result — a run that reported its findings and then admitted it had not looked everywhere would be degrading quietly, which is the one thing the tool must not do.</p>
     <p class="tags"><span class="tag">ADR-0053</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Tools · QA checker</span></div>
+    <img src="user-story-screens/t2-06-progress.png" alt="A running check shows its steps completing — Tools · QA checker screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>A running check shows its steps completing</h3>
+    <p>The run starts and the plan’s own steps stay on screen, ticking off as each one finishes — the list a person read is the list they watch. It is not a spinner and it is not a percentage: it counts the run’s own step rows, which the engine has recorded since the skeleton, against the plan’s own step count. Counting only what the poll returned would show <em>two of two</em> on a run that had opened two rows of six and call it finished. Nothing about the engine changed for this; what changed is that the browser opens the run’s conversation before starting it, so it has a handle to look the run up by while the request is still in flight. And it degrades honestly: a poll that does not answer says the check is still going and the page will catch up, never that it is stuck — the run is a fact on the server, and a browser that has lost sight of it has learned something about the browser.</p>
+    <p class="tags"><span class="tag">ADR-0053</span><span class="tag">ADR-0028</span></p>
   </figcaption>
 </figure>
 

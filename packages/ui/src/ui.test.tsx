@@ -709,3 +709,73 @@ describe('a warning notice carries the warning tone (T-411)', () => {
     expect(dark).toContain('--feedback-warning-dot:');
   });
 });
+
+// ── T-420 — THE UI-PROSE MEASURE (design-rules §C, extended by this ticket) ──
+//
+// *In plain terms: a sentence that explains a control now stops at a readable
+// line length instead of running the full width of the screen.*
+//
+// Pinned at the source rather than on a screen, which is this repo's own idiom
+// for a rule that would break silently and still look plausible (T-401's
+// `.banner` guard). A measure that quietly went away would not throw, would not
+// fail a render test, and would look exactly like the "cluttered and
+// compressed" screens the owner reported — which is how it got here.
+describe('T-420 — UI prose carries a measure', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  const generated = readFileSync(new URL('./tokens.generated.css', import.meta.url), 'utf8');
+
+  it('the token exists, in both roles, and is a real length', () => {
+    // two values because they are two roles: the document of record in serif,
+    // and the interface in a denser sans
+    expect(generated).toContain('--measure-prose: 600px;');
+    expect(generated).toContain('--measure-ui: 780px;');
+  });
+
+  it('every class that carries UI prose takes the measure', () => {
+    for (const selector of [
+      '.page-sub',
+      '.card-lede',
+      '.field-hint',
+      '.check-family-desc',
+      '.source-row-desc',
+      '.proposal-overview',
+    ]) {
+      const start = css.indexOf(`${selector} {`);
+      expect(start, `${selector} missing`).toBeGreaterThan(-1);
+      expect(css.slice(start, css.indexOf('}', start)), selector).toContain(
+        'max-width: var(--measure-ui)',
+      );
+    }
+  });
+
+  it('🔒 the token is referenced by NAME everywhere — never as a repeated 780px', () => {
+    // a number typed at each site is a decision made once and re-made by
+    // accident thereafter, which is the whole reason it is a token
+    expect(css).not.toContain('max-width: 780px');
+  });
+
+  it('🔒 a textarea’s min-height no longer overrides its `rows` prop', () => {
+    // the single biggest density defect in either tool: `TextArea` takes a
+    // `rows` prop, callers set it deliberately, and a 64px floor silently
+    // discarded every value below three lines
+    const start = css.indexOf('.field-textarea {');
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).toContain('min-height: 34px');
+    expect(block).not.toContain('min-height: 64px');
+  });
+
+  it('the shared field control is on the 4px spacing scale (§A)', () => {
+    // anchored at a line start: `.outline-section-head .field-input {` also
+    // contains the bare selector as a substring
+    const start = css.indexOf('\n.field-input {');
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).toContain('padding: 8px 12px');
+    // and the font size is the token, not a literal that disagreed with it.
+    // Asserted over the DECLARATIONS, not the block: the comment above them
+    // deliberately records that the old fallback said 12.5px while
+    // `body.dense` is 13px, and a removal nobody recorded is one that comes
+    // back wearing an innocent face (T-419's own lesson, one file along).
+    expect(block).toContain('var(--body-dense-size)');
+    expect(block.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('12.5px');
+  });
+});
