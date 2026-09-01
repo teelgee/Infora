@@ -416,6 +416,24 @@ style guide). Programme context still has none and is not implied by these
 four.*
 **Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
 
+> ✏️ **Drawn 2026-09-01, unbuilt — T-414 (migration 0063).** A new table,
+> **`starting_outlines`** — a composed document outline a member of a firm
+> saved for reuse (ADR-0053 addendum A5). *Plainly: an outline somebody built
+> in the document creator and kept, so a colleague can start from it next
+> time.* Org context, the rulebook's scoping — **org-private and project-less
+> by construction**, because how a firm structures its documents is firm
+> know-how that travels to every project and must never reach another
+> organisation. Fields: `id` uuid PK; `organisation_id` FK, **the only scope
+> key** (no project column, the rulebook's own argument); `label` text; a
+> `sections` jsonb holding the composed structure (headings, purposes,
+> sub-sections — a seed for a form, not an audited record, so jsonb rather
+> than rows); `saved_by_user_id` FK — **a named person, registered in
+> [personal-data.md](../architecture/personal-data.md) in the same commit**,
+> the `loaded_by_user_id` precedent one table up; `saved_at`; `retired_at`
+> nullable — **currency by state**: a curator retires an outline and it stops
+> being offered, while nothing already made from it is touched. When built,
+> this block reduces to narrative per the state rule above.
+
 **A rulebook is a house drafting manual, and it steers rather than grounds**
 (ADR-0048 §4). It is **org-private and project-less by construction** — org
 context is portable to every project the organisation touches (ADR-0020), so

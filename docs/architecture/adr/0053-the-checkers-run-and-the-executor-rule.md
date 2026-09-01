@@ -2,7 +2,7 @@
 
 *In plain terms (added in review, 2026-08-30 — the opening the register rule asks of every new ADR):* when someone runs the QA checker over a document, the system works out up front — in ordinary code, before any AI is involved — which checks will run and roughly what they will cost, and shows that plan. A document too big to check in one pass is split and every piece is checked; nothing is silently dropped. Every run states what it covered, before and after, so "no findings" always means "no findings in what was read" — said out loud, never implied. Reviewers still resolve the AI's suggested wording changes one at a time; only purely mechanical corrections may be accepted in bulk. And the engine rule every tool was waiting for: a step in a plan now genuinely runs the tool it names, under guards this document sets out.
 
-**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md). **Carries three dated addenda of its own (owner-ruled 2026-08-31, the document-creator feedback session — the section at the foot of this file): the creator's launch re-cut, the content plan editable as a parameter, and the price line removed from the tools' plan surfaces.**
+**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md). **Carries five dated addenda of its own (the sections at the foot of this file): three owner-ruled 2026-08-31 (the creator's launch re-cut, the content plan editable as a parameter, the price line removed from the tools' plan surfaces) and two owner-ruled 2026-09-01 (the creator never launches from the plan — closing `Q-037` — and composed outlines saveable as firm-scoped starting outlines).**
 
 **Context:** ADR-0048 settled what a finding is and stopped the checker becoming a rewriter. It settled nothing about **how a run behaves** — and the board recorded that gap honestly rather than building around it: the QA checker was held as **fog** in Slice V1-T, deliberately not ticketed because it could be *stated* and not *specified*, and the document-creation DAG (T-309) stopped mid-build on the discovery that `runChain` dispatches on **stage** and reads a step's named worker never. Three tracker questions and one build stop were pointing at the same missing thing.
 
@@ -185,3 +185,37 @@ removal is this ruling and not a build defect. **Per-step cost attribution
 operations fact; it simply stops being shown to the person launching the
 tool. §4's estimate machinery (including the refusal to show a false £0.00)
 retires from the display layer only.
+
+---
+
+## Addenda (2026-09-01, owner-ruled — the second tools feedback session)
+
+The owner's second render review of both tools. The session's full record is
+in [grill-history.md](../../grill-sessions/grill-history.md); the tickets are
+T-412–T-420.
+
+**A4 — The creator is never launched from the plan, and `Q-037` closes the
+other way.** *In plain terms: you will never start the document creator from
+a deliverable in the owner's plan. You start it from Tools, or from a
+location in your working area — and a document started from a working-area
+location is created in that location.* This closes `Q-037` by cutting the
+link rather than ruling what may cross it: the tracker's recommendation
+(seed the plan row's read-only facts) is **superseded** — nothing of the
+plan row reaches the creator, so the owner-controlled plan and
+producing-side authoring stay fully separate and the `Q-034`
+wall-through-content territory is never entered. The bound-path refusal
+screen T-335 shipped loses its reason to exist along with every doorway
+that led to it.
+
+**A5 — A composed outline can be saved as a starting outline, scoped to the
+firm.** *In plain terms: having built an outline, you can keep it — it
+appears beside the shipped starting outlines next time, for your firm
+only.* The word is **starting outline** — already the shipped term for
+exactly this thing, a seed and never a lock; *template* stays reserved for
+the Word-format idea recorded in the deferred register. The store is
+**org-private** (the firm's own know-how, like its rulebook — another
+organisation on the project never sees it). **Anyone in the firm saves;
+saved outlines are visibly marked as the firm's own** beside the
+Infora-shipped ones, **and a curator may delete one** — the light-touch
+answer to the half-baked-outline-looking-authoritative stress test, ruled
+by the owner 2026-09-01.
