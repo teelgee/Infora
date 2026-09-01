@@ -3,14 +3,16 @@
 // rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools ·
 // History — component 8's set plus the T-108 History log; Workflows renamed
 // Tools, owner-ruled 2026-07-13/T-109: a tool is the packaged capability you
-// launch, a workflow is the codified sequence it runs; Knowledge is staged
-// out of the v1 nav), the topbar crumb, and the home content. Review and
+// launch, a workflow is the codified sequence it runs; **Knowledge joined the
+// rail 2026-09-02, T-422/ADR-0054 decision 1**, having been staged out of the
+// v1 nav until three stores had a screen), the topbar crumb, and the home
+// content. Review and
 // Tools ship as empty states (ruled 2026-07-06); Ask/Editor/Documents/
 // Sandbox fill with their tickets.
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
-import { Archive, Bell, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, Bell, BookMarked, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,
   CommandBar,
@@ -51,6 +53,11 @@ const NAV = [
   { label: 'Notifications', glyph: <Bell size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'notifications' },
   { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },
   { label: 'Tools', glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'tools' }, // Workflows renamed (T-109)
+  // T-422 (ADR-0054 decision 1) — Knowledge stops being "staged out of the v1
+  // nav". It is its own rail item and NOT a panel in Settings: Settings is
+  // where a person changes their own display name and theme, and a document
+  // that binds every firm on a scheme is not a personal preference.
+  { label: 'Knowledge', glyph: <BookMarked size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'knowledge' },
   { label: 'History', glyph: <HistoryIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'history' }, // your prompted turns (T-108)
 ];
 

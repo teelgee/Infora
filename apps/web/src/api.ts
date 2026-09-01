@@ -53,6 +53,7 @@ import type {
   MarkAllNotificationsReadResponse,
   MarkNotificationReadResponse,
   ListRosterResponse,
+  ListRulebooksResponse,
   ListFindingsResponse,
   QaCheckBody,
   QaCheckPlanResponse,
@@ -634,6 +635,12 @@ export const api = {
   // one the author has to be able to pick.
   styleGuides: (projectId: string) =>
     request<ListStyleGuidesResponse>(`/projects/${projectId}/style-guides`),
+  // T-422 — the firm's own shelf. **No project in the path, and that is the
+  // ruling**: org context travels to every project the organisation touches
+  // (ADR-0020), so one shelf serves every door. T-308's tier is unchanged —
+  // a member's read answers as nonexistence, which the Knowledge screen renders
+  // as an absent list rather than a disabled control.
+  rulebooks: () => request<ListRulebooksResponse>(`/organisation/rulebooks`),
   setContainerMetadata: (
     containerId: string,
     metadata: Record<string, unknown>,

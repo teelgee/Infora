@@ -25,6 +25,8 @@ import type {
   ToolSummary,
 } from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
+import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
+import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
@@ -1563,5 +1565,134 @@ describe('T-419 — the findings panel, audited against design-rules.md', () => 
   it('the suggested wording is on the system, beside the quoted rule it sits next to', () => {
     expect(source).toContain('className="suggested-wording"');
     expect(css).toContain('.suggested-wording {');
+  });
+});
+
+// ── T-422 — the Knowledge section, and its two shelves (ADR-0054 decision 1) ──
+//
+// **Two things must be true on this screen and neither is visible from the
+// route.** The firm's shelf is ONE shelf reached through two doors, so it has
+// to be marked as the firm's own and the same on every project *wherever it
+// renders* — a consultant on three schemes must not be able to believe they are
+// editing a per-project copy. And a shelf a viewer may not curate must show no
+// disabled control at all, because a greyed "New style guide" would advertise a
+// curation route to a firm that has no business learning it exists.
+describe('T-422 — the firm’s shelf is one shelf, marked as one, in both doors', () => {
+  const shelf: FirmShelf = {
+    rulebooks: [
+      {
+        id: 'rb1',
+        title: 'Drafting Manual',
+        sourceFormat: 'docx',
+        clauses: 80,
+        labelled: 74,
+        loadedBy: { userId: 'u1', name: 'Priya Raman' },
+        loadedAt: '2026-08-27T09:00:00.000Z',
+        retiredAt: null,
+      },
+    ],
+    outlines: [
+      {
+        id: 'o1',
+        label: 'Chapter shell — EIA',
+        description: '6 sections · saved by Priya Raman',
+        sections: [],
+        origin: 'firm',
+        savedBy: { name: 'Priya Raman' },
+        savedAt: '2026-09-01T09:00:00.000Z',
+      },
+    ],
+  };
+
+  const project = renderToStaticMarkup(
+    <MemoryRouter>
+      <FirmShelfPane shelf={shelf} door="project" />
+    </MemoryRouter>,
+  );
+  const workspace = renderToStaticMarkup(
+    <MemoryRouter>
+      <FirmShelfPane shelf={{ rulebooks: shelf.rulebooks, outlines: null }} door="workspace" />
+    </MemoryRouter>,
+  );
+
+  it('says it is the firm’s own and the same on every project, in the project door', () => {
+    expect(project).toContain('Org-private — the same on every project');
+    expect(project).toContain('same on every project you work on');
+  });
+
+  it('says exactly the same thing in the workspace door', () => {
+    expect(workspace).toContain('Org-private — the same on every project');
+    expect(workspace).toContain('same on every project you work on');
+  });
+
+  it('lists the firm’s manuals and its saved outlines in the project door', () => {
+    expect(project).toContain('Drafting Manual');
+    expect(project).toContain('80 clauses, 74 quotable by number');
+    expect(project).toContain('Chapter shell — EIA');
+  });
+
+  it('says why the outlines are not listed outside a project rather than showing none', () => {
+    // the difference between "your firm has saved none" and "this door cannot
+    // ask" is the whole reason `absent` is a separate state from `empty`
+    expect(workspace).toContain('no answer outside a project');
+    expect(workspace).not.toContain('Nothing saved yet');
+  });
+
+  it('renders no rulebook list at all where the read answered as nonexistence', () => {
+    // T-308's tier: a member's read of /organisation/rulebooks is a 404, and
+    // this shelf must render that as an ABSENT list — never an empty state
+    // claiming the firm has no manual, and never a disabled row
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <FirmShelfPane shelf={{ rulebooks: null, outlines: [] }} door="project" />
+      </MemoryRouter>,
+    );
+    expect(html).not.toContain('No manual loaded');
+    expect(html).not.toContain('shelf-rows');
+    expect(html).not.toContain('disabled');
+  });
+});
+
+describe('T-422 — the project shelf is assembled, not filtered', () => {
+  const guides: StyleGuideRecord[] = [
+    {
+      id: 'sg1',
+      title: 'Scheme Writing Standard',
+      sourceFormat: 'docx',
+      clauses: 42,
+      labelled: 40,
+      loadedBy: { userId: 'u2', name: 'Tom Beck' },
+      loadedAt: '2026-08-30T09:00:00.000Z',
+      retiredAt: null,
+    },
+  ];
+  const render = (mayCurate: boolean) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ProjectShelfPane
+          guides={guides}
+          mayCurate={mayCurate}
+          newHref="/projects/p1/knowledge/style-guides/new"
+          libraryHref="/projects/p1/documents"
+        />
+      </MemoryRouter>,
+    );
+
+  it('offers the owner’s super user the New style guide door', () => {
+    expect(render(true)).toContain('New style guide');
+  });
+
+  it('shows a viewer who may not curate NO control at all — not a disabled one', () => {
+    const html = render(false);
+    expect(html).not.toContain('New style guide');
+    expect(html).not.toContain('disabled');
+    // and still reads the guide, because a rule that binds you is one you may read
+    expect(html).toContain('Scheme Writing Standard');
+  });
+
+  it('points at the library for standards and legislation rather than making a third shelf', () => {
+    const html = render(true);
+    expect(html).toContain('project library');
+    expect(html).toContain('/projects/p1/documents');
   });
 });

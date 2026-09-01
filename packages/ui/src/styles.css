@@ -1906,3 +1906,27 @@ nav a.sub.empty:hover { color: var(--text-muted); }
   font-family: var(--ui-label-family); font-size: var(--ui-label-size); color: var(--text-muted);
 }
 .ds-label { color: var(--text-secondary); }
+
+/* ---------- Knowledge shelves (T-422) ----------
+   Two shelves, each a level-3 nested card on the frame; a shelf's LISTS are
+   dense rows and therefore flat (design-rules §A: "dense/tabular data stays
+   level 1 — never give a list row its own shadow"). A row is one line of
+   title plus one of note, so the note takes the muted secondary treatment
+   rather than a second type size nobody has on the scale. */
+.shelf-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-default); }
+.shelf-list { margin-top: var(--section-gap); }
+.shelf-list-head {
+  font-family: var(--ui-micro-family); font-size: var(--ui-micro-size);
+  letter-spacing: var(--ui-micro-letter-spacing); text-transform: var(--ui-micro-transform);
+  color: var(--text-muted); font-weight: var(--ui-micro-weight); margin-bottom: var(--gap-default);
+}
+.shelf-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.shelf-rows li {
+  display: flex; flex-direction: column; gap: var(--gap-tight);
+  padding: var(--gap-default) 0; border-bottom: 1px solid var(--border-subtle);
+}
+.shelf-rows li:last-child { border-bottom: none; }
+.shelf-row-title { font-weight: 600; color: var(--text-primary); }
+a.shelf-row-title { text-decoration: none; }
+a.shelf-row-title:hover { text-decoration: underline; }
+.shelf-row-note { color: var(--text-muted); font-size: var(--body-dense-size); }

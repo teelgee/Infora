@@ -6,6 +6,7 @@ import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { HistoryScreen } from './screens/history';
+import { KnowledgeScreen } from './screens/knowledge';
 import { LibraryScreen } from './screens/library';
 import { ProjectHome, ProjectShell } from './screens/project';
 import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
@@ -59,6 +60,9 @@ const router = createBrowserRouter([
       // first step pre-filled (`?documentId=`), not a second flow: one run
       // shape, and one place the scope is stated (ADR-0053 §1).
       { path: 'tools/qa-check', element: <QaCheckerScreen /> },
+      // T-422 (ADR-0054 decision 1) — Knowledge: the two shelves. Its own rail
+      // item rather than a panel in Settings, which is personal.
+      { path: 'knowledge', element: <KnowledgeScreen /> },
     ],
   },
 ]);

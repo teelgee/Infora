@@ -4,6 +4,7 @@
 // per-project role badges. Every rail item routes (T-093, 2026-07-09 QA
 // review): the workspace surfaces themselves arrive with their slices, so
 // their pages state honestly what is coming and why it isn't here yet.
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Archive, BookOpen, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
@@ -19,7 +20,10 @@ import {
   SectionLabel,
   UserChip,
 } from '@infora/ui';
+import { api } from '../api';
 import { useMe } from '../session';
+import { FirmShelfPane } from './knowledge';
+import type { FirmShelf } from './knowledge';
 import { greeting, initialsOf } from './shared';
 
 const ICON_SIZE = 15;
@@ -48,10 +52,13 @@ const SECTIONS = {
     glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
     note: "Your organisation's toolkit — Infora's standard tools and the ones your firm builds; each tool runs a codified workflow. Building your own happens here too (proposed as its own slice, 2026-07-09); the builder's shape and the tool-scoping ruling (2026-07-13) are on the grill tracker.",
   },
+  // T-422 (ADR-0054 decision 1) — the placeholder stops being a note. This is
+  // the SAME SHELF the project's Knowledge screen shows, reached through the
+  // second of its two doors, and **no project material is shown here at all**.
   knowledge: {
     label: 'Your knowledge',
     glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-    note: "Organisation knowledge — where your firm's house style, templates and other guidance live and steer every draft. It arrives with the organisation-context store.",
+    note: "Your firm's own material — the manuals and playbooks that steer every draft, and the starting outlines your colleagues kept. It is the same shelf you see inside a project, and no client project is in scope here.",
   },
 } as const;
 type SectionKey = keyof typeof SECTIONS;
@@ -111,6 +118,23 @@ export function WorkspaceSection() {
   const me = useMe();
   const { section } = useParams();
   const entry = SECTIONS[(section ?? '') as SectionKey];
+  const [firm, setFirm] = useState<FirmShelf>({ rulebooks: null, outlines: null });
+  const knowledge = section === 'knowledge';
+
+  useEffect(() => {
+    if (!knowledge) return;
+    // T-422 — the firm's shelf, through the workspace door. The rulebooks
+    // read has no project in it by construction (ADR-0020), which is what
+    // makes ONE shelf reachable from two doors rather than two shelves. The
+    // saved outlines are deliberately NOT fetched here: their route is the
+    // document creator's, so listing them runs a project entitlement check
+    // that has no answer outside a project, and the shelf says so in words.
+    void api
+      .rulebooks()
+      .then((res) => setFirm({ rulebooks: res.items, outlines: null }))
+      .catch(() => setFirm({ rulebooks: null, outlines: null }));
+  }, [knowledge]);
+
   if (entry === undefined) return null;
 
   return (
@@ -124,9 +148,10 @@ export function WorkspaceSection() {
             <Badge tone="neutral">Org-private — no project context reachable here</Badge>
           </div>
         </div>
-        <div className="content" style={{ maxWidth: 720 }}>
+        <div className="content" style={knowledge ? undefined : { maxWidth: 720 }}>
           <h1 className="page">{entry.label}</h1>
           <p className="page-sub">{entry.note}</p>
+          {knowledge && <FirmShelfPane shelf={firm} door="workspace" />}
         </div>
       </div>
     </AppFrame>
