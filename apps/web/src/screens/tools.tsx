@@ -55,7 +55,16 @@ import {
   DOCUMENT_PURPOSE_CATALOGUE,
   DOCUMENT_TYPE_CATALOGUE,
 } from '@infora/contracts';
-import { ArrowDown, ArrowUp, ClipboardCheck, FileText, Plus, Wrench, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  BookmarkPlus,
+  ClipboardCheck,
+  FileText,
+  Plus,
+  Wrench,
+  X,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Badge,
@@ -299,7 +308,16 @@ export function SectionComposer(props: {
   sections: DocumentSection[];
   outlines: StartingOutline[];
   onChange: (sections: DocumentSection[]) => void;
+  /** T-414 — absent where this deployment has no saved-outline store wired */
+  onSave?: (label: string) => Promise<void>;
+  /** T-414 — absent likewise; per-outline permission rides `mayRetire` */
+  onRetire?: (outlineId: string) => Promise<void>;
 }) {
+  // T-414 — the save control's own state: a name, and whether the author has
+  // opened it. Kept here rather than lifted, because nothing outside this card
+  // needs to know a label is half-typed.
+  const [saving, setSaving] = useState(false);
+  const [label, setLabel] = useState('');
   const at = (index: number, section: DocumentSection) =>
     props.onChange(props.sections.map((existing, i) => (i === index ? section : existing)));
   const move = (index: number, by: number) => {
@@ -359,15 +377,33 @@ export function SectionComposer(props: {
         <div className="outline-seeds">
           <span className="field-hint">Start from:</span>
           {props.outlines.map((outline) => (
-            <Button
-              key={outline.id}
-              size="sm"
-              variant="quiet"
-              title={outline.description}
-              onClick={() => props.onChange([...props.sections, ...outline.sections])}
-            >
-              {outline.label}
-            </Button>
+            <span key={outline.id} className="outline-seed">
+              <Button
+                size="sm"
+                variant="quiet"
+                title={outline.description}
+                onClick={() => props.onChange([...props.sections, ...outline.sections])}
+              >
+                {outline.label}
+              </Button>
+              {/* 🔒 T-414 (ADR-0053 addendum A5) — A FIRM OUTLINE IS VISIBLY
+                  THE FIRM'S OWN. An outline a colleague saved last Tuesday and
+                  one Infora ships carry different authority, and an unmarked
+                  half-baked outline sitting beside a shipped one reads as the
+                  product's recommendation. The badge is the whole of the
+                  owner's answer to that stress test, together with the
+                  curator's retire beside it. */}
+              {outline.origin === 'firm' && <Badge tone="neutral">Your firm</Badge>}
+              {outline.mayRetire === true && props.onRetire !== undefined && (
+                <IconButton
+                  aria-label={`Retire ${outline.label}`}
+                  title="Stop offering this outline. Documents already made from it are untouched."
+                  onClick={() => void props.onRetire!(outline.id)}
+                >
+                  <X size={13} strokeWidth={2} />
+                </IconButton>
+              )}
+            </span>
           ))}
           {/* a seed is a COPY — every section it adds is as editable and as
               removable as one typed by hand, which is the whole of "seeds but
@@ -499,7 +535,7 @@ export function SectionComposer(props: {
         </ol>
       )}
 
-      <div style={{ marginTop: 12 }}>
+      <div className="outline-actions">
         <Button
           size="sm"
           variant="quiet"
@@ -507,7 +543,49 @@ export function SectionComposer(props: {
         >
           <Plus size={13} strokeWidth={2} /> Add a section
         </Button>
+        {/* T-414 — keep the outline you just built. **Anyone in the firm may**
+            (A5), so there is no permission check here and there must not be
+            one: the curator's tier governs retiring, not saving. */}
+        {props.onSave !== undefined && props.sections.length > 0 && !saving && (
+          <Button size="sm" variant="quiet" onClick={() => setSaving(true)}>
+            <BookmarkPlus size={13} strokeWidth={2} /> Save this outline for your firm
+          </Button>
+        )}
       </div>
+
+      {props.onSave !== undefined && saving && (
+        <div className="outline-save">
+          <Field label="Name this outline">
+            <TextInput
+              value={label}
+              onChange={setLabel}
+              placeholder="e.g. Land quality technical note"
+            />
+          </Field>
+          <p className="field-hint">
+            It appears beside the outlines Infora ships, for your firm only, marked as yours.
+            Another organisation on this project never sees it.
+          </p>
+          <div className="outline-save-controls">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={label.trim() === ''}
+              onClick={() => {
+                void props.onSave!(label.trim()).then(() => {
+                  setLabel('');
+                  setSaving(false);
+                });
+              }}
+            >
+              Save
+            </Button>
+            <Button size="sm" variant="quiet" onClick={() => setSaving(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -849,6 +927,37 @@ export function DocumentCreatorScreen() {
     title: title.trim(),
   });
 
+  /**
+   * T-414 — save the outline as it stands, then re-read the menu.
+   *
+   * Re-read rather than appended locally: the server computes what a firm
+   * outline says about itself (its size and whose it is) and whether this
+   * requester may retire it, and a surface that guessed at either would show a
+   * different menu from the one the next page load gives.
+   */
+  const saveOutline = async (label: string) => {
+    if (projectId === undefined) return;
+    setError(null);
+    try {
+      await api.saveStartingOutline(projectId, { label, sections: body().sections });
+      setOutlines((await api.startingOutlines(projectId)).items);
+    } catch (problem) {
+      setError((problem as Error).message);
+    }
+  };
+
+  /** T-414 — a curator retires one; it stops being offered and nothing already made from it moves. */
+  const retireOutline = async (outlineId: string) => {
+    if (projectId === undefined) return;
+    setError(null);
+    try {
+      await api.retireStartingOutline(projectId, outlineId);
+      setOutlines((await api.startingOutlines(projectId)).items);
+    } catch (problem) {
+      setError((problem as Error).message);
+    }
+  };
+
   const seePlan = () => {
     if (projectId === undefined) return;
     setBusy(true);
@@ -1009,6 +1118,8 @@ export function DocumentCreatorScreen() {
         sections={sections}
         outlines={outlines}
         onChange={change(setSections)}
+        onSave={saveOutline}
+        onRetire={retireOutline}
       />
 
       <Card>

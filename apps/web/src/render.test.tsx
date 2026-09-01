@@ -401,6 +401,7 @@ describe('T-407 — the author composes the outline', () => {
     label: 'Technical note',
     description: 'A short note.',
     sections: [{ heading: 'Purpose', purpose: 'why' }],
+    origin: 'infora' as const,
   };
 
   it('starts empty, and says so rather than seeding itself', () => {
@@ -490,6 +491,81 @@ describe('T-407 — the author composes the outline', () => {
       <SectionComposer sections={[]} outlines={[]} onChange={() => {}} />,
     );
     expect(html).toContain('under its parent’s heading');
+  });
+
+  // ── T-414 (ADR-0053 addendum A5) — saved starting outlines ──────────────
+  //
+  // The visible mark is the owner's whole answer to a stress test: a half-baked
+  // outline somebody saved last Tuesday, sitting unmarked beside one Infora
+  // ships, reads as the product's recommendation.
+  const firm = {
+    id: 'saved-1',
+    label: 'Land quality note',
+    description: '4 sections, saved by Eleanor Price.',
+    sections: [{ heading: 'Purpose', purpose: 'why' }],
+    origin: 'firm' as const,
+    savedBy: { name: 'Eleanor Price' },
+    savedAt: '2026-09-01T09:00:00.000Z',
+  };
+
+  it('marks a firm outline as the firm’s own, and leaves a shipped one unmarked', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[outline, firm]} onChange={() => {}} />,
+    );
+    expect(html).toContain('Your firm');
+    expect((html.match(/Your firm/g) ?? []).length).toBe(1);
+    expect(html).toContain('Land quality note');
+    expect(html).toContain('Technical note');
+  });
+
+  it('offers the retire control ONLY where the requester may retire — absent, never disabled', () => {
+    const may = renderToStaticMarkup(
+      <SectionComposer
+        sections={[]}
+        outlines={[{ ...firm, mayRetire: true }]}
+        onChange={() => {}}
+        onRetire={async () => {}}
+      />,
+    );
+    const mayNot = renderToStaticMarkup(
+      <SectionComposer
+        sections={[]}
+        outlines={[firm]}
+        onChange={() => {}}
+        onRetire={async () => {}}
+      />,
+    );
+    expect(may).toContain('Retire Land quality note');
+    // the assembled-not-filtered rule at a button: the control does not reach
+    // the page greyed out, it does not reach it at all
+    expect(mayNot).not.toContain('Retire Land quality note');
+    expect(mayNot).not.toContain('disabled');
+  });
+
+  it('offers "save this outline" once there is an outline, with no tier check on it', () => {
+    // A5: ANYONE in the firm saves. The curator's tier governs retiring only,
+    // so there is deliberately no permission prop on the save control.
+    const empty = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[]} onChange={() => {}} onSave={async () => {}} />,
+    );
+    const built = renderToStaticMarkup(
+      <SectionComposer
+        sections={[{ heading: 'Purpose', purpose: 'why' }]}
+        outlines={[]}
+        onChange={() => {}}
+        onSave={async () => {}}
+      />,
+    );
+    expect(empty).not.toContain('Save this outline for your firm');
+    expect(built).toContain('Save this outline for your firm');
+  });
+
+  it('says on screen that a saved outline is the firm’s alone', () => {
+    // the scoping is a promise made to the person saving, so it is made where
+    // they are making the decision rather than only in an ADR
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('for your firm only, marked as yours');
+    expect(source).toContain('Another organisation on this project never sees it');
   });
 
   it('tells the author a purpose is scope, not a conclusion', () => {

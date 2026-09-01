@@ -31,7 +31,7 @@
 // organisation. That is also the authority-corpus spike's Finding 4 applied
 // early — a store walled by a different rule than `version_chunks`' must not
 // sit inside the table whose entire purpose is enforcing that one.
-import { index, integer, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { organisations, projects, users } from './drawer1-parties.js';
 
 export const rulebooks = pgTable(
@@ -167,4 +167,64 @@ export const projectStyleGuideClauses = pgTable(
     uniqueIndex('project_style_guide_clauses_ordinal_unique').on(t.styleGuideId, t.ordinal),
     index('project_style_guide_clauses_guide_idx').on(t.styleGuideId),
   ],
+);
+
+/**
+ * A SAVED STARTING OUTLINE — a composed document outline a member of a firm
+ * kept for reuse (T-414, ADR-0053 **addendum A5**).
+ *
+ * *In plain terms: an outline somebody built in the document creator and kept,
+ * so a colleague can start from it next time.*
+ *
+ * **Org context, and the rulebook's scoping exactly** — org-private and
+ * project-less by construction. How a firm structures its documents is firm
+ * know-how that travels to every project it touches and must never reach
+ * another organisation on the project, so `organisation_id` is the **only**
+ * scope key and there is no `project_id` and no wall predicate. That is
+ * ADR-0020's argument, and it is the same one `rulebooks` above rests on.
+ *
+ * **`sections` is jsonb rather than rows, and the reason is what it is FOR.**
+ * A starting outline is a **seed for a form**, not an audited record: nothing
+ * is ever quoted from it, nothing cites it, and the moment it is chosen it
+ * becomes a copy the author edits freely (A1's "seeds but never locks"). That
+ * is the opposite of `rulebook_clauses`, which is rows precisely because a
+ * finding quotes a clause verbatim and must resolve to the words it quoted.
+ * Storing an outline as rows would buy an addressability nobody needs and cost
+ * a join on every read of a menu.
+ */
+export const startingOutlines = pgTable(
+  'starting_outlines',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // the ONLY scope key — see the block above
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    /** what a colleague picks it out of a list by */
+    label: text('label').notNull(),
+    /**
+     * The composed structure: headings, purposes, and one level of
+     * sub-sections (T-412). Typed at the surface and at the wire; stored as
+     * the shape the creator's own outline takes, so choosing one is a copy
+     * rather than a translation.
+     */
+    sections: jsonb('sections').notNull(),
+    // USER grain, matching `rulebooks.loaded_by_user_id` one table up and for
+    // the same reason: keeping an outline for the firm is an account-level act
+    // with no project to hold a Participant of. A named person — registered in
+    // docs/architecture/personal-data.md in this ticket's own commit.
+    savedByUserId: uuid('saved_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    savedAt: timestamp('saved_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Currency by state, never a delete. A curator retires an outline and it
+     * stops being offered; **documents already made from it are untouched**,
+     * which is true by construction rather than by care — a chosen outline was
+     * copied into the request, so no document has ever held a reference to
+     * this row.
+     */
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+  },
+  (t) => [index('starting_outlines_organisation_idx').on(t.organisationId)],
 );

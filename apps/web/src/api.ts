@@ -36,6 +36,8 @@ import type {
   DocumentCreationRunResponse,
   GetGroundingScopeResponse,
   ListStartingOutlinesResponse,
+  SaveStartingOutlineBody,
+  StartingOutline,
   ReviseSectionBriefBody,
   ReviseSectionBriefResult,
   ListStyleGuidesResponse,
@@ -611,6 +613,21 @@ export const api = {
   startingOutlines: (projectId: string) =>
     request<ListStartingOutlinesResponse>(
       `/projects/${projectId}/tools/document-creation/starting-outlines`,
+    ),
+  // T-414 (ADR-0053 addendum A5) — keep the outline you just built, for your
+  // firm. The organisation and the person come off the session, never off the
+  // body, so neither is sent.
+  saveStartingOutline: (projectId: string, body: SaveStartingOutlineBody) =>
+    request<StartingOutline>(`/projects/${projectId}/tools/document-creation/starting-outlines`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  // T-414 — a curator stops one being offered. Retire, never delete: documents
+  // already made from it are untouched.
+  retireStartingOutline: (projectId: string, outlineId: string) =>
+    request<{ ok: true }>(
+      `/projects/${projectId}/tools/document-creation/starting-outlines/${outlineId}`,
+      { method: 'DELETE' },
     ),
   // T-406 — the project's style guides. T-397 built the endpoint; the creator's
   // launcher is its first surface, because a guide the drafting call follows is

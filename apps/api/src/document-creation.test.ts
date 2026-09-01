@@ -20,6 +20,7 @@ import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   ListStartingOutlinesResponse,
+  StartingOutline,
 } from '@infora/contracts';
 import { loadWorkflows } from '@infora/workflows';
 import { createWorkerRegistry } from '@infora/capabilities';
@@ -45,6 +46,10 @@ const password = 'pw-t309';
 let projectId: string;
 let cookie: string;
 let strangerCookie: string;
+/** T-414 — an ordinary member of the author's own firm */
+let colleagueCookie: string;
+/** T-414 — an admin of a DIFFERENT organisation, on the same project */
+let otherOrgCookie: string;
 let sandboxId: string;
 let foreignSandboxId: string;
 let versionId: string;
@@ -87,9 +92,17 @@ beforeAll(async () => {
   projectId = project!.id;
   await db.insert(s.memberships).values({ organisationId: owner!.id, projectId, role: 'owner' });
 
-  const make = async (name: string, organisationId: string, onProject: string | null) => {
+  const make = async (
+    name: string,
+    organisationId: string,
+    onProject: string | null,
+    orgRole: 'admin' | 'member' = 'member',
+  ) => {
     const email = `${name}-${stamp}@test.local`;
-    const [user] = await db.insert(s.users).values({ name, email, organisationId }).returning();
+    const [user] = await db
+      .insert(s.users)
+      .values({ name, email, organisationId, orgRole })
+      .returning();
     await db
       .insert(s.userCredentials)
       .values({ userId: user!.id, passwordHash: hashPassword(password) });
@@ -109,9 +122,28 @@ beforeAll(async () => {
     return { cookie: res.headers.get('set-cookie')!.split(';')[0]!, participantId };
   };
 
-  const author = await make('t309-ada', owner!.id, projectId);
+  // the author is her firm's admin — T-414's curator tier is the rulebook's
+  // (`orgRole === 'admin'`), so the retire path needs one
+  const author = await make('t309-ada', owner!.id, projectId, 'admin');
   cookie = author.cookie;
   strangerCookie = (await make('t309-sam', outside!.id, null)).cookie;
+  // an ordinary member of the SAME firm: A5 says anyone in the firm saves, and
+  // only a curator retires, so both halves need a subject
+  colleagueCookie = (await make('t309-cal', owner!.id, projectId)).cookie;
+
+  // T-414 — a SECOND ORGANISATION ON THE SAME PROJECT. The wall assertion this
+  // ticket needs is not "somebody off the project sees nothing" (which every
+  // route already gives); it is that a firm's saved outlines are invisible to
+  // a colleague-organisation working the same job. That needs a participant
+  // who passes the entitlement check and still sees none of them.
+  const [member] = await db
+    .insert(s.organisations)
+    .values({ name: `t309 member ${stamp}` })
+    .returning();
+  await db
+    .insert(s.memberships)
+    .values({ organisationId: member!.id, projectId, role: 'member' });
+  otherOrgCookie = (await make('t309-mo', member!.id, projectId, 'admin')).cookie;
 
   const [sandbox] = await db
     .insert(s.sandboxes)
@@ -644,5 +676,170 @@ describe('sub-sections are sections of their own, with a parent (T-412)', () => 
     // the manifest names a sub-section under its parent, because "Trial pits"
     // on its own is a heading a reader cannot locate in a long document
     expect(body.manifest.map((entry) => entry.usedFor)).toContain('The evidence — Trial pits');
+  });
+});
+
+// ── T-414 — SAVED STARTING OUTLINES (ADR-0053 addendum A5) ─────────────────
+//
+// *In plain terms: having built an outline you like, you keep it — and next
+// time it appears beside the ones Infora ships, for your firm only, marked as
+// yours. Anyone in the firm may save one; a firm administrator may retire one.*
+//
+// **The wall assertion here is the one worth writing.** "Somebody off the
+// project sees nothing" is true of every route in this app and proves nothing
+// about this store. What A5 requires is that a firm's outlines are invisible to
+// a **colleague organisation working the same job** — a participant who passes
+// the entitlement check and still sees none of them. That is the subject the
+// suite gained for this ticket.
+describe('a composed outline saves as a starting outline, for the firm (T-414)', () => {
+  const outlineBody = (label: string) => ({
+    label,
+    sections: [
+      { heading: 'Purpose', purpose: 'State what question this note answers.' },
+      {
+        heading: 'Baseline',
+        purpose: 'Set out what the record says.',
+        // T-412's sub-sections ride: the whole point of saving an outline is
+        // saving the one you actually built
+        subSections: [{ heading: 'Trial pits', purpose: 'What the trial pits recorded.' }],
+      },
+    ],
+  });
+  const outlines = async (who: string) => {
+    const res = await app.request(
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      { headers: { cookie: who } },
+    );
+    expect(res.status).toBe(200);
+    return ((await res.json()) as ListStartingOutlinesResponse).items;
+  };
+
+  it('ANYONE IN THE FIRM SAVES — no tier check, because A5 rules there is none', async () => {
+    const res = await post(
+      colleagueCookie,
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      outlineBody(`Cal's land quality note ${stamp}`),
+    );
+    expect(res.status).toBe(201);
+    const saved = (await res.json()) as StartingOutline;
+    expect(saved.origin).toBe('firm');
+    expect(saved.savedBy!.name).toBe('t309-cal');
+    // sub-sections survived the round trip — an outline saved flatter than it
+    // was built is a worse outline than none
+    expect(saved.sections[1]!.subSections![0]!.heading).toBe('Trial pits');
+    // and the menu says what it is without anybody typing a description
+    expect(saved.description).toBe('3 sections, saved by t309-cal.');
+  });
+
+  it('appears beside the shipped ones, marked as the firm’s own', async () => {
+    await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      outlineBody(`Ada's note ${stamp}`),
+    );
+    const items = await outlines(cookie);
+    // the shipped ones are still there, and say so
+    expect(items.some((o) => o.id === 'technical-note' && o.origin === 'infora')).toBe(true);
+    const mine = items.find((o) => o.label === `Ada's note ${stamp}`);
+    expect(mine).toBeDefined();
+    expect(mine!.origin).toBe('firm');
+    // an outline somebody saved last Tuesday and one Infora ships carry
+    // different authority, and the difference has to be visible (A5)
+    expect(mine!.savedBy!.name).toBe('t309-ada');
+  });
+
+  it('🔒 ANOTHER ORGANISATION ON THE SAME PROJECT NEVER SEES ONE', async () => {
+    // asserted, not assumed: this requester passes the entitlement check and
+    // reaches the same route — how a firm structures its documents is firm
+    // know-how, and org-private means absent rather than summarised
+    const theirs = await outlines(otherOrgCookie);
+    expect(theirs.every((o) => o.origin === 'infora')).toBe(true);
+    expect(theirs.some((o) => o.label.includes(String(stamp)))).toBe(false);
+    // they still get the shipped menu — the firm's rows are the only absence
+    expect(theirs.some((o) => o.id === 'technical-note')).toBe(true);
+  });
+
+  it('offers the retire control only to a curator — absent, never disabled', async () => {
+    const curator = await outlines(cookie);
+    const ordinary = await outlines(colleagueCookie);
+    expect(curator.filter((o) => o.origin === 'firm').every((o) => o.mayRetire === true)).toBe(true);
+    // the assembled-not-filtered rule at a button: an action nobody may take is
+    // not rendered greyed, it does not reach the surface at all
+    expect(ordinary.some((o) => o.mayRetire !== undefined)).toBe(false);
+  });
+
+  it('an ordinary member cannot retire, and is told nothing about the route', async () => {
+    const [target] = (await outlines(cookie)).filter((o) => o.origin === 'firm');
+    const res = await app.request(
+      `/projects/${projectId}/tools/document-creation/starting-outlines/${target!.id}`,
+      { method: 'DELETE', headers: { cookie: colleagueCookie } },
+    );
+    expect(res.status).toBe(404);
+    // and it is still on their menu, because nothing happened
+    expect((await outlines(cookie)).some((o) => o.id === target!.id)).toBe(true);
+  });
+
+  it('a curator retires one: it stops being offered, and the documents made from it are untouched', async () => {
+    const save = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      outlineBody(`Retire me ${stamp}`),
+    );
+    const saved = (await save.json()) as StartingOutline;
+
+    // a document made FROM it, before it is retired. Nothing links the two —
+    // a chosen outline is copied into the request — so this is asserting a
+    // property of the design rather than a behaviour of the delete.
+    const made = await post(cookie, `/projects/${projectId}/tools/document-creation/runs`, {
+      ...request(),
+      sections: saved.sections,
+      title: `made from a retired outline ${stamp}`,
+    });
+    expect(made.status).toBe(201);
+    const madeBody = (await made.json()) as DocumentCreationRunResponse;
+
+    const res = await app.request(
+      `/projects/${projectId}/tools/document-creation/starting-outlines/${saved.id}`,
+      { method: 'DELETE', headers: { cookie } },
+    );
+    expect(res.status).toBe(200);
+    expect((await outlines(cookie)).some((o) => o.id === saved.id)).toBe(false);
+
+    // 🔒 RETIRE, NEVER DELETE — the row survives, closed by an interval
+    const [row] = await db
+      .select()
+      .from(s.startingOutlines)
+      .where(eq(s.startingOutlines.id, saved.id));
+    expect(row).toBeDefined();
+    expect(row!.retiredAt).not.toBeNull();
+
+    // and the document is exactly where it was
+    const [document] = await db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, madeBody.documentId!));
+    expect(document).toBeDefined();
+    expect(document!.title).toBe(`made from a retired outline ${stamp}`);
+  });
+
+  it('retiring the same outline twice is nonexistence the second time', async () => {
+    const save = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/starting-outlines`,
+      outlineBody(`Twice ${stamp}`),
+    );
+    const saved = (await save.json()) as StartingOutline;
+    const path = `/projects/${projectId}/tools/document-creation/starting-outlines/${saved.id}`;
+    expect((await app.request(path, { method: 'DELETE', headers: { cookie } })).status).toBe(200);
+    expect((await app.request(path, { method: 'DELETE', headers: { cookie } })).status).toBe(404);
+  });
+
+  it('refuses an outline with no label and one with no sections', async () => {
+    const bad = async (body: unknown) =>
+      (
+        await post(cookie, `/projects/${projectId}/tools/document-creation/starting-outlines`, body)
+      ).status;
+    expect(await bad({ label: '', sections: outlineBody('x').sections })).toBe(400);
+    expect(await bad({ label: 'x', sections: [] })).toBe(400);
   });
 });

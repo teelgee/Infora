@@ -2356,6 +2356,22 @@ export const documentSectionBody = z.object({
   subSections: z.array(documentSubSectionBody).optional(),
 });
 
+/**
+ * T-414 (ADR-0053 addendum A5) — saving a composed outline for the firm.
+ *
+ * **The label and the outline, and nothing else.** No project, because the
+ * store is org-private and project-less by construction (the rulebook's
+ * scoping); no organisation, because identity comes off the resolved session
+ * and never off a request body (contracts principle 3); and no "who saved it",
+ * for the same reason. **Sub-sections ride** — the whole point of saving an
+ * outline is saving the one you built, and T-412 made that one able to nest.
+ */
+export const saveStartingOutlineBody = z.object({
+  label: z.string().min(1).max(120),
+  sections: z.array(documentSectionBody).min(1),
+});
+export type SaveStartingOutlineBody = z.infer<typeof saveStartingOutlineBody>;
+
 export const documentCreationBody = z.object({
   /**
    * T-407 (ADR-0053 addendum A1) — **the outline the author composed**, and

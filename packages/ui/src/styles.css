@@ -448,6 +448,20 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    A numbered list of sections the author builds: each a heading and what
    should go in it, with the controls that move and remove it. */
 .outline-seeds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* T-414 — one seed and its marks: the button, the "Your firm" badge where the
+   outline is the firm's own, and the curator's retire. They read as one control
+   rather than three neighbours, so the badge belongs to the outline beside it
+   and not to the one after. */
+.outline-seed { display: inline-flex; align-items: center; gap: 4px; }
+.outline-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+/* the save control, revealed rather than modal: naming an outline is one field
+   and an overlay for one field is furniture */
+.outline-save {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.outline-save-controls { display: flex; gap: 8px; }
 .outline-sections { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .outline-section {
   display: flex; flex-direction: column; gap: 8px;

@@ -1030,3 +1030,19 @@ are not recorded here.
   the run as T-407's serialized JSON string, because a workflow parameter's
   declared type set carries no list-of-objects and widening that fixed set is
   an owner decision rather than a build one.
+
+- **2026-09-01 (T-414) — `StartingOutline` gains `origin`, `savedBy`, `savedAt`
+  and `mayRetire`, and there is a body schema for saving one.** *Plainly: the
+  list of outlines you can start from now has two kinds in it — the ones Infora
+  ships and the ones your firm saved — and the type has to say which.* The
+  **reason `origin` is required on both kinds** rather than optional on the new
+  one is that an absent field would be read as "shipped", and A5's whole point
+  is that the difference is visible: an outline a colleague saved last Tuesday
+  and one Infora ships carry different authority. The **reason `mayRetire` is
+  optional and set by the server** is the assembled-not-filtered rule applied
+  to a button — an action nobody may take is absent from the response rather
+  than present and false, so a surface has nothing to render disabled. And the
+  **reason the save body carries neither an organisation nor a person** is
+  contracts principle 3: identity comes off the resolved session, and a
+  "who saved it" field would be a way to write somebody else's name onto a
+  record.

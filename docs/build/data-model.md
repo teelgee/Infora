@@ -416,23 +416,34 @@ style guide). Programme context still has none and is not implied by these
 four.*
 **Shape:** [drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts)
 
-> ✏️ **Drawn 2026-09-01, unbuilt — T-414 (migration 0063).** A new table,
-> **`starting_outlines`** — a composed document outline a member of a firm
-> saved for reuse (ADR-0053 addendum A5). *Plainly: an outline somebody built
-> in the document creator and kept, so a colleague can start from it next
-> time.* Org context, the rulebook's scoping — **org-private and project-less
-> by construction**, because how a firm structures its documents is firm
-> know-how that travels to every project and must never reach another
-> organisation. Fields: `id` uuid PK; `organisation_id` FK, **the only scope
-> key** (no project column, the rulebook's own argument); `label` text; a
-> `sections` jsonb holding the composed structure (headings, purposes,
-> sub-sections — a seed for a form, not an audited record, so jsonb rather
-> than rows); `saved_by_user_id` FK — **a named person, registered in
-> [personal-data.md](../architecture/personal-data.md) in the same commit**,
-> the `loaded_by_user_id` precedent one table up; `saved_at`; `retired_at`
-> nullable — **currency by state**: a curator retires an outline and it stops
-> being offered, while nothing already made from it is touched. When built,
-> this block reduces to narrative per the state rule above.
+### Saved starting outlines *(drawn 2026-09-01, built the same day — T-414, ADR-0053 addendum A5, migration 0063)*
+
+*In plain terms: an outline somebody built in the document creator and kept, so
+a colleague can start from it next time. It appears beside the outlines Infora
+ships, marked as the firm's own, for that firm only.*
+
+**Org context, and the rulebook's scoping exactly.** `organisation_id` is the
+**only** scope key — no project column and no wall predicate — because how a
+firm structures its documents is firm know-how that travels to every project it
+touches and must never reach another organisation on the same job (ADR-0020).
+That is the argument `rulebooks` rests on, applied unchanged.
+
+**`sections` is jsonb rather than rows, and the reason is what the store is
+for.** A starting outline is a **seed for a form**, not an audited record:
+nothing is ever quoted from it, nothing cites it, and the moment it is chosen
+it becomes a copy the author edits freely (addendum A1 — *seeds but never
+locks*). That is the opposite of `rulebook_clauses`, which is rows precisely
+because a finding quotes a clause verbatim and must resolve to the words it
+quoted. Rows here would buy an addressability nobody needs and cost a join on
+every read of a menu.
+
+**Currency by state**: a curator retires an outline and it stops being offered.
+Documents already made from it are untouched — true by construction rather than
+by care, because a chosen outline was copied into the request and no document
+has ever held a reference to this row. **`saved_by_user_id` is a named person**,
+registered in [personal-data.md](../architecture/personal-data.md); USER grain
+like `loaded_by_user_id` one table up, because keeping an outline for the firm
+is an account-level act with no project to hold a Participant of.
 
 **A rulebook is a house drafting manual, and it steers rather than grounds**
 (ADR-0048 §4). It is **org-private and project-less by construction** — org

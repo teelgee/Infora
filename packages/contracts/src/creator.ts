@@ -208,16 +208,44 @@ export type DocumentSection = {
 };
 
 /**
- * A starting outline this deployment carries — a template, as A1 leaves them:
- * **a seed, never a lock**. Choosing one pre-fills sections whose purposes are
- * its per-part guidance; every one of them can then be edited, reordered or
- * removed, and the author can start from nothing instead.
+ * Where a starting outline came from (T-414, ADR-0053 addendum A5).
+ *
+ * 🔒 **THE DIFFERENCE IS ON THE SCREEN, and A5 requires it to be.** An outline
+ * somebody in your firm saved last Tuesday and one Infora ships carry different
+ * authority, and a half-baked outline sitting unmarked beside a shipped one
+ * reads as the product's recommendation. `infora` outlines ship with the
+ * deployment; `firm` outlines are the saving organisation's own and no other
+ * organisation on the project ever sees one.
+ */
+export type StartingOutlineOrigin = 'infora' | 'firm';
+
+/**
+ * A starting outline — a template, as A1 leaves them: **a seed, never a lock**.
+ * Choosing one pre-fills sections whose purposes are its per-part guidance;
+ * every one of them can then be edited, reordered or removed, and the author
+ * can start from nothing instead.
+ *
+ * T-414 — the list now has two origins in it, and `origin` says which. A firm
+ * outline also carries who saved it and when: a colleague choosing between two
+ * outlines is choosing between two people's judgement, and the name is what
+ * makes that a decision rather than a guess.
  */
 export type StartingOutline = {
   id: string;
   label: string;
   description: string;
   sections: DocumentSection[];
+  origin: StartingOutlineOrigin;
+  /** firm outlines only — absent on the shipped ones */
+  savedBy?: { name: string };
+  /** firm outlines only — ISO timestamp */
+  savedAt?: string;
+  /**
+   * firm outlines only, and **only where this requester may retire it**.
+   * Absent means the control is not offered, which is the assembled-not-filtered
+   * rule at a button: an action nobody may take is never rendered disabled.
+   */
+  mayRetire?: boolean;
 };
 
 export type ListStartingOutlinesResponse = { items: StartingOutline[] };
