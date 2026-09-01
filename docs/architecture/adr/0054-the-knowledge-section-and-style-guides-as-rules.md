@@ -214,8 +214,9 @@ consultation material being used on a technical report: it simply has no
 phrasing rules for the register in hand.
 
 **The register vocabulary is `DOCUMENT_LANGUAGES`, unchanged, and this is a
-decision rather than a detail** *(Claude's call, put to the owner 2026-09-01
-with the collision named)*. The owner's own words for the registers were
+decision rather than a detail** *(recommended by Claude with the collision
+named, and **owner-ruled 2026-09-01**: "let's stick with what you've
+identified we've already got")*. The owner's own words for the registers were
 *technical, non-technical, public communications*, and the third has a foot in
 each of the creator's two existing lists — it is `simple-english` on
 [`DOCUMENT_LANGUAGES`](../../../packages/contracts/src/creator.ts) and
