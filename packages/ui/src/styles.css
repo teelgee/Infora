@@ -548,6 +548,14 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
   border-left: 1px solid var(--border-subtle);
   display: flex; flex-direction: column; gap: 8px;
 }
+/* T-416 — one option inside a check's unfold, when it needs a label of its own */
+.check-family-option { display: flex; flex-direction: column; gap: 4px; }
+/* the search box over a list already on the page, with its own count beside it:
+   "3 of 24" tells a search that found little from a library that holds little */
+.list-search { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.list-search .field-input { flex: 1; min-width: 0; }
+.list-search-count { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
+.attach-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-top: 4px; }
 .check-style-sources {
   list-style: none; margin: 4px 0 0; padding: 0;
   display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;

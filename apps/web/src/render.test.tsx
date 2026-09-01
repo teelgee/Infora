@@ -20,6 +20,7 @@ import type {
   Finding,
   GroundingSource,
   StyleGuideRecord,
+  SandboxDocument,
   ToolPlan,
   ToolSummary,
 } from '@infora/contracts';
@@ -29,9 +30,11 @@ import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
 import { CHECK_FAMILY_CATALOGUE, DOCUMENT_PURPOSE_CATALOGUE } from '@infora/contracts';
 import {
+  AttachPicker,
   AttachedCopy,
   CheckFamilyRow,
   CheckPlanCard,
+  LibraryScopePicker,
   ChosenNote,
   AgentPane,
   LibraryScopeCopy,
@@ -39,6 +42,7 @@ import {
   SectionComposer,
   SourceRow,
   StyleGuidePicker,
+  matchesQuery,
   StyleSourcesNote,
   ToolCard,
 } from './screens/tools';
@@ -1173,5 +1177,130 @@ describe('T-415 — ticking House style says which rules will be applied', () =>
     const html = renderToStaticMarkup(<StyleSourcesNote guides={null} />);
     expect(html).toContain('could not be read');
     expect(html).not.toContain('No project style guide is loaded');
+  });
+});
+
+// ── T-416 — THE TWO SEARCHES (ADR-0053 §8) ────────────────────────────────
+//
+// **The rule a search box is most likely to break is the one this suite exists
+// to hold.** A search that asked a server "find documents matching X" and then
+// hid the unreachable ones on the way out would disclose that they exist by the
+// shape of what came back. Both searches here are filters over a list that was
+// already access-resolved server-side, and the components take their rows as a
+// prop and reach nothing else — which is what makes "an unreachable document
+// never appears" assertable rather than merely true today.
+describe('T-416 — the library scope search, under the Accuracy check', () => {
+  const sources: GroundingSource[] = [
+    {
+      containerId: 'c1',
+      versionId: 'v1',
+      documentReference: 'WA-ENV-0004',
+      title: 'Environmental baseline',
+      description: 'The northern section.',
+    },
+    {
+      containerId: 'c2',
+      versionId: 'v2',
+      documentReference: 'WA-GEO-0011',
+      title: 'Ground investigation report',
+      description: null,
+    },
+  ];
+  const render = (over: Partial<Parameters<typeof LibraryScopePicker>[0]> = {}) =>
+    renderToStaticMarkup(
+      <LibraryScopePicker sources={sources} selected={[]} onToggle={() => {}} {...over} />,
+    );
+
+  it('shows the documents with their TITLES, not references alone', () => {
+    const html = render();
+    expect(html).toContain('Environmental baseline');
+    expect(html).toContain('Ground investigation report');
+    expect(html).toContain('WA-ENV-0004');
+  });
+
+  it('offers a search, and states the whole default before it', () => {
+    // leaving everything unticked means the WHOLE library you can reach, which
+    // is the opposite of what an empty selection usually means in a form — so
+    // it is said in words rather than discovered in the coverage sentence
+    const html = render();
+    expect(html).toContain('Search by title or reference');
+    expect(html).toContain('the whole library you can reach');
+    expect(html).toContain('2 documents');
+  });
+
+  it('🔒 THE ONLY ROWS ARE THE ONES IT WAS GIVEN — there is no wider set to narrow', () => {
+    // the component takes an access-resolved list as a prop and reaches nothing
+    // else. A document not in that list cannot be searched into existence, and
+    // is not greyed or ranked low: it never reached the browser.
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    const start = source.indexOf('export function LibraryScopePicker');
+    const end = source.indexOf('export function AttachPicker');
+    const body = source.slice(start, end);
+    expect(body).not.toContain('api.');
+    expect(body).not.toContain('fetch(');
+    // and the page hands it the grounding scope, which is the server's own
+    // access-resolved answer rather than the library list
+    expect(source).toContain('sources={scope?.sources ?? null}');
+  });
+
+  it('says nothing in scope rather than showing an empty search', () => {
+    // an empty picker under a search box reads as a search that failed; the
+    // zero case is a statement, exactly as the Ask composer's is
+    const html = render({ sources: [] });
+    expect(html).toContain('nothing to check against');
+    expect(html).not.toContain('Search by title or reference');
+  });
+
+  it('a scope that could not be READ is not zero sources, and says the same thing', () => {
+    expect(render({ sources: null })).toContain('nothing to check against');
+  });
+});
+
+describe('T-416 — the attach picker gains the same search', () => {
+  const drafts: SandboxDocument[] = [
+    { id: 'd1', title: 'Land quality method statement' },
+    { id: 'd2', title: 'Ecology baseline note' },
+  ] as SandboxDocument[];
+
+  it('searches your own drafts by title, and counts what it found', () => {
+    const html = renderToStaticMarkup(
+      <AttachPicker drafts={drafts} selected={[]} onToggle={() => {}} />,
+    );
+    expect(html).toContain('Search your drafts by title');
+    expect(html).toContain('Land quality method statement');
+    expect(html).toContain('2 documents');
+  });
+
+  it('says you have none rather than showing an empty list', () => {
+    const html = renderToStaticMarkup(
+      <AttachPicker drafts={[]} selected={[]} onToggle={() => {}} />,
+    );
+    expect(html).toContain('no other drafts');
+  });
+
+  it('🔒 reaches nothing beyond the drafts it was handed', () => {
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    const start = source.indexOf('export function AttachPicker');
+    const end = source.indexOf('export function CheckFamilyRow');
+    expect(source.slice(start, end)).not.toContain('api.');
+  });
+});
+
+describe('T-416 — one search behaviour, matched the same way in both pickers', () => {
+  it('matches on any of the fields it is given, case-folded', () => {
+    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'env')).toBe(true);
+    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'BASELINE')).toBe(true);
+    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'ecology')).toBe(false);
+  });
+
+  it('an empty query matches everything — a search box is not a filter you must satisfy', () => {
+    expect(matchesQuery(['anything'], '')).toBe(true);
+    expect(matchesQuery(['anything'], '   ')).toBe(true);
+  });
+
+  it('a null field is absent rather than a crash', () => {
+    // most of a real corpus predates the description column
+    expect(matchesQuery([null, 'Title'], 'title')).toBe(true);
+    expect(matchesQuery([null], 'x')).toBe(false);
   });
 });

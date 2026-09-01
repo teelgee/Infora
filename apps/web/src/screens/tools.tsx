@@ -1298,6 +1298,168 @@ export function AttachedCopy() {
   );
 }
 
+// ── T-416 — THE TWO SEARCHES (ADR-0053 §8) ──────────────────────────────────
+//
+// *In plain terms: both places where you pick documents for a check now have a
+// search box, and the results show titles rather than only coded references.*
+//
+// 🔒 **ASSEMBLED, NOT FILTERED — AND A SEARCH IS EXACTLY WHERE THAT RULE GETS
+// BROKEN.** The temptation a search box creates is to ask the server "find me
+// documents matching X" and then hide the ones the requester may not reach on
+// the way out, which discloses that they exist by the shape of what comes back.
+// Neither search here does that, and neither *can*: both are a filter over a
+// list that was **already access-resolved server-side** — the grounding scope
+// (`GET /projects/:id/grounding-scope`, computed from the same `liveLibraryFilter`
+// both arms of the assembly gateway run) and the requester's own sandbox
+// documents. **There is no wider set on this screen to narrow.** An unreachable
+// document is not greyed and not ranked low; it never reached the browser.
+//
+// The components below take their rows as a prop and reach nothing else, which
+// is what makes that assertable in a test rather than merely true today.
+
+/** Does this row answer the query? Reference and title both, case-folded. */
+export function matchesQuery(haystack: ReadonlyArray<string | null>, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (needle === '') return true;
+  return haystack.some((value) => (value ?? '').toLowerCase().includes(needle));
+}
+
+/**
+ * T-416 — a search box over a list already on this page.
+ *
+ * It states its own count rather than only filtering silently: *"3 of 24"* is
+ * how a person tells a search that found little from a library that holds
+ * little, and the two are very different facts about a project.
+ */
+export function ListSearch(props: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  shown: number;
+  total: number;
+}) {
+  return (
+    <div className="list-search">
+      <TextInput
+        value={props.value}
+        onChange={props.onChange}
+        placeholder={props.placeholder}
+        aria-label={props.label}
+      />
+      <span className="list-search-count">
+        {props.value.trim() === ''
+          ? `${props.total} document${props.total === 1 ? '' : 's'}`
+          : `${props.shown} of ${props.total} match`}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * T-416 — the library scope, searchable, under the Accuracy check.
+ *
+ * **The default is stated before the search, not implied by an empty box.**
+ * Leaving everything unticked means *the whole library you can reach*, which is
+ * the opposite of what an empty selection usually means in a form — so the
+ * screen says it in words rather than leaving a person to discover it in the
+ * plan's coverage sentence afterwards.
+ */
+export function LibraryScopePicker(props: {
+  sources: GroundingSource[] | null;
+  selected: string[];
+  onToggle: (versionId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  if (props.sources === null || props.sources.length === 0) {
+    return (
+      <p className="field-hint">
+        Nothing in this project’s library is in scope, so this check has nothing to check against.
+        The plan will say so.
+      </p>
+    );
+  }
+  const shown = props.sources.filter((source) =>
+    matchesQuery([source.documentReference, source.title, source.description], query),
+  );
+  return (
+    <>
+      <LibraryScopeCopy />
+      <ListSearch
+        label="Search the library"
+        placeholder="Search by title or reference…"
+        value={query}
+        onChange={setQuery}
+        shown={shown.length}
+        total={props.sources.length}
+      />
+      {shown.length === 0 ? (
+        <p className="field-hint">
+          Nothing in the library you can reach matches that. Clear the search to see all{' '}
+          {props.sources.length}.
+        </p>
+      ) : (
+        shown.map((source) => (
+          <SourceRow
+            key={source.containerId}
+            source={source}
+            checked={props.selected.includes(source.versionId)}
+            onToggle={() => props.onToggle(source.versionId)}
+          />
+        ))
+      )}
+    </>
+  );
+}
+
+/**
+ * T-416 — the attach-from-working-area picker, searchable, on the same terms.
+ *
+ * One search behaviour across both pickers, because they are one gesture done
+ * twice: two searches that matched differently would teach a person that one of
+ * them was broken.
+ */
+export function AttachPicker(props: {
+  drafts: SandboxDocument[];
+  selected: string[];
+  onToggle: (documentId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const shown = props.drafts.filter((draft) => matchesQuery([draft.title], query));
+  return (
+    <>
+      <ListSearch
+        label="Search your working area"
+        placeholder="Search your drafts by title…"
+        value={query}
+        onChange={setQuery}
+        shown={shown.length}
+        total={props.drafts.length}
+      />
+      {props.drafts.length === 0 ? (
+        <p className="field-hint">
+          You have no other drafts in this project’s working areas to attach.
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="field-hint">
+          None of your drafts match that. Clear the search to see all {props.drafts.length}.
+        </p>
+      ) : (
+        shown.map((draft) => (
+          <label key={draft.id} className="attach-row">
+            <input
+              type="checkbox"
+              checked={props.selected.includes(draft.id)}
+              onChange={() => props.onToggle(draft.id)}
+            />
+            <span>{draft.title}</span>
+          </label>
+        ))
+      )}
+    </>
+  );
+}
+
 /**
  * T-415 — ONE CHECK IN THE LIST: its tick, its name, and its own options
  * unfolding underneath when it is on.
@@ -1621,6 +1783,28 @@ export function QaCheckerScreen() {
                   />
                 </Field>
               )}
+              {/* T-416 — WHAT IT CHECKS AGAINST, and it is the FIRST thing
+                  under Accuracy because it is the first question: the default
+                  is the whole library you can reach, and narrowing is the
+                  exception. It lives here rather than in a card of its own
+                  because it is a property of this check and of no other —
+                  §2's rule, the same one that brought the depth select in. */}
+              {entry.family === 'corpus_accuracy' && (
+                <div className="check-family-option">
+                  <span className="field-label">What it checks against</span>
+                  <LibraryScopePicker
+                    sources={scope?.sources ?? null}
+                    selected={scopeVersionIds}
+                    onToggle={(versionId) =>
+                      change(setScopeVersionIds)(
+                        scopeVersionIds.includes(versionId)
+                          ? scopeVersionIds.filter((id) => id !== versionId)
+                          : [...scopeVersionIds, versionId],
+                      )
+                    }
+                  />
+                </div>
+              )}
               {/* T-415 — ticking style says WHICH RULES will be applied. The
                   checker does not choose its style material — the project's
                   guides and the firm's own manual bind it (ADR-0053 §3) — so
@@ -1635,55 +1819,22 @@ export function QaCheckerScreen() {
         </div>
       </Card>
 
-      <Card>
-        <strong>Check against library documents</strong>
-        <LibraryScopeCopy />
-        {/* assembled, not filtered: an unreachable document is ABSENT, never
-            greyed, so the picker cannot reveal that it exists (ADR-0053 §8) */}
-        {scope === null || scope.sources.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>
-            Nothing in this project’s library is in scope, so the accuracy check has nothing to
-            check against. The plan will say so.
-          </p>
-        ) : (
-          scope.sources.map((source: GroundingSource) => (
-            <SourceRow
-              key={source.containerId}
-              source={source}
-              checked={scopeVersionIds.includes(source.versionId)}
-              onToggle={() =>
-                change(setScopeVersionIds)(
-                  scopeVersionIds.includes(source.versionId)
-                    ? scopeVersionIds.filter((id) => id !== source.versionId)
-                    : [...scopeVersionIds, source.versionId],
-                )
-              }
-            />
-          ))
-        )}
-      </Card>
+      {/* T-416 — the library scope moved UNDER the Accuracy check (see the
+          option above), because it is a property of that check and of no
+          other. A card of its own beside the check list said the opposite. */}
 
       <Card>
-        <strong>Attach a document</strong>
+        <span className="card-title">Attach a document</span>
         <AttachedCopy />
-        {drafts
-          .filter((draft) => draft.id !== documentId)
-          .map((draft) => (
-            <label key={draft.id} style={{ display: 'block', marginTop: 4 }}>
-              <input
-                type="checkbox"
-                checked={attached.includes(draft.id)}
-                onChange={() =>
-                  change(setAttached)(
-                    attached.includes(draft.id)
-                      ? attached.filter((id) => id !== draft.id)
-                      : [...attached, draft.id],
-                  )
-                }
-              />{' '}
-              {draft.title}
-            </label>
-          ))}
+        <AttachPicker
+          drafts={drafts.filter((draft) => draft.id !== documentId)}
+          selected={attached}
+          onToggle={(id) =>
+            change(setAttached)(
+              attached.includes(id) ? attached.filter((other) => other !== id) : [...attached, id],
+            )
+          }
+        />
         {/* T-399 — the other half ADR-0053 §3 names: a file handed straight to
             the check, without being filed in the working area first. It is read
             for this run and kept nowhere, which the copy says plainly rather

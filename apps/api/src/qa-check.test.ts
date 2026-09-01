@@ -540,3 +540,41 @@ describe('a file can be handed straight to a check, and is kept nowhere (T-399)'
     expect(uploaded.plan.steps).toHaveLength(plain.plan.steps.length);
   });
 });
+
+// ── T-416 — narrowing the scope lands on the plan's own sentence ───────────
+//
+// *In plain terms: the accuracy check's scope now has a search over it. What
+// this pins is that searching changed nothing about what narrowing MEANS —
+// the same list of chosen documents rides the same request field and comes
+// back stated in the plan's coverage sentence.*
+//
+// A search is a filter over what is rendered, never a second way to choose:
+// two paths into `scopeVersionIds` would be two chances for the plan to
+// describe a scope the run did not use.
+describe('T-416 — a scope narrowed by search is stated in the plan, exactly as a picked one is', () => {
+  it('says "the whole library" when nothing is narrowed', async () => {
+    const res = await post(`/projects/${projectId}/tools/qa-check/plan`, body());
+    expect(res.status).toBe(200);
+    const { plan } = (await res.json()) as QaCheckPlanResponse;
+    expect(plan.coverage).toContain('the whole library');
+  });
+
+  it('names the count when documents are chosen, however they were found', async () => {
+    const res = await post(
+      `/projects/${projectId}/tools/qa-check/plan`,
+      // ids the requester cannot reach are not a way in — the run resolves
+      // them through the assembly gateway like every other id (T-274's rule)
+      // — and what is under test here is the SENTENCE the narrowing produces
+      body({
+        scopeVersionIds: [
+          '00000000-0000-4000-8000-000000000001',
+          '00000000-0000-4000-8000-000000000002',
+        ],
+      }),
+    );
+    expect(res.status).toBe(200);
+    const { plan } = (await res.json()) as QaCheckPlanResponse;
+    expect(plan.coverage).toContain('2 named library documents');
+    expect(plan.coverage).not.toContain('the whole library');
+  });
+});
