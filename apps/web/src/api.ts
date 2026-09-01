@@ -22,6 +22,12 @@ import type {
   CreateAcceptanceCodeBody,
   UpdateAcceptanceCodeBody,
   ListRenditionsResponse,
+  ExternalDocumentResponse,
+  ExternalIssue,
+  GetExternalIssueSettingsResponse,
+  IssueExternallyBody,
+  ListExternalIssuesResponse,
+  SetExternalIssueSettingsBody,
   PromotionPreflight,
   PromotionResult,
   ReviewComment,
@@ -862,6 +868,25 @@ export const api = {
     }),
   acknowledgeDeliverable: (containerId: string) =>
     request<Acknowledgement>(`/containers/${containerId}/acknowledgement`, { method: 'POST' }),
+  // T-431 — external issue (ADR-0055). `externalDocument` is the ONLY call in
+  // this client that carries no session: the recipient has no account, and the
+  // token in the path is the whole of their access.
+  externalIssueSettings: (projectId: string) =>
+    request<GetExternalIssueSettingsResponse>(`/projects/${projectId}/external-issue-settings`),
+  setExternalIssueSettings: (projectId: string, body: SetExternalIssueSettingsBody) =>
+    request<GetExternalIssueSettingsResponse>(`/projects/${projectId}/external-issue-settings`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  containerExternalIssues: (containerId: string) =>
+    request<ListExternalIssuesResponse>(`/containers/${containerId}/external-issues`),
+  issueExternally: (containerId: string, body: IssueExternallyBody) =>
+    request<ExternalIssue>(`/containers/${containerId}/external-issues`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  externalDocument: (token: string) =>
+    request<ExternalDocumentResponse>(`/external-documents/${encodeURIComponent(token)}`),
   pendingTransmittals: (projectId: string) =>
     request<ListPendingTransmittalsResponse>(`/projects/${projectId}/pending-transmittals`),
   resolveSuggestion: (suggestionId: string, resolution: Resolution, editedContent?: string) =>

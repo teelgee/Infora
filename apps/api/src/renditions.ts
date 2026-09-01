@@ -243,7 +243,9 @@ export async function generateRenditions(
   ]);
 }
 
-const mimeTypes = {
+// exported for T-431's token-scoped read: the external recipient fetches the
+// same bytes through their link, so the two paths must agree on the framing
+export const mimeTypes = {
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

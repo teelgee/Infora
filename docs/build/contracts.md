@@ -1139,3 +1139,22 @@ are not recorded here.
   an invented clause and quote — is the render lie ADR-0048 §5 exists to
   forbid, and on screen an invented quotation is indistinguishable from a real
   one.
+- **2026-09-02 (T-431) — external issue: a token where every other read has a
+  session.** *Plainly: one new call in the API is answered for somebody with no
+  Infora account, using only the link they were sent.* The **reason it is a
+  separate response type** (`ExternalDocumentResponse`) rather than the existing
+  version read is that the two answer different questions to different people.
+  The version read hands back ids a logged-in caller can spend on further reads;
+  this one carries **no container id, no version id and no project id at all**,
+  because the holder must have no second question to ask — the link is the whole
+  of their access. The **reason `linkToken` is returned to the project side and
+  the API composes no URL** is that the deployment's public origin is not the
+  API's to know; the surface builds the link, and the token stays what it is —
+  the access itself, shown only to a viewer already entitled to the row. The
+  **reason `TransmittalHistoryRow.kind` was widened rather than a second log
+  added** is ADR-0055 §1: the value of the transmittal record is that *"who has
+  this been issued to?"* has one answer, and the recipient cut rides the same
+  row (`externalRecipient`, emptied server-side for the producing organisation)
+  so no client can render what it was not sent. And the **reason `reason` and
+  `message` are both required** is that a send with neither is the emailed
+  attachment this replaces, which is the practice the ADR exists to end.

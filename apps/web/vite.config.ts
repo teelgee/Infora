@@ -38,6 +38,11 @@ const apiPrefixes = [
   // all — a silent, plausible-looking nothing. The e2e caught it; the unit
   // tests could not, because they call the API directly.
   '/lenses',
+  // T-431 — the external recipient's read (ADR-0055). The API namespace is
+  // deliberately distinct from the SPA route (/external/:token) it serves, so
+  // one prefix never has to mean two things: the page is a browser navigation
+  // and the document is a fetch.
+  '/external-documents',
 ];
 
 const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';
@@ -50,11 +55,12 @@ export default defineConfig({
         prefix,
         {
           target: apiTarget,
-          // /renditions has no SPA route, and the library modal's <object>
-          // embed navigates with Accept: text/html — bypassing it to
-          // index.html renders the router's 404 inside the PDF frame
+          // the two prefixes that serve FILES have no SPA route of their own,
+          // and their <object> embeds and download links navigate with
+          // Accept: text/html — bypassing them to index.html would render the
+          // router's 404 inside the PDF frame
           bypass:
-            prefix === '/renditions'
+            prefix === '/renditions' || prefix === '/external-documents'
               ? undefined
               : (req: { headers: { accept?: string } }) =>
                   req.headers.accept?.includes('text/html') ? '/index.html' : undefined,

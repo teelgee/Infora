@@ -8,6 +8,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, useOutletContext } from 'react-router';
 import type {
   AcceptanceCodeRow,
+  ExternalIssueSettings,
   ListAcceptanceCodesResponse,
   MeResponse,
   NamingProposal,
@@ -23,7 +24,17 @@ import {
   isCodeField,
   optionLabel,
 } from '@infora/contracts';
-import { Badge, Button, Field, Modal, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
+import {
+  Badge,
+  Button,
+  Field,
+  Modal,
+  SectionLabel,
+  SelectInput,
+  Table,
+  TextArea,
+  TextInput,
+} from '@infora/ui';
 import { Info, Plus, Upload, X } from 'lucide-react';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
@@ -511,6 +522,13 @@ export function SchemaScreen() {
     apply: (reason: string) => Promise<ListAcceptanceCodesResponse>;
   } | null>(null);
   const [addingCode, setAddingCode] = useState<{ code: string; description: string } | null>(null);
+  // T-431 — the owner organisation's standard message, carried on every
+  // external issue this project sends (ADR-0055 §6). Whole-project
+  // configuration on the same tier as the two settings above, applied rather
+  // than invented.
+  const [externalSettings, setExternalSettings] = useState<ExternalIssueSettings | null>(null);
+  const [standardMessage, setStandardMessage] = useState('');
+  const [externalSaved, setExternalSaved] = useState(false);
 
   // T-378 — the editor holds three states, exactly as T-376 gave the plan
   // screen: loading / ready / failed. Without it, a failed read left an EMPTY
@@ -541,6 +559,10 @@ export function SchemaScreen() {
       // configuration, because the next click would write that emptiness back
       () => setCodeError('Could not load the acceptance codes — reload before changing anything.'),
     );
+    void api.externalIssueSettings(projectId).then((r) => {
+      setExternalSettings(r);
+      setStandardMessage(r.standardMessage ?? '');
+    });
     loadProposals();
   }, [projectId]);
 
@@ -586,6 +608,17 @@ export function SchemaScreen() {
     setReviewPeriodDays(String(saved.defaultDays));
     setPeriodSaved(true);
     setTimeout(() => setPeriodSaved(false), 1500);
+  }
+
+  async function saveExternalSettings(patch: {
+    standardMessage?: string | null;
+    permission?: ExternalIssueSettings['permission'];
+  }) {
+    const next = await api.setExternalIssueSettings(projectId, patch);
+    setExternalSettings(next);
+    setStandardMessage(next.standardMessage ?? '');
+    setExternalSaved(true);
+    setTimeout(() => setExternalSaved(false), 1500);
   }
 
   async function propose() {
@@ -854,6 +887,45 @@ export function SchemaScreen() {
             </Button>
             {periodSaved && <Badge tone="success">Saved</Badge>}
           </>
+        )}
+      </div>
+
+      {/* T-431 (ADR-0055 §6) — the standing note that goes out with every
+          document this project sends outside itself. Its own section beside the
+          review period for the same reason: whole-project configuration, on the
+          owner super user's tier, and nothing to do with a deliverable's
+          coded reference. */}
+      <SectionLabel>External issue</SectionLabel>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 8px', maxWidth: 700, lineHeight: 1.5 }}>
+        A finished document can be sent to somebody with no Infora account — a landowner, a
+        consultee — as a link that reaches that one revision and expires. The sender writes why
+        they are sending it and a message to go with it; what you set here is the{' '}
+        <strong>standard message</strong> carried under every one of them, for this project.
+      </p>
+      <div style={{ maxWidth: 700, marginBottom: 4 }}>
+        <Field label="Standard message" hint="Left empty, nothing is added.">
+          <TextArea
+            value={standardMessage}
+            onChange={setStandardMessage}
+            rows={3}
+            placeholder="e.g. This document is issued for information. Please direct any queries to the project team."
+          />
+        </Field>
+        {externalSettings?.mayConfigure && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button
+              size="sm"
+              disabled={standardMessage.trim() === (externalSettings.standardMessage ?? '')}
+              onClick={() =>
+                void saveExternalSettings({
+                  standardMessage: standardMessage.trim() === '' ? null : standardMessage.trim(),
+                })
+              }
+            >
+              Save
+            </Button>
+            {externalSaved && <Badge tone="success">Saved</Badge>}
+          </div>
         )}
       </div>
 

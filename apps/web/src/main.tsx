@@ -5,6 +5,7 @@ import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
+import { ExternalDocumentScreen } from './screens/external-document';
 import { HistoryScreen } from './screens/history';
 import { KnowledgeScreen } from './screens/knowledge';
 import { NewStyleGuideScreen, StyleGuideScreen } from './screens/style-guide';
@@ -23,8 +24,15 @@ import { SettingsScreen } from './screens/settings';
 import { WorkItemScreen } from './screens/work-item';
 import { WorkspaceLanding, WorkspaceSection } from './screens/workspace';
 
+// T-431 (ADR-0055) — the recipient's page. OUTSIDE the project shell and, at
+// the foot of this file, outside the session gate: whoever holds this link has
+// no Infora account, so there is no session to resolve and nothing else in the
+// application for them to reach.
+const externalPath = '/external/';
+
 const router = createBrowserRouter([
   { path: '/', element: <WorkspaceLanding /> },
+  { path: '/external/:token', element: <ExternalDocumentScreen /> },
   { path: '/settings', element: <SettingsScreen /> },
   { path: '/workspace/:section', element: <WorkspaceSection /> },
   {
@@ -73,10 +81,20 @@ const router = createBrowserRouter([
   },
 ]);
 
+// The gate is applied here rather than around the whole tree, because the
+// external document is the one route that must render for somebody who is not
+// logged in — wrapping it would send a landowner to a login screen for an
+// account they will never have.
+const isExternal = window.location.pathname.startsWith(externalPath);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <SessionGate>
+    {isExternal ? (
       <RouterProvider router={router} />
-    </SessionGate>
+    ) : (
+      <SessionGate>
+        <RouterProvider router={router} />
+      </SessionGate>
+    )}
   </StrictMode>,
 );

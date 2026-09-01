@@ -1025,7 +1025,10 @@ export type TransmittalHistoryRecipient = {
 };
 export type TransmittalHistoryRow = {
   id: Id;
-  kind: 'review' | 'non_review';
+  // T-431 (ADR-0055 §1) — the third kind is on the SAME log, deliberately: the
+  // value of the transmittal record is that "who has this been issued to?" has
+  // one answer, and a separate external log would fork it.
+  kind: 'review' | 'non_review' | 'external';
   direction: 'issue' | 'return' | null; // review kind only
   roundNumber: number | null; // review kind only
   roundState: Round['state'] | null; // review kind only — lets the surface tell "awaiting acknowledgement" from pre-gate history
@@ -1041,6 +1044,12 @@ export type TransmittalHistoryRow = {
     by: { participantId: Id; name: string; organisationName: string };
     at: string;
   } | null;
+  // T-431 — the external kind's recipient, cut per viewer exactly as the
+  // organisation list above is: the project owner and the sending organisation
+  // read the person; the producing organisation reads that an issue happened
+  // with the recipient withheld (ADR-0055 §8, carrying ADR-0035's addendum
+  // over unchanged). `null` on the other two kinds, and on a withheld row.
+  externalRecipient: { name: string; email: string; expiresAt: string } | null;
 };
 export type ListContainerTransmittalsResponse = { items: TransmittalHistoryRow[] };
 
@@ -1054,6 +1063,130 @@ export type Acknowledgement = {
   organisationId: Id;
   acknowledgedBy: { participantId: Id; name: string };
   acknowledgedAt: string;
+};
+
+// ── External issue: a deliverable reaches a party with no account ──────────
+// (ADR-0055, T-431/T-432.)
+//
+// The recipient is a NAME AND AN EMAIL ADDRESS and nothing else — never an
+// Organisation, a Participant or a Membership. There is no access grant to
+// resolve because the LINK is the access, which is the property that let this
+// be built without reopening a clause of the wall. A link serves ONE NAMED
+// VERSION of one document and expires; a later version does not retract it
+// (ADR-0013, and ISO 19650's position that an issued document is a snapshot).
+//
+// Principle 3 holds as everywhere else: the body names the RECIPIENT, never the
+// sender — who is sending is resolved from the session.
+
+/** ADR-0055 §7's three levels, in widening-restriction order. */
+export const EXTERNAL_ISSUE_PERMISSIONS = ['any_member', 'any_super_user', 'owner_super_user'] as const;
+export type ExternalIssuePermission = (typeof EXTERNAL_ISSUE_PERMISSIONS)[number];
+
+/** `requested` is somebody below the line asking; the other two are answers. */
+export type ExternalIssueState = 'requested' | 'issued' | 'declined';
+
+/** How long a link lives when the sender names no other figure. */
+export const EXTERNAL_LINK_DEFAULT_DAYS = 30;
+
+export const issueExternallyBody = z.object({
+  recipientName: z.string().trim().min(1).max(200),
+  recipientEmail: z.email().max(320),
+  // WHY it is being sent, and WHAT is said with it — two different things, and
+  // both required. A send with no stated reason is the emailed attachment this
+  // replaces, which is the practice ADR-0055 exists to end.
+  reason: z.string().trim().min(1).max(1000),
+  message: z.string().trim().min(1).max(4000),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
+});
+export type IssueExternallyBody = z.infer<typeof issueExternallyBody>;
+
+/**
+ * One external issue — or one request to make one. The same shape for both,
+ * because they are the same row: `state` says which, and a request carries
+ * every fact the issue needs so that approving it invents nothing.
+ */
+export type ExternalIssue = {
+  id: Id;
+  containerId: Id;
+  documentReference: string;
+  versionId: Id;
+  versionReference: string;
+  recipientName: string;
+  recipientEmail: string;
+  reason: string;
+  message: string;
+  state: ExternalIssueState;
+  /**
+   * The opaque token that IS the access, present only on an issued row and only
+   * to a viewer entitled to the row. The surface composes the link from it;
+   * the API does not know the deployment's public origin.
+   */
+  linkToken: string | null;
+  expiresAt: string | null;
+  requestedBy: { participantId: Id; name: string };
+  issuedBy: { participantId: Id; name: string } | null;
+  declinedBy: { participantId: Id; name: string } | null;
+  declineReason: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+};
+export type ListExternalIssuesResponse = { items: ExternalIssue[] };
+
+/** Approve or decline somebody else's request (ADR-0055 §7). */
+export const answerExternalRequestBody = z.object({
+  approve: z.boolean(),
+  // required on a decline, and required for the reason every other refusal in
+  // this record carries one: the person who asked reads it
+  declineReason: z.string().trim().min(1).max(1000).optional(),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
+});
+export type AnswerExternalRequestBody = z.infer<typeof answerExternalRequestBody>;
+
+/**
+ * The project's external-issue configuration, and what THIS requester may do
+ * with it. `mayIssue` / `mayApprove` are the assembled-not-filtered rule
+ * (T-269, ADR-0053 §8) applied to a door: a person below the line is offered
+ * the REQUEST action, never a disabled issue button.
+ */
+export type ExternalIssueSettings = {
+  projectId: Id;
+  permission: ExternalIssuePermission;
+  standardMessage: string | null;
+  mayIssue: boolean;
+  mayApprove: boolean;
+  mayConfigure: boolean;
+};
+export type GetExternalIssueSettingsResponse = ExternalIssueSettings;
+export const setExternalIssueSettingsBody = z.object({
+  permission: z.enum(EXTERNAL_ISSUE_PERMISSIONS).optional(),
+  // null clears it; absent leaves it alone
+  standardMessage: z.string().trim().max(4000).nullable().optional(),
+});
+export type SetExternalIssueSettingsBody = z.infer<typeof setExternalIssueSettingsBody>;
+
+/**
+ * What the recipient's browser reads — the ONLY read in the API resolved from
+ * a token rather than from a session, and the only one with no project scope
+ * behind it. It carries one version of one document and nothing else: no
+ * project library, no roster, no other version, not even the ids by which
+ * another read could be attempted.
+ */
+export type ExternalDocumentResponse = {
+  documentReference: string;
+  versionReference: string;
+  title: string | null;
+  content: string;
+  recipientName: string;
+  /** what the sender wrote, and the project's standing note if it has one */
+  message: string;
+  standardMessage: string | null;
+  reason: string;
+  senderOrganisationName: string;
+  projectName: string;
+  issuedAt: string;
+  expiresAt: string;
+  /** the rendered files of THIS version, fetched back through the same token */
+  renditions: Array<{ id: Id; kind: 'pdf' | 'native'; format: string }>;
 };
 
 // Intra-organisation narrowing (§3): the receiving org's admin (or controller)

@@ -18,6 +18,18 @@ export const orgRole = pgEnum('org_role', ['admin', 'member']);
 // 2026-07-20); the org admin is the fallback acknowledger so a controller-mode
 // organisation with no controller yet nominated is never locked out.
 export const acknowledgementMode = pgEnum('acknowledgement_mode', ['controller', 'open']);
+// T-432 (ADR-0055 §7) — who may issue a deliverable to somebody with no Infora
+// account. Three levels, chosen by the project-owning organisation's super
+// user: any member of any organisation on the project; any super user of any
+// organisation; or only super users of the project-owning organisation. On the
+// strictest level a consultant's request is approved by the client, which is
+// the control the setting exists for. Nobody below the line is shut out — they
+// submit a request and somebody above the line answers it.
+export const externalIssuePermission = pgEnum('external_issue_permission', [
+  'any_member',
+  'any_super_user',
+  'owner_super_user',
+]);
 
 export const organisations = pgTable('organisations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -143,6 +155,24 @@ export const projects = pgTable('projects', {
   // period modelled as one would arrive as a column nobody should be filling
   // in. The stored target lives on the round; this row holds only the default.
   reviewPeriodDefaultDays: integer('review_period_default_days').notNull().default(10),
+  // T-431/T-432 (ADR-0055 §6–§7) — the two settings external issue adds, on the
+  // same owner-super-user tier as the two above and for the same reason: what
+  // may leave the scheme, and who may send it, is the project owner's business
+  // and not each firm's.
+  //
+  // The standard message the owner organisation carries on every external
+  // email. Null means the project has set none, which is not the same as an
+  // empty one somebody chose to write.
+  externalStandardMessage: text('external_standard_message'),
+  // Who may issue a deliverable OUT of the project, in ADR-0055 §7's three
+  // levels. The default is the strictest, deliberately: this is the one act
+  // that puts a document in front of somebody the project's access model has
+  // never heard of, and a project that has not chosen should not discover the
+  // choice by finding a document already gone. Everyone below the line
+  // REQUESTS (T-432) — nobody is simply shut out.
+  externalIssuePermission: externalIssuePermission('external_issue_permission')
+    .notNull()
+    .default('owner_super_user'),
 });
 
 // A Participant is an interval, never a deleted row: removal closes

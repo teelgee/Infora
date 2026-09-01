@@ -126,6 +126,12 @@ export function sessionMiddleware(deps: {
   return async (c, next) => {
     if (c.req.path === '/auth/session') return next();
     if (c.req.path === '/health') return next(); // liveness probe (T-219)
+    // T-431 (ADR-0055 §3) — the external recipient has no account, so there is
+    // no session to resolve: their LINK is the access, and the routes under
+    // this prefix resolve an opaque token to exactly one version and nothing
+    // else. It is the only sessionless read of project material in the API,
+    // which is why it is a prefix stated here rather than a flag a route sets.
+    if (c.req.path.startsWith('/external-documents/')) return next();
     const token = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
     if (!token) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
     // T-251 — the signature proves the token was minted here; the ROW proves it

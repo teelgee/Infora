@@ -212,7 +212,17 @@ export const transmittalDirection = pgEnum('transmittal_direction', ['issue', 'r
 // snapshot. The CHECK in the migration binds round_id/direction to the review
 // kind and container_id/version_id to non_review, so no edit-lock path can
 // ever attach to a non_review row.
-export const transmittalKind = pgEnum('transmittal_kind', ['review', 'non_review']);
+//
+// T-431 (ADR-0055 §1) adds a THIRD kind, `external`: the same deliverable and
+// version issued to a person with no Infora account. It is a kind rather than a
+// second table because the audited facts are identical in all three — sender,
+// deliverable, version, purpose, date — and a second table would fork the one
+// place "who has this been issued to?" is answerable. It carries the non-review
+// shape exactly (no round, no direction, so no edit lock and no snapshot), and
+// migration 0065 extends the CHECK to say so rather than leaving the new value
+// unconstrained. Its recipients are NOT organisations: `recipient_organisation_ids`
+// stays empty and the person is a row in `external_recipients` below.
+export const transmittalKind = pgEnum('transmittal_kind', ['review', 'non_review', 'external']);
 
 export const transmittals = pgTable('transmittals', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -251,6 +261,76 @@ export const reviewSnapshots = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('review_snapshots_transmittal_unique').on(t.transmittalId)],
+);
+
+// ── The external recipient (T-431/T-432, ADR-0055) ─────────────────────────
+// A person with NO Infora account who is sent one finished document: a
+// landowner, a consultee, a supplier engaged for one piece of work. The row is
+// a NAME AND AN EMAIL ADDRESS and never an Organisation, a Participant or a
+// Membership — there is no access grant to resolve, because the LINK is the
+// access (ADR-0055 §3). No clause of the wall changes.
+//
+// ONE TABLE FOR THE REQUEST AND THE ISSUE, and the reason is the personal data.
+// ADR-0055 §7 lets anyone below the project's who-may-issue line submit a
+// REQUEST carrying every fact the issue needs — which is the same four fields
+// about the same named person. A second table would put a person with no
+// account in two places, and the register's promise that this material is
+// deletable on request (ADR-0050 §6) would then have two paths to keep true.
+// So the lifecycle is a state on one row: `requested` → `issued` | `declined`.
+export const externalIssueState = pgEnum('external_issue_state', [
+  'requested',
+  'issued',
+  'declined',
+]);
+
+export const externalRecipients = pgTable(
+  'external_recipients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // the deliverable and the ONE named version the link serves. Held here and
+    // not only through the transmittal because a REQUEST has no transmittal
+    // yet: a transmittal is the audited record of an issue that happened, and
+    // asking is not issuing.
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id),
+    versionId: uuid('version_id')
+      .notNull()
+      .references(() => versions.id),
+    // written only when the issue actually happens (state = 'issued')
+    transmittalId: uuid('transmittal_id').references(() => transmittals.id),
+    // ADR-0055 §9 — the four fields, all typed by a person, and the platform's
+    // first stored data about someone who has no account and consented to
+    // nothing. Registered in docs/architecture/personal-data.md at ruling.
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    reason: text('reason').notNull(),
+    message: text('message').notNull(),
+    state: externalIssueState('state').notNull().default('requested'),
+    // the access itself: opaque, unguessable, and serving one version. Null
+    // until the issue happens, so a pending or declined request is not a link.
+    linkToken: text('link_token'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // who supplied the facts — the sender on a direct issue, the asker on a
+    // request. Always present: nothing here is written by the platform.
+    requestedByParticipantId: uuid('requested_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    // who let it out of the project. On a direct issue this is the sender
+    // themself; on an approved request it is the person above the line.
+    issuedByParticipantId: uuid('issued_by_participant_id').references(() => participants.id),
+    declinedByParticipantId: uuid('declined_by_participant_id').references(() => participants.id),
+    // a decline is answered, not merely refused — the asker reads this
+    declineReason: text('decline_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    // the recipient's own read resolves the token and nothing else
+    uniqueIndex('external_recipients_link_token_unique').on(t.linkToken),
+    // the deliverable's issue log, and the project's pending-request queue
+    index('external_recipients_container_idx').on(t.containerId),
+  ],
 );
 
 // ── Comments & responses ───────────────────────────────────────────────────

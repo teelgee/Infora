@@ -789,7 +789,9 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
       ? row.direction === 'return'
         ? 'Review — submitted'
         : 'Review — issued'
-      : (row.purposeCode ?? 'Issued to organisation');
+      : row.kind === 'external'
+        ? 'Issued outside the project'
+        : (row.purposeCode ?? 'Issued to organisation');
   const recipientLabel =
     row.kind === 'review' ? (row.direction === 'return' ? 'Review group' : 'Authoring team') : null;
   const ackCell = (() => {
@@ -811,6 +813,29 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
     return null;
   })();
 
+  // T-431 — the external kind on the same log, because "who has this been
+  // issued to?" is one question. The receipt column says what actually happened
+  // rather than borrowing the acknowledgement language: there IS no
+  // acknowledgement to await (ADR-0055 §5), and a row reading "awaiting" would
+  // claim a gate that does not exist.
+  if (row.kind === 'external' && row.externalRecipient) {
+    return (
+      <tr>
+        <td>{formatDate(row.issuedAt)}</td>
+        <td>{kindLabel}</td>
+        <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.versionReference ?? '—'}</td>
+        <td>{row.sender.name}</td>
+        <td>
+          {row.externalRecipient.name}{' '}
+          <span style={{ color: 'var(--text-muted)' }}>({row.externalRecipient.email})</span>
+        </td>
+        <td>
+          <Badge tone="neutral">Link expires {formatDate(row.externalRecipient.expiresAt)}</Badge>
+        </td>
+      </tr>
+    );
+  }
+
   if (row.kind === 'review' || row.recipientsWithheld) {
     return (
       <tr>
@@ -819,7 +844,11 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
         <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.versionReference ?? '—'}</td>
         <td>{row.sender.name}</td>
         <td style={row.recipientsWithheld ? { color: 'var(--text-muted)' } : undefined}>
-          {row.recipientsWithheld ? 'Withheld — the owner’s distribution record' : recipientLabel}
+          {row.recipientsWithheld
+            ? row.kind === 'external'
+              ? 'Withheld — an external recipient of the owner’s'
+              : 'Withheld — the owner’s distribution record'
+            : recipientLabel}
         </td>
         <td>{row.recipientsWithheld ? '—' : ackCell}</td>
       </tr>

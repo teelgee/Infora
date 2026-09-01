@@ -139,6 +139,8 @@
           <tr><td class="col">owner_organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
           <tr><td class="col">conflict_attestation_required</td><td class="type">boolean</td><td class="notes">default</td></tr>
           <tr><td class="col">review_period_default_days</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">external_standard_message</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">external_issue_permission</td><td class="type">external_issue_permission</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
       <article class="card d1">
@@ -725,6 +727,28 @@
           <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d5">
+        <h3>external_recipients</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">version_id</td><td class="type">uuid</td><td class="notes">→ versions.id</td></tr>
+          <tr><td class="col">transmittal_id</td><td class="type">uuid</td><td class="notes">→ transmittals.id · nullable</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">email</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">message</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">state</td><td class="type">external_issue_state</td><td class="notes">default</td></tr>
+          <tr><td class="col">link_token</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">expires_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">requested_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">issued_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">declined_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">decline_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">decided_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
         </tbody></table>
       </article>
       <article class="card d5">

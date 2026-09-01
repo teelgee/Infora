@@ -491,6 +491,28 @@ export function transmittalRoutes(deps: { db: Db }) {
       .innerJoin(s.users, eq(s.participants.userId, s.users.id))
       .where(and(eq(s.transmittals.containerId, container.id), eq(s.transmittals.kind, 'non_review')));
 
+    // T-431 (ADR-0055 §1) — the third kind, on the SAME log, because "who has
+    // this been issued to?" must keep having one answer. The recipient is a
+    // person and not an organisation, so the row carries `externalRecipient`
+    // where a non-review row carries a distribution list; §8 cuts it exactly as
+    // ADR-0035's addendum cuts that list — the owner and the sending
+    // organisation read the person, the producing organisation reads that an
+    // issue happened, and a fourth firm on the project reads nothing.
+    const externalRows = await deps.db
+      .select({
+        transmittal: s.transmittals,
+        recipient: s.externalRecipients,
+        versionReference: s.versions.versionReference,
+        senderName: s.users.name,
+        senderOrganisationId: s.users.organisationId,
+      })
+      .from(s.transmittals)
+      .innerJoin(s.externalRecipients, eq(s.externalRecipients.transmittalId, s.transmittals.id))
+      .innerJoin(s.versions, eq(s.transmittals.versionId, s.versions.id))
+      .innerJoin(s.participants, eq(s.transmittals.senderParticipantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(and(eq(s.transmittals.containerId, container.id), eq(s.transmittals.kind, 'external')));
+
     // names for every referenced organisation and acknowledger, in two lookups
     const orgIds = [...new Set(issueRows.flatMap((r) => r.transmittal.recipientOrganisationIds))];
     const orgNames = new Map(
@@ -552,6 +574,7 @@ export function transmittalRoutes(deps: { db: Db }) {
         issuedAt: transmittal.issuedAt.toISOString(),
         recipientOrganisations: [],
         recipientsWithheld: false,
+        externalRecipient: null,
         submissionAcknowledged:
           transmittal.direction === 'return' && ackBy && ackAt
             ? {
@@ -587,6 +610,37 @@ export function transmittalRoutes(deps: { db: Db }) {
               acknowledged: ackByVersionOrg.get(`${transmittal.versionId}:${organisationId}`) ?? null,
             })),
             recipientsWithheld: !isOwnerOrg && isProducer,
+            externalRecipient: null,
+            submissionAcknowledged: null,
+          },
+        ];
+      }),
+      ...externalRows.flatMap(({ transmittal, recipient, versionReference, senderName, senderOrganisationId }) => {
+        const isSender = senderOrganisationId === slice.organisationId;
+        // §8's cut. Nobody outside these three reads the row at all, which is
+        // no wider than the non-review cut one branch up.
+        if (!isOwnerOrg && !isSender && !isProducer) return [];
+        const mayReadRecipient = isOwnerOrg || isSender;
+        return [
+          {
+            id: transmittal.id,
+            kind: 'external' as const,
+            direction: null,
+            roundNumber: null,
+            roundState: null,
+            versionReference,
+            sender: { participantId: transmittal.senderParticipantId, name: senderName },
+            purposeCode: transmittal.purposeCode,
+            issuedAt: transmittal.issuedAt.toISOString(),
+            recipientOrganisations: [],
+            recipientsWithheld: !mayReadRecipient,
+            externalRecipient: mayReadRecipient
+              ? {
+                  name: recipient.name,
+                  email: recipient.email,
+                  expiresAt: recipient.expiresAt!.toISOString(),
+                }
+              : null,
             submissionAcknowledged: null,
           },
         ];

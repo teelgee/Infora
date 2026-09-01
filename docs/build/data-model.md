@@ -342,27 +342,35 @@ not.
 wall-crossing project cycle. (ADR-0002–0017, 0032, 0033, 0035.)*
 **Shape:** [drawer5-review.ts](../../packages/db/src/schema/drawer5-review.ts)
 
-> ✏️ **Drawn 2026-09-01 (in review of Session K), unbuilt — T-431 (migration
-> 0065).** External issue (ADR-0055). *Plainly: a finished document can be
-> sent to a person with no Infora account — a landowner, a consultee — as an
-> expiring link; the record keeps who sent what to whom and why.* Drawer 5
-> and not drawer 1, because the recipient is **not a party**: never an
-> Organisation, Participant or Membership — the record belongs to the issue
-> event, exactly as the transmittal does. Two changes:
-> **`transmittals.kind`** gains `external` as a third value; the existing
-> CHECK keeping `round_id`/`direction` null off the review kind extends to
-> it (no round, no lock, no snapshot).
-> **`external_recipients`** — `id` uuid PK; `transmittal_id` FK; `name`
-> text; `email` text; `reason` text; `message` text; `link_token` (opaque,
-> the access — there is no grant to resolve); `expires_at`;
-> `issued_by_participant_id` FK. **`name`, `email`, `reason` and `message`
-> are the platform's first stored data about a person with no account** —
-> already registered in personal-data.md at ruling (ADR-0055 decision 9);
-> owner's material, deleted on request and at exit per ADR-0050 §6, the
-> transmittal event itself retained like every issue record. Two
-> whole-project settings (the standard message; who may issue) join the
-> Project row's owner-super-user set, the ADR-0046/T-371 pattern. When
-> built, this block reduces to narrative per the state rule.
+**External issue — a deliverable reaches a person with no account** *(drawn
+2026-09-01, built 2026-09-02 by T-431/T-432, migration 0065; ADR-0055).*
+*Plainly: a finished document can be sent to a landowner or a consultee as a
+link that expires, and the record keeps who sent what to whom and why.* The
+recipient sits in **drawer 5 and not drawer 1 because they are not a party** —
+never an Organisation, Participant or Membership. The record belongs to the
+issue event exactly as the transmittal does, and no clause of the wall changes,
+because **the link is the access**: there is no grant to resolve.
+`transmittals.kind` gains `external`, and the CHECK was **rewritten rather than
+extended** — it was a `CASE` over the two known kinds with no `ELSE`, so a row
+carrying the new value would have evaluated to NULL, and a NULL check *passes*;
+adding the enum value alone would have quietly unbound `round_id` and
+`direction` for the one kind that must never touch a review cycle.
+**`external_recipients` holds the request and the issue in one table**, as a
+state: ADR-0055 §7's request carries the same four fields about the same named
+person, and two tables would give the register's deletion promise two paths to
+keep true. Its `name`, `email`, `reason` and `message` are the platform's first
+stored data about a person with **no account**, registered in
+[personal-data.md](../architecture/personal-data.md) at ruling — the build keeps
+that row true. Two consequences are structural: there is **no append-only
+trigger**, because a trigger forbidding `DELETE` would make the erasure promise
+undeliverable; and an update trigger freezes what was asked for, so an approver
+cannot redirect somebody else's request to another address or another document.
+**Nothing records that a link was opened** — ADR-0055 §5 calls the download the
+receipt, but an open timestamp is behavioural data about a named person outside
+the four registered fields, so it was left out and reported rather than added
+quietly. Two whole-project settings (the standard message; who may issue) joined
+the Project row's owner-super-user set, the ADR-0046/T-371 pattern, with the
+**strictest** level as the default.
 
 The **cycle** is the instance and the DRR is its record — one live,
 append-only record per cycle (ADR-0009). The appointed sides are **interval

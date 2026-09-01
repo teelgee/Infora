@@ -38,6 +38,7 @@ import { suggestionRoutes } from './suggestions';
 import { agentActRoutes } from './agent-acts';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
+import { externalIssueRoutes } from './external-issue';
 import { rulebookRoutes } from './rulebook';
 import { documentCreationRoutes } from './document-creation';
 import { qaCheckRoutes } from './qa-check';
@@ -327,6 +328,14 @@ export function buildApp(deps: AppDeps) {
   // Non-review transmittal, the acknowledgement gate, intra-org narrowing +
   // the standing routing rule (ADR-0035) — T-137
   app.route('/', transmittalRoutes(deps));
+
+  // T-431/T-432 — external issue (ADR-0055): the third transmittal kind, its
+  // recipient record, and the recipient's own sessionless read. That read is
+  // the reason this route sits here rather than inside transmittalRoutes: it
+  // resolves a TOKEN and not a requester, and the session middleware exempts
+  // its prefix by name (requester.ts) so the exemption is one visible line
+  // rather than a property of a route somewhere in a file.
+  app.route('/', externalIssueRoutes(deps));
 
   // T-329 — the notification record and its read/mark-read API (ADR-0049).
   // Visibility follows the subject, re-resolved on every read.

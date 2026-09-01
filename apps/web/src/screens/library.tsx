@@ -4,9 +4,27 @@
 // list is the API's access-resolved slice: exactly what grounding admits.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router';
-import type { LibraryItem, MeResponse, PendingTransmittal, Rendition, RosterEntry } from '@infora/contracts';
-import { BookOpen, Download, FileText, Inbox, Send } from 'lucide-react';
-import { Badge, Button, Combobox, Field, Modal, SectionLabel, Table, TextArea } from '@infora/ui';
+import type {
+  ExternalIssue,
+  ExternalIssueSettings,
+  LibraryItem,
+  MeResponse,
+  PendingTransmittal,
+  Rendition,
+  RosterEntry,
+} from '@infora/contracts';
+import { BookOpen, Download, FileText, Inbox, Send, Share2 } from 'lucide-react';
+import {
+  Badge,
+  Button,
+  Combobox,
+  Field,
+  Modal,
+  SectionLabel,
+  Table,
+  TextArea,
+  TextInput,
+} from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 import { contextStateBadge, formatDate } from './shared';
@@ -158,6 +176,147 @@ function DocumentModal(props: { item: LibraryItem; onClose: () => void }) {
   );
 }
 
+// T-431 — ISSUING OUTSIDE THE PROJECT (ADR-0055). The door is here, on the
+// deliverable, and not in a tool: issuing a document is something you do to a
+// document you are already looking at, and a tool would make you find it twice.
+//
+// THE WARNING IS ON THE SCREEN AND NOT ONLY IN THE RECORD. ADR-0055 §5 is blunt
+// that there is no identity behind the name — anyone holding the link is the
+// recipient — and the ADR requires that the product not read as though the
+// record were stronger than the email it replaces.
+function ExternalIssueModal(props: {
+  item: LibraryItem;
+  onClose: () => void;
+  onSubmit: (body: {
+    recipientName: string;
+    recipientEmail: string;
+    reason: string;
+    message: string;
+    expiresInDays: number;
+  }) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [reason, setReason] = useState('');
+  const [message, setMessage] = useState('');
+  const [days, setDays] = useState('30');
+  const [busy, setBusy] = useState(false);
+  const expiry = Number.parseInt(days, 10);
+  const ready =
+    name.trim() !== '' &&
+    /.+@.+\..+/.test(email.trim()) &&
+    reason.trim() !== '' &&
+    message.trim() !== '' &&
+    expiry >= 1;
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="md"
+      title={`Issue ${props.item.documentReference} outside the project`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || !ready}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit({
+                recipientName: name.trim(),
+                recipientEmail: email.trim(),
+                reason: reason.trim(),
+                message: message.trim(),
+                expiresInDays: expiry,
+              });
+            }}
+          >
+            Issue
+          </Button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+        The recipient gets a link to <strong>this revision of this document and nothing else</strong>
+        — no project, no other documents, no list of people. They need no Infora account.{' '}
+        <strong>Anyone holding the link can open it</strong>, so the record says what was sent and
+        to which address, never who read it. A later revision does not replace what they hold.
+      </p>
+      <Field label="Recipient name">
+        <TextInput value={name} onChange={setName} placeholder="e.g. Mrs A Patel" />
+      </Field>
+      <Field label="Email address" hint="Where the link goes. It is not an account.">
+        <TextInput value={email} onChange={setEmail} placeholder="name@example.com" />
+      </Field>
+      <Field label="Why it is being sent" hint="Kept on the project record beside the issue.">
+        <TextInput value={reason} onChange={setReason} placeholder="e.g. Statutory consultation response" />
+      </Field>
+      <Field label="Message to the recipient" hint="Shown with the document. The project's standard message is added under it if one is set.">
+        <TextArea value={message} onChange={setMessage} rows={4} />
+      </Field>
+      <Field label="Link expires after (days)">
+        <TextInput value={days} onChange={setDays} />
+      </Field>
+    </Modal>
+  );
+}
+
+// The link, handed back to the sender. There is no mail transport yet (T-323
+// and T-330 carry it, and wait on external lead time), so this is how the link
+// actually reaches the recipient today — and even once mail lands, the sender
+// seeing what they sent is not a workaround.
+function ExternalIssuedModal(props: { issue: ExternalIssue; onClose: () => void }) {
+  const link = `${window.location.origin}/external/${props.issue.linkToken}`;
+  const [copied, setCopied] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title="Issued"
+      footer={
+        <Button variant="primary" onClick={props.onClose}>
+          Done
+        </Button>
+      }
+    >
+      <p style={{ marginTop: 0 }}>
+        {props.issue.documentReference} {props.issue.versionReference} is issued to{' '}
+        <strong>{props.issue.recipientName}</strong> ({props.issue.recipientEmail}). Send them this
+        link — it expires{' '}
+        {props.issue.expiresAt ? formatDate(props.issue.expiresAt) : 'on the date set'}.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span
+          className="mono"
+          style={{
+            flex: 1,
+            fontSize: 12,
+            overflowWrap: 'anywhere',
+            border: '1px solid var(--border-default)',
+            borderRadius: 6,
+            padding: '6px 8px',
+          }}
+        >
+          {link}
+        </span>
+        <Button
+          size="sm"
+          variant="quiet"
+          onClick={() => {
+            void navigator.clipboard?.writeText(link);
+            setCopied(true);
+          }}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 // T-389 — ENDING A DELIVERABLE, on the screen where deliverables are read.
 // Until now there was no button for this anywhere: `superseded` was set by
 // nothing in the codebase, and withdrawal existed only as T-189's remove-from-
@@ -290,6 +449,13 @@ export function LibraryScreen() {
   // T-389 — the two lifecycle acts, each open on at most one row at a time
   const [endingItem, setEndingItem] = useState<LibraryItem | null>(null);
   const [supersedingItem, setSupersedingItem] = useState<LibraryItem | null>(null);
+  // T-431 — external issue. The settings read carries `mayIssue`, computed
+  // server-side, so the action set is assembled rather than a disabled button
+  // (T-269): a person who may not issue is offered nothing here yet, and T-432
+  // gives them the request in its place.
+  const [externalSettings, setExternalSettings] = useState<ExternalIssueSettings | null>(null);
+  const [externalItem, setExternalItem] = useState<LibraryItem | null>(null);
+  const [issued, setIssued] = useState<ExternalIssue | null>(null);
 
   const load = useCallback(() => {
     void api.library(projectId).then((res) => setItems(res.items));
@@ -299,6 +465,9 @@ export function LibraryScreen() {
   useEffect(() => {
     if (isOwner) void api.participants(projectId).then((r) => setRoster(r.items));
   }, [isOwner, projectId]);
+  useEffect(() => {
+    void api.externalIssueSettings(projectId).then(setExternalSettings, () => setExternalSettings(null));
+  }, [projectId]);
 
   // T-304 — the produced record and the material this project received are two
   // lists, split on the server's derived `kind` rather than on anything this
@@ -389,6 +558,26 @@ export function LibraryScreen() {
     setSupersedingItem(null);
   }
 
+  async function issueExternally(
+    item: LibraryItem,
+    body: {
+      recipientName: string;
+      recipientEmail: string;
+      reason: string;
+      message: string;
+      expiresInDays: number;
+    },
+  ) {
+    try {
+      const issue = await api.issueExternally(item.containerId, body);
+      setIssued(issue);
+      setNote(null);
+    } catch {
+      setNote('Could not issue outside the project — check the deliverable has a current revision.');
+    }
+    setExternalItem(null);
+  }
+
   async function transmit(item: LibraryItem, organisationId: string) {
     try {
       await api.issueTransmittal(item.containerId, [organisationId]);
@@ -426,6 +615,14 @@ export function LibraryScreen() {
           onSubmit={(replacement) => supersede(supersedingItem, replacement)}
         />
       )}
+      {externalItem && (
+        <ExternalIssueModal
+          item={externalItem}
+          onClose={() => setExternalItem(null)}
+          onSubmit={(body) => issueExternally(externalItem, body)}
+        />
+      )}
+      {issued && <ExternalIssuedModal issue={issued} onClose={() => setIssued(null)} />}
       {transmitItem && (
         <TransmitModal
           item={transmitItem}
@@ -542,6 +739,16 @@ export function LibraryScreen() {
                     {isOwner && (
                       <Button size="sm" variant="quiet" onClick={() => setTransmitItem(item)}>
                         <Send size={13} strokeWidth={2} /> Transmit
+                      </Button>
+                    )}
+                    {/* T-431 — the door out of the project (ADR-0055 §2), on
+                        the deliverable and beside the transmittal that stays
+                        inside it. Offered only to somebody the project's
+                        who-may-issue setting admits; T-432 puts the REQUEST
+                        action here for everybody else. */}
+                    {externalSettings?.mayIssue && (
+                      <Button size="sm" variant="quiet" onClick={() => setExternalItem(item)}>
+                        <Share2 size={13} strokeWidth={2} /> Issue externally…
                       </Button>
                     )}
                     {/* T-389 — the acts that did not exist. Offered to the two
