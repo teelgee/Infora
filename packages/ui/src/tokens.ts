@@ -40,6 +40,7 @@ export const designTokens = {
   'body-prose-size': 'var(--body-prose-size)',
   'body-prose-weight': 'var(--body-prose-weight)',
   'border-default': 'var(--border-default)',
+  'border-strong': 'var(--border-strong)',
   'border-subtle': 'var(--border-subtle)',
   'button-primary-background-active': 'var(--button-primary-background-active)',
   'button-primary-background-default': 'var(--button-primary-background-default)',

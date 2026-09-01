@@ -104,6 +104,7 @@
 
       "border.default":    { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
       "border.subtle":     { "light": "{primitive.color.neutral.100}", "dark": "{primitive.color.neutralDark.200}" },
+      "border.strong":     { "light": "{primitive.color.neutral.300}", "dark": "{primitive.color.neutralDark.300}", "note": "the one border step that stays visible on surface.sunken — default and subtle both sit within 3/255 of that fill (found in review, 2026-09-01)" },
 
       "text.primary":   { "light": "{primitive.color.neutral.900}", "dark": "{primitive.color.neutralDark.900}" },
       "text.secondary": { "light": "{primitive.color.neutral.600}", "dark": "{primitive.color.neutralDark.700}" },

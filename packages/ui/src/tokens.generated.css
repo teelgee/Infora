@@ -36,6 +36,7 @@
   --body-prose-size: var(--primitive-font-size-400);
   --body-prose-weight: var(--primitive-font-weight-regular);
   --border-default: var(--primitive-neutral-200);
+  --border-strong: var(--primitive-neutral-300);
   --border-subtle: var(--primitive-neutral-100);
   --button-primary-background-active: #000000;
   --button-primary-background-default: var(--action-primary-bg);
@@ -347,6 +348,7 @@
   --action-secondary-text: var(--primitive-neutral-dark-700);
   --app-frame-background: var(--primitive-neutral-dark-0);
   --border-default: var(--primitive-neutral-dark-200);
+  --border-strong: var(--primitive-neutral-dark-300);
   --border-subtle: var(--primitive-neutral-dark-200);
   --feedback-danger-text: var(--primitive-red-dark-500);
   --feedback-danger-tint: var(--primitive-red-dark-tint);

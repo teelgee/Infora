@@ -34,6 +34,7 @@ import {
   ResizeGrip,
   RunTrace,
   SegmentedControl,
+  segmentStep,
   SelectInput,
   Skeleton,
   SourceChip,
@@ -853,10 +854,11 @@ describe('T-421 — the five check rows are a flat ruled list', () => {
     // pattern from the system; T-419 stripped it from the findings panel and
     // review caught it again on the plan's sub-rows. A divider between
     // siblings is not that pattern — but only while it stays on the top edge.
-    // `border.default`, not `border.subtle`: a card is painted `surface.sunken`
-    // and `border.subtle` is a step LIGHTER than that, so the divider would be
-    // invisible on the one surface this list actually sits on
-    expect(block).toContain('border-top: 1px solid var(--border-default)');
+    // `border.strong`, and nothing lighter (review, 2026-09-01): the card is
+    // `surface.sunken` #efeeeb and BOTH lighter border steps sit within 3/255
+    // of it — the first build used `border.default` and its own photograph
+    // showed no visible divider at all
+    expect(block).toContain('border-top: 1px solid var(--border-strong)');
     expect(block).not.toContain('border-left');
     expect(css).toContain('.check-family:first-child { border-top: none;');
   });
@@ -924,14 +926,28 @@ describe('T-421 — the segmented control', () => {
   });
 
   it('carries every state, and the hover is one that can actually be seen', () => {
-    // the track is `surface.active`, so a hover painted with that — or with
-    // `surface.hover`, which resolves to the card's own fill — is invisible.
-    // The hover moves one step TOWARDS the selected position's appearance.
+    // the track is `surface.active`; the hover paints `surface.hover`, the
+    // step between the track and the selected chip — one step TOWARDS what
+    // clicking does (comment corrected in review, 2026-09-01: it previously
+    // called surface.hover invisible while asserting the rule uses it)
     expect(css).toContain('.segment:hover:not(.segment--on):not(:disabled)');
     const hover = css.slice(css.indexOf('.segment:hover'));
     expect(hover.slice(0, hover.indexOf('}'))).toContain('var(--surface-hover)');
     expect(css).toContain('.segment:focus-visible');
     expect(css).toContain('.segment:active:not(:disabled)');
     expect(css).toContain('.segment:disabled');
+  });
+
+  // (review, 2026-09-01) — the arrow keys, pinned. The first build's record
+  // said the keyboard behaviour was "verified live"; nothing repeatable backed
+  // it. The step logic is a pure exported function so this suite can hold it.
+  it('arrow keys step through the positions and wrap at both ends', () => {
+    expect(segmentStep('ArrowRight', 0, 2)).toBe(1);
+    expect(segmentStep('ArrowDown', 0, 2)).toBe(1);
+    expect(segmentStep('ArrowRight', 1, 2)).toBe(0); // wraps forward
+    expect(segmentStep('ArrowLeft', 0, 2)).toBe(1); // wraps back
+    expect(segmentStep('ArrowUp', 1, 2)).toBe(0);
+    expect(segmentStep('Enter', 0, 2)).toBe(0); // unknown key moves nowhere
+    expect(segmentStep('ArrowRight', 0, 0)).toBe(0); // empty group is inert
   });
 });

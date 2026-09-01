@@ -615,12 +615,14 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    The hairline is a TOP border on each row but the first — a divider between
    siblings, never a left-edge accent bar, which §E's migration map removed
    from the system and T-419 stripped from the findings panel.
-   `border.default` and not `border.subtle`: a `.card` is painted
-   `surface.sunken`, and `border.subtle` is a step LIGHTER than that, so a
-   divider drawn with it is invisible on the surface this list actually sits
-   on — checked on the photograph, not reasoned from the token names. */
+   `border.strong` and nothing lighter (review, 2026-09-01): a `.card` is
+   painted `surface.sunken` #efeeeb, and BOTH `border.subtle` (#f2f1ed) and
+   `border.default` (#ececea) sit within 3/255 of that fill — a divider drawn
+   with either is arithmetically present and invisible to a person, which the
+   first build shipped and its own photograph disproved. `border.strong` is
+   the one step that reads on a sunken surface, in both themes. */
 .check-families { display: flex; flex-direction: column; margin-top: 12px; }
-.check-family { padding: 12px 0; border-top: 1px solid var(--border-default); }
+.check-family { padding: 12px 0; border-top: 1px solid var(--border-strong); }
 .check-family:first-child { border-top: none; padding-top: 4px; }
 .check-family:last-child { padding-bottom: 0; }
 .check-family-head { display: flex; align-items: center; gap: 8px; }
@@ -843,9 +845,10 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    appearance — lighter in light mode, darker in dark — rather than away from
    it, which is both the honest preview of what clicking does and the only
    direction with a step left: the track is already `surface.active`, so a
-   hover painted with that (or with `surface.hover`, which resolves to the
-   card's own fill) would be invisible. Verified on a photograph of the hover
-   state, not reasoned from the token names. */
+   hover painted with THAT would be invisible — `surface.hover` is the step
+   between the track and the selected chip, which is exactly the preview
+   wanted (comment corrected in review, 2026-09-01: it previously described
+   the very value the rule below uses as the invisible one). */
 .segment:hover:not(.segment--on):not(:disabled) {
   background: var(--surface-hover); color: var(--text-primary);
 }

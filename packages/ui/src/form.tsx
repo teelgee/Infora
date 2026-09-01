@@ -92,6 +92,19 @@ export function TextArea(props: {
  * the way they do in any radio group, and only the selected position is in the
  * tab order — so the control is one tab stop, not one per option.
  */
+/**
+ * Which position an arrow key lands on: wraps at both ends, and an unknown
+ * key moves nowhere. Pure and exported so the keyboard behaviour is PINNED
+ * by a test — the first build's record claimed the arrow keys were verified
+ * and nothing repeatable backed the claim (review, 2026-09-01).
+ */
+export function segmentStep(key: string, index: number, count: number): number {
+  if (count <= 0) return index;
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1 + count) % count;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + count) % count;
+  return index;
+}
+
 export function SegmentedControl<T extends string>(props: {
   value: T;
   onChange: (value: T) => void;
@@ -134,12 +147,10 @@ export function SegmentedControl<T extends string>(props: {
             className={selected ? 'segment segment--on' : 'segment'}
             onClick={() => props.onChange(option.value)}
             onKeyDown={(e) => {
-              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+              const nextIndex = segmentStep(e.key, index, props.options.length);
+              if (nextIndex !== index) {
                 e.preventDefault();
-                move(1);
-              } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                move(-1);
+                move(nextIndex - index);
               }
             }}
           >

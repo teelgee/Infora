@@ -26,7 +26,7 @@ export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 export { Modal, Drawer } from './dialog';
 // T-421 — SegmentedControl: a pick-one-of-two-or-three drawn as one control
 // rather than a row of buttons (design-rules §B)
-export { Field, TextInput, TextArea, SegmentedControl, SelectInput, Combobox } from './form';
+export { Field, TextInput, TextArea, SegmentedControl, segmentStep, SelectInput, Combobox } from './form';
 export { Table } from './table';
 export { Skeleton } from './skeleton';
 export { ProjectCard } from './project-card';
