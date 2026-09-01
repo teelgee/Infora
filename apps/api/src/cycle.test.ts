@@ -1111,12 +1111,26 @@ trailer << /Root 1 0 R >>
     // the ruling: format coverage is text-extractable only, and an unsupported
     // document fails loudly and per-document. Nothing is written — a scan does
     // not sit in the sandbox as an opaque blob waiting to be missed.
-    const before = await db.select().from(s.sandboxDocuments);
+    //
+    // ⚠ SCOPED TO THIS PROJECT (found 2026-09-01, T-418). This count was over
+    // the WHOLE table, and the suite shares one database with concurrently
+    // running files — so it raced against whatever a neighbouring suite
+    // inserted in the window between the two reads, and failed the moment a
+    // new suite started creating documents. The claim under test is about what
+    // THIS upload wrote, and this project is what it could have written into.
+    // Same fix, same reason, as `qa-check.test.ts`'s own scoped count.
+    const count = async () =>
+      (
+        await db
+          .select()
+          .from(s.sandboxDocuments)
+          .where(eq(s.sandboxDocuments.projectId, projectId))
+      ).length;
+    const before = await count();
     const res = await upload(scannedPdf(), 'Advice Note (scanned).pdf');
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'invalid', detail: 'pdf_no_text' });
-    const after = await db.select().from(s.sandboxDocuments);
-    expect(after.length).toBe(before.length);
+    expect(await count()).toBe(before);
   });
 
   it('does not offer a PDF to the editor — it is the record, not a draft', async () => {

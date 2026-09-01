@@ -1046,3 +1046,18 @@ are not recorded here.
   contracts principle 3: identity comes off the resolved session, and a
   "who saved it" field would be a way to write somebody else's name onto a
   record.
+
+- **2026-09-01 (T-418) — `qaCheckBody` gains an optional `conversationId`.**
+  *Plainly: the browser can now open the conversation a check will hang off
+  before starting the check, so it can watch the run's steps tick off while the
+  request is still in flight.* The **reason** is that the run endpoint is one
+  blocking request that returns when the whole check is done — so the browser
+  could not learn the run's id from it until far too late to show progress, and
+  matching on the request text or on "the newest run" would be a guess that is
+  wrong exactly when two checks are started at once. A conversation the caller
+  owns is the honest handle. **What this does not do** is add engine state or a
+  second run shape: a tool run has always opened a Conversation like every
+  other run (ADR-0028 §1), and this moves *when* that row is created, not
+  *what* is created — a caller passing none gets the previous behaviour
+  unchanged. The id is checked against the requester's own project before use,
+  so it is not a way to attach a run to somebody else's thread.

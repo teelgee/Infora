@@ -61,6 +61,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookmarkPlus,
+  Check,
   ClipboardCheck,
   FileText,
   Plus,
@@ -1615,6 +1616,81 @@ export function CheckPlanCard(props: { plan: ToolPlan; busy: boolean; onRun: () 
   );
 }
 
+/**
+ * T-418 — THE RUN-PROGRESS BOX.
+ *
+ * *In plain terms: once a check is running, the plan's steps stay on screen and
+ * tick off as each one finishes, so a long run reads as working rather than
+ * hung.*
+ *
+ * 🔒 **NO NEW ENGINE STATE.** Every step of a run already opens a Step row and
+ * closes it — that is ADR-0028's append-only tree, and it has been there since
+ * the skeleton. This box reads those rows and nothing else. It computes no
+ * progress of its own, invents no percentage, and asks the engine for nothing
+ * it was not already recording.
+ *
+ * 🔒 **IT DEGRADES HONESTLY.** A poll that fails says *the run is still going
+ * and this page will catch up* — never a stall, never a false "stuck", and
+ * never a silent freeze at whatever number it last saw. The run is a server-side
+ * fact; a browser that lost sight of it has learned something about the browser.
+ *
+ * **The plan's own steps are the scale**, not the rows returned: a run that has
+ * opened two of six rows is two-of-six done, and counting only what came back
+ * would show "2 of 2" and call it finished.
+ */
+export function RunProgress(props: {
+  /** the same step list the plan showed — the scale, and the labels */
+  plan: ToolPlan;
+  /** completed step count, from the run's own rows; null before the first poll */
+  completed: number | null;
+  /** true where the last poll did not answer */
+  lost: boolean;
+}) {
+  const total = props.plan.steps.length;
+  const done = Math.min(props.completed ?? 0, total);
+  return (
+    <Card>
+      <span className="card-title">Running the check</span>
+      <p className="card-lede">
+        {props.completed === null
+          ? 'The run has started. Its steps will tick off here as each one finishes.'
+          : `${done} of ${total} step${total === 1 ? '' : 's'} finished.`}
+      </p>
+      <ol className="plan-workflow">
+        {props.plan.steps.map((step, index) => {
+          const finished = index < done;
+          const current = index === done && !props.lost;
+          return (
+            <li
+              key={step.key}
+              className={
+                finished
+                  ? 'plan-workflow-step plan-workflow-step--done'
+                  : current
+                    ? 'plan-workflow-step plan-workflow-step--now'
+                    : 'plan-workflow-step'
+              }
+            >
+              <span className="plan-workflow-n">
+                {finished ? <Check size={12} strokeWidth={2.5} /> : index + 1}
+              </span>
+              <span className="plan-workflow-label">{step.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {props.lost && (
+        // honest degradation: the run is a server-side fact, and a browser that
+        // lost sight of it has learned something about the browser
+        <p className="field-hint">
+          This page could not read the run’s progress just now. The check is still going — the
+          result will appear here when it finishes.
+        </p>
+      )}
+    </Card>
+  );
+}
+
 export function QaCheckerScreen() {
   const { projectId } = useParams();
   const [params] = useSearchParams();
@@ -1644,6 +1720,13 @@ export function QaCheckerScreen() {
   const [result, setResult] = useState<QaCheckRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // T-418 — the run in flight: the conversation opened before it so it can be
+  // looked up, how many of its steps have closed, and whether the last poll
+  // answered. `running === null` is "no run in flight", which is a different
+  // state from "a run whose progress we have not read yet" (`completed: null`).
+  const [running, setRunning] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<number | null>(null);
+  const [lost, setLost] = useState(false);
 
   useEffect(() => {
     if (projectId === undefined) return;
@@ -1700,16 +1783,88 @@ export function QaCheckerScreen() {
       .finally(() => setBusy(false));
   };
 
-  const run = () => {
+  /**
+   * T-418 — start the run, having first opened the conversation it will hang
+   * off, so the poll below has something to look it up by.
+   *
+   * **The conversation is opened first and the run id is never guessed.** The
+   * run endpoint is one blocking request that returns when the whole check is
+   * done, so the browser cannot learn the run's id from it until far too late;
+   * matching on a request string or on "the newest run" would be a guess that
+   * is wrong exactly when two checks are started at once. A conversation the
+   * caller owns is the honest handle.
+   *
+   * **A conversation that could not be opened is not a failure to run.** The
+   * check proceeds without one; what is lost is the progress box, and losing
+   * the progress box is not a reason to refuse somebody their check.
+   */
+  const run = async () => {
     if (projectId === undefined) return;
     setBusy(true);
     setError(null);
-    void api
-      .qaCheckRun(projectId, body(), uploads)
-      .then(setResult)
-      .catch((problem: Error) => setError(problem.message))
-      .finally(() => setBusy(false));
+    setCompleted(null);
+    setLost(false);
+    let conversationId: string | undefined;
+    try {
+      conversationId = (await api.createConversation(projectId)).conversationId;
+      setRunning(conversationId);
+    } catch {
+      setRunning(null);
+    }
+    try {
+      setResult(
+        await api.qaCheckRun(
+          projectId,
+          { ...body(), ...(conversationId !== undefined && { conversationId }) },
+          uploads,
+        ),
+      );
+    } catch (problem) {
+      setError((problem as Error).message);
+    } finally {
+      // whichever way it ended, the run is no longer in flight — a progress box
+      // left on screen beside a result would be two answers to "is it done"
+      setRunning(null);
+      setBusy(false);
+    }
   };
+
+  /**
+   * T-418 — the poll, and it reads the Run/Step rows that already exist.
+   *
+   * It counts **closed steps of the run this conversation holds**, against the
+   * plan's own step count as the scale. Counting the rows that came back
+   * instead would show "2 of 2" on a run that had opened two of six rows and
+   * call it finished.
+   *
+   * **A run that finishes between polls is handled by the request itself**: the
+   * blocking POST resolves, `running` clears, and the result card replaces the
+   * box. The poll is never the thing that decides a run is over.
+   */
+  useEffect(() => {
+    if (running === null || projectId === undefined) return;
+    let live = true;
+    const tick = async () => {
+      try {
+        const conversation = await api.conversation(running);
+        if (!live) return;
+        const steps = conversation.runs.flatMap((entry) => entry.steps);
+        setCompleted(steps.filter((step) => step.status !== 'running').length);
+        setLost(false);
+      } catch {
+        // honest degradation (ADR-0053 §4's spirit): the count is left where it
+        // was and the box says the page could not read it, rather than freezing
+        // at a number that now means nothing or claiming the run is stuck
+        if (live) setLost(true);
+      }
+    };
+    void tick();
+    const timer = setInterval(() => void tick(), 1500);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [running, projectId]);
 
   return (
     <div className="content">
@@ -1894,7 +2049,19 @@ export function QaCheckerScreen() {
 
       {error !== null && <div className="banner banner--warning">{error}</div>}
 
-      {plan !== null && <CheckPlanCard plan={plan} busy={busy} onRun={run} />}
+      {/* 🔒 The plan card is hidden ONLY while the run is in flight — the same
+          steps are on screen as the progress box, and two copies of one list
+          would be two answers to "what is running". It comes BACK beside the
+          result, because ADR-0053 §5's whole design is that the before and
+          after coverage sentences are read against each other in one frame:
+          "6 sections" beside "6 of 6 sections read" is a fact the reader meets
+          rather than one they have to go looking for. */}
+      {plan !== null && running === null && (
+        <CheckPlanCard plan={plan} busy={busy} onRun={() => void run()} />
+      )}
+      {plan !== null && running !== null && (
+        <RunProgress plan={plan} completed={completed} lost={lost} />
+      )}
 
       {result !== null && (
         <Card>

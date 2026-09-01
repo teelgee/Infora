@@ -56,7 +56,7 @@ import type { CapabilityRegistry, ChainLeaves, RunAttachment } from '@infora/orc
 import { extractText } from './extract';
 import type { ExtractableFormat } from './extract';
 import { writeFindings } from './findings';
-import { projectScope } from './requester';
+import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
 
 export const QA_CHECK_WORKFLOW = 'qa-check';
@@ -348,10 +348,23 @@ export function qaCheckRoutes(deps: {
     // A tool run is a run, so it gets a Conversation like any other — the
     // Run/Step tree has one shape (ADR-0028 §1) and a second one for tools
     // would be a second audit story.
-    const conversation = await createConversation(deps.db, {
-      projectId: slice.projectId,
-      surface: 'web',
-    });
+    //
+    // T-418 — **the caller may have opened it already**, so that it can watch
+    // this run's own Step rows tick off while this request is still in flight.
+    // That moves *when* the row is created and not *what* is created: a caller
+    // that passes none gets exactly the behaviour above. **The id is checked
+    // against this requester's own project first**, so it is not a way to hang
+    // a run off somebody else's thread — a conversation elsewhere reads as
+    // nonexistence, principle 4, rather than as a refusal that confirms it.
+    let conversationId = computed.body.conversationId;
+    if (conversationId !== undefined) {
+      const home = await resourceHomes.conversation(deps.db, conversationId);
+      if (home?.projectId !== slice.projectId) return notFound(c);
+    } else {
+      conversationId = (
+        await createConversation(deps.db, { projectId: slice.projectId, surface: 'web' })
+      ).id as Id;
+    }
     const workers =
       deps.workers?.assemble({
         slice,
@@ -363,7 +376,7 @@ export function qaCheckRoutes(deps: {
     let outputs: Record<string, unknown>;
     try {
       const executed = await runChain(deps.db, deps.leaves, {
-        conversationId: conversation.id as Id,
+        conversationId,
         request: `Check ${computed.body.sandboxDocumentId} — ${computed.body.families.join(', ')}, ${computed.body.depth}`,
         environmentKey: slice.projectId,
         requesterParticipantId: slice.participantId,

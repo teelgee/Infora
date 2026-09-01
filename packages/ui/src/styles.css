@@ -466,6 +466,22 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 }
 .plan-workflow-label { font-size: 12.5px; line-height: 1.55; padding-top: 1px; }
 
+/* T-418 — the same workflow, watched. A finished step is marked and steps back;
+   the one in flight is the only thing carrying emphasis, because a progress box
+   where everything is emphasised says nothing about where the run is. */
+/* the success tone is the design system's STATUS vocabulary, which is what a
+   finished step is (§A: colour is reserved for status and tracked changes, and
+   this is the first) — not generic emphasis, which stays monochrome */
+.plan-workflow-step--done .plan-workflow-n {
+  border-color: var(--feedback-success-dot);
+  color: var(--feedback-success-text);
+}
+.plan-workflow-step--done .plan-workflow-label { color: var(--text-muted); }
+.plan-workflow-step--now .plan-workflow-n {
+  border-color: var(--text-primary); color: var(--text-primary);
+}
+.plan-workflow-step--now .plan-workflow-label { font-weight: 600; }
+
 /* the row of buttons that follows a card, on the same 12px rhythm */
 .card-actions { display: flex; gap: 8px; margin-bottom: 12px; }
 

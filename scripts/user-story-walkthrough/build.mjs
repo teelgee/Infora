@@ -675,6 +675,15 @@ const toolSections = [
         adrs: ['ADR-0053'],
       },
       {
+        img: 't2-06-progress',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'A running check shows its steps completing',
+        prose:
+          'The run starts and the plan’s own steps stay on screen, ticking off as each one finishes — the list a person read is the list they watch. It is not a spinner and it is not a percentage: it counts the run’s own step rows, which the engine has recorded since the skeleton, against the plan’s own step count. Counting only what the poll returned would show <em>two of two</em> on a run that had opened two rows of six and call it finished. Nothing about the engine changed for this; what changed is that the browser opens the run’s conversation before starting it, so it has a handle to look the run up by while the request is still in flight. And it degrades honestly: a poll that does not answer says the check is still going and the page will catch up, never that it is stuck — the run is a fact on the server, and a browser that has lost sight of it has learned something about the browser.',
+        adrs: ['ADR-0053', 'ADR-0028'],
+      },
+      {
         img: 't2-06-run',
         lane: CONSULTANT,
         screen: 'Tools · QA checker',

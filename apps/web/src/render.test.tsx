@@ -39,6 +39,7 @@ import {
   AgentPane,
   LibraryScopeCopy,
   ProposedDocumentCard,
+  RunProgress,
   SectionComposer,
   SourceRow,
   StyleGuidePicker,
@@ -1329,5 +1330,86 @@ describe('T-416 — one search behaviour, matched the same way in both pickers',
     // most of a real corpus predates the description column
     expect(matchesQuery([null, 'Title'], 'title')).toBe(true);
     expect(matchesQuery([null], 'x')).toBe(false);
+  });
+});
+
+// ── T-418 — A RUNNING CHECK SHOWS ITS STEPS COMPLETING ─────────────────────
+//
+// *In plain terms: once a check is running, the plan's steps stay on screen and
+// tick off as each one finishes, so a long run reads as working rather than
+// hung.*
+//
+// The two properties worth pinning are the honest ones: the SCALE is the plan's
+// own step list rather than whatever the poll returned, and a poll that failed
+// says so rather than freezing at a number that no longer means anything.
+describe('T-418 — the run-progress box', () => {
+  const plan: ToolPlan = {
+    workflowId: 'qa-check',
+    workflowVersion: 3,
+    steps: [
+      { key: 'a', stage: 'analyse', worker: 'qa_section_check', label: 'Read section 1', estimate: { calls: 1, tokensPrompt: 1, tokensCompletion: 1, cost: 0 } },
+      { key: 'b', stage: 'analyse', worker: 'qa_section_check', label: 'Read section 2', estimate: { calls: 1, tokensPrompt: 1, tokensCompletion: 1, cost: 0 } },
+      { key: 'c', stage: 'present', worker: 'qa_document_check', label: 'Total up what was read', estimate: { calls: 0, tokensPrompt: 0, tokensCompletion: 0, cost: 0 } },
+    ],
+    coverage: '2 sections · 5 checks',
+    cost: { total: 0, priced: true },
+    refusal: null,
+  };
+
+  it('shows the plan’s OWN steps, and counts against the plan’s own total', () => {
+    // counting the rows that came back instead would show "2 of 2" on a run
+    // that had opened two of three and call it finished
+    const html = renderToStaticMarkup(<RunProgress plan={plan} completed={2} lost={false} />);
+    expect(html).toContain('2 of 3 steps finished');
+    expect(html).toContain('Read section 1');
+    expect(html).toContain('Total up what was read');
+  });
+
+  it('says it has started before the first poll has answered', () => {
+    // "0 of 3" would be a claim about the run; "it has started" is a claim
+    // about what this page knows, which is the only one it can make yet
+    const html = renderToStaticMarkup(<RunProgress plan={plan} completed={null} lost={false} />);
+    expect(html).toContain('The run has started');
+    expect(html).not.toContain('0 of 3');
+  });
+
+  it('🔒 DEGRADES HONESTLY: a failed poll says the run continues, never that it is stuck', () => {
+    const html = renderToStaticMarkup(<RunProgress plan={plan} completed={1} lost />);
+    expect(html).toContain('could not read the run’s progress');
+    expect(html).toContain('The check is still going');
+    // the count it last had is kept rather than reset or zeroed
+    expect(html).toContain('1 of 3 steps finished');
+    expect(html.toLowerCase()).not.toContain('stuck');
+    expect(html.toLowerCase()).not.toContain('failed');
+  });
+
+  it('never reports more finished than the plan has steps', () => {
+    // a run whose rows outnumber the plan's steps is a disagreement to survive,
+    // not to render as "5 of 3"
+    const html = renderToStaticMarkup(<RunProgress plan={plan} completed={5} lost={false} />);
+    expect(html).toContain('3 of 3 steps finished');
+  });
+
+  it('🔒 the plan card is hidden only WHILE running, and comes back beside the result', () => {
+    // ADR-0053 §5's whole design is the two coverage sentences read against
+    // each other in one frame — "6 sections" beside "6 of 6 sections read".
+    // Hiding the plan once a result arrives would take that away.
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('{plan !== null && running === null && (');
+    expect(source).not.toContain('running === null && result === null');
+  });
+
+  it('🔒 INVENTS NO ENGINE STATE — it reads the rows and computes nothing else', () => {
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    const start = source.indexOf('export function RunProgress');
+    const end = source.indexOf('export function QaCheckerScreen');
+    const body = source.slice(start, end);
+    // no percentage, no elapsed-time guess, no estimate of what is left: every
+    // one of those would be the surface asserting something the run has not
+    expect(body).not.toContain('%');
+    expect(body).not.toContain('Date.now');
+    // and the poll counts CLOSED step rows, which is state the engine already
+    // keeps — the run's own append-only tree (ADR-0028)
+    expect(source).toContain("step.status !== 'running'");
   });
 });

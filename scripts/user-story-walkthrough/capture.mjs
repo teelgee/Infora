@@ -1031,7 +1031,18 @@ await e
 await e.waitForTimeout(200);
 await shot(e, 't2-05-plan');
 
+// T-418 — the run in flight. The progress box replaces the plan card the
+// moment the run starts, so this frame is taken WITHOUT waiting for the
+// result: the shot is of a check working, which is the whole point of the box.
+// It is raced against a fast stand-in router deliberately — if the run beats
+// the screenshot the box is gone, so the click and the frame are as close
+// together as the harness allows, and the beat says so if it comes back empty.
 await e.getByRole('button', { name: 'Run the check' }).click();
+await e.getByText('Running the check').waitFor({ timeout: 30_000 });
+await shot(e, 't2-06-progress');
+
+// the SAME run finishing — the progress box gives way to the result card when
+// the blocking request resolves. Clicking again would start a second check.
 await e.getByText('What was checked').waitFor({ timeout: 60_000 });
 // the result card is the LAST thing on a long form. `block: 'end'` aligns its
 // HEADING with the bottom edge and leaves the coverage sentence under it out of

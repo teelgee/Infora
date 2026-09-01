@@ -2603,6 +2603,25 @@ export const qaCheckBody = z.object({
   attachedDocumentIds: z.array(id).default([]),
   /** completeness checks against this; absent runs the placeholder half only */
   templateId: z.string().optional(),
+  /**
+   * T-418 — a conversation the caller opened **before** the run, so it can
+   * watch the run's own Step rows tick off while the request is still in
+   * flight.
+   *
+   * *In plain terms: a long check should read as working rather than hung, and
+   * the only way a browser can show that is to be able to look the run up
+   * before it finishes.*
+   *
+   * 🔒 **THIS ADDS NO ENGINE STATE AND NO SECOND RUN SHAPE.** A tool run has
+   * always opened a Conversation like every other run (ADR-0028 §1); until now
+   * the endpoint opened it itself and the caller learned its id only in the
+   * response — which is far too late to watch anything. Passing one in moves
+   * *when* the row is created, not *what* is created, and a caller that passes
+   * none gets exactly the previous behaviour. The id is checked against the
+   * requester's own project before it is used, so this is not a way to attach
+   * a run to somebody else's thread.
+   */
+  conversationId: id.optional(),
 });
 export type QaCheckBody = z.infer<typeof qaCheckBody>;
 

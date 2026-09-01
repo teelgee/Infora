@@ -578,3 +578,63 @@ describe('T-416 — a scope narrowed by search is stated in the plan, exactly as
     expect(plan.coverage).not.toContain('the whole library');
   });
 });
+
+// ── T-418 — the run can be WATCHED while it happens ────────────────────────
+//
+// *In plain terms: a long check should read as working rather than hung, and
+// the only way a browser can show that is to be able to look the run up before
+// it finishes.*
+//
+// **No engine state is added by any of this.** A tool run has always opened a
+// Conversation like every other run, and every step has always opened and
+// closed a Step row (ADR-0028's append-only tree). What changed is *when* the
+// conversation row is created: the caller may open it first, so it has a handle
+// to poll by. A caller that passes none gets exactly the previous behaviour.
+describe('T-418 — a caller-opened conversation is the handle a run is watched by', () => {
+  const openConversation = async () => {
+    const res = await post(`/projects/${projectId}/conversations`, { surface: 'web' });
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { conversationId: string }).conversationId;
+  };
+
+  it('hangs the run off the conversation the caller opened, so it is findable', async () => {
+    const conversationId = await openConversation();
+    const res = await post(`/projects/${projectId}/tools/qa-check/runs`, body({ conversationId }));
+    expect(res.status).toBe(201);
+    const run = (await res.json()) as QaCheckRunResponse;
+    expect(run.run.conversationId).toBe(conversationId);
+
+    // and the run is reachable through that conversation, with the Step rows
+    // the progress box counts — this is the read the poll makes
+    const read = await app.request(`/conversations/${conversationId}`, { headers: { cookie } });
+    expect(read.status).toBe(200);
+    const { runs } = (await read.json()) as { runs: Array<{ id: string; steps: unknown[] }> };
+    expect(runs.map((entry) => entry.id)).toContain(run.run.id);
+    expect(runs[0]!.steps.length).toBeGreaterThan(0);
+  });
+
+  it('opens one itself when the caller passes none — the previous behaviour, unchanged', async () => {
+    const res = await post(`/projects/${projectId}/tools/qa-check/runs`, body());
+    expect(res.status).toBe(201);
+    const run = (await res.json()) as QaCheckRunResponse;
+    expect(run.run.conversationId).toBeTruthy();
+  });
+
+  it('🔒 a conversation on another project is NONEXISTENCE, not a refusal', async () => {
+    // it must not be a way to hang a run off somebody else's thread, and the
+    // 404 is principle 4: a refusal that said "not yours" would confirm it
+    const [elsewhere] = await db
+      .insert(s.projects)
+      .values({ name: `t418 elsewhere ${stamp}`, ownerOrganisationId: organisationId })
+      .returning();
+    const [foreign] = await db
+      .insert(s.conversations)
+      .values({ projectId: elsewhere!.id, surface: 'web' })
+      .returning();
+    const res = await post(
+      `/projects/${projectId}/tools/qa-check/runs`,
+      body({ conversationId: foreign!.id }),
+    );
+    expect(res.status).toBe(404);
+  });
+});
