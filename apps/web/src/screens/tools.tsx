@@ -20,9 +20,11 @@
 // here: the form's state survives the plan being shown, and changing any field
 // discards the plan rather than the answers.
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import type {
   CheckFamily,
+  CheckFamilyDescriptor,
   CorpusDepth,
   CreatorOption,
   DocumentCreationRunResponse,
@@ -1297,6 +1299,96 @@ export function AttachedCopy() {
 }
 
 /**
+ * T-415 — ONE CHECK IN THE LIST: its tick, its name, and its own options
+ * unfolding underneath when it is on.
+ *
+ * *In plain terms: each check gets a tick-box, and ticking it opens that
+ * check's own settings beneath it.*
+ *
+ * 🔒 **THE OPTIONS ARE A PROPERTY OF THE CHECK, NOT OF THE RUN**, which is
+ * ADR-0053 §2's own rule — it declares the grain per family precisely because
+ * the five are different enough that one setting cannot serve them. A launcher
+ * with a global settings block invites the next option onto it, and the shipped
+ * one had already collected the corpus check's search depth that way. There is
+ * no global block left to collect the next one.
+ *
+ * **Nothing unfolds under an unticked check**, and that is the honest form: a
+ * setting for a check that will not run is a control with no effect, which is
+ * worse than an absent one because it looks like it has one.
+ */
+export function CheckFamilyRow(props: {
+  entry: CheckFamilyDescriptor;
+  checked: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={props.checked ? 'check-family check-family--on' : 'check-family'}>
+      <label className="check-family-head">
+        <input type="checkbox" checked={props.checked} onChange={props.onToggle} />
+        <span className="check-family-name">{props.entry.label}</span>
+        {props.entry.execution === 'code' && <Badge tone="neutral">No AI</Badge>}
+      </label>
+      <p className="check-family-desc">{props.entry.description}</p>
+      {props.checked && props.children !== undefined && (
+        <div className="check-family-options">{props.children}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * T-415 — what ticking **House style** will actually apply.
+ *
+ * *In plain terms: the style check does not let you pick rules. The project's
+ * style guides and your firm's own manual bind you either way, so this says
+ * which of them are loaded rather than offering a choice nobody has.*
+ *
+ * Three states, all three said out loud, for `StyleGuidePicker`'s reason one
+ * tool along: **"none loaded"** and **"could not be read"** are different facts
+ * about a project, and a check that conflated them would let a project nobody
+ * had set up read exactly like one that was deliberately left plain. The firm's
+ * own manual is named as always applying, because it does (ADR-0053 §3) and a
+ * screen listing only the project's guides would read as though it did not.
+ */
+export function StyleSourcesNote(props: { guides: StyleGuideRecord[] | null }) {
+  if (props.guides === null) {
+    return (
+      <p className="field-hint">
+        This project’s style guides could not be read, so this check cannot say which rules it will
+        apply. That is not the same as there being none — reload the page before running it.
+      </p>
+    );
+  }
+  return (
+    <>
+      <span className="field-label">Rules this check will apply</span>
+      {props.guides.length === 0 ? (
+        <p className="field-hint">
+          No project style guide is loaded, so this check reads the draft against your firm’s own
+          manual alone.
+        </p>
+      ) : (
+        <ul className="check-style-sources">
+          {props.guides.map((guide) => (
+            <li key={guide.id}>
+              {guide.title}{' '}
+              <span className="style-guide-clauses">
+                {guide.clauses} clause{guide.clauses === 1 ? '' : 's'}
+              </span>
+            </li>
+          ))}
+          <li>Your firm’s own manual, where the project’s guides are silent.</li>
+        </ul>
+      )}
+      <p className="field-hint">
+        The project’s guide wins where the two disagree; your firm’s fills the gaps.
+      </p>
+    </>
+  );
+}
+
+/**
  * The plan, **rendered and not editable** (ADR-0053 §4, §12).
  *
  * The user shapes it by changing parameters and it regenerates; hand-editing a
@@ -1369,6 +1461,10 @@ export function QaCheckerScreen() {
   // the request carries them, are parsed server-side for the run, and are
   // stored nowhere: leaving the page loses them, which is the design.
   const [uploads, setUploads] = useState<File[]>([]);
+  // T-415 — the rules the style check will apply. `null` is "could not be
+  // read", which is NOT "none loaded" — the same distinction the creator's own
+  // picker keeps, and for the same reason.
+  const [styleGuides, setStyleGuides] = useState<StyleGuideRecord[] | null>(null);
 
   const [plan, setPlan] = useState<ToolPlan | null>(null);
   const [result, setResult] = useState<QaCheckRunResponse | null>(null);
@@ -1381,6 +1477,10 @@ export function QaCheckerScreen() {
       .sandboxDocuments(projectId)
       .then((res) => setDrafts(res.items))
       .catch(() => setDrafts([]));
+    void api
+      .styleGuides(projectId)
+      .then((res) => setStyleGuides(res.items.filter((guide) => guide.retiredAt === null)))
+      .catch(() => setStyleGuides(null));
   }, [projectId]);
 
   /** Any change to the answers discards the PLAN and keeps the ANSWERS. */
@@ -1465,54 +1565,74 @@ export function QaCheckerScreen() {
       </Card>
 
       <Card>
-        <strong>How hard to look</strong>
-        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+        <span className="card-title">Which checks to run</span>
+        <p className="card-lede">
+          Tick a check and its own settings appear underneath it. Start from a preset if you like —
+          it is a starting point, not a mode, and every part of it stays adjustable afterwards.
+        </p>
+        <div className="check-presets">
           {CHECK_PRESETS.map((entry) => (
             <Button
               key={entry.id}
-              variant={preset === entry.id ? 'primary' : undefined}
+              size="sm"
+              variant={preset === entry.id ? 'primary' : 'quiet'}
               onClick={() => choosePreset(entry.id)}
             >
               {entry.label}
             </Button>
           ))}
         </div>
-        <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>
+        <p className="field-hint">
           {CHECK_PRESETS.find((entry) => entry.id === preset)?.description}
         </p>
-        {/* the presets set the families and the depth together and STAY
-            individually adjustable — a preset is a starting point, not a mode */}
-        <div style={{ marginTop: 8 }}>
+
+        <div className="check-families">
           {CHECK_FAMILY_CATALOGUE.map((entry) => (
-            <label key={entry.family} style={{ display: 'block', marginTop: 4 }}>
-              <input
-                type="checkbox"
-                checked={families.includes(entry.family)}
-                onChange={() => toggleFamily(entry.family)}
-              />{' '}
-              <strong>{entry.label}</strong>
-              {entry.execution === 'code' && (
-                <>
-                  {' '}
-                  <Badge tone="neutral">No AI</Badge>
-                </>
+            <CheckFamilyRow
+              key={entry.family}
+              entry={entry}
+              checked={families.includes(entry.family)}
+              onToggle={() => toggleFamily(entry.family)}
+            >
+              {/* 🔒 T-415 — THE OPTIONS BELONG TO THE CHECK, NOT TO THE RUN.
+                  ADR-0053 §2 has always ruled the record's search depth a
+                  property of the corpus check alone; the shipped launcher
+                  rendered it as a global "How hard to look" control at the foot
+                  of the card, which is a build error the owner caught by
+                  reading the screen ("I thought this was only for certain
+                  checks"). It now unfolds under Accuracy's own tick, which is
+                  where §2 always put it, and there is no global control left
+                  for a later ticket to grow options onto. */}
+              {entry.family === 'corpus_accuracy' && (
+                <Field label="How hard to look">
+                  <SelectInput
+                    value={depth}
+                    onChange={(value) => change(setDepth)(value === 'quick' ? 'quick' : 'full')}
+                    options={[
+                      {
+                        value: 'full',
+                        label: 'Statement by statement (slower, catches buried figures)',
+                      },
+                      {
+                        value: 'quick',
+                        label: 'Once per section (faster, will miss a buried figure)',
+                      },
+                    ]}
+                  />
+                </Field>
               )}
-              <div style={{ color: 'var(--text-muted)', marginLeft: 22 }}>{entry.description}</div>
-            </label>
+              {/* T-415 — ticking style says WHICH RULES will be applied. The
+                  checker does not choose its style material — the project's
+                  guides and the firm's own manual bind it (ADR-0053 §3) — so
+                  this is a statement rather than a picker, and its three states
+                  are the StyleGuidePicker's three for the same reason: "none
+                  loaded" and "could not be read" are different facts about a
+                  project and a check that conflated them would let a project
+                  nobody had set up look like a deliberate choice. */}
+              {entry.family === 'style' && <StyleSourcesNote guides={styleGuides} />}
+            </CheckFamilyRow>
           ))}
         </div>
-        {families.includes('corpus_accuracy') && (
-          <Field label="How the project record is searched">
-            <SelectInput
-              value={depth}
-              onChange={(value) => change(setDepth)(value === 'quick' ? 'quick' : 'full')}
-              options={[
-                { value: 'full', label: 'Statement by statement (slower, catches buried figures)' },
-                { value: 'quick', label: 'Once per section (faster, will miss a buried figure)' },
-              ]}
-            />
-          </Field>
-        )}
       </Card>
 
       <Card>

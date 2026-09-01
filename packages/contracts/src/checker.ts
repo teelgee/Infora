@@ -80,7 +80,13 @@ export const CHECK_FAMILY_CATALOGUE: readonly CheckFamilyDescriptor[] = [
   },
   {
     family: 'corpus_accuracy',
-    label: 'Accuracy against the record',
+    // T-415 (owner, 2026-09-01) — the on-screen name is **Accuracy**. The
+    // longer *"Accuracy against the record"* was the family's whole job
+    // written into its label, which left no room for the options that now
+    // unfold under it — the scope it checks against, and how hard it looks —
+    // to say the same thing better. The `description` below still names the
+    // record, so nothing about what it does is lost.
+    label: 'Accuracy',
     description:
       'Reads each section against what the project library actually says, and cites the passage behind every finding. Where the library is silent it says nothing rather than guessing.',
     grain: 'section',

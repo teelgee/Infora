@@ -27,9 +27,10 @@ import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
-import { DOCUMENT_PURPOSE_CATALOGUE } from '@infora/contracts';
+import { CHECK_FAMILY_CATALOGUE, DOCUMENT_PURPOSE_CATALOGUE } from '@infora/contracts';
 import {
   AttachedCopy,
+  CheckFamilyRow,
   CheckPlanCard,
   ChosenNote,
   AgentPane,
@@ -38,6 +39,7 @@ import {
   SectionComposer,
   SourceRow,
   StyleGuidePicker,
+  StyleSourcesNote,
   ToolCard,
 } from './screens/tools';
 
@@ -1069,5 +1071,107 @@ describe('T-413 — the creator starts from a working-area location, never from 
     // no deliverable, no title, no reference riding along — a doorway that
     // passed those would re-open at the back what the ruling closed at the front
     expect(sandbox).not.toContain('tools/document-creation?containerId=');
+  });
+});
+
+// ── T-415 — TICK A CHECK, SEE ITS OPTIONS (ADR-0053 §2) ────────────────────
+//
+// The defect this ticket fixes was on the screen, not in the record: ADR-0053
+// §2 has always ruled the record's search depth a property of the corpus check
+// alone, and the shipped launcher rendered it as a global "How hard to look"
+// control at the foot of the card. The owner caught it by reading the
+// photograph — *"I thought this was only for certain checks"* — and the ruling
+// was that the screen is wrong. So what is pinned here is both halves: that the
+// options unfold under their own check, and that no global control survives.
+describe('T-415 — each check carries its own options', () => {
+  const accuracy = CHECK_FAMILY_CATALOGUE.find((entry) => entry.family === 'corpus_accuracy')!;
+  const readability = CHECK_FAMILY_CATALOGUE.find((entry) => entry.family === 'readability')!;
+
+  it('the corpus family is called ACCURACY on screen (owner, 2026-09-01)', () => {
+    expect(accuracy.label).toBe('Accuracy');
+    // and it still says what it reads against, in the sentence under the name
+    expect(accuracy.description).toContain('project library');
+  });
+
+  it('unfolds a check’s options under it when it is ticked', () => {
+    const html = renderToStaticMarkup(
+      <CheckFamilyRow entry={accuracy} checked onToggle={() => {}}>
+        <span>How hard to look</span>
+      </CheckFamilyRow>,
+    );
+    expect(html).toContain('Accuracy');
+    expect(html).toContain('How hard to look');
+    expect(html).toContain('check-family-options');
+  });
+
+  it('shows NOTHING under an unticked check — a setting with no effect looks like one that has', () => {
+    const html = renderToStaticMarkup(
+      <CheckFamilyRow entry={accuracy} checked={false} onToggle={() => {}}>
+        <span>How hard to look</span>
+      </CheckFamilyRow>,
+    );
+    expect(html).not.toContain('How hard to look');
+    expect(html).not.toContain('check-family-options');
+    // the check itself is still there to tick, and still says what it does
+    expect(html).toContain('Accuracy');
+  });
+
+  it('keeps the No-AI badge on the two arithmetic checks', () => {
+    // a checker described as so many model calls was describing half of itself
+    expect(renderToStaticMarkup(<CheckFamilyRow entry={readability} checked onToggle={() => {}} />)).toContain('No AI');
+    expect(renderToStaticMarkup(<CheckFamilyRow entry={accuracy} checked onToggle={() => {}} />)).not.toContain('No AI');
+  });
+
+  it('🔒 THE GLOBAL "HOW HARD TO LOOK" CONTROL IS GONE, and depth lives under Accuracy', () => {
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    // the heading that framed the whole card as one setting
+    expect(source).not.toContain('<strong>How hard to look</strong>');
+    // depth renders inside the accuracy row's own options and nowhere else:
+    // the ONLY control bearing that label sits after the accuracy branch opens
+    const under = source.indexOf("entry.family === 'corpus_accuracy'");
+    expect(under).toBeGreaterThan(-1);
+    expect(source.indexOf('<Field label="How hard to look">')).toBeGreaterThan(under);
+    expect((source.match(/<Field label="How hard to look">/g) ?? []).length).toBe(1);
+    // and the presets survive: a preset is a starting point, not a mode
+    expect(source).toContain('CHECK_PRESETS.map');
+    expect(source).toContain('it is a starting point, not a mode');
+  });
+});
+
+describe('T-415 — ticking House style says which rules will be applied', () => {
+  const guide: StyleGuideRecord = {
+    id: 'g1',
+    title: 'Wrenfield project style guide',
+    sourceFormat: 'docx',
+    clauses: 12,
+    labelled: 12,
+    loadedBy: { userId: 'u1', name: 'Rachel Bowen' },
+    loadedAt: '2026-08-30T09:00:00.000Z',
+    retiredAt: null,
+  };
+
+  it('names the project’s guides AND the firm’s own manual, with the precedence', () => {
+    // a screen listing only the project's guides would read as though the
+    // firm's manual did not apply, and it always does (ADR-0053 §3)
+    const html = renderToStaticMarkup(<StyleSourcesNote guides={[guide]} />);
+    expect(html).toContain('Wrenfield project style guide');
+    expect(html).toContain('12 clauses');
+    expect(html).toContain('Your firm’s own manual');
+    expect(html).toContain('The project’s guide wins where the two disagree');
+  });
+
+  it('says so when no project guide is loaded, rather than falling silent', () => {
+    const html = renderToStaticMarkup(<StyleSourcesNote guides={[]} />);
+    expect(html).toContain('No project style guide is loaded');
+    expect(html).toContain('your firm’s own manual alone');
+  });
+
+  it('a guide list that could not be READ is not an empty one, and says which', () => {
+    // "none loaded" and "could not be read" are different facts about a
+    // project; a check that conflated them would let a project nobody had set
+    // up read exactly like one deliberately left plain
+    const html = renderToStaticMarkup(<StyleSourcesNote guides={null} />);
+    expect(html).toContain('could not be read');
+    expect(html).not.toContain('No project style guide is loaded');
   });
 });

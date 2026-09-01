@@ -523,6 +523,36 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .plan-covers { font-size: 12.5px; margin: 12px 0 0; }
 .plan-note { color: var(--text-secondary); font-size: 12.5px; line-height: 1.55; margin: 6px 0 0; }
 
+/* ---------- The checker's check list (T-415) ----------
+   Each check is a tick, a name, what it looks for, and — when it is on — its
+   own settings underneath. There is deliberately no global settings block:
+   ADR-0053 §2 makes every option a property of one check, and a global block is
+   where the next one quietly lands. */
+.check-presets { display: flex; gap: 8px; margin-top: 8px; }
+.check-families { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.check-family {
+  border: 1px solid var(--border-subtle); border-radius: var(--primitive-radius-md);
+  padding: 12px; background: var(--surface-pane);
+}
+/* a ticked check reads as the one carrying settings; the border does the work
+   rather than a fill, so a list of five does not become five slabs of colour */
+.check-family--on { border-color: var(--border-default); }
+.check-family-head { display: flex; align-items: center; gap: 8px; }
+.check-family-name { font-weight: 600; font-size: 12.5px; }
+.check-family-desc {
+  color: var(--text-muted); font-size: 12px; line-height: 1.5;
+  margin: 4px 0 0; padding-left: 22px;
+}
+.check-family-options {
+  margin: 12px 0 0 22px; padding-left: 12px;
+  border-left: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.check-style-sources {
+  list-style: none; margin: 4px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px; font-size: 12.5px;
+}
+
 /* ---------- Style-guide picker (T-406) ----------
    A checklist, not a select: more than one guide may apply to one document. */
 .style-guide-picker { display: flex; flex-direction: column; gap: 4px; }
