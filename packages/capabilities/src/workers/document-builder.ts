@@ -25,7 +25,7 @@ import type {
   DocumentType,
   WorkerDeclaration,
 } from '@infora/contracts';
-import { STYLE_PRECEDENCE, purposeLabel } from '@infora/contracts';
+import { STYLE_PRECEDENCE, flattenOutline, purposeLabel } from '@infora/contracts';
 
 export const DOCUMENT_BUILDER: WorkerDeclaration = {
   name: 'document_builder',
@@ -33,7 +33,8 @@ export const DOCUMENT_BUILDER: WorkerDeclaration = {
     'Draft a document into a named template from an explicit set of library sources, recording what each source was used for.',
   tier: 'frontier',
   inputSchema: {
-    sections: 'the outline the author composed — a heading and a purpose each',
+    sections:
+      'the outline the author composed — a heading and a purpose each, and one level of sub-sections where the author added them (T-412)',
     brief: 'what this document is for, in the requester’s own words',
     // T-406 (ADR-0053 addendum A1) — the launcher's four answers, declared here
     // because a worker's inputs are its contract with the executor
@@ -150,14 +151,43 @@ export function composeDraftingPrompt(
     // computed description is derived from that same purpose plus boilerplate
     // about register and grounding, both of which this prompt already carries
     // above, and re-injecting them would be saying it twice.
-    ...sections.map(
-      (section, at) => `  ${at + 1}. ${section.heading} — ${section.brief ?? section.purpose}`,
-    ),
+    //
+    // T-412 — SUB-SECTIONS ARE NUMBERED `2.1`, AND THAT IS HOW THE MODEL IS
+    // TOLD ONE IS A SECTION OF ITS OWN WITH A PARENT. Decimal numbering is the
+    // convention every engineering document already uses, so it needs no
+    // explaining; what does need saying is the line below it, that each
+    // heading — at either depth — is written out on its own line exactly as
+    // given. The splitter matches on the heading text and nothing else, so a
+    // model that folded a sub-section into its parent's prose would produce
+    // material the assembly then has nowhere to put.
+    ...outlineLines(sections),
     '',
     'Every sentence must rest on one of the numbered sources and carry its marker, e.g. [S2].',
     'Write nothing the sources do not support: a sentence with no source is removed before anyone reads it, so an unsupported sentence is wasted rather than persuasive.',
-    'Use the heading text exactly as given, on its own line, before that section’s sentences.',
+    'Use the heading text exactly as given, on its own line, before that section’s sentences. A numbered sub-heading such as 2.1 gets its own line in the same way, under its parent’s section.',
   ].join('\n');
+}
+
+/**
+ * T-412 — the outline as the prompt lists it: `1.`, `1.1`, `1.2`, `2.` …
+ *
+ * One traversal, `flattenOutline`'s, like everywhere else the creator counts
+ * an outline. The number is decoration for the model's benefit; what the
+ * splitter matches on afterwards is the heading text, which is why the heading
+ * is written out in full at both depths rather than abbreviated under its
+ * parent.
+ */
+function outlineLines(sections: ReadonlyArray<DocumentSection>): string[] {
+  const lines: string[] = [];
+  for (const entry of flattenOutline(sections)) {
+    const number =
+      entry.subSectionIndex === null
+        ? `${entry.sectionIndex + 1}.`
+        : `${entry.sectionIndex + 1}.${entry.subSectionIndex + 1}`;
+    const indent = entry.depth === 0 ? '  ' : '     ';
+    lines.push(`${indent}${number} ${entry.heading} — ${entry.brief ?? entry.purpose}`);
+  }
+  return lines;
 }
 
 /**

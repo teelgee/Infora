@@ -474,3 +474,175 @@ describe('the run (T-309)', () => {
     expect(agentPlan).toEqual(handPlan);
   });
 });
+
+// ── T-412 — A SECTION CAN CARRY SUB-SECTIONS ───────────────────────────────
+//
+// *In plain terms: an author adds a sub-section under a section, and it becomes
+// a separately-drafted part of the document that lands under its parent's
+// heading.*
+//
+// **Asserted end to end, over HTTP, for the reason T-408's own test states.**
+// A sub-section is not one feature in one place: the outline that leaves the
+// browser, the parser that reads it back off the persisted step input, the
+// prompt the model is shown, the splitter that files the answer, the manifest,
+// the assembly and both coverage sentences all have to agree that a
+// sub-section is a section of its own with a parent. Six of those could pass
+// their own unit test while the document came out flat, which is exactly how
+// T-408's corrected brief was dropped twice with everything green either side.
+describe('sub-sections are sections of their own, with a parent (T-412)', () => {
+  const withSubSections = () =>
+    request({
+      sections: [
+        { heading: 'Purpose', purpose: 'State what question this note answers and for whom.' },
+        {
+          heading: 'The evidence',
+          purpose: 'Set out what the project record says.',
+          subSections: [
+            { heading: 'Trial pits', purpose: 'What the trial pits recorded.' },
+            { heading: 'Groundwater', purpose: 'What the monitoring showed.' },
+          ],
+        },
+      ],
+    });
+
+  it('counts them in the plan’s coverage sentence, at whatever depth', async () => {
+    const res = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      withSubSections(),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as DocumentCreationPlanResponse;
+    // two sections and two sub-sections is FOUR parts to draft. A coverage
+    // sentence that said "2 sections" would be understating the run before it
+    // started, which is the failure ADR-0053 §5 exists to prevent.
+    expect(body.plan.coverage).toBe('4 sections · 1 bound source · 1 drafting pass');
+  });
+
+  it('describes each of them on the plan, marked at its depth and under its parent', async () => {
+    const res = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      withSubSections(),
+    );
+    const body = (await res.json()) as DocumentCreationPlanResponse;
+    const proposal = body.plan.proposal!;
+    expect(proposal.sections.map((section) => section.heading)).toEqual([
+      'Purpose',
+      'The evidence',
+      'Trial pits',
+      'Groundwater',
+    ]);
+    expect(proposal.sections.map((section) => section.depth)).toEqual([0, 0, 1, 1]);
+    // a sub-section's purpose was written knowing what sat above it, so the
+    // description says whose it is rather than reading as a section that
+    // wandered off the outline
+    expect(proposal.sections[2]!.brief).toContain('It sits under “The evidence”');
+  });
+
+  it('🔒 the T-408 determinism guarantee still holds over a NESTED outline', async () => {
+    // same inputs, same steps — the one thing a declared workflow is sold on,
+    // asserted again at the depth this ticket added
+    const first = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      withSubSections(),
+    );
+    const second = await post(
+      cookie,
+      `/projects/${projectId}/tools/document-creation/plan`,
+      withSubSections(),
+    );
+    expect(await first.json()).toEqual(await second.json());
+  });
+
+  it('puts every sub-section in the DRAFTING PROMPT, numbered under its parent', async () => {
+    // the far-end assertion T-408's test argues for: the words the model
+    // actually saw. A sub-section the surface drew, the plan counted and the
+    // prompt left out would be a document silently missing a part.
+    const seen: string[] = [];
+    const capturing = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter((system, prompt) => {
+        seen.push(`${system}\n${prompt}`);
+        return [
+          '## Purpose',
+          'This note answers what the ground investigation recorded. [S1]',
+          '## The evidence',
+          'The record covers three trial pits. [S1]',
+          '## Trial pits',
+          'The investigation recorded exceedances at three of the trial pits. [S1]',
+          '## Groundwater',
+          'The monitoring recorded no exceedance. [S1]',
+        ].join('\n\n');
+      }),
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+      modelRates: { 'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 } },
+      draftModelId: 'fake-chat',
+    });
+    const res = await capturing.request(
+      `/projects/${projectId}/tools/document-creation/runs`,
+      {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify(withSubSections()),
+      },
+    );
+    expect(res.status).toBe(201);
+    const drafting = seen.find((call) => call.includes('Write the document under these headings'))!;
+    expect(drafting).toBeDefined();
+    expect(drafting).toContain('2.1 Trial pits — What the trial pits recorded.');
+    expect(drafting).toContain('2.2 Groundwater — What the monitoring showed.');
+  });
+
+  it('writes them into the document UNDER THEIR PARENT’S HEADING, and counts them', async () => {
+    const capturing = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter(() =>
+        [
+          '## Purpose',
+          'This note answers what the ground investigation recorded. [S1]',
+          '## The evidence',
+          'The record covers three trial pits. [S1]',
+          '## Trial pits',
+          'The investigation recorded exceedances at three of the trial pits. [S1]',
+          '## Groundwater',
+          'The monitoring recorded no exceedance at the standpipes. [S1]',
+        ].join('\n\n'),
+      ),
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+      modelRates: { 'fake-chat': { promptPerMTok: 3, completionPerMTok: 15 } },
+      draftModelId: 'fake-chat',
+    });
+    const res = await capturing.request(`/projects/${projectId}/tools/document-creation/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(withSubSections()),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as DocumentCreationRunResponse;
+    const [document] = await db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, body.documentId!));
+    const content = document!.content;
+    // the parent stays `##` and its sub-sections are `###` beneath it, in
+    // order — which is the whole of "the document carries them under their
+    // parent's heading" once it reaches the file
+    expect(content).toContain('## The evidence');
+    expect(content).toContain('### Trial pits');
+    expect(content).toContain('### Groundwater');
+    expect(content.indexOf('## The evidence')).toBeLessThan(content.indexOf('### Trial pits'));
+    expect(content.indexOf('### Trial pits')).toBeLessThan(content.indexOf('### Groundwater'));
+    // and both coverage sentences count four parts, not two
+    expect(body.plan.coverage).toContain('4 sections');
+    expect(body.coverage).toContain('4 of 4 sections written');
+    // the manifest names a sub-section under its parent, because "Trial pits"
+    // on its own is a heading a reader cannot locate in a long document
+    expect(body.manifest.map((entry) => entry.usedFor)).toContain('The evidence — Trial pits');
+  });
+});

@@ -27,12 +27,19 @@ import type {
   DocumentPurpose,
   DocumentSection,
   DocumentType,
+  OutlineEntry,
   PlannedToolStep,
   ProposedDocument,
   ToolPlan,
   Workflow,
 } from '@infora/contracts';
-import { STYLE_PRECEDENCE, languageLabel, purposeLabel, typeLabel } from '@infora/contracts';
+import {
+  STYLE_PRECEDENCE,
+  flattenOutline,
+  languageLabel,
+  purposeLabel,
+  typeLabel,
+} from '@infora/contracts';
 import { costOf } from '@infora/model';
 import type { ModelRates } from '@infora/model';
 
@@ -89,7 +96,14 @@ export type DocumentCreationPlanInput = {
 };
 
 export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan {
-  const sections = input.sections.length;
+  // 🔒 T-412 — EVERY COUNT IN THIS FILE IS THE FLATTENED COUNT. A sub-section
+  // is a section of its own: it is separately drafted, so it costs a drafting
+  // call's worth of completion tokens, it gets its own description on the
+  // proposed document, and both coverage sentences count it. The board's words
+  // are *"the coverage sentence counts what the outline holds, at whatever
+  // depth"* — so nothing below reads `input.sections.length` directly.
+  const outline = flattenOutline(input.sections);
+  const sections = outline.length;
   // capped at the assembly budget: the gateway will not hand the builder more
   // than this, so an estimate above it would describe a call that cannot happen
   const promptTokens = Math.min(
@@ -108,7 +122,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
       stage: step.stage,
       worker: step.worker ?? null,
       label: drafting
-        ? `Draft ${sections} section${sections === 1 ? '' : 's'} — ${input.sections.map((section) => section.heading).join(', ')} — from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}`
+        ? `Draft ${sections} section${sections === 1 ? '' : 's'} — ${outline.map((entry) => entry.heading).join(', ')} — from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}`
         : `Run ${step.worker ?? step.stage}`,
       estimate: {
         calls: 1,
@@ -133,7 +147,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
     workflowId: input.workflow.id,
     workflowVersion: input.workflow.version,
     steps,
-    coverage: coverageBefore(input.sections.length, input.sourceCount),
+    coverage: coverageBefore(sections, input.sourceCount),
     cost: { total, priced },
     refusal: refusalOf(input.sourceCount),
     notes: notesOf(input),
@@ -162,19 +176,27 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
 function proposalOf(input: DocumentCreationPlanInput): ProposedDocument {
   return {
     overview: overviewOf(input),
-    sections: input.sections.map((section) => ({
-      heading: section.heading,
-      brief: section.brief ?? computedBrief(section, input),
+    // T-412 — flat, parents before their children, which is the order the
+    // document itself will carry. The index of an entry here is the index a
+    // correction comes back on, at either depth: `withBriefAt` is the one door
+    // into a brief and it takes a flattened index.
+    sections: flattenOutline(input.sections).map((entry) => ({
+      heading: entry.heading,
+      brief: entry.brief ?? computedBrief(entry, input),
       // said out loud, so a corrected description does not read as one the
       // planner wrote — and so the author can see what they have changed
-      edited: section.brief !== undefined,
+      edited: entry.brief !== undefined,
+      depth: entry.depth,
     })),
   };
 }
 
 /** The overarching instructions, in the words the author gave and chose. */
 function overviewOf(input: DocumentCreationPlanInput): string {
-  const sections = input.sections.length;
+  // T-412 — the flattened count, for the reason the top of this file states:
+  // an overview that promised three sections and produced five would be the
+  // coverage sentence lying one line early.
+  const sections = flattenOutline(input.sections).length;
   return [
     `${sentence(input.brief)}`,
     `It will be written as ${aOrAn(purposeLabel(input.purpose).toLowerCase())}, ${typeLabel(input.documentType).toLowerCase()}, in ${languageLabel(input.language)} register, in ${sections} section${sections === 1 ? '' : 's'}, drawing on ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}.`,
@@ -195,8 +217,13 @@ function overviewOf(input: DocumentCreationPlanInput): string {
  * difference between a description of a document and a description of THIS
  * product's document.
  */
-function computedBrief(section: DocumentSection, input: DocumentCreationPlanInput): string {
-  return `${sentence(section.purpose)} Written in ${languageLabel(input.language)} register, from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'} only — anything the record does not support is left out.`;
+function computedBrief(entry: OutlineEntry, input: DocumentCreationPlanInput): string {
+  // T-412 — a sub-section says whose it is. Its purpose was written knowing
+  // what sat above it, so a description read on its own without that context
+  // reads as a section that wandered off the outline.
+  const under =
+    entry.parentHeading === null ? '' : ` It sits under “${entry.parentHeading}”.`;
+  return `${sentence(entry.purpose)}${under} Written in ${languageLabel(input.language)} register, from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'} only — anything the record does not support is left out.`;
 }
 
 /** An author's phrase, ended like a sentence. */

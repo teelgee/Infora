@@ -2323,6 +2323,20 @@ export type ToolPlan = {
   caveats?: string[];
 };
 
+/**
+ * T-412 — a sub-section at the wire.
+ *
+ * The same three fields a section has, and **no `subSections` of its own**:
+ * V1 allows one level, and the schema is where a request carrying two is
+ * refused rather than quietly flattened. A refusal at the door is the same
+ * discipline the empty-heading rule already follows.
+ */
+export const documentSubSectionBody = z.object({
+  heading: z.string().min(1),
+  purpose: z.string().min(1),
+  brief: z.string().min(1).optional(),
+});
+
 export const documentSectionBody = z.object({
   heading: z.string().min(1),
   purpose: z.string().min(1),
@@ -2332,6 +2346,14 @@ export const documentSectionBody = z.object({
    * is computed from it and is editable by nobody (ADR-0053 addendum A2).
    */
   brief: z.string().min(1).optional(),
+  /**
+   * T-412 — the parts nested under this section. Optional, because most
+   * sections have none; every entry is a section in its own right once the run
+   * starts — separately drafted, separately described on the plan, separately
+   * counted in both coverage sentences — and what it has that a top-level
+   * section does not is a parent.
+   */
+  subSections: z.array(documentSubSectionBody).optional(),
 });
 
 export const documentCreationBody = z.object({

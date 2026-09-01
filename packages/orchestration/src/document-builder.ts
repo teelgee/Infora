@@ -33,7 +33,9 @@ import type {
   DocumentSection,
   DocumentType,
   Id,
+  OutlineEntry,
 } from '@infora/contracts';
+import { flattenOutline, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
 import { parseClaims } from '@infora/capabilities';
 import { schema as s } from '@infora/db';
@@ -99,6 +101,10 @@ export type ManifestEntry = {
    * or `unsectioned` for material that matched no heading at all. A heading and
    * not a position, because a manifest is read by people: "the evidence" says
    * what a source was used for and "s1" does not.
+   *
+   * T-412 — a **sub-section** is named under its parent, *"Baseline — 2025
+   * survey"*, because its own heading may be one three sections of an outline
+   * share and a manifest entry a reader cannot locate is not a manifest entry.
    */
   usedFor: string;
 };
@@ -139,6 +145,10 @@ export type DocumentBuilderOutput = {
    * counted where the assembly decides it. Never the `unsectioned` bucket
    * (T-402), and never derived from the manifest's headings, which two
    * sections of one outline may honestly share.
+   *
+   * T-412 — **sub-sections count, at whatever depth**, because each is
+   * separately drafted; a parent heading emitted only to host a surviving
+   * sub-section does not, because nothing was written into it.
    */
   sectionsWritten: number;
   /**
@@ -304,7 +314,14 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       sourceRef?: ReturnType<typeof parseClaims>[number]['sourceRef'];
       section: string;
     }> = [];
-    for (const block of splitByHeadings(result.text, input.sections)) {
+    // 🔒 T-412 — ONE FLATTENING, AND EVERYTHING BELOW READS IT. A sub-section
+    // is a section of its own: it gets its own key, its own heading in the
+    // document, its own manifest name and its own place in the tally. The one
+    // thing it has that a top-level section does not is a parent, which is why
+    // `outlineEntryName` names it under one and the assembly writes it under
+    // one.
+    const outline = flattenOutline(input.sections);
+    for (const block of splitByHeadings(result.text, outline)) {
       for (const claim of parseClaims(block.body, sourceByMarker as never)) {
         sectioned.push({
           text: claim.text,
@@ -334,7 +351,9 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     // landed under, by its heading, which is what makes the entry checkable
     // against the document rather than against the request.
     const survived = new Set(checked.surviving.map((claim) => claim.text));
-    const headingOf = new Map(input.sections.map((section, at) => [sectionKey(at), section.heading]));
+    const headingOf = new Map(
+      outline.map((entry, at) => [sectionKey(at), outlineEntryName(entry)] as const),
+    );
     const manifest = manifestOf(
       sectioned.filter((claim) => survived.has(claim.text)),
       passages,
@@ -358,15 +377,45 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     // sees as a section. An explicit `##` is not a guess: `ATX` matches it
     // unconditionally, whatever its length or punctuation, and the editor
     // renders it as the heading it is.
+    //
+    // 🔒 **T-412 — A SUB-SECTION IS WRITTEN UNDER ITS PARENT'S HEADING**, as
+    // `###` to the parent's `##`, which is what "the document carries them
+    // under their parent" means once it reaches the file. Two consequences,
+    // and both are deliberate:
+    //
+    //   • a parent that survived nothing of its own but has a surviving
+    //     sub-section still gets its heading written, because that heading is
+    //     not empty — its content is the sub-section beneath it. Omitting it
+    //     would leave a `###` floating under whatever section came before,
+    //     which is a document that says something nobody wrote;
+    //   • **and it is still not counted as written.** `written` holds only
+    //     entries that got prose of their own, so the coverage sentence keeps
+    //     T-402's discipline: a heading emitted to host a child is not a
+    //     section the run wrote into.
+    const linesOf = (at: number) =>
+      sectioned
+        .filter((claim) => claim.section === sectionKey(at) && survived.has(claim.text))
+        .map((claim) => claim.text);
     const written = new Set<string>();
-    const content = input.sections
-      .map((section, at) => {
-        const lines = sectioned
-          .filter((claim) => claim.section === sectionKey(at) && survived.has(claim.text))
-          .map((claim) => claim.text);
-        if (lines.length === 0) return null;
-        written.add(sectionKey(at));
-        return [`## ${section.heading}`, ...lines].join('\n\n');
+    outline.forEach((_entry, at) => {
+      if (linesOf(at).length > 0) written.add(sectionKey(at));
+    });
+    const hosts = new Set(
+      outline
+        .map((entry, at) => ({ entry, at }))
+        .filter(({ entry, at }) => entry.depth === 1 && written.has(sectionKey(at)))
+        .map(({ entry }) => entry.sectionIndex),
+    );
+    const content = outline
+      .map((entry, at) => {
+        const lines = linesOf(at);
+        const hash = entry.depth === 0 ? '##' : '###';
+        if (lines.length === 0) {
+          return entry.depth === 0 && hosts.has(entry.sectionIndex)
+            ? `${hash} ${entry.heading}`
+            : null;
+        }
+        return [`${hash} ${entry.heading}`, ...lines].join('\n\n');
       })
       .filter((block): block is string => block !== null)
       .join('\n\n');
@@ -471,6 +520,12 @@ async function mostRestrictive(db: Db, versionIds: Id[]): Promise<Id | null> {
  * composing an outline may reasonably write "Mitigation" twice, in two
  * chapters' worth of sections; keying on the heading would silently merge them
  * and report one section where the document has two.
+ *
+ * **T-412 — the position is the position in the FLATTENED outline**, so a
+ * sub-section has a key of its own on the same terms as a section. There is
+ * one traversal (`flattenOutline`) producing that order and every count in the
+ * run reads it, because two traversals is how a plan that promised five
+ * sections comes back reporting three.
  */
 const sectionKey = (index: number) => `s${index}`;
 
@@ -489,13 +544,16 @@ const asHeading = (line: string) =>
 
 function splitByHeadings(
   text: string,
-  sections: ReadonlyArray<DocumentSection>,
+  outline: ReadonlyArray<OutlineEntry>,
 ): Array<{ section: string; body: string }> {
   // FIRST position wins a repeated heading: two sections may honestly share
-  // one, and the earlier is the one the model reaches first.
+  // one, and the earlier is the one the model reaches first. T-412 — the
+  // outline arrives already flat, so a sub-section's heading competes for a
+  // line on exactly the same terms as its parent's, which is what makes it a
+  // section of its own rather than prose inside one.
   const byHeading = new Map<string, string>();
-  for (const [at, section] of sections.entries()) {
-    const key = asHeading(section.heading);
+  for (const [at, entry] of outline.entries()) {
+    const key = asHeading(entry.heading);
     if (!byHeading.has(key)) byHeading.set(key, sectionKey(at));
   }
   const blocks: Array<{ section: string; body: string[] }> = [{ section: UNSECTIONED, body: [] }];

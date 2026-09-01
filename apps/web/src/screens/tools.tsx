@@ -29,6 +29,7 @@ import type {
   DocumentLanguage,
   DocumentPurpose,
   DocumentSection,
+  DocumentSubSection,
   DocumentType,
   GroundingSource,
   StartingOutline,
@@ -40,6 +41,8 @@ import type {
   ToolPlan,
 } from '@infora/contracts';
 import {
+  flattenOutline,
+  withBriefAt,
   CHECK_FAMILIES,
   CHECK_FAMILY_CATALOGUE,
   CHECK_PRESETS,
@@ -307,13 +310,49 @@ export function SectionComposer(props: {
     props.onChange(next);
   };
 
+  // ── T-412 — the sub-section editors ──────────────────────────────────────
+  //
+  // *In plain terms: under any section, "add a sub-section" makes a nested
+  // part with its own heading and its own description.*
+  //
+  // 🔒 **A SUB-SECTION MOVES WITHIN ITS PARENT AND NOWHERE ELSE.** The board
+  // says *"reordered within their parent"*, and the restriction is the whole of
+  // what one level means at the surface: a control that let a sub-section climb
+  // out of its section would be asking the author to build a shape the
+  // splitter, the manifest and the coverage count have no depth for.
+  const subs = (index: number) => props.sections[index]?.subSections ?? [];
+  const setSubs = (index: number, next: DocumentSubSection[]) => {
+    const section = props.sections[index];
+    if (section === undefined) return;
+    // the key goes away when the last sub-section does, rather than staying as
+    // an empty list: a section with no sub-sections and a section that once had
+    // some are the same section, and a request carrying `subSections: []` would
+    // be saying otherwise on the wire
+    const rest = { ...section };
+    delete rest.subSections;
+    at(index, { ...rest, ...(next.length > 0 && { subSections: next }) });
+  };
+  const subAt = (index: number, subIndex: number, sub: DocumentSubSection) =>
+    setSubs(
+      index,
+      subs(index).map((existing, i) => (i === subIndex ? sub : existing)),
+    );
+  const moveSub = (index: number, subIndex: number, by: number) => {
+    const list = [...subs(index)];
+    const to = subIndex + by;
+    if (to < 0 || to >= list.length) return;
+    [list[subIndex], list[to]] = [list[to]!, list[subIndex]!];
+    setSubs(index, list);
+  };
+
   return (
     <Card>
       <span className="card-title">The outline</span>
       <p className="card-lede">
         Build the document section by section: a heading, and what should go in it. Say what belongs
         there, not what you expect it to conclude — the draft rests on the sources, not on the
-        outline.
+        outline. A section can carry sub-sections, and each one is written as a part of its own
+        under its parent’s heading.
       </p>
 
       {props.outlines.length > 0 && (
@@ -387,6 +426,74 @@ export function SectionComposer(props: {
                 rows={2}
                 placeholder="What should go in this section?"
               />
+
+              {/* T-412 — the sub-sections, numbered under their parent. The
+                  numbering is `2.1` because that is what every engineering
+                  document already uses, and because the plan, the prompt and
+                  the finished document all carry the same shape — a nesting
+                  the author sees one way on this screen and another way in the
+                  output would be two outlines. */}
+              {subs(index).length > 0 && (
+                <ol className="outline-subsections">
+                  {subs(index).map((sub, subIndex) => (
+                    <li key={subIndex} className="outline-subsection">
+                      <div className="outline-section-head">
+                        <span className="outline-section-n outline-section-n--sub">
+                          {index + 1}.{subIndex + 1}
+                        </span>
+                        <TextInput
+                          value={sub.heading}
+                          onChange={(heading) => subAt(index, subIndex, { ...sub, heading })}
+                          placeholder="Sub-section heading"
+                        />
+                        <span className="outline-section-controls">
+                          <IconButton
+                            aria-label="Move sub-section up"
+                            disabled={subIndex === 0}
+                            onClick={() => moveSub(index, subIndex, -1)}
+                          >
+                            <ArrowUp size={13} strokeWidth={2} />
+                          </IconButton>
+                          <IconButton
+                            aria-label="Move sub-section down"
+                            disabled={subIndex === subs(index).length - 1}
+                            onClick={() => moveSub(index, subIndex, 1)}
+                          >
+                            <ArrowDown size={13} strokeWidth={2} />
+                          </IconButton>
+                          <IconButton
+                            aria-label="Remove sub-section"
+                            onClick={() =>
+                              setSubs(
+                                index,
+                                subs(index).filter((_, i) => i !== subIndex),
+                              )
+                            }
+                          >
+                            <X size={13} strokeWidth={2} />
+                          </IconButton>
+                        </span>
+                      </div>
+                      <TextArea
+                        value={sub.purpose}
+                        onChange={(purpose) => subAt(index, subIndex, { ...sub, purpose })}
+                        rows={2}
+                        placeholder="What should go in this sub-section?"
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              <div className="outline-section-add">
+                <Button
+                  size="sm"
+                  variant="quiet"
+                  onClick={() => setSubs(index, [...subs(index), { heading: '', purpose: '' }])}
+                >
+                  <Plus size={13} strokeWidth={2} /> Add a sub-section
+                </Button>
+              </div>
             </li>
           ))}
         </ol>
@@ -502,7 +609,16 @@ export function ProposedDocumentCard(props: {
           <p className="proposal-overview">{plan.proposal.overview}</p>
           <ol className="proposal-sections">
             {plan.proposal.sections.map((section, index) => (
-              <li key={`${section.heading}-${index}`} className="proposal-section">
+              <li
+                key={`${section.heading}-${index}`}
+                className={
+                  // T-412 — a sub-section reads as one on the plan too. The
+                  // prospectus is the document you are about to get, so an
+                  // outline that showed flat here and nested in the output
+                  // would be describing a different document.
+                  section.depth === 1 ? 'proposal-section proposal-section--sub' : 'proposal-section'
+                }
+              >
                 <div className="proposal-section-head">
                   <span className="proposal-section-heading">{section.heading}</span>
                   {section.edited && <Badge tone="neutral">Your wording</Badge>}
@@ -673,8 +789,15 @@ export function DocumentCreatorScreen() {
     // T-407 — an outline with no sections is not a document, and a section with
     // no heading or no purpose is not a section. Refused here AND at the API,
     // because the server may never trust a surface.
+    //
+    // T-412 — **a half-typed sub-section blocks the plan exactly as a
+    // half-typed section does**, and `flattenOutline` is what makes that one
+    // rule rather than two: an unnamed part at either depth is a heading the
+    // document has no way to carry.
     sections.length > 0 &&
-    sections.every((section) => section.heading.trim() !== '' && section.purpose.trim() !== '');
+    flattenOutline(sections).every(
+      (entry) => entry.heading.trim() !== '' && entry.purpose.trim() !== '',
+    );
 
   const body = () => ({
     sections: sections.map((section) => ({
@@ -687,6 +810,17 @@ export function DocumentCreatorScreen() {
       // showed a correction and the draft would have been written without it —
       // found by T-404's audit, fixed here rather than left for a later ticket.
       ...(section.brief !== undefined && { brief: section.brief.trim() }),
+      // T-412 — and the sub-sections travel with it, for the very same reason:
+      // an outline the plan drew and the run did not receive is the defect
+      // above, one level down.
+      ...(section.subSections !== undefined &&
+        section.subSections.length > 0 && {
+          subSections: section.subSections.map((sub) => ({
+            heading: sub.heading.trim(),
+            purpose: sub.purpose.trim(),
+            ...(sub.brief !== undefined && { brief: sub.brief.trim() }),
+          })),
+        }),
     })),
     brief: brief.trim(),
     purpose,
@@ -722,9 +856,11 @@ export function DocumentCreatorScreen() {
    * author the outline they built.
    */
   const editBrief = (index: number, brief: string) => {
-    const next = sections.map((section, at) =>
-      at === index ? { ...section, brief: brief.trim() || undefined } : section,
-    );
+    // T-412 — the index is a position in the FLATTENED outline, because that is
+    // what the plan's proposed document lists. `withBriefAt` is the one door
+    // into a brief at either depth, so an agent revision (T-409) and a typed
+    // correction still cannot produce two different plans.
+    const next = withBriefAt(sections, index, brief.trim() || undefined);
     setSections(next);
     if (projectId === undefined) return;
     setBusy(true);
@@ -749,7 +885,9 @@ export function DocumentCreatorScreen() {
    * it.
    */
   const askAgent = async (index: number, ask: string): Promise<string | null> => {
-    const section = sections[index];
+    // T-412 — flattened, like the plan's own list: the agent pane opens on the
+    // entry whose chip was pressed, at either depth
+    const section = flattenOutline(sections)[index];
     const proposed = plan?.proposal?.sections[index];
     if (projectId === undefined || section === undefined || proposed === undefined) return null;
     setBusy(true);

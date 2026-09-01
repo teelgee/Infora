@@ -196,6 +196,15 @@ export type DocumentSection = {
    * from an empty string and is why it is optional rather than defaulted.
    */
   brief?: string;
+  /**
+   * T-412 — the parts nested under this section, **one level deep**.
+   *
+   * Absent and empty mean the same thing here and both are ordinary: most
+   * sections have no sub-sections. The type is `DocumentSubSection`, which
+   * carries no nesting of its own — that is where V1's one-level rule is
+   * enforced. See the block at the foot of this file.
+   */
+  subSections?: DocumentSubSection[];
 };
 
 /**
@@ -228,5 +237,159 @@ export type ListStartingOutlinesResponse = { items: StartingOutline[] };
  */
 export type ProposedDocument = {
   overview: string;
-  sections: Array<{ heading: string; brief: string; edited: boolean }>;
+  /**
+   * The outline **read flat**, parents before their children (T-412) — which
+   * is also the order the document will carry them in. `depth` is 0 for a
+   * section and 1 for a sub-section, so the page can show a sub-section under
+   * its parent without a second traversal of its own; the index of an entry
+   * here is the index a correction comes back on (`withBriefAt`).
+   */
+  sections: Array<{ heading: string; brief: string; edited: boolean; depth: 0 | 1 }>;
 };
+
+// ── T-412 — A SECTION CAN CARRY SUB-SECTIONS ────────────────────────────────
+//
+// *In plain terms: while composing the outline, an "add sub-section" under any
+// section creates a nested part. A sub-section is a section of its own — it
+// gets its own description on the plan, its own heading in the document, its
+// own row in the manifest, and it is counted in both coverage sentences. What
+// it also has, and a top-level section does not, is a parent.*
+//
+// 🔒 **ONE LEVEL, ENFORCED BY THE TYPE RATHER THAN BY A CHECK.** V1 allows a
+// section to carry sub-sections and a sub-section to carry nothing. That is
+// why `DocumentSubSection` is a separate type instead of `DocumentSection`
+// recursing into itself: a recursive type would make "one level" a rule
+// somebody has to remember at every site that reads an outline, and the first
+// site to forget would produce a document with a depth the splitter, the
+// manifest and the coverage count were never written for.
+//
+// 🔒 **EVERYTHING THAT COUNTS AN OUTLINE COUNTS IT FLAT.** The board's words:
+// *the coverage sentence counts what the outline holds, at whatever depth*. So
+// there is exactly one flattening — `flattenOutline` below — and the splitter,
+// the manifest, the two coverage sentences, the plan's proposed document and
+// the drafting prompt all read it. A second traversal written somewhere else
+// is how two counts of one outline start disagreeing.
+
+/**
+ * A part nested under a section. The same three fields a section has, and
+ * deliberately no `subSections` of its own — see the one-level lock above.
+ */
+export type DocumentSubSection = {
+  heading: string;
+  purpose: string;
+  /** T-408's brief, at this depth too — a sub-section is separately drafted */
+  brief?: string;
+};
+
+/**
+ * One entry of an outline read flat, in the order the document will carry it:
+ * a section, then its own sub-sections, then the next section.
+ *
+ * `parentHeading` is what makes a sub-section a section *with a parent* rather
+ * than just another section: the manifest names it as "Parent — Child" so a
+ * reader can find it, and the document writes it under its parent's heading.
+ */
+export type OutlineEntry = {
+  heading: string;
+  purpose: string;
+  brief?: string;
+  /** 0 for a section, 1 for a sub-section */
+  depth: 0 | 1;
+  /** null at depth 0 */
+  parentHeading: string | null;
+  /** the index of this entry's section in the top-level list */
+  sectionIndex: number;
+  /** null at depth 0; the index within the parent's `subSections` otherwise */
+  subSectionIndex: number | null;
+};
+
+/**
+ * 🔒 **THE ONE FLATTENING.** Reading order, parents before their children.
+ *
+ * Every counter, splitter and prompt in the creator goes through this function
+ * rather than walking `sections` itself. A run's outline has one shape and one
+ * length; two traversals is how a plan that promised four sections comes back
+ * having written three and calls it a coverage statement.
+ */
+export function flattenOutline(sections: ReadonlyArray<DocumentSection>): OutlineEntry[] {
+  const entries: OutlineEntry[] = [];
+  sections.forEach((section, sectionIndex) => {
+    entries.push({
+      heading: section.heading,
+      purpose: section.purpose,
+      ...(section.brief !== undefined && { brief: section.brief }),
+      depth: 0,
+      parentHeading: null,
+      sectionIndex,
+      subSectionIndex: null,
+    });
+    (section.subSections ?? []).forEach((sub, subSectionIndex) => {
+      entries.push({
+        heading: sub.heading,
+        purpose: sub.purpose,
+        ...(sub.brief !== undefined && { brief: sub.brief }),
+        depth: 1,
+        parentHeading: section.heading,
+        sectionIndex,
+        subSectionIndex,
+      });
+    });
+  });
+  return entries;
+}
+
+/**
+ * How a manifest and a plan name a sub-section: **under its parent**.
+ *
+ * `2025 survey` is a heading three sections of one outline could share;
+ * `Baseline — 2025 survey` is the one a reader can find in the document. A
+ * top-level section is named by itself, unchanged, so nothing about the flat
+ * case moves.
+ */
+export function outlineEntryName(entry: OutlineEntry): string {
+  return entry.parentHeading === null ? entry.heading : `${entry.parentHeading} — ${entry.heading}`;
+}
+
+/**
+ * Set the brief at one **flattened** position, returning a new outline.
+ *
+ * The plan's proposed document is a flat list, so the surface's "correct this
+ * description" arrives as a flat index — and T-409's agent revision goes
+ * through the very same function, which is the guarantee A2 rests on: there is
+ * one door into a brief, at every depth. An index outside the outline returns
+ * the outline unchanged rather than throwing; a plan and a surface that have
+ * drifted apart is a bug to see on screen, not a crash.
+ */
+export function withBriefAt(
+  sections: ReadonlyArray<DocumentSection>,
+  index: number,
+  brief: string | undefined,
+): DocumentSection[] {
+  const target = flattenOutline(sections)[index];
+  if (target === undefined) return [...sections];
+  return sections.map((section, sectionIndex) => {
+    if (sectionIndex !== target.sectionIndex) return section;
+    if (target.subSectionIndex === null) return setBrief(section, brief);
+    return {
+      ...section,
+      subSections: (section.subSections ?? []).map((sub, subIndex) =>
+        subIndex === target.subSectionIndex ? setBrief(sub, brief) : sub,
+      ),
+    };
+  });
+}
+
+/**
+ * One part with its brief set, or **removed** where none was given.
+ *
+ * Removed rather than set to `undefined`, because absent is a meaning here:
+ * *"the planner's own description stands"*. A key present and holding
+ * `undefined` would survive `JSON.stringify` as nothing and survive a
+ * structural comparison as something, which is precisely the kind of
+ * difference the two-doors-one-plan test exists to catch.
+ */
+function setBrief<T extends { brief?: string }>(part: T, brief: string | undefined): T {
+  const next = { ...part };
+  delete next.brief;
+  return brief === undefined ? next : { ...next, brief };
+}

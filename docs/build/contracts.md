@@ -1011,3 +1011,22 @@ are not recorded here.
   gap:** a run with an upload cannot be re-executed from its record alone.
   **The plan endpoint takes the file too**, because a preflight that could not
   see the attachment would understate the coverage of the very run it previews.
+
+- **2026-09-01 (T-412) — `DocumentSection` gains `subSections`, and
+  `ProposedDocument`'s entries gain a `depth`.** *Plainly: an outline can now
+  nest one level, and the plan page has to be able to show that nesting.* The
+  **reason the nesting is a separate type** (`DocumentSubSection`, carrying no
+  `subSections` of its own) rather than the section type recursing into itself
+  is that V1 allows exactly one level: a recursive type would make "one level"
+  a rule every reader of an outline has to remember, and the first reader to
+  forget would produce a document with a depth the splitter, the manifest and
+  the coverage count were never written for. The type is what enforces it, so
+  no site in the codebase *can* read a second level. **The reason `depth`
+  travels on the plan** rather than being re-derived at the surface is that the
+  plan is a prospectus of the document about to be written — the surface did
+  not build that list and would be guessing at its shape, and a plan that read
+  flat while the document came out nested would be describing a different
+  document. **What deliberately did NOT change:** the outline still crosses to
+  the run as T-407's serialized JSON string, because a workflow parameter's
+  declared type set carries no list-of-objects and widening that fixed set is
+  an owner decision rather than a build one.

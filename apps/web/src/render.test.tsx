@@ -277,8 +277,13 @@ const proposedPlan: ToolPlan = {
   proposal: {
     overview: 'Does the baseline support the assessment? It will be written as a technical note.',
     sections: [
-      { heading: 'Purpose', brief: 'State what this note answers.', edited: false },
-      { heading: 'The evidence', brief: 'No — set out X in bullets.', edited: true },
+      { heading: 'Purpose', brief: 'State what this note answers.', edited: false, depth: 0 as const },
+      {
+        heading: 'The evidence',
+        brief: 'No — set out X in bullets.',
+        edited: true,
+        depth: 0 as const,
+      },
     ],
   },
 };
@@ -295,6 +300,23 @@ describe('T-408 — the plan proposes a document, and only the briefs are editab
         onAccept={() => {}}
       />,
     );
+
+  // T-412 — the prospectus is the document you are about to get, so a nested
+  // outline reads nested here too. A plan that showed flat and produced nested
+  // would be describing a different document.
+  it('shows a sub-section as one, under its parent (T-412)', () => {
+    const html = render({
+      proposal: {
+        overview: 'A note.',
+        sections: [
+          { heading: 'Baseline', brief: 'what the record says', edited: false, depth: 0 },
+          { heading: '2025 survey', brief: 'what it found', edited: false, depth: 1 },
+        ],
+      },
+    });
+    expect(html).toContain('proposal-section--sub');
+    expect(html).toContain('2025 survey');
+  });
 
   it('sets out the overarching instructions, then a description per section', () => {
     const html = render();
@@ -417,6 +439,57 @@ describe('T-407 — the author composes the outline', () => {
     expect(html).toContain('Remove section');
     // the first cannot move up and the last cannot move down
     expect((html.match(/disabled/g) ?? []).length).toBe(2);
+  });
+
+  // ── T-412 — sub-sections ────────────────────────────────────────────────
+  it('offers an "add a sub-section" under every section', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer
+        sections={[{ heading: 'Baseline', purpose: 'what the record says' }]}
+        outlines={[]}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain('Add a sub-section');
+  });
+
+  it('numbers a sub-section under its parent, and gives it its own controls', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer
+        sections={[
+          { heading: 'Purpose', purpose: 'why' },
+          {
+            heading: 'Baseline',
+            purpose: 'what the record says',
+            subSections: [
+              { heading: '2025 survey', purpose: 'what it found' },
+              { heading: 'Earlier work', purpose: 'what preceded it' },
+            ],
+          },
+        ]}
+        outlines={[]}
+        onChange={() => {}}
+      />,
+    );
+    // `2.1` and `2.2` — the decimal numbering every engineering document
+    // already uses, so the nesting needs no explaining
+    expect(html).toContain('2.1');
+    expect(html).toContain('2.2');
+    expect(html).toContain('2025 survey');
+    // 🔒 a sub-section moves WITHIN its parent and nowhere else: its controls
+    // are its own, and there is no control that would lift it out
+    expect(html).toContain('Move sub-section up');
+    expect(html).toContain('Move sub-section down');
+    expect(html).toContain('Remove sub-section');
+    expect(html).not.toContain('Promote');
+    expect(html).not.toContain('Outdent');
+  });
+
+  it('says on screen that a sub-section is written under its parent’s heading', () => {
+    const html = renderToStaticMarkup(
+      <SectionComposer sections={[]} outlines={[]} onChange={() => {}} />,
+    );
+    expect(html).toContain('under its parent’s heading');
   });
 
   it('tells the author a purpose is scope, not a conclusion', () => {

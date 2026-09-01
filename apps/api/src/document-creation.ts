@@ -29,7 +29,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
-import { documentCreationBody, reviseSectionBriefBody } from '@infora/contracts';
+import { documentCreationBody, flattenOutline, reviseSectionBriefBody } from '@infora/contracts';
 import type {
   ApiError,
   DocumentCreationPlanResponse,
@@ -337,7 +337,12 @@ export function documentCreationRoutes(deps: {
         // fact rather than something they have to go looking for.
         coverage: coverageAfter({
           sectionsWritten,
-          sectionsPlanned: computed.body.sections.length,
+          // T-412 — the FLATTENED count, matching the plan's own sentence. The
+          // two coverage statements are compared side by side by whoever reads
+          // them (ADR-0053 §5), so a "4 of 2 sections written" would be the
+          // after-sentence contradicting the before-sentence about the same
+          // outline.
+          sectionsPlanned: flattenOutline(computed.body.sections).length,
           sourcesUsed: new Set(manifest.map((entry) => entry.versionId)).size,
           sourcesBound: computed.body.sourceVersionIds.length,
           unreachableSources: unreachableSources.length,

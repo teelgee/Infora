@@ -114,28 +114,41 @@ const oneOf = <T extends string>(allowed: readonly T[], value: unknown, fallback
  * has no way to carry. The API's own schema already refuses them at the door;
  * this is the second gate, on the path a workflow definition could also take.
  */
+const namedPart = (item: unknown): item is { heading: string; purpose: string; brief?: unknown } =>
+  typeof item === 'object' &&
+  item !== null &&
+  typeof (item as { heading?: unknown }).heading === 'string' &&
+  typeof (item as { purpose?: unknown }).purpose === 'string' &&
+  (item as { heading: string }).heading.trim() !== '' &&
+  (item as { purpose: string }).purpose.trim() !== '';
+
+/** The brief (T-408) rides only when it is real text — at either depth. */
+const briefOf = (item: { brief?: unknown }): { brief?: string } =>
+  typeof item.brief === 'string' && item.brief.trim() !== '' ? { brief: item.brief } : {};
+
 const sectionsOf = (value: unknown): DocumentSection[] =>
   (Array.isArray(parsedJson(value)) ? (parsedJson(value) as unknown[]) : [])
-    .filter(
-      (item): item is DocumentSection =>
-        typeof item === 'object' &&
-        item !== null &&
-        typeof (item as DocumentSection).heading === 'string' &&
-        typeof (item as DocumentSection).purpose === 'string' &&
-        (item as DocumentSection).heading.trim() !== '' &&
-        (item as DocumentSection).purpose.trim() !== '',
-    )
-    .map((item) => ({
-      heading: item.heading,
-      purpose: item.purpose,
-      // the author's corrected brief (T-408) rides only when it is real text:
-      // absent means "the planner's description stands", and an empty string
-      // arriving here must not overwrite the purpose fallback downstream
-      ...(typeof (item as DocumentSection).brief === 'string' &&
-      (item as DocumentSection).brief!.trim() !== ''
-        ? { brief: (item as DocumentSection).brief }
-        : {}),
-    }));
+    .filter(namedPart)
+    .map((item) => {
+      // T-412 — the sub-sections ride the same persisted string, and **only one
+      // level of them is read back**. A payload nesting deeper is not an error
+      // to throw on: it is data this build has no shape for, so it is dropped
+      // here exactly as an unnamed section is, and the API's own schema is the
+      // gate that refuses it at the door.
+      const nested = (item as { subSections?: unknown }).subSections;
+      const subSections = (Array.isArray(nested) ? nested : [])
+        .filter(namedPart)
+        .map((sub) => ({ heading: sub.heading, purpose: sub.purpose, ...briefOf(sub) }));
+      return {
+        heading: item.heading,
+        purpose: item.purpose,
+        // the author's corrected brief (T-408) rides only when it is real text:
+        // absent means "the planner's description stands", and an empty string
+        // arriving here must not overwrite the purpose fallback downstream
+        ...briefOf(item),
+        ...(subSections.length > 0 && { subSections }),
+      };
+    });
 
 /** A step input that may be JSON text, or may already be the value. */
 function parsedJson(value: unknown): unknown {

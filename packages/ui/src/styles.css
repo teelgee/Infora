@@ -462,6 +462,21 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
   width: 16px; text-align: right; flex: none;
 }
 
+/* T-412 — sub-sections, indented under their parent and marked by an inset
+   rule rather than by a card of their own. The design rules cap nesting at
+   level 3 (a nested card inside a pane) and a card inside a card inside a pane
+   would be a fourth surface with no elevation level to sit at; the indent and
+   the hairline say "part of the section above" without inventing one. */
+.outline-subsections {
+  list-style: none; margin: 4px 0 0 20px; padding: 0 0 0 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  border-left: 1px solid var(--border-subtle);
+}
+.outline-subsection { display: flex; flex-direction: column; gap: 8px; }
+.outline-subsection .field-input { font-weight: 500; }
+.outline-section-n--sub { width: 26px; }
+.outline-section-add { margin-top: 4px; padding-left: 20px; }
+
 /* ---------- The proposed document (T-408) ----------
    The plan page's top half: what the document will be, section by section,
    with each description correctable in place. */
@@ -472,6 +487,9 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
   border-radius: var(--primitive-radius-md); padding: 12px;
   display: flex; flex-direction: column; gap: 8px;
 }
+/* T-412 — a sub-section on the plan: the same indent-and-hairline treatment
+   the composer uses, so the prospectus and the form describe one outline. */
+.proposal-section--sub { margin-left: 20px; border-left: 2px solid var(--border-default); }
 .proposal-section-head { display: flex; align-items: center; gap: 8px; }
 .proposal-section-heading { font-weight: 600; font-size: 12.5px; }
 .proposal-accept { margin-top: 16px; }
