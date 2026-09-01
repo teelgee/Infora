@@ -3,14 +3,15 @@
   "meta": {
     "name": "Infora Design Tokens",
     "version": "1.0.0",
-    "source": "Workspace Redesign.dc.html (turns 4,5,6,7,8,9) \u2014 the approved direction replacing the T-049 'Legora-clean' mockups",
-    "companion": "design-rules.md \u2014 read together; every token below is referenced there by name"
+    "source": "Workspace Redesign.dc.html (turns 4,5,6,7,8,9) — the approved direction replacing the T-049 'Legora-clean' mockups",
+    "companion": "design-rules.md — read together; every token below is referenced there by name"
   },
+
   "primitive": {
     "color": {
       "neutral": {
-        "0": "#ffffff",
-        "50": "#faf9f7",
+        "0":   "#ffffff",
+        "50":  "#faf9f7",
         "100": "#f2f1ed",
         "150": "#efeeeb",
         "200": "#ececea",
@@ -21,8 +22,8 @@
         "900": "#1c1b18"
       },
       "neutralDark": {
-        "0": "#100f0c",
-        "50": "#1c1b17",
+        "0":   "#100f0c",
+        "50":  "#1c1b17",
         "100": "#25241f",
         "200": "#302e28",
         "300": "#3a3830",
@@ -32,38 +33,13 @@
         "700": "#d8d4c9",
         "900": "#ece9e1"
       },
-      "green": {
-        "500": "#2f9e52",
-        "600": "#1a7a3a",
-        "tint": "#e8f5ea"
-      },
-      "greenDark": {
-        "500": "#3f9b5f",
-        "600": "#7dd69a",
-        "tint": "#1e3324"
-      },
-      "red": {
-        "500": "#b23b34",
-        "tint": "#fbeceb"
-      },
-      "redDark": {
-        "500": "#e08b83",
-        "tint": "#3a2320"
-      },
-      "amber": {
-        "500": "#c4901f",
-        "600": "#8a5a12",
-        "tint": "#f8efdd"
-      },
-      "amberDark": {
-        "500": "#b8862f",
-        "600": "#d1a04e",
-        "tint": "#322a1a"
-      },
-      "slate": {
-        "500": "#274a6d",
-        "tint": "#e9eff6"
-      },
+      "green": { "500": "#2f9e52", "600": "#1a7a3a", "tint": "#e8f5ea" },
+      "greenDark": { "500": "#3f9b5f", "600": "#7dd69a", "tint": "#1e3324" },
+      "red":   { "500": "#b23b34", "tint": "#fbeceb" },
+      "redDark": { "500": "#e08b83", "tint": "#3a2320" },
+      "amber": { "500": "#c4901f", "600": "#8a5a12", "tint": "#f8efdd" },
+      "amberDark": { "500": "#b8862f", "600": "#d1a04e", "tint": "#322a1a" },
+      "slate": { "500": "#274a6d", "tint": "#e9eff6" },
       "focusRing": "#cfcac0",
       "focusRingDark": "#4a473e"
     },
@@ -83,40 +59,16 @@
         "600": "24px",
         "700": "29px"
       },
-      "weight": {
-        "regular": 400,
-        "medium": 500,
-        "semibold": 600,
-        "bold": 700
-      },
-      "lineHeight": {
-        "tight": 1.3,
-        "snug": 1.55,
-        "normal": 1.65,
-        "relaxed": 1.75
-      }
+      "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700 },
+      "lineHeight": { "tight": 1.3, "snug": 1.55, "normal": 1.65, "relaxed": 1.75 }
     },
     "space": {
-      "0": "0px",
-      "1": "4px",
-      "2": "8px",
-      "3": "12px",
-      "4": "16px",
-      "5": "20px",
-      "6": "24px",
-      "8": "32px",
-      "10": "40px",
-      "12": "48px",
-      "16": "64px"
+      "0": "0px", "1": "4px", "2": "8px", "3": "12px", "4": "16px",
+      "5": "20px", "6": "24px", "8": "32px", "10": "40px", "12": "48px", "16": "64px"
     },
     "radius": {
-      "none": "0px",
-      "xs": "4px",
-      "sm": "8px",
-      "md": "8px",
-      "lg": "10px",
-      "full": "999px",
-      "circle": "50%"
+      "none": "0px", "xs": "4px", "sm": "8px", "md": "8px", "lg": "10px",
+      "full": "999px", "circle": "50%"
     },
     "shadow": {
       "level1": "none",
@@ -127,18 +79,8 @@
       "level4": "0 4px 8px rgba(0,0,0,.08), 0 24px 60px -12px rgba(0,0,0,.35)",
       "focusRingShadow": "0 0 0 3px var(--focus-ring)"
     },
-    "border": {
-      "hairline": "1px solid",
-      "none": "none"
-    },
-    "zIndex": {
-      "base": 0,
-      "pane": 1,
-      "popout": 10,
-      "sticky": 5,
-      "modal": 40,
-      "toast": 50
-    },
+    "border": { "hairline": "1px solid", "none": "none" },
+    "zIndex": { "base": 0, "pane": 1, "popout": 10, "sticky": 5, "modal": 40, "toast": 50 },
     "motion": {
       "durationFast": "100ms",
       "durationBase": "150ms",
@@ -147,167 +89,55 @@
       "shimmerDuration": "1.4s"
     }
   },
+
   "semantic": {
     "color": {
-      "surface.frame": {
-        "light": "#dedad0",
-        "dark": "{primitive.color.neutralDark.0}",
-        "note": "final \u2014 the app-shell/page background behind every pane"
-      },
-      "surface.pane": {
-        "light": "{primitive.color.neutral.0}",
-        "dark": "{primitive.color.neutralDark.50}"
-      },
-      "surface.sunken": {
-        "light": "{primitive.color.neutral.150}",
-        "dark": "{primitive.color.neutralDark.100}",
-        "note": "nested cards, chip fills, composer fill, hover fill"
-      },
-      "surface.hover": {
-        "light": "{primitive.color.neutral.150}",
-        "dark": "{primitive.color.neutralDark.100}"
-      },
-      "surface.frameHover": {
-        "light": "#e5e3dc",
-        "dark": "{primitive.color.neutralDark.100}",
-        "note": "hover fill for controls sitting directly ON the frame (nav items, collapse toggle) \u2014 one step darker than the frame, since surface.hover is tuned for white panes and disappears here"
-      },
-      "surface.frameActive": {
-        "light": "#c9c5b8",
-        "dark": "{primitive.color.neutralDark.200}",
-        "note": "selected/active fill for nav items on the frame"
-      },
-      "surface.frameSunken": {
-        "light": "#e5e3dc",
-        "dark": "{primitive.color.neutralDark.100}",
-        "note": "quiet filled blocks on the frame: org switcher, user chip"
-      },
-      "surface.active": {
-        "light": "{primitive.color.neutral.200}",
-        "dark": "{primitive.color.neutralDark.200}"
-      },
-      "surface.rowHover": {
-        "light": "{primitive.color.neutral.50}",
-        "dark": "{primitive.color.neutralDark.100}"
-      },
-      "border.default": {
-        "light": "{primitive.color.neutral.200}",
-        "dark": "{primitive.color.neutralDark.200}"
-      },
-      "border.subtle": {
-        "light": "{primitive.color.neutral.100}",
-        "dark": "{primitive.color.neutralDark.200}"
-      },
-      "text.primary": {
-        "light": "{primitive.color.neutral.900}",
-        "dark": "{primitive.color.neutralDark.900}"
-      },
-      "text.secondary": {
-        "light": "{primitive.color.neutral.600}",
-        "dark": "{primitive.color.neutralDark.700}"
-      },
-      "text.muted": {
-        "light": "{primitive.color.neutral.500}",
-        "dark": "{primitive.color.neutralDark.500}"
-      },
-      "text.faint": {
-        "light": "{primitive.color.neutral.400}",
-        "dark": "{primitive.color.neutralDark.400}"
-      },
-      "text.onAccent": {
-        "light": "{primitive.color.neutral.0}",
-        "dark": "#17171a"
-      },
-      "action.primary.bg": {
-        "light": "{primitive.color.neutral.900}",
-        "dark": "{primitive.color.neutralDark.900}"
-      },
-      "action.primary.text": {
-        "light": "{primitive.color.neutral.0}",
-        "dark": "#17171a"
-      },
-      "action.primary.bg.active": {
-        "light": "#000000",
-        "dark": "{primitive.color.neutralDark.900}"
-      },
-      "action.secondary.bg": {
-        "light": "{primitive.color.neutral.0}",
-        "dark": "{primitive.color.neutralDark.50}"
-      },
-      "action.secondary.border": {
-        "light": "{primitive.color.neutral.200}",
-        "dark": "{primitive.color.neutralDark.300}"
-      },
-      "action.secondary.text": {
-        "light": "{primitive.color.neutral.600}",
-        "dark": "{primitive.color.neutralDark.700}"
-      },
+      "surface.frame":      { "light": "#dedad0", "dark": "{primitive.color.neutralDark.0}", "note": "final — the app-shell/page background behind every pane" },
+      "surface.pane":       { "light": "{primitive.color.neutral.0}",  "dark": "{primitive.color.neutralDark.50}" },
+      "surface.sunken":     { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}", "note": "nested cards, chip fills, composer fill, hover fill" },
+      "surface.hover":      { "light": "{primitive.color.neutral.150}", "dark": "{primitive.color.neutralDark.100}" },
+      "surface.frameHover":  { "light": "#e5e3dc", "dark": "{primitive.color.neutralDark.100}", "note": "hover fill for controls sitting directly ON the frame (nav items, collapse toggle) — one step darker than the frame, since surface.hover is tuned for white panes and disappears here" },
+      "surface.frameActive": { "light": "#c9c5b8", "dark": "{primitive.color.neutralDark.200}", "note": "selected/active fill for nav items on the frame" },
+      "surface.frameSunken": { "light": "#e5e3dc", "dark": "{primitive.color.neutralDark.100}", "note": "quiet filled blocks on the frame: org switcher, user chip" },
+      "surface.active":     { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
+      "surface.rowHover":   { "light": "{primitive.color.neutral.50}",  "dark": "{primitive.color.neutralDark.100}" },
+
+      "border.default":    { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.200}" },
+      "border.subtle":     { "light": "{primitive.color.neutral.100}", "dark": "{primitive.color.neutralDark.200}" },
+
+      "text.primary":   { "light": "{primitive.color.neutral.900}", "dark": "{primitive.color.neutralDark.900}" },
+      "text.secondary": { "light": "{primitive.color.neutral.600}", "dark": "{primitive.color.neutralDark.700}" },
+      "text.muted":     { "light": "{primitive.color.neutral.500}", "dark": "{primitive.color.neutralDark.500}" },
+      "text.faint":     { "light": "{primitive.color.neutral.400}", "dark": "{primitive.color.neutralDark.400}" },
+      "text.onAccent":  { "light": "{primitive.color.neutral.0}",   "dark": "#17171a" },
+
+      "action.primary.bg":       { "light": "{primitive.color.neutral.900}", "dark": "{primitive.color.neutralDark.900}" },
+      "action.primary.text":     { "light": "{primitive.color.neutral.0}",   "dark": "#17171a" },
+      "action.primary.bg.active":{ "light": "#000000", "dark": "{primitive.color.neutralDark.900}" },
+      "action.secondary.bg":     { "light": "{primitive.color.neutral.0}",   "dark": "{primitive.color.neutralDark.50}" },
+      "action.secondary.border": { "light": "{primitive.color.neutral.200}", "dark": "{primitive.color.neutralDark.300}" },
+      "action.secondary.text":   { "light": "{primitive.color.neutral.600}", "dark": "{primitive.color.neutralDark.700}" },
       "action.disabled.opacity": 0.35,
-      "focus.ring": {
-        "light": "{primitive.color.focusRing}",
-        "dark": "{primitive.color.focusRingDark}"
-      },
-      "feedback.success.text": {
-        "light": "{primitive.color.green.600}",
-        "dark": "{primitive.color.greenDark.600}"
-      },
-      "feedback.success.dot": {
-        "light": "{primitive.color.green.500}",
-        "dark": "{primitive.color.greenDark.500}"
-      },
-      "feedback.success.tint": {
-        "light": "{primitive.color.green.tint}",
-        "dark": "{primitive.color.greenDark.tint}"
-      },
-      "feedback.danger.text": {
-        "light": "{primitive.color.red.500}",
-        "dark": "{primitive.color.redDark.500}"
-      },
-      "feedback.danger.tint": {
-        "light": "{primitive.color.red.tint}",
-        "dark": "{primitive.color.redDark.tint}"
-      },
-      "feedback.warning.text": {
-        "light": "{primitive.color.amber.600}",
-        "dark": "{primitive.color.amberDark.600}"
-      },
-      "feedback.warning.dot": {
-        "light": "{primitive.color.amber.500}",
-        "dark": "{primitive.color.amberDark.500}"
-      },
-      "feedback.warning.tint": {
-        "light": "{primitive.color.amber.tint}",
-        "dark": "{primitive.color.amberDark.tint}"
-      },
-      "feedback.neutral.dot": {
-        "light": "{primitive.color.neutral.400}"
-      },
-      "feedback.info.text": {
-        "light": "{primitive.color.slate.500}"
-      },
-      "feedback.info.tint": {
-        "light": "{primitive.color.slate.tint}"
-      },
-      "trackedChange.insert.text": {
-        "light": "{primitive.color.green.600}",
-        "dark": "{primitive.color.greenDark.600}"
-      },
-      "trackedChange.insert.bg": {
-        "light": "{primitive.color.green.tint}",
-        "dark": "{primitive.color.greenDark.tint}"
-      },
-      "trackedChange.insert.border": {
-        "light": "{primitive.color.green.500}",
-        "dark": "{primitive.color.greenDark.500}"
-      },
-      "trackedChange.delete.text": {
-        "light": "{primitive.color.red.500}",
-        "dark": "{primitive.color.redDark.500}"
-      },
-      "trackedChange.delete.bg": {
-        "light": "{primitive.color.red.tint}",
-        "dark": "{primitive.color.redDark.tint}"
-      }
+
+      "focus.ring": { "light": "{primitive.color.focusRing}", "dark": "{primitive.color.focusRingDark}" },
+
+      "feedback.success.text": { "light": "{primitive.color.green.600}", "dark": "{primitive.color.greenDark.600}" },
+      "feedback.success.dot":  { "light": "{primitive.color.green.500}", "dark": "{primitive.color.greenDark.500}" },
+      "feedback.success.tint": { "light": "{primitive.color.green.tint}","dark": "{primitive.color.greenDark.tint}" },
+      "feedback.danger.text":  { "light": "{primitive.color.red.500}",   "dark": "{primitive.color.redDark.500}" },
+      "feedback.danger.tint":  { "light": "{primitive.color.red.tint}",  "dark": "{primitive.color.redDark.tint}" },
+      "feedback.warning.text": { "light": "{primitive.color.amber.600}", "dark": "{primitive.color.amberDark.600}" },
+      "feedback.warning.dot":  { "light": "{primitive.color.amber.500}",  "dark": "{primitive.color.amberDark.500}" },
+      "feedback.warning.tint": { "light": "{primitive.color.amber.tint}", "dark": "{primitive.color.amberDark.tint}" },
+      "feedback.neutral.dot":  { "light": "{primitive.color.neutral.400}" },
+      "feedback.info.text":    { "light": "{primitive.color.slate.500}" },
+      "feedback.info.tint":    { "light": "{primitive.color.slate.tint}" },
+
+      "trackedChange.insert.text":   { "light": "{primitive.color.green.600}", "dark": "{primitive.color.greenDark.600}" },
+      "trackedChange.insert.bg":     { "light": "{primitive.color.green.tint}","dark": "{primitive.color.greenDark.tint}" },
+      "trackedChange.insert.border": { "light": "{primitive.color.green.500}", "dark": "{primitive.color.greenDark.500}" },
+      "trackedChange.delete.text":   { "light": "{primitive.color.red.500}",  "dark": "{primitive.color.redDark.500}" },
+      "trackedChange.delete.bg":     { "light": "{primitive.color.red.tint}", "dark": "{primitive.color.redDark.tint}" }
     },
     "space": {
       "gap.tight": "{primitive.space.1}",
@@ -330,82 +160,22 @@
       "frame": "{primitive.radius.lg}"
     },
     "elevation": {
-      "level1.flat": {
-        "shadow": "{primitive.shadow.level1}",
-        "usage": "the app frame/page background AND the nav rail, which is part of the frame; hairline tables; dense list rows \u2014 never gets a shadow"
-      },
-      "level2.pane": {
-        "shadow": "{primitive.shadow.level2}",
-        "shadowDark": "{primitive.shadow.level2Dark}",
-        "usage": "content panes that float on the frame: canvas, chat/panel. NOT the nav rail"
-      },
-      "level3.popout": {
-        "shadow": "{primitive.shadow.level3}",
-        "shadowDark": "{primitive.shadow.level3Dark}",
-        "usage": "nested cards inside a pane: suggestion callouts, ask-bar, project rows, chat bubbles, composer"
-      },
-      "level4.overlay": {
-        "shadow": "{primitive.shadow.level4}",
-        "usage": "dropdowns, menus, modals \u2014 floats above every pane, positioned outside pane bounds"
-      }
+      "level1.flat":     { "shadow": "{primitive.shadow.level1}", "usage": "the app frame/page background AND the nav rail, which is part of the frame; hairline tables; dense list rows — never gets a shadow" },
+      "level2.pane":     { "shadow": "{primitive.shadow.level2}", "shadowDark": "{primitive.shadow.level2Dark}", "usage": "content panes that float on the frame: canvas, chat/panel. NOT the nav rail" },
+      "level3.popout":   { "shadow": "{primitive.shadow.level3}", "shadowDark": "{primitive.shadow.level3Dark}", "usage": "nested cards inside a pane: suggestion callouts, ask-bar, project rows, chat bubbles, composer" },
+      "level4.overlay":  { "shadow": "{primitive.shadow.level4}", "usage": "dropdowns, menus, modals — floats above every pane, positioned outside pane bounds" }
     },
     "type": {
-      "display.lg": {
-        "family": "{primitive.font.family.serif}",
-        "size": "{primitive.font.size.700}",
-        "weight": "{primitive.font.weight.medium}",
-        "lineHeight": "{primitive.font.lineHeight.tight}"
-      },
-      "display.sm": {
-        "family": "{primitive.font.family.serif}",
-        "size": "{primitive.font.size.600}",
-        "weight": "{primitive.font.weight.medium}",
-        "lineHeight": "{primitive.font.lineHeight.tight}"
-      },
-      "wordmark": {
-        "family": "{primitive.font.family.serif}",
-        "size": "{primitive.font.size.500}",
-        "weight": "{primitive.font.weight.regular}"
-      },
-      "heading.md": {
-        "family": "{primitive.font.family.sans}",
-        "size": "{primitive.font.size.500}",
-        "weight": "{primitive.font.weight.semibold}"
-      },
-      "body.prose": {
-        "family": "{primitive.font.family.serif}",
-        "size": "{primitive.font.size.400}",
-        "weight": "{primitive.font.weight.regular}",
-        "lineHeight": "{primitive.font.lineHeight.relaxed}",
-        "note": "serif \u2014 the canvas reads as the document of record, not as interface (font fix 2026-08-05)"
-      },
-      "body.dense": {
-        "family": "{primitive.font.family.sans}",
-        "size": "{primitive.font.size.300}",
-        "weight": "{primitive.font.weight.regular}",
-        "lineHeight": "{primitive.font.lineHeight.snug}"
-      },
-      "ui.default": {
-        "family": "{primitive.font.family.sans}",
-        "size": "{primitive.font.size.200}",
-        "weight": "{primitive.font.weight.medium}"
-      },
-      "ui.label": {
-        "family": "{primitive.font.family.sans}",
-        "size": "{primitive.font.size.100}",
-        "weight": "{primitive.font.weight.medium}"
-      },
-      "ui.micro": {
-        "family": "{primitive.font.family.sans}",
-        "size": "{primitive.font.size.50}",
-        "weight": "{primitive.font.weight.bold}",
-        "letterSpacing": ".6px",
-        "transform": "uppercase"
-      },
-      "mono.code": {
-        "family": "{primitive.font.family.mono}",
-        "size": "{primitive.font.size.300}"
-      },
+      "display.lg": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.700}", "weight": "{primitive.font.weight.medium}", "lineHeight": "{primitive.font.lineHeight.tight}" },
+      "display.sm": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.600}", "weight": "{primitive.font.weight.medium}", "lineHeight": "{primitive.font.lineHeight.tight}" },
+      "wordmark":   { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.regular}" },
+      "heading.md": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.500}", "weight": "{primitive.font.weight.semibold}" },
+      "body.prose": { "family": "{primitive.font.family.serif}", "size": "{primitive.font.size.400}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.relaxed}", "note": "serif — the canvas reads as the document of record, not as interface (font fix 2026-08-05)" },
+      "body.dense": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.300}", "weight": "{primitive.font.weight.regular}", "lineHeight": "{primitive.font.lineHeight.snug}" },
+      "ui.default": { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.200}", "weight": "{primitive.font.weight.medium}" },
+      "ui.label":   { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.100}", "weight": "{primitive.font.weight.medium}" },
+      "ui.micro":   { "family": "{primitive.font.family.sans}",  "size": "{primitive.font.size.50}",  "weight": "{primitive.font.weight.bold}", "letterSpacing": ".6px", "transform": "uppercase" },
+      "mono.code":  { "family": "{primitive.font.family.mono}",  "size": "{primitive.font.size.300}" },
       "measure.prose": "600px",
       "measure.ui": "780px"
     },
@@ -416,6 +186,7 @@
       "shimmer": "{primitive.motion.shimmerDuration} linear infinite"
     }
   },
+
   "component": {
     "navRail": {
       "width.default": "216px",
@@ -424,7 +195,7 @@
       "padding": "{semantic.space.pane.padding} {primitive.space.2}",
       "radius": "{primitive.radius.none}",
       "shadow": "{semantic.elevation.level1.flat}",
-      "note": "the rail is PART of the frame, not a card on it: no fill of its own, no radius, no shadow, no divider (turn 10b's hairline divider was considered and rejected; turns 10a/11a supersede 4a/5a's nav-as-card treatment). The frame's radius clips its outer corners. See design-rules.md \u00a7C 'Shell z-order'",
+      "note": "the rail is PART of the frame, not a card on it: no fill of its own, no radius, no shadow, no divider (turn 10b's hairline divider was considered and rejected; turns 10a/11a supersede 4a/5a's nav-as-card treatment). The frame's radius clips its outer corners. See design-rules.md §C 'Shell z-order'",
       "item.padding": "7px 10px",
       "item.radius": "{semantic.radius.control.sm}",
       "item.gap": "{semantic.space.gap.default}",
@@ -470,7 +241,7 @@
       "contentRegion.padding": "{primitive.space.3} {primitive.space.3} {primitive.space.3} 0",
       "contentRegion.gap": "0",
       "contentRegion.gutter": "{primitive.space.3}",
-      "note": "never shadowed. The frame itself has NO padding \u2014 the nav rail runs flush to its edges and the frame's lg radius clips the rail's corners. Only the content region to the right of the rail is inset, and its left padding is 0 so the first pane's shadow reads against the rail. The content region's own gap is 0: the 12px gutter belongs either to a ResizeGrip between two panes or to a margin between adjacent panes, never to both. See design-rules.md section C 'Shell z-order'"
+      "note": "never shadowed. The frame itself has NO padding — the nav rail runs flush to its edges and the frame's lg radius clips the rail's corners. Only the content region to the right of the rail is inset, and its left padding is 0 so the first pane's shadow reads against the rail. The content region's own gap is 0: the 12px gutter belongs either to a ResizeGrip between two panes or to a margin between adjacent panes, never to both. See design-rules.md section C 'Shell z-order'"
     },
     "button.primary": {
       "background.default": "{semantic.color.action.primary.bg}",
@@ -512,13 +283,7 @@
       "radius": "{semantic.radius.chip}",
       "gap": "5px",
       "type": "{semantic.type.ui.label}",
-      "variants": [
-        "success",
-        "warning",
-        "danger",
-        "info",
-        "neutral"
-      ]
+      "variants": ["success", "warning", "danger", "info", "neutral"]
     },
     "suggestionCallout": {
       "background": "{semantic.color.surface.sunken}",
@@ -557,7 +322,7 @@
       "title.type": "{semantic.type.heading.md}"
     },
     "sourceChip": {
-      "note": "added during the apps/web migration \u2014 no dedicated mockup exists; \u00a7E only said 'keep as its own component, recolor to monochrome + feedback.info for the authority variant'. Two variants: lib (in-library source, monochrome) and auth (external authority source, feedback.info).",
+      "note": "added during the apps/web migration — no dedicated mockup exists; §E only said 'keep as its own component, recolor to monochrome + feedback.info for the authority variant'. Two variants: lib (in-library source, monochrome) and auth (external authority source, feedback.info).",
       "radius": "{semantic.radius.chip}",
       "padding": "2px 8px",
       "gap": "4px",
@@ -604,6 +369,7 @@
       "textDecoration": "line-through"
     }
   },
+
   "iconography": {
     "set": "Lucide",
     "size.nav": "15px",

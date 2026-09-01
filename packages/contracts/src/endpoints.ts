@@ -2327,9 +2327,12 @@ export type ToolPlan = {
  * T-412 — a sub-section at the wire.
  *
  * The same three fields a section has, and **no `subSections` of its own**:
- * V1 allows one level, and the schema is where a request carrying two is
- * refused rather than quietly flattened. A refusal at the door is the same
- * discipline the empty-heading rule already follows.
+ * V1 allows one level. A deeper level arriving on the wire is **stripped at
+ * the parse** — zod drops what the schema does not declare — so the request
+ * is honoured to the depth V1 has rather than refused outright; the outline
+ * suite pins that this is a strip, not a refusal, so nobody hardens against
+ * a refusal the door never performs (comment corrected in review,
+ * 2026-09-01 — it previously claimed a refusal).
  */
 export const documentSubSectionBody = z.object({
   heading: z.string().min(1),

@@ -1061,3 +1061,17 @@ are not recorded here.
   *what* is created — a caller passing none gets the previous behaviour
   unchanged. The id is checked against the requester's own project before use,
   so it is not a way to attach a run to somebody else's thread.
+
+- **2026-09-01 (review, on T-412 and T-415) — two contract changes the slice's
+  notes missed, covered here so the file's own charter holds.** (1) The
+  corpus family's catalogue label changed from *"Accuracy against the
+  record"* to **"Accuracy"** (`checker.ts`) — the owner's naming, session
+  Cr2; the reason is that the on-screen name is the contract's business,
+  since every surface reads the catalogue rather than inventing its own
+  words, which is exactly why the change lands in `contracts` and not in a
+  screen. (2) `creator.ts` gained **executable helpers**
+  (`flattenOutline`, `outlineEntryName`, `withBriefAt`) beside its types —
+  the reason is that the outline's flattening rule (which entries exist, in
+  what order, named how) must have **one answer** across the planner, the
+  splitter, the manifest and the web surface, and four copies of a
+  flattening loop is how a sub-section gets counted by three of them.

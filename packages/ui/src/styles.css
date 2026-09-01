@@ -562,9 +562,14 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
   border-radius: var(--primitive-radius-md); padding: 12px;
   display: flex; flex-direction: column; gap: 8px;
 }
-/* T-412 — a sub-section on the plan: the same indent-and-hairline treatment
-   the composer uses, so the prospectus and the form describe one outline. */
-.proposal-section--sub { margin-left: 20px; border-left: 2px solid var(--border-default); }
+/* T-412 — a sub-section on the plan: the plain nested-card treatment — an
+   indented card, no accent bar. (Review, 2026-09-01: this rule shipped as
+   `border-left: 2px` on the rounded card, which is exactly the "rounded
+   container with left-border accent" pattern §E's migration map removed —
+   the same pattern T-419's F2 stripped from the findings panel three
+   commits later. The composer's hairline lives on a flat list and is
+   legal; a rounded card's is not.) */
+.proposal-section--sub { margin-left: 32px; }
 .proposal-section-head { display: flex; align-items: center; gap: 8px; }
 .proposal-section-heading { font-weight: 600; font-size: 12.5px; }
 .proposal-accept { margin-top: 16px; }

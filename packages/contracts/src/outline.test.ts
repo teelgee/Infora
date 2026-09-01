@@ -116,10 +116,13 @@ describe('the wire allows one level and no more', () => {
     expect(documentCreationBody.safeParse(request(nested)).success).toBe(true);
   });
 
-  it('REFUSES a second level at the door rather than flattening it quietly', () => {
-    // one level is V1's rule, and a request carrying two describes a document
-    // the splitter, the manifest and the coverage count have no depth for.
-    // Refusing is the same discipline the empty-heading rule already follows.
+  it('STRIPS a second level at the parse — the request is honoured to the depth V1 has', () => {
+    // one level is V1's rule. A second level is not refused: zod drops what
+    // the schema does not declare, so the deeper material is gone before any
+    // handler sees it. This test exists so the behaviour is pinned AS a strip
+    // — a reader who needs a refusal must build one, not trust the door
+    // (title corrected in review, 2026-09-01: it previously claimed the
+    // refusal the body never asserted).
     const tooDeep = [
       {
         heading: 'Baseline',

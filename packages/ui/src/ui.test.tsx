@@ -779,3 +779,21 @@ describe('T-420 — UI prose carries a measure', () => {
     expect(block.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('12.5px');
   });
 });
+
+// §E's migration map removed the "rounded container with left-border accent"
+// pattern, and T-419's F2 stripped it from the findings panel — yet T-412 had
+// re-introduced it on the plan's sub-section rows three commits earlier and
+// the finesse pass did not catch it (found in review, 2026-09-01). Pinned so
+// the pattern cannot come back on this rule; `.proposal-section` is a rounded
+// card, so its variants may indent but never carry an accent bar.
+describe('a plan sub-section is a nested card, never a left-border accent (§E)', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+
+  it('indents without the banned accent bar', () => {
+    const start = css.indexOf('.proposal-section--sub {');
+    expect(start).toBeGreaterThan(-1);
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).toContain('margin-left');
+    expect(block).not.toContain('border-left');
+  });
+});
