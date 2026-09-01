@@ -24,7 +24,9 @@ export { AppFrame, CollapseToggle, Pane, PaneHeader, ResizeGrip } from './app-fr
 export { Prose } from './prose';
 export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 export { Modal, Drawer } from './dialog';
-export { Field, TextInput, TextArea, SelectInput, Combobox } from './form';
+// T-421 — SegmentedControl: a pick-one-of-two-or-three drawn as one control
+// rather than a row of buttons (design-rules §B)
+export { Field, TextInput, TextArea, SegmentedControl, SelectInput, Combobox } from './form';
 export { Table } from './table';
 export { Skeleton } from './skeleton';
 export { ProjectCard } from './project-card';

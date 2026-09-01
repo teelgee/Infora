@@ -149,10 +149,15 @@ export const DEFAULT_READABILITY_TARGET = 14;
 
 // ── T-336 — THE LAUNCHER'S TWO PRESETS ──────────────────────────────────────
 //
-// *In plain terms: two buttons that set everything at once. "Full check" reads
-// every section against every rule and looks the project record up statement by
-// statement. "Quick check" does less of the last part. You can still change any
-// individual setting after picking one.*
+// *In plain terms: one switch with two positions, which sets everything at
+// once. "Full check" reads every section against every rule and looks the
+// project record up statement by statement. "Quick check" does less of the last
+// part. You can still change any individual setting after picking one.*
+//
+// *(T-421, 2026-09-01: the launcher used to draw these as two buttons. The
+// values below did not change — only the drawing, to one segmented control,
+// because the two are mutually exclusive and a pair of buttons reads as two
+// separate actions.)*
 //
 // **They set the families and the depth TOGETHER**, which is why they are one
 // object rather than two switches: the honest choice a user is making is *how

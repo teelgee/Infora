@@ -1011,7 +1011,11 @@ await shot(e, 't2-02-draft');
 // a preset is a starting point, not a mode: Quick, and then one check turned
 // off by hand — the families and the depth stay individually adjustable, and
 // the depth select is only there because the accuracy check is still on
-await e.getByRole('button', { name: 'Quick check' }).click();
+//
+// T-421 — the two presets are ONE segmented control now, so the position is a
+// `radio` and no longer a `button`. Selected by role rather than by class, so
+// this step still describes what the screen offers rather than how it is built.
+await e.getByRole('radio', { name: 'Quick check' }).click();
 await e
   .locator('label')
   .filter({ hasText: 'Internal consistency' })

@@ -76,6 +76,7 @@ import {
   Chip,
   Field,
   IconButton,
+  SegmentedControl,
   SelectInput,
   TextArea,
   TextInput,
@@ -1486,7 +1487,7 @@ export function CheckFamilyRow(props: {
   children?: ReactNode;
 }) {
   return (
-    <div className={props.checked ? 'check-family check-family--on' : 'check-family'}>
+    <div className="check-family">
       <label className="check-family-head">
         <input type="checkbox" checked={props.checked} onChange={props.onToggle} />
         <span className="check-family-name">{props.entry.label}</span>
@@ -1899,17 +1900,20 @@ export function QaCheckerScreen() {
           Tick a check and its own settings appear underneath it. Start from a preset if you like —
           it is a starting point, not a mode, and every part of it stays adjustable afterwards.
         </p>
+        {/* T-421 — ONE CONTROL WITH TWO POSITIONS, not two buttons. The two
+            presets are mutually exclusive by construction, and a primary/quiet
+            button pair says "here are two things you could do" where the truth
+            is "you are in one of these two". Nothing about the RULE changes: a
+            preset still sets the check families and the accuracy depth together
+            as one honest choice (ADR-0053 §2), every part of it stays
+            individually adjustable afterwards, and Full is still the default. */}
         <div className="check-presets">
-          {CHECK_PRESETS.map((entry) => (
-            <Button
-              key={entry.id}
-              size="sm"
-              variant={preset === entry.id ? 'primary' : 'quiet'}
-              onClick={() => choosePreset(entry.id)}
-            >
-              {entry.label}
-            </Button>
-          ))}
+          <SegmentedControl
+            label="How thorough a check"
+            value={preset}
+            options={CHECK_PRESETS.map((entry) => ({ value: entry.id, label: entry.label }))}
+            onChange={choosePreset}
+          />
         </div>
         <p className="field-hint">
           {CHECK_PRESETS.find((entry) => entry.id === preset)?.description}

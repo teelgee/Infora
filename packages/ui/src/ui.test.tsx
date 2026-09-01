@@ -33,6 +33,7 @@ import {
   RailNav,
   ResizeGrip,
   RunTrace,
+  SegmentedControl,
   SelectInput,
   Skeleton,
   SourceChip,
@@ -795,5 +796,142 @@ describe('a plan sub-section is a nested card, never a left-border accent (§E)'
     const block = css.slice(start, css.indexOf('}', start));
     expect(block).toContain('margin-left');
     expect(block).not.toContain('border-left');
+  });
+});
+
+// ── T-421 — THE THREE ADOPTED TASTE CHOICES ─────────────────────────────────
+//
+// *In plain terms: typing boxes stop stretching the whole screen, the five
+// checks read as a clean list rather than five boxes, and Quick/Full is one
+// switch. All three were listed for the owner by the finesse pass and ruled on
+// 2026-09-01.*
+//
+// Pinned at the source for the same reason T-420's measure is: none of these
+// would throw if it quietly went away, none would fail a render test, and the
+// screen would look exactly like the one the owner asked to have fixed.
+describe('T-421 — form controls stop growing at the UI measure', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+
+  it('🔒 the shared control carries the cap, and as a MAX-width', () => {
+    // `max-width` and not `width` is the whole safety of this rule: a control
+    // that is deliberately the full width of a narrower parent must not be
+    // made smaller than its container already is
+    const start = css.indexOf('\n.field-input {');
+    const block = css.slice(start, css.indexOf('}', start));
+    expect(block).toContain('max-width: var(--measure-ui)');
+    expect(block).toContain('width: 100%');
+  });
+
+  it('the two positioning wrappers take it too', () => {
+    // the select's chevron and the combobox's dropdown are both positioned
+    // against their wrapper's edge, so a cap on the inner control alone would
+    // leave each of them floating in the space the cap freed
+    for (const selector of ['.field-select-wrap {', '.combobox {']) {
+      const start = css.indexOf(selector);
+      expect(start, selector).toBeGreaterThan(-1);
+      expect(css.slice(start, css.indexOf('}', start)), selector).toContain(
+        'max-width: var(--measure-ui)',
+      );
+    }
+  });
+});
+
+describe('T-421 — the five check rows are a flat ruled list', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  const start = css.indexOf('\n.check-family {');
+  const block = css.slice(start, css.indexOf('}', start));
+
+  it('the row has no container of its own — no border box, no radius, no fill', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(block).not.toContain('border-radius');
+    expect(block).not.toContain('background');
+    expect(block).not.toContain('border: 1px');
+  });
+
+  it('siblings are separated by a hairline, and it is a TOP rule not a left accent (§E)', () => {
+    // §E's migration map removed the rounded-container-with-left-border-accent
+    // pattern from the system; T-419 stripped it from the findings panel and
+    // review caught it again on the plan's sub-rows. A divider between
+    // siblings is not that pattern — but only while it stays on the top edge.
+    // `border.default`, not `border.subtle`: a card is painted `surface.sunken`
+    // and `border.subtle` is a step LIGHTER than that, so the divider would be
+    // invisible on the one surface this list actually sits on
+    expect(block).toContain('border-top: 1px solid var(--border-default)');
+    expect(block).not.toContain('border-left');
+    expect(css).toContain('.check-family:first-child { border-top: none;');
+  });
+
+  it('🔒 the border-colour state that used to mark a ticked row is gone, not restyled', () => {
+    // a flat row has no container left to darken, and the tick plus the
+    // unfolded options are what say which check carries settings
+    // asserted over the DECLARATIONS: the comment above them deliberately
+    // records that the state was removed, and a removal nobody wrote down is
+    // one that comes back wearing an innocent face (T-419's lesson)
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('.check-family--on');
+  });
+});
+
+describe('T-421 — the segmented control', () => {
+  const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+  const options = [
+    { value: 'full' as const, label: 'Full check' },
+    { value: 'quick' as const, label: 'Quick check' },
+  ];
+
+  it('is ONE radiogroup with two positions, not two buttons', () => {
+    const html = renderToStaticMarkup(
+      <SegmentedControl
+        label="How thorough a check"
+        value="full"
+        options={options}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toContain('aria-label="How thorough a check"');
+    expect((html.match(/role="radio"/g) ?? []).length).toBe(2);
+    expect(html).toContain('Full check');
+    expect(html).toContain('Quick check');
+  });
+
+  it('says which position it is in, and is one tab stop rather than one per option', () => {
+    const html = renderToStaticMarkup(
+      <SegmentedControl
+        label="How thorough a check"
+        value="quick"
+        options={options}
+        onChange={() => {}}
+      />,
+    );
+    expect((html.match(/aria-checked="true"/g) ?? []).length).toBe(1);
+    expect((html.match(/tabindex="0"/g) ?? []).length).toBe(1);
+    expect(html).toContain('segment segment--on');
+  });
+
+  it('is elevation 1 on the radius rule — a control, never a card (§A)', () => {
+    const track = css.slice(css.indexOf('\n.segmented {'), css.indexOf('}', css.indexOf('\n.segmented {')));
+    expect(track).toContain('border-radius: var(--primitive-radius-sm)');
+    // the track must not be `surface.sunken` — a `.card` is painted with it, so
+    // the track would vanish into the card and leave one lone white button
+    expect(track).toContain('background: var(--surface-active)');
+    // if you cannot name the elevation level, do not add a shadow
+    expect(track).not.toContain('box-shadow');
+    const seg = css.slice(css.indexOf('\n.segment {'), css.indexOf('}', css.indexOf('\n.segment {')));
+    // a nested control never carries a bigger radius than its container
+    expect(seg).toContain('border-radius: var(--primitive-radius-xs)');
+    // §D — the minimum hit target is 32px, whatever the label's own height
+    expect(seg).toContain('min-height: 32px');
+  });
+
+  it('carries every state, and the hover is one that can actually be seen', () => {
+    // the track is `surface.active`, so a hover painted with that — or with
+    // `surface.hover`, which resolves to the card's own fill — is invisible.
+    // The hover moves one step TOWARDS the selected position's appearance.
+    expect(css).toContain('.segment:hover:not(.segment--on):not(:disabled)');
+    const hover = css.slice(css.indexOf('.segment:hover'));
+    expect(hover.slice(0, hover.indexOf('}'))).toContain('var(--surface-hover)');
+    expect(css).toContain('.segment:focus-visible');
+    expect(css).toContain('.segment:active:not(:disabled)');
+    expect(css).toContain('.segment:disabled');
   });
 });

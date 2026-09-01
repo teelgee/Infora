@@ -28,7 +28,11 @@ import { DataSourcesChip } from './composer-chips';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { MemoryRouter } from 'react-router';
-import { CHECK_FAMILY_CATALOGUE, DOCUMENT_PURPOSE_CATALOGUE } from '@infora/contracts';
+import {
+  CHECK_FAMILY_CATALOGUE,
+  DEFAULT_CHECK_PRESET,
+  DOCUMENT_PURPOSE_CATALOGUE,
+} from '@infora/contracts';
 import {
   AttachPicker,
   AttachedCopy,
@@ -1167,6 +1171,22 @@ describe('T-415 — each check carries its own options', () => {
     // and the presets survive: a preset is a starting point, not a mode
     expect(source).toContain('CHECK_PRESETS.map');
     expect(source).toContain('it is a starting point, not a mode');
+  });
+
+  // T-421 — *in plain terms: Quick and Full are one switch with two positions,
+  // not two buttons.* The RULE is untouched — a preset still sets the families
+  // and the depth together (ADR-0053 §2), everything stays adjustable
+  // afterwards, and Full is still the default. Only the drawing changed.
+  it('🔒 the presets are ONE segmented control, and Full is still the default', () => {
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('<SegmentedControl');
+    // two Buttons in a row is what this replaced; it must not come back
+    expect(source).not.toContain("variant={preset === entry.id ? 'primary' : 'quiet'}");
+    // one honest choice: the preset sets BOTH halves, which is why choosePreset
+    // still writes the families and the depth from the same object
+    expect(source).toContain('setFamilies([...chosen.families]);');
+    expect(source).toContain('setDepth(chosen.depth);');
+    expect(DEFAULT_CHECK_PRESET).toBe('full');
   });
 });
 

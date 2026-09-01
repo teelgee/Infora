@@ -2,7 +2,7 @@
 // select, and a searchable Combobox (the bind picker). All emit the class
 // vocabulary in styles.css; none carry business logic. These replace the
 // phantom `.input` class the surfaces referenced and the `window.prompt` flows.
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
 export function Field(props: {
@@ -67,6 +67,87 @@ export function TextArea(props: {
       disabled={props.disabled}
       onChange={(e) => props.onChange(e.target.value)}
     />
+  );
+}
+
+/**
+ * T-421 — SEGMENTED CONTROL: pick exactly one of two or three, drawn as ONE
+ * control rather than a row of buttons.
+ *
+ * *In plain terms: where a choice is "this one or that one, never both", two
+ * buttons side by side read as two separate actions. This reads as one switch
+ * with two positions, which is what the choice actually is.*
+ *
+ * Built on-system per design-rules §F.4, and its entry is in §B:
+ * - **Elevation 1.** It is a control, not a card, so it carries no shadow (§A).
+ * - **Radius:** `sm` on the track, `xs` on a segment — §A's rule that a nested
+ *   control never carries a bigger radius than the container it sits in.
+ * - **No token of its own.** Every value is a straight pass-through of an
+ *   existing semantic token, which §F.3 says to reference directly rather than
+ *   wrap; dark mode is therefore mechanical, with nothing new to remap.
+ * - **Every state:** default, hover, focus, pressed, selected, disabled.
+ *
+ * **A radiogroup, not a row of buttons** (§D): a screen reader hears "one of
+ * two" rather than two unrelated commands, the arrow keys move the selection
+ * the way they do in any radio group, and only the selected position is in the
+ * tab order — so the control is one tab stop, not one per option.
+ */
+export function SegmentedControl<T extends string>(props: {
+  value: T;
+  onChange: (value: T) => void;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  /** Names the group for a screen reader — the question, not the answers. */
+  label: string;
+  disabled?: boolean;
+}) {
+  const buttons = useRef<Array<HTMLButtonElement | null>>([]);
+  const index = props.options.findIndex((option) => option.value === props.value);
+
+  const move = (delta: number) => {
+    const count = props.options.length;
+    if (count === 0) return;
+    const nextIndex = (index + delta + count) % count;
+    const next = props.options[nextIndex];
+    if (next === undefined) return;
+    props.onChange(next.value);
+    // the moved-to position is already in the DOM, so it can take focus now:
+    // a roving tab index that leaves focus on the position you just left is
+    // worse than none at all
+    buttons.current[nextIndex]?.focus();
+  };
+
+  return (
+    <div className="segmented" role="radiogroup" aria-label={props.label}>
+      {props.options.map((option, i) => {
+        const selected = option.value === props.value;
+        return (
+          <button
+            key={option.value}
+            ref={(el) => {
+              buttons.current[i] = el;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={props.disabled}
+            tabIndex={selected ? 0 : -1}
+            className={selected ? 'segment segment--on' : 'segment'}
+            onClick={() => props.onChange(option.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                move(1);
+              } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                move(-1);
+              }
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
