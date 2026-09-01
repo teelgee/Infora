@@ -1203,6 +1203,17 @@ the board ordered them.
   ⚠ **Deviations, reported.** (1) **The attach picker's markup changed shape** — it is now a component with a class rather than inline `<label>`s; the walkthrough's capture step selects it by card and title and still matches, and was checked rather than assumed. (2) The walkthrough's beat `t2-04` prose was extended to describe both searches and the scope's move. **The page is not recaptured here** — that is T-420's. **No migration, no personal data, no contract change, no new endpoint** — both searches are filters over data the screen already had.
 
 
+**T-417 — The plan reads as a step-by-step workflow.** ✅ **Built 2026-09-01.** *Plainly: the checker's plan page sets out the run as numbered steps in the order they will happen, so a person reads what will run as a sequence rather than a summary.* Rendering only: the step list underneath is unchanged and stays uneditable (ADR-0053 §4); coverage keeps its two-shape sentence; the weaker-cross-section caveat keeps its position above the run control. **Done when:** the plan renders as an ordered sequence; the existing plan tests (determinism, caveat position, coverage) still pass unchanged. | *(Deps: T-415)*
+
+  **As built. *Plainly: the checker's plan now reads as a numbered workflow — step 1, then step 2, threaded down the page in the order they will happen — instead of a bulleted list of things that will occur.*** The card's lede says so in words (*"step by step, in the order it will happen"*), the steps are an ordered list with a numbered marker each, and a hairline runs from one marker to the next so the sequence is visible rather than inferred from the digits.
+
+  🔒 **RENDERING ONLY, AND THE RESTRAINT IS THE TICKET.** The list underneath is the same list, computed in code from the same parameters, editable by nobody, human or model (ADR-0053 §4 and §12). **Nothing here sorts** — the planner already emits its steps in the order it will execute them, and a component that re-ordered them would be a second opinion about what the run does. A render test reads `CheckPlanCard`'s own source and fails if `.sort(`, a `TextInput` or a `TextArea` ever appears inside it, which is the future edit worth guarding rather than today's behaviour.
+
+  **The existing plan tests pass untouched**, which is the ticket's own acceptance: determinism, the caveat sitting above the run control (it degrades loudly or not at all), the coverage sentence's shape, the refusal replacing the button rather than sitting beside it, and T-410's two inverted price assertions. Not one of them was edited.
+
+  ⚠ **Deviations, reported.** (1) **The card's heading moved from a bare `<strong>` to the shared `.card-title` style, and its lede to `.card-lede`.** The checker's plan card had been the last surface still hand-styling those two roles that T-404 unified on the creator's; leaving it would have meant the two tools' plan pages disagreeing about what a card heading looks like on the very ticket that re-reads one of them. (2) The walkthrough's beat `t2-05` was retitled and its prose extended. **The page is not recaptured here** — that is T-420's. **No migration, no personal data, no contract change, and no planner code touched at all.**
+
+
 ## Where-to-start records — moved 2026-08-28
 
 *The board's Where to start narrative accumulated full closed-ticket records

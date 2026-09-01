@@ -919,6 +919,33 @@ describe('T-336 — the plan is rendered, not editable, and says what it is weak
     expect(html).toContain('A pass per section over 11 sections');
   });
 
+  // ── T-417 — the plan reads as a numbered workflow ───────────────────────
+  it('renders the steps as an ORDERED sequence, numbered in run order', () => {
+    const html = render();
+    expect(html).toContain('plan-workflow');
+    expect(html).toContain('<ol');
+    // the numbers, and the labels beside them, in the order the planner emitted
+    expect(html).toContain('>1</span>');
+    expect(html).toContain('>2</span>');
+    expect(html.indexOf('Read section 1 against')).toBeLessThan(
+      html.indexOf('Score the draft for readability'),
+    );
+    expect(html).toContain('in the order it will happen');
+  });
+
+  it('🔒 RENDERING ONLY — nothing sorts, and the step list stays uneditable', () => {
+    // the planner emits its steps in the order it will execute them, so a
+    // component that sorted would be a second opinion about the order the run
+    // takes. And a numbered list is still not an editable one (ADR-0053 §12).
+    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    const start = source.indexOf('export function CheckPlanCard');
+    const end = source.indexOf('export function QaCheckerScreen');
+    const body = source.slice(start, end);
+    expect(body).not.toContain('.sort(');
+    expect(body).not.toContain('TextInput');
+    expect(body).not.toContain('TextArea');
+  });
+
   it('says the steps are not editable, and offers no control that would edit one', () => {
     const html = render();
     expect(html).toContain('the steps are not editable');

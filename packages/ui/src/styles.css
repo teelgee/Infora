@@ -441,6 +441,31 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
 .plan-steps { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .plan-steps li { font-size: 12.5px; color: var(--text-primary); padding-left: 14px; position: relative; }
 .plan-steps li::before { content: '·'; position: absolute; left: 2px; color: var(--text-muted); }
+/* ---------- The checker's plan, as a workflow (T-417) ----------
+   The same code-computed step list, read as a sequence rather than a summary:
+   an unordered list of five sentences says these things happen; a numbered
+   workflow says this happens, then this. Rendering only — nothing here sorts,
+   because the planner already emits its steps in run order. */
+.plan-shape { font-size: 12.5px; line-height: 1.55; margin: 8px 0 0; }
+.plan-workflow {
+  list-style: none; margin: 12px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.plan-workflow-step { display: flex; align-items: flex-start; gap: 10px; position: relative; }
+/* the connecting rule between one step and the next: the sequence made
+   visible, rather than left to the reader to infer from the numbers */
+.plan-workflow-step:not(:last-child)::before {
+  content: ''; position: absolute; left: 10px; top: 22px; bottom: -8px;
+  width: 1px; background: var(--border-subtle);
+}
+.plan-workflow-n {
+  flex: none; width: 20px; height: 20px; border-radius: var(--primitive-radius-full);
+  border: 1px solid var(--border-default); background: var(--surface-pane);
+  font-family: var(--mono); font-size: 11px; line-height: 18px; text-align: center;
+  color: var(--text-secondary); position: relative; z-index: 1;
+}
+.plan-workflow-label { font-size: 12.5px; line-height: 1.55; padding-top: 1px; }
+
 /* the row of buttons that follows a card, on the same 12px rhythm */
 .card-actions { display: flex; gap: 8px; margin-bottom: 12px; }
 

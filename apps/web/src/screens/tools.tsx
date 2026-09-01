@@ -1568,18 +1568,30 @@ export function CheckPlanCard(props: { plan: ToolPlan; busy: boolean; onRun: () 
   const { plan } = props;
   return (
     <Card>
-      <strong>The plan</strong>
-      <p style={{ color: 'var(--text-muted)' }}>
-        This is what will run. Change an answer above to change it — the steps are not editable,
-        which is what makes the run repeatable.
+      <span className="card-title">The plan</span>
+      <p className="card-lede">
+        This is what will run, step by step, in the order it will happen. Change an answer above to
+        change it — the steps are not editable, which is what makes the run repeatable.
       </p>
-      {plan.shape !== undefined && <p>{plan.shape}</p>}
-      <ul>
-        {plan.steps.map((step) => (
-          <li key={step.key}>{step.label}</li>
+      {plan.shape !== undefined && <p className="plan-shape">{plan.shape}</p>}
+      {/* 🔒 T-417 — RENDERING ONLY, AND THAT IS THE WHOLE TICKET. The list
+          underneath is the same list, computed in code from the same
+          parameters, editable by nobody (ADR-0053 §4, §12). What changed is
+          that a person reads it as a **sequence** rather than as a summary: an
+          unordered list of five sentences says these things happen; a numbered
+          workflow says this happens, then this. The steps already arrived in
+          run order — the planner emits them in the order it will execute them
+          — so nothing here sorts, and a component that sorted would be a
+          second opinion about the order the run takes. */}
+      <ol className="plan-workflow">
+        {plan.steps.map((step, index) => (
+          <li key={step.key} className="plan-workflow-step">
+            <span className="plan-workflow-n">{index + 1}</span>
+            <span className="plan-workflow-label">{step.label}</span>
+          </li>
         ))}
-      </ul>
-      <p>
+      </ol>
+      <p className="plan-covers">
         <strong>Covers:</strong> {plan.coverage}
       </p>
       {plan.caveats?.map((caveat) => (
