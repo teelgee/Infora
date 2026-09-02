@@ -902,6 +902,29 @@ export function SchemaScreen() {
         they are sending it and a message to go with it; what you set here is the{' '}
         <strong>standard message</strong> carried under every one of them, for this project.
       </p>
+      {/* T-432 (ADR-0055 §7) — who may send a document out of the project.
+          Three levels, and nobody below the chosen one is shut out: they ask,
+          and somebody above it answers. On the strictest level that answer
+          comes from the client, which is what the level is for. */}
+      <div style={{ maxWidth: 420, marginBottom: 12 }}>
+        <Field
+          label="Who may issue outside the project"
+          hint="Everyone below the line can still request one, for somebody above it to approve or decline."
+        >
+          <SelectInput
+            value={externalSettings?.permission ?? 'owner_super_user'}
+            onChange={(v) =>
+              void saveExternalSettings({ permission: v as ExternalIssueSettings['permission'] })
+            }
+            disabled={!externalSettings?.mayConfigure}
+            options={[
+              { value: 'any_member', label: 'Anyone on the project' },
+              { value: 'any_super_user', label: 'Any organisation’s super user' },
+              { value: 'owner_super_user', label: 'Only this organisation’s super users' },
+            ]}
+          />
+        </Field>
+      </div>
       <div style={{ maxWidth: 700, marginBottom: 4 }}>
         <Field label="Standard message" hint="Left empty, nothing is added.">
           <TextArea

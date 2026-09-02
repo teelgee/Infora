@@ -22,6 +22,7 @@ import type {
   CreateAcceptanceCodeBody,
   UpdateAcceptanceCodeBody,
   ListRenditionsResponse,
+  AnswerExternalRequestBody,
   ExternalDocumentResponse,
   ExternalIssue,
   GetExternalIssueSettingsResponse,
@@ -882,6 +883,16 @@ export const api = {
     request<ListExternalIssuesResponse>(`/containers/${containerId}/external-issues`),
   issueExternally: (containerId: string, body: IssueExternallyBody) =>
     request<ExternalIssue>(`/containers/${containerId}/external-issues`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  // T-432 — the request queue and its answer. One endpoint issues or requests
+  // depending on the project's setting, so `issueExternally` above is both acts
+  // and the response's `state` says which happened.
+  projectExternalIssues: (projectId: string) =>
+    request<ListExternalIssuesResponse>(`/projects/${projectId}/external-issues`),
+  answerExternalRequest: (id: string, body: AnswerExternalRequestBody) =>
+    request<ExternalIssue>(`/external-issues/${id}/answer`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),

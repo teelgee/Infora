@@ -1158,3 +1158,19 @@ are not recorded here.
   so no client can render what it was not sent. And the **reason `reason` and
   `message` are both required** is that a send with neither is the emailed
   attachment this replaces, which is the practice the ADR exists to end.
+
+- **2026-09-02 (T-432) — one endpoint, two acts, and the response says which
+  happened.** *Plainly: the same call either sends a document outside the
+  project or asks for permission to, depending on what the project has decided
+  about the caller.* The **reason there is no separate "request" body or
+  endpoint** is that a request must carry every fact the issue needs — the
+  deliverable, the revision, the recipient, the reason and the message — so a
+  second shape would be the same shape with a different name, and approving one
+  would mean copying fields between two types. `ExternalIssue.state` is the
+  discriminator, and a caller cannot choose which act it gets: the project's
+  setting decides, server-side. The **reason `mayIssue` and `mayApprove` are
+  fields on the settings response** rather than something a surface derives from
+  the level and its own role is T-269's assembled-not-filtered rule — a surface
+  that computed the line would be a second copy of the rule, and the first
+  disagreement between them would be a button offered to somebody the API then
+  refuses.

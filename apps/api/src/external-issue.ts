@@ -23,6 +23,7 @@ import { randomBytes } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  answerExternalRequestBody,
   EXTERNAL_LINK_DEFAULT_DAYS,
   issueExternallyBody,
   setExternalIssueSettingsBody,
@@ -182,6 +183,13 @@ export function externalIssueRoutes(deps: { db: Db }) {
   });
 
   // ── The door, on the deliverable, in the library (ADR-0055 §2) ────────────
+  //
+  // T-432 — ONE ENDPOINT, TWO ACTS, and which one you get is decided by the
+  // project's setting rather than by asking for it. Somebody above the line
+  // issues; somebody below it REQUESTS, and the request carries every fact the
+  // issue needs so that approving it invents nothing. That is T-389's shape for
+  // withdraw-or-propose, applied here for the same reason: two endpoints would
+  // be two answers to what an external issue is, and a caller could then pick.
   app.post('/containers/:containerId/external-issues', async (c) => {
     const containerId = c.req.param('containerId');
     if (!isUuid(containerId)) return notFound(c);
@@ -197,14 +205,33 @@ export function externalIssueRoutes(deps: { db: Db }) {
     if (!container) return notFound(c);
     const settings = await projectSettings(slice.projectId);
     if (!settings) return notFound(c);
-    if (!mayIssueExternally(slice, settings.permission)) return notFound(c);
+    const may = mayIssueExternally(slice, settings.permission);
     const body = issueExternallyBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     // an external issue serves a PROMOTED deliverable — it needs a version, and
-    // the one it names is the current one AT THE MOMENT OF ISSUE. Stored on the
-    // row, so tomorrow's revision changes nothing about what was sent today.
+    // the one it names is the current one AT THE MOMENT OF ISSUE (or of asking).
+    // Stored on the row, so tomorrow's revision changes nothing about what was
+    // sent today, and an approver issues the revision that was actually asked
+    // for rather than whatever has since become current.
     const version = await currentVersion(container.id);
     if (!version) return conflict(c, 'no_current_version');
+
+    if (!may) {
+      const [asked] = await deps.db
+        .insert(s.externalRecipients)
+        .values({
+          containerId: container.id,
+          versionId: version.id,
+          name: body.data.recipientName,
+          email: body.data.recipientEmail,
+          reason: body.data.reason,
+          message: body.data.message,
+          state: 'requested',
+          requestedByParticipantId: slice.participantId,
+        })
+        .returning();
+      return c.json(await issueRead(deps.db, asked!.id, true), 201);
+    }
 
     const days = body.data.expiresInDays ?? EXTERNAL_LINK_DEFAULT_DAYS;
     const [transmittal] = await deps.db
@@ -260,6 +287,101 @@ export function externalIssueRoutes(deps: { db: Db }) {
     return c.json({
       items: rows.filter((r) => visibleTo(r, slice)).map((r) => toExternalIssue(r, mayReadRecipient(r, slice))),
     } satisfies ListExternalIssuesResponse);
+  });
+
+  // ── The request queue (T-432) ─────────────────────────────────────────────
+  // A queue on the surface, never a notification: ADR-0055's Consequences say
+  // the pilot notification set gains nothing, so a pending request is something
+  // you find where the door is rather than something that chases you.
+  //
+  // Who reads it: anybody who may APPROVE (they must see the facts to decide),
+  // plus the same three parties who read an issue — the project owner, the
+  // asking organisation, and the producing organisation, which learns that its
+  // document is being asked for without learning who is asking for it.
+  app.get('/projects/:projectId/external-issues', project, async (c) => {
+    const slice = c.get('slice');
+    const settings = await projectSettings(slice.projectId);
+    if (!settings) return notFound(c);
+    const approver = mayIssueExternally(slice, settings.permission);
+    const rows = await listIssues(deps.db, { projectId: slice.projectId });
+    return c.json({
+      items: rows
+        .filter((r) => approver || visibleTo(r, slice))
+        .map((r) => toExternalIssue(r, approver || mayReadRecipient(r, slice))),
+    } satisfies ListExternalIssuesResponse);
+  });
+
+  // Approve or decline somebody else's request. The approver is anybody ABOVE
+  // the line — on the strictest level that is the client, which is the whole
+  // point of that level existing (ADR-0055 §7). The ADR explicitly supersedes
+  // the session's own recommendation that the SENDING firm's super user answer.
+  app.post('/external-issues/:id/answer', async (c) => {
+    const id = c.req.param('id');
+    if (!isUuid(id)) return notFound(c);
+    const [existing] = await deps.db
+      .select({ recipient: s.externalRecipients, projectId: s.containers.projectId })
+      .from(s.externalRecipients)
+      .innerJoin(s.containers, eq(s.externalRecipients.containerId, s.containers.id))
+      .where(eq(s.externalRecipients.id, id))
+      .limit(1);
+    if (!existing) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), existing.projectId);
+    if (!slice) return notFound(c);
+    const settings = await projectSettings(slice.projectId);
+    if (!settings) return notFound(c);
+    if (!mayIssueExternally(slice, settings.permission)) return notFound(c);
+    // answered once — the database says so too (the decision-only trigger), and
+    // this is the readable refusal in front of it
+    if (existing.recipient.state !== 'requested') return conflict(c, 'already_answered');
+    const body = answerExternalRequestBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c);
+
+    if (!body.data.approve) {
+      // a decline is answered, not merely refused: the person who asked reads
+      // the reason, exactly as the producing side reads a withdrawal's
+      const reason = body.data.declineReason?.trim();
+      if (!reason) return invalid(c);
+      await deps.db
+        .update(s.externalRecipients)
+        .set({
+          state: 'declined',
+          declinedByParticipantId: slice.participantId,
+          declineReason: reason,
+          decidedAt: sql`now()`,
+        })
+        .where(eq(s.externalRecipients.id, id));
+      return c.json(await issueRead(deps.db, id, true));
+    }
+
+    // the deliverable must still BE one: a request approved after its document
+    // was withdrawn would put a withdrawn record in front of the public
+    const container = await visibleDeliverable(slice, existing.recipient.containerId);
+    if (!container) return conflict(c, 'deliverable_not_live');
+    const days = body.data.expiresInDays ?? EXTERNAL_LINK_DEFAULT_DAYS;
+    const [transmittal] = await deps.db
+      .insert(s.transmittals)
+      .values({
+        kind: 'external',
+        containerId: existing.recipient.containerId,
+        // the version that was ASKED FOR, which the trigger has frozen since
+        // the request was written — approving issues what was approved
+        versionId: existing.recipient.versionId,
+        senderParticipantId: slice.participantId,
+        purposeCode: null,
+      })
+      .returning();
+    await deps.db
+      .update(s.externalRecipients)
+      .set({
+        state: 'issued',
+        transmittalId: transmittal!.id,
+        linkToken: mintToken(),
+        expiresAt: sql`now() + make_interval(days => ${days})`,
+        issuedByParticipantId: slice.participantId,
+        decidedAt: sql`now()`,
+      })
+      .where(eq(s.externalRecipients.id, id));
+    return c.json(await issueRead(deps.db, id, true));
   });
 
   // ── The recipient's own read: a token, one version, nothing else ──────────

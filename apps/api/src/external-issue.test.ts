@@ -163,9 +163,20 @@ describe('T-431 — who may issue', () => {
     expect(asProducer.mayConfigure).toBe(false);
   });
 
-  it('refuses the issue itself to everybody below the line, not only the button', async () => {
-    expect((await post(ownerPlainSession, `/containers/${containerId}/external-issues`, issueBody)).status).toBe(404);
-    expect((await post(producerSuperSession, `/containers/${containerId}/external-issues`, issueBody)).status).toBe(404);
+  // T-432 changed what this looks like from the outside, and deliberately:
+  // before it, somebody below the line got a refusal. Now the SAME endpoint
+  // answers them with a request — nobody is shut out, they are asked to ask.
+  it('turns the act of everybody below the line into a request, not a refusal', async () => {
+    for (const cookie of [ownerPlainSession, producerSuperSession]) {
+      const res = await post(cookie, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'below-the-line@example.com',
+      });
+      expect(res.status).toBe(201);
+      const asked = (await res.json()) as ExternalIssue;
+      expect(asked.state).toBe('requested');
+      expect(asked.linkToken).toBeNull();
+    }
   });
 
   it('keeps the whole-project settings out of a member organisation’s hands', async () => {
@@ -315,6 +326,146 @@ describe('T-431 — the issue, and what the link reaches', () => {
   });
 });
 
+describe('T-432 — the three levels, from both sides', () => {
+  async function setPermission(level: 'any_member' | 'any_super_user' | 'owner_super_user') {
+    const res = await patch(ownerSuperSession, `/projects/${projectId}/external-issue-settings`, {
+      permission: level,
+    });
+    expect(res.status).toBe(200);
+  }
+  const mayIssue = async (cookie: string) =>
+    (
+      (await (
+        await get(cookie, `/projects/${projectId}/external-issue-settings`)
+      ).json()) as GetExternalIssueSettingsResponse
+    ).mayIssue;
+
+  it('any member of any organisation — everybody issues, nobody requests', async () => {
+    await setPermission('any_member');
+    expect(await mayIssue(ownerPlainSession)).toBe(true);
+    expect(await mayIssue(producerSuperSession)).toBe(true);
+    const res = await post(producerSuperSession, `/containers/${containerId}/external-issues`, {
+      ...issueBody,
+      recipientEmail: 'any-member@example.com',
+    });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as ExternalIssue).state).toBe('issued');
+  });
+
+  it('any super user — a plain member asks, and another firm’s super user answers', async () => {
+    await setPermission('any_super_user');
+    expect(await mayIssue(ownerPlainSession)).toBe(false);
+    expect(await mayIssue(producerSuperSession)).toBe(true);
+
+    const asked = (await (
+      await post(ownerPlainSession, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'asked-by-plain@example.com',
+      })
+    ).json()) as ExternalIssue;
+    expect(asked.state).toBe('requested');
+    expect(asked.linkToken).toBeNull();
+
+    // asking is NOT sending: no transmittal and no expiry stand behind a request
+    const [row] = await db
+      .select()
+      .from(s.externalRecipients)
+      .where(eq(s.externalRecipients.id, asked.id));
+    expect(row!.transmittalId).toBeNull();
+    expect(row!.expiresAt).toBeNull();
+
+    // ADR-0055 §7 supersedes "the sending firm's own super user approves":
+    // anybody above the line answers, and here that is a different firm's
+    const answered = (await (
+      await post(producerSuperSession, `/external-issues/${asked.id}/answer`, { approve: true })
+    ).json()) as ExternalIssue;
+    expect(answered.state).toBe('issued');
+    expect(answered.linkToken).toBeTruthy();
+    expect(answered.recipientEmail).toBe('asked-by-plain@example.com');
+    // approving issues what was ASKED FOR — the frozen version, not whatever
+    // has since become current
+    expect(answered.versionId).toBe(asked.versionId);
+    expect((await app.request(`/external-documents/${answered.linkToken}`)).status).toBe(200);
+  });
+
+  it('only the owning organisation’s super users — the client answers the consultant', async () => {
+    await setPermission('owner_super_user');
+    expect(await mayIssue(producerSuperSession)).toBe(false);
+    expect(await mayIssue(ownerSuperSession)).toBe(true);
+
+    const asked = (await (
+      await post(producerSuperSession, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'consultant-asked@example.com',
+      })
+    ).json()) as ExternalIssue;
+    expect(asked.state).toBe('requested');
+
+    // the consultant cannot answer their own request
+    const selfAnswer = await post(producerSuperSession, `/external-issues/${asked.id}/answer`, {
+      approve: true,
+    });
+    expect(selfAnswer.status).toBe(404);
+
+    const declined = (await (
+      await post(ownerSuperSession, `/external-issues/${asked.id}/answer`, {
+        approve: false,
+        declineReason: 'The consultation window has closed.',
+      })
+    ).json()) as ExternalIssue;
+    expect(declined.state).toBe('declined');
+    expect(declined.declineReason).toBe('The consultation window has closed.');
+    expect(declined.declinedBy?.name).toBe('t431-owner-super');
+    expect(declined.linkToken).toBeNull();
+
+    // answered once — and the second answer is refused rather than overwriting
+    const second = await post(ownerSuperSession, `/external-issues/${asked.id}/answer`, {
+      approve: true,
+    });
+    expect(second.status).toBe(409);
+  });
+
+  it('refuses a decline with no reason — “no” with nothing after it is not an answer', async () => {
+    const asked = (await (
+      await post(producerSuperSession, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'no-reason@example.com',
+      })
+    ).json()) as ExternalIssue;
+    const res = await post(ownerSuperSession, `/external-issues/${asked.id}/answer`, {
+      approve: false,
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('shows the asker their own request, and the approver the facts to decide on', async () => {
+    const asked = (await (
+      await post(producerSuperSession, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'queue-visible@example.com',
+      })
+    ).json()) as ExternalIssue;
+
+    const mine = (await (
+      await get(producerSuperSession, `/projects/${projectId}/external-issues`)
+    ).json()) as ListExternalIssuesResponse;
+    expect(mine.items.some((i) => i.id === asked.id)).toBe(true);
+
+    const approver = (await (
+      await get(ownerSuperSession, `/projects/${projectId}/external-issues`)
+    ).json()) as ListExternalIssuesResponse;
+    const seen = approver.items.find((i) => i.id === asked.id);
+    expect(seen?.recipientEmail).toBe('queue-visible@example.com');
+    expect(seen?.message).toBe(issueBody.message);
+
+    // the rival firm is not above the line and has nothing to do with the ask
+    const rival = (await (
+      await get(rivalSession, `/projects/${projectId}/external-issues`)
+    ).json()) as ListExternalIssuesResponse;
+    expect(rival.items.some((i) => i.id === asked.id)).toBe(false);
+  });
+});
+
 describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
   it('answers "who was this issued to" on the transmittal log the other kinds use', async () => {
     const res = await get(ownerSuperSession, `/containers/${containerId}/transmittals`);
@@ -329,12 +480,17 @@ describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
   it('tells the producing organisation that its document left, and not to whom', async () => {
     const res = await get(producerSuperSession, `/containers/${containerId}/transmittals`);
     const { items } = (await res.json()) as ListContainerTransmittalsResponse;
-    const external = items.filter((i) => i.kind === 'external');
-    expect(external.length).toBeGreaterThanOrEqual(1);
-    for (const row of external) {
+    // the producer's OWN sends are its own business and are not withheld from
+    // it; what §8 withholds is somebody else's recipient, so the assertion is
+    // on the rows the owner organisation sent
+    const other = items.filter((i) => i.kind === 'external' && i.sender.name === 't431-owner-super');
+    expect(other.length).toBeGreaterThanOrEqual(1);
+    for (const row of other) {
       expect(row.recipientsWithheld).toBe(true);
       expect(row.externalRecipient).toBeNull();
     }
+    const anyExternal = items.filter((i) => i.kind === 'external');
+    expect(anyExternal.some((i) => i.externalRecipient?.email === issueBody.recipientEmail)).toBe(false);
   });
 
   it('shows a rival organisation on the project nothing at all', async () => {

@@ -186,6 +186,8 @@ function DocumentModal(props: { item: LibraryItem; onClose: () => void }) {
 // record were stronger than the email it replaces.
 function ExternalIssueModal(props: {
   item: LibraryItem;
+  /** T-432 — the verb the project's setting leaves this person: issue, or ask */
+  mode: 'issue' | 'request';
   onClose: () => void;
   onSubmit: (body: {
     recipientName: string;
@@ -213,7 +215,11 @@ function ExternalIssueModal(props: {
       open
       onClose={props.onClose}
       size="md"
-      title={`Issue ${props.item.documentReference} outside the project`}
+      title={
+        props.mode === 'issue'
+          ? `Issue ${props.item.documentReference} outside the project`
+          : `Request that ${props.item.documentReference} is issued outside the project`
+      }
       footer={
         <>
           <Button variant="quiet" onClick={props.onClose}>
@@ -233,11 +239,18 @@ function ExternalIssueModal(props: {
               });
             }}
           >
-            Issue
+            {props.mode === 'issue' ? 'Issue' : 'Send request'}
           </Button>
         </>
       }
     >
+      {props.mode === 'request' && (
+        <p style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          This project has decided who may send documents outside it, and it is not you — so this
+          goes as a <strong>request</strong>. Everything you write here is what the approver sees
+          and, if they agree, exactly what is sent: nobody retypes it.
+        </p>
+      )}
       <p style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
         The recipient gets a link to <strong>this revision of this document and nothing else</strong>
         — no project, no other documents, no list of people. They need no Infora account.{' '}
@@ -313,6 +326,47 @@ function ExternalIssuedModal(props: { issue: ExternalIssue; onClose: () => void 
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>
+    </Modal>
+  );
+}
+
+// T-432 — a decline is ANSWERED, not merely refused. The reason is mandatory
+// for the reason every other refusal in this record carries one: the person who
+// asked reads it, and "no" with nothing after it is not an answer.
+function DeclineRequestModal(props: {
+  request: ExternalIssue;
+  onClose: () => void;
+  onSubmit: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title={`Decline the request to issue ${props.request.documentReference}`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || reason.trim() === ''}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit(reason.trim());
+            }}
+          >
+            Decline
+          </Button>
+        </>
+      }
+    >
+      <Field label="Why" hint={`Read by ${props.request.requestedBy.name}, who asked.`}>
+        <TextArea value={reason} onChange={setReason} rows={3} />
+      </Field>
     </Modal>
   );
 }
@@ -456,6 +510,11 @@ export function LibraryScreen() {
   const [externalSettings, setExternalSettings] = useState<ExternalIssueSettings | null>(null);
   const [externalItem, setExternalItem] = useState<LibraryItem | null>(null);
   const [issued, setIssued] = useState<ExternalIssue | null>(null);
+  // T-432 — the request queue. A queue on this screen and NOT a notification:
+  // ADR-0055's notification set gains nothing, so a pending request is found
+  // where the door is rather than chasing anybody into a tray.
+  const [requests, setRequests] = useState<ExternalIssue[]>([]);
+  const [declining, setDeclining] = useState<ExternalIssue | null>(null);
 
   const load = useCallback(() => {
     void api.library(projectId).then((res) => setItems(res.items));
@@ -465,9 +524,14 @@ export function LibraryScreen() {
   useEffect(() => {
     if (isOwner) void api.participants(projectId).then((r) => setRoster(r.items));
   }, [isOwner, projectId]);
-  useEffect(() => {
+  const loadExternal = useCallback(() => {
     void api.externalIssueSettings(projectId).then(setExternalSettings, () => setExternalSettings(null));
+    void api.projectExternalIssues(projectId).then(
+      (r) => setRequests(r.items.filter((i) => i.state === 'requested')),
+      () => setRequests([]),
+    );
   }, [projectId]);
+  useEffect(loadExternal, [loadExternal]);
 
   // T-304 — the produced record and the material this project received are two
   // lists, split on the server's derived `kind` rather than on anything this
@@ -570,12 +634,39 @@ export function LibraryScreen() {
   ) {
     try {
       const issue = await api.issueExternally(item.containerId, body);
-      setIssued(issue);
-      setNote(null);
+      if (issue.state === 'issued') {
+        setIssued(issue);
+        setNote(null);
+      } else {
+        // the act the setting left this person. It must not read as a send.
+        setNote(
+          `Requested — ${item.documentReference} is not issued yet. Somebody who may issue outside the project will approve or decline it.`,
+        );
+      }
+      loadExternal();
     } catch {
       setNote('Could not issue outside the project — check the deliverable has a current revision.');
     }
     setExternalItem(null);
+  }
+
+  async function answerRequest(request: ExternalIssue, approve: boolean, declineReason?: string) {
+    try {
+      const answered = await api.answerExternalRequest(request.id, {
+        approve,
+        ...(declineReason !== undefined && { declineReason }),
+      });
+      if (approve && answered.state === 'issued') {
+        setIssued(answered);
+        setNote(null);
+      } else {
+        setNote(`Declined — ${request.documentReference} has not left the project.`);
+      }
+      loadExternal();
+    } catch {
+      setNote('Could not answer that request — it may already have been answered.');
+    }
+    setDeclining(null);
   }
 
   async function transmit(item: LibraryItem, organisationId: string) {
@@ -618,11 +709,19 @@ export function LibraryScreen() {
       {externalItem && (
         <ExternalIssueModal
           item={externalItem}
+          mode={externalSettings?.mayIssue ? 'issue' : 'request'}
           onClose={() => setExternalItem(null)}
           onSubmit={(body) => issueExternally(externalItem, body)}
         />
       )}
       {issued && <ExternalIssuedModal issue={issued} onClose={() => setIssued(null)} />}
+      {declining && (
+        <DeclineRequestModal
+          request={declining}
+          onClose={() => setDeclining(null)}
+          onSubmit={(reason) => answerRequest(declining, false, reason)}
+        />
+      )}
       {transmitItem && (
         <TransmitModal
           item={transmitItem}
@@ -630,6 +729,61 @@ export function LibraryScreen() {
           onClose={() => setTransmitItem(null)}
           onSubmit={(orgId) => transmit(transmitItem, orgId)}
         />
+      )}
+
+      {requests.length > 0 && (
+        <>
+          <SectionLabel>
+            <Share2 size={13} strokeWidth={2} /> Requests to issue outside the project
+          </SectionLabel>
+          <p className="page-sub" style={{ marginTop: -4 }}>
+            {externalSettings?.mayApprove
+              ? 'Approving sends exactly what was asked for — the same revision, recipient, reason and message.'
+              : 'Waiting on somebody who may issue outside this project.'}
+          </p>
+          <Table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Revision</th>
+                  <th>Recipient</th>
+                  <th>Why</th>
+                  <th>Asked by</th>
+                  <th style={{ textAlign: 'right' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((r) => (
+                  <tr key={r.id}>
+                    <td style={refStyle}>{r.documentReference}</td>
+                    <td><span className="mono">{r.versionReference}</span></td>
+                    <td>
+                      {r.recipientName || <span style={{ color: 'var(--text-muted)' }}>Withheld</span>}
+                      {r.recipientEmail && (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.recipientEmail}</div>
+                      )}
+                    </td>
+                    <td style={{ fontSize: 12.5 }}>{r.reason}</td>
+                    <td>{r.requestedBy.name}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {externalSettings?.mayApprove && (
+                        <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <Button size="sm" onClick={() => void answerRequest(r, true)}>
+                            Approve and issue
+                          </Button>
+                          <Button size="sm" variant="quiet" onClick={() => setDeclining(r)}>
+                            Decline…
+                          </Button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Table>
+        </>
       )}
 
       {pending.length > 0 && (
@@ -746,9 +900,10 @@ export function LibraryScreen() {
                         inside it. Offered only to somebody the project's
                         who-may-issue setting admits; T-432 puts the REQUEST
                         action here for everybody else. */}
-                    {externalSettings?.mayIssue && (
+                    {externalSettings !== null && (
                       <Button size="sm" variant="quiet" onClick={() => setExternalItem(item)}>
-                        <Share2 size={13} strokeWidth={2} /> Issue externally…
+                        <Share2 size={13} strokeWidth={2} />{' '}
+                        {externalSettings.mayIssue ? 'Issue externally…' : 'Request external issue…'}
                       </Button>
                     )}
                     {/* T-389 — the acts that did not exist. Offered to the two
