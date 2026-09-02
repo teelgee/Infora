@@ -60,6 +60,7 @@ import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
 import type { WorkerRegistry } from '@infora/capabilities';
+import { currentRuleSetVersionIds } from '@infora/data';
 import { reviseSectionBrief } from './section-brief-agent';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
@@ -416,6 +417,15 @@ export function documentCreationRoutes(deps: {
         sources: computed.body.sourceVersionIds,
         destination_sandbox_id: computed.body.destinationSandboxId,
         title: computed.body.title,
+        // 🔒 T-427 (ADR-0054 decision 7) — which version of the accepted
+        // writing rules this draft was written to, stamped ONCE on the run.
+        // Narrowed to the guides the AUTHOR SELECTED, matching the drafting
+        // read one line down in `document_builder`: a guide they did not choose
+        // is a rule about another document. Stored, never shown, and read by
+        // nothing — the builder's adapter maps only the inputs it declares.
+        rule_set_versions: (
+          await currentRuleSetVersionIds(deps.db, slice.projectId, computed.body.styleGuideIds)
+        ).join(','),
       });
     } catch (error) {
       if (!(error instanceof WorkflowNotRunnable)) throw error;

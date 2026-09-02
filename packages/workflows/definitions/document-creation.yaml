@@ -32,8 +32,11 @@
 # version; a template is now a starting outline the surface copies from, so by
 # the time a run is bound there is no template left in it. A version bump
 # rather than an edit in place, because a plan records the version it ran.
+# v3 (T-427, ADR-0054 decision 7): the run records which version of the writing
+# rules it drafted against. A version bump rather than an edit in place, for the
+# reason v2 gives -- a plan records the version it ran.
 id: document-creation
-version: 2
+version: 3
 label: Create a document
 description: >-
   Draft a document into a named template from library sources the author chose,
@@ -94,6 +97,18 @@ parameters:
     type: string
     required: true
     description: What to call the document.
+  - name: rule_set_versions
+    type: string
+    required: false
+    description: >-
+      T-427 (ADR-0054 decision 7) -- the rule-set version ids of the style
+      guides this draft was written to, comma-joined. STORED AND NEVER SHOWN,
+      stamped once on the run, and read by nothing: `document_builder`'s adapter
+      maps only the inputs it declares. The same field on the checker's own
+      workflow answers the same question about a check -- "which rules was this
+      run against" -- after the fact, which is what decision 8 leans on when it
+      rules that nobody is told when the rules change.
+    default: ''
 
 output_schema:
   document_id: the sandbox document written, or null where the write was withheld
@@ -116,6 +131,7 @@ steps:
       sources: '{{parameters.sources}}'
       destination_sandbox_id: '{{parameters.destination_sandbox_id}}'
       title: '{{parameters.title}}'
+      rule_set_versions: '{{parameters.rule_set_versions}}'
     depends_on: []
 
 requires_workers:

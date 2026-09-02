@@ -27,8 +27,11 @@
 # fix is a Suggestion the reviewer accepts through the path the drafting side
 # already uses (ADR-0048 section 3), so the checker acquires no write path of
 # its own, and validator rule 4 has nothing to bite on here.
+# v2 (T-427, ADR-0054 decision 7): the run records WHICH VERSION OF THE WRITING
+# RULES it ran against. A version bump rather than an edit in place, because a
+# plan records the version of the workflow it ran.
 id: qa-check
-version: 1
+version: 2
 label: Check a document
 description: >-
   Read a draft against the writing rules that bind it and the project record it
@@ -119,6 +122,25 @@ parameters:
     required: false
     description: The project's reading-level target, as a US grade.
     default: 14
+  - name: rule_set_versions
+    type: string
+    required: false
+    description: >-
+      T-427 (ADR-0054 decision 7) -- WHICH VERSION OF THE ACCEPTED WRITING RULES
+      this run ran against: the rule-set version ids of every live style guide
+      the run read, comma-joined, in the same idiom `families` uses. It is
+      STORED AND NEVER SHOWN -- the owner ruled explicitly against a screen
+      repeating "checked against style guide v3" down a list of findings -- and
+      it is stamped ONCE, on this one step of the plan, never on each finding.
+      ADR-0053 section 2's per-finding `checkFamily` is a different field and is
+      untouched by this.
+      A STRING carrying a list, which is the serialized-string idiom T-407 set
+      and `families` already uses: widening the fixed parameter-type set is an
+      owner decision rather than a build one.
+      NOTHING READS IT. `qa_document_check`'s adapter maps only the inputs it
+      declares, so this rides the run's own record and reaches no capability --
+      which is what "stored, not displayed" means once it is written down.
+    default: ''
 
 output_schema:
   findings: every anchored finding, with the input it arose from and its evidence
@@ -169,6 +191,10 @@ steps:
       families: '{{parameters.families}}'
       template_id: '{{parameters.template_id}}'
       readability_target: '{{parameters.readability_target}}'
+      # T-427 -- stamped HERE and nowhere else. `measure` is the step that
+      # totals up what the run read and it expands exactly once, so the record
+      # carries the rule-set version once per RUN rather than once per section.
+      rule_set_versions: '{{parameters.rule_set_versions}}'
     depends_on: []
 
 requires_workers:

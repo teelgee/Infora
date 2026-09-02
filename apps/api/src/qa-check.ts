@@ -55,6 +55,7 @@ import { readStyleClauses } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves, RunAttachment } from '@infora/orchestration';
 import { extractText } from './extract';
 import type { ExtractableFormat } from './extract';
+import { currentRuleSetVersionIds } from '@infora/data';
 import { writeFindings } from './findings';
 import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
@@ -220,6 +221,8 @@ export function qaCheckRoutes(deps: {
         /** T-399 — parsed here, held in memory, never written anywhere */
         attachments: RunAttachment[];
         fingerprints: UploadFingerprint[];
+        /** T-427 — stored on the run, shown nowhere */
+        ruleSetVersions: string[];
       }
     | { ok: false; response: Response }
   > => {
@@ -273,11 +276,18 @@ export function qaCheckRoutes(deps: {
       ? await readStyleClauses(deps.db, slice.projectId as Id, slice.organisationId as Id)
       : [];
 
+    // T-427 — the accepted rule-set version of every live style guide this run
+    // reads. Resolved in the SAME planning function the run binds from, so the
+    // plan the user saw and the run the record describes cannot name different
+    // rules — T-309's one-planner rule, applied to one more fact.
+    const ruleSetVersions = await currentRuleSetVersionIds(deps.db, slice.projectId);
+
     return {
       ok: true,
       body: parsed.data,
       sectionCount: sections.length,
       clauseCount: clauses.length,
+      ruleSetVersions,
       attachments: uploads.attachments,
       fingerprints: uploads.fingerprints,
       computed: planQaCheck({
@@ -339,6 +349,16 @@ export function qaCheckRoutes(deps: {
           computed.fingerprints.length > 0 ? JSON.stringify(computed.fingerprints) : '',
         template_id: computed.body.templateId ?? '',
         readability_target: 14,
+        // 🔒 T-427 (ADR-0054 decision 7) — WHICH VERSION OF THE WRITING RULES
+        // this run ran against, stamped ONCE on the run and never on a finding.
+        // It is a bound parameter, so it lands in the run's own plan record and
+        // is read by nothing: `qa_document_check`'s adapter maps only the
+        // inputs it declares. **No surface renders it** — `ToolPlan` carries no
+        // step inputs, so this is off every screen by construction rather than
+        // by a rule somebody has to remember. The owner ruled explicitly
+        // against a screen repeating "checked against style guide v3" down a
+        // list of findings.
+        rule_set_versions: computed.ruleSetVersions.join(','),
       });
     } catch (error) {
       if (!(error instanceof WorkflowNotRunnable)) throw error;

@@ -250,3 +250,56 @@ async function assertClausesBelong(
   const ours = new Set(found.map((row) => row.id));
   for (const id of wanted) if (!ours.has(id)) throw new UnknownClausePointer(id);
 }
+
+/**
+ * T-427 (ADR-0054 decision 7) — **which versions of the accepted writing rules
+ * a run ran against**, as the run's own record will carry them.
+ *
+ * *In plain terms: a check and a draft each store which version of the writing
+ * rules they used. Stored, not shown.*
+ *
+ * One id per live style guide that has an accepted set, in the guides' own
+ * loading order, so the value is stable for the same inputs — which is what
+ * lets a declared workflow keep its promise. **Retired guides are excluded**,
+ * because they are not what the run read; and a guide with no accepted set
+ * contributes nothing, because there is no version to name.
+ *
+ * `styleGuideIds` narrows it to the guides the author SELECTED, which is the
+ * drafting case; omitting it is the checker's, which reads every live guide
+ * because a rule that binds you binds you whether you remembered it or not
+ * (`guidingStyleGuide`'s own rule, one read along).
+ */
+export async function currentRuleSetVersionIds(
+  db: Db,
+  projectId: string,
+  styleGuideIds?: readonly string[],
+): Promise<string[]> {
+  if (styleGuideIds !== undefined && styleGuideIds.length === 0) return [];
+  const guides = await db
+    .select({ id: s.projectStyleGuides.id })
+    .from(s.projectStyleGuides)
+    .where(
+      and(
+        eq(s.projectStyleGuides.projectId, projectId),
+        isNull(s.projectStyleGuides.retiredAt),
+        // the project key stays the ceiling: a selected id belonging to another
+        // project matches nothing rather than reaching across
+        ...(styleGuideIds === undefined
+          ? []
+          : [inArray(s.projectStyleGuides.id, [...styleGuideIds])]),
+      ),
+    )
+    .orderBy(asc(s.projectStyleGuides.loadedAt));
+
+  const ids: string[] = [];
+  for (const guide of guides) {
+    const [version] = await db
+      .select({ id: s.projectStyleGuideRuleSets.id })
+      .from(s.projectStyleGuideRuleSets)
+      .where(eq(s.projectStyleGuideRuleSets.styleGuideId, guide.id))
+      .orderBy(desc(s.projectStyleGuideRuleSets.version))
+      .limit(1);
+    if (version !== undefined) ids.push(version.id);
+  }
+  return ids;
+}
