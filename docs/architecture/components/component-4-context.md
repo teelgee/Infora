@@ -37,7 +37,7 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 **Terms owned.** Context, Org context, Programme context, Project context, Source, Knowledge, Precedent.
 **Depends on.** Access model (component 2) for the project-context access resolution; document management (component 5) for the project library it grounds on.
 
-**Built 2026-08-27 (T-308, migration 0051, drawer 7): org context has a store.** The first of the three, and until then all three had none — `guiding` in the assembly gateway returned an empty array because there was nothing to return. What it holds is the firm's **rulebook**: a house drafting manual, which [ADR-0048](../adr/0048-the-checker-findings-not-prose.md) §4 rules guiding material in its entirety.
+**Built 2026-08-27 (T-308, migration 0051, drawer 7): org context has a store.** The first of the three, and until then all three had none — `guiding` in the assembly gateway returned an empty array because there was nothing to return. What it holds is the firm's **rulebook**: a house drafting manual. [ADR-0048](../adr/0048-the-checker-findings-not-prose.md) §4 first put it on the **guiding** channel and its own dated addendum (2026-08-30) moved it to **informing**, where it now rides in its entirety — the classification is by **ownership**, and a firm's manual is the firm's own IP that leaves when the firm leaves. Nothing about the substance moved with the label: *does not ground*, *quotable but never cited* and *private to its organisation* hold identically on either channel.
 
 **Org-private and project-less by construction.** The store's only key is the organisation: no `project_id`, no share, no acknowledgement, no wall predicate — because "portable to every project the organisation touches" *is* the query, and a project column would be a narrower thing wearing the same name. That is also why these rows are not in `version_chunks`: a store walled by a different rule must not sit inside the table whose purpose is enforcing the project one (the authority-corpus spike's Finding 4, applied a store early).
 
@@ -47,7 +47,9 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 
 ⚠ **`Q-046`** — the rulebook rides the channel *in its entirety* and is not retrieved against the question, so the token budget is the only thing that narrows it, and `mergeChannels` drops guiding before grounded. For an Ask answer that degrades tone; for a **checker**, whose silence is a claim, it changes what the output means. Raised, not answered here: it constrains T-310.
 
-**Programme and project context still have no store here**, and drawer 7 does not imply one.
+**Built 2026-08-30 (T-397) and 2026-09-01 (T-414): project context has a store too**, in the same drawer and the same shape with a different key — the **project style guide**, which belongs to the project and binds **every organisation on it**, so its only scope key is the project and it rides the **guiding** channel, the first material that channel has ever actually carried. The same drawer also holds the firm's **saved starting outlines**. **Programme context still has no store**, and drawer 7 does not imply one.
+
+**And a project style guide is no longer only prose** *(built 2026-09-02, T-423–T-429; [ADR-0054](../adr/0054-the-knowledge-section-and-style-guides-as-rules.md))*. It now has an accepted **rule set** behind it — see §9, which is the guiding channel's first **structured** material and changes what "steering" costs. The prose clauses do not go away: a guide with no accepted rule set is read exactly as it was, and a guide that has one is read as its rules **instead of** as prose, never as both.
 
 ## 2. Channels (grounded / guiding / informing)
 
@@ -55,6 +57,8 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 **Governing ADRs.** 0021, 0011 (refined).
 **Terms owned.** Channel, Grounded channel, Guiding channel, Informing channel. References the Authority corpus, owned here by Context (§8, revised ADR-0023), and the Project library, owned by document management (component 5).
 **Depends on.** Context stores (§1); the guiding channel also configures the Rail (component 3), since a guardrail can be expressed as a negative constraint.
+
+**Built 2026-09-02 (ADR-0054): the guiding channel carries structured material as well as prose.** An accepted **rule set** (§9) is guiding material that a code pass can settle rather than a model having to read — which is what makes four of the five rule kinds cost nothing. The privacy invariant is untouched: a rule steers and never grounds, and a finding quoting a project rule is shareable exactly because the guide it came from binds everyone on the project (ADR-0053 §9).
 
 ## 3. Channel retrieval and attached source
 
@@ -98,6 +102,61 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 **Terms owned.** Authority corpus, authority register.
 **Depends on.** Channels (§2) and retrieval (§3); the model/data packages for ingestion. The compliance-checking capability (the Engine, component 6) reads it but does not own it.
 
+## 9. The Knowledge section, and the rule set
+
+*Built 2026-09-02 — T-422 to T-429, on [ADR-0054](../adr/0054-the-knowledge-section-and-style-guides-as-rules.md) (the owner's directed design session of 2026-09-01). This section records **what got built**, not what was designed; the reasoning is the ADR's.*
+
+**Plainly: the three context stores now have a screen. It is called Knowledge, it sits in every project's left-hand menu, and it has two shelves — your firm's own writing material, and the project's. And a project's style guide stops being only a document: it becomes a list of rules somebody accepted, which is what the tools actually read.**
+
+**Responsibility.** Put a curation surface in front of the stores §1 holds; hold the **rule set** — a project style guide restructured into atomic, individually enforceable rules — as a versioned, append-only store with a named accepting person; run the extract → review → accept path that produces one; and hand the accepted set to the two consumers that read it (the checker and the drafting tool, both component 6).
+**Governing ADRs.** 0054; 0048 §§3–5 (what a finding may quote, and what may never write into a person's text); 0053 §§6, 9 (mechanical fixes versus rewrites; whose words a quoted rule is).
+**Terms owned.** Knowledge section, shelf, rule set, rule kind, rule origin, rule register, drafting brief.
+**Depends on.** Context stores (§1) for the three stores it fronts; the access model (component 2) for the curation tiers; the Engine (component 6) for both consumers.
+
+**⚠ This is configuration, not a tool, and that is why it has no walkthrough section.** The walkthrough carries the journey and a section per standalone **tool**; a settings surface forced into it would break that charter. Its screens are recorded here instead.
+
+### The two shelves, and the one screen behind them
+
+**A Knowledge item appears in every project's rail.** The **firm's shelf** holds the organisation's own drafting manual and its saved starting outlines; the **project's shelf** holds the project's style guides. 🔒 **The firm's shelf is one shelf, not a copy per project.** It also appears in the organisation's own workspace — and in that door **no project material is shown at all** — so it is marked as the firm's own and the same on every project wherever it renders. A consultant working three schemes must not be able to believe they are editing a per-project copy.
+
+**Assembled, not filtered.** A shelf a viewer may not curate shows **no disabled controls**, and material they may not see is **absent** rather than greyed: a member's read of the firm's rulebook list answers as nonexistence, so the screen renders nothing where it got nothing, and never a locked row.
+
+**Standards and legislation are not a third shelf.** They are project library reference material, which component 5 already holds and already has a screen for; this one links to it rather than restating it.
+
+### The rule set — what is stored
+
+**A rule is typed by HOW IT CAN BE ENFORCED, not by what it is about**, and that is the decision the cost saving falls out of. Five kinds: **term** (a wording and the wordings it replaces), **pattern** (a convention with a regular expression that finds the breach), **structure** (what a document must contain, and in what order), **measured** (a number with a target), and **judgement** (anything a computer cannot settle). Beside its kind every rule carries the three fields that make a deterministic check accurate rather than noisy — its **scope**, its **exceptions in two typed halves** (enumerated contexts, and exact words it leaves alone), and whether it **raises findings or only steers drafting**.
+
+**Every rule declares its origin**, and the origin decides what a finding may quote: `extracted` points at the clause it came from, so a finding quotes **the client's own words, verbatim, out of our own copy** (ADR-0048 §5); `typed` and `infora_proposed` point at nothing and can only ever quote the rule's own statement. 🔒 **The pointer comes from our copy, never from the model** — a model-authored pointer is how a paraphrase ends up quoted as the client's own words, so an unresolvable one is a rule discarded and counted rather than repaired.
+
+**A saved set is a VERSION and an amendment is the next one**, never an edit — T-397's retire-never-edit rule one store along, and for the same reason: the stored rule text is what past findings quoted. The version carries **who accepted it**, which is what makes a rule binding rather than a suggestion, and the **drafting brief** compiled from it at save. **Proposals ride the same table** carrying a state, a proposer and a decider, because a proposal *is* a rule that has not been accepted, and two tables would be two answers to what binds.
+
+**Three named people ride this store** — whoever accepted a set, whoever proposed a change, and whoever decided it — registered in [personal-data.md](../personal-data.md).
+
+### The screens
+
+- **The Knowledge page** — two shelves, and the doors into each store.
+- **Create a rule set** — a name, an optional uploaded standard, the registers it must cover, and the two extraction parameters. Nothing is stored yet.
+- **The review screen** — every rule Infora found, next to the exact words in the document it came from, with the origin shown plainly and **no invented wording** where there is none. Rules are corrected, deleted and added here. 🔒 **The review step sits between extraction and saving, always**, and extraction stores nothing at all — which is the structural version of the same rule. ⚖ **Accept-all is permitted**, deliberately, on the owner's own ruling; this does not reopen ADR-0048 §3, which governs accepting proposed changes into a **work product**, where here the client is accepting their own configuration of their own standard.
+- **The saved set** — readable by every participant, because a rule that binds you is a rule you may look up, and carrying the compiled drafting brief **verbatim**, so the owner's super user can read exactly what the drafting model is told.
+- **Propose a change** — anybody may; the owner organisation's super user decides. 🔒 **A proposal is not project-wide reading:** it is visible to its author, that person's own organisation and the owner organisation, **never to a rival firm on the project** — a rival learning which rules a competitor is arguing about is the wall breach nobody thinks of as crossing the wall. The predicate is applied in the read's own `WHERE`, so another firm's proposal is **absent** rather than refused.
+
+**The curation tier is T-397's, unchanged:** producing the rules that will bind every firm on a scheme is the same act as loading the guide they come from, so it is the owner organisation's super user — `404` to a member organisation and `403` to the owner's own non-elevated person.
+
+### What the consumers do with it
+
+**The checker** reads the accepted rules first, because they decide which guides are read as rules and which as prose. Term and pattern rules are settled **in code**, per section, with scope and both halves of the exceptions honoured by a masking pass that preserves offsets; structure rules are settled against the draft's headings and measured rules by arithmetic. **Only judgement rules reach a model**, one atomic statement each under a `[J#]` marker, under the same admission rule that governs a clause. So four kinds of five cost nothing.
+
+**The drafting tool** is given the **drafting brief** — the judgement and steering-only rules, compiled once at save by sorting and formatting and nothing else, so the same rules produce the same bytes — plus the term rules as a short preferred-wordings list, because a draft written correctly the first time needs no normalising. Afterwards a **tidy-up pass** normalises the model's own fresh sentences. 🔒 **That pass can never touch text a person wrote, and since T-435 the guarantee is structural rather than conventional**: its parameter is a branded type whose only producer takes the claims a drafting call returned, so an author's own headings do not type-check as input. ADR-0048 §3 is untouched.
+
+**Every run records the rule-set version it read**, stored and shown to nobody — so a finding raised last month can still be explained by the rules as they stood.
+
+### Deliberately not built
+
+- **No notification when a proposal is raised or answered.** The V1 interim is the queue on the screen where the decision is taken; richer Knowledge permissions and their notifications are deferred post-V1.
+- **The firm's own rulebook is not restructured into rules.** ADR-0054 leaves that explicitly open, and no ticket assumes it: the rulebook stays prose, on the informing channel, quoted verbatim and never cited.
+
+
 ---
 
 ## Deferred or handed to other components
@@ -110,4 +169,4 @@ The cut is by **domain capability**: the distinct jobs the layer does between a 
 
 ## Repository mapping
 
-The stores, distillation and signal capture live in the `knowledge` package (the moat); the connectors, ingestion and retrieval live in `data` (pgvector); the physical schema and migrations in `db`. **As built (T-308):** the org-context tables are drawer 7 (`packages/db/src/schema/drawer7-context.ts`), the rulebook loader is `packages/data/src/rulebook.ts` — deliberately beside the chunker it is not — the guiding channel's read is `packages/knowledge/src/guiding.ts`, and the org-admin door is `apps/api/src/rulebook.ts`. The context-assembly contract the orchestrator calls sits at the `knowledge`/`orchestration` boundary (ADR-0012; the v1 contract is ADR-0029). Access resolution is enforced in `governance` at the API boundary before any retrieval runs. See the overview's app-architecture diagram.
+The stores, distillation and signal capture live in the `knowledge` package (the moat); the connectors, ingestion and retrieval live in `data` (pgvector); the physical schema and migrations in `db`. **As built (T-308):** the org-context tables are drawer 7 (`packages/db/src/schema/drawer7-context.ts`), the rulebook loader is `packages/data/src/rulebook.ts` — deliberately beside the chunker it is not — the guiding channel's read is `packages/knowledge/src/guiding.ts`, and the org-admin door is `apps/api/src/rulebook.ts`. **As built (T-422–T-429, §9):** the rule set's store is the same drawer 7, its reads and writes are `packages/data/src/rule-set.ts`, the extraction and the in-house matcher are `packages/capabilities/src/rule-extraction.ts` and `rule-matcher.ts`, the doors are `apps/api/src/rule-set.ts` and `apps/api/src/style-guide.ts`, and the screens are `apps/web/src/screens/knowledge.tsx` and `style-guide.tsx`. The context-assembly contract the orchestrator calls sits at the `knowledge`/`orchestration` boundary (ADR-0012; the v1 contract is ADR-0029). Access resolution is enforced in `governance` at the API boundary before any retrieval runs. See the overview's app-architecture diagram.

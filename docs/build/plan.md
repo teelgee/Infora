@@ -62,6 +62,16 @@ checker half (per-check options, the two searches, the workflow-shaped plan,
 the run-progress box), the markup audit, and the finesse pass last. Build
 order and the clean stop are on the slice's own header.
 
+**✅ Both 2026-09-01 slices closed 2026-09-02.** Slice Knowledge (T-422–T-430,
+T-433) and Slice External Issue (T-431–T-432) landed, and the three tidy-up
+tickets raised in review closed behind them: **T-435** (the browser-test
+stand-in learned the rules workbench, and the seed carries one accepted rule
+set), **T-436** (the external link's first-open receipt, migration **0066**),
+and **T-434** (the record caught up — the Knowledge fold into component 4, the
+external-issue beat into the journey, and one recapture of the walkthrough).
+**The next frontier is not yet named.** Full records in
+[plan-history.md](plan-history.md).
+
 **▶ The frontier moved 2026-09-01 (second move that day).** The owner's
 directed design session on the **Knowledge section** ruled where the writing
 rules live and, in doing so, re-cut what a project style guide *is*: it stops
@@ -130,6 +140,8 @@ The wave design-reference blocks below are a **holding pen, not a home**. Each f
 | Wave 6 — scoping questions | [component-8-surfaces.md](../architecture/components/component-8-surfaces.md) | Post-V1 — **no fold before V1** | Deferred — block moved to [the deferred register](#scoping-questions-ask-wave-6--ticketed-early-deferred-from-v1) 2026-08-05 |
 | Wave 7 — Teach | [component-4-context.md](../architecture/components/component-4-context.md) | Post-V1 — **no fold before V1** | Deferred — block moved to [the deferred register](#teach-ask-wave-7--ticketed-early-deferred-from-v1) 2026-08-05 |
 | Wave 8 — the interface | [component-8-surfaces.md](../architecture/components/component-8-surfaces.md) | When T-292–T-296 land | Pending |
+| Slice Knowledge — the rules workbench | [component-4-context.md](../architecture/components/component-4-context.md) §9 | ✅ **Folded 2026-09-02** (T-434) — the Knowledge section, the two shelves, the rule set's model and its screens, and what the two consumers do with it; §1's stale claims corrected in the same pass (the rulebook's channel, and "project context has no store") | Done |
+| Slice External Issue — a deliverable leaves the platform | [user-stories.md](../architecture/user-stories.md) + [the walkthrough](../architecture/user-stories-walkthrough.html) | ✅ **Folded 2026-09-02** (T-434) — it happens **to the deliverable the journey follows**, so it is a journey beat and not a component note: the lead reviewer's story gains the final beat, and the walkthrough gains four photographs of it including the recipient's own page and T-436's receipt | Done |
 
 ## How to read a ticket
 
@@ -541,7 +553,7 @@ entry naming its gate and where its design lives.
 
 - ~~**T-433 — The Knowledge screens are drawn before they are built.**~~ ✅ **Closed by ruling 2026-09-02** — the owner waived the mockup round ("let's waive the mock-up — I trust you and the agent's judgment on this"); the walkthrough's capture remains the render check on the other side. Moved record in [plan-history.md](plan-history.md#slice-knowledge--where-the-writing-rules-live)
 - ~~**T-435 — The test substrate learns the rules workbench.**~~ ✅ **Built 2026-09-02** (no migration) — moved record in [plan-history.md](plan-history.md#slice-knowledge--where-the-writing-rules-live)
-- **T-434 — The record catches up with what got built.** *Plainly: once these two slices land, the written record has to say the product now does this — otherwise the next person reads a design that no longer matches the screens.* The standing rule is that **a surface is not finished when it merges** (CLAUDE.md). Two different destinations, and the split is the ticket rather than a formality. **The Knowledge section goes to its component doc** — [component-4-context.md](../architecture/components/component-4-context.md), because it is **configuration, not a tool**: the walkthrough carries a section per standalone *tool* and forcing a settings surface into it would break that charter. The component doc gains the section, the two shelves, and the rule set as the guiding channel's first structured material — retiring its standing note that the style guide is prose. **External issue goes to the journey** — [user-stories.md](../architecture/user-stories.md) and the walkthrough — because it happens **to the deliverable the journey follows**: the story gains a final beat where the accepted chapter leaves the platform to someone with no account. **Done when:** component 4 describes what was built rather than what was designed; the journey carries the external-issue beat and the walkthrough photographs it; no design block from these slices is left sitting on the board. | *(Deps: T-429, T-432)*
+- ~~**T-434 — The record catches up with what got built.**~~ ✅ **Built 2026-09-02** (no migration) — moved record in [plan-history.md](plan-history.md#slice-knowledge--where-the-writing-rules-live)
 
 **Slice External Issue — a deliverable reaches someone with no account** *(2026-09-01, same session → [ADR-0055](../architecture/adr/0055-external-issue-to-a-party-with-no-account.md); `Q-040` ruled closed. T-431–T-432.)* The last V1 capability whose shape was open. **Build order: T-431 → T-432**, then T-434's fold with the other slice. One migration (**0065**, the third transmittal kind and the recipient record, drawn in [data-model.md](data-model.md) before writing). **A named person with NO ACCOUNT rides T-431** — a first for the platform.
 

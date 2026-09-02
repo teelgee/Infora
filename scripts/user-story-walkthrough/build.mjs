@@ -423,6 +423,42 @@ const acts = [
         adrs: ['ADR-0011'],
       },
       {
+        img: '26a-external-issue',
+        lane: OWNER,
+        screen: 'Project library · issue externally',
+        title: 'The last act, and the first one that leaves the platform',
+        prose:
+          'A scheme has to send finished documents to people who will never have a login — a landowner whose field the route crosses, a consultation respondent, a supplier engaged for one job. Until this slice there was no path at all, so the file went out as an email attachment and the record of what went to whom lived in somebody’s sent items. The door is on the library row, beside the transmittal that stays inside the project, and the modal says the honest thing rather than the flattering one: anyone holding the link can open it, so the record says what was sent and to which address, never who read it. It asks two different questions and requires both — WHY it is being sent, which stays on the project record, and WHAT is said with it, which the recipient reads. Rachel is the owner organisation’s super user, which is the strictest of the three levels and the one a project gets by default; anyone below that line sees “Request external issue…” here instead, and asks.',
+        adrs: ['ADR-0055'],
+      },
+      {
+        img: '26b-external-link',
+        lane: OWNER,
+        screen: 'Project library · issued',
+        title: 'The link, handed back to the sender',
+        prose:
+          'There is no mail transport yet — it waits on external lead time — so the link is handed to Rachel to convey, and that is stated rather than disguised. Even once mail lands, the sender seeing exactly what they sent is not a workaround. The token IS the access: it is shown only to somebody already entitled to the row, and the surface composes the link from it because the API does not know the deployment’s public address.',
+        adrs: ['ADR-0055'],
+      },
+      {
+        img: '26c-external-document',
+        lane: { key: 'external', label: 'Mrs A Patel — consultation respondent, no Infora account' },
+        screen: 'The recipient’s page',
+        title: 'One document, no account, no way further in',
+        prose:
+          'This is the only page in the product rendered outside the session gate, and it is photographed here in a browser carrying no cookies at all — the whole claim being tested is that the link is the access. It resolves an opaque token to ONE NAMED REVISION and serves that: not the library, not the project, not a later revision of the same document, and no list of anybody. There is no rail, no project switcher and no way further in. What Mrs Patel gets is the document’s reference and revision, the date it was issued, the message Rachel wrote her, the date the link stops working, and the file — and the page says plainly that nothing is being asked of her: there is nothing to acknowledge or sign. An expired link and an invented one answer identically, so a guesser learns nothing from the difference.',
+          adrs: ['ADR-0055'],
+      },
+      {
+        img: '26d-transmittal-receipt',
+        lane: REVIEWER,
+        screen: 'Review · deliverable status',
+        title: '“Opened” — the receipt, beside the send',
+        prose:
+          'Back inside the project, on the same transmittal log that answers “who has this been issued to?” for the other two kinds. The external row now also answers “and have they read it”: the first open is recorded once and never moves, because the receipt is that the document was read and not how often it was looked at. Nothing about the person is inferred — whoever held the link opened it — which is why the receipt sits outside the recipient cut: the producing firm, which learns that its document left the project and never to whom, reads this too. The row was written by the previous beat actually happening, not staged.',
+        adrs: ['ADR-0055'],
+      },
+      {
         img: '27-accepted-status',
         lane: REVIEWER,
         screen: 'Review · deliverable status',
@@ -860,6 +896,7 @@ function build(srcFor) {
     --consultant: #6d5dd3;
     --reviewer: #159a74;
     --internal: #b8622f;
+    --external: #8a6d3b;
     --gap-tint: #f3ede0;
     --gap-edge: #d8c9a4;
     --serif: 'Source Serif 4', 'Iowan Old Style', 'Times New Roman', Georgia, serif;
@@ -913,6 +950,7 @@ function build(srcFor) {
   .shot--consultant .shot-lane { color: var(--consultant); }
   .shot--reviewer .shot-lane { color: var(--reviewer); }
   .shot--internal .shot-lane { color: var(--internal); }
+  .shot--external .shot-lane { color: var(--external); }
   .shot-lane::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: currentColor; vertical-align: 1px; }
   .shot-screen { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
   .shot img { display: block; width: 100%; height: auto; }
@@ -965,7 +1003,7 @@ function build(srcFor) {
 <div class="page">
   <header class="mast">
     <span class="mark"></span><span class="word">Infora</span>
-    <span class="doc">docs/architecture · Recaptured 2026-08-31</span>
+    <span class="doc">docs/architecture · Recaptured 2026-09-02</span>
   </header>
 
   <h1>The document management journey, and its tools, on screen</h1>
@@ -981,7 +1019,7 @@ function build(srcFor) {
     has never been photographed is a surface nobody has read back. The tools are not user stories and are deliberately
     not written into one; the journey keeps at most a single beat per tool, saying what happened in the story and
     pointing into the tool's own section.</p>
-    <p class="prov">Recaptured 2026-08-31 against the e2e substrate (deterministic model providers, seeded corpus).
+    <p class="prov">Recaptured 2026-09-02 against the e2e substrate (deterministic model providers, seeded corpus).
     This page is now the single rendering of the two journeys: the companion decision map
     (<code>user-stories-graphic.html</code>) was deleted on 2026-08-18, its accurate content absorbed into the beats and
     gap cards below — it had been built from ADRs 0001–0012 and predated the sandbox, binding, internal-QA and
@@ -1021,6 +1059,10 @@ function build(srcFor) {
       <p>Owner super-user at Trentmoor Energy: defines the project schema, then runs the review group as lead reviewer and holds the accepting code.</p>
     </div>
     <div class="card">
+      <div class="who"><span class="dot" style="background:var(--external)"></span>Mrs A Patel</div>
+      <p>A consultation respondent with <strong>no Infora account and no way of getting one</strong>. Receives the accepted chapter as a link that expires, and is never a party to the project.</p>
+    </div>
+    <div class="card">
       <div class="who"><span class="ref">WA-EIA-MST-001</span></div>
       <p>EIA Scoping Method Statement — Land Quality, on the Wrenfield–Ashcombe 400kV Connection. Planned, produced, QA’d, reviewed and accepted below.</p>
     </div>
@@ -1041,8 +1083,9 @@ function build(srcFor) {
   ${toolsHtml}
 
   <footer class="prov-foot">
-    <p><strong>Provenance.</strong> Recaptured 2026-08-31 from the running application: e2e API substrate with deterministic
-    model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas.
+    <p><strong>Provenance.</strong> Recaptured 2026-09-02 from the running application: e2e API substrate with deterministic
+    model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas —
+    and, for the recipient’s own page, a fourth session carrying no cookies at all.
     The one beat Playwright cannot photograph — the library modal’s embedded PDF pane — is represented by the library
     table instead.</p>
     <p><strong>What was driven through the API rather than clicked.</strong> Setting up the world: four plan rows beside

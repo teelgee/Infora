@@ -778,6 +778,82 @@ await r.goto(`${WEB}/projects/${projectId}/documents`);
 await r.getByText('WA-EIA-MST-001').first().waitFor();
 await shot(r, '26-library');
 
+// ── T-431/T-432/T-436 — the accepted chapter leaves the platform ───────────
+//
+// The last beat of the deliverable's life, and the first one that reaches
+// somebody with NO INFORA ACCOUNT. The door is on the library row, beside the
+// transmittal that stays inside the project. Rachel is the owner organisation's
+// super user, which is the strictest of the three levels and the default, so
+// she issues rather than requests.
+//
+// ⚠ THE RECIPIENT'S PAGE IS OPENED IN A CONTEXT WITH NO SESSION, and that is
+// the beat rather than a detail: the whole claim is that the link is the
+// access. Photographing it from Rachel's own browser would prove nothing,
+// because Rachel can already read the document. Opening it also RECORDS THE
+// FIRST OPEN (T-436), which is what puts a real receipt in the log shot below
+// rather than a fabricated one.
+console.log('issuing outside the project —');
+await r
+  .getByRole('row')
+  .filter({ hasText: 'WA-EIA-MST-001' })
+  .getByRole('button', { name: 'Issue externally…' })
+  .click();
+const issueModal = r.getByRole('dialog');
+await issueModal.getByText('Anyone holding the link can open it', { exact: false }).waitFor();
+await issueModal.getByLabel('Recipient name').fill('Mrs A Patel');
+await issueModal.getByLabel('Email address').fill('a.patel@ashcombe-parish.example');
+await issueModal
+  .getByLabel('Why it is being sent')
+  .fill('Statutory consultation response — Ashcombe Lane land parcels');
+await issueModal
+  .getByLabel('Message to the recipient')
+  .fill(
+    'The accepted Land Quality scoping method statement referred to in our letter of the 3rd. ' +
+      'The link reaches this revision only and expires in 30 days.',
+  );
+await r.waitForTimeout(200);
+await shot(r, '26a-external-issue');
+await issueModal.getByRole('button', { name: 'Issue', exact: true }).click();
+
+// the link, handed back to the sender — there is no mail transport yet (T-323
+// and T-330 wait on external lead time), so this IS how it reaches her today
+const issuedModal = r.getByRole('dialog');
+await issuedModal.getByText('is issued to', { exact: false }).waitFor();
+await shot(r, '26b-external-link');
+const externalLink = await issuedModal.locator('input, code, .mono').first().innerText().catch(() => '');
+await issuedModal.getByRole('button', { name: 'Done' }).click();
+
+// the token, read from the record rather than scraped off the screen — the
+// modal composes the link from it and the API is the authority on what it is
+const issues = await rachelApi.get(`/containers/${containerId}/external-issues`);
+const issuedRow = issues.items.find((i) => i.state === 'issued' && i.linkToken !== null);
+if (!issuedRow) throw new Error('no issued external row to open');
+if (externalLink !== '' && !externalLink.includes(issuedRow.linkToken)) {
+  throw new Error('the link on screen does not carry the token the record holds');
+}
+
+// 🔒 NO SESSION, NO SHELL, NO PROJECT. A fresh context with no cookies at all.
+const xCtx = await browser.newContext(ctxOpts);
+const x = await xCtx.newPage();
+await x.goto(`${WEB}/external/${issuedRow.linkToken}`);
+await x.getByText('Mrs A Patel', { exact: false }).first().waitFor();
+await x.waitForTimeout(400);
+await shot(x, '26c-external-document');
+await xCtx.close();
+
+// and the receipt, back inside the project: the same transmittal log that
+// answers "who has this been issued to" for the other two kinds now also
+// answers "and have they read it" (T-436).
+await r.goto(`${WEB}/projects/${projectId}/review/${containerId}`);
+await r.getByText('Transmittals and acknowledgements').first().waitFor();
+await r.getByText('Opened', { exact: false }).first().waitFor();
+await r
+  .getByText('Transmittals and acknowledgements')
+  .first()
+  .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+await r.waitForTimeout(300);
+await shot(r, '26d-transmittal-receipt');
+
 // the status page at Complete. (The library modal's embedded PDF is a
 // MimeHandlerView — Chromium never composites it into a screenshot, headed or
 // headless, so that beat is not capturable.)
@@ -1116,16 +1192,22 @@ await shot(e, 't2-08-panel');
 // then try to take its fix. The anchor no longer matches, so nothing is
 // written and the screen says so — the finding stays OPEN rather than being
 // applied to the wrong words.
+//
+// T-435 — THE SENTENCE THIS STAGES ON MOVED, AND SO DID WHERE THE FINDING
+// CAME FROM. The mechanical fix used to be invented by the stand-in router;
+// the seeded project now carries an accepted TERM rule, so it is raised for
+// real by the code pass — on “the routewide works” in §1, which is the phrase
+// the rule actually names. Drift is staged by editing that phrase.
 const canvas = e.locator('.doc-body textarea').first();
 await canvas.evaluate((el) => {
-  const at = el.value.indexOf('the former works');
+  const at = el.value.indexOf('the routewide works');
   el.focus();
-  el.setSelectionRange(at, at + 'the former works'.length);
+  el.setSelectionRange(at, at + 'the routewide works'.length);
 });
-await e.keyboard.type('the former railway works at Wrenfield Sidings');
+await e.keyboard.type('the Wrenfield to Ashcombe connection works');
 await canvas.evaluate((el) => el.blur());
 await e.waitForTimeout(800);
-const mechanicalCard = e.locator('.finding').filter({ hasText: 'named informally' });
+const mechanicalCard = e.locator('.finding').filter({ hasText: 'rules use' });
 await mechanicalCard.getByRole('button', { name: 'Accept', exact: true }).click();
 await e.getByText(/moved since the check ran/).waitFor();
 await e.waitForTimeout(300);
@@ -1137,7 +1219,7 @@ await shot(e, 't2-09-drift');
 // which would otherwise mask a write that had happened.
 {
   const after = await eleanorApi.get(`/sandbox-documents/${checkDoc.id}`);
-  if (!after.content.includes('the former railway works at Wrenfield Sidings')) {
+  if (!after.content.includes('the Wrenfield to Ashcombe connection works')) {
     throw new Error('drift beat: the accept wrote despite the drift — the banner is photographing a lie');
   }
 }
@@ -1156,17 +1238,29 @@ await e.getByText(/open finding/).waitFor();
 await panelTop(e.getByRole('button', { name: /^Accept \d+ mechanical/ }));
 await e.waitForTimeout(300);
 await shot(e, 't2-10-accept-all');
-await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).click();
-await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).waitFor({ state: 'hidden' });
 
-// the rewrite, read before it is taken — one at a time, by hand, and with no
-// accept-all anywhere near it now that the mechanical fix has gone
+// the rewrite, read before it is taken — one at a time, by hand
 const rewriteCard = e.locator('.finding').filter({ hasText: 'passive' });
 await panelTop(rewriteCard);
 await e.waitForTimeout(300);
 await shot(e, 't2-11-rewrite');
+
+// ⚠ THE ORDER OF TAKING THEM IS THE REWRITE FIRST, AND IT IS FORCED BY A REAL
+// PRODUCT PROPERTY (T-435). An anchor is an absolute span, and a bulk apply
+// runs DESCENDING so that applying one span never moves the next — within that
+// one call. Two SEPARATE accepts have no such protection: the mechanical fix
+// now lands in §1, before the rewrite in §3, so taking it first shortens the
+// text above the rewrite and the rewrite's own accept then drifts and is
+// refused. (It used to land after the rewrite, by accident of where the
+// stand-in router put it, and nobody had to know.) Taking the rewrite first
+// leaves the mechanical span untouched, because it sits above. The shots keep
+// their order and their claim: `t2-10` is the LAYOUT — accept-all above the
+// rewrites — which is what ADR-0053 §6 is about, not which is clicked first.
 await rewriteCard.getByRole('button', { name: 'Accept', exact: true }).click();
 await rewriteCard.waitFor({ state: 'detached' });
+
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).click();
+await e.getByRole('button', { name: /^Accept \d+ mechanical/ }).waitFor({ state: 'hidden' });
 
 // the bulk dismissal: declining a whole group is one professional judgement,
 // not one per finding — and it records no reason, deliberately
