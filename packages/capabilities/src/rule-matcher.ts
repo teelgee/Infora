@@ -124,13 +124,19 @@ export function evidenceFor(rule: AcceptedRule): FindingEvidence {
       scope: 'project',
     };
   }
-  return {
-    input: 'draft',
-    basis:
-      rule.origin === 'typed'
-        ? `a rule typed onto this project’s writing standard: “${rule.statement}”`
-        : `a rule Infora proposed and this project accepted: “${rule.statement}”`,
-  };
+  // (review, 2026-09-02) — the fallback was a binary ternary over a ternary
+  // origin: an EXTRACTED rule whose clause wording failed to resolve fell
+  // through and was described as "a rule Infora proposed", a false statement
+  // about provenance in the one function decision 3's honesty lives in. The
+  // store's CHECK makes that unreachable today; this keeps it honest if a
+  // read path ever drops the wording.
+  const basis =
+    rule.origin === 'typed'
+      ? `a rule typed onto this project’s writing standard: “${rule.statement}”`
+      : rule.origin === 'infora_proposed'
+        ? `a rule Infora proposed and this project accepted: “${rule.statement}”`
+        : `a rule extracted from this project’s writing standard, whose original wording could not be resolved: “${rule.statement}”`;
+  return { input: 'draft', basis };
 }
 
 /** Whether a rule can raise a finding at all (decision 4). */
@@ -572,10 +578,15 @@ export type Normalisation = {
  * **This is not the checker acquiring a write path, and ADR-0048 §3 is
  * untouched** (ADR-0054 decision 6). It reaches only the model's **own fresh
  * output**, inside the invoker's own sandbox, before any human has seen it. It
- * **never** touches text a person wrote — and the way that is guaranteed is
- * structural rather than careful: this function takes **only the lines the
- * drafting call produced**, and its caller passes the author's own headings
- * nowhere near it. A test in `document-builder.test.ts` pins that end.
+ * **never** touches text a person wrote. The guarantee is **one call site
+ * plus a biting test** — the sole caller feeds it only the lines the drafting
+ * call produced, and `document-builder.test.ts` puts an author heading and a
+ * model sentence breaching the same rule side by side and asserts opposite
+ * fates. It is a strong convention, NOT a structural impossibility: the
+ * parameter is a bare string array and this function is exported, so a second
+ * caller could hand it anything (comment corrected in review, 2026-09-02 —
+ * it previously claimed "structural"; a branded input type would make that
+ * word true and is noted on T-435).
  *
  * Only **term** rules are applied. A pattern rule's stored shape carries an
  * expression and no replacement, so there is nothing to apply — those are

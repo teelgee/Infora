@@ -266,8 +266,14 @@ describe('T-424 — extraction stores nothing, and the tier is T-397’s', () =>
         projectId: far!.id,
         title: 'elsewhere',
         sourceFormat: 'docx',
+        // scoped to a row THIS suite made (review, 2026-09-02): an unscoped
+        // whole-table limit(1) is the shape that produced the findings-suite
+        // flake fixed in this very slice
         loadedByUserId: (
-          await db.select({ id: s.users.id }).from(s.users).limit(1)
+          await db
+            .select({ id: s.projectStyleGuides.loadedByUserId })
+            .from(s.projectStyleGuides)
+            .where(eq(s.projectStyleGuides.id, guideId))
         )[0]!.id,
       })
       .returning();
@@ -353,9 +359,12 @@ describe('T-425 — saving produces a version, and nothing binds before it', () 
   });
 
   it('refuses a rule pointing at another guide’s clause rather than repairing it', async () => {
+    // a clause from THIS suite's other guide — foreign to emptyGuideId, and
+    // scoped rather than an arbitrary whole-table row (review, 2026-09-02)
     const [foreign] = await db
       .select({ id: s.projectStyleGuideClauses.id })
       .from(s.projectStyleGuideClauses)
+      .where(eq(s.projectStyleGuideClauses.styleGuideId, guideId))
       .limit(1);
     const res = await app.request(`/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets`, {
       method: 'POST',
