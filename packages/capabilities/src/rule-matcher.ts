@@ -44,6 +44,7 @@ import type {
 import type { DraftFinding, DraftSection } from './workers/qa-sections';
 import { anchorInto } from './workers/qa-sections';
 import { usablePattern } from './rule-extraction';
+import type { DraftedClaim } from './grounded-draft';
 
 /**
  * One accepted rule, as the checker holds it.
@@ -570,6 +571,41 @@ export type Normalisation = {
 };
 
 /**
+ * The model's **own fresh output**, and the only thing the tidy-up pass takes.
+ *
+ * *In plain terms: a locked box that can only be filled from what the AI just
+ * wrote. The tidy-up pass below opens boxes and nothing else, so there is no
+ * way to hand it a person's sentences.*
+ *
+ * The brand is not decoration. `FreshModelOutput` has a property no hand-written
+ * object can supply — the key is a `unique symbol` this module never exports —
+ * so the ONLY expression in the codebase that produces one is
+ * `freshModelOutput` immediately below, and that takes **the claims a drafting
+ * call returned**, not strings. Text a person wrote has no route in.
+ */
+declare const freshModelOutputBrand: unique symbol;
+export type FreshModelOutput = {
+  readonly [freshModelOutputBrand]: true;
+  readonly lines: readonly string[];
+};
+
+/**
+ * The one door into `FreshModelOutput` (T-435).
+ *
+ * It takes `DraftedClaim`s — the sentences `parseClaims` cut out of a drafting
+ * call's raw response — because that is the only material the guarantee below
+ * is allowed to be true of. A caller holding a heading an author typed, or a
+ * paragraph out of the sandbox, has nothing of this shape to offer.
+ */
+export function freshModelOutput(claims: readonly DraftedClaim[]): FreshModelOutput {
+  // The brand is a TYPE-LEVEL key only — `freshModelOutputBrand` is `declare`d
+  // and has no runtime value, so nothing can write it, here or anywhere. This
+  // cast is therefore the one authorised forgery, and keeping it inside the one
+  // door is what makes every other route in impossible.
+  return { lines: claims.map((claim) => claim.text) } as unknown as FreshModelOutput;
+}
+
+/**
  * 🔒 **THE TIDY-UP PASS, AND THE ONE THING IT MUST NEVER DO.**
  *
  * *In plain terms: after the AI writes a section, Infora swaps the wordings your
@@ -578,24 +614,29 @@ export type Normalisation = {
  * **This is not the checker acquiring a write path, and ADR-0048 §3 is
  * untouched** (ADR-0054 decision 6). It reaches only the model's **own fresh
  * output**, inside the invoker's own sandbox, before any human has seen it. It
- * **never** touches text a person wrote. The guarantee is **one call site
- * plus a biting test** — the sole caller feeds it only the lines the drafting
- * call produced, and `document-builder.test.ts` puts an author heading and a
+ * **never** touches text a person wrote.
+ *
+ * **The guarantee is STRUCTURAL** (T-435). The parameter is `FreshModelOutput`,
+ * whose brand is a `unique symbol` this module keeps to itself, and the only
+ * expression that produces one takes the claims a drafting call returned. A
+ * second caller cannot hand this function a string array at all — it does not
+ * type-check — so the old *one call site plus a biting test* is now the type
+ * system's answer rather than a convention. (Until 2026-09-02 the parameter was
+ * a bare `readonly string[]` and this comment said "structural" anyway; review
+ * corrected it to a convention, and T-435 made the word true instead.) The
+ * biting test stays: `document-builder.test.ts` puts an author heading and a
  * model sentence breaching the same rule side by side and asserts opposite
- * fates. It is a strong convention, NOT a structural impossibility: the
- * parameter is a bare string array and this function is exported, so a second
- * caller could hand it anything (comment corrected in review, 2026-09-02 —
- * it previously claimed "structural"; a branded input type would make that
- * word true and is noted on T-435).
+ * fates.
  *
  * Only **term** rules are applied. A pattern rule's stored shape carries an
  * expression and no replacement, so there is nothing to apply — those are
  * counted into `unfixed` and reported.
  */
 export function normaliseFreshOutput(
-  lines: readonly string[],
+  output: FreshModelOutput,
   rules: readonly AcceptedRule[],
 ): Normalisation {
+  const lines = output.lines;
   const terms = rules.filter((rule) => rule.kind === 'term');
   const patterns = rules.filter(
     (rule) => rule.kind === 'pattern' && usablePattern(rule.payload.expression),

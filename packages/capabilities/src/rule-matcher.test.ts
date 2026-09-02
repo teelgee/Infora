@@ -17,6 +17,7 @@ import {
   maskContexts,
   maskTerms,
   normaliseFreshOutput,
+  freshModelOutput,
   scopedLines,
 } from './rule-matcher';
 import type { AcceptedRule } from './rule-matcher';
@@ -317,13 +318,17 @@ describe('T-429 — the brief is compiled from the rules, and the same rules giv
 });
 
 describe('T-429 — the tidy-up pass normalises the model’s own output', () => {
+  // T-435 — the pass takes a branded `FreshModelOutput`, so a suite reaches it
+  // the same way the drafting run does: through the claims a model call
+  // produced. A bare string array no longer type-checks, which is the point.
+  const fresh = (lines: string[]) => freshModelOutput(lines.map((text) => ({ text })));
   const swap = term({
     payload: { preferred: 'scheme', replaces: ['project'] },
     exceptedTerms: ['the Project Board'],
   });
 
   it('swaps the wordings the rules name', () => {
-    const out = normaliseFreshOutput(['The project is assessed for land quality.'], [swap]);
+    const out = normaliseFreshOutput(fresh(['The project is assessed for land quality.']), [swap]);
     expect(out.lines[0]).toBe('The scheme is assessed for land quality.');
     expect(out.substitutions).toBe(1);
   });
@@ -331,7 +336,7 @@ describe('T-429 — the tidy-up pass normalises the model’s own output', () =>
   it('honours the same exceptions the check honours', () => {
     // a rule that spares the Project Board in a check must spare it in a draft,
     // or the two halves of one rule disagree about the same words
-    const out = normaliseFreshOutput(['The Project Board approved the project.'], [swap]);
+    const out = normaliseFreshOutput(fresh(['The Project Board approved the project.']), [swap]);
     expect(out.lines[0]).toBe('The Project Board approved the scheme.');
   });
 
@@ -341,7 +346,7 @@ describe('T-429 — the tidy-up pass normalises the model’s own output', () =>
       statement: 'Write a date as 12 March 2026.',
       payload: { expression: '\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b' },
     });
-    const out = normaliseFreshOutput(['Approved on 12/03/2026.'], [pattern]);
+    const out = normaliseFreshOutput(fresh(['Approved on 12/03/2026.']), [pattern]);
     // a pattern rule carries no replacement, so there is nothing to apply
     expect(out.lines[0]).toBe('Approved on 12/03/2026.');
     expect(out.unfixed).toBe(1);
@@ -349,7 +354,7 @@ describe('T-429 — the tidy-up pass normalises the model’s own output', () =>
 
   it('changes nothing where the rules are already satisfied', () => {
     const line = 'The scheme is assessed for land quality.';
-    const out = normaliseFreshOutput([line], [swap]);
+    const out = normaliseFreshOutput(fresh([line]), [swap]);
     expect(out.lines[0]).toBe(line);
     expect(out.substitutions).toBe(0);
   });

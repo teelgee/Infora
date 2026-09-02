@@ -37,7 +37,7 @@ import type {
 } from '@infora/contracts';
 import { flattenOutline, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
-import { normaliseFreshOutput, parseClaims, preferredWordings } from '@infora/capabilities';
+import { freshModelOutput, normaliseFreshOutput, parseClaims, preferredWordings } from '@infora/capabilities';
 import type { AcceptedRule } from '@infora/capabilities';
 import { readCurrentRuleSet } from '@infora/data';
 import { schema as s } from '@infora/db';
@@ -412,19 +412,21 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     //     section the run wrote into.
     // 🔒 T-429 — THE TIDY-UP PASS, AND THE ONE PLACE IT MAY TOUCH.
     //
-    // `linesOf` returns THE MODEL'S OWN SENTENCES for a section — the claims
+    // What goes in is THE MODEL'S OWN SENTENCES for this document — the claims
     // the drafting call just wrote, that survived the ground check, that no
-    // human has seen. Those are normalised. The section HEADINGS, three lines
+    // human has seen. Those are normalised. The section HEADINGS, further
     // below, are the AUTHOR'S OWN WORDS out of the outline they composed, and
     // they are assembled without ever passing through here.
     //
-    // **That separation is the guarantee**, not a habit: ADR-0048 §3 is
-    // untouched because the pass has no access to text a person wrote, and
-    // `document-builder.test.ts` pins exactly that — an author heading that
-    // breaches a term rule comes out unchanged while the model's sentence
-    // beside it is corrected.
+    // **T-435 made that separation structural.** `normaliseFreshOutput` no
+    // longer takes strings: it takes a `FreshModelOutput`, and the only way to
+    // make one is `freshModelOutput(claims)` — so the author's headings could
+    // not be handed to it even by a caller who wanted to. ADR-0048 §3 is
+    // untouched, and `document-builder.test.ts` still pins the behaviour: an
+    // author heading that breaches a term rule comes out unchanged while the
+    // model's sentence beside it is corrected.
     const tidied = normaliseFreshOutput(
-      sectioned.filter((claim) => survived.has(claim.text)).map((claim) => claim.text),
+      freshModelOutput(sectioned.filter((claim) => survived.has(claim.text))),
       accepted.rules,
     );
     const normalisedText = new Map(

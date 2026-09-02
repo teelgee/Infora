@@ -180,5 +180,6 @@ export {
   compileDraftingBrief,
   preferredWordings,
   normaliseFreshOutput,
+  freshModelOutput,
 } from './rule-matcher';
-export type { AcceptedRule, Normalisation } from './rule-matcher';
+export type { AcceptedRule, Normalisation, FreshModelOutput } from './rule-matcher';

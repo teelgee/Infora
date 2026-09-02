@@ -8,4 +8,10 @@ export {
   DEFAULT_ACCEPTANCE_SCHEME,
   type DefaultAcceptanceCode,
 } from './acceptance-code-seed.js';
+export {
+  seedProjectStyleGuideRuleSet,
+  WRENFIELD_RULE_SET,
+  WRENFIELD_DRAFTING_BRIEF,
+  type SeedRule,
+} from './rule-set-seed.js';
 export * as schema from './schema/index.js';

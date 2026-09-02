@@ -9,6 +9,7 @@ import { loadDbEnv } from './env.js';
 import { hashPassword } from './credentials.js';
 import { seedProjectOntology } from './ontology-seed.js';
 import { seedProjectAcceptanceCodes } from './acceptance-code-seed.js';
+import { seedProjectStyleGuideRuleSet } from './rule-set-seed.js';
 import * as s from './schema/index.js';
 
 // T-247 — the seed runs as the OWNER, like migrations. It TRUNCATEs, and the
@@ -23,6 +24,7 @@ await db.execute(sql`
     document_relationships, container_classifications, classification_terms, classification_facets,
     sandbox_document_versions, sandbox_documents, sandbox_scope_grants, sandboxes, renditions,
     versions, containers, work_items,
+    project_style_guide_rules, project_style_guide_rule_sets,
     project_style_guide_clauses, project_style_guides, rulebook_clauses, rulebooks,
     participants, memberships, projects, user_credentials, users, organisations CASCADE
 `);
@@ -151,6 +153,20 @@ await db.insert(s.projectStyleGuideClauses).values(
     spanEnd: at * 200 + clause.content.length,
   })),
 );
+
+// T-435 — THE PROJECT'S GUIDE ARRIVES AS ACCEPTED RULES (ADR-0054).
+//
+// The guide above is also stored as the five rules a real extract-review-accept
+// pass produces from it, accepted by the owner's super user. Two consequences
+// are the whole point: the checker reads this guide AS RULES rather than as
+// prose — settling the term and pattern rules in code for nothing and asking
+// the model only about the judgement ones — and the drafting tool is handed the
+// compiled brief. Without it every browser run and every screenshot shows the
+// world as it stood before Slice Knowledge landed.
+await seedProjectStyleGuideRuleSet(db, {
+  styleGuideId: projectStyleGuide!.id,
+  acceptedByUserId: rachel!.id,
+});
 
 const [calderHaleRulebook] = await db
   .insert(s.rulebooks)

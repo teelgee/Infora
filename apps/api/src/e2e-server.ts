@@ -31,9 +31,14 @@ const router = fakeRouter((system) => {
   }
   // T-336 — the checker's two prompts, for the same reason the branch above
   // exists: the substrate has to be able to drive a check through a browser
-  // without a provider. The section check returns ONE MECHANICAL fix and ONE
-  // REWRITE, which is what makes the accept-all-above-the-rewrites layout
-  // (ADR-0053 §6) photographable rather than merely asserted.
+  // without a provider.
+  //
+  // T-435 re-cut the section-check answer. It used to return one MECHANICAL fix
+  // and one REWRITE, both invented here; the mechanical half is now raised for
+  // real by the code pass over the seeded project's accepted TERM rule, before
+  // any model call happens. So the accept-all-above-the-rewrites layout
+  // (ADR-0053 §6) is still photographable, and the half of it that is supposed
+  // to cost nothing now genuinely costs nothing.
   if (system.includes('checkable factual assertions')) {
     return 'the reduction in contaminant loading';
   }
@@ -41,30 +46,167 @@ const router = fakeRouter((system) => {
     return JSON.stringify({ findings: [] });
   }
   if (system.includes('You are checking one section of a draft')) {
+    // T-435 — THE JUDGEMENT RULES, WHEN THE PROMPT CARRIES ANY.
+    //
+    // Once the seeded project's style guide is stored as accepted rules
+    // (ADR-0054), that guide stops arriving here as prose: its term and pattern
+    // rules are settled in code before this call is ever made, and what reaches
+    // the model is the judgement half, marked [J1], [J2] … The prompt's own
+    // blocks are the tell, exactly as the branches above read their prompts, so
+    // the substrate answers the world it is actually shown rather than the world
+    // as it stood before the rules work.
+    //
+    // 🔒 **EVERYTHING IS READ BACK OFF THE PROMPT — the markers AND the section
+    // text.** A rule set that grows a judgement rule renumbers [J#]; a check
+    // that runs section by section shows this branch a different section each
+    // time. Both are answered by looking rather than assuming, so a finding is
+    // returned only where its rule is really on offer and its quote is really
+    // in the section under check. A quote that is not is discarded by the
+    // admission rules and counted, which would put a permanent false number on
+    // the coverage line every screenshot carries.
+    const under = system.split('THE SECTION UNDER CHECK.')[1] ?? '';
+    const marker = (block: 'J' | 'R', pattern: RegExp): string | null => {
+      const found = [
+        ...system.matchAll(new RegExp(`^\\[${block}(\\d+)\\] \\(([^)]*)\\) (.+)$`, 'gm')),
+      ].find(([, , whose, text]) => pattern.test(`${whose} ${text}`));
+      return found === undefined ? null : `${block}${found[1]}`;
+    };
+    const candidates = [
+      // A REWRITE against a JUDGEMENT RULE — model-written prose, per-mark
+      // always. Its evidence is the rule Infora proposed and this project
+      // accepted, so this finding quotes no client document at all.
+      {
+        rule: marker('J', /active voice/i),
+        quote: 'A conceptual site model has been prepared for each land parcel crossed by the route.',
+        defect: 'This sentence is passive, so the party who prepared the model is not named.',
+        severity: 'advisory',
+        replacement:
+          'Calder & Hale has prepared a conceptual site model for each land parcel the route crosses.',
+      },
+      // A second judgement answer, on the project guide's own §2.4 — a result
+      // reported with no figure behind it. `required` rather than `advisory`, so
+      // the panel is photographed carrying both severities.
+      {
+        rule: marker('J', /unit and its source/i),
+        quote: 'PAH exceedances at three trial pits south of the Wrenfield substation',
+        defect:
+          'The exceedances are reported with no concentration and no unit, so the result cannot be checked.',
+        severity: 'required',
+        replacement: null,
+      },
+      // and the FIRM's own manual, which ADR-0054 leaves as prose and which
+      // still arrives as [R#]. A finding quoting it stays private to Calder &
+      // Hale (ADR-0053 §9) — the wall's cut, visible on one screen.
+      {
+        rule: marker('R', /firm rulebook.*hedge/i),
+        quote: 'a potentially unacceptable risk',
+        defect: 'The conclusion is hedged where the ground investigation supports stating it.',
+        severity: 'advisory',
+        replacement: null,
+      },
+    ];
     return JSON.stringify({
       summary: 'The section sets out the conceptual site model and its residual uncertainty.',
-      findings: [
-        // MECHANICAL — one substitution, applied consistently, statable in one
-        // line. R1 is the PROJECT style guide, so the quote crosses the wall.
+      findings: candidates
+        .filter((finding) => finding.rule !== null && under.includes(finding.quote))
+        .map((finding) => ({ family: 'style', ...finding })),
+    });
+  }
+  // T-435 — EXTRACTION: an uploaded standard becomes proposed rules (T-424).
+  //
+  // The workbench's first step could not be driven through a browser at all
+  // without this: the route asks a model to restructure a guide into clauses
+  // and every admission rule then discards what comes back, so the review
+  // screen was reachable only with an empty list. The clause markers are read
+  // back off the prompt's own [C#] block — the pointer must resolve against the
+  // clauses THIS run loaded, and a guessed marker is a rule discarded and
+  // counted.
+  if (system.includes('You are restructuring a written style guide')) {
+    const clauses = [...system.matchAll(/^\[C(\d+)\]/gm)].map((match) => match[1]);
+    const first = clauses[0];
+    if (first === undefined) return JSON.stringify({ rules: [] });
+    const second = clauses[1] ?? first;
+    const third = clauses[2] ?? first;
+    return JSON.stringify({
+      rules: [
+        // ONE CLAUSE SAYING TWO THINGS BECOMES TWO RULES — the split is the
+        // work (decision 6), and the substrate has to demonstrate it or the
+        // review screen photographs a list that never exercises it.
         {
-          family: 'style',
-          quote: 'the former works',
-          defect:
-            'The works are named informally here; the project style guide fixes “the scheme”.',
-          severity: 'advisory',
-          rule: 'R1',
-          replacement: 'the scheme',
+          clause: `C${first}`,
+          kind: 'term',
+          statement: 'Refer to the works as “the scheme”.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+          excepted_contexts: ['quotations', 'references'],
+          excepted_terms: [],
+          topic: null,
+          payload: {
+            preferred: 'the scheme',
+            replaces: ['the routewide works', 'the works'],
+            definition: 'The project’s own name for the works it authorises.',
+          },
         },
-        // A REWRITE — model-written prose, per-mark always. R4 is the FIRM's
-        // own manual, so this quote is private to Calder & Hale.
         {
-          family: 'style',
-          quote: 'A conceptual site model has been prepared for each land parcel crossed by the route.',
-          defect: 'This sentence is passive, so the party who prepared the model is not named.',
-          severity: 'advisory',
-          rule: 'R4',
-          replacement:
-            'Calder & Hale has prepared a conceptual site model for each land parcel the route crosses.',
+          clause: `C${first}`,
+          kind: 'pattern',
+          statement: 'Do not capitalise “the scheme” as a proper noun.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+          excepted_contexts: ['quotations', 'references'],
+          excepted_terms: [],
+          topic: 'heading-case',
+          payload: { expression: '\\bthe Scheme\\b', caseSensitive: true },
+        },
+        {
+          clause: `C${second}`,
+          kind: 'judgement',
+          statement: 'State every quantitative result with its unit and its source.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+          excepted_contexts: ['quotations', 'references'],
+          excepted_terms: [],
+          topic: null,
+          payload: {
+            passExample: 'PAH concentrations reached 42 mg/kg at trial pit TP12 (WA-GEO-GIR-004).',
+            failExample: 'PAH concentrations at the trial pits were high.',
+          },
+        },
+        {
+          clause: `C${third}`,
+          kind: 'judgement',
+          statement: 'Write a commitment as a single sentence naming who does what, and by when.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+          excepted_contexts: ['quotations'],
+          excepted_terms: [],
+          topic: null,
+          payload: {
+            passExample:
+              'Calder & Hale will issue the remediation options appraisal before the Stage 3 gateway.',
+            failExample:
+              'An options appraisal will be scoped, and the programme will be revisited in due course.',
+          },
+        },
+        // AND ONE THE ADMISSION RULES MUST REFUSE, deliberately: a marker this
+        // run never showed the model. It is discarded and counted, so the
+        // review screen's honest report of what could not be read has something
+        // true to report rather than a permanent zero.
+        {
+          clause: 'C99',
+          kind: 'judgement',
+          statement: 'A rule pointing at a clause that was never shown.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+          excepted_contexts: [],
+          excepted_terms: [],
+          topic: null,
+          payload: {},
         },
       ],
     });
