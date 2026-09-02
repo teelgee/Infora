@@ -355,17 +355,6 @@ extended** — it was a `CASE` over the two known kinds with no `ELSE`, so a row
 carrying the new value would have evaluated to NULL, and a NULL check *passes*;
 adding the enum value alone would have quietly unbound `round_id` and
 `direction` for the one kind that must never touch a review cycle.
-> ✏️ **Drawn 2026-09-02, unbuilt — T-436 (migration 0066).** One column:
-> **`external_recipients.opened_at`** — nullable timestamp, written once on
-> the FIRST successful open of the link and never updated after (the receipt
-> is that it was read, not how often). *Plainly: the deliverable's record
-> gains "opened on the 4th" beside the send.* A fact of the issue record,
-> not a file about the person (owner ruling 2026-09-02, ADR-0055 §5
-> completed): no identity is inferred — whoever held the link opened it.
-> The write must not make an expired link distinguishable from an invented
-> one. Registered in personal-data.md at ruling as the row's fifth fact.
-> When built, this block reduces to narrative per the state rule.
-
 **`external_recipients` holds the request and the issue in one table**, as a
 state: ADR-0055 §7's request carries the same four fields about the same named
 person, and two tables would give the register's deletion promise two paths to
@@ -376,10 +365,23 @@ that row true. Two consequences are structural: there is **no append-only
 trigger**, because a trigger forbidding `DELETE` would make the erasure promise
 undeliverable; and an update trigger freezes what was asked for, so an approver
 cannot redirect somebody else's request to another address or another document.
-**Nothing records that a link was opened** — ADR-0055 §5 calls the download the
-receipt, but an open timestamp is behavioural data about a named person outside
-the four registered fields, so it was left out and reported rather than added
-quietly. Two whole-project settings (the standard message; who may issue) joined
+**The first opening of a link IS recorded** *(T-436, migration 0066, on the
+owner's ruling of 2026-09-02 completing ADR-0055 §5)* — `opened_at`, written
+once on the first successful open and never moved, because the receipt is that
+the document **was read**, not how often it was looked at. It is a fact of the
+**issue record** and not a file about the person: no identity is inferred,
+since whoever holds the link is the recipient. 0065 deliberately left it out
+and said so — an open timestamp is behavioural data about a named person,
+outside the four fields then registered — and the register now carries it as
+the row's fifth fact. Two consequences are structural. The immutability
+trigger was **rewritten rather than replaced**: the frozen identity is
+untouched, and one narrow door admits `opened_at` on an issued row that has
+none, with nothing else moving in the same statement — so a second receipt, a
+cleared one, and one against a request nobody approved are all refused by the
+database. And the write sits **only on the success path**, after the token has
+already resolved, so an expired link and an invented one still answer
+identically (§4): recording an open cannot become the timing or shape
+difference that tells a guesser their token once existed. Two whole-project settings (the standard message; who may issue) joined
 the Project row's owner-super-user set, the ADR-0046/T-371 pattern, with the
 **strictest** level as the default.
 

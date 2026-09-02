@@ -1050,6 +1050,15 @@ export type TransmittalHistoryRow = {
   // with the recipient withheld (ADR-0055 §8, carrying ADR-0035's addendum
   // over unchanged). `null` on the other two kinds, and on a withheld row.
   externalRecipient: { name: string; email: string; expiresAt: string } | null;
+  // T-436 — when the link was FIRST opened, or null while it has not been.
+  //
+  // It sits BESIDE `externalRecipient` rather than inside it, and that is the
+  // ruling rather than a layout choice: the receipt is a fact of the ISSUE
+  // record — the document was read — and not a fact about the person, who is
+  // never identified (ADR-0055 §5). So it is cut exactly as `issuedAt` is, and
+  // the producing organisation, which reads that its document left the project
+  // and never to whom, reads this too. `null` on the other two kinds.
+  externalOpenedAt: string | null;
 };
 export type ListContainerTransmittalsResponse = { items: TransmittalHistoryRow[] };
 
@@ -1129,6 +1138,15 @@ export type ExternalIssue = {
   declineReason: string | null;
   createdAt: string;
   decidedAt: string | null;
+  /**
+   * T-436 — when the link was FIRST opened, or null while it has not been.
+   *
+   * A later open changes nothing: the receipt is that the document was read,
+   * not how often it was looked at. It is **not** gated behind the
+   * recipient-withheld cut, because it says nothing about who the recipient is
+   * — whoever held the link opened it (ADR-0055 §5).
+   */
+  openedAt: string | null;
 };
 export type ListExternalIssuesResponse = { items: ExternalIssue[] };
 

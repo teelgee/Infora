@@ -1174,3 +1174,20 @@ are not recorded here.
   that computed the line would be a second copy of the rule, and the first
   disagreement between them would be a button offered to somebody the API then
   refuses.
+
+- **2026-09-02 (T-436) — the first-open receipt sits beside the send, not
+  inside the recipient.** *Plainly: the record now says when the person the
+  document was sent to first opened it, and everyone who can see the send can
+  see that too.* `ExternalIssue.openedAt` and
+  `TransmittalHistoryRow.externalOpenedAt` are both **outside the
+  recipient-withheld cut**, and that placement is the ruling rather than a
+  layout choice. The **reason it is not a field of `externalRecipient`** is
+  that the receipt says *the document was read* and never *who read it* — there
+  is no identity behind the name, because whoever holds the link is the
+  recipient (ADR-0055 §5). Folding it into the recipient object would withhold
+  a fact of the issue record from the producing organisation, whose document
+  left the project, on the strength of a privacy claim the fact does not make.
+  The **reason it is a single nullable timestamp and not a count or a list** is
+  that the receipt is that it was read, not how often: a shape that could grow
+  would be an attendance log on somebody who never signed up for one, and the
+  store refuses a second write rather than trusting the route.

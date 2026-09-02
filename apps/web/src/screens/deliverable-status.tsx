@@ -818,6 +818,17 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
   // rather than borrowing the acknowledgement language: there IS no
   // acknowledgement to await (ADR-0055 §5), and a row reading "awaiting" would
   // claim a gate that does not exist.
+  // T-436 — the first-open receipt, in the same cell as the link's expiry,
+  // because both answer "what has become of it?". It is rendered for EVERY
+  // external row, the recipient-withheld one included: the receipt says the
+  // document was read, never who read it (ADR-0055 §5).
+  const openReceipt =
+    row.externalOpenedAt !== null ? (
+      <Badge tone="success">Opened {formatDate(row.externalOpenedAt)}</Badge>
+    ) : (
+      <Badge tone="neutral">Not yet opened</Badge>
+    );
+
   if (row.kind === 'external' && row.externalRecipient) {
     return (
       <tr>
@@ -830,6 +841,7 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
           <span style={{ color: 'var(--text-muted)' }}>({row.externalRecipient.email})</span>
         </td>
         <td>
+          {openReceipt}{' '}
           <Badge tone="neutral">Link expires {formatDate(row.externalRecipient.expiresAt)}</Badge>
         </td>
       </tr>
@@ -850,7 +862,7 @@ function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
               : 'Withheld — the owner’s distribution record'
             : recipientLabel}
         </td>
-        <td>{row.recipientsWithheld ? '—' : ackCell}</td>
+        <td>{row.kind === 'external' ? openReceipt : row.recipientsWithheld ? '—' : ackCell}</td>
       </tr>
     );
   }

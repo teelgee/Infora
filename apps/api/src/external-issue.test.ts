@@ -323,6 +323,128 @@ describe('T-431 — the issue, and what the link reaches', () => {
     expect(expired.status).toBe(404);
     expect(invented.status).toBe(404);
     expect(await expired.json()).toEqual(await invented.json());
+
+    // 🔒 T-436 — AND THE RECEIPT DID NOT BREAK IT. Recording the first open is
+    // a write on the success path, and the danger it introduces is a refusal
+    // path that now behaves differently — a slower one, a different body, a
+    // different header — because that would tell a guesser their token once
+    // existed. Asserted AFTER a live link in this same suite has really been
+    // opened and really been written to, which is the state the naive
+    // implementation would have diverged in.
+    const openedLive = await app.request(`/external-documents/${token}`);
+    expect(openedLive.status).toBe(200);
+    const [written] = await db
+      .select({ openedAt: s.externalRecipients.openedAt })
+      .from(s.externalRecipients)
+      .where(eq(s.externalRecipients.id, issued.id));
+    expect(written!.openedAt).not.toBeNull();
+
+    const expiredAgain = await app.request(`/external-documents/${expiredToken}`);
+    const inventedAgain = await app.request(`/external-documents/never-minted-${stamp}-bbbbbbbbbbbb`);
+    expect(expiredAgain.status).toBe(inventedAgain.status);
+    expect(await expiredAgain.json()).toEqual(await inventedAgain.json());
+    // every header but the per-request id, which is unique by design
+    const shape = (res: Response) =>
+      [...res.headers].filter(([name]) => name !== 'x-request-id').sort();
+    expect(shape(expiredAgain)).toEqual(shape(inventedAgain));
+    // and neither refusal wrote anything: an expired row is not an opened one
+    const [untouched] = await db
+      .select({ openedAt: s.externalRecipients.openedAt })
+      .from(s.externalRecipients)
+      .where(eq(s.externalRecipients.linkToken, expiredToken));
+    expect(untouched!.openedAt).toBeNull();
+  });
+
+  // ── T-436 — the opening of the link becomes part of the issue record ──────
+  //
+  // *In plain terms: the record now says "opened on the 4th" beside the send.
+  // Once, whatever happens afterwards, and about the document rather than about
+  // the person — nobody knows who was holding the link.*
+  it('records the FIRST open and never moves it, however often the link is used', async () => {
+    const openedAt = async () => {
+      const [row] = await db
+        .select({ openedAt: s.externalRecipients.openedAt })
+        .from(s.externalRecipients)
+        .where(eq(s.externalRecipients.id, issued.id));
+      return row!.openedAt;
+    };
+    const first = await openedAt();
+    expect(first).not.toBeNull();
+
+    expect((await app.request(`/external-documents/${token}`)).status).toBe(200);
+    expect((await app.request(`/external-documents/${token}`)).status).toBe(200);
+    // the receipt is that it was READ, not how often it was looked at — so a
+    // later open changes nothing and the row can never become an attendance log
+    expect((await openedAt())!.toISOString()).toBe(first!.toISOString());
+  });
+
+  it('🔒 the database refuses a second receipt, a cleared one, and one on a link nobody issued', async () => {
+    // 0066's trigger, not the route: "written once and never cleared" is a
+    // property of the store, so a second writer cannot reopen the question
+    await expect(
+      db
+        .update(s.externalRecipients)
+        .set({ openedAt: sql`now()` })
+        .where(eq(s.externalRecipients.id, issued.id)),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .update(s.externalRecipients)
+        .set({ openedAt: null })
+        .where(eq(s.externalRecipients.id, issued.id)),
+    ).rejects.toThrow();
+
+    // a request nobody has approved is not a link, so it cannot have been opened
+    const [pending] = await db
+      .insert(s.externalRecipients)
+      .values({
+        containerId,
+        versionId: v1Id,
+        name: 'Mr C Ndlovu',
+        email: 'c.ndlovu@example.com',
+        reason: 'Consultation',
+        message: 'Still waiting on an answer.',
+        state: 'requested',
+        requestedByParticipantId: ownerSuperParticipantId,
+      })
+      .returning();
+    await expect(
+      db
+        .update(s.externalRecipients)
+        .set({ openedAt: sql`now()` })
+        .where(eq(s.externalRecipients.id, pending!.id)),
+    ).rejects.toThrow();
+  });
+
+  it('🔒 stores no other fact about the recipient than the ruling allows', async () => {
+    // the register's promise, asserted against the table itself rather than
+    // against a reading of the code: four fields typed by a person, the first
+    // open, and nothing else about them anywhere on the row
+    const columns = await db.execute<{ column_name: string }>(
+      sql`select column_name from information_schema.columns where table_name = 'external_recipients' order by column_name`,
+    );
+    const names = columns.rows.map((row) => row.column_name);
+    expect(names).toEqual([
+      'container_id',
+      'created_at',
+      'decided_at',
+      'decline_reason',
+      'declined_by_participant_id',
+      'email',
+      'expires_at',
+      'id',
+      'issued_by_participant_id',
+      'link_token',
+      'message',
+      'name',
+      'opened_at',
+      'reason',
+      'requested_by_participant_id',
+      'requested_expires_days',
+      'state',
+      'transmittal_id',
+      'version_id',
+    ]);
   });
 });
 
@@ -475,6 +597,11 @@ describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
     expect(external.some((i) => i.externalRecipient?.name === issueBody.recipientName)).toBe(true);
     expect(external[0]!.direction).toBeNull();
     expect(external[0]!.roundNumber).toBeNull();
+    // T-436 — and beside the send, the receipt. The link issued to Mrs Patel
+    // was opened earlier in this suite, so the row that answers "who was this
+    // issued to" now also answers "and did they read it".
+    const toPatel = external.find((i) => i.externalRecipient?.name === issueBody.recipientName);
+    expect(toPatel!.externalOpenedAt).not.toBeNull();
   });
 
   it('tells the producing organisation that its document left, and not to whom', async () => {
@@ -489,6 +616,12 @@ describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
       expect(row.recipientsWithheld).toBe(true);
       expect(row.externalRecipient).toBeNull();
     }
+    // 🔒 T-436 — THE POSTURE IS UNCHANGED, AND THE RECEIPT DOES NOT WIDEN IT.
+    // The producing organisation still reads that its document left and still
+    // does not read to whom; what it gains is that the document was READ, which
+    // names nobody — whoever held the link opened it (ADR-0055 §5). Asserted on
+    // the row whose recipient is withheld from this very viewer.
+    expect(other.some((row) => row.externalOpenedAt !== null)).toBe(true);
     const anyExternal = items.filter((i) => i.kind === 'external');
     expect(anyExternal.some((i) => i.externalRecipient?.email === issueBody.recipientEmail)).toBe(false);
   });
@@ -516,6 +649,8 @@ describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
     const log = await get(rivalSession, `/containers/${containerId}/transmittals`);
     expect(log.status).toBe(200);
     const { items } = (await log.json()) as ListContainerTransmittalsResponse;
+    // 🔒 T-436 — the rival-firm cut is unchanged: no external row at all, so
+    // there is no receipt to read either. The new column widened nothing.
     expect(items.filter((i) => i.kind === 'external')).toHaveLength(0);
 
     const list = await get(rivalSession, `/containers/${containerId}/external-issues`);

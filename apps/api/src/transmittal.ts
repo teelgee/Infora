@@ -575,6 +575,7 @@ export function transmittalRoutes(deps: { db: Db }) {
         recipientOrganisations: [],
         recipientsWithheld: false,
         externalRecipient: null,
+        externalOpenedAt: null,
         submissionAcknowledged:
           transmittal.direction === 'return' && ackBy && ackAt
             ? {
@@ -611,6 +612,7 @@ export function transmittalRoutes(deps: { db: Db }) {
             })),
             recipientsWithheld: !isOwnerOrg && isProducer,
             externalRecipient: null,
+            externalOpenedAt: null,
             submissionAcknowledged: null,
           },
         ];
@@ -641,6 +643,12 @@ export function transmittalRoutes(deps: { db: Db }) {
                   expiresAt: recipient.expiresAt!.toISOString(),
                 }
               : null,
+            // T-436 — the first-open receipt, beside the send and OUTSIDE the
+            // recipient cut. It records that the document was read, not who
+            // read it (ADR-0055 §5), so the producing organisation — which
+            // learns that its document left the project and never to whom —
+            // reads it exactly as it reads `issuedAt`.
+            externalOpenedAt: recipient.openedAt?.toISOString() ?? null,
             submissionAcknowledged: null,
           },
         ];

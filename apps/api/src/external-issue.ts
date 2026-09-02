@@ -20,7 +20,7 @@
 // on the screen where the sending happens.
 import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   answerExternalRequestBody,
@@ -433,6 +433,29 @@ export function externalIssueRoutes(deps: { db: Db }) {
       .where(eq(s.externalRecipients.id, row.id))
       .limit(1);
     if (!doc) return notFound(c);
+
+    // T-436 — THE FIRST OPEN, RECORDED ONCE (owner ruling 2026-09-02,
+    // completing ADR-0055 §5).
+    //
+    // 🔒 **IT HAPPENS HERE, AND ONLY HERE, FOR A REASON.** Every refusal above
+    // has already returned: an expired token and an invented one both leave
+    // through `notFound` before this line exists, so recording an open adds no
+    // work, no query and no branch to the path a guesser can reach. The
+    // identical-response rule (§4) is therefore untouched by construction
+    // rather than by care, and `external-issue.test.ts` proves the two refusals
+    // stay byte-identical AFTER a real open has been written.
+    //
+    // The `IS NULL` in the WHERE is what makes it the FIRST open rather than
+    // the latest one — the receipt is that the document was read, not how often
+    // — and 0066's trigger refuses a second write anyway, so this is the fast
+    // path and not the guarantee.
+    if (row.openedAt === null) {
+      await deps.db
+        .update(s.externalRecipients)
+        .set({ openedAt: sql`now()` })
+        .where(and(eq(s.externalRecipients.id, row.id), isNull(s.externalRecipients.openedAt)));
+    }
+
     const renditions = await deps.db
       .select({ id: s.renditions.id, kind: s.renditions.kind, format: s.renditions.format })
       .from(s.renditions)
@@ -615,6 +638,12 @@ function toExternalIssue(row: IssueRow, withRecipient: boolean): ExternalIssue {
     declineReason: withRecipient ? r.declineReason : null,
     createdAt: r.createdAt.toISOString(),
     decidedAt: r.decidedAt?.toISOString() ?? null,
+    // T-436 — NOT behind `withRecipient`. The receipt says the document was
+    // read; it does not say who read it, because nobody knows (ADR-0055 §5).
+    // Gating it would withhold a fact of the issue record from the producing
+    // organisation whose document left the project — a narrower read than §8
+    // asks for, dressed up as caution.
+    openedAt: r.openedAt?.toISOString() ?? null,
   };
 }
 

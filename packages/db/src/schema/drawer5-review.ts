@@ -329,6 +329,16 @@ export const externalRecipients = pgTable(
     declineReason: text('decline_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
+    // T-436 — WHEN THE LINK WAS FIRST OPENED, and never how often (owner ruling
+    // 2026-09-02, completing ADR-0055 §5). *Plainly: the deliverable's record
+    // gains "opened on the 4th" beside the send.* A fact of the ISSUE RECORD
+    // rather than a file about the person: no identity is inferred, because
+    // whoever holds the link is the recipient. Written once, on the first
+    // successful open, and frozen by migration 0066's trigger — a later open
+    // changes nothing, so the row cannot become an attendance log. Registered
+    // in docs/architecture/personal-data.md at the ruling as the row's fifth
+    // fact.
+    openedAt: timestamp('opened_at', { withTimezone: true }),
   },
   (t) => [
     // the recipient's own read resolves the token and nothing else
