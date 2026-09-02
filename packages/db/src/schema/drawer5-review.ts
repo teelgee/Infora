@@ -311,6 +311,11 @@ export const externalRecipients = pgTable(
     // until the issue happens, so a pending or declined request is not a link.
     linkToken: text('link_token'),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // (review, 2026-09-02) the requester's chosen link duration, kept so
+    // approval honours it — as first built the form collected it, the row
+    // could not store it, and the approver's default silently replaced it
+    // under an on-screen promise that nobody retypes what was asked
+    requestedExpiresDays: integer('requested_expires_days'),
     // who supplied the facts — the sender on a direct issue, the asker on a
     // request. Always present: nothing here is written by the platform.
     requestedByParticipantId: uuid('requested_by_participant_id')

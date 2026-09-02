@@ -227,6 +227,9 @@ export function externalIssueRoutes(deps: { db: Db }) {
           reason: body.data.reason,
           message: body.data.message,
           state: 'requested',
+          // (review, 2026-09-02) the asked-for duration is stored so approval
+          // honours it — the form promises nobody retypes what was asked
+          requestedExpiresDays: body.data.expiresInDays ?? null,
           requestedByParticipantId: slice.participantId,
         })
         .returning();
@@ -304,10 +307,19 @@ export function externalIssueRoutes(deps: { db: Db }) {
     if (!settings) return notFound(c);
     const approver = mayIssueExternally(slice, settings.permission);
     const rows = await listIssues(deps.db, { projectId: slice.projectId });
+    // 🔒 (review, 2026-09-02) — the approver widening applies ONLY to rows
+    // still awaiting a decision. As first built, `approver` short-circuited
+    // both cuts for EVERY row, so at the two permissive levels a rival firm's
+    // people received every issue's recipient, message and live link token —
+    // and the token is the access, so that was document content across the
+    // wall. An approver needs the facts of a REQUEST to decide it; a
+    // `requested` row has no token to leak, and a decided row's audience goes
+    // back to being exactly the three parties §8 names.
+    const widened = (r: IssueRow) => approver && r.recipient.state === 'requested';
     return c.json({
       items: rows
-        .filter((r) => approver || visibleTo(r, slice))
-        .map((r) => toExternalIssue(r, approver || mayReadRecipient(r, slice))),
+        .filter((r) => visibleTo(r, slice) || widened(r))
+        .map((r) => toExternalIssue(r, mayReadRecipient(r, slice) || widened(r))),
     } satisfies ListExternalIssuesResponse);
   });
 
@@ -357,7 +369,13 @@ export function externalIssueRoutes(deps: { db: Db }) {
     // was withdrawn would put a withdrawn record in front of the public
     const container = await visibleDeliverable(slice, existing.recipient.containerId);
     if (!container) return conflict(c, 'deliverable_not_live');
-    const days = body.data.expiresInDays ?? EXTERNAL_LINK_DEFAULT_DAYS;
+    // (review, 2026-09-02) the requester's stored ask is honoured before the
+    // default; an approver's explicit choice still wins, because the approver
+    // is the one answerable for the link's life
+    const days =
+      body.data.expiresInDays ??
+      existing.recipient.requestedExpiresDays ??
+      EXTERNAL_LINK_DEFAULT_DAYS;
     const [transmittal] = await deps.db
       .insert(s.transmittals)
       .values({

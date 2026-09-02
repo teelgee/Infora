@@ -743,6 +743,7 @@
           <tr><td class="col">state</td><td class="type">external_issue_state</td><td class="notes">default</td></tr>
           <tr><td class="col">link_token</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">expires_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">requested_expires_days</td><td class="type">integer</td><td class="notes">nullable</td></tr>
           <tr><td class="col">requested_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">issued_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
           <tr><td class="col">declined_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>

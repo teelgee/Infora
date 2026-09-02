@@ -879,8 +879,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  containerExternalIssues: (containerId: string) =>
-    request<ListExternalIssuesResponse>(`/containers/${containerId}/external-issues`),
   issueExternally: (containerId: string, body: IssueExternallyBody) =>
     request<ExternalIssue>(`/containers/${containerId}/external-issues`, {
       method: 'POST',

@@ -528,4 +528,59 @@ describe('T-431 — who reads that it happened (ADR-0055 §8)', () => {
     ).json()) as ListExternalIssuesResponse;
     expect(ownerList.items.some((i) => i.recipientEmail === issueBody.recipientEmail)).toBe(true);
   });
+
+  // 🔒 (review, 2026-09-02) — the hole the first build shipped: at the two
+  // permissive levels the project queue widened EVERY row for every approver,
+  // handing a rival firm's super user each issue's recipient, message and live
+  // link token — and the token is the access, so that was document content
+  // across the wall. The widening now covers rows still awaiting a decision
+  // and nothing else; a requested row has no token to leak.
+  it('🔒 at any_super_user, a rival approver sees pending requests only — never an issued row, never a token', async () => {
+    const setPermission = async (level: 'any_super_user' | 'owner_super_user') => {
+      const res = await patch(ownerSuperSession, `/projects/${projectId}/external-issue-settings`, {
+        permission: level,
+      });
+      expect(res.status).toBe(200);
+    };
+    await setPermission('any_super_user');
+    try {
+      const queue = (await (
+        await get(rivalSession, `/projects/${projectId}/external-issues`)
+      ).json()) as ListExternalIssuesResponse;
+      // issued rows exist on this project (earlier tests made several) and the
+      // rival must see NONE of them — only rows still awaiting a decision
+      expect(queue.items.every((i) => i.state === 'requested')).toBe(true);
+      expect(queue.items.every((i) => i.linkToken === null)).toBe(true);
+      // and the decided rows the owner can see really do exist, so the empty
+      // filter above is a cut, not an empty project
+      const ownerQueue = (await (
+        await get(ownerSuperSession, `/projects/${projectId}/external-issues`)
+      ).json()) as ListExternalIssuesResponse;
+      expect(ownerQueue.items.some((i) => i.state === 'issued')).toBe(true);
+    } finally {
+      await setPermission('owner_super_user');
+    }
+  });
+
+  // (review, 2026-09-02) — the requester's chosen duration was collected by
+  // the form, unstorable, and silently replaced by the default on approval,
+  // under an on-screen promise that nobody retypes what was asked. Stored and
+  // honoured now; an approver's explicit choice still wins.
+  it('honours the requested link duration when the approver names none', async () => {
+    const asked = (await (
+      await post(producerSuperSession, `/containers/${containerId}/external-issues`, {
+        ...issueBody,
+        recipientEmail: 'seven-days@example.com',
+        expiresInDays: 7,
+      })
+    ).json()) as ExternalIssue;
+    expect(asked.state).toBe('requested');
+    const approved = (await (
+      await post(ownerSuperSession, `/external-issues/${asked.id}/answer`, { approve: true })
+    ).json()) as ExternalIssue;
+    expect(approved.state).toBe('issued');
+    const days = (new Date(approved.expiresAt!).getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(6.5);
+    expect(days).toBeLessThan(7.5);
+  });
 });

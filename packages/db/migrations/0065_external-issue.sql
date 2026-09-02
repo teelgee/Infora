@@ -76,6 +76,7 @@ CREATE TABLE "external_recipients" (
 	"state" "public"."external_issue_state" DEFAULT 'requested' NOT NULL,
 	"link_token" text,
 	"expires_at" timestamp with time zone,
+	"requested_expires_days" integer,
 	"requested_by_participant_id" uuid NOT NULL,
 	"issued_by_participant_id" uuid,
 	"declined_by_participant_id" uuid,
@@ -165,6 +166,9 @@ ALTER TABLE "transmittals" ADD CONSTRAINT "transmittals_kind_shape" CHECK (
     WHEN 'external' THEN
       "round_id" IS NULL AND "direction" IS NULL
       AND "container_id" IS NOT NULL AND "version_id" IS NOT NULL
+    -- (review, 2026-09-02) a fourth kind added without a branch must FAIL,
+    -- not slip through as NULL — the exact hole this rewrite exists to close
+    ELSE false
   END
 );--> statement-breakpoint
 

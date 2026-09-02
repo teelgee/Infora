@@ -527,7 +527,16 @@ export function LibraryScreen() {
   const loadExternal = useCallback(() => {
     void api.externalIssueSettings(projectId).then(setExternalSettings, () => setExternalSettings(null));
     void api.projectExternalIssues(projectId).then(
-      (r) => setRequests(r.items.filter((i) => i.state === 'requested')),
+      // (review, 2026-09-02) declined rows stay listed for the parties who may
+      // read the reason — as first built they vanished the moment they were
+      // answered, so the person who asked could never read why they were
+      // refused, anywhere in the product
+      (r) =>
+        setRequests(
+          r.items.filter(
+            (i) => i.state === 'requested' || (i.state === 'declined' && i.declineReason !== null),
+          ),
+        ),
       () => setRequests([]),
     );
   }, [projectId]);
@@ -767,15 +776,23 @@ export function LibraryScreen() {
                     <td style={{ fontSize: 12.5 }}>{r.reason}</td>
                     <td>{r.requestedBy.name}</td>
                     <td style={{ textAlign: 'right' }}>
-                      {externalSettings?.mayApprove && (
-                        <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <Button size="sm" onClick={() => void answerRequest(r, true)}>
-                            Approve and issue
-                          </Button>
-                          <Button size="sm" variant="quiet" onClick={() => setDeclining(r)}>
-                            Decline…
-                          </Button>
+                      {r.state === 'declined' ? (
+                        // the answer the asker came back for: who declined, and why
+                        <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                          Declined{r.declinedBy ? ` by ${r.declinedBy.name}` : ''}
+                          {r.declineReason ? ` — “${r.declineReason}”` : ''}
                         </span>
+                      ) : (
+                        externalSettings?.mayApprove && (
+                          <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
+                            <Button size="sm" onClick={() => void answerRequest(r, true)}>
+                              Approve and issue
+                            </Button>
+                            <Button size="sm" variant="quiet" onClick={() => setDeclining(r)}>
+                              Decline…
+                            </Button>
+                          </span>
+                        )
                       )}
                     </td>
                   </tr>

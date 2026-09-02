@@ -40,6 +40,7 @@ import {
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
+import { ExternalDocumentView } from './screens/external-document';
 import { MemoryRouter } from 'react-router';
 import {
   CHECK_FAMILY_CATALOGUE,
@@ -1983,5 +1984,51 @@ describe('T-429 — the drafting brief is shown to the curator, verbatim', () =>
 
   it('says who accepted the version and when', () => {
     expect(render(true)).toContain('accepted by Anna Whitby');
+  });
+});
+
+// (review, 2026-09-02) — the one page that renders OUTSIDE the session gate
+// had no test of any kind. What matters on it: the reader can reach the file
+// and nothing else, the snapshot-and-expiry promise is said in words, and no
+// link leads anywhere but the token's own file routes.
+describe('the external recipient page (T-431, ADR-0055)', () => {
+  const doc = {
+    documentReference: 'WA-LQ-MS-004',
+    versionReference: 'P02',
+    title: 'Land Quality method statement',
+    recipientName: 'R. Harlow',
+    message: 'As discussed on site, the method statement for your records.',
+    standardMessage: 'Issued under the Wrenfield–Ashcombe consultation protocol.',
+    senderOrganisationName: 'Trentmoor Energy',
+    projectName: 'Wrenfield–Ashcombe 400kV Connection',
+    issuedAt: '2026-09-02T09:00:00.000Z',
+    expiresAt: '2026-10-02T09:00:00.000Z',
+    renditions: [
+      { id: 'r-pdf', kind: 'pdf' as const, format: 'pdf' },
+      { id: 'r-doc', kind: 'native' as const, format: 'docx' },
+    ],
+    content: 'The method statement text.',
+  };
+  const html = renderToStaticMarkup(<ExternalDocumentView doc={doc as never} token="tok-123" />);
+
+  it('says the snapshot-and-expiry promise in words, and asks nothing of the reader', () => {
+    expect(html).toContain('one revision of one document, as it stood when it was sent');
+    expect(html).toContain('A later revision does\n        not appear here'.replace(/\s+/g, ' '));
+    expect(html).toContain('Nothing is being');
+    expect(html).toContain('nothing to acknowledge or sign');
+  });
+
+  it('🔒 every link on the page stays inside the token’s own file routes', () => {
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]!);
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href.startsWith('/external-documents/tok-123/')).toBe(true);
+    }
+  });
+
+  it('shows the covering note and the project’s standing message as two voices', () => {
+    expect(html).toContain('For the attention of R. Harlow');
+    expect(html).toContain('for your records');
+    expect(html).toContain('consultation protocol');
   });
 });

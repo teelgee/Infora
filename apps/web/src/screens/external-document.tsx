@@ -57,8 +57,17 @@ export function ExternalDocumentScreen() {
     );
   }
 
+  return <ExternalDocumentView doc={doc} token={token!} />;
+}
+
+/**
+ * The page a recipient with no account reads — pure over its inputs, and
+ * exported so the render suite can hold it (review, 2026-09-02: this branch
+ * renders outside the session gate and previously had no test of any kind).
+ */
+export function ExternalDocumentView({ doc, token }: { doc: ExternalDocumentResponse; token: string }) {
   const fileUrl = (renditionId: string) =>
-    `/external-documents/${encodeURIComponent(token!)}/renditions/${renditionId}/file`;
+    `/external-documents/${encodeURIComponent(token)}/renditions/${renditionId}/file`;
   const pdf = doc.renditions.find((r) => r.kind === 'pdf') ?? null;
   const native = doc.renditions.find((r) => r.kind === 'native') ?? null;
 
