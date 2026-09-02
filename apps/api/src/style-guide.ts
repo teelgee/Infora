@@ -129,12 +129,45 @@ export function styleGuideRoutes(deps: { db: Db }) {
     } satisfies ListStyleGuidesResponse),
   );
 
+  /**
+   * T-424 — **THE UPLOAD IS OPTIONAL** (ADR-0054 decision 2), and that is a
+   * decision rather than a leniency.
+   *
+   * *In plain terms: a client with no written standard starts from Infora's own
+   * baseline for the registers they picked, and edits it.* That is the common
+   * case at the start of a scheme and it would otherwise have no door at all —
+   * the rules workbench hangs off a guide, so a guide with no document behind it
+   * has to be a real thing rather than a special case.
+   *
+   * A guide with no file is stored with **no clauses**, which is honest in both
+   * directions: nothing can be quoted from it (so every rule in its set will be
+   * `typed` or `infora_proposed`, and the store's own CHECK enforces that), and
+   * the shelf reports "0 clauses" rather than implying a document nobody
+   * uploaded. `source_format` is `none`, not an empty string, because an empty
+   * string reads as a format we failed to record.
+   */
   app.post('/projects/:projectId/style-guides', project, async (c) => {
     const refused = mayCurate(c);
     if (refused !== null) return refused;
     const body = await c.req.parseBody().catch(() => null);
     const file = body?.file;
-    if (!(file instanceof File)) return invalid(c, 'file_required');
+    const title = typeof body?.title === 'string' ? body.title.trim() : '';
+    if (!(file instanceof File)) {
+      // no file AND no name is a request that says nothing at all; a name on
+      // its own is the deliberate empty start
+      if (title === '') return invalid(c, 'file_required');
+      const started = await loadStyleGuide(deps.db, {
+        projectId: c.get('slice').projectId,
+        title,
+        sourceFormat: 'none',
+        loadedByUserId: c.get('user').id,
+        text: '',
+      });
+      const [empty] = (await records(deps.db, c.get('slice').projectId)).filter(
+        (r) => r.id === started.styleGuideId,
+      );
+      return c.json(empty!, 201);
+    }
     const format = formats[file.name.split('.').at(-1)?.toLowerCase() ?? ''];
     if (!format) return invalid(c, 'unsupported_format');
 
@@ -146,10 +179,7 @@ export function styleGuideRoutes(deps: { db: Db }) {
 
     const loaded = await loadStyleGuide(deps.db, {
       projectId: c.get('slice').projectId,
-      title:
-        typeof body?.title === 'string' && body.title.trim()
-          ? body.title.trim()
-          : file.name.replace(/\.[^.]+$/, ''),
+      title: title !== '' ? title : file.name.replace(/\.[^.]+$/, ''),
       sourceFormat: format,
       loadedByUserId: c.get('user').id,
       text: extracted.text,

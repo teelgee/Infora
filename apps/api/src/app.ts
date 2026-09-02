@@ -41,6 +41,7 @@ import { transmittalRoutes } from './transmittal';
 import { rulebookRoutes } from './rulebook';
 import { documentCreationRoutes } from './document-creation';
 import { qaCheckRoutes } from './qa-check';
+import { ruleSetRoutes } from './rule-set';
 import { styleGuideRoutes } from './style-guide';
 import { toolRoutes } from './tools';
 import { uploadRoutes } from './upload';
@@ -266,6 +267,10 @@ export function buildApp(deps: AppDeps) {
   // T-397 — the PROJECT style guide, project-scoped where the rulebook is
   // organisation-scoped: context is classified by ownership (ADR-0021).
   app.route('/', styleGuideRoutes(deps));
+  // T-424 (ADR-0054) — the rules workbench: an uploaded standard becomes
+  // proposed rules. It carries the router because extraction is a model call
+  // that PROPOSES and stores nothing.
+  app.route('/', ruleSetRoutes({ db: deps.db, router: deps.router }));
 
   // T-334 — the Tools section's own list, assembled per requester.
   app.route(

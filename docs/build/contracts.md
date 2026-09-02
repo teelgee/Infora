@@ -1091,3 +1091,14 @@ are not recorded here.
   with a word the creator's launcher does not use can never match a document,
   so a second vocabulary would make the gap-filling fail silently, which is the
   failure mode that ADR refuses everywhere else.
+
+- **2026-09-02 (T-424) — `POST /projects/:id/style-guides` accepts a request
+  with a name and no file.** *Plainly: you can start a writing standard from
+  nothing, instead of having to upload a document you do not have.* The
+  **reason** is ADR-0054 decision 2: a client with no written standard starts
+  from Infora's baseline for the registers they picked, which is the common case
+  at the start of a scheme and would otherwise have no door at all — the rules
+  workbench hangs off a guide, so a guide with no document behind it has to be a
+  real thing rather than a special case. It is the same endpoint rather than a
+  second one because it produces the same object; a request naming *nothing* is
+  still refused, so the empty start is deliberate rather than a slip.

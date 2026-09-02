@@ -145,3 +145,16 @@ export {
   tokensIn,
 } from './qa-plan';
 export type { PassKey, QaCheckPlan, QaCheckPlanInput, QaPlanShape } from './qa-plan';
+// T-424 (ADR-0054 decisions 2, 4 and 5) — an uploaded standard becomes proposed
+// rules: what the model is shown, which of its answers are admitted, and the
+// shipped baseline Infora proposes where the guide is silent.
+export {
+  admitExtractedRules,
+  composeRuleExtractionPrompt,
+  fillGaps,
+  usablePattern,
+  INFORA_BASELINE,
+  MAX_PATTERN_LENGTH,
+  RULE_TOPICS,
+} from './rule-extraction';
+export type { ExtractableClause, ExtractionResult, RuleTopic } from './rule-extraction';
