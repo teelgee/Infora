@@ -86,6 +86,16 @@ ADR-0035's organisation-level gate exists because a receiving *organisation*
 must formally accept a document before working from it. A landowner will not
 click a confirmation, and chasing one is support work that produces nothing:
 the recorded fact is that the link was issued, and that it was opened if it was.
+*(Completed by owner ruling, 2026-09-02: the build had stopped short of
+recording the opening, because it is a fifth stored fact about a person with
+no account. The owner ruled it recorded — **stored against the deliverable's
+issue record, as a fact of the transmittal rather than a file about the
+person**, and surfaced where the deliverable's other transmittals already
+are, so the library's log shows every kind of send with its receipt. In the
+owner's words: "the data should be stored against the container/deliverable —
+in the library you should be able to see all transmittals including
+external." The personal-data register carries the fifth fact from this
+ruling; the build is T-436.)*
 
 **Stated plainly because Infora is now the thing producing the record:** there
 is no account, so there is no identity — anyone holding the link is the
