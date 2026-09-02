@@ -7,6 +7,8 @@ import type { Assemble, AssembledInput } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
+import { compileDraftingBrief } from '@infora/capabilities';
+import { saveRuleSet } from '@infora/data';
 import { createDocumentBuilder, builtDocumentContent, UNSECTIONED } from './document-builder';
 
 const { db, pool } = createDb();
@@ -498,5 +500,139 @@ describe('document_builder (T-280)', () => {
       destination: { sandboxId, title: 't280 explicit' },
     });
     expect(output.manifest.every((entry) => entry.versionId === openVersionId)).toBe(true);
+  });
+});
+
+// ── T-429 — the compiled brief, and the tidy-up pass (ADR-0054 decision 6) ──
+//
+// 🔒 **THE ASSERTION THIS SUITE EXISTS FOR IS THE NEGATIVE ONE.** The tidy-up
+// pass is the one place in this design that comes near the checker acquiring a
+// write path, and ADR-0054 says explicitly that it is not one: it reaches only
+// the model's **own fresh output**, inside the invoker's own sandbox, before any
+// human has seen it, and it **never** touches text a person wrote. The author's
+// section headings are text a person wrote — they come out of the outline the
+// author composed — and they sit in the same document as the sentences the pass
+// does normalise, which is what makes this a real test rather than a tautology.
+describe('T-429 — the tidy-up pass touches the model’s output and nothing else', () => {
+  const RULE = {
+    kind: 'term',
+    origin: 'typed' as const,
+    statement: 'Use “scheme”, not “project”.',
+    scope: 'sentence',
+    exceptedContexts: [] as string[],
+    exceptedTerms: [] as string[],
+    register: 'all',
+    enforcement: 'raises_findings',
+    severity: 'required',
+    payload: { preferred: 'scheme', replaces: ['project'] },
+  };
+
+  async function guideWithRules() {
+    const [guide] = await db
+      .insert(s.projectStyleGuides)
+      .values({
+        projectId,
+        title: `t429 guide ${Date.now()}`,
+        sourceFormat: 'none',
+        loadedByUserId: userId,
+      })
+      .returning();
+    await saveRuleSet(db, {
+      styleGuideId: guide!.id,
+      acceptedByUserId: userId,
+      draftingBrief: compileDraftingBrief([
+        {
+          kind: 'judgement',
+          statement: 'Write in the active voice where the meaning allows it.',
+          scope: 'sentence',
+          register: 'all',
+          enforcement: 'raises_findings',
+        },
+      ]),
+      rules: [RULE],
+    });
+    return guide!.id as string;
+  }
+
+  it('normalises the model’s sentences and leaves the AUTHOR’S heading untouched', async () => {
+    const styleGuideId = await guideWithRules();
+    const builder = createDocumentBuilder({
+      db,
+      router: answering(
+        [
+          // 🔒 the author's own heading, written back by the assembly — it
+          // breaches the term rule and MUST come out unchanged
+          'The project purpose',
+          'The project baseline survey recorded three exceedances [S1].',
+        ].join('\n\n'),
+      ),
+      assemble: gateway(
+        passage(openVersionId, 'T429-A', 'the baseline survey recorded three exceedances'),
+      ),
+    });
+
+    const output = await builder(requester(), { projectId }, {
+      sections: [
+        { heading: 'The project purpose', purpose: 'State what question this note answers.' },
+      ],
+      brief: 'does the baseline support the assessment?',
+      ...character,
+      styleGuideIds: [styleGuideId],
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't429 built note' },
+    });
+
+    const [written] = await db
+      .select({ content: s.sandboxDocuments.content })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, output.documentId!));
+
+    // 🔒 the author's heading is text a person wrote: unchanged, still saying
+    // "project", even though the accepted rule forbids that word
+    expect(written!.content).toContain('## The project purpose');
+    // and the model's own sentence beside it IS normalised
+    expect(written!.content).toContain('The scheme baseline survey recorded three exceedances.');
+    expect(written!.content).not.toContain('The project baseline survey');
+    expect(output.normalised).toMatchObject({ substitutions: 1 });
+  });
+
+  it('hands the model the compiled brief and a short preferred-wordings list', async () => {
+    const styleGuideId = await guideWithRules();
+    const builder = createDocumentBuilder({
+      db,
+      router: answering('Purpose\n\nThe baseline survey recorded three exceedances [S1].'),
+      assemble: gateway(
+        passage(openVersionId, 'T429-B', 'the baseline survey recorded three exceedances'),
+      ),
+    });
+    await builder(requester(), { projectId }, {
+      sections: [{ heading: 'Purpose', purpose: 'State what question this note answers.' }],
+      brief: 'does the baseline support the assessment?',
+      ...character,
+      styleGuideIds: [styleGuideId],
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't429 brief note' },
+    });
+    // the judgement rule arrives as the compiled brief, not as the whole set
+    expect(lastSystemPrompt).toContain('Write in the active voice where the meaning allows it.');
+    // and the term rule arrives as a short list of preferred wordings
+    expect(lastSystemPrompt).toContain('Preferred wordings');
+    expect(lastSystemPrompt).toContain('scheme — not project');
+  });
+
+  it('does nothing at all where the author selected no guide', async () => {
+    const builder = createDocumentBuilder({
+      db,
+      router: answering('Purpose\n\nThe project baseline recorded three exceedances [S1].'),
+      assemble: gateway(passage(openVersionId, 'T429-C', 'the baseline recorded three exceedances')),
+    });
+    const output = await builder(requester(), { projectId }, {
+      sections: [{ heading: 'Purpose', purpose: 'State what question this note answers.' }],
+      brief: 'does the baseline support the assessment?',
+      ...character,
+      sources: { versionIds: [openVersionId] },
+      destination: { sandboxId, title: 't429 unruled note' },
+    });
+    expect(output.normalised).toMatchObject({ substitutions: 0, unfixed: 0 });
   });
 });

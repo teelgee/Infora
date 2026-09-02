@@ -1960,3 +1960,14 @@ a.shelf-row-title:hover { text-decoration: underline; }
    would render as a quotation nobody wrote */
 .rule-no-wording { margin: var(--gap-default) 0 0; color: var(--text-muted); font-size: var(--body-dense-size); }
 .rule-exceptions { margin: var(--gap-default) 0 0; color: var(--text-muted); font-size: var(--body-dense-size); }
+
+/* T-429 — the compiled drafting brief, shown to the owner's super user. It is
+   the text the model is handed, so it is set in the mono family and preserves
+   its own line breaks: paraphrasing it into prose would defeat the point of
+   showing it. Level 1 inside its card — dense text, never its own shadow. */
+.drafting-brief {
+  margin: var(--gap-default) 0 0; padding: var(--gap-default) var(--primitive-space-3);
+  background: var(--surface-pane); border-radius: var(--primitive-radius-sm);
+  font-family: var(--primitive-font-family-mono); font-size: var(--body-dense-size);
+  color: var(--text-secondary); white-space: pre-wrap; overflow-x: auto;
+}

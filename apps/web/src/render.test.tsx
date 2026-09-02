@@ -22,6 +22,7 @@ import type {
   ListRuleProposalsResponse,
   ProposedRule,
   RuleProposal,
+  RuleSetVersion,
   StyleGuideRecord,
   SandboxDocument,
   ToolPlan,
@@ -29,7 +30,13 @@ import type {
 } from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
-import { ExtractionReportNote, ProposalsPane, RuleRow, orderForReview } from './screens/style-guide';
+import {
+  ExtractionReportNote,
+  ProposalsPane,
+  RuleRow,
+  SavedRuleSet,
+  orderForReview,
+} from './screens/style-guide';
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
@@ -1917,5 +1924,64 @@ describe('T-426 — the decision is offered only to whoever may take it', () => 
     const html = pane({ items: [] });
     expect(html).toContain('Propose a change');
     expect(html).toContain('accepts or declines it');
+  });
+});
+
+// ── T-429 — the compiled brief is readable by the super user ───────────────
+describe('T-429 — the drafting brief is shown to the curator, verbatim', () => {
+  const set: RuleSetVersion = {
+    id: 'v1',
+    styleGuideId: 'sg1',
+    version: 2,
+    acceptedBy: { userId: 'u1', name: 'Anna Whitby' },
+    acceptedAt: '2026-09-02T09:00:00.000Z',
+    draftingBrief:
+      'How this project wants its documents written:\n\n• Write in the active voice where the meaning allows it.',
+    rules: [
+      {
+        id: 'r1',
+        ordinal: 1,
+        kind: 'term',
+        origin: 'extracted',
+        statement: 'Use “scheme”, not “project”.',
+        scope: 'sentence',
+        exceptedContexts: [],
+        exceptedTerms: [],
+        register: 'all',
+        enforcement: 'raises_findings',
+        severity: 'required',
+        payload: {},
+        clauseId: 'c1',
+        clause: '4.2',
+        clauseWording: 'Refer to the works as the scheme throughout.',
+      },
+    ],
+  };
+  const render = (mayReadBrief: boolean) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <SavedRuleSet set={set} mayReadBrief={mayReadBrief} />
+      </MemoryRouter>,
+    );
+
+  it('shows the curator exactly what the drafting AI is told', () => {
+    const html = render(true);
+    expect(html).toContain('What the drafting AI is told');
+    expect(html).toContain('Write in the active voice where the meaning allows it.');
+    // and says it is the same every time, which is the guarantee it rests on
+    expect(html).toContain('the same rules always produce the same brief');
+  });
+
+  it('does not show it to anyone else — the rules are what everyone is bound by', () => {
+    const html = render(false);
+    expect(html).not.toContain('What the drafting AI is told');
+    // the rules themselves still render, because a rule that binds you is one
+    // you may look up
+    expect(html).toContain('Use “scheme”, not “project”.');
+    expect(html).toContain('Refer to the works as the scheme throughout.');
+  });
+
+  it('says who accepted the version and when', () => {
+    expect(render(true)).toContain('accepted by Anna Whitby');
   });
 });

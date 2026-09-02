@@ -462,3 +462,178 @@ function longestSentenceWords(text: string): number {
   }
   return longest;
 }
+
+// ── T-429 — DRAFTING: THE COMPILED BRIEF AND THE TIDY-UP PASS ───────────────
+//
+// *In plain terms: the AI is told your judgement rules as a short brief you can
+// read, and the mechanical ones are applied to its own output afterwards
+// instead of being asked for.*
+//
+// **Why not just hand the model the whole set** (ADR-0054 decision 6). Not
+// because a model cannot cope — current models follow long constraint lists far
+// better than they did a year ago — but because when a rule *is* dropped it is
+// dropped **silently**, and the rules compete for room with the author's brief
+// and the bound sources. That is the same squeeze that made ADR-0053 §5 split
+// rather than drop.
+
+/**
+ * The judgement rules, compiled once into a short written brief.
+ *
+ * 🔒 **SAME RULES IN, SAME BRIEF OUT.** It is built by sorting and formatting
+ * and nothing else — no model, no clock, no randomness — so a drafting run
+ * keeps a declared workflow's kind of guarantee, and the owner's super user can
+ * read exactly what the drafting model is told. Compiled at **save** rather
+ * than per draft, which is what makes that guarantee cheap.
+ *
+ * **Steering-only rules are IN the brief and out of every check.** That is the
+ * whole point of the `steers_only` mark: an aspiration — *write with the reader
+ * in mind* — improves the writing and can raise no finding anybody could act on.
+ */
+export function compileDraftingBrief(
+  rules: readonly {
+    kind: string;
+    statement: string;
+    scope: string;
+    register: string;
+    enforcement: string;
+    payload?: { preferred?: string; replaces?: string[]; passExample?: string; failExample?: string };
+  }[],
+): string {
+  const forBrief = rules.filter(
+    (rule) => rule.kind === 'judgement' || rule.enforcement === 'steers_only',
+  );
+  if (forBrief.length === 0) return '';
+  // stable order: every-register rules first, then by statement — so two saves
+  // of the same set produce the same bytes, which is what "same brief out" means
+  const ordered = [...forBrief].sort(
+    (a, b) =>
+      (a.register === 'all' ? 0 : 1) - (b.register === 'all' ? 0 : 1) ||
+      a.register.localeCompare(b.register) ||
+      a.statement.localeCompare(b.statement),
+  );
+  const lines = ['How this project wants its documents written:', ''];
+  for (const rule of ordered) {
+    const where = rule.register === 'all' ? '' : ` (${rule.register} writing)`;
+    lines.push(`• ${rule.statement}${where}`);
+    if (rule.payload?.failExample !== undefined) {
+      lines.push(`    not: ${rule.payload.failExample}`);
+    }
+    if (rule.payload?.passExample !== undefined) {
+      lines.push(`    but: ${rule.payload.passExample}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The preferred wordings, as a short list (decision 6).
+ *
+ * Term rules go into the prompt as well as into the tidy-up pass, because
+ * models follow a short list of preferred wordings well — and a draft written
+ * correctly the first time needs no normalising, which is a better outcome than
+ * one normalised afterwards.
+ */
+export function preferredWordings(
+  rules: readonly AcceptedRule[],
+  limit = 30,
+): { preferred: string; instead: string[] }[] {
+  const list: { preferred: string; instead: string[] }[] = [];
+  for (const rule of rules) {
+    if (rule.kind !== 'term') continue;
+    const preferred = rule.payload.preferred ?? '';
+    const instead = (rule.payload.replaces ?? []).filter((word) => word.trim() !== '');
+    if (preferred === '' || instead.length === 0) continue;
+    list.push({ preferred, instead });
+    if (list.length >= limit) break;
+  }
+  return list;
+}
+
+export type Normalisation = {
+  /** the model's own lines, tidied */
+  lines: string[];
+  /** how many wordings were swapped */
+  substitutions: number;
+  /**
+   * how many pattern-rule breaches remain, **reported rather than fixed**. A
+   * pattern rule says what is wrong and carries nothing that says what to write
+   * instead, so there is nothing to apply — and silently leaving that
+   * unmentioned would be the invisible failure this design refuses everywhere.
+   */
+  unfixed: number;
+};
+
+/**
+ * 🔒 **THE TIDY-UP PASS, AND THE ONE THING IT MUST NEVER DO.**
+ *
+ * *In plain terms: after the AI writes a section, Infora swaps the wordings your
+ * rules say to swap — in the AI's own sentences, before anyone has read them.*
+ *
+ * **This is not the checker acquiring a write path, and ADR-0048 §3 is
+ * untouched** (ADR-0054 decision 6). It reaches only the model's **own fresh
+ * output**, inside the invoker's own sandbox, before any human has seen it. It
+ * **never** touches text a person wrote — and the way that is guaranteed is
+ * structural rather than careful: this function takes **only the lines the
+ * drafting call produced**, and its caller passes the author's own headings
+ * nowhere near it. A test in `document-builder.test.ts` pins that end.
+ *
+ * Only **term** rules are applied. A pattern rule's stored shape carries an
+ * expression and no replacement, so there is nothing to apply — those are
+ * counted into `unfixed` and reported.
+ */
+export function normaliseFreshOutput(
+  lines: readonly string[],
+  rules: readonly AcceptedRule[],
+): Normalisation {
+  const terms = rules.filter((rule) => rule.kind === 'term');
+  const patterns = rules.filter(
+    (rule) => rule.kind === 'pattern' && usablePattern(rule.payload.expression),
+  );
+  let substitutions = 0;
+  let unfixed = 0;
+
+  const tidied = lines.map((line) => {
+    let text = line;
+    for (const rule of terms) {
+      const preferred = rule.payload.preferred ?? '';
+      if (preferred === '') continue;
+      for (const wording of rule.payload.replaces ?? []) {
+        if (wording.trim() === '') continue;
+        let pattern: RegExp;
+        try {
+          pattern = new RegExp(
+            `(?<![\\p{L}\\p{N}])${wording.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`,
+            rule.payload.caseSensitive === true ? 'gu' : 'giu',
+          );
+        } catch {
+          continue;
+        }
+        // the exceptions are honoured HERE TOO: a rule that spares the Project
+        // Board in a check must spare it in a draft, or the two halves of the
+        // same rule would disagree about the same words
+        const masked = maskTerms(text, rule.exceptedTerms);
+        let out = '';
+        let at = 0;
+        for (const match of masked.matchAll(pattern)) {
+          if (match[0] === preferred) continue;
+          out += text.slice(at, match.index) + preferred;
+          at = match.index + match[0].length;
+          substitutions += 1;
+        }
+        text = out + text.slice(at);
+      }
+    }
+    for (const rule of patterns) {
+      try {
+        const pattern = new RegExp(rule.payload.expression!, 'gu');
+        unfixed += [...text.matchAll(pattern)].length;
+      } catch {
+        // an expression that will not compile here is one the guard already
+        // refused at save; it counts as nothing rather than throwing mid-draft
+      }
+    }
+    return text;
+  });
+
+  return { lines: tidied, substitutions, unfixed };
+}

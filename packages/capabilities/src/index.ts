@@ -177,5 +177,8 @@ export {
   raisesFindings,
   FAMILY_OF_KIND,
   MAX_HITS_PER_RULE,
+  compileDraftingBrief,
+  preferredWordings,
+  normaliseFreshOutput,
 } from './rule-matcher';
-export type { AcceptedRule } from './rule-matcher';
+export type { AcceptedRule, Normalisation } from './rule-matcher';

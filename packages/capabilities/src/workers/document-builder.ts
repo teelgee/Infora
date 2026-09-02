@@ -88,6 +88,22 @@ export type DraftingCharacter = {
   styleClauses: ReadonlyArray<{ clause: string | null; heading: string | null; text: string }>;
   /** whether this project has any style guide loaded at all */
   anyStyleGuideLoaded: boolean;
+  /**
+   * T-429 (ADR-0054 decision 6) — **the compiled brief**: the accepted set's
+   * judgement and steering rules, written once at save and reused. The whole
+   * rule set is deliberately NOT handed to the drafting model — not because a
+   * model cannot cope, but because when a rule *is* dropped it is dropped
+   * **silently**, and the rules compete for room with the author's brief and
+   * the bound sources.
+   */
+  draftingBrief?: string;
+  /**
+   * T-429 — the preferred wordings, as a **short list**, which models follow
+   * well. Term rules go in here as well as into the tidy-up pass afterwards,
+   * because a draft written correctly the first time needs no normalising —
+   * a better outcome than one normalised after the fact.
+   */
+  preferredWordings?: ReadonlyArray<{ preferred: string; instead: string[] }>;
 };
 
 /** How the register reads as an instruction, not as a label. */
@@ -143,6 +159,10 @@ export function composeDraftingPrompt(
     REGISTER_INSTRUCTION[character.language],
     '',
     ...styleBlock(character),
+    // T-429 — the compiled brief and the short wordings list, after the style
+    // clauses and before the outline: they are instructions about HOW to write,
+    // which the outline then applies to WHAT to write.
+    ...briefBlock(character),
     'Write the document under these headings, in this order:',
     // T-408 — the AUTHOR'S corrected description wins, where they gave one.
     // A correction the plan showed and the draft ignored would be the worst of
@@ -199,6 +219,22 @@ function outlineLines(sections: ReadonlyArray<DocumentSection>): string[] {
  * selected says so, and the difference between the two is kept — one is a
  * project that has not been set up, the other is an author's choice.
  */
+function briefBlock(character: DraftingCharacter): string[] {
+  const lines: string[] = [];
+  if (character.draftingBrief !== undefined && character.draftingBrief.trim() !== '') {
+    lines.push(character.draftingBrief.trim(), '');
+  }
+  const wordings = character.preferredWordings ?? [];
+  if (wordings.length > 0) {
+    lines.push('Preferred wordings — use the first, never the others:');
+    for (const wording of wordings) {
+      lines.push(`  ${wording.preferred} — not ${wording.instead.join(', ')}`);
+    }
+    lines.push('');
+  }
+  return lines;
+}
+
 function styleBlock(character: DraftingCharacter): string[] {
   if (character.styleClauses.length === 0) {
     return [

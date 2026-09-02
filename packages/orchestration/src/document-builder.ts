@@ -37,7 +37,9 @@ import type {
 } from '@infora/contracts';
 import { flattenOutline, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
-import { parseClaims } from '@infora/capabilities';
+import { normaliseFreshOutput, parseClaims, preferredWordings } from '@infora/capabilities';
+import type { AcceptedRule } from '@infora/capabilities';
+import { readCurrentRuleSet } from '@infora/data';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { checkPropagation, groundCheck } from '@infora/governance';
@@ -160,6 +162,13 @@ export type DocumentBuilderOutput = {
    */
   usage?: { tokensPrompt: number; tokensCompletion: number; cost: number | null };
   model?: { id: string; version: string };
+  /**
+   * T-429 — what the tidy-up pass did to the model's own output: how many
+   * wordings it swapped, and how many pattern-rule breaches it could not fix
+   * because a pattern rule carries no replacement. Reported rather than silent,
+   * in the same spirit as `withheld` and `unreachableSources`.
+   */
+  normalised?: { substitutions: number; unfixed: number };
 };
 
 /**
@@ -278,6 +287,13 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     const anyStyleGuideLoaded =
       styleClauses.length > 0 || (await guidingStyleGuide(deps.db, environment.projectId)).length > 0;
 
+    // T-429 (ADR-0054 decision 6) — the accepted rules of the guides the author
+    // SELECTED. Two things come out of them and they go to different places:
+    // the compiled brief and the preferred-wordings list go INTO the prompt,
+    // and the term rules come back AFTER generation as the tidy-up pass.
+    const accepted = await acceptedRulesFor(deps.db, environment.projectId, input.styleGuideIds);
+    const brief = accepted.briefs.join('\n\n');
+
     const sourceByMarker = new Map(
       passages.map((passage, at) => [`S${at + 1}`, passage] as const),
     );
@@ -288,6 +304,8 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         documentType: input.documentType,
         styleClauses,
         anyStyleGuideLoaded,
+        ...(brief !== '' && { draftingBrief: brief }),
+        preferredWordings: preferredWordings(accepted.rules),
       }),
       messages: [
         {
@@ -392,10 +410,32 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     //     entries that got prose of their own, so the coverage sentence keeps
     //     T-402's discipline: a heading emitted to host a child is not a
     //     section the run wrote into.
+    // 🔒 T-429 — THE TIDY-UP PASS, AND THE ONE PLACE IT MAY TOUCH.
+    //
+    // `linesOf` returns THE MODEL'S OWN SENTENCES for a section — the claims
+    // the drafting call just wrote, that survived the ground check, that no
+    // human has seen. Those are normalised. The section HEADINGS, three lines
+    // below, are the AUTHOR'S OWN WORDS out of the outline they composed, and
+    // they are assembled without ever passing through here.
+    //
+    // **That separation is the guarantee**, not a habit: ADR-0048 §3 is
+    // untouched because the pass has no access to text a person wrote, and
+    // `document-builder.test.ts` pins exactly that — an author heading that
+    // breaches a term rule comes out unchanged while the model's sentence
+    // beside it is corrected.
+    const tidied = normaliseFreshOutput(
+      sectioned.filter((claim) => survived.has(claim.text)).map((claim) => claim.text),
+      accepted.rules,
+    );
+    const normalisedText = new Map(
+      sectioned
+        .filter((claim) => survived.has(claim.text))
+        .map((claim, at) => [claim.text, tidied.lines[at] ?? claim.text]),
+    );
     const linesOf = (at: number) =>
       sectioned
         .filter((claim) => claim.section === sectionKey(at) && survived.has(claim.text))
-        .map((claim) => claim.text);
+        .map((claim) => normalisedText.get(claim.text) ?? claim.text);
     const written = new Set<string>();
     outline.forEach((_entry, at) => {
       if (linesOf(at).length > 0) written.add(sectionKey(at));
@@ -460,8 +500,54 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       ).length,
       usage,
       model: result.model,
+      // reported rather than silent: the run says what it tidied and what it
+      // could not, because a pattern rule carries no replacement and there is
+      // nothing to apply for one
+      normalised: { substitutions: tidied.substitutions, unfixed: tidied.unfixed },
     };
   };
+}
+
+/**
+ * T-429 — the accepted rules and compiled briefs of the guides the author chose.
+ *
+ * **Read here rather than handed in**, which is the rule `styleClauses` already
+ * follows one read up and for the same reason: the caller must not be able to
+ * put words in a guide's mouth.
+ */
+async function acceptedRulesFor(
+  db: Db,
+  projectId: Id,
+  styleGuideIds: readonly Id[],
+): Promise<{ rules: AcceptedRule[]; briefs: string[] }> {
+  if (styleGuideIds.length === 0) return { rules: [], briefs: [] };
+  const wanted = new Set<string>(styleGuideIds);
+  const rules: AcceptedRule[] = [];
+  const briefs: string[] = [];
+  for (const styleGuideId of styleGuideIds) {
+    const set = await readCurrentRuleSet(db, styleGuideId);
+    if (set === null || !wanted.has(set.styleGuideId)) continue;
+    if (set.draftingBrief.trim() !== '') briefs.push(set.draftingBrief);
+    for (const rule of set.rules) {
+      rules.push({
+        id: rule.id,
+        kind: rule.kind as AcceptedRule['kind'],
+        origin: rule.origin as AcceptedRule['origin'],
+        statement: rule.statement,
+        scope: rule.scope as AcceptedRule['scope'],
+        exceptedContexts: rule.exceptedContexts as AcceptedRule['exceptedContexts'],
+        exceptedTerms: rule.exceptedTerms,
+        register: rule.register as AcceptedRule['register'],
+        enforcement: rule.enforcement as AcceptedRule['enforcement'],
+        severity: rule.severity as AcceptedRule['severity'],
+        payload: rule.payload as AcceptedRule['payload'],
+        styleGuideId: set.styleGuideId,
+        clause: rule.clause,
+        ...(rule.clauseWording !== null && { clauseWording: rule.clauseWording }),
+      });
+    }
+  }
+  return { rules, briefs };
 }
 
 /**

@@ -12,9 +12,11 @@ import {
   applyMeasuredRules,
   applyRulesToSection,
   applyStructureRules,
+  compileDraftingBrief,
   evidenceFor,
   maskContexts,
   maskTerms,
+  normaliseFreshOutput,
   scopedLines,
 } from './rule-matcher';
 import type { AcceptedRule } from './rule-matcher';
@@ -245,5 +247,110 @@ describe('T-428 — structure routes into completeness and measured into readabi
     // 🔒 ADR-0053 §2 is unchanged: readability is scored with outliers flagged
     // and NEVER pass/fail, so a `required` rule cannot make it a verdict
     expect(findings.every((finding) => finding.severity === 'advisory')).toBe(true);
+  });
+});
+
+// ── T-429 — the compiled brief, and the tidy-up pass ────────────────────────
+
+describe('T-429 — the brief is compiled from the rules, and the same rules give the same brief', () => {
+  const rules = [
+    {
+      kind: 'judgement',
+      statement: 'Write in the active voice where the meaning allows it.',
+      scope: 'sentence',
+      register: 'all',
+      enforcement: 'raises_findings',
+      payload: {
+        passExample: 'The contractor installed the barrier.',
+        failExample: 'The barrier was installed by the contractor.',
+      },
+    },
+    {
+      kind: 'judgement',
+      statement: 'Explain a technical term the first time it is used.',
+      scope: 'paragraph',
+      register: 'non-technical',
+      enforcement: 'raises_findings',
+      payload: {},
+    },
+    // in the brief although it raises nothing — that is what the mark is FOR
+    {
+      kind: 'term',
+      statement: 'Write with the reader in mind.',
+      scope: 'document',
+      register: 'all',
+      enforcement: 'steers_only',
+      payload: {},
+    },
+    // never in the brief: a term rule that raises findings is settled by code
+    {
+      kind: 'term',
+      statement: 'Use “scheme”, not “project”.',
+      scope: 'sentence',
+      register: 'all',
+      enforcement: 'raises_findings',
+      payload: { preferred: 'scheme', replaces: ['project'] },
+    },
+  ];
+
+  it('carries the judgement rules and the steering ones, and nothing settled by code', () => {
+    const brief = compileDraftingBrief(rules);
+    expect(brief).toContain('Write in the active voice');
+    expect(brief).toContain('Write with the reader in mind');
+    // a rule the tidy-up pass applies afterwards is not asked for in the prompt
+    expect(brief).not.toContain('Use “scheme”, not “project”.');
+  });
+
+  it('produces the same bytes from the same rules, in any input order', () => {
+    const forward = compileDraftingBrief(rules);
+    const backward = compileDraftingBrief([...rules].reverse());
+    expect(backward).toBe(forward);
+  });
+
+  it('is empty where a set has nothing to say to a drafting model', () => {
+    expect(compileDraftingBrief([rules[3]!])).toBe('');
+  });
+
+  it('says which register a register-specific rule is for', () => {
+    expect(compileDraftingBrief(rules)).toContain('(non-technical writing)');
+  });
+});
+
+describe('T-429 — the tidy-up pass normalises the model’s own output', () => {
+  const swap = term({
+    payload: { preferred: 'scheme', replaces: ['project'] },
+    exceptedTerms: ['the Project Board'],
+  });
+
+  it('swaps the wordings the rules name', () => {
+    const out = normaliseFreshOutput(['The project is assessed for land quality.'], [swap]);
+    expect(out.lines[0]).toBe('The scheme is assessed for land quality.');
+    expect(out.substitutions).toBe(1);
+  });
+
+  it('honours the same exceptions the check honours', () => {
+    // a rule that spares the Project Board in a check must spare it in a draft,
+    // or the two halves of one rule disagree about the same words
+    const out = normaliseFreshOutput(['The Project Board approved the project.'], [swap]);
+    expect(out.lines[0]).toBe('The Project Board approved the scheme.');
+  });
+
+  it('reports a pattern breach it cannot fix rather than leaving it silent', () => {
+    const pattern = term({
+      kind: 'pattern',
+      statement: 'Write a date as 12 March 2026.',
+      payload: { expression: '\\b\\d{1,2}/\\d{1,2}/\\d{2,4}\\b' },
+    });
+    const out = normaliseFreshOutput(['Approved on 12/03/2026.'], [pattern]);
+    // a pattern rule carries no replacement, so there is nothing to apply
+    expect(out.lines[0]).toBe('Approved on 12/03/2026.');
+    expect(out.unfixed).toBe(1);
+  });
+
+  it('changes nothing where the rules are already satisfied', () => {
+    const line = 'The scheme is assessed for land quality.';
+    const out = normaliseFreshOutput([line], [swap]);
+    expect(out.lines[0]).toBe(line);
+    expect(out.substitutions).toBe(0);
   });
 });

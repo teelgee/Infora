@@ -47,6 +47,7 @@ import type {
 import { decideProposalBody, extractRulesBody, proposeRuleBody, saveRuleSetBody } from '@infora/contracts';
 import {
   admitExtractedRules,
+  compileDraftingBrief,
   composeRuleExtractionPrompt,
   fillGaps,
 } from '@infora/capabilities';
@@ -195,10 +196,12 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
         // session and never off the body — a field here would be a way to write
         // somebody else's name onto the record that makes a rule binding
         acceptedByUserId: c.get('user').id,
-        // T-429 compiles the judgement rules into the drafting brief HERE, at
-        // save (decision 6). Empty until it lands, which is honest: a brief
-        // nothing produced is not a brief with no rules in it.
-        draftingBrief: '',
+        // 🔒 T-429 (ADR-0054 decision 6) — THE BRIEF IS COMPILED HERE, ONCE,
+        // AT SAVE, and never rebuilt per draft. Same rules in, same brief out,
+        // so a drafting run keeps a declared workflow's kind of guarantee; and
+        // it costs nothing to show the owner's super user afterwards, because
+        // it was compiled at save time regardless.
+        draftingBrief: compileDraftingBrief(parsed.data.rules),
         rules: parsed.data.rules.map((rule) => ({
           ...rule,
           ...(rule.clauseId !== undefined && { clauseId: rule.clauseId }),
@@ -352,7 +355,11 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
         await saveRuleSet(deps.db, {
           styleGuideId: guide.id,
           acceptedByUserId: c.get('user').id,
-          draftingBrief: '',
+          // the accepted proposal changes the set, so the brief is recompiled
+          // from the set as it now stands — a brief that described the previous
+          // version would be a promise about what the model is told that the
+          // model no longer gets
+          draftingBrief: compileDraftingBrief(rules),
           rules,
         });
       }

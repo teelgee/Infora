@@ -639,6 +639,24 @@ export function SavedRuleSet(props: { set: RuleSetVersion; mayReadBrief: boolean
         {new Date(set.acceptedAt).toLocaleDateString('en-GB')}. {set.rules.length} rule
         {set.rules.length === 1 ? '' : 's'} bind every organisation on this project.
       </p>
+      {/* T-429 (ADR-0054 decision 6) — the compiled brief, readable by the
+          owner's super user. It costs nothing to show, because it is compiled at
+          save time regardless, and it is the only way to see what the drafting
+          AI is actually told. Shown to the curator alone: it is a statement
+          about how this client's own documents get written, and the rules
+          themselves are the part everyone is bound by. */}
+      {props.mayReadBrief && set.draftingBrief.trim() !== '' && (
+        <>
+          <SectionLabel>What the drafting AI is told</SectionLabel>
+          <Card>
+            <p className="page-sub">
+              Compiled once when this version was saved, and reused on every draft — the same rules
+              always produce the same brief.
+            </p>
+            <pre className="drafting-brief">{set.draftingBrief}</pre>
+          </Card>
+        </>
+      )}
       <SectionLabel>The rules</SectionLabel>
       {set.rules.map((rule) => (
         <Card key={rule.id}>

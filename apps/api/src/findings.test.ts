@@ -9,7 +9,7 @@
 // review comment — an ethical-wall breach delivered by a feature nobody thinks
 // of as crossing the wall — and would pass every happy-path test.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { DraftFinding } from '@infora/capabilities';
 import { createDb, schema as s } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
@@ -348,10 +348,17 @@ describe('the promotion gate’s seam is closed (T-332, ADR-0049 §7)', () => {
   });
 
   it('closing a finding clears it from the count, and records who and when', async () => {
+    // ⚠ **ORDERED, AND FILTERED TO AN OPEN FINDING** — fixed 2026-09-02 while
+    // building Slice Knowledge, after this assertion failed once under load and
+    // passed on every rerun. The select had no `ORDER BY` and no status filter,
+    // so `rows[0]` could be the deliberately pre-closed finding two describes
+    // above; closing it again is a no-op, and the count then does not move. The
+    // test always meant "an open one", and now says so.
     const rows = await db
       .select()
       .from(s.findings)
-      .where(eq(s.findings.sandboxDocumentId, documentId));
+      .where(and(eq(s.findings.sandboxDocumentId, documentId), eq(s.findings.status, 'open')))
+      .orderBy(s.findings.createdAt, s.findings.id);
     const before = await countOpenFindings(db, documentId);
     await db
       .update(s.findings)

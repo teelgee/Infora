@@ -620,3 +620,79 @@ describe('T-426 — a proposal is visible to three parties and no others', () =>
     expect(res.status).toBe(400);
   });
 });
+
+// ── T-429 — the compiled brief (ADR-0054 decision 6) ────────────────────────
+describe('T-429 — the brief is compiled at save, and the same set gives the same brief', () => {
+  const judgementSet = {
+    rules: [
+      {
+        kind: 'judgement',
+        origin: 'typed',
+        statement: 'Write in the active voice where the meaning allows it.',
+        scope: 'sentence',
+        exceptedContexts: [],
+        exceptedTerms: [],
+        register: 'all',
+        enforcement: 'raises_findings',
+        severity: 'advisory',
+        payload: { failExample: 'The barrier was installed.', passExample: 'We installed the barrier.' },
+      },
+      {
+        kind: 'term',
+        origin: 'typed',
+        statement: 'Use “scheme”, not “project”.',
+        scope: 'sentence',
+        exceptedContexts: [],
+        exceptedTerms: [],
+        register: 'all',
+        enforcement: 'raises_findings',
+        severity: 'required',
+        payload: { preferred: 'scheme', replaces: ['project'] },
+      },
+    ],
+  };
+
+  const save = (body: unknown) =>
+    app.request(`/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: superCookie, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('stores a brief carrying the judgement rules and not the coded ones', async () => {
+    const first = (await (await save(judgementSet)).json()) as GetRuleSetResponse;
+    expect(first.set!.draftingBrief).toContain('Write in the active voice');
+    // a term rule is applied to the model's own output afterwards, so asking
+    // for it in the prompt as well would be spending context on it twice
+    expect(first.set!.draftingBrief).not.toContain('Use “scheme”, not “project”.');
+    expect(first.set!.draftingBrief).toContain('The barrier was installed.');
+  });
+
+  it('produces the SAME brief from the same rules — a declared workflow’s guarantee', async () => {
+    const first = (await (await save(judgementSet)).json()) as GetRuleSetResponse;
+    const second = (await (
+      await save({ rules: [...judgementSet.rules].reverse() })
+    ).json()) as GetRuleSetResponse;
+    expect(second.set!.version).toBeGreaterThan(first.set!.version);
+    expect(second.set!.draftingBrief).toBe(first.set!.draftingBrief);
+  });
+
+  it('is empty where a set has nothing to say to a drafting model', async () => {
+    const saved = (await (
+      await save({ rules: [judgementSet.rules[1]] })
+    ).json()) as GetRuleSetResponse;
+    expect(saved.set!.draftingBrief).toBe('');
+  });
+
+  it('is readable by every participant on the wire, and shown only to the curator', async () => {
+    // the read is not the gate — the SURFACE is, and that half is pinned in
+    // apps/web. A rule that binds you is one you may look up, and the brief is
+    // part of the same record.
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets/current`,
+      { headers: { cookie: consultantCookie } },
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as GetRuleSetResponse).set!.draftingBrief).toBeDefined();
+  });
+});
