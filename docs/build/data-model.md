@@ -355,6 +355,17 @@ extended** — it was a `CASE` over the two known kinds with no `ELSE`, so a row
 carrying the new value would have evaluated to NULL, and a NULL check *passes*;
 adding the enum value alone would have quietly unbound `round_id` and
 `direction` for the one kind that must never touch a review cycle.
+> ✏️ **Drawn 2026-09-02, unbuilt — T-436 (migration 0066).** One column:
+> **`external_recipients.opened_at`** — nullable timestamp, written once on
+> the FIRST successful open of the link and never updated after (the receipt
+> is that it was read, not how often). *Plainly: the deliverable's record
+> gains "opened on the 4th" beside the send.* A fact of the issue record,
+> not a file about the person (owner ruling 2026-09-02, ADR-0055 §5
+> completed): no identity is inferred — whoever held the link opened it.
+> The write must not make an expired link distinguishable from an invented
+> one. Registered in personal-data.md at ruling as the row's fifth fact.
+> When built, this block reduces to narrative per the state rule.
+
 **`external_recipients` holds the request and the issue in one table**, as a
 state: ADR-0055 §7's request carries the same four fields about the same named
 person, and two tables would give the register's deletion promise two paths to
