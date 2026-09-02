@@ -1546,7 +1546,9 @@ export function StyleSourcesNote(props: { guides: StyleGuideRecord[] | null }) {
         </ul>
       )}
       <p className="field-hint">
-        The project’s guide wins where the two disagree; your firm’s fills the gaps.
+        The project’s guide wins where the two disagree; your firm’s fills the gaps. Where a guide
+        has been turned into accepted rules, this check applies those rules instead of reading it as
+        prose — and the plan’s coverage below says how many of them it will apply.
       </p>
     </>
   );

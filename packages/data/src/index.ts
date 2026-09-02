@@ -22,6 +22,7 @@ export {
   readCurrentRuleSet,
   readRules,
   currentRuleSetVersionIds,
+  readAcceptedRules,
   UnknownClausePointer,
 } from './rule-set';
 export type { RuleToSave, StoredRule, StoredRuleSet } from './rule-set';

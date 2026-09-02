@@ -184,6 +184,19 @@ export type RulebookEvidence = {
  * target"*, *"the technical-note template's 'Assessment' section"*. It is a
  * statement, never a link.
  *
+ * ⚠ **T-428 uses this shape for a THIRD case, and it is recorded here rather
+ * than left to be inferred**: a finding from a **typed** or **Infora-proposed**
+ * writing rule (ADR-0054 decision 3). Such a rule has no client wording —
+ * nobody extracted it from the client's document — so `RulebookEvidence` would
+ * be a fabrication: its `clause`, `quote` and `rulebookRef` would all have to be
+ * invented, and on screen an invented quotation is indistinguishable from a
+ * real one. `DraftEvidence` is the honest shape for exactly that: *measured
+ * against something stated, with nothing to cite*. The `basis` names the rule
+ * and whose it is — *"a rule Infora proposed and this project accepted: …"* —
+ * so the finding says where it came from instead of quoting a guide that never
+ * said it. **`FindingInput` is deliberately not widened**: a fourth input would
+ * be a fourth citation treatment, and this needs none.
+ *
  * `otherAnchor` is present only for self-contradiction, where the second half
  * of the finding is a real span in the same draft and the reviewer needs to get
  * to it. Anchoring is the whole point (§2), and a contradiction that names only

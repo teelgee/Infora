@@ -62,6 +62,7 @@ export {
   createQaSectionCheck,
   MAX_ASSERTIONS_PER_SECTION,
   readStyleClauses,
+  readRulesForCheck,
   UnknownDraftSection,
 } from './qa-checker';
 export type {

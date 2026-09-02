@@ -71,6 +71,19 @@ export type QaCheckPlanInput = {
   depth: CorpusDepth;
   /** the style clauses binding this run, project guide and firm rulebook together */
   styleClauses: { count: number; tokens: number };
+  /**
+   * T-428 (ADR-0054, extending ADR-0053 §5) — **the accepted RULES this run
+   * will apply**, counted per register.
+   *
+   * Coverage now states rules and not only clauses, because a project that has
+   * restructured its guide has no clauses left to count for it: reporting "0 of
+   * 0 clauses" over a set of forty accepted rules would be the clean result
+   * that means nothing was looked at, which is precisely what §5 exists to
+   * prevent. `applied` excludes `steers_only` rules — they raise nothing, so
+   * counting them would inflate the sentence with rules that cannot produce a
+   * finding.
+   */
+  styleRules?: { applied: number; total: number; byRegister: Record<string, number> };
   /** how many library documents the run was narrowed to; 0 = the whole library */
   scopedDocuments: number;
   attachedDocuments: number;
@@ -405,11 +418,34 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
 
 function styleCoverage(input: QaCheckPlanInput, passes: number): string {
   const clauses = input.styleClauses.count;
+  const rules = input.styleRules;
+  const parts: string[] = [];
+  if (rules !== undefined && rules.total > 0) {
+    // T-428 — rules first, because on a project that has restructured its
+    // standard they are the whole of what binds, and the per-register
+    // breakdown is what ADR-0054 asks the sentence to carry
+    const registers = Object.entries(rules.byRegister)
+      .filter(([, count]) => count > 0)
+      .map(([register, count]) => `${count} ${register}`)
+      .join(', ');
+    parts.push(
+      `${rules.applied} of ${rules.total} accepted rule${rules.total === 1 ? '' : 's'} applied` +
+        (registers === '' ? '' : ` (${registers})`) +
+        (rules.total > rules.applied
+          ? `, ${rules.total - rules.applied} steering drafting only and raising nothing`
+          : ''),
+    );
+  }
+  if (clauses > 0) {
+    parts.push(
+      `style guide ${clauses} of ${clauses} clauses${passes > 1 ? `, in ${passes} passes` : ''}`,
+    );
+  }
   // ⚠ "no writing rules are loaded" is STATED rather than omitted: a run with
   // no style guide and no rulebook produces no style findings, which reads
   // exactly like a draft that broke none of them.
-  if (clauses === 0) return 'no writing rules are loaded for this project or firm';
-  return `style guide ${clauses} of ${clauses} clauses${passes > 1 ? `, in ${passes} passes` : ''}`;
+  if (parts.length === 0) return 'no writing rules are loaded for this project or firm';
+  return parts.join(' · ');
 }
 
 /**
@@ -430,6 +466,9 @@ export function coverageAfterQaCheck(result: {
   clausesRead: number;
   clausesTotal: number;
   clausePasses: number;
+  /** T-428 — the same two numbers the plan promised, as they turned out */
+  rulesApplied?: number;
+  rulesTotal?: number;
   passagesRead: number;
   sectionsWithNoPassages: number;
   attachedRead: number;
@@ -447,6 +486,13 @@ export function coverageAfterQaCheck(result: {
       ? 'the library returned nothing to check against'
       : `${result.passagesRead} passage${result.passagesRead === 1 ? '' : 's'} of the record read`,
   );
+  // 🔒 THE SAME SHAPE AS THE PLAN'S SENTENCE (ADR-0053 §5), so the difference
+  // between what was promised and what happened is visible at a glance.
+  if ((result.rulesTotal ?? 0) > 0) {
+    parts.push(
+      `${result.rulesApplied ?? 0} of ${result.rulesTotal} accepted rule${result.rulesTotal === 1 ? '' : 's'} applied`,
+    );
+  }
   if (result.clausesTotal > 0) {
     parts.push(
       `style guide ${result.clausesRead} of ${result.clausesTotal} clauses${result.clausePasses > 1 ? `, in ${result.clausePasses} passes` : ''}`,

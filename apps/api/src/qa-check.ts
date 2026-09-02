@@ -51,11 +51,12 @@ import { TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
-import { readStyleClauses } from '@infora/orchestration';
+import { readRulesForCheck, readStyleClauses } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves, RunAttachment } from '@infora/orchestration';
 import { extractText } from './extract';
 import type { ExtractableFormat } from './extract';
 import { currentRuleSetVersionIds } from '@infora/data';
+import type { AcceptedRule } from '@infora/capabilities';
 import { writeFindings } from './findings';
 import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
@@ -223,6 +224,8 @@ export function qaCheckRoutes(deps: {
         fingerprints: UploadFingerprint[];
         /** T-427 — stored on the run, shown nowhere */
         ruleSetVersions: string[];
+        /** T-428 — what the coverage sentence says about RULES, before and after */
+        ruleCounts: { applied: number; total: number; byRegister: Record<string, number> };
       }
     | { ok: false; response: Response }
   > => {
@@ -269,11 +272,22 @@ export function qaCheckRoutes(deps: {
       return { ok: false, response: invalid(c, 'this draft is empty — there is nothing to check') };
     }
 
+    // T-428 — the accepted rules first, because a guide that has been
+    // restructured into rules is read as rules and not as prose, and the plan
+    // has to count what the run will actually apply.
+    const rules = parsed.data.families.includes('style')
+      ? await readRulesForCheck(deps.db, slice.projectId as Id)
+      : [];
     // BOTH style sources, together, because the precedence between them is
     // applied by one reader (ADR-0029, ADR-0053 §3) — and the count is what the
     // coverage statement reports as "80 of 80 clauses"
     const clauses = parsed.data.families.includes('style')
-      ? await readStyleClauses(deps.db, slice.projectId as Id, slice.organisationId as Id)
+      ? await readStyleClauses(
+          deps.db,
+          slice.projectId as Id,
+          slice.organisationId as Id,
+          [...new Set(rules.map((rule) => rule.styleGuideId))],
+        )
       : [];
 
     // T-427 — the accepted rule-set version of every live style guide this run
@@ -287,6 +301,7 @@ export function qaCheckRoutes(deps: {
       body: parsed.data,
       sectionCount: sections.length,
       clauseCount: clauses.length,
+      ruleCounts: countRules(rules),
       ruleSetVersions,
       attachments: uploads.attachments,
       fingerprints: uploads.fingerprints,
@@ -299,6 +314,7 @@ export function qaCheckRoutes(deps: {
           count: clauses.length,
           tokens: clauses.reduce((sum, clause) => sum + tokensIn(clause.text), 0),
         },
+        styleRules: countRules(rules),
         scopedDocuments: parsed.data.scopeVersionIds.length,
         attachedDocuments: parsed.data.attachedDocumentIds.length,
         // named, not counted: an upload is stored nowhere, so its name is the
@@ -448,6 +464,8 @@ export function qaCheckRoutes(deps: {
           clausesRead: gathered.clausesRead,
           clausesTotal: computed.clauseCount,
           clausePasses: gathered.clausePasses,
+          rulesApplied: gathered.rulesApplied,
+          rulesTotal: computed.ruleCounts.total,
           passagesRead: gathered.passagesRead,
           sectionsWithNoPassages: gathered.sectionsWithNoPassages,
           attachedRead: gathered.attachedRead,
@@ -481,6 +499,7 @@ function gather(outputs: Record<string, unknown>) {
   const findings: DraftFinding[] = [];
   let sectionsRead = 0;
   let clausesRead = 0;
+  let rulesApplied = 0;
   let passagesRead = 0;
   let sectionsWithNoPassages = 0;
   let attachedRead = 0;
@@ -502,6 +521,8 @@ function gather(outputs: Record<string, unknown>) {
       if (typeof output.section === 'number') sectionsSeen.add(output.section);
       const read = numberOf(coverage['clausesRead']);
       if (read > clausesRead) clausesRead = read;
+      const applied = numberOf(coverage['rulesApplied']);
+      if (applied > rulesApplied) rulesApplied = applied;
       const passages = numberOf(coverage['passagesRead']);
       passagesRead += passages;
       if (passages === 0) sectionsWithNoPassages += 1;
@@ -535,6 +556,7 @@ function gather(outputs: Record<string, unknown>) {
 
   return {
     findings,
+    rulesApplied,
     // 🔒 SECTION 0 IS THE WHOLE DRAFT (the short shape), so a run that read it
     // read every section — reporting "1 of 6 sections read" would understate
     // the coverage, and understating it is the same class of error as
@@ -552,3 +574,23 @@ function gather(outputs: Record<string, unknown>) {
 }
 
 const numberOf = (value: unknown): number => (typeof value === 'number' ? value : 0);
+
+/**
+ * T-428 — the rule half of the coverage sentence, computed once and used twice.
+ *
+ * 🔒 **`applied` excludes `steers_only` rules.** They improve drafting and raise
+ * nothing, so counting them would inflate the sentence with rules that cannot
+ * produce a finding — an overstatement, which ADR-0053 §5 treats as the same
+ * class of error as an understatement: either way the sentence stops describing
+ * the run.
+ */
+function countRules(rules: readonly AcceptedRule[]) {
+  const byRegister: Record<string, number> = {};
+  let applied = 0;
+  for (const rule of rules) {
+    if (rule.enforcement !== 'raises_findings') continue;
+    applied += 1;
+    byRegister[rule.register] = (byRegister[rule.register] ?? 0) + 1;
+  }
+  return { applied, total: rules.length, byRegister };
+}

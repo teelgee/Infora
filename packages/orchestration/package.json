@@ -12,6 +12,7 @@
   "dependencies": {
     "@infora/capabilities": "workspace:*",
     "@infora/contracts": "workspace:*",
+    "@infora/data": "workspace:*",
     "@infora/db": "workspace:*",
     "@infora/governance": "workspace:*",
     "@infora/knowledge": "workspace:*",

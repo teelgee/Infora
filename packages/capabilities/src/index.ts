@@ -107,6 +107,7 @@ export {
 export type {
   CheckExcerpt,
   CheckPassage,
+  JudgementRule,
   SectionCheckMaterial,
   SectionCheckResult,
   SectionSummary,
@@ -158,3 +159,23 @@ export {
   RULE_TOPICS,
 } from './rule-extraction';
 export type { ExtractableClause, ExtractionResult, RuleTopic } from './rule-extraction';
+// T-428 (ADR-0054 decisions 4 and 6) — the in-house matcher: four of the five
+// rule kinds settled in code, with scope and exceptions honoured, and the one
+// place a rule becomes a finding's evidence.
+export {
+  applyRulesToSection,
+  applyStructureRules,
+  applyMeasuredRules,
+  deterministicRules,
+  judgementRules,
+  measuredRules,
+  structureRules,
+  evidenceFor,
+  maskContexts,
+  maskTerms,
+  scopedLines,
+  raisesFindings,
+  FAMILY_OF_KIND,
+  MAX_HITS_PER_RULE,
+} from './rule-matcher';
+export type { AcceptedRule } from './rule-matcher';

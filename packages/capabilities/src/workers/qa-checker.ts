@@ -155,6 +155,39 @@ export type SectionCheckMaterial = {
   passages: readonly CheckPassage[];
   excerpts: readonly CheckExcerpt[];
   families: readonly CheckFamily[];
+  /**
+   * T-428 — **the accepted JUDGEMENT rules, and only those** (ADR-0054 decision
+   * 6). Term, pattern, structure and measured rules never reach a model at all:
+   * they are settled in code before this call is made, which is what makes four
+   * kinds of five free. A judgement rule arrives as **one atomic statement,
+   * answerable yes or no, with its scope bounded**, because two obligations
+   * bundled into one rule get conflated and agreement drops sharply.
+   */
+  judgementRules?: readonly JudgementRule[];
+  /**
+   * How a judgement rule's id becomes a finding's evidence. Supplied by the
+   * caller because only it holds the rule's ORIGIN and the clause store — and
+   * because keeping evidence assembly in one function (`evidenceFor`) is what
+   * stops a second answer to *does this finding quote the client's guide*.
+   */
+  judgementEvidence?: (ruleId: string) => import('@infora/contracts').FindingEvidence;
+};
+
+/**
+ * One judgement rule, as the model is shown it (ADR-0054 decision 6).
+ *
+ * The examples are optional and carried because they are cheap and they work:
+ * one that passes and one that fails pin a statement far better than more words
+ * about it. The `id` never reaches the model — the model names a marker, and
+ * the rule is resolved from OUR list, which is `qa_section_check`'s existing
+ * rule for clauses applied to rules.
+ */
+export type JudgementRule = {
+  id: string;
+  statement: string;
+  scope: string;
+  passExample?: string;
+  failExample?: string;
 };
 
 /**
@@ -170,6 +203,7 @@ export type SectionCheckMaterial = {
 export function composeSectionCheckPrompt(material: SectionCheckMaterial): string {
   const wantsStyle = material.families.includes('style');
   const wantsCorpus = material.families.includes('corpus_accuracy');
+  const judgement = wantsStyle ? (material.judgementRules ?? []) : [];
   const lines: string[] = [
     'You are checking one section of a draft written by a professional engineer or consultant.',
     'You report DEFECTS. You never grade the document, never give a verdict on it, and never rewrite it wholesale.',
@@ -180,13 +214,14 @@ export function composeSectionCheckPrompt(material: SectionCheckMaterial): strin
     '   "quote": "<text copied EXACTLY from the section — this is how the finding is anchored>",',
     '   "defect": "<what is wrong, as a defect and never a verdict>",',
     '   "severity": "required"|"advisory",',
-    '   "rule": "<R# — required for a style finding, else null>",',
+    '   "rule": "<R# or J# — required for a style finding, else null>",',
     '   "source": "<S# or A# — required for a corpus_accuracy finding, else null>",',
     '   "replacement": "<the text you propose in place of the quote, or null>"}]}',
     '',
     'Rules that decide whether a finding is kept at all:',
     '  • `quote` must appear in the section EXACTLY as written there. A quote that does not is discarded.',
-    '  • a style finding must name an R# from the rules below. Do not invent a rule and do not paraphrase one.',
+    '  • a style finding must name an R# or a J# from the rules below. Do not invent a rule and do not paraphrase one.',
+    '  • answer each J# rule about this section as a yes or no. Report a finding ONLY where the section breaks it, and only where you can quote the words that break it.',
     '  • a corpus_accuracy finding must name an S# or A# from the material below. If the record says nothing about a statement, raise nothing — silence is not a finding.',
     '  • `severity` is `required` when the draft is wrong, unsupported, or contradicts something it is bound by; `advisory` when a reviewer may reasonably decline it.',
     '',
@@ -215,6 +250,23 @@ export function composeSectionCheckPrompt(material: SectionCheckMaterial): strin
     }
     for (const [nth, excerpt] of material.excerpts.entries()) {
       lines.push(`[A${nth + 1}] (attached by the user — not a project source) ${excerpt.excerpt}`);
+    }
+    lines.push('');
+  }
+
+  // T-428 — the judgement rules, ONE ATOMIC STATEMENT EACH, with the scope the
+  // rule declares. Four of the five kinds are settled in code and never appear
+  // here at all, which is the cost saving decision 4 predicts made visible: this
+  // block is the only part of a style guide that still costs a call.
+  if (judgement.length > 0) {
+    lines.push(
+      'THE JUDGEMENT RULES THIS SECTION IS BOUND BY. Each is one statement, answerable yes or no.',
+      '',
+    );
+    for (const [nth, rule] of judgement.entries()) {
+      lines.push(`[J${nth + 1}] (applies to each ${rule.scope}) ${rule.statement}`);
+      if (rule.passExample !== undefined) lines.push(`      passes: ${rule.passExample}`);
+      if (rule.failExample !== undefined) lines.push(`      fails: ${rule.failExample}`);
     }
     lines.push('');
   }
@@ -274,7 +326,27 @@ export function admitSectionFindings(
     const replacement = text(entry['replacement']);
 
     if (family === 'style') {
-      const clause = material.clauses[markerIndex(text(entry['rule']), 'R')];
+      // T-428 — a style finding may now name a JUDGEMENT RULE as well as a
+      // clause, and the same admission rule governs both: an unresolvable
+      // marker is a finding with no evidence, so it is dropped and counted
+      // rather than admitted with a plausible blank in it.
+      const marker = text(entry['rule']);
+      const rule = (material.judgementRules ?? [])[markerIndex(marker, 'J')];
+      if (rule !== undefined) {
+        findings.push({
+          checkFamily: 'style',
+          anchor,
+          defect,
+          severity,
+          // 🔒 supplied by the CALLER, from the accepted rule's own origin —
+          // never by the model, and never assembled here. `evidenceFor` in
+          // `rule-matcher.ts` is the one place a rule becomes evidence.
+          evidence: material.judgementEvidence!(rule.id),
+          ...(replacement !== '' && { replacement }),
+        });
+        continue;
+      }
+      const clause = material.clauses[markerIndex(marker, 'R')];
       if (clause === undefined) {
         discarded.unknownRule += 1;
         continue;
@@ -458,7 +530,7 @@ const number = (value: unknown): number =>
   typeof value === 'number' ? value : Number.parseInt(String(value), 10);
 
 /** `S3` → 2, and anything else → -1, which resolves to `undefined` in an array. */
-function markerIndex(marker: string, prefix: 'R' | 'S' | 'A'): number {
+function markerIndex(marker: string, prefix: 'R' | 'S' | 'A' | 'J'): number {
   const match = new RegExp(`^\\[?${prefix}(\\d+)\\]?$`).exec(marker.trim());
   return match === null ? -1 : Number.parseInt(match[1]!, 10) - 1;
 }

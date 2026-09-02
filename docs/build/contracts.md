@@ -1124,3 +1124,18 @@ are not recorded here.
   disabled. It matters more here than there, because the list itself is walled —
   another firm's proposal never reaches the response at all — and a `false` flag
   would be the one thing on the page hinting that a decision exists somewhere.
+
+- **2026-09-02 (T-428) — `qa-check` v2 and `document-creation` v3, and
+  `DraftEvidence` gains a third use with no change to its type.** *Plainly: the
+  writing check now runs most rules as ordinary code, and a finding from a rule
+  your guide never carried says where it came from instead of quoting one.* Two
+  reasons worth the entry. The **version bumps** rather than edits: a plan
+  records the version of the workflow it ran, so a parameter added in place
+  would make an old plan describe a shape it never had. And **`FindingInput` was
+  deliberately not widened** for rules that have no client wording — a fourth
+  input would be a fourth citation treatment, and this case needs none: it is
+  *measured against something stated, with nothing to cite*, which is exactly
+  what `DraftEvidence` already means. The alternative — `RulebookEvidence` with
+  an invented clause and quote — is the render lie ADR-0048 §5 exists to
+  forbid, and on screen an invented quotation is indistinguishable from a real
+  one.

@@ -36,13 +36,23 @@ import { DEFAULT_READABILITY_TARGET } from '@infora/contracts';
 import {
   admitContradictionFindings,
   admitSectionFindings,
+  applyMeasuredRules,
+  applyRulesToSection,
+  applyStructureRules,
   completenessCheck,
   composeContradictionPrompt,
+  measuredRules,
+  structureRules,
   composeSectionCheckPrompt,
+  evidenceFor,
+  fleschKincaidGrade,
+  judgementRules,
+  raisesFindings,
   readabilityCheck,
   splitIntoSections,
 } from '@infora/capabilities';
 import type {
+  AcceptedRule,
   CheckExcerpt,
   CheckPassage,
   CompletenessCoverage,
@@ -55,6 +65,7 @@ import type {
 } from '@infora/capabilities';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { readAcceptedRules } from '@infora/data';
 import { guidingStyleGuide, informingRules } from '@infora/knowledge';
 import { costOf } from '@infora/model';
 import type { ModelIdentity, ModelRates, Router } from '@infora/model';
@@ -102,6 +113,16 @@ export async function readStyleClauses(
   db: Db,
   projectId: Id,
   organisationId: Id,
+  /**
+   * T-428 — **guides whose rules the run is applying instead** (ADR-0054). A
+   * guide that has been restructured into accepted rules is read as those rules
+   * and must NOT also arrive as prose: the model would then be asked to judge a
+   * clause a code pass has already settled, at a cost, and possibly to a
+   * different answer. A guide with no accepted set is untouched and behaves
+   * exactly as it did before this ticket — which is why the exclusion is a
+   * parameter rather than a rewrite.
+   */
+  asRules: readonly string[] = [],
 ): Promise<StyleClause[]> {
   const asClause = (scope: 'project' | 'organisation') => (item: AssembledItem): StyleClause => ({
     scope,
@@ -110,9 +131,42 @@ export async function readStyleClauses(
     heading: item.rule?.heading ?? null,
     text: item.content,
   });
-  const project = (await guidingStyleGuide(db, projectId)).map(asClause('project'));
+  const structured = new Set(asRules);
+  const project = (await guidingStyleGuide(db, projectId))
+    .filter((item) => !structured.has(item.rule?.rulebookRef ?? ''))
+    .map(asClause('project'));
+  // 🔒 the firm's rulebook is UNTOUCHED and stays prose. ADR-0054 leaves
+  // "whether the firm's own manual gets the same extract-and-accept treatment"
+  // explicitly open and no ticket assumes it, so nothing here quietly decides it.
   const firm = (await informingRules(db, organisationId)).map(asClause('organisation'));
   return [...project, ...firm];
+}
+
+/**
+ * T-428 — every accepted rule that binds this project, as the matcher holds it.
+ *
+ * A thin adaptation of the store's own row: the checker needs the rule's origin
+ * and, for an extracted rule, the clause wording — which the store already
+ * resolves, out of our own copy of the client's document.
+ */
+export async function readRulesForCheck(db: Db, projectId: Id): Promise<AcceptedRule[]> {
+  const rows = await readAcceptedRules(db, projectId);
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind as AcceptedRule['kind'],
+    origin: row.origin as AcceptedRule['origin'],
+    statement: row.statement,
+    scope: row.scope as AcceptedRule['scope'],
+    exceptedContexts: row.exceptedContexts as AcceptedRule['exceptedContexts'],
+    exceptedTerms: row.exceptedTerms,
+    register: row.register as AcceptedRule['register'],
+    enforcement: row.enforcement as AcceptedRule['enforcement'],
+    severity: row.severity as AcceptedRule['severity'],
+    payload: row.payload as AcceptedRule['payload'],
+    styleGuideId: row.styleGuideId,
+    clause: row.clause,
+    ...(row.clauseWording !== null && { clauseWording: row.clauseWording }),
+  }));
 }
 
 /**
@@ -169,6 +223,9 @@ export type QaSectionCheckOutput = {
   coverage: {
     clausesRead: number;
     clausesTotal: number;
+    /** T-428 — how many accepted rules this run could apply, of how many exist */
+    rulesApplied: number;
+    rulesTotal: number;
     passagesRead: number;
     excerptsRead: number;
     assertionsSearched: number | null;
@@ -211,8 +268,18 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
     const wantsStyle = input.families.includes('style');
     const wantsCorpus = input.families.includes('corpus_accuracy');
 
+    // T-428 — the accepted rules first, because they decide which style guides
+    // are read as PROSE and which as rules. Four of the five kinds are settled
+    // below in code and never reach a model at all.
+    const rules = wantsStyle ? await readRulesForCheck(deps.db, environment.projectId) : [];
+    const structured = [...new Set(rules.map((rule) => rule.styleGuideId))];
     const allClauses = wantsStyle
-      ? await readStyleClauses(deps.db, environment.projectId, requester.organisationId)
+      ? await readStyleClauses(
+          deps.db,
+          environment.projectId,
+          requester.organisationId,
+          structured,
+        )
       : [];
     const clauses = clauseSlice(allClauses, input.clausePass);
 
@@ -235,26 +302,66 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
       }
     }
 
+    // 🔒 THE CODE PASS, BEFORE ANY MODEL CALL AND WHATEVER THE MODEL DOES NEXT.
+    // Term and pattern rules are settled here — free, exact, and the same answer
+    // every time — with the rule's scope and both halves of its exceptions
+    // honoured. Only the pass over the FIRST clause slice runs it, so a style
+    // guide split across two passes does not report every term finding twice.
+    const deterministic =
+      wantsStyle && (input.clausePass === undefined || input.clausePass.index === 0)
+        ? applyRulesToSection(draft.content, section, rules)
+        : [];
+
+    const judgement = judgementRules(rules);
+    const byId = new Map(rules.map((rule) => [rule.id, rule]));
     const material = {
       section,
       clauses,
       passages,
       excerpts: input.excerpts ?? [],
       families: input.families,
+      // only the pass that carries the first clause slice asks the judgement
+      // rules, for the reason above
+      judgementRules:
+        input.clausePass === undefined || input.clausePass.index === 0
+          ? judgement.map((rule) => ({
+              id: rule.id,
+              statement: rule.statement,
+              scope: rule.scope,
+              ...(rule.payload.passExample !== undefined && {
+                passExample: rule.payload.passExample,
+              }),
+              ...(rule.payload.failExample !== undefined && {
+                failExample: rule.payload.failExample,
+              }),
+            }))
+          : [],
+      // 🔒 one function decides what a rule's finding rests on, and it reads the
+      // rule's ORIGIN. A model never assembles evidence.
+      judgementEvidence: (ruleId: string) => evidenceFor(byId.get(ruleId)!),
     };
 
     // Nothing to read against is not a clean section: with no clauses and no
     // passages the call would ask the model to judge on its own knowledge,
     // which is the third render ADR-0053 considered and did not take. The
     // coverage says so instead.
-    if (clauses.length === 0 && passages.length === 0 && material.excerpts.length === 0) {
+    if (
+      clauses.length === 0 &&
+      passages.length === 0 &&
+      material.excerpts.length === 0 &&
+      material.judgementRules.length === 0
+    ) {
       return {
         section: input.section,
-        findings: [],
+        // the code pass already ran and costs nothing — its findings are real
+        // whether or not there was anything left to ask a model about
+        findings: deterministic,
         summary: '',
         coverage: {
           clausesRead: 0,
           clausesTotal: allClauses.length,
+          rulesApplied: appliedCount(rules),
+          rulesTotal: rules.length,
           passagesRead: 0,
           excerptsRead: 0,
           assertionsSearched,
@@ -275,11 +382,17 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
 
     return {
       section: input.section,
-      findings: admitted.findings,
+      findings: [...deterministic, ...admitted.findings],
       summary: admitted.summary,
       coverage: {
         clausesRead: admitted.coverage.clausesRead,
         clausesTotal: allClauses.length,
+        // ADR-0053 §5, as ADR-0054 extends it: coverage states RULES, not only
+        // clauses — a set where half the rules are `steers_only` covers less
+        // than its size suggests, and silence about that is the claim §5 exists
+        // to forbid.
+        rulesApplied: appliedCount(rules),
+        rulesTotal: rules.length,
         passagesRead: admitted.coverage.passagesRead,
         excerptsRead: admitted.coverage.excerptsRead,
         assertionsSearched,
@@ -445,6 +558,9 @@ export type QaDocumentCheckOutput = {
     sections: number;
     readability: { target: number; scores: ReadabilityScore[] };
     completeness: CompletenessCoverage;
+    /** T-428 — the accepted structure and measured rules this pass applied */
+    structureRules: number;
+    measuredRules: number;
   };
 };
 
@@ -463,11 +579,26 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
           sections: 0,
           readability: { target: input.readabilityTarget ?? DEFAULT_READABILITY_TARGET, scores: [] },
           completeness: { missingSections: null, placeholders: 0 },
+          structureRules: 0,
+          measuredRules: 0,
         },
       };
     }
     const families = input.families ?? (['readability', 'completeness'] as const);
     const target = input.readabilityTarget ?? DEFAULT_READABILITY_TARGET;
+    // 🔒 T-428 — STRUCTURE routes into completeness and MEASURED into
+    // readability (ADR-0054 decision 4). The check families do not change; the
+    // kinds route into them, which is what keeps the launcher's own switches
+    // describing what actually runs. Both passes are code, in a capability that
+    // holds no `Router` at all.
+    const rules = await readRulesForCheck(deps.db, draft.projectId as Id);
+    const fromStructure = applyStructureRules(draft.content, draft.sections, rules);
+    const fromMeasured = applyMeasuredRules(
+      draft.content,
+      draft.sections,
+      rules,
+      fleschKincaidGrade,
+    );
     // the scores are computed either way, because the coverage statement has to
     // be able to say the family ran — it is the findings that are withheld
     const readability = readabilityCheck(draft.content, draft.sections, target);
@@ -476,13 +607,15 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
     const completeness = completenessCheck(draft.content, draft.sections, template);
     return {
       findings: [
-        ...(families.includes('readability') ? readability.findings : []),
-        ...(families.includes('completeness') ? completeness.findings : []),
+        ...(families.includes('readability') ? [...readability.findings, ...fromMeasured] : []),
+        ...(families.includes('completeness') ? [...completeness.findings, ...fromStructure] : []),
       ],
       coverage: {
         sections: draft.sections.length,
         readability: { target, scores: readability.scores },
         completeness: completeness.coverage,
+        structureRules: structureRules(rules).length,
+        measuredRules: measuredRules(rules).length,
       },
     };
   };
@@ -505,4 +638,16 @@ function auditOf(
       cost: costOf(rates, result.model, result.usage),
     },
   };
+}
+
+/**
+ * How many accepted rules a run can actually apply.
+ *
+ * **`steers_only` rules are excluded and that is the honest number**: they
+ * improve drafting and raise nothing, so counting them would inflate the
+ * coverage sentence with rules that cannot produce a finding — which is exactly
+ * the overstatement ADR-0053 §5 exists to prevent.
+ */
+function appliedCount(rules: readonly AcceptedRule[]): number {
+  return rules.filter(raisesFindings).length;
 }

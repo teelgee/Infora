@@ -303,3 +303,41 @@ export async function currentRuleSetVersionIds(
   }
   return ids;
 }
+
+/**
+ * T-428 — **every accepted rule that binds a project**, ready for the checker.
+ *
+ * *In plain terms: the writing rules a check will actually apply.*
+ *
+ * One read across every **live** style guide's **current** version, carrying the
+ * guide id (which is a finding's `rulebookRef`) and, for an extracted rule, the
+ * clause's own address and verbatim text — because that is what a finding
+ * quotes, and it comes out of our copy of the client's document rather than out
+ * of the rule.
+ *
+ * 🔒 **Only live guides.** A retired guide is not what a run reads, and a rule
+ * of a retired guide raising a finding today would be the platform enforcing a
+ * standard the client withdrew. The version itself survives, so a finding
+ * written *before* the retirement still resolves to the words it quoted — which
+ * is the whole reason retire-never-delete exists.
+ */
+export async function readAcceptedRules(
+  db: Db,
+  projectId: string,
+): Promise<(StoredRule & { styleGuideId: string })[]> {
+  const guides = await db
+    .select({ id: s.projectStyleGuides.id })
+    .from(s.projectStyleGuides)
+    .where(
+      and(eq(s.projectStyleGuides.projectId, projectId), isNull(s.projectStyleGuides.retiredAt)),
+    )
+    .orderBy(asc(s.projectStyleGuides.loadedAt));
+
+  const all: (StoredRule & { styleGuideId: string })[] = [];
+  for (const guide of guides) {
+    const set = await readCurrentRuleSet(db, guide.id);
+    if (set === null) continue;
+    for (const rule of set.rules) all.push({ ...rule, styleGuideId: guide.id });
+  }
+  return all;
+}
