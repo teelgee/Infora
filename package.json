@@ -25,7 +25,8 @@
     "check:personal-data": "node scripts/check-personal-data.mjs",
     "check:data-model": "pnpm --filter @infora/db run datamodel:check",
     "check:audit": "pnpm audit --prod",
-    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:parking && pnpm run check:adrs && pnpm run check:board && pnpm run check:docs && pnpm run check:links && pnpm run check:personal-data && pnpm run check:data-model && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools"
+    "check": "pnpm run check:deps && pnpm run check:source && pnpm run check:tickets && pnpm run check:questions && pnpm run check:parking && pnpm run check:adrs && pnpm run check:board && pnpm run check:docs && pnpm run check:links && pnpm run check:personal-data && pnpm run check:data-model && pnpm run check:migrations && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:tools",
+    "check:migrations": "node scripts/check-migrations.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

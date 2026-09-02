@@ -447,7 +447,7 @@ const acts = [
         title: 'One document, no account, no way further in',
         prose:
           'This is the only page in the product rendered outside the session gate, and it is photographed here in a browser carrying no cookies at all — the whole claim being tested is that the link is the access. It resolves an opaque token to ONE NAMED REVISION and serves that: not the library, not the project, not a later revision of the same document, and no list of anybody. There is no rail, no project switcher and no way further in. What Mrs Patel gets is the document’s reference and revision, the date it was issued, the message Rachel wrote her, the date the link stops working, and the file — and the page says plainly that nothing is being asked of her: there is nothing to acknowledge or sign. An expired link and an invented one answer identically, so a guesser learns nothing from the difference.',
-          adrs: ['ADR-0055'],
+        adrs: ['ADR-0055'],
       },
       {
         img: '26d-transmittal-receipt',
