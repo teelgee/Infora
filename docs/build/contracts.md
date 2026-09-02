@@ -1114,3 +1114,13 @@ are not recorded here.
   permitted (ADR-0054 decision 2, owner-ruled 2026-09-01 against the session's
   own stress test), so a flag would put a gate in the type that the design
   deliberately does not have.
+
+- **2026-09-02 (T-426) — `ListRuleProposalsResponse.mayDecide` is optional and
+  set by the server.** *Plainly: the accept and decline buttons only exist for
+  the person who is allowed to press them.* The **reason** is the
+  assembled-not-filtered rule at a button (T-269), which the starting outlines'
+  `mayRetire` already follows: an action nobody may take is **absent** from the
+  response rather than present and false, so a surface has nothing to render
+  disabled. It matters more here than there, because the list itself is walled —
+  another firm's proposal never reaches the response at all — and a `false` flag
+  would be the one thing on the page hinting that a decision exists somewhere.

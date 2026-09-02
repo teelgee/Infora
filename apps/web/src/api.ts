@@ -57,6 +57,9 @@ import type {
   ExtractRulesBody,
   ExtractRulesResponse,
   GetRuleSetResponse,
+  ListRuleProposalsResponse,
+  ProposeRuleBody,
+  RuleProposal,
   SaveRuleSetBody,
   StyleGuideRecord,
   ListFindingsResponse,
@@ -676,6 +679,30 @@ export const api = {
   currentRuleSet: (projectId: string, styleGuideId: string) =>
     request<GetRuleSetResponse>(
       `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/current`,
+    ),
+  // T-426 — anyone on the project may propose a change to a rule that binds
+  // them. The proposer comes off the session, never off the body.
+  proposeRule: (projectId: string, styleGuideId: string, body: ProposeRuleBody) =>
+    request<RuleProposal>(
+      `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/proposals`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  // 🔒 The list is walled server-side: another firm's proposal is ABSENT from
+  // the response, so there is nothing here to filter and nothing to grey out.
+  // `mayDecide` arrives only where this requester may act.
+  ruleProposals: (projectId: string, styleGuideId: string) =>
+    request<ListRuleProposalsResponse>(
+      `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/proposals`,
+    ),
+  decideRuleProposal: (
+    projectId: string,
+    styleGuideId: string,
+    proposalId: string,
+    decision: 'accept' | 'decline',
+  ) =>
+    request<RuleProposal>(
+      `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/proposals/${proposalId}/decision`,
+      { method: 'POST', body: JSON.stringify({ decision }) },
     ),
   setContainerMetadata: (
     containerId: string,

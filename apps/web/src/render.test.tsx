@@ -19,7 +19,9 @@ import type {
   DestinationCheckResponse,
   Finding,
   GroundingSource,
+  ListRuleProposalsResponse,
   ProposedRule,
+  RuleProposal,
   StyleGuideRecord,
   SandboxDocument,
   ToolPlan,
@@ -27,7 +29,7 @@ import type {
 } from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
-import { ExtractionReportNote, RuleRow, orderForReview } from './screens/style-guide';
+import { ExtractionReportNote, ProposalsPane, RuleRow, orderForReview } from './screens/style-guide';
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
@@ -1835,5 +1837,85 @@ describe('T-425 — extraction reports the honest number, and says when it got n
     );
     expect(html).toContain('Nothing came out of this document');
     expect(html).toContain('it has no clauses');
+  });
+});
+
+// ── T-426 — the proposals pane (ADR-0054 decision 2) ────────────────────────
+//
+// The surface obligation the wall carries with it: the two decision buttons are
+// **rendered or absent**, never disabled. `mayDecide` arrives from the server
+// only where this requester may act, so a surface that greyed a button would be
+// advertising a decision to somebody who cannot take it.
+describe('T-426 — the decision is offered only to whoever may take it', () => {
+  const proposal: RuleProposal = {
+    id: 'p1',
+    state: 'pending',
+    rule: {
+      kind: 'judgement',
+      origin: 'typed',
+      statement: 'This rule fires on every quoted document title.',
+      scope: 'sentence',
+      exceptedContexts: [],
+      exceptedTerms: [],
+      register: 'all',
+      enforcement: 'raises_findings',
+      severity: 'advisory',
+      payload: {},
+    },
+    proposedBy: { userId: 'u1', name: 'Rob Neill' },
+    proposedAt: '2026-09-02T09:00:00.000Z',
+    decidedBy: null,
+    decidedAt: null,
+  };
+  const pane = (proposals: ListRuleProposalsResponse | null) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ProposalsPane
+          proposals={proposals}
+          canPropose
+          onPropose={() => {}}
+          onDecide={() => {}}
+        />
+      </MemoryRouter>,
+    );
+
+  it('shows Accept and Decline to a requester the server marked as able to decide', () => {
+    const html = pane({ items: [proposal], mayDecide: true });
+    expect(html).toContain('Accept — this makes a new version');
+    expect(html).toContain('Decline');
+  });
+
+  it('shows NEITHER button to anyone else — not a disabled one', () => {
+    const html = pane({ items: [proposal] });
+    expect(html).toContain('This rule fires on every quoted document title');
+    // absent, not greyed: the decision is not in the markup at all
+    expect(html).not.toContain('Accept — this makes a new version');
+    expect(html).not.toContain('>Decline<');
+    // (the Propose button IS disabled here, and legitimately so — an empty
+    // textarea has nothing to submit, which is a form state and not a
+    // permission)
+  });
+
+  it('offers no decision on a proposal that has already been decided', () => {
+    const html = pane({
+      items: [
+        {
+          ...proposal,
+          state: 'declined',
+          decidedBy: { userId: 'u2', name: 'Anna Whitby' },
+          decidedAt: '2026-09-02T10:00:00.000Z',
+        },
+      ],
+      mayDecide: true,
+    });
+    expect(html).toContain('Declined');
+    expect(html).toContain('decided by Anna Whitby');
+    expect(html).not.toContain('Accept — this makes a new version');
+  });
+
+  it('lets anyone propose, and says who decides', () => {
+    const html = pane({ items: [] });
+    expect(html).toContain('Propose a change');
+    expect(html).toContain('accepts or declines it');
   });
 });

@@ -1,4 +1,5 @@
-// T-424/T-425 — THE RULES WORKBENCH, on screen (ADR-0054 decisions 2 and 3).
+// T-424/T-425/T-426 — THE RULES WORKBENCH, on screen (ADR-0054 decisions 2
+// and 3).
 //
 // *In plain terms: you name a writing standard, upload it (or don't), say which
 // kinds of writing it has to cover, and press Create. Infora reads the document
@@ -30,6 +31,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import type {
   ExtractionReport,
   FindingSeverity,
+  ListRuleProposalsResponse,
   ProposedRule,
   RuleKind,
   RuleOrigin,
@@ -465,16 +467,49 @@ export function StyleGuideScreen() {
   const me = useMe();
   const participant = me.participants.find((p) => p.projectId === projectId);
   const [set, setSet] = useState<RuleSetVersion | null | undefined>(undefined);
+  const [proposals, setProposals] = useState<ListRuleProposalsResponse | null>(null);
 
-  useEffect(() => {
+  const reload = () => {
     if (projectId === undefined || styleGuideId === undefined) return;
     void api
       .currentRuleSet(projectId, styleGuideId)
       .then((res) => setSet(res.set))
       .catch(() => setSet(null));
-  }, [projectId, styleGuideId]);
+    void api
+      .ruleProposals(projectId, styleGuideId)
+      .then(setProposals)
+      .catch(() => setProposals(null));
+  };
+  useEffect(reload, [projectId, styleGuideId]);
 
   const mayCurate = participant?.membershipRole === 'owner' && participant.elevated === true;
+
+  const propose = async (statement: string) => {
+    if (projectId === undefined || styleGuideId === undefined) return;
+    await api.proposeRule(projectId, styleGuideId, {
+      rule: {
+        kind: 'judgement',
+        // 🔒 a proposal is always TYPED — nobody extracted it from the guide,
+        // so it has no wording behind it and the store refuses one
+        origin: 'typed',
+        statement,
+        scope: 'sentence',
+        exceptedContexts: [],
+        exceptedTerms: [],
+        register: 'all',
+        enforcement: 'raises_findings',
+        severity: 'advisory',
+        payload: {},
+      },
+    });
+    reload();
+  };
+
+  const decide = async (proposalId: string, decision: 'accept' | 'decline') => {
+    if (projectId === undefined || styleGuideId === undefined) return;
+    await api.decideRuleProposal(projectId, styleGuideId, proposalId, decision);
+    reload();
+  };
 
   return (
     <div className="content">
@@ -486,9 +521,112 @@ export function StyleGuideScreen() {
           This guide has no accepted rules yet. Until a set is saved, nothing in it binds anybody.
         </p>
       ) : (
-        <SavedRuleSet set={set} mayReadBrief={mayCurate} />
+        <>
+          <SavedRuleSet set={set} mayReadBrief={mayCurate} />
+          <ProposalsPane
+            proposals={proposals}
+            canPropose={set !== null}
+            onPropose={(statement) => void propose(statement)}
+            onDecide={(id, decision) => void decide(id, decision)}
+          />
+        </>
       )}
     </div>
+  );
+}
+
+/**
+ * T-426 — the proposals, and the decision.
+ *
+ * 🔒 **The list is walled server-side.** Another firm's proposal is absent from
+ * the response, so there is nothing to filter here and nothing to grey out —
+ * and `mayDecide` arrives only where this requester may act, so the two buttons
+ * are **rendered or not rendered**, never disabled (T-269).
+ *
+ * ⚠ **The proposer is told by this screen and by nothing else.** ADR-0054
+ * decision 8 says the proposer is notified when their proposal is accepted or
+ * declined; that notification is NOT built — see the ticket's record — so the
+ * outcome is shown here, on the page the proposer made the proposal from, and
+ * the design's one promised message is honestly outstanding rather than
+ * silently dropped.
+ */
+export function ProposalsPane(props: {
+  proposals: ListRuleProposalsResponse | null;
+  canPropose: boolean;
+  onPropose: (statement: string) => void;
+  onDecide: (proposalId: string, decision: 'accept' | 'decline') => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const items = props.proposals?.items ?? [];
+  return (
+    <>
+      <SectionLabel>Proposed changes</SectionLabel>
+      {items.length === 0 ? (
+        <p className="page-sub">
+          Nothing proposed. Anyone on this project can say a rule is wrong; the owner
+          organisation&rsquo;s super user accepts or declines it.
+        </p>
+      ) : (
+        items.map((proposal) => (
+          <Card key={proposal.id}>
+            <div className="rule-head">
+              <Badge
+                tone={
+                  proposal.state === 'accepted'
+                    ? 'success'
+                    : proposal.state === 'declined'
+                      ? 'neutral'
+                      : 'warning'
+                }
+              >
+                {proposal.state === 'pending'
+                  ? 'Awaiting a decision'
+                  : proposal.state === 'accepted'
+                    ? 'Accepted'
+                    : 'Declined'}
+              </Badge>
+              <span className="rule-exceptions">
+                {proposal.supersedesRuleId === undefined
+                  ? 'A new rule'
+                  : 'A change to an existing rule'}{' '}
+                · proposed by {proposal.proposedBy.name}
+                {proposal.decidedBy === null ? '' : ` · decided by ${proposal.decidedBy.name}`}
+              </span>
+            </div>
+            <p className="rule-statement">{proposal.rule.statement}</p>
+            {props.proposals?.mayDecide === true && proposal.state === 'pending' && (
+              <div className="card-actions">
+                <Button variant="primary" onClick={() => props.onDecide(proposal.id, 'accept')}>
+                  Accept — this makes a new version
+                </Button>
+                <Button onClick={() => props.onDecide(proposal.id, 'decline')}>Decline</Button>
+              </div>
+            )}
+          </Card>
+        ))
+      )}
+      {props.canPropose && (
+        <Card>
+          <Field
+            label="Propose a change"
+            hint="Say what the rule should be. The owner organisation’s super user accepts or declines it, and you will see the outcome here."
+          >
+            <TextArea rows={2} value={draft} onChange={setDraft} />
+          </Field>
+          <div className="card-actions">
+            <Button
+              disabled={draft.trim() === ''}
+              onClick={() => {
+                props.onPropose(draft.trim());
+                setDraft('');
+              }}
+            >
+              Propose
+            </Button>
+          </div>
+        </Card>
+      )}
+    </>
   );
 }
 

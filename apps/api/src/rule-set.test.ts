@@ -11,7 +11,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type {
   ExtractionReport,
   GetRuleSetResponse,
+  ListRuleProposalsResponse,
   ProposedRule,
+  RuleProposal,
   StyleGuideRecord,
 } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
@@ -406,5 +408,215 @@ describe('T-425 — reading binds nobody, so everybody may do it', () => {
       body: JSON.stringify({ rules: [] }),
     });
     expect(res.status).toBe(403);
+  });
+});
+
+// ── T-426 — anyone proposes; the super user decides ─────────────────────────
+//
+// 🔒 **The assertion this ticket exists for, in BOTH directions.** A rival firm
+// on the same project must never learn that a competitor is arguing about a
+// rule — that is the ethical-wall breach nobody thinks of as crossing the wall
+// (ADR-0048 §6's precedent) — and the three parties who may see it must
+// actually see it, or the design is a wall with a hole where the decision goes.
+describe('T-426 — a proposal is visible to three parties and no others', () => {
+  let proposalId: string;
+  let rivalCookie: string;
+  let colleagueCookie: string;
+
+  const proposals = async (cookie: string) =>
+    (await (
+      await app.request(
+        `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals`,
+        { headers: { cookie } },
+      )
+    ).json()) as ListRuleProposalsResponse;
+
+  beforeAll(async () => {
+    // a second consultancy on the same project — the rival
+    const [rival] = await db.insert(s.organisations).values({ name: `t426 rival ${stamp}` }).returning();
+    await db.insert(s.memberships).values({ organisationId: rival!.id, projectId, role: 'member' });
+    rivalCookie = await person('t426-rival', rival!.id, false);
+
+    // and a colleague of the proposer, in the proposer's own organisation
+    const [proposerUser] = await db
+      .select({ organisationId: s.users.organisationId })
+      .from(s.users)
+      .where(eq(s.users.email, `t424-consultant-${stamp}@test.local`));
+    colleagueCookie = await person('t426-colleague', proposerUser!.organisationId, false);
+
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals`,
+      {
+        method: 'POST',
+        headers: { cookie: consultantCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rule: {
+            kind: 'judgement',
+            origin: 'typed',
+            statement: 'This rule fires on every quoted document title.',
+            scope: 'sentence',
+            exceptedContexts: [],
+            exceptedTerms: [],
+            register: 'all',
+            enforcement: 'raises_findings',
+            severity: 'advisory',
+            payload: {},
+          },
+        }),
+      },
+    );
+    expect(res.status).toBe(201);
+    proposalId = ((await res.json()) as RuleProposal).id;
+  });
+
+  it('a rival firm on the same project sees NOTHING — absent, not refused', async () => {
+    const listed = await proposals(rivalCookie);
+    // 200, because a rival may legitimately have proposals of its own; the
+    // competitor's is simply not in the result
+    expect(listed.items.map((item) => item.id)).not.toContain(proposalId);
+    expect(listed.mayDecide).toBeUndefined();
+  });
+
+  it('and cannot decide it — the decision route reads as nonexistence', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals/${proposalId}/decision`,
+      {
+        method: 'POST',
+        headers: { cookie: rivalCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'accept' }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('the author sees their own', async () => {
+    expect((await proposals(consultantCookie)).items.map((item) => item.id)).toContain(proposalId);
+  });
+
+  it('the author’s own organisation sees it', async () => {
+    expect((await proposals(colleagueCookie)).items.map((item) => item.id)).toContain(proposalId);
+  });
+
+  it('the owner organisation sees it, and is the only party offered the decision', async () => {
+    const listed = await proposals(superCookie);
+    expect(listed.items.map((item) => item.id)).toContain(proposalId);
+    expect(listed.mayDecide).toBe(true);
+    // assembled, not filtered, at a button: absent for anyone who may not act
+    expect((await proposals(consultantCookie)).mayDecide).toBeUndefined();
+    expect((await proposals(plainOwnerCookie)).mayDecide).toBeUndefined();
+  });
+
+  it('accepting produces a new version, with the proposed rule in it', async () => {
+    const before = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals/${proposalId}/decision`,
+      {
+        method: 'POST',
+        headers: { cookie: superCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'accept' }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const decided = (await res.json()) as RuleProposal;
+    expect(decided.state).toBe('accepted');
+    expect(decided.decidedBy!.name).toBe('t424-super');
+    const after = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    expect(after.set!.version).toBe(before.set!.version + 1);
+    expect(after.set!.rules.map((rule) => rule.statement)).toContain(
+      'This rule fires on every quoted document title.',
+    );
+  });
+
+  it('declining records no reason — there is no field for one', async () => {
+    const made = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals`,
+      {
+        method: 'POST',
+        headers: { cookie: consultantCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rule: {
+            kind: 'term',
+            origin: 'typed',
+            statement: 'Say works, not scheme.',
+            scope: 'sentence',
+            exceptedContexts: [],
+            exceptedTerms: [],
+            register: 'all',
+            enforcement: 'raises_findings',
+            severity: 'advisory',
+            payload: {},
+          },
+        }),
+      },
+    );
+    const id = ((await made.json()) as RuleProposal).id;
+    const before = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals/${id}/decision`,
+      {
+        method: 'POST',
+        headers: { cookie: superCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'decline', reason: 'not persuaded' }),
+      },
+    );
+    const declined = (await res.json()) as RuleProposal;
+    expect(declined.state).toBe('declined');
+    expect(Object.keys(declined)).not.toContain('reason');
+    // and declining changes nothing that binds anybody
+    const after = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    expect(after.set!.version).toBe(before.set!.version);
+  });
+
+  it('a proposal that has been decided cannot be decided again', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/proposals/${proposalId}/decision`,
+      {
+        method: 'POST',
+        headers: { cookie: superCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ decision: 'decline' }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('refuses a proposal against a guide with no accepted rules — nothing to amend', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets/proposals`,
+      {
+        method: 'POST',
+        headers: { cookie: consultantCookie, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rule: {
+            kind: 'term',
+            origin: 'typed',
+            statement: 'Anything.',
+            scope: 'sentence',
+            exceptedContexts: [],
+            exceptedTerms: [],
+            register: 'all',
+            enforcement: 'raises_findings',
+            severity: 'advisory',
+            payload: {},
+          },
+        }),
+      },
+    );
+    expect(res.status).toBe(400);
   });
 });

@@ -26,7 +26,7 @@ import type { ProposedDocument } from './creator';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
-import type { ExtractionReport, ProposedRule, RuleSetVersion } from './rule-set';
+import type { ExtractionReport, ProposedRule, RuleProposal, RuleSetVersion } from './rule-set';
 import {
   EXCEPTED_CONTEXTS,
   RULE_ENFORCEMENTS,
@@ -735,6 +735,45 @@ export type SaveRuleSetBody = z.infer<typeof saveRuleSetBody>;
 
 /** `null` where the guide has no accepted set — which is not an empty set. */
 export type GetRuleSetResponse = { set: RuleSetVersion | null };
+
+// ── T-426 — ANYONE PROPOSES; THE SUPER USER DECIDES (ADR-0054 decision 2) ──
+//
+// POST /projects/:projectId/style-guides/:styleGuideId/rule-sets/proposals
+//      **any participant on the project.** A rule that binds you is one you may
+//      argue with.
+// GET  /projects/:projectId/style-guides/:styleGuideId/rule-sets/proposals
+//      🔒 **the author, the author's own organisation, and the owner
+//      organisation — nobody else.** A rival learning which rules a competitor
+//      is arguing about is the ethical-wall breach nobody thinks of as crossing
+//      the wall (ADR-0048 §6's precedent), so the predicate is applied in the
+//      read's own WHERE and another firm's proposal is ABSENT, never refused.
+// POST …/rule-sets/proposals/:proposalId/decision
+//      the owner organisation's super user. Accepting one produces a NEW
+//      version; declining records **no reason**, on the finding-dismissal
+//      precedent.
+
+export const proposeRuleBody = z.object({
+  rule: ruleBody,
+  /** the rule this would change; absent means it ADDS one */
+  supersedesRuleId: id.optional(),
+});
+export type ProposeRuleBody = z.infer<typeof proposeRuleBody>;
+
+export const decideProposalBody = z.object({
+  decision: z.enum(['accept', 'decline']),
+});
+export type DecideProposalBody = z.infer<typeof decideProposalBody>;
+
+/**
+ * `mayDecide` is set by the SERVER and only where this requester may act — the
+ * assembled-not-filtered rule at a button (T-269): an action nobody may take is
+ * absent from the response rather than present and false, so a surface has
+ * nothing to render disabled.
+ */
+export type ListRuleProposalsResponse = {
+  items: RuleProposal[];
+  mayDecide?: true;
+};
 
 export const enrolParticipantBody = z.object({ userId: id });
 export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;

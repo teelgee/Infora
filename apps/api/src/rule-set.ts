@@ -1,4 +1,4 @@
-// T-424/T-425 — THE RULES WORKBENCH, over HTTP (ADR-0054 decisions 2–5).
+// T-424/T-425/T-426 — THE RULES WORKBENCH, over HTTP (ADR-0054 decisions 2–5).
 //
 // *In plain terms: you upload your writing standard — or start from nothing —
 // and Infora reads it, pulls out the rules it contains, sorts them into kinds,
@@ -20,19 +20,31 @@
 // VERSION** (T-425). Reading is every participant's, because a rule that binds
 // you is a rule you may look up — T-397's asymmetry applied to the rules rather
 // than to the document they came from.
+//
+// 🔒 **A PROPOSAL IS NOT PROJECT-WIDE READING** (T-426, decision 2). It is
+// visible to its author, that person's own organisation, and the owner
+// organisation — **never to another firm on the project**. A rival learning
+// which rules a competitor is arguing about is the ethical-wall breach nobody
+// thinks of as crossing the wall (ADR-0048 §6's precedent). The predicate is
+// applied in the read's OWN WHERE, so another firm's proposal is **absent**
+// rather than refused, and a decision route addressed to one reads as
+// nonexistence.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import type {
   ApiError,
   ExtractionReport,
   Id,
+  ListRuleProposalsResponse,
   ProposedRule,
+  RuleProposal,
   RuleSetVersion,
   StyleRule,
 } from '@infora/contracts';
-import { extractRulesBody, saveRuleSetBody } from '@infora/contracts';
+import { decideProposalBody, extractRulesBody, proposeRuleBody, saveRuleSetBody } from '@infora/contracts';
 import {
   admitExtractedRules,
   composeRuleExtractionPrompt,
@@ -217,6 +229,150 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
     },
   );
 
+  // ── T-426 — anyone proposes; the owner's super user decides ───────────────
+  //
+  // **Anyone on the project may propose** (decision 2): a rule that binds you is
+  // one you may argue with, and the person who finds a rule wrong is usually not
+  // the person who can change it.
+  app.post(
+    '/projects/:projectId/style-guides/:styleGuideId/rule-sets/proposals',
+    project,
+    async (c) => {
+      const guide = await guideOf(c);
+      if (guide === null) return notFound(c);
+      const parsed = proposeRuleBody.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return invalid(c, 'rule is required, with a kind, a statement and a scope');
+
+      // a proposal amends an ACCEPTED set. With none, there is nothing to
+      // amend — and inventing a version to hang it off would make a proposal
+      // into a rule set nobody accepted.
+      const current = await readCurrentRuleSet(deps.db, guide.id);
+      if (current === null) {
+        return invalid(c, 'this style guide has no accepted rules yet — there is nothing to amend');
+      }
+      // 🔒 A proposal is always TYPED, whatever the body says. It has no clause
+      // behind it because nobody extracted it from the guide, and the store's
+      // own CHECK would refuse a pointer here anyway. This is the same rule the
+      // extraction keeps from the other end.
+      const rule = parsed.data.rule;
+      const supersedes =
+        parsed.data.supersedesRuleId !== undefined &&
+        current.rules.some((each) => each.id === parsed.data.supersedesRuleId)
+          ? parsed.data.supersedesRuleId
+          : null;
+      const [row] = await deps.db
+        .insert(s.projectStyleGuideRules)
+        .values({
+          ruleSetVersionId: current.id,
+          // proposals sit outside the set's own ordering, which is why the
+          // ordinal's unique index is partial
+          ordinal: 0,
+          kind: rule.kind,
+          origin: 'typed',
+          clauseId: null,
+          statement: rule.statement,
+          scope: rule.scope,
+          exceptedContexts: rule.exceptedContexts,
+          exceptedTerms: rule.exceptedTerms,
+          register: rule.register,
+          enforcement: rule.enforcement,
+          severity: rule.severity,
+          payload: rule.payload,
+          proposalState: 'pending',
+          ...(supersedes !== null && { supersedesRuleId: supersedes }),
+          // contracts principle 3 — the proposer comes off the resolved session
+          proposedByUserId: c.get('user').id,
+          proposedAt: new Date(),
+        })
+        .returning({ id: s.projectStyleGuideRules.id });
+      const listed = await readProposals(deps.db, guide.id, c);
+      return c.json(listed.items.find((item) => item.id === row!.id)!, 201);
+    },
+  );
+
+  app.get(
+    '/projects/:projectId/style-guides/:styleGuideId/rule-sets/proposals',
+    project,
+    async (c) => {
+      const guide = await guideOf(c);
+      if (guide === null) return notFound(c);
+      return c.json(await readProposals(deps.db, guide.id, c));
+    },
+  );
+
+  /**
+   * The decision. **Accepting produces a NEW version**; declining records no
+   * reason, on the finding-dismissal precedent (ADR-0053 §6: dismissing changes
+   * no work product, and declining is one professional judgement rather than a
+   * skipped one).
+   */
+  app.post(
+    '/projects/:projectId/style-guides/:styleGuideId/rule-sets/proposals/:proposalId/decision',
+    project,
+    async (c) => {
+      const refused = mayCurate(c);
+      if (refused !== null) return refused;
+      const guide = await guideOf(c);
+      if (guide === null) return notFound(c);
+      const proposalId = c.req.param('proposalId') ?? '';
+      if (!isUuid(proposalId)) return notFound(c);
+      const parsed = decideProposalBody.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return invalid(c, 'decision must be accept or decline');
+
+      // the ceiling is this guide's own proposals, checked in the read rather
+      // than trusted from the path
+      const visible = await readProposals(deps.db, guide.id, c);
+      const proposal = visible.items.find((item) => item.id === proposalId);
+      if (proposal === undefined || proposal.state !== 'pending') return notFound(c);
+
+      if (parsed.data.decision === 'accept') {
+        const current = await readCurrentRuleSet(deps.db, guide.id);
+        if (current === null) return notFound(c);
+        // the new version is the set as it stands with the proposal folded in:
+        // replacing the rule it supersedes, or added at the end. Nothing is
+        // edited in place — that is what "an amendment is a new version" means.
+        const rules = current.rules.map((each) =>
+          each.id === proposal.supersedesRuleId
+            ? ruleToSave(proposal.rule)
+            : {
+                kind: each.kind,
+                origin: each.origin,
+                statement: each.statement,
+                scope: each.scope,
+                exceptedContexts: each.exceptedContexts,
+                exceptedTerms: each.exceptedTerms,
+                register: each.register,
+                enforcement: each.enforcement,
+                severity: each.severity,
+                payload: each.payload,
+                ...(each.clauseId !== undefined && { clauseId: each.clauseId }),
+              },
+        );
+        if (proposal.supersedesRuleId === undefined) rules.push(ruleToSave(proposal.rule));
+        await saveRuleSet(deps.db, {
+          styleGuideId: guide.id,
+          acceptedByUserId: c.get('user').id,
+          draftingBrief: '',
+          rules,
+        });
+      }
+
+      // the ONE mutation this store permits, and the trigger in 0064 allows it
+      // only from `pending` and only over these two columns
+      await deps.db
+        .update(s.projectStyleGuideRules)
+        .set({
+          proposalState: parsed.data.decision === 'accept' ? 'accepted' : 'declined',
+          decidedByUserId: c.get('user').id,
+          decidedAt: new Date(),
+        })
+        .where(eq(s.projectStyleGuideRules.id, proposalId));
+
+      const after = await readProposals(deps.db, guide.id, c);
+      return c.json(after.items.find((item) => item.id === proposalId)!);
+    },
+  );
+
   return app;
 }
 
@@ -260,5 +416,112 @@ async function readSet(db: Db, styleGuideId: string): Promise<RuleSetVersion | n
       };
       return wire as StyleRule;
     }),
+  };
+}
+
+/**
+ * The proposals this requester may see — **the wall, in the read's own WHERE**.
+ *
+ * Visible to the author, the author's own organisation, and the owner
+ * organisation. Authorship implies the first, so the predicate is two clauses:
+ * the proposer's organisation is the requester's, or the requester's
+ * organisation owns the project (`membershipRole === 'owner'`, resolved on the
+ * slice). Another firm's proposal is **absent** — never greyed, never counted,
+ * and a decision route addressed to one reads as nonexistence.
+ */
+async function readProposals(
+  db: Db,
+  styleGuideId: string,
+  c: Context<AppEnv>,
+): Promise<ListRuleProposalsResponse> {
+  const slice = c.get('slice');
+  const owner = slice.membershipRole === 'owner';
+  const proposer = alias(s.users, 'proposer');
+  const decider = alias(s.users, 'decider');
+
+  const rows = await db
+    .select({
+      id: s.projectStyleGuideRules.id,
+      state: s.projectStyleGuideRules.proposalState,
+      kind: s.projectStyleGuideRules.kind,
+      statement: s.projectStyleGuideRules.statement,
+      scope: s.projectStyleGuideRules.scope,
+      exceptedContexts: s.projectStyleGuideRules.exceptedContexts,
+      exceptedTerms: s.projectStyleGuideRules.exceptedTerms,
+      register: s.projectStyleGuideRules.register,
+      enforcement: s.projectStyleGuideRules.enforcement,
+      severity: s.projectStyleGuideRules.severity,
+      payload: s.projectStyleGuideRules.payload,
+      supersedesRuleId: s.projectStyleGuideRules.supersedesRuleId,
+      proposedAt: s.projectStyleGuideRules.proposedAt,
+      proposerId: proposer.id,
+      proposerName: proposer.name,
+      deciderId: decider.id,
+      deciderName: decider.name,
+      decidedAt: s.projectStyleGuideRules.decidedAt,
+    })
+    .from(s.projectStyleGuideRules)
+    .innerJoin(
+      s.projectStyleGuideRuleSets,
+      eq(s.projectStyleGuideRuleSets.id, s.projectStyleGuideRules.ruleSetVersionId),
+    )
+    .innerJoin(proposer, eq(proposer.id, s.projectStyleGuideRules.proposedByUserId))
+    .leftJoin(decider, eq(decider.id, s.projectStyleGuideRules.decidedByUserId))
+    .where(
+      and(
+        eq(s.projectStyleGuideRuleSets.styleGuideId, styleGuideId),
+        isNotNull(s.projectStyleGuideRules.proposalState),
+        // 🔒 THE WALL, and it is one predicate with two readings. The OWNER
+        // organisation sees every proposal on its own project, because it is
+        // the party that decides them and cannot decide what it cannot read.
+        // Everyone else sees their OWN organisation's proposals and nothing
+        // else — which covers the author, since authorship implies membership.
+        // A rival firm's proposal is therefore absent from this query's result,
+        // not filtered out of it afterwards.
+        ...(owner ? [] : [eq(proposer.organisationId, slice.organisationId)]),
+      ),
+    )
+    .orderBy(desc(s.projectStyleGuideRules.proposedAt));
+
+  const items: RuleProposal[] = rows.map((row) => ({
+    id: row.id as Id,
+    state: row.state as RuleProposal['state'],
+    rule: {
+      kind: row.kind,
+      origin: 'typed',
+      statement: row.statement,
+      scope: row.scope,
+      exceptedContexts: row.exceptedContexts,
+      exceptedTerms: row.exceptedTerms,
+      register: row.register,
+      enforcement: row.enforcement,
+      severity: row.severity,
+      payload: row.payload,
+    } as RuleProposal['rule'],
+    ...(row.supersedesRuleId !== null && { supersedesRuleId: row.supersedesRuleId as Id }),
+    proposedBy: { userId: row.proposerId as Id, name: row.proposerName },
+    proposedAt: row.proposedAt!.toISOString(),
+    decidedBy:
+      row.deciderId === null ? null : { userId: row.deciderId as Id, name: row.deciderName! },
+    decidedAt: row.decidedAt?.toISOString() ?? null,
+  }));
+
+  // assembled, not filtered, at a button: absent for anyone who may not decide
+  return { items, ...(owner && c.get('slice').elevated && { mayDecide: true as const }) };
+}
+
+/** One proposal's rule, in the shape the save takes. A proposal is always typed. */
+function ruleToSave(rule: RuleProposal['rule']) {
+  return {
+    kind: rule.kind,
+    origin: 'typed',
+    statement: rule.statement,
+    scope: rule.scope,
+    exceptedContexts: rule.exceptedContexts,
+    exceptedTerms: rule.exceptedTerms,
+    register: rule.register,
+    enforcement: rule.enforcement,
+    severity: rule.severity,
+    payload: rule.payload as Record<string, unknown>,
   };
 }
