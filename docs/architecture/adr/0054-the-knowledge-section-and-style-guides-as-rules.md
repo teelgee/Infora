@@ -311,6 +311,12 @@ checked against* after the fact.
 change is told when it is accepted or declined. That is a reply to their own
 act, the same shape as an `@`-mention, and it reaches one person who is already
 waiting for an answer.
+*(Owner ruling, 2026-09-02: for V1 this exception is satisfied by the style
+guide's own page showing the outcome — the build stopped there because the
+message itself waits on the mail chain, and the owner accepted the interim:
+"this is fine for now." The same ruling flagged that the permissions around
+proposals and rule governance need a richer model after V1 — recorded in the
+deferred register as Knowledge governance depth.)*
 
 **9. Vale is the reference for the rule vocabulary, not a dependency in V1**
 *(Claude's call, and deliberately open to being overturned — see the spike,
