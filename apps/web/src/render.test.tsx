@@ -19,6 +19,7 @@ import type {
   DestinationCheckResponse,
   Finding,
   GroundingSource,
+  ProposedRule,
   StyleGuideRecord,
   SandboxDocument,
   ToolPlan,
@@ -26,6 +27,7 @@ import type {
 } from '@infora/contracts';
 import { DataSourcesChip } from './composer-chips';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
+import { ExtractionReportNote, RuleRow, orderForReview } from './screens/style-guide';
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
@@ -1694,5 +1696,144 @@ describe('T-422 — the project shelf is assembled, not filtered', () => {
     const html = render(true);
     expect(html).toContain('project library');
     expect(html).toContain('/projects/p1/documents');
+  });
+});
+
+// ── T-425 — the review screen (ADR-0054 decisions 2 and 3) ──────────────────
+//
+// The load-bearing sentence on this screen is one the type system cannot hold:
+// **an extracted rule renders beside the client's own wording, and a rule that
+// has none does not fake one.** An invented quotation looks identical to a real
+// one on screen, so the absence has to be visible and it has to be words.
+describe('T-425 — a rule row shows its origin, and only a real quotation', () => {
+  const base = {
+    kind: 'term' as const,
+    scope: 'sentence' as const,
+    exceptedContexts: [] as never[],
+    exceptedTerms: [] as string[],
+    register: 'all' as const,
+    enforcement: 'raises_findings' as const,
+    severity: 'required' as const,
+    payload: {},
+  };
+  const row = (rule: ProposedRule) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <RuleRow rule={rule} onChange={() => {}} onDelete={() => {}} />
+      </MemoryRouter>,
+    );
+
+  it('shows an extracted rule beside the guide’s own wording, addressed', () => {
+    const html = row({
+      ...base,
+      origin: 'extracted',
+      statement: 'Use “scheme”, not “project”.',
+      clauseId: 'c1',
+      clause: '4.2',
+      clauseWording: 'Refer to the works as the scheme throughout; never as the project.',
+    });
+    expect(html).toContain('From your document');
+    expect(html).toContain('Your guide, 4.2');
+    expect(html).toContain('Refer to the works as the scheme throughout');
+  });
+
+  it('says the address is missing rather than inventing one', () => {
+    const html = row({
+      ...base,
+      origin: 'extracted',
+      statement: 'Something.',
+      clauseId: 'c1',
+      clause: null,
+      clauseWording: 'The guide says this, in a section it never numbered.',
+    });
+    expect(html).toContain('unnumbered clause');
+    expect(html).not.toContain('Your guide, null');
+  });
+
+  it('gives a TYPED rule no quotation at all, and says why in words', () => {
+    const html = row({ ...base, origin: 'typed', statement: 'Never promise a date.' });
+    expect(html).toContain('Typed by a person');
+    expect(html).toContain('rule-no-wording');
+    // 🔒 no blockquote, no empty quotation, nothing that could read as the
+    // client's own words
+    expect(html).not.toContain('rule-wording');
+    expect(html).not.toContain('Your guide');
+  });
+
+  it('marks an Infora-proposed rule as Infora’s own, with no client wording', () => {
+    const html = row({
+      ...base,
+      origin: 'infora_proposed',
+      kind: 'judgement',
+      statement: 'Write in the active voice where the meaning allows it.',
+    });
+    expect(html).toContain('Proposed by Infora');
+    expect(html).toContain('binds only because you accepted it');
+    expect(html).not.toContain('rule-wording');
+  });
+
+  it('names what each kind costs, so a client can see what is free', () => {
+    expect(row({ ...base, origin: 'typed', statement: 'x' })).toContain('settled by code');
+    expect(row({ ...base, kind: 'judgement', origin: 'typed', statement: 'x' })).toContain(
+      'needs the AI',
+    );
+  });
+});
+
+describe('T-425 — the review orders the common rules first', () => {
+  it('puts every-register rules above register-specific ones, keeping their order', () => {
+    const rule = (register: 'all' | 'technical', statement: string): ProposedRule => ({
+      kind: 'judgement',
+      origin: 'typed',
+      statement,
+      scope: 'sentence',
+      exceptedContexts: [],
+      exceptedTerms: [],
+      register,
+      enforcement: 'raises_findings',
+      severity: 'advisory',
+      payload: {},
+    });
+    const ordered = orderForReview([
+      rule('technical', 'first technical'),
+      rule('all', 'first common'),
+      rule('technical', 'second technical'),
+      rule('all', 'second common'),
+    ]);
+    expect(ordered.map((each) => each.statement)).toEqual([
+      'first common',
+      'second common',
+      'first technical',
+      'second technical',
+    ]);
+  });
+});
+
+describe('T-425 — extraction reports the honest number, and says when it got nothing', () => {
+  it('leads with how many rules can quote the guide', () => {
+    const html = renderToStaticMarkup(
+      <ExtractionReportNote
+        report={{ clausesRead: 12, proposed: 20, withWording: 14, gapFilled: 6, nothingExtracted: null }}
+      />,
+    );
+    expect(html).toContain('12 clauses read');
+    expect(html).toContain('14</b> of 20 rules can quote your guide’s own wording');
+    expect(html).toContain('6 more were proposed by Infora');
+  });
+
+  it('says a document produced nothing rather than showing an empty configured set', () => {
+    const html = renderToStaticMarkup(
+      <ExtractionReportNote
+        report={{
+          clausesRead: 0,
+          proposed: 0,
+          withWording: 0,
+          gapFilled: 0,
+          nothingExtracted: 'Nothing could be read out of this document as a rule — it has no clauses.',
+        }}
+      />,
+    );
+    expect(html).toContain('Nothing came out of this document');
+    expect(html).toContain('it has no clauses');
   });
 });

@@ -54,6 +54,11 @@ import type {
   MarkNotificationReadResponse,
   ListRosterResponse,
   ListRulebooksResponse,
+  ExtractRulesBody,
+  ExtractRulesResponse,
+  GetRuleSetResponse,
+  SaveRuleSetBody,
+  StyleGuideRecord,
   ListFindingsResponse,
   QaCheckBody,
   QaCheckPlanResponse,
@@ -641,6 +646,37 @@ export const api = {
   // a member's read answers as nonexistence, which the Knowledge screen renders
   // as an absent list rather than a disabled control.
   rulebooks: () => request<ListRulebooksResponse>(`/organisation/rulebooks`),
+  // T-424 — a new style guide. **The file is optional** (ADR-0054 decision 2):
+  // a client with no written standard starts from Infora's baseline, and the
+  // same endpoint produces the same object either way.
+  createStyleGuide: (projectId: string, title: string, file?: File) => {
+    const form = new FormData();
+    form.append('title', title);
+    if (file !== undefined) form.append('file', file);
+    // `requestForm`, never `request`: the browser sets the multipart boundary
+    // itself, so the content type must not be declared (T-122/T-220's rule).
+    return requestForm<StyleGuideRecord>(`/projects/${projectId}/style-guides`, form);
+  },
+  // T-424 — the extraction. It PROPOSES and stores nothing; the reviewed list
+  // comes back through `saveRuleSet` below, which is where anything binds.
+  extractRules: (projectId: string, styleGuideId: string, body: ExtractRulesBody) =>
+    request<ExtractRulesResponse>(
+      `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/extraction`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  // T-425 — the save: the whole reviewed list, never a diff, because a version
+  // is the set as it stands. The accepting person comes off the session.
+  saveRuleSet: (projectId: string, styleGuideId: string, body: SaveRuleSetBody) =>
+    request<GetRuleSetResponse>(`/projects/${projectId}/style-guides/${styleGuideId}/rule-sets`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  // T-425 — the current set, readable by every participant: a rule that binds
+  // you is a rule you may look up.
+  currentRuleSet: (projectId: string, styleGuideId: string) =>
+    request<GetRuleSetResponse>(
+      `/projects/${projectId}/style-guides/${styleGuideId}/rule-sets/current`,
+    ),
   setContainerMetadata: (
     containerId: string,
     metadata: Record<string, unknown>,

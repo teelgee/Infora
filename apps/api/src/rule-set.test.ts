@@ -8,7 +8,12 @@
 // document yielding nothing SAYS so, and that none of it is stored until
 // somebody saves it.*
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { ExtractionReport, ProposedRule, StyleGuideRecord } from '@infora/contracts';
+import type {
+  ExtractionReport,
+  GetRuleSetResponse,
+  ProposedRule,
+  StyleGuideRecord,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -265,5 +270,141 @@ describe('T-424 — extraction stores nothing, and the tier is T-397’s', () =>
       })
       .returning();
     expect((await extract(superCookie, guide!.id)).status).toBe(404);
+  });
+});
+
+// ── T-425 — the review screen's other half: the save, which is what binds ────
+describe('T-425 — saving produces a version, and nothing binds before it', () => {
+  it('has no current set at all until somebody saves one', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets/current`,
+      { headers: { cookie: superCookie } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ set: null });
+  });
+
+  it('saves the reviewed list as version 1, attributed to the person who saved it', async () => {
+    const extracted = (await (await extract(superCookie, guideId)).json()) as {
+      rules: ProposedRule[];
+    };
+    const res = await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: superCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ rules: extracted.rules }),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as GetRuleSetResponse;
+    expect(body.set!.version).toBe(1);
+    expect(body.set!.acceptedBy.name).toBe('t424-super');
+    expect(body.set!.rules).toHaveLength(extracted.rules.length);
+  });
+
+  it('renders an extracted rule beside its source wording and a typed rule with none', async () => {
+    const current = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    const extracted = current.set!.rules.find((rule) => rule.origin === 'extracted')!;
+    const proposed = current.set!.rules.find((rule) => rule.origin === 'infora_proposed')!;
+    expect(extracted.clauseWording).toBeDefined();
+    // 🔒 the typed/Infora-proposed rule does NOT fake one — an invented
+    // quotation is worse than an absent one (decision 3)
+    expect(proposed.clauseWording).toBeUndefined();
+    expect(proposed.clauseId).toBeUndefined();
+  });
+
+  it('makes an amendment a NEW version, leaving the first standing', async () => {
+    const before = (await (
+      await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets/current`, {
+        headers: { cookie: superCookie },
+      })
+    ).json()) as GetRuleSetResponse;
+    const res = await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: superCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        rules: [
+          {
+            kind: 'judgement',
+            origin: 'typed',
+            statement: 'Never promise a programme date.',
+            scope: 'sentence',
+            exceptedContexts: [],
+            exceptedTerms: [],
+            register: 'all',
+            enforcement: 'raises_findings',
+            severity: 'required',
+            payload: {},
+          },
+        ],
+      }),
+    });
+    const after = (await res.json()) as GetRuleSetResponse;
+    expect(after.set!.version).toBe(before.set!.version + 1);
+    const rows = await db
+      .select({ id: s.projectStyleGuideRuleSets.id })
+      .from(s.projectStyleGuideRuleSets)
+      .where(eq(s.projectStyleGuideRuleSets.styleGuideId, guideId));
+    expect(rows.length).toBe(after.set!.version);
+  });
+
+  it('refuses a rule pointing at another guide’s clause rather than repairing it', async () => {
+    const [foreign] = await db
+      .select({ id: s.projectStyleGuideClauses.id })
+      .from(s.projectStyleGuideClauses)
+      .limit(1);
+    const res = await app.request(`/projects/${projectId}/style-guides/${emptyGuideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: superCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        rules: [
+          {
+            kind: 'term',
+            origin: 'extracted',
+            clauseId: foreign!.id,
+            statement: 'Borrowed.',
+            scope: 'sentence',
+            exceptedContexts: [],
+            exceptedTerms: [],
+            register: 'all',
+            enforcement: 'raises_findings',
+            severity: 'required',
+            payload: {},
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('T-425 — reading binds nobody, so everybody may do it', () => {
+  it('lets a consultant read the set that binds them', async () => {
+    const res = await app.request(
+      `/projects/${projectId}/style-guides/${guideId}/rule-sets/current`,
+      { headers: { cookie: consultantCookie } },
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as GetRuleSetResponse).set!.rules.length).toBeGreaterThan(0);
+  });
+
+  it('refuses the SAVE to a consultant as nonexistence', async () => {
+    const res = await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: consultantCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ rules: [] }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('tells the owner’s own non-elevated person what tier the save needs', async () => {
+    const res = await app.request(`/projects/${projectId}/style-guides/${guideId}/rule-sets`, {
+      method: 'POST',
+      headers: { cookie: plainOwnerCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ rules: [] }),
+    });
+    expect(res.status).toBe(403);
   });
 });

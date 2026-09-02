@@ -26,6 +26,14 @@ import type { ProposedDocument } from './creator';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
+import type { ExtractionReport, ProposedRule, RuleSetVersion } from './rule-set';
+import {
+  EXCEPTED_CONTEXTS,
+  RULE_ENFORCEMENTS,
+  RULE_KINDS,
+  RULE_ORIGINS,
+  RULE_SCOPES,
+} from './rule-set';
 import { CHECK_FAMILIES } from './checker';
 import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
 import type { ApiError } from './errors';
@@ -661,6 +669,72 @@ export type ListRulebooksResponse = { items: RulebookRecord[] };
 // separate record would be where they start to drift.
 export type StyleGuideRecord = RulebookRecord;
 export type ListStyleGuidesResponse = { items: StyleGuideRecord[] };
+
+// ── T-424/T-425 — THE RULES WORKBENCH (ADR-0054 decisions 2–5) ─────────────
+//
+// POST /projects/:projectId/style-guides/:styleGuideId/rule-sets/extraction
+//      the owner's super user only. Reads the guide's clauses, proposes rules,
+//      and **stores nothing** — the review step sits between extraction and
+//      saving, always (decision 2).
+// POST /projects/:projectId/style-guides/:styleGuideId/rule-sets
+//      the owner's super user only. THE MOMENT ANYTHING BINDS, and it always
+//      writes a NEW version.
+// GET  /projects/:projectId/style-guides/:styleGuideId/rule-sets/current
+//      every participant — a rule that binds you is a rule you may look up.
+//
+// The guide's own title is the set's name, so there is no name field here: a
+// project may hold several guides and T-397's store has always allowed it.
+
+/**
+ * The three creation parameters, and deliberately no more (decision 2), plus
+ * the registers the set must cover.
+ *
+ * *Considered and left out: which document types a set applies to, and spelling
+ * variety — the first is a second axis nobody has asked for (decision 5), the
+ * second is a pattern rule.*
+ */
+export const extractRulesBody = z.object({
+  registers: z.array(z.enum([...DOCUMENT_LANGUAGES, 'all'])).min(1),
+  /** decision 5, default on: one tick for a client who wants only their own rules */
+  fillGaps: z.boolean(),
+  /** set once for the set and overridable per rule at review */
+  defaultSeverity: z.enum(['required', 'advisory']),
+});
+export type ExtractRulesBody = z.infer<typeof extractRulesBody>;
+export type ExtractRulesResponse = { rules: ProposedRule[]; report: ExtractionReport };
+
+export const ruleBody = z.object({
+  kind: z.enum(RULE_KINDS),
+  origin: z.enum(RULE_ORIGINS),
+  statement: z.string().trim().min(1).max(600),
+  scope: z.enum(RULE_SCOPES),
+  exceptedContexts: z.array(z.enum(EXCEPTED_CONTEXTS)).max(4),
+  exceptedTerms: z.array(z.string().trim().min(1).max(120)).max(64),
+  register: z.enum([...DOCUMENT_LANGUAGES, 'all']),
+  enforcement: z.enum(RULE_ENFORCEMENTS),
+  severity: z.enum(['required', 'advisory']),
+  payload: z.record(z.string(), z.unknown()).default({}),
+  /** required when the origin is `extracted` — the store's own CHECK is the floor */
+  clauseId: id.optional(),
+});
+
+/**
+ * The reviewed list, as the screen sends it back: **the whole list, never a
+ * diff.**
+ *
+ * A version is the set as it stands, so a save carrying only what changed would
+ * need a base version to apply against — and the moment two people are
+ * reviewing, that base is stale. Sending the list is what makes *an amendment
+ * is a new version* true at the wire as well as in the store. There is
+ * deliberately **no per-rule acceptance flag**: bulk acceptance is permitted
+ * (decision 2, owner-ruled), so a flag would describe a gate that does not
+ * exist.
+ */
+export const saveRuleSetBody = z.object({ rules: z.array(ruleBody).max(500) });
+export type SaveRuleSetBody = z.infer<typeof saveRuleSetBody>;
+
+/** `null` where the guide has no accepted set — which is not an empty set. */
+export type GetRuleSetResponse = { set: RuleSetVersion | null };
 
 export const enrolParticipantBody = z.object({ userId: id });
 export type EnrolParticipantBody = z.infer<typeof enrolParticipantBody>;

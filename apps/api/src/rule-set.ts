@@ -1,4 +1,4 @@
-// T-424 — THE RULES WORKBENCH, over HTTP (ADR-0054 decisions 2, 4 and 5).
+// T-424/T-425 — THE RULES WORKBENCH, over HTTP (ADR-0054 decisions 2–5).
 //
 // *In plain terms: you upload your writing standard — or start from nothing —
 // and Infora reads it, pulls out the rules it contains, sorts them into kinds,
@@ -15,17 +15,30 @@
 // `404` to a member organisation and `403 super_user_required` to the owner's
 // own non-elevated person. Producing the rules that will bind every firm on a
 // scheme is the same act as loading the guide they come from (ADR-0033).
+//
+// 🔒 **THE SAVE IS THE MOMENT ANYTHING BINDS, AND IT ALWAYS WRITES A NEW
+// VERSION** (T-425). Reading is every participant's, because a rule that binds
+// you is a rule you may look up — T-397's asymmetry applied to the rules rather
+// than to the document they came from.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ApiError, ExtractionReport, ProposedRule } from '@infora/contracts';
-import { DOCUMENT_LANGUAGES } from '@infora/contracts';
+import type {
+  ApiError,
+  ExtractionReport,
+  Id,
+  ProposedRule,
+  RuleSetVersion,
+  StyleRule,
+} from '@infora/contracts';
+import { extractRulesBody, saveRuleSetBody } from '@infora/contracts';
 import {
   admitExtractedRules,
   composeRuleExtractionPrompt,
   fillGaps,
 } from '@infora/capabilities';
+import { readCurrentRuleSet, saveRuleSet, UnknownClausePointer } from '@infora/data';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
@@ -36,25 +49,6 @@ const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiErro
 const invalid = (c: Context, detail: string) =>
   c.json({ error: 'invalid', detail } satisfies ApiError, 400);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
-
-const register = z.enum([...DOCUMENT_LANGUAGES, 'all']);
-
-/**
- * The three creation parameters, and deliberately no more (decision 2): the
- * name (which is the guide's own title, set when it is loaded), whether Infora
- * fills the gaps, and the default severity. `registers` is the fourth answer on
- * the screen and is not a parameter of the same kind — it says which registers
- * the set must cover, which is what gap-filling is computed against.
- *
- * *Considered and left out: which document types a set applies to, and spelling
- * variety — the first is a second axis nobody has asked for, the second is a
- * pattern rule.*
- */
-export const extractionBody = z.object({
-  registers: z.array(register).min(1),
-  fillGaps: z.boolean(),
-  defaultSeverity: z.enum(['required', 'advisory']),
-});
 
 export function ruleSetRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
@@ -100,7 +94,7 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
       if (refused !== null) return refused;
       const guide = await guideOf(c);
       if (guide === null) return notFound(c);
-      const parsed = extractionBody.safeParse(await c.req.json().catch(() => null));
+      const parsed = extractRulesBody.safeParse(await c.req.json().catch(() => null));
       if (!parsed.success) {
         return invalid(c, 'registers (at least one), fillGaps and defaultSeverity are required');
       }
@@ -160,5 +154,111 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
     },
   );
 
+  // ── T-425 — the save, which is the moment anything binds ──────────────────
+  //
+  // **The owner organisation's super user saves, and that is what makes it
+  // bind.** ⚖ Bulk acceptance is permitted, deliberately and against the
+  // session's own stress test — *"it is down to the client or the user to
+  // behave properly. We don't need to plan for that"* (owner, 2026-09-01). It
+  // does **not** reopen ADR-0048 §3 or ADR-0053 §6: those govern a reviewer
+  // accepting proposed changes into a **work product**, where accepting prose
+  // unread is the failure. Here the artefact being accepted is the client's own
+  // configuration of their own standard, and the person accepting it is its
+  // author's own organisation. So there is no per-rule acceptance flag on the
+  // wire and there must never be one — the list that arrives is the set.
+  app.post('/projects/:projectId/style-guides/:styleGuideId/rule-sets', project, async (c) => {
+    const refused = mayCurate(c);
+    if (refused !== null) return refused;
+    const guide = await guideOf(c);
+    if (guide === null) return notFound(c);
+    const parsed = saveRuleSetBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return invalid(c, 'rules is required, each with a kind, an origin, a statement and a scope');
+    }
+
+    try {
+      await saveRuleSet(deps.db, {
+        styleGuideId: guide.id,
+        // contracts principle 3: the accepting person comes off the resolved
+        // session and never off the body — a field here would be a way to write
+        // somebody else's name onto the record that makes a rule binding
+        acceptedByUserId: c.get('user').id,
+        // T-429 compiles the judgement rules into the drafting brief HERE, at
+        // save (decision 6). Empty until it lands, which is honest: a brief
+        // nothing produced is not a brief with no rules in it.
+        draftingBrief: '',
+        rules: parsed.data.rules.map((rule) => ({
+          ...rule,
+          ...(rule.clauseId !== undefined && { clauseId: rule.clauseId }),
+        })),
+      });
+    } catch (error) {
+      if (error instanceof UnknownClausePointer) {
+        return invalid(c, 'a rule points at a clause that is not part of this style guide');
+      }
+      throw error;
+    }
+    return c.json({ set: await readSet(deps.db, guide.id) }, 201);
+  });
+
+  /**
+   * The current set. **Every participant reads it** — a rule that binds you is a
+   * rule you may look up, which is T-397's asymmetry one object along. `null`
+   * where the guide has no accepted set at all, which is a different thing from
+   * an empty one and is why it is not folded into "no rules".
+   */
+  app.get(
+    '/projects/:projectId/style-guides/:styleGuideId/rule-sets/current',
+    project,
+    async (c) => {
+      const guide = await guideOf(c);
+      if (guide === null) return notFound(c);
+      return c.json({ set: await readSet(deps.db, guide.id) });
+    },
+  );
+
   return app;
+}
+
+/**
+ * One saved version, on the wire.
+ *
+ * 🔒 `clauseWording` is joined in from `project_style_guide_clauses` — the
+ * client's own words, from our own copy — and is present exactly where the rule
+ * is `extracted`. A typed or Infora-proposed rule comes back with none, and the
+ * surface renders that absence rather than faking one (ADR-0054 decision 3).
+ */
+async function readSet(db: Db, styleGuideId: string): Promise<RuleSetVersion | null> {
+  const set = await readCurrentRuleSet(db, styleGuideId);
+  if (set === null) return null;
+  return {
+    id: set.id as Id,
+    styleGuideId: set.styleGuideId as Id,
+    version: set.version,
+    acceptedBy: { userId: set.acceptedBy.userId as Id, name: set.acceptedBy.name },
+    acceptedAt: set.acceptedAt.toISOString(),
+    draftingBrief: set.draftingBrief,
+    rules: set.rules.map((rule) => {
+      const wire = {
+        id: rule.id as Id,
+        ordinal: rule.ordinal,
+        kind: rule.kind,
+        origin: rule.origin,
+        statement: rule.statement,
+        scope: rule.scope,
+        exceptedContexts: rule.exceptedContexts,
+        exceptedTerms: rule.exceptedTerms,
+        register: rule.register,
+        enforcement: rule.enforcement,
+        severity: rule.severity,
+        payload: rule.payload,
+        ...(rule.clauseId !== undefined && { clauseId: rule.clauseId as Id }),
+        ...(rule.clauseWording !== null && {
+          clause: rule.clause,
+          clauseWording: rule.clauseWording,
+        }),
+      };
+      return wire as StyleRule;
+    }),
+  };
 }

@@ -7,6 +7,7 @@ import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { HistoryScreen } from './screens/history';
 import { KnowledgeScreen } from './screens/knowledge';
+import { NewStyleGuideScreen, StyleGuideScreen } from './screens/style-guide';
 import { LibraryScreen } from './screens/library';
 import { ProjectHome, ProjectShell } from './screens/project';
 import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
@@ -63,6 +64,11 @@ const router = createBrowserRouter([
       // T-422 (ADR-0054 decision 1) — Knowledge: the two shelves. Its own rail
       // item rather than a panel in Settings, which is personal.
       { path: 'knowledge', element: <KnowledgeScreen /> },
+      // T-424/T-425 — the rules workbench: create, then review, then save. One
+      // route, because the review step is not a place you can arrive at: it is
+      // what the extraction hands back, and it is stored nowhere.
+      { path: 'knowledge/style-guides/new', element: <NewStyleGuideScreen /> },
+      { path: 'knowledge/style-guides/:styleGuideId', element: <StyleGuideScreen /> },
     ],
   },
 ]);

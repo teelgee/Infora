@@ -1930,3 +1930,33 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 a.shelf-row-title { text-decoration: none; }
 a.shelf-row-title:hover { text-decoration: underline; }
 .shelf-row-note { color: var(--text-muted); font-size: var(--body-dense-size); }
+
+/* ---------- The rules workbench (T-424/T-425) ----------
+   A rule is a level-3 nested card in the page (design-rules §A): the review
+   screen is a list of them, so each takes `radius.md` and the card's own
+   ambient shadow and nothing more. The client's own wording is a blockquote
+   rather than a second card — it is evidence inside the rule, not a sibling
+   of it, and giving it its own elevation would make it read as a separate
+   claim. */
+.rule-head { display: flex; align-items: center; gap: var(--gap-tight); flex-wrap: wrap; }
+.rule-head-end { margin-left: auto; }
+.rule-statement { margin: var(--gap-default) 0 0; font-size: var(--ui-default-size); }
+.rule-controls {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--gap-default); margin-top: var(--gap-default);
+}
+.rule-wording {
+  margin: var(--gap-default) 0 0; padding: var(--gap-default) var(--primitive-space-3);
+  border-left: 2px solid var(--border-default); background: var(--surface-pane);
+  border-radius: var(--primitive-radius-sm);
+  font-family: var(--primitive-font-family-serif); color: var(--text-primary);
+}
+.rule-wording-address {
+  display: block; font-family: var(--ui-micro-family); font-size: var(--ui-micro-size);
+  letter-spacing: var(--ui-micro-letter-spacing); text-transform: var(--ui-micro-transform);
+  color: var(--text-muted); margin-bottom: var(--gap-tight);
+}
+/* the ABSENCE of a quotation, said in words — never an empty blockquote, which
+   would render as a quotation nobody wrote */
+.rule-no-wording { margin: var(--gap-default) 0 0; color: var(--text-muted); font-size: var(--body-dense-size); }
+.rule-exceptions { margin: var(--gap-default) 0 0; color: var(--text-muted); font-size: var(--body-dense-size); }

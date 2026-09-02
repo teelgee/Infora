@@ -1102,3 +1102,15 @@ are not recorded here.
   real thing rather than a special case. It is the same endpoint rather than a
   second one because it produces the same object; a request naming *nothing* is
   still refused, so the empty start is deliberate rather than a slip.
+
+- **2026-09-02 (T-425) — `saveRuleSetBody` carries the whole reviewed list and
+  no per-rule acceptance flag.** *Plainly: saving a set of writing rules sends
+  all of them, and there is no tick beside each one.* Two reasons, and both are
+  rulings rather than convenience. The list rather than a **diff**, because a
+  version is the set as it stands: a diff would need a base version to apply
+  against, and that base is stale the moment two people are reviewing — sending
+  the list is what makes *an amendment is a new version* true at the wire as
+  well as in the store. And **no acceptance flag**, because bulk acceptance is
+  permitted (ADR-0054 decision 2, owner-ruled 2026-09-01 against the session's
+  own stress test), so a flag would put a gate in the type that the design
+  deliberately does not have.
