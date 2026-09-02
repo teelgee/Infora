@@ -95,7 +95,12 @@ are, so the library's log shows every kind of send with its receipt. In the
 owner's words: "the data should be stored against the container/deliverable —
 in the library you should be able to see all transmittals including
 external." The personal-data register carries the fifth fact from this
-ruling; the build is T-436.)*
+ruling; the build is T-436. The same day's second ruling: the
+link-is-the-access posture itself is "fine for now", and a stronger gate on
+opening — a password or code beside the link plus stated details, the
+Mimecast shape, giving an ordered trail and a permission control — is the
+recorded post-V1 direction, held in the deferred register as external
+transmittal access control.)*
 
 **Stated plainly because Infora is now the thing producing the record:** there
 is no account, so there is no identity — anyone holding the link is the
