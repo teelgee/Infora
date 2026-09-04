@@ -2,7 +2,7 @@
 
 *In plain terms (added in review, 2026-08-30 — the opening the register rule asks of every new ADR):* when someone runs the QA checker over a document, the system works out up front — in ordinary code, before any AI is involved — which checks will run and roughly what they will cost, and shows that plan. A document too big to check in one pass is split and every piece is checked; nothing is silently dropped. Every run states what it covered, before and after, so "no findings" always means "no findings in what was read" — said out loud, never implied. Reviewers still resolve the AI's suggested wording changes one at a time; only purely mechanical corrections may be accepted in bulk. And the engine rule every tool was waiting for: a step in a plan now genuinely runs the tool it names, under guards this document sets out.
 
-**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md). **Carries five dated addenda of its own (the sections at the foot of this file): three owner-ruled 2026-08-31 (the creator's launch re-cut, the content plan editable as a parameter, the price line removed from the tools' plan surfaces) and two owner-ruled 2026-09-01 (the creator never launches from the plan — closing `Q-037` — and composed outlines saveable as firm-scoped starting outlines).**
+**Status:** Accepted (owner-ruled 2026-08-30, the checker session). **Fills in [ADR-0048](0048-the-checker-findings-not-prose.md)'s run semantics without reopening it** — what a finding *is*, that the checker checks rather than writes, and the three inputs' three treatments all stand exactly as ruled. Closes `Q-030`, `Q-031` and `Q-046`. Carries two **dated addenda to ADR-0048** (2026-08-30): a channel correction found by this session, and the narrowing of §3's no-bulk-accept rule. References **ADR-0011** (the library grounds), **ADR-0021** (the three channels), **ADR-0022** (the attached-source working set), **ADR-0027** (thinking vs doing, and the 2026-08-11 agent-act amendment), **ADR-0028** (Run/Step and the plan artefact), **ADR-0029** (the channel merge and the guiding-over-informing precedence), **ADR-0049** (the promotion gate), and [operating-envelope.md](../operating-envelope.md) as re-cut 2026-08-30. Decided against [v1.md](../../build/v1.md). **Carries six dated addenda of its own (the sections at the foot of this file): three owner-ruled 2026-08-31 (the creator's launch re-cut, the content plan editable as a parameter, the price line removed from the tools' plan surfaces), two owner-ruled 2026-09-01 (the creator never launches from the plan — closing `Q-037` — and composed outlines saveable as firm-scoped starting outlines), and one owner-ruled 2026-09-04 (the extractor's tool leaves V1; the set returns to two).**
 
 **Context:** ADR-0048 settled what a finding is and stopped the checker becoming a rewriter. It settled nothing about **how a run behaves** — and the board recorded that gap honestly rather than building around it: the QA checker was held as **fog** in Slice V1-T, deliberately not ticketed because it could be *stated* and not *specified*, and the document-creation DAG (T-309) stopped mid-build on the discovery that `runChain` dispatches on **stage** and reads a step's named worker never. Three tracker questions and one build stop were pointing at the same missing thing.
 
@@ -219,3 +219,21 @@ saved outlines are visibly marked as the firm's own** beside the
 Infora-shipped ones, **and a curator may delete one** — the light-touch
 answer to the half-baked-outline-looking-authoritative stress test, ruled
 by the owner 2026-09-01.
+
+---
+
+## Addendum (2026-09-04, owner-ruled)
+
+**A6 — The extractor's tool leaves V1, and the set returns to two.** *In
+plain terms: the owner decided the third tool — the one that pulls
+commitments, responses, deadlines and the like out of documents into a
+table — will not get its screen in the first pilot. The machinery stays
+built; nothing is deleted; the screen is simply not V1's work.* Decision 11
+added it 2026-08-30 because the capability was built and reachable by
+nothing; the owner's ruling of 2026-09-04 ("drop extractor from the v1")
+moves the tool to the deferred register, where its design question
+(`Q-049`, still open) gates it. The Tools section is unaffected — decision
+11's own choice was that an unspecified tool gets no tile, so nothing on
+screen changes. The same instruction opened an exploration of an **app
+builder** in Tools, which may become the extractor tool's eventual home —
+recorded on the deferred register's builder entry, not here.
