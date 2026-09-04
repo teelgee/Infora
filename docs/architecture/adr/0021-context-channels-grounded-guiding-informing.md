@@ -15,3 +15,30 @@
 The stores map onto the channels cleanly: the project library and the authority corpus feed the grounded channel; the rest of project context feeds the guiding channel; org context feeds the informing channel. Programme context can feed all three within the programme's *own* projects — a programme-scoped corpus and sibling libraries on the grounded channel, programme templates on the guiding channel, programme know-how on the informing channel — configured per project by the owner (refined in Session 3); outside the programme it does not exist. Channels are the bridge between the store model and generation, carrying ADR-0020's privacy and the grounding invariant into every output as a per-input property.
 
 **Consequences:** "Can this input be cited?" has one answer — only if it is non-private and arrived on the grounded channel — so grounding is enforced where an input is admitted, not patched at output time, and it now spans project fact and external authority without a second mechanism. The split of "informs only" into guiding (shared, project-persistent) and informing (private, org-owned) makes the difference between project guidance and firm IP explicit, which matters when an organisation leaves: its informing context goes with it, the project's guiding context stays. The privacy invariant is a standing guarantee that private material can never be laundered into a citation. ADR-0011's "sole grounded corpus" wording is superseded by this generalisation, though its substance stands: within *project* material, still only the library grounds (never the sandbox or DRR). The authority corpus introduces a licensing gate as a new, non-wall access concept, and its currency — keeping legislation and standards up to date — is a concern of the authority register, now owned within Context (ADR-0023, as revised), not settled here. Sets up the retrieval architecture (ADR-0022), which gives each channel and each grounded corpus its own pipeline.
+
+---
+
+## Addendum (2026-09-04, owner-ruled): where the citation discipline applies, and where it does not
+
+*In plain terms: the rules on this page about grounding and citing exist for
+two situations — an Infora agent answering a question in Ask, and an Infora
+agent writing text into a deliverable or creating a document. In both, the
+agent must stick to the corpus and the other approved channels, must be able
+to say where each piece of information came from, and must never invent a
+fact. Outside those two situations, the platform does not demand citations.*
+
+Ruled while exploring the future app builder, in the owner's words: *"what is
+important is when an infora agent is drafting text in a deliverable or
+creating a document, it can provide citations to where it sourced the
+information from the corpus — aside from that the citation accuracy point is
+not relevant."* Clarified in the same breath, 2026-09-04: **Ask is inside the
+discipline too** — "if i went into the ask chat interface, that should
+return responses based on citation accuracy" — which is how Ask has been
+built since its first acceptance test. So the citation-and-grounding
+discipline is a property of **Infora agents answering in Ask and drafting
+into the record**, not of the platform at large: a surface that displays
+data (a future app's map, table or dashboard) is outside it. Two companion rules for the app builder are recorded on its
+deferred-register entry — app data reaches drafting only through the
+record's own doors, and an exported artefact carries a provenance stamp —
+because they are constraints on that future build, not amendments to the
+channel model. Nothing above this line changes.
