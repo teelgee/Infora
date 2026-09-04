@@ -18,3 +18,4 @@ the background reading.
 | `ProjectWise-AssetWise-Competitive-Friction-Map.md` | Incumbent teardown: proven DMS primitives worth keeping, and the frictions Infora exists to avoid. Grounds Slice A / DMS decisions as context, not authority. |
 | `legora-architecture.md` | Adjacent legal-AI benchmark: Legora's stack as reported, read when grounding agent/LLM design answers against a shipping product. Their tenant is one firm; Infora's cross-org ethical wall has no counterpart there. |
 | `legora-ui-review.md` | The same benchmark's interface, read for the design-system work. |
+| `app-builder-landscape.md` | The app-builder landscape, researched 2026-09-04 for the Tools app-builder exploration: internal app builders, AI-built apps, ArcGIS integration, multi-party data collection, embedded analytical agents, and where app code runs — what each category learned the hard way, cited. Context for the exploration and any design session after it, never authority. |
