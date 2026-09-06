@@ -119,7 +119,10 @@ under the **app owner's** entitlements and may touch **only the tables and
 connections the app's definition names**. It **stops** the moment the owner
 loses the entitlement, the project, or the right to build; the project owner
 is told and reassigns the instance or closes it — ruling 10's reassign-or-die
-applied to schedules. **Never more than its owner**: an app with standing
+applied to schedules. *(Owner-ruled 2026-09-06: there is no notification —
+an ownerless app is instead **marked defunct in the project**, visibly not
+working, until someone reassigns or closes it. A broken thing that says so
+on its face, rather than a message in a tray.)* **Never more than its owner**: an app with standing
 powers of its own is a shared service account by another name — a set of
 permissions nobody personally holds, doing things nobody personally did. If a run needs rows its owner cannot see, either a person
 who can see them owns the app, or the owner shares the table (§6). Outside
@@ -194,15 +197,19 @@ the playbook never changes a deployed instance, because a firm must not be
 able to change what runs inside a client's project without anyone there
 seeing it. **The reverse path exists**: an app built from scratch inside a
 client's project may be saved back to the firm's workspace as a template, and
-**the platform strips every project-entered row on the way**. *The one
-softening, ruled:* a playbook **may carry reference tables the firm authored
-and declares as such** — emission factors, review categories, KPI
-definitions — because "structure, never data" as first proposed would have
-made every deployment retype them. The line is **where a row came from**, not
-whether it is a row. This is Q-014's wall-through-the-definition test made
-mechanical; the firm's judgement travels, the client's material does not, and
-the firm carries the professional responsibility for the difference, as it
-already does for its rulebook and precedents.
+**the platform strips every project-entered row on the way**. *The rule, corrected to the owner's meaning
+(2026-09-06, on the co-captain's veto pass):* **a playbook carries structure
+and never rows — of any origin.** The recorded "softening" (firm-authored
+reference rows riding a playbook) had no read-back behind it, and when put
+back to the owner the answer was: *"by reference tables i meant the database
+structure for an app — not the content from within it."* So **"structure"
+explicitly includes a reference table's definition** — its name, its
+columns, its kind — and a deployed instance starts every table empty; the
+deploying firm loads its own lookup rows (emission factors, review
+categories) into the fresh instance, a small cost the owner's cleaner wall
+rule accepts. The line is **no rows travel in a template**, full stop. This
+is Q-014's wall-through-the-definition test made mechanical; the firm's
+judgement travels as shape, the content never does.
 
 **11. Generated code runs in the browser; Infora's own parts run the engine.**
 The builder's agent writes **screens** that run in the viewer's browser and

@@ -968,7 +968,7 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 **`playbooks`** — org-private, **no `project_id` by construction** (Drawer 7's discipline: org context is portable, so a project column would be a smaller thing wearing the same name).
 - `id`, `organisation_id`, `name`, `version` (int; a save is a new version row, prior versions retained because instances name them)
 - `definition` (jsonb — the app's stepped definition with connections reduced to *requirements*), `table_declarations` (jsonb)
-- `reference_rows` (jsonb) — **only for tables of kind `reference`**; the save path strips every other row (trigger-backed: a playbook row whose declarations name a non-reference table with rows fails)
+- ~~`reference_rows`~~ — **removed 2026-09-06 on the owner's veto-pass clarification**: a playbook carries a reference table's *definition* and never its rows; the save path strips **every** row of every kind (trigger-backed), and a deployed instance starts empty
 - `saved_by_participant_id`, `saved_from_app_id` (FK apps, nullable — the save-back path), `saved_at`, `retired_at`
 - `supplied_by_infora` (bool) — Infora's own pre-built apps on the same shelf (§11)
 
