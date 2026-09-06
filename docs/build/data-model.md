@@ -20,7 +20,9 @@
 >   only its **narrative** — what it is for, and the design decisions it
 >   embodies, which no schema file can state — plus the pointer.
 >
-> All eight drawers are currently built, so no field list appears below.
+> Eight drawers are built and carry narrative only. **Drawer 9 (apps) was drawn
+> 2026-09-06 and is not built**, so it is the one block below that carries field
+> lists — the drawing board in use.
 > **Drawer 8 was added 2026-08-28 (T-329)** — notifications, and the first
 > drawer this rule was applied to end to end: its field list was drawn here,
 > the migration was written from the drawing, and the block reduced to
@@ -893,12 +895,95 @@ fixes code-or-model **per capability at design time**, so a single capability
 mixing an arithmetic family with a model call would have no honest declaration
 to make.
 
+## Drawer 9 — Apps *(drawn 2026-09-06, not built)*
+*The app builder's substrate — [ADR-0056](../architecture/adr/0056-the-app-model.md)
+and [ADR-0057](../architecture/adr/0057-connections-and-stored-credentials.md).
+**Field lists, because nothing here is built**: per the state rule at the head
+of this file they reduce to narrative and a pointer in the commit that builds
+them. The first migration is the app-builder slice's T-439; the three
+connection tables are marked **after deployment** and are not in it.*
+
+**Why a drawer rather than shelves in Drawers 2 and 3.** An app table is
+neither a document nor a work item: it is the **third kind of project thing**,
+with its own read predicate (*entering organisation or owner, within scope, or
+shared*) that no existing table carries. Putting rows beside sandbox documents
+would invite the wrong predicate; putting them beside `runs` would suggest an
+app is a workflow. A run *is* reused — an app run is an ADR-0028 Run — but the
+app's own things are their own subject area.
+
+**Every stamp is a Participant, project derived through it** — Drawer 8's
+rule, for the same reason: a Participant interval closing on removal stops
+resolving, so a departed person's rows go dark in the same act that ends the
+access, and ADR-0056 §7's split then reads off `state` alone.
+
+**`apps`** — one row per **app instance** in a project.
+- `id`, `project_id` (FK projects), `name`, `description`
+- `owner_participant_id` (FK participants — **whose entitlements a scheduled run uses**; never null while the app is open)
+- `created_by_participant_id` (FK participants), `created_at`
+- `playbook_id` (FK playbooks, nullable), `playbook_version` (int, nullable) — what it was deployed from; **no live link**
+- `definition` (jsonb) — the stepped definition: interfaces and who may open each, schedule, analysis and prompts, connection *requirements*; **validated against a `packages/contracts` shape**, the table declarations living in `app_tables` rather than here so the read path never parses JSON to decide access
+- `closed_at`, `closed_by_participant_id` — currency by state; a closed app keeps its tables readable
+- `CHECK`: `closed_at` and `closed_by` null together
+
+**`app_scope_grants`** — the ADR-0036 ladder, copied from `sandbox_scope_grants` rather than shared with it (a different subject, the same shape).
+- `app_id`, one of `organisation_id` / `participant_id`, `granted_by_participant_id`, `granted_at`, `revoked_at`, `revoked_by_participant_id`
+- append-only intervals; revocation closes, never deletes
+
+**`app_tables`** — a table the app declares.
+- `id`, `app_id`, `name`, `columns` (jsonb — name, type, required; validated against contracts)
+- `kind`: `data` | `insight` | `reference` — an insight table is where runs write (ADR-0056 §3); a **reference** table is the one kind a playbook may carry rows for (§10)
+- `has_acceptance` (bool) — **the builder's per-table choice** (§2a); when false, `app_rows.state` stays null and the row never changes hands
+- `retired_at`
+
+**`app_rows`** — the third kind of project thing.
+- `id`, `app_table_id`, `values` (jsonb, validated against the table's `columns`)
+- `organisation_id` (FK organisations) and `entered_by_participant_id` (FK participants) — **the stamp; the read predicate keys on the first**
+- `entered_at`
+- `state`: null | `draft` | `submitted` | `accepted` | `rejected` | `superseded` — null exactly when the table has no acceptance step (`CHECK` against `app_tables.has_acceptance`, via trigger)
+- `decided_by_participant_id`, `decided_at` — set together with `accepted`/`rejected`, null otherwise (`CHECK`); **no reason on a rejection**
+- `supersedes_row_id` (FK app_rows, nullable) — a correction is a new row; the old one flips to `superseded`
+- `previous_version_id` (FK app_rows, nullable) — an edit before acceptance keeps the prior version as a row of its own; **an accepted row is never updated** (trigger)
+- `retired_at`, `retired_by_participant_id` — the organisation's own deletion of an unaccepted row (ADR-0050 §6) is a retire, so a past insight's `rows_covered` still resolves; erasure at exit removes
+- indexes: `(app_table_id, organisation_id)` — the predicate's own shape; `(app_table_id, state)`
+
+**`app_table_shares`** — the owner's share of a table with a named organisation (§6).
+- `app_table_id`, `organisation_id`, `granted_by_participant_id` (must be an owner-organisation participant — enforced in the gateway, recorded here), `granted_at`, `revoked_at`, `revoked_by_participant_id`
+- the read predicate becomes: entering org = reader's org **or** reader's org = project owner **or** an open share row for reader's org — all three inside the app's scope
+
+**`app_runs`** — one per execution; the execution itself is a Drawer 3 `runs` row.
+- `id`, `app_id`, `run_id` (FK runs), `trigger`: `manual` | `scheduled`
+- `as_participant_id` (FK participants) — **who the run acted as**: the clicker, or the app's owner for a schedule
+- `definitions_version` (the `apps.definition` version used), `rows_covered` (int), `tables_covered` (uuid[])
+- `insight_row_id` (FK app_rows, nullable) — the static insight, stamped with `as_participant_id`'s organisation
+- `started_at`, `finished_at`, `outcome`
+- **the schedule is stored on `apps.definition` from the first ticket and honoured only when a clock exists** (ADR-0056 §13d)
+
+**`app_exports`** — the file a person issued (§8).
+- `id`, `app_id`, `exported_by_participant_id`, `exported_at`, `file_ref`
+- `data_as_of` (timestamptz), `tables_covered` (uuid[]), `rows_covered` (int) — **the provenance stamp: what data and when, never a producer**; there is deliberately no `produced_by` column
+- append-only
+
+**`playbooks`** — org-private, **no `project_id` by construction** (Drawer 7's discipline: org context is portable, so a project column would be a smaller thing wearing the same name).
+- `id`, `organisation_id`, `name`, `version` (int; a save is a new version row, prior versions retained because instances name them)
+- `definition` (jsonb — the app's stepped definition with connections reduced to *requirements*), `table_declarations` (jsonb)
+- `reference_rows` (jsonb) — **only for tables of kind `reference`**; the save path strips every other row (trigger-backed: a playbook row whose declarations name a non-reference table with rows fails)
+- `saved_by_participant_id`, `saved_from_app_id` (FK apps, nullable — the save-back path), `saved_at`, `retired_at`
+- `supplied_by_infora` (bool) — Infora's own pre-built apps on the same shelf (§11)
+
+**After deployment — `connections`, `connection_loans`, `connection_calls`** *(ADR-0057; not in T-439's migration; drawn so the shape is agreed).*
+- `connections`: `id`, `organisation_id` (the owner of the outside system), `system` (e.g. `arcgis`), `mode`: `read` | `write`, `reach` (jsonb — named layers/tables/endpoints), `secret_ref` (**a pointer into the secrets store, never a value**), `created_by_participant_id`, `created_at`, `retired_at`
+- `connection_loans`: `connection_id`, `app_id`, `granted_by_participant_id`, `granted_at`, `approved_by_participant_id`, `approved_at` (**required when the connection's mode is `write` — the project owner's person; `CHECK` via trigger**), `revoked_at`
+- `connection_calls`: append-only — `connection_id`, `app_run_id`, `as_participant_id`, `destination`, `at`, `outcome` — ADR-0037 §6's egress audit, outbound
+
+---
+
 ## What is deliberately not drawn yet
 
 Per the drawer-by-drawer discipline, still absent because their slices are
 deferred: **programme** and programme context; the **org-context / Knowledge /
 precedent** stores and the distillation loop (Sessions 4/7); **custom agents**
-and the builder (Slice F); the **authority corpus** internals (ADR-0023 —
+and the custom-workflow builder (the app builder half of Slice F is now Drawer 9,
+above); the **authority corpus** internals (ADR-0023 —
 referenced by Citation, owned by Context); **rails as scoped records**
 (ADR-0030); portfolio and programme views. Each is drawn here, fields first, when its slice starts.
 

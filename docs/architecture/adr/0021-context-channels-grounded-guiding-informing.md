@@ -37,8 +37,10 @@ return responses based on citation accuracy" — which is how Ask has been
 built since its first acceptance test. So the citation-and-grounding
 discipline is a property of **Infora agents answering in Ask and drafting
 into the record**, not of the platform at large: a surface that displays
-data (a future app's map, table or dashboard) is outside it. Two companion rules for the app builder are recorded on its
+data (a future app's map, table or dashboard) is outside it. Two companion rules for the app builder were recorded on its
 deferred-register entry — app data reaches drafting only through the
 record's own doors, and an exported artefact carries a provenance stamp —
 because they are constraints on that future build, not amendments to the
-channel model. Nothing above this line changes.
+channel model; **since 2026-09-06 both live in [ADR-0056](0056-the-app-model.md)
+§8–§9**, where the stamp is made precise (what data and when, never the
+producer). Nothing above this line changes.
