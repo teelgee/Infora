@@ -37,6 +37,7 @@ import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
 import { agentActRoutes } from './agent-acts';
 import { appRoutes } from './apps';
+import { appRowRoutes } from './app-rows';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { externalIssueRoutes } from './external-issue';
@@ -353,6 +354,7 @@ export function buildApp(deps: AppDeps) {
   // people type in with their acceptance flow. The row predicate itself lives
   // in @infora/governance and is called from there — never restated here.
   app.route('/', appRoutes(deps));
+  app.route('/', appRowRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

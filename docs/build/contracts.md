@@ -1219,3 +1219,13 @@ are not recorded here.
   the API simply omitting a broken app** is the owner's 2026-09-06 ruling: an
   ownerless app is *visibly not working*, with no notification — hiding it would
   make it vanish silently, which is the failure the ruling replaced.
+
+- **2026-09-06 (T-441) — `supersededByRowId` is derived, and it exists so a
+  rejected row can keep its reason.** *Plainly: when a contractor corrects a
+  return, the old row still shows on screen as superseded — and if it was
+  rejected, the reason it was rejected is still on it.* The **reason the field
+  is computed rather than stored** is the database rule beneath it: a rejection
+  carries a required reason and only a rejection may carry one, so flipping a
+  rejected row's state to `superseded` would force the reason to be erased. The
+  correcting row's `supersedesRowId` is therefore the record, and this field is
+  the same fact read from the other end.

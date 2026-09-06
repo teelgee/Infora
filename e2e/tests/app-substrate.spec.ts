@@ -1,5 +1,5 @@
-// T-440 — the app instance, end to end on the seeded three-organisation world
-// (ADR-0056). T-441 extends this file with the rows themselves.
+// T-440 and T-441 — the app instance and its rows, end to end on the seeded
+// three-organisation world (ADR-0056).
 //
 // **Three organisations, all legitimately on one project**, which is what makes
 // the negatives worth anything: Trentmoor Energy owns the scheme, Calder & Hale
@@ -16,8 +16,10 @@
 import { expect, test } from '@playwright/test';
 import type {
   AppRecord,
+  AppRowResponse,
   AppTableRecord,
   GetAppResponse,
+  ListAppRowsResponse,
   ListAppsResponse,
   ListOrgUsersResponse,
   ListRosterResponse,
@@ -168,4 +170,131 @@ test('an app instance: built, opened, scoped, shared, orphaned and given away', 
   await eleanor.patch(`/organisation/users/${marcus.userId}/app-building`, { mayBuildApps: false });
 
   await Promise.all([rachel.dispose(), eleanor.dispose(), nadia.dispose(), owen.dispose()]);
+});
+
+// T-441 — the rows themselves, and the acceptance flow, across three real
+// organisations. This is the half of T-440's "done when" that needed row
+// routes to exist, and the whole of T-441's: Calder & Hale's rows are invisible
+// to Redgate Ecology, visible to Trentmoor Energy from `submitted` onward, and
+// visible to Redgate only while Trentmoor's share of that table is open.
+test('rows across three organisations: entered, submitted, accepted, rejected and corrected', async () => {
+  const rachel = await ApiSession.login(SEEDED.owner); // Trentmoor Energy — the client
+  const eleanor = await ApiSession.login(SEEDED.consultant); // Calder & Hale — submits
+  const nadia = await ApiSession.login(SEEDED.secondConsultant); // Redgate Ecology — the peer
+
+  const me = await eleanor.get<MeResponse>('/me');
+  const projectId = me.participants.find(
+    (p) => p.projectName === 'Wrenfield–Ashcombe 400kV Connection',
+  )!.projectId;
+  const roster = (await rachel.get<ListRosterResponse>(`/projects/${projectId}/participants`)).items;
+  const trentmoorOrgId = roster.find((r) => r.name === 'Rachel Bowen')!.organisationId;
+  const redgateOrgId = roster.find((r) => r.name === 'Nadia Okonjo')!.organisationId;
+
+  const app = await eleanor.post<AppRecord>(`/projects/${projectId}/apps`, {
+    name: `Returns with rows ${stamp}`,
+    organisationIds: [trentmoorOrgId, redgateOrgId],
+    participantIds: [],
+  });
+  const table = await eleanor.post<AppTableRecord>(`/apps/${app.id}/tables`, {
+    name: 'Monthly returns',
+    columns: [
+      { key: 'month', label: 'Month', type: 'text', required: true },
+      { key: 'landfill', label: 'Waste to landfill (tonnes)', type: 'number', required: true },
+    ],
+    kind: 'data',
+    hasAcceptance: true,
+  });
+  await eleanor.post(`/apps/${app.id}/publish`, {});
+
+  const rowIds = async (session: ApiSession) =>
+    (await session.get<ListAppRowsResponse>(`/app-tables/${table.id}/rows`)).items.map((r) => r.id);
+
+  // ── A draft is read by its entering organisation ALONE (ruling 3) ─────────
+  const draft = (
+    await eleanor.post<AppRowResponse>(`/app-tables/${table.id}/rows`, {
+      values: { month: 'August 2026', landfill: 12.4 },
+      submit: false,
+    })
+  ).row;
+  expect(draft.state).toBe('draft');
+  expect(await rowIds(eleanor)).toContain(draft.id);
+  // the CLIENT sees nothing — its dashboard says "no return yet", which is honest
+  expect(await rowIds(rachel)).not.toContain(draft.id);
+  // and so does the other consultancy on the same project
+  expect(await rowIds(nadia)).not.toContain(draft.id);
+
+  // ── Submitted, the owner reads it; the peer still does not ───────────────
+  const submitted = (await eleanor.post<AppRowResponse>(`/app-rows/${draft.id}/submission`, {})).row;
+  expect(submitted.state).toBe('submitted');
+  expect(await rowIds(rachel)).toContain(draft.id);
+  expect(await rowIds(nadia)).not.toContain(draft.id);
+
+  // ── …and reads it only while the owner's share is open (§6) ──────────────
+  const shared = await rachel.post<AppTableRecord>(`/app-tables/${table.id}/shares`, {
+    organisationId: redgateOrgId,
+  });
+  expect(await rowIds(nadia)).toContain(draft.id);
+  await rachel.post(`/app-tables/${table.id}/shares/${shared.shares[0]!.id}/revocation`, {});
+  expect(await rowIds(nadia)).not.toContain(draft.id);
+
+  // ── The acceptance act is the client's, and only the client's ────────────
+  expect(
+    (await eleanor.raw('post', `/app-rows/${draft.id}/decision`, { decision: 'accept' })).status(),
+  ).toBe(404);
+  expect(
+    (await nadia.raw('post', `/app-rows/${draft.id}/decision`, { decision: 'accept' })).status(),
+  ).toBe(404);
+
+  // a rejection with no reason is refused — by the route, and by the database
+  // behind it (asserted at the store in the unit suite)
+  expect(
+    (await rachel.raw('post', `/app-rows/${draft.id}/decision`, { decision: 'reject' })).status(),
+  ).toBe(400);
+
+  const rejected = (
+    await rachel.post<AppRowResponse>(`/app-rows/${draft.id}/decision`, {
+      decision: 'reject',
+      reason: 'Landfill figure looks like a decimal slip against the recycled tonnage.',
+    })
+  ).row;
+  expect(rejected.state).toBe('rejected');
+
+  // the reason reaches the submitting organisation, on the row
+  const asSubmitter = (
+    await eleanor.get<ListAppRowsResponse>(`/app-tables/${table.id}/rows`)
+  ).items.find((r) => r.id === draft.id)!;
+  expect(asSubmitter.rejectionReason).toContain('decimal slip');
+  expect(asSubmitter.decidedByName).toBe('Rachel Bowen');
+
+  // ── A correction is a new row; the old one still shows ───────────────────
+  const correction = (
+    await eleanor.post<AppRowResponse>(`/app-rows/${draft.id}/correction`, {
+      values: { month: 'August 2026', landfill: 14.6 },
+      submit: true,
+    })
+  ).row;
+  expect(correction.supersedesRowId).toBe(draft.id);
+  const afterCorrection = (
+    await eleanor.get<ListAppRowsResponse>(`/app-tables/${table.id}/rows`)
+  ).items.find((r) => r.id === draft.id)!;
+  expect(afterCorrection.supersededByRowId).toBe(correction.id);
+  expect(afterCorrection.rejectionReason).toContain('decimal slip'); // still there
+
+  // ── Acceptance is when the row becomes the client's record ───────────────
+  const accepted = (
+    await rachel.post<AppRowResponse>(`/app-rows/${correction.id}/decision`, { decision: 'accept' })
+  ).row;
+  expect(accepted.state).toBe('accepted');
+  expect(accepted.decidedByName).toBe('Rachel Bowen');
+  // and the submitting organisation can no longer touch it
+  expect(
+    (
+      await eleanor.raw('patch', `/app-rows/${correction.id}`, {
+        values: { month: 'August 2026', landfill: 0.6 },
+      })
+    ).status(),
+  ).toBe(404);
+  expect((await eleanor.raw('post', `/app-rows/${correction.id}/retirement`)).status()).toBe(404);
+
+  await Promise.all([rachel.dispose(), eleanor.dispose(), nadia.dispose()]);
 });

@@ -38,6 +38,7 @@ import type {
 import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
+import { AppTableRows } from './app-rows';
 import { formatDateTime } from './shared';
 
 /** How each state reads on a card, in the words a person would use. `defunct`
@@ -154,6 +155,10 @@ export function AppScreen() {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [runs, setRuns] = useState<AppRunRecord[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  // T-441 — which table's rows are open. One at a time: the mockup's two seats
+  // are each ONE table's worth of rows, and a page stacking every table would
+  // be a different screen from the one the owner approved.
+  const [openTableId, setOpenTableId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (appId === undefined) return;
@@ -244,6 +249,7 @@ export function AppScreen() {
                   <th>Columns</th>
                   <th>Acceptance</th>
                   <th>Shared with</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -266,6 +272,15 @@ export function AppScreen() {
                         onDone={load}
                       />
                     </td>
+                    <td>
+                      <Button
+                        onClick={() =>
+                          setOpenTableId((current) => (current === table.id ? null : table.id))
+                        }
+                      >
+                        {openTableId === table.id ? 'Hide rows' : 'Open'}
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -274,6 +289,14 @@ export function AppScreen() {
         )}
         {app.mayBuild && app.state !== 'closed' && <DeclareTable appId={app.id} onDone={load} />}
       </Card>
+
+      {openTableId !== null && tables.some((t) => t.id === openTableId) && (
+        <AppTableRows
+          table={tables.find((t) => t.id === openTableId)!}
+          appState={app.state}
+          onChanged={load}
+        />
+      )}
 
       <SectionLabel>Who it is open to</SectionLabel>
       <Card>
