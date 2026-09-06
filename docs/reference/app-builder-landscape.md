@@ -730,8 +730,11 @@ sandbox generations (404).*
 
 ## Full source lists
 
-The six research files behind this document carry per-topic source
-tables of roughly 35–45 URLs each, with what each was used for. The URLs
-cited inline above are the load-bearing subset. The research was run on
+The research behind this document consulted roughly 35–45 sources per
+topic across six working files; those files were working material and
+**were not kept**, so the selection cannot be audited *(reworded in
+review, 2026-09-04 — the original implied the files exist somewhere a
+reader could check)*. The URLs cited inline above are the load-bearing
+subset. The research was run on
 2026-09-04; Esri's and Microsoft's documentation in particular changes
 several times a year.
