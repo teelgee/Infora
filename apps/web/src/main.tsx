@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
+import { AppScreen } from './screens/apps';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { ExternalDocumentScreen } from './screens/external-document';
@@ -69,6 +70,10 @@ const router = createBrowserRouter([
       // first step pre-filled (`?documentId=`), not a second flow: one run
       // shape, and one place the scope is stated (ADR-0053 §1).
       { path: 'tools/qa-check', element: <QaCheckerScreen /> },
+      // T-440 (ADR-0056) — one app built for this project. Under `tools/`
+      // rather than at the top of the rail because an app IS a tool of this
+      // project's, and the section it is listed in is the Tools screen's.
+      { path: 'tools/apps/:appId', element: <AppScreen /> },
       // T-422 (ADR-0054 decision 1) — Knowledge: the two shelves. Its own rail
       // item rather than a panel in Settings, which is personal.
       { path: 'knowledge', element: <KnowledgeScreen /> },

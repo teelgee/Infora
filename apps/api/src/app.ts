@@ -36,6 +36,7 @@ import { sandboxRoutes } from './sandbox';
 import { sandboxRoutes2 } from './sandboxes';
 import { suggestionRoutes } from './suggestions';
 import { agentActRoutes } from './agent-acts';
+import { appRoutes } from './apps';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { externalIssueRoutes } from './external-issue';
@@ -346,6 +347,12 @@ export function buildApp(deps: AppDeps) {
   // nothing adopts the direct-execution lane until this exists, which is the
   // amendment's own sequencing.
   app.route('/', agentActRoutes(deps));
+
+  // T-440/T-441 — the app builder's substrate (ADR-0056): the app instance, its
+  // participant scope, the owner's table share, reassign-or-close, and the rows
+  // people type in with their acceptance flow. The row predicate itself lives
+  // in @infora/governance and is called from there — never restated here.
+  app.route('/', appRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

@@ -2,6 +2,20 @@
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
   ApiError,
+  AppRecord,
+  AppRowResponse,
+  AppRunResponse,
+  AppTableRecord,
+  CreateAppBody,
+  DeclareAppTableBody,
+  DecideAppRowBody,
+  EnterAppRowBody,
+  GetAppResponse,
+  GrantAppScopeBody,
+  ListAppRowsResponse,
+  ListAppRunsResponse,
+  ListAppsResponse,
+  PatchAppDefinitionBody,
   ConflictExclusionRecord,
   DeclareExclusionBody,
   DeclareExclusionResponse,
@@ -956,4 +970,76 @@ export const api = {
     request<DocumentRelationship>(`/relationships/${relationshipId}/confirmation`, { method: 'POST' }),
   retireRelationship: (relationshipId: string) =>
     request<DocumentRelationship>(`/relationships/${relationshipId}/retirement`, { method: 'POST' }),
+  // T-440/T-441 — the app builder's substrate (ADR-0056). The list is
+  // ASSEMBLED server-side: an app the requester cannot open never reaches this
+  // client, and `mayCreate` is the server's answer to the org-admin toggle
+  // rather than something the screen derives from a role.
+  apps: (projectId: string) => request<ListAppsResponse>(`/projects/${projectId}/apps`),
+  createApp: (projectId: string, body: CreateAppBody) =>
+    request<AppRecord>(`/projects/${projectId}/apps`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  app: (appId: string) => request<GetAppResponse>(`/apps/${appId}`),
+  patchAppDefinition: (appId: string, body: PatchAppDefinitionBody) =>
+    request<AppRecord>(`/apps/${appId}/definition`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  publishApp: (appId: string) => request<AppRecord>(`/apps/${appId}/publish`, { method: 'POST' }),
+  grantAppScope: (appId: string, body: GrantAppScopeBody) =>
+    request<AppRecord>(`/apps/${appId}/scope`, { method: 'POST', body: JSON.stringify(body) }),
+  revokeAppScope: (appId: string, grantId: string) =>
+    request<AppRecord>(`/apps/${appId}/scope/${grantId}/revocation`, { method: 'POST' }),
+  declareAppTable: (appId: string, body: DeclareAppTableBody) =>
+    request<AppTableRecord>(`/apps/${appId}/tables`, { method: 'POST', body: JSON.stringify(body) }),
+  shareAppTable: (appTableId: string, organisationId: string) =>
+    request<AppTableRecord>(`/app-tables/${appTableId}/shares`, {
+      method: 'POST',
+      body: JSON.stringify({ organisationId }),
+    }),
+  revokeAppTableShare: (appTableId: string, shareId: string) =>
+    request<AppTableRecord>(`/app-tables/${appTableId}/shares/${shareId}/revocation`, {
+      method: 'POST',
+    }),
+  reassignApp: (appId: string, participantId: string) =>
+    request<AppRecord>(`/apps/${appId}/reassignment`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId }),
+    }),
+  closeApp: (appId: string) => request<AppRecord>(`/apps/${appId}/closure`, { method: 'POST' }),
+  runApp: (appId: string) =>
+    request<AppRunResponse>(`/apps/${appId}/runs`, {
+      method: 'POST',
+      body: JSON.stringify({ trigger: 'manual' }),
+    }),
+  appRuns: (appId: string) => request<ListAppRunsResponse>(`/apps/${appId}/runs`),
+  // T-441 — the rows themselves. Every row comes back with what THIS person may
+  // do to it, resolved server-side: a surface that worked it out would be a
+  // second copy of the access rule.
+  appRows: (appTableId: string) => request<ListAppRowsResponse>(`/app-tables/${appTableId}/rows`),
+  enterAppRow: (appTableId: string, body: EnterAppRowBody) =>
+    request<AppRowResponse>(`/app-tables/${appTableId}/rows`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  editAppRow: (appRowId: string, values: Record<string, unknown>) =>
+    request<AppRowResponse>(`/app-rows/${appRowId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ values }),
+    }),
+  submitAppRow: (appRowId: string) =>
+    request<AppRowResponse>(`/app-rows/${appRowId}/submission`, { method: 'POST' }),
+  decideAppRow: (appRowId: string, body: DecideAppRowBody) =>
+    request<AppRowResponse>(`/app-rows/${appRowId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  correctAppRow: (appRowId: string, body: EnterAppRowBody) =>
+    request<AppRowResponse>(`/app-rows/${appRowId}/correction`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  retireAppRow: (appRowId: string) =>
+    request<AppRowResponse>(`/app-rows/${appRowId}/retirement`, { method: 'POST' }),
 };

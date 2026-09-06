@@ -1206,3 +1206,16 @@ are not recorded here.
   that ADR-0057's build waits for the deployment's secrets store — a shape that
   *could* hold a credential on a machine with nowhere safe to put one is the
   leak that record exists to prevent, so the type makes it unrepresentable.
+
+- **2026-09-06 (T-440) — the row's permissions come back on the row, and the
+  tool list stays assembled rather than filtered.** *Plainly: the API says what
+  this person may do to this row, instead of the screen working it out.* Every
+  `AppRowRecord` carries `mayEdit`, `maySubmit`, `mayDecide`, `mayCorrect` and
+  `mayRetire`, and `ListAppsResponse` carries `mayCreate`. The **reason these
+  are server-side answers** is T-269's rule applied one level down: a surface
+  that derived them would be a second copy of the access rule, and the first
+  disagreement between the two copies is a button offered to somebody the API
+  then refuses. The **reason `AppState` carries `defunct` as a value rather than
+  the API simply omitting a broken app** is the owner's 2026-09-06 ruling: an
+  ownerless app is *visibly not working*, with no notification — hiding it would
+  make it vanish silently, which is the failure the ruling replaced.

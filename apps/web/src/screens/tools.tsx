@@ -81,6 +81,7 @@ import {
   TextArea,
   TextInput,
 } from '@infora/ui';
+import { AppsSection } from './apps';
 import { api } from '../api';
 import { useGroundingScope } from '../composer-chips';
 
@@ -115,6 +116,11 @@ export function ToolsScreen() {
           ))}
         </div>
       )}
+      {/* T-440 (ADR-0056) — apps built FOR this project, in their own section
+          below Infora's standard tools. Deliberately not a tile in the grid
+          above: that list is the product's own tools, assembled per requester,
+          and an app is a thing a firm had built inside one scheme. */}
+      {projectId !== undefined && <AppsSection projectId={projectId} />}
     </div>
   );
 }

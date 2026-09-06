@@ -45,8 +45,11 @@ export class ApiSession {
     return this.json(await this.context.patch(path, { data }));
   }
 
-  /** Raw response, for status-code assertions (deny-as-404 and friends). */
-  raw(method: 'get' | 'post' | 'patch' | 'put', path: string, data?: unknown) {
+  /** Raw response, for status-code assertions (deny-as-404 and friends).
+   * `delete` joined the set at T-440: removing a Participant is how the app
+   * substrate's DEFUNCT case is reached, and it is a real act rather than a
+   * fixture. */
+  raw(method: 'get' | 'post' | 'patch' | 'put' | 'delete', path: string, data?: unknown) {
     return this.context[method](path, data === undefined ? undefined : { data });
   }
 

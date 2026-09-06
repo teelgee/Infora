@@ -3,7 +3,7 @@
 // Membership), one Work item, and a small live library to draft from — plus
 // one superseded version and one withdrawn container to prove exclusion.
 // Dev-only: wipes and reseeds (TRUNCATE bypasses row triggers by design).
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createDb } from './client.js';
 import { loadDbEnv } from './env.js';
 import { hashPassword } from './credentials.js';
@@ -661,6 +661,18 @@ await db.insert(s.deliverableAcknowledgements).values({
       .limit(1)
   )[0]!.id,
 });
+
+// T-440 (ADR-0056 §12) — who may build an app. The right is a per-person
+// toggle their OWN organisation's admin sets, defaulting to nobody, so the seed
+// has to turn it on or the first thing anyone tries in the builder is a 404.
+// The three super-users of the three Wrenfield organisations get it, which is
+// what the three-organisation app spec drives; Owen Vance deliberately does
+// NOT, so there is a seeded person inside a building firm who may enter rows
+// and may not build — the negative half of §12.
+await db
+  .update(s.users)
+  .set({ mayBuildApps: true })
+  .where(inArray(s.users.id, [rachel!.id, eleanor!.id, nadia!.id]));
 
 const counts = await db.execute(sql`
   SELECT (SELECT count(*) FROM organisations) AS orgs,
