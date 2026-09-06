@@ -20,9 +20,13 @@
 >   only its **narrative** — what it is for, and the design decisions it
 >   embodies, which no schema file can state — plus the pointer.
 >
-> Eight drawers are built and carry narrative only. **Drawer 9 (apps) was drawn
-> 2026-09-06 and is not built**, so it is the one block below that carries field
-> lists — the drawing board in use.
+> **All nine drawers are now built and carry narrative only** — Drawer 9 (apps)
+> was drawn 2026-09-06 and built the same day by T-439 (migration **0067**),
+> which is the state rule running end to end for the third time: the field list
+> was drawn here, the migration was written from the drawing, and the block was
+> reduced in the commit that built it. **The three connection tables at the foot
+> of Drawer 9 are the one thing still on the drawing board** — ADR-0057's build
+> waits for the pilot deployment's secrets store, so they keep their field list.
 > **Drawer 8 was added 2026-08-28 (T-329)** — notifications, and the first
 > drawer this rule was applied to end to end: its field list was drawn here,
 > the migration was written from the drawing, and the block reduced to
@@ -895,84 +899,72 @@ fixes code-or-model **per capability at design time**, so a single capability
 mixing an arithmetic family with a model call would have no honest declaration
 to make.
 
-## Drawer 9 — Apps *(drawn 2026-09-06, not built)*
+## Drawer 9 — Apps
 *The app builder's substrate — [ADR-0056](../architecture/adr/0056-the-app-model.md)
 and [ADR-0057](../architecture/adr/0057-connections-and-stored-credentials.md).
-**Field lists, because nothing here is built**: per the state rule at the head
-of this file they reduce to narrative and a pointer in the commit that builds
-them. The first migration is the app-builder slice's T-439; the three
-connection tables are marked **after deployment** and are not in it.*
+Drawn 2026-09-06 and **built the same day (T-439, migration 0067)**, so per the
+state rule at the head of this file the field lists are gone and the schema file
+is the authority on the shape. **The three connection tables below are the
+exception**: ADR-0057 waits for deployment, nothing of it is built, and its
+drawing therefore stays.*
+**Shape:** [drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts)
 
-**Why a drawer rather than shelves in Drawers 2 and 3.** An app table is
-neither a document nor a work item: it is the **third kind of project thing**,
-with its own read predicate (*entering organisation or owner, within scope, or
-shared*) that no existing table carries. Putting rows beside sandbox documents
-would invite the wrong predicate; putting them beside `runs` would suggest an
-app is a workflow. A run *is* reused — an app run is an ADR-0028 Run — but the
-app's own things are their own subject area.
+Eight tables — `apps`, `app_scope_grants`, `app_tables`, `app_rows`,
+`app_table_shares`, `app_runs`, `app_exports`, `playbooks` — behind ADR-0056's
+one sentence: an app is a **project thing with a participant scope**, and its
+tables are a **third kind of project record** whose every row carries the
+organisation and the person that entered it.
 
-**Every stamp is a Participant, project derived through it** — Drawer 8's
-rule, for the same reason: a Participant interval closing on removal stops
-resolving, so a departed person's rows go dark in the same act that ends the
-access, and ADR-0056 §7's split then reads off `state` alone.
+**Why a drawer rather than shelves in Drawers 2 and 3.** An app table's row is
+neither a document nor a work item: it carries its own read predicate
+(*entering organisation, or the project owner, or an open share — all within
+the app's scope, and a `draft` row by its entering organisation alone*) that no
+existing table has. Putting rows beside sandbox documents would invite the
+sandbox predicate; putting them beside `runs` would suggest an app is a
+workflow. A run *is* reused — an app run is an ADR-0028 Run, and `app_runs`
+links to one — but the app's own things are their own subject area.
 
-**`apps`** — one row per **app instance** in a project.
-- `id`, `project_id` (FK projects), `name`, `description`
-- `owner_participant_id` (FK participants — **whose entitlements a scheduled run uses**; never null while the app is open)
-- `created_by_participant_id` (FK participants), `created_at`
-- `playbook_id` (FK playbooks, nullable), `playbook_version` (int, nullable) — what it was deployed from; **no live link**
-- `definition` (jsonb) — the stepped definition: interfaces and who may open each, schedule, analysis and prompts, connection *requirements*; **validated against a `packages/contracts` shape**, the table declarations living in `app_tables` rather than here so the read path never parses JSON to decide access
-- `published_definition` (jsonb, nullable — null until first published), `published_version` (int, nullable), `published_by_participant_id` (FK participants, nullable), `published_at` — *(added 2026-09-06, ADR-0056's addendum ruling 2)* **the copy the app's people open and a scheduled run acts against**; `definition` above is the builder's working copy. Publishing copies working → published and stamps who and when; an app with `published_definition` null is open to its builders only. `CHECK`: **all four** published columns null together *(count corrected in review 2026-09-06 — the bullet said three over a list of four; the board's T-439 entry already said four)*. `app_runs.definitions_version` refers to a *published* version.
-- `definition_version` (int), `definition_updated_by_participant_id` (FK participants), `definition_updated_at` — *(added in review 2026-09-06; re-scoped the same day when ruling 2 split working from published)* the **working copy's** counter and attribution — every edit to `definition` bumps it and says who and when, which is what the unattended-schedule concern demanded. **It is NOT what `app_runs.definitions_version` refers to**: a run acts against the published copy, so `app_runs.definitions_version` records `published_version` (the earlier form of this bullet said otherwise and is superseded). A full append-only version-history table is T-439's call, drawn first if taken.
-- `closed_at`, `closed_by_participant_id` — currency by state; a closed app keeps its tables readable
-- `CHECK`: `closed_at` and `closed_by` null together
+**Every stamp is a Participant, project derived through it** — Drawer 8's rule,
+for the same reason: a Participant interval closing on removal stops resolving,
+so a departed person's rows go dark in the same act that ends the access, and
+ADR-0056 §7's accepted-versus-unaccepted split then reads off `state` alone.
 
-**`app_scope_grants`** — the ADR-0036 ladder, copied from `sandbox_scope_grants` rather than shared with it (a different subject, the same shape).
-- `app_id`, one of `organisation_id` / `participant_id`, `granted_by_participant_id`, `granted_at`, `revoked_at`, `revoked_by_participant_id`
-- append-only intervals; revocation closes, never deletes
+**Two copies of the definition, and the split is the ruling** (ADR-0056's
+2026-09-06 addendum, ruling 2). `apps.definition` is the builder's working copy;
+`apps.published_definition` is what the app's people open and what a scheduled
+run acts against, and its four columns move together or not at all. Publishing
+is a recorded act with a person and a time on it; an app with nothing published
+is open to its builders alone. `app_runs.definitions_version` records the
+**published** version, never the working copy. The **table declarations live in
+`app_tables` rather than inside either JSON**, so the read path never parses a
+definition to decide access.
 
-**`app_tables`** — a table the app declares.
-- `id`, `app_id`, `name`, `columns` (jsonb — name, type, required; validated against contracts)
-- `kind`: `data` | `insight` | `reference` — an insight table is where runs write (ADR-0056 §3); a **reference** table is the one kind a playbook may carry rows for (§10)
-- `has_acceptance` (bool) — **the builder's per-table choice** (§2a); when false, `app_rows.state` stays null and the row never changes hands
-- `retired_at`
+**What the migration hand-writes, and why it matters more here than usual.**
+Eight `CHECK`s and eight triggers, each argued in
+[0067](../../packages/db/migrations/0067_app-substrate.sql): the published
+quartet and the closed pair move together; a scope grant names exactly one
+grantee; a decided row names its decider and its time; **a rejection carries a
+required reason and only a rejection carries one** (ruling 4); `state` is null
+exactly when the table has no acceptance step (cross-table, so a trigger);
+**an accepted row is never edited or deleted in place**, with the single
+permitted transition to `superseded` when its correction arrives; the two grant
+tables are append-only intervals and a revocation is never reopened; an app
+run's two actor stamps cannot disagree with Drawer 3's; and **a playbook carries
+no rows of any kind**, refused by a key scan rather than left to a convention.
+These are the guarantees an app's data is worth nothing without, which is why
+they are in the database and not only in a route.
 
-**`app_rows`** — the third kind of project thing.
-- `id`, `app_table_id`, `values` (jsonb, validated against the table's `columns`)
-- `organisation_id` (FK organisations) and `entered_by_participant_id` (FK participants) — **the stamp; the read predicate keys on the first**
-- `entered_at`
-- `state`: null | `draft` | `submitted` | `accepted` | `rejected` | `superseded` — null exactly when the table has no acceptance step (`CHECK` against `app_tables.has_acceptance`, via trigger)
-- `decided_by_participant_id`, `decided_at` — set together with `accepted`/`rejected`, null otherwise (`CHECK`)
-- `rejection_reason` (text) — *(added 2026-09-06, ADR-0056's addendum ruling 4, reversing the drawing's "no reason on a rejection")* **required exactly when `state` is `rejected`** (`CHECK`: non-null iff rejected); read by the submitting organisation on the row
-- `supersedes_row_id` (FK app_rows, nullable) — a correction is a new row; the old one flips to `superseded`
-- `previous_version_id` (FK app_rows, nullable) — an edit before acceptance keeps the prior version as a row of its own; **an accepted row is never updated** (trigger)
-- `retired_at`, `retired_by_participant_id` — the organisation's own deletion of an unaccepted row (ADR-0050 §6) is a retire, so a past insight's `rows_covered` still resolves; erasure at exit removes
-- indexes: `(app_table_id, organisation_id)` — the predicate's own shape; `(app_table_id, state)`
+**One deliberate widening, drawn before it was written:** `step_type` gained the
+single value `app_step` (Drawer 3). An app run's steps are ADR-0028 Steps and
+carry the same two defensibility fields as every other; without a name of their
+own they would have to borrow a worker's, and the append-only audit store would
+then say a thing that is not true.
 
-**`app_table_shares`** — the owner's share of a table with a named organisation (§6).
-- `app_table_id`, `organisation_id`, `granted_by_participant_id` (must be an owner-organisation participant — enforced in the gateway, recorded here), `granted_at`, `revoked_at`, `revoked_by_participant_id`
-- the read predicate becomes: entering org = reader's org **or** reader's org = project owner **or** an open share row for reader's org — all three inside the app's scope; *(narrowed 2026-09-06, ADR-0056's addendum ruling 3)* **a row in `draft` state is read by its entering organisation only** — the owner and share branches apply from `submitted` onward
-
-**`app_runs`** — one per execution; the execution itself is a Drawer 3 `runs` row.
-*(Two answers the drawing owed and did not give — added in review, 2026-09-06.)* **Steps:** an app run's steps are ADR-0028 Steps and carry the two defensibility fields like every other; `step_type`'s closed CHECK gains **one** value, `app_step`, in T-439's migration — a deliberate widening of the fixed vocabulary, named here so it is drawn before written and never smuggled. **Actors:** the Drawer 3 `runs` row's own requester attribution is authoritative; `as_participant_id` must equal it (CHECK), and exists so app-side reads never join into Drawer 3 — two stamps, one truth, enforced.
-- `id`, `app_id`, `run_id` (FK runs), `trigger`: `manual` | `scheduled`
-- `as_participant_id` (FK participants) — **who the run acted as**: the clicker, or the app's owner for a schedule
-- `definitions_version` (the **`published_version`** the run acted against — never the working copy, per ruling 2; corrected in review 2026-09-06), `rows_covered` (int), `tables_covered` (uuid[])
-- `insight_row_id` (FK app_rows, nullable) — the static insight, stamped with `as_participant_id`'s organisation
-- `started_at`, `finished_at`, `outcome`
-- **the schedule is stored on `apps.definition` from the first ticket and honoured only when a clock exists** (ADR-0056 §13d)
-
-**`app_exports`** — the file a person issued (§8).
-- `id`, `app_id`, `exported_by_participant_id`, `exported_at`, `file_ref`
-- `data_as_of` (timestamptz), `tables_covered` (uuid[]), `rows_covered` (int) — **the provenance stamp: what data and when, never a producer**; there is deliberately no `produced_by` column
-- append-only
-
-**`playbooks`** — org-private, **no `project_id` by construction** (Drawer 7's discipline: org context is portable, so a project column would be a smaller thing wearing the same name).
-- `id`, `organisation_id`, `name`, `version` (int; a save is a new version row, prior versions retained because instances name them)
-- `definition` (jsonb — the app's stepped definition with connections reduced to *requirements*), `table_declarations` (jsonb)
-- ~~`reference_rows`~~ — **removed 2026-09-06 on the owner's veto-pass clarification**: a playbook carries a reference table's *definition* and never its rows; the save path strips **every** row of every kind (trigger-backed), and a deployed instance starts empty
-- `saved_by_participant_id`, `saved_from_app_id` (FK apps, nullable — the save-back path), `saved_at`, `retired_at`
-- `supplied_by_infora` (bool) — Infora's own pre-built apps on the same shelf (§11)
+**One column that is not this drawer's:** `users.may_build_apps`, added by the
+same migration. ADR-0056 §12 fixed the policy — each organisation decides who
+among its own people may build — and left the control to the build; it is at
+user grain because the decision is the organisation's about its own person, and
+it rides 0067 because the app-builder slice has exactly one migration.
 
 **After deployment — `connections`, `connection_loans`, `connection_calls`** *(ADR-0057; not in T-439's migration; drawn so the shape is agreed).*
 - `connections`: `id`, `organisation_id` (the owner of the outside system), `system` (e.g. `arcgis`), `mode`: `read` | `write`, `reach` (jsonb — named layers/tables/endpoints), `secret_ref` (**a pointer into the secrets store, never a value**), `created_by_participant_id`, `created_at`, `retired_at`

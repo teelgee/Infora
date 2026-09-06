@@ -6,3 +6,4 @@ export * from './drawer5-review.js';
 export * from './drawer6-ontology.js';
 export * from './drawer7-context.js';
 export * from './drawer8-notifications.js';
+export * from './drawer9-apps.js';

@@ -68,15 +68,19 @@ describe('principle 3 — the requester is resolved, never supplied', () => {
     // the requester's own identity still resolved from the session
     expect(observed).toEqual({
       addMembershipBody: ['organisationId'], // the organisation being seated
+      createAppBody: ['organisationIds', 'participantIds'], // the app's initial scope set (T-440)
       createGrantRuleBody: ['participantId'], // the appointee the rule names
       createSandboxBody: ['organisationIds', 'participantIds'], // the initial scope set (T-187)
       enrolParticipantBody: ['userId'], // the colleague being enrolled (ADR-0015 level two)
+      grantAppScopeBody: ['organisationId', 'participantId'], // the app scope being widened to (T-440)
       grantAppointmentBody: ['participantId'], // the author/reviewer being appointed
       nameLeadReviewerBody: ['participantId'], // the replacement lead being named (T-377)
       grantParticipantBody: ['participantId'], // the ADR-0035 §3 narrowing grantee
       grantSandboxScopeBody: ['organisationId', 'participantId'], // the scope being widened to
       issueTransmittalBody: ['organisationIds'], // the recipients of the issue
+      reassignAppBody: ['participantId'], // the person an app is reassigned to (T-440)
       setDocumentOwnerBody: ['participantId'], // the participant ownership passes to
+      shareAppTableBody: ['organisationId'], // the organisation an app table is shared with (ADR-0056 §6)
       shareDeliverableBody: ['organisationId'], // the organisation shared with (ADR-0016)
     });
   });

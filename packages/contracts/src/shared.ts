@@ -40,6 +40,11 @@ export const STEP_TYPES = [
   'qa_section_check',
   'qa_contradiction_check',
   'qa_document_check',
+  // T-439 — the app run's step (ADR-0056; drawn in data-model.md drawer 9
+  // before it was written). One value, added deliberately rather than
+  // smuggled: an app run is an ADR-0028 Run, its steps are ADR-0028 Steps, and
+  // without a name of its own an app step would have to borrow a worker's.
+  'app_step',
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 

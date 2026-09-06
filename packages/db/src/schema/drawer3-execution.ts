@@ -62,6 +62,15 @@ export const stepType = pgEnum('step_type', [
   'qa_section_check',
   'qa_contradiction_check',
   'qa_document_check',
+  // T-439 — the ONE value drawer 9 was allowed to add, drawn in data-model.md
+  // before it was written so it could never be smuggled in. An app run is an
+  // ADR-0028 Run and its steps are ADR-0028 Steps carrying the same two
+  // defensibility fields as every other; without a value of its own an app step
+  // would have to borrow a worker's name and the audit store would say a thing
+  // that is not true. It is settable from the first ticket that writes an app
+  // run (T-440), which is T-301's rule: a value the schema carries and no code
+  // can set is a claim the schema makes falsely.
+  'app_step',
 ]);
 export const stepStatus = pgEnum('step_status', ['running', 'completed', 'failed']);
 export const agentProvenance = pgEnum('agent_provenance', ['infora', 'custom']);

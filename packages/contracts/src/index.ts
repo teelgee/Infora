@@ -3,6 +3,7 @@
 // Scoped drawer-by-drawer like the data model: only what M0–M6 call.
 
 export * from './agent-act';
+export * from './app-builder';
 export * from './assembly';
 export * from './checker';
 export * from './creator';

@@ -34,6 +34,10 @@ const LABEL: Record<Step['type'], string> = {
   qa_section_check: 'Checked a section',
   qa_contradiction_check: 'Compared the sections',
   qa_document_check: 'Scored and checked the draft',
+  // T-439 — drawer 9's one drawn widening. The Record over a closed union is
+  // what made this a compile error rather than a blank line on a screen, which
+  // is the third time it has caught exactly that.
+  app_step: 'Ran an app',
 };
 
 const tick = (status: Step['status']) =>

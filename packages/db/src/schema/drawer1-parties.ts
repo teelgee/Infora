@@ -51,6 +51,21 @@ export const users = pgTable(
     // personal settings (T-092, 2026-07-09) — the user's own display choices,
     // e.g. { theme: 'dark' }; never an access or context fact
     preferences: jsonb('preferences').notNull().default({}),
+    // T-439/T-440 (ADR-0056 §12) — may this person build an app? The ADR fixed
+    // the POLICY ("each organisation decides who among its own people may
+    // build") and left the control to the build; this column is that control,
+    // and it is deliberately at USER grain rather than Participant grain,
+    // because the decision is the organisation's about its own person and not a
+    // project owner's about a guest. It rides with drawer 9's migration (0067)
+    // because the app-builder slice has exactly one migration, though the
+    // surface that toggles it is T-440.
+    //
+    // DEFAULT FALSE, and widening reverses (§12): an app whose builder loses
+    // the right is reassigned or closed, never left running ownerless. The
+    // organisation's own org admin sets it; nobody outside the organisation
+    // can, and holding `org_role = 'admin'` does not confer it implicitly —
+    // an implicit grant would be a policy nobody chose.
+    mayBuildApps: boolean('may_build_apps').notNull().default(false),
     // T-315 — the ACCOUNT-level interval, the twin of participants.removed_at
     // and distinct from it on purpose. A Participant closing is one project
     // engagement ending; this is the person leaving the organisation, which is

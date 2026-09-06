@@ -608,7 +608,16 @@ export type RosterEntry = {
 };
 export type ListRosterResponse = { items: RosterEntry[] };
 
-export type OrgUser = { userId: Id; name: string; email: string; orgRole: 'admin' | 'member' };
+export type OrgUser = {
+  userId: Id;
+  name: string;
+  email: string;
+  orgRole: 'admin' | 'member';
+  /** T-440 (ADR-0056 §12) — may this person build an app? The organisation's
+   * own admin decides, per person; holding `orgRole: 'admin'` does not confer
+   * it, because an implicit grant is a policy nobody chose. */
+  mayBuildApps: boolean;
+};
 export type ListOrgUsersResponse = { items: OrgUser[] };
 
 // T-315 — DELETE /organisation/users/:userId. The ACCOUNT-level removal, and
@@ -2909,3 +2918,120 @@ export type QaCheckRunResponse = {
   coverage: string;
   findings: Finding[];
 };
+
+// ── The app builder (T-439–T-441, ADR-0056) ─────────────────────────────────
+//
+// *In plain terms: the requests behind an app — creating one, saying who it is
+// open to, declaring a table, typing a row into it, submitting it, and the
+// client accepting or rejecting it.*
+//
+// Every body below names a SUBJECT and never the requester (principle 3): the
+// organisation the app is opened to, the participant an app is reassigned to,
+// the organisation a table is shared with. Who is asking comes from the session
+// alone, and the read predicate is computed from that — never from anything a
+// caller sends.
+
+/** POST /projects/:projectId/apps — create an app instance (ADR-0056 §1).
+ * The initial participant scope rides the creation, exactly as a sandbox's
+ * does (T-187): an app that exists for a moment with no scope is an app whose
+ * first read has no answer. */
+export const createAppBody = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  /** the ADR-0036 ladder's initial rungs; both may be empty, and the creator's
+   * own organisation is granted regardless — an app nobody can open, including
+   * the person who just made it, is a bug rather than a strict default */
+  organisationIds: z.array(id).default([]),
+  participantIds: z.array(id).default([]),
+});
+export type CreateAppBody = z.infer<typeof createAppBody>;
+
+/** POST /apps/:appId/scope — widen the scope, live (ADR-0036, ADR-0056 §1).
+ * Exactly one grantee per grant: the ladder is emergent from the grant set. */
+export const grantAppScopeBody = z
+  .object({ organisationId: id.optional(), participantId: id.optional() })
+  .refine((b) => (b.organisationId === undefined) !== (b.participantId === undefined), {
+    message: 'a scope grant names exactly one of an organisation or a participant',
+  });
+export type GrantAppScopeBody = z.infer<typeof grantAppScopeBody>;
+
+/** POST /apps/:appId/reassign — reassign-or-close when the owner goes
+ * (ADR-0056 §5, §7). The project owner names one of their own people. */
+export const reassignAppBody = z.object({ participantId: id });
+export type ReassignAppBody = z.infer<typeof reassignAppBody>;
+
+/** PATCH /apps/:appId/definition — the builder's working copy. Publishing is a
+ * separate act (POST /apps/:appId/publish) with no body: what is published is
+ * always the working copy as it stands, so there is nothing to send. */
+export const patchAppDefinitionBody = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  definition: z.unknown().optional(),
+});
+export type PatchAppDefinitionBody = z.infer<typeof patchAppDefinitionBody>;
+
+/** POST /apps/:appId/tables — declare a table (ADR-0056 §2). `hasAcceptance`
+ * is the builder's per-table choice (§2a), asked rather than found (§2b). */
+export const declareAppTableBody = z.object({
+  name: z.string().min(1),
+  columns: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .min(1)
+          .regex(/^[a-z0-9_]+$/, 'a column key is lower-case letters, digits and underscores'),
+        label: z.string().min(1),
+        type: z.enum(['text', 'number', 'date', 'boolean', 'choice']),
+        required: z.boolean().default(false),
+        choices: z.array(z.string().min(1)).optional(),
+      }),
+    )
+    .min(1),
+  kind: z.enum(['data', 'insight', 'reference']).default('data'),
+  hasAcceptance: z.boolean().default(false),
+});
+export type DeclareAppTableBody = z.infer<typeof declareAppTableBody>;
+
+/** POST /app-tables/:appTableId/shares — the project owner shares one table
+ * with one named organisation (ADR-0056 §6): deliberate, audited, revocable,
+ * and never reaching a third organisation. */
+export const shareAppTableBody = z.object({ organisationId: id });
+export type ShareAppTableBody = z.infer<typeof shareAppTableBody>;
+
+/** POST /app-tables/:appTableId/rows — enter a row. On a table with an
+ * acceptance step a row starts as a `draft`, read by its entering organisation
+ * ALONE (the 2026-09-06 addendum, ruling 3); `submit: true` submits it in the
+ * same act, which is what the form's "Submit" button does. */
+export const enterAppRowBody = z.object({
+  values: z.record(z.string(), z.unknown()),
+  submit: z.boolean().default(false),
+});
+export type EnterAppRowBody = z.infer<typeof enterAppRowBody>;
+
+/** PATCH /app-rows/:appRowId — edit before acceptance; the prior version is
+ * kept as a row of its own. An accepted row is never edited (trigger). */
+export const editAppRowBody = z.object({ values: z.record(z.string(), z.unknown()) });
+export type EditAppRowBody = z.infer<typeof editAppRowBody>;
+
+/** POST /app-rows/:appRowId/decision — accept or reject, by the project owner
+ * (ADR-0056 §2a). **A rejection carries a required reason** (ruling 4), read by
+ * the submitting organisation on the row; the database refuses one without. */
+export const decideAppRowBody = z.discriminatedUnion('decision', [
+  z.object({ decision: z.literal('accept') }),
+  z.object({ decision: z.literal('reject'), reason: z.string().min(1) }),
+]);
+export type DecideAppRowBody = z.infer<typeof decideAppRowBody>;
+
+/** POST /apps/:appId/runs — run the app by hand. `scheduled` is stored from
+ * T-443 and honoured when a clock exists (ADR-0056 §13d), so the only trigger
+ * a caller may ask for today is `manual`. */
+export const runAppBody = z.object({ trigger: z.literal('manual').default('manual') });
+export type RunAppBody = z.infer<typeof runAppBody>;
+
+/** PATCH /organisation/users/:userId/app-building — the org admin decides who
+ * among their OWN people may build (ADR-0056 §12). Claude's mechanism for the
+ * ADR's policy: the record fixed who decides, not the control. Widening
+ * reverses, which is why it is a toggle and not a one-way grant. */
+export const setAppBuilderBody = z.object({ mayBuildApps: z.boolean() });
+export type SetAppBuilderBody = z.infer<typeof setAppBuilderBody>;

@@ -1191,3 +1191,18 @@ are not recorded here.
   that the receipt is that it was read, not how often: a shape that could grow
   would be an attendance log on somebody who never signed up for one, and the
   store refuses a second write rather than trusting the route.
+
+- **2026-09-06 (T-439) — the app's definition is typed, and the tables it
+  declares are deliberately not in it.** *Plainly: an app's steps — its screens,
+  its schedule, what its agent is told to write — are one stored document, but
+  the list of tables it holds is stored separately, because the rules about who
+  may read a row must never depend on reading that document.* `AppDefinition`
+  types the stepped flow; `AppColumn` and `AppTableRecord` type a declared
+  table. The **reason the declarations live in `app_tables` rather than inside
+  `AppDefinition`** is drawer 9's ruling: the read predicate for an app row runs
+  on every read of every row, and a predicate that first has to parse a JSON
+  document a builder wrote is a predicate a builder can influence. The **reason
+  `AppConnectionRequirement` has no field for a key, a token or an endpoint** is
+  that ADR-0057's build waits for the deployment's secrets store — a shape that
+  *could* hold a credential on a machine with nowhere safe to put one is the
+  leak that record exists to prevent, so the type makes it unrepresentable.

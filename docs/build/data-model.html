@@ -172,6 +172,7 @@
           <tr><td class="col">org_role</td><td class="type">org_role</td><td class="notes">default</td></tr>
           <tr><td class="col">external_identity</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">preferences</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">may_build_apps</td><td class="type">boolean</td><td class="notes">default</td></tr>
           <tr><td class="col">removed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
           <tr><td class="col">removed_by_user_id</td><td class="type">uuid</td><td class="notes">→ users.id · nullable</td></tr>
         </tbody></table>
@@ -1024,6 +1025,137 @@
           <tr><td class="col">subject_id</td><td class="type">uuid</td><td class="notes"></td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">read_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+    </section>
+    <section class="drawer d9">
+      <h2>Drawer 9 — Apps</h2>
+      <p class="blurb">The app builder’s substrate (T-439, ADR-0056): an app instance with a participant scope, the tables it declares, and the third kind of project record — a row stamped with the organisation and the person that entered it. The three connection tables are drawn but deferred to deployment (ADR-0057).</p>
+      <article class="card d9">
+        <h3>app_exports <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_id</td><td class="type">uuid</td><td class="notes">→ apps.id</td></tr>
+          <tr><td class="col">exported_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">exported_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">file_ref</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">data_as_of</td><td class="type">timestamp with time zone</td><td class="notes"></td></tr>
+          <tr><td class="col">tables_covered</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">rows_covered</td><td class="type">integer</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>app_rows <span class="badge">frozen at issue</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_table_id</td><td class="type">uuid</td><td class="notes">→ app_tables.id</td></tr>
+          <tr><td class="col">values</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">entered_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">entered_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">state</td><td class="type">app_row_state</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">decided_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">decided_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">rejection_reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">supersedes_row_id</td><td class="type">uuid</td><td class="notes">→ app_rows.id · nullable</td></tr>
+          <tr><td class="col">previous_version_id</td><td class="type">uuid</td><td class="notes">→ app_rows.id · nullable</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">retired_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>app_runs <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_id</td><td class="type">uuid</td><td class="notes">→ apps.id</td></tr>
+          <tr><td class="col">run_id</td><td class="type">uuid</td><td class="notes">→ runs.id</td></tr>
+          <tr><td class="col">trigger</td><td class="type">app_run_trigger</td><td class="notes"></td></tr>
+          <tr><td class="col">as_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">definitions_version</td><td class="type">integer</td><td class="notes"></td></tr>
+          <tr><td class="col">rows_covered</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">tables_covered</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">insight_row_id</td><td class="type">uuid</td><td class="notes">→ app_rows.id · nullable</td></tr>
+          <tr><td class="col">started_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">finished_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">outcome</td><td class="type">text</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>app_scope_grants <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_id</td><td class="type">uuid</td><td class="notes">→ apps.id</td></tr>
+          <tr><td class="col">grantee_type</td><td class="type">app_grantee_type</td><td class="notes"></td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id · nullable</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">revoked_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>app_table_shares <span class="badge">interval rows</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_table_id</td><td class="type">uuid</td><td class="notes">→ app_tables.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">granted_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">granted_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">revoked_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">revoked_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>app_tables</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_id</td><td class="type">uuid</td><td class="notes">→ apps.id</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">columns</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">kind</td><td class="type">app_table_kind</td><td class="notes">default</td></tr>
+          <tr><td class="col">has_acceptance</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>apps</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">description</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">owner_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">playbook_id</td><td class="type">uuid</td><td class="notes">→ playbooks.id · nullable</td></tr>
+          <tr><td class="col">playbook_version</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">definition</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">definition_version</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">definition_updated_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">definition_updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">published_definition</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">published_version</td><td class="type">integer</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">published_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">published_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">closed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">closed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
+        <h3>playbooks</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">version</td><td class="type">integer</td><td class="notes">default</td></tr>
+          <tr><td class="col">definition</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">table_declarations</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">saved_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">saved_from_app_id</td><td class="type">uuid</td><td class="notes">→ apps.id · nullable</td></tr>
+          <tr><td class="col">saved_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">retired_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">supplied_by_infora</td><td class="type">boolean</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
     </section>

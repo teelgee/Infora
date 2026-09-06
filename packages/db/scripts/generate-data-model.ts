@@ -36,6 +36,7 @@ import * as drawer5 from '../src/schema/drawer5-review';
 import * as drawer6 from '../src/schema/drawer6-ontology';
 import * as drawer7 from '../src/schema/drawer7-context';
 import * as drawer8 from '../src/schema/drawer8-notifications';
+import * as drawer9 from '../src/schema/drawer9-apps';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..', '..');
@@ -50,6 +51,7 @@ const DRAWERS: Array<{ key: string; title: string; blurb: string; module: Record
   { key: 'd6', title: 'Drawer 6 — The project ontology', blurb: 'The classification vocabulary and the typed edges between containers.', module: drawer6 },
   { key: 'd7', title: 'Drawer 7 — Context', blurb: 'The scoped context stores (ADR-0020). Org context (the firm’s rulebook, T-308) and project context (the project style guide, T-397) — programme context has no tables yet.', module: drawer7 },
   { key: 'd8', title: 'Drawer 8 — Notifications', blurb: 'The telling: an event-shaped record whose visibility follows the subject it points at, storing a pointer and never content (T-329, ADR-0049).', module: drawer8 },
+  { key: 'd9', title: 'Drawer 9 — Apps', blurb: 'The app builder’s substrate (T-439, ADR-0056): an app instance with a participant scope, the tables it declares, and the third kind of project record — a row stamped with the organisation and the person that entered it. The three connection tables are drawn but deferred to deployment (ADR-0057).', module: drawer9 },
 ];
 
 // The atlas is only "the schema as built" while this list is complete, and the

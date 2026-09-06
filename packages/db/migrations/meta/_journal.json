@@ -470,6 +470,13 @@
       "when": 1788313641542,
       "tag": "0066_external-open-receipt",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788731083439,
+      "tag": "0067_app-substrate",
+      "breakpoints": true
     }
   ]
 }

@@ -212,6 +212,11 @@ export function administrationRoutes(deps: { db: Db }) {
         name: s.users.name,
         email: s.users.email,
         orgRole: s.users.orgRole,
+        // T-439/T-440 (ADR-0056 §12) — whether this person may build an app.
+        // It rides the picker because the org admin who staffs a project is
+        // the same person who decides this, and a second screen for one
+        // checkbox would be a second place to forget it.
+        mayBuildApps: s.users.mayBuildApps,
       })
       .from(s.users)
       // T-315 — live only. The roster keeps removed *Participants* listed for
