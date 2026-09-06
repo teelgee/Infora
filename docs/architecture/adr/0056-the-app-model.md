@@ -120,8 +120,8 @@ connections the app's definition names**. It **stops** the moment the owner
 loses the entitlement, the project, or the right to build; the project owner
 is told and reassigns the instance or closes it — ruling 10's reassign-or-die
 applied to schedules. **Never more than its owner**: an app with standing
-powers of its own is the shared service account every incident in the
-reference traces to. If a run needs rows its owner cannot see, either a person
+powers of its own is a shared service account by another name — a set of
+permissions nobody personally holds, doing things nobody personally did. If a run needs rows its owner cannot see, either a person
 who can see them owns the app, or the owner shares the table (§6). Outside
 systems are reached through a dedicated integration credential, never a
 person's login (ADR-0057). **This closes `Q-051`.**
@@ -135,8 +135,9 @@ the alternative — the client must own the app — was declined because it
 takes the firm out of the seat that runs its own playbook. Revoking the share
 narrows the consultancy's next run to its own rows; insights already produced
 stay as they were. *A consultancy therefore cannot promise in its playbook
-that its dashboard will work on a client's project; it can only ask. That
-discomfort is the right one.*
+that its dashboard will work on a client's project; it can only ask —
+which is the honest position, since the client's data was never the
+consultancy's to promise.*
 
 **7. When an organisation leaves the project, its rows split by whose material
 they are — closing `Q-052`.** The playbook leaves with the firm; it was never

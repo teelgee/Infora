@@ -55,9 +55,15 @@ their own login.** The creator must already hold access to what the
 connection names (Session X ruling 5). The credential stored is a **dedicated
 integration credential** — a system account set up for this integration,
 scoped by the outside system's own means to what the connection declares —
-never a person's password or session token. For ArcGIS that is the one system
-account per integration Esri's terms permit; people who need the *live* layer
-sign into ArcGIS as themselves, in their own browser, outside Infora's key.
+never a person's password or session token — because an unattended run must
+not die with a person's password, and because an integration's audit trail
+must name the integration, not whoever lent it their login. For ArcGIS the
+research pass read Esri's terms as permitting one system account per
+integration; **that reading is context, re-verified against the current
+agreement by the ticket that builds the first connection, and this rule
+stands on the operational grounds either way** *(precision added in review,
+2026-09-06)*. People who need the *live* layer sign into ArcGIS as
+themselves, in their own browser, outside Infora's key.
 
 **3. The key is written once and never read back.** A stored credential goes
 into the deployment's secrets store, encrypted under the deployment's own
@@ -120,8 +126,11 @@ with nobody's name on it is not an audit record, and are registered in
 in the credential itself, by construction: it is a system account.
 
 **Considered and not taken.** *A person's own ArcGIS login as the app's
-credential* — thirty-minute tokens, dies on password change, and forbidden by
-Esri's terms for showing private layers to others. *One platform-wide
+credential* — it dies with their password and their departure, which alone
+disqualifies it for anything that runs unattended; the research pass also
+read Esri's terms as forbidding it for showing private layers to others
+(context, not the ground of this rejection — reworded in review, 2026-09-06,
+so the rejection stands on reasoning a reader can check). *One platform-wide
 integration account* — the shared service account every incident traces to.
 *Building connections locally against a file of keys* — the owner deferred it
 to deployment on being told what it would mean. *Owner approval for read

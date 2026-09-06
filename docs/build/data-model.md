@@ -922,6 +922,7 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 - `created_by_participant_id` (FK participants), `created_at`
 - `playbook_id` (FK playbooks, nullable), `playbook_version` (int, nullable) — what it was deployed from; **no live link**
 - `definition` (jsonb) — the stepped definition: interfaces and who may open each, schedule, analysis and prompts, connection *requirements*; **validated against a `packages/contracts` shape**, the table declarations living in `app_tables` rather than here so the read path never parses JSON to decide access
+- `definition_version` (int), `definition_updated_by_participant_id` (FK participants), `definition_updated_at` — *(added in review, 2026-09-06)* the version `app_runs.definitions_version` refers to, which the drawing named and did not carry; and the attribution the schedule was missing — the one mutable field in a drawer of append-only tables is the one that decides what runs unattended on the owner's entitlements, so a change to it must say who and when. A full append-only version-history table is T-439's call, drawn first if taken; these three columns are the floor.
 - `closed_at`, `closed_by_participant_id` — currency by state; a closed app keeps its tables readable
 - `CHECK`: `closed_at` and `closed_by` null together
 
@@ -951,6 +952,7 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 - the read predicate becomes: entering org = reader's org **or** reader's org = project owner **or** an open share row for reader's org — all three inside the app's scope
 
 **`app_runs`** — one per execution; the execution itself is a Drawer 3 `runs` row.
+*(Two answers the drawing owed and did not give — added in review, 2026-09-06.)* **Steps:** an app run's steps are ADR-0028 Steps and carry the two defensibility fields like every other; `step_type`'s closed CHECK gains **one** value, `app_step`, in T-439's migration — a deliberate widening of the fixed vocabulary, named here so it is drawn before written and never smuggled. **Actors:** the Drawer 3 `runs` row's own requester attribution is authoritative; `as_participant_id` must equal it (CHECK), and exists so app-side reads never join into Drawer 3 — two stamps, one truth, enforced.
 - `id`, `app_id`, `run_id` (FK runs), `trigger`: `manual` | `scheduled`
 - `as_participant_id` (FK participants) — **who the run acted as**: the clicker, or the app's owner for a schedule
 - `definitions_version` (the `apps.definition` version used), `rows_covered` (int), `tables_covered` (uuid[])
