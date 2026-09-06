@@ -502,7 +502,7 @@ table step and the two moments the ADR adds.
   builder "walked through" the wall's choices) — it says the walk is Infora's
   own design. The drawing keeps the steps as the spine and the agent beside
   them; whether the steps should instead be *filled in by* a chat is carried on
-  the mockup as an open fork for the owner, not proposed here.
+  the mockup as an open fork for the owner (since declined-for-now, 2026-09-06 — ADR-0056's addendum, revisited at T-446), not proposed here.
 - **F2. The board's description of Nomic needs one correction.** "Not an app
   builder" is half right: Nomic sells pre-built agents *and* a plain-language
   workflow builder (§4a). Recorded on T-437's moved record; no ADR touches it.
@@ -529,7 +529,7 @@ table step and the two moments the ADR adds.
   the prompts and the table design, not the screen markup. Stated so nobody
   discovers it later as a surprise.
 
-**PROPOSED — for the owner, never applied here:**
+**PROPOSED — for the owner, never applied here — until it was: adopted 2026-09-06 as ADR-0056's addendum ruling 2 (pointer added in review):**
 
 - **P1. Draft versus published, inside one app instance** *(proposed
   2026-09-06 from T-437; touches ADR-0056 §11 and drawer 9's `apps` row).*
@@ -555,7 +555,7 @@ table step and the two moments the ADR adds.
   author's until it is promoted. Proposal: a row in `draft` state is read by
   its entering organisation only; `submitted` and later states by the owner as
   well. Drawn the ruled way on the mockup, quietly, with this as its first
-  fork. **Not applied.**
+  fork. **Not applied at writing; adopted 2026-09-06 as ADR-0056's addendum ruling 3 (pointer added in review).**
 
 ---
 
