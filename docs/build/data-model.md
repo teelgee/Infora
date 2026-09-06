@@ -922,6 +922,7 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 - `created_by_participant_id` (FK participants), `created_at`
 - `playbook_id` (FK playbooks, nullable), `playbook_version` (int, nullable) — what it was deployed from; **no live link**
 - `definition` (jsonb) — the stepped definition: interfaces and who may open each, schedule, analysis and prompts, connection *requirements*; **validated against a `packages/contracts` shape**, the table declarations living in `app_tables` rather than here so the read path never parses JSON to decide access
+- `published_definition` (jsonb, nullable — null until first published), `published_version` (int, nullable), `published_by_participant_id` (FK participants, nullable), `published_at` — *(added 2026-09-06, ADR-0056's addendum ruling 2)* **the copy the app's people open and a scheduled run acts against**; `definition` above is the builder's working copy. Publishing copies working → published and stamps who and when; an app with `published_definition` null is open to its builders only. `CHECK`: the three published stamps null together. `app_runs.definitions_version` refers to a *published* version.
 - `definition_version` (int), `definition_updated_by_participant_id` (FK participants), `definition_updated_at` — *(added in review, 2026-09-06)* the version `app_runs.definitions_version` refers to, which the drawing named and did not carry; and the attribution the schedule was missing — the one mutable field in a drawer of append-only tables is the one that decides what runs unattended on the owner's entitlements, so a change to it must say who and when. A full append-only version-history table is T-439's call, drawn first if taken; these three columns are the floor.
 - `closed_at`, `closed_by_participant_id` — currency by state; a closed app keeps its tables readable
 - `CHECK`: `closed_at` and `closed_by` null together
@@ -941,7 +942,8 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 - `organisation_id` (FK organisations) and `entered_by_participant_id` (FK participants) — **the stamp; the read predicate keys on the first**
 - `entered_at`
 - `state`: null | `draft` | `submitted` | `accepted` | `rejected` | `superseded` — null exactly when the table has no acceptance step (`CHECK` against `app_tables.has_acceptance`, via trigger)
-- `decided_by_participant_id`, `decided_at` — set together with `accepted`/`rejected`, null otherwise (`CHECK`); **no reason on a rejection**
+- `decided_by_participant_id`, `decided_at` — set together with `accepted`/`rejected`, null otherwise (`CHECK`)
+- `rejection_reason` (text) — *(added 2026-09-06, ADR-0056's addendum ruling 4, reversing the drawing's "no reason on a rejection")* **required exactly when `state` is `rejected`** (`CHECK`: non-null iff rejected); read by the submitting organisation on the row
 - `supersedes_row_id` (FK app_rows, nullable) — a correction is a new row; the old one flips to `superseded`
 - `previous_version_id` (FK app_rows, nullable) — an edit before acceptance keeps the prior version as a row of its own; **an accepted row is never updated** (trigger)
 - `retired_at`, `retired_by_participant_id` — the organisation's own deletion of an unaccepted row (ADR-0050 §6) is a retire, so a past insight's `rows_covered` still resolves; erasure at exit removes
@@ -949,7 +951,7 @@ access, and ADR-0056 §7's split then reads off `state` alone.
 
 **`app_table_shares`** — the owner's share of a table with a named organisation (§6).
 - `app_table_id`, `organisation_id`, `granted_by_participant_id` (must be an owner-organisation participant — enforced in the gateway, recorded here), `granted_at`, `revoked_at`, `revoked_by_participant_id`
-- the read predicate becomes: entering org = reader's org **or** reader's org = project owner **or** an open share row for reader's org — all three inside the app's scope
+- the read predicate becomes: entering org = reader's org **or** reader's org = project owner **or** an open share row for reader's org — all three inside the app's scope; *(narrowed 2026-09-06, ADR-0056's addendum ruling 3)* **a row in `draft` state is read by its entering organisation only** — the owner and share branches apply from `submitted` onward
 
 **`app_runs`** — one per execution; the execution itself is a Drawer 3 `runs` row.
 *(Two answers the drawing owed and did not give — added in review, 2026-09-06.)* **Steps:** an app run's steps are ADR-0028 Steps and carry the two defensibility fields like every other; `step_type`'s closed CHECK gains **one** value, `app_step`, in T-439's migration — a deliberate widening of the fixed vocabulary, named here so it is drawn before written and never smuggled. **Actors:** the Drawer 3 `runs` row's own requester attribution is authoritative; `as_participant_id` must equal it (CHECK), and exists so app-side reads never join into Drawer 3 — two stamps, one truth, enforced.

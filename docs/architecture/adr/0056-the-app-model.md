@@ -40,6 +40,8 @@ the exploration's two constraints now points here.
 > so the session that builds it re-checks those assumptions instead of
 > trusting the text.
 
+**Addendum (2026-09-06, owner-ruled on the first look at T-438's two drawings — six rulings, recorded in [grill-history.md](../../grill-sessions/grill-history.md) under Session AB's follow-on).** *In plain terms: the owner looked at the two drawings, asked for Claude's recommendation on each open fork, and confirmed all six in one line. Nothing above this line is rewritten; where a clause below is touched, a dated note points here.* **(1) The builder's step order is confirmed as drawn:** what the app is and who it is open to → the tables → data connections → the interface → how often it runs → analysis and prompts → check and open. **(2) An app's definition has a working copy and a published copy** (§11): the builder edits the working copy; the people in the app's scope open the published one, and a scheduled run acts only against it; "check and open" is the act of publishing, recorded with who and when; an app with nothing published is open to its builders alone. Without this, a builder's every save would change a form a contractor is filling in at that moment — Retool's draft-versus-live release model, adopted (T-437's review, §6 P1). **(3) A draft row is read by its entering organisation only** (§2): the owner reads a row from `submitted` onward. A draft is an unfinished number, the same standing as unfinished work in a sandbox before promotion; the owner's dashboard shows "no return yet" for that month, which is the honest state. **(4) A rejection carries a required reason** (§2a): the decider says why, and the submitting organisation reads it on the row, on the review record's precedent that every comment gets a response; a rejection with no reason becomes a phone call, which is the record failing. This reverses drawer 9's "no reason on a rejection" and the personal-data register's note. **(5) The builder's agent sits in its own pane beside the steps**, the conversation continuous across them; every choice is recorded in the form itself, never only in the chat, so closing the pane loses nothing. **(6) Declined: a chat that fills the steps in.** The steps stay the spine because they make the three wall questions (§2b) unavoidable — a chat can skip a question, a form cannot. Revisit after the owner has built the returns app in the builder (T-446). *How these were ruled:* Claude's recommendation on each, with the case that would make it wrong, put to the owner together; the owner: *"okay let's write the addendum and do the other things."* Confirmed wholesale rather than one at a time — recorded as such so a review can put any of the six back to the owner.
+
 **Context:** The 2026-09-04 exploration settled *where* an app lives and *whose*
 its data is, and handed five mechanical items to a design session. Two of
 them — the third kind of project thing, and the app acting as its viewer —
@@ -72,7 +74,7 @@ sandbox content: **every row is stamped with the organisation whose person
 entered it and with that person**, and **a row is read by its entering
 organisation and by the project owner organisation, within the app's
 participant scope, and by nobody else** unless the owner shares the table
-(§6). No setting an app's builder can make widens that. Edits keep the
+(§6). No setting an app's builder can make widens that. *(Narrowed 2026-09-06, the addendum's ruling 3: a row in `draft` state is read by its entering organisation only; the owner reads it from `submitted` onward.)* Edits keep the
 previous version of a row, on the platform's standing append-only discipline,
 so an insight computed last March still explains itself.
 
@@ -87,7 +89,7 @@ acceptance is the moment a row changes hands**: until then it is the
 submitting organisation's own material; on acceptance it becomes the **project
 owner's record**, retained exactly as accepted review-cycle metadata is
 retained under ADR-0050 §8. An accepted row is never edited or deleted in
-place. A table with no acceptance step never changes hands.
+place. A table with no acceptance step never changes hands. *(Added 2026-09-06, the addendum's ruling 4: a rejection carries a required reason, read by the submitting organisation on the row.)*
 
 **2b. The builder's agent must ask.** *(Owner, 2026-09-05: "the app builder /
 agent needs to be able to guide the user through this and ask/prompt the user
@@ -217,7 +219,7 @@ call Infora's API as the viewer, holding no secret and reaching no outside
 system. Anything needing the server — the scheduled insight, a pull from an
 outside system, the export — is done by Infora's **built** parts, which the
 builder *configures* through the stepped flow and never writes. The worst
-case of bad generated code is a broken screen for one viewer. (The
+case of bad generated code is a broken screen for one viewer. *(Added 2026-09-06, the addendum's ruling 2: the definition has a working copy the builder edits and a published copy the app's people open and a schedule runs against; publishing is a recorded act.)* (The
 alternative, generated code on Infora's servers, is the lane every managed
 platform wraps in its own runtime rules; it is not taken now and is not ruled
 out.) Because the substrate — tables, scope, runs, insights, export — must
@@ -245,8 +247,7 @@ fourth tool on it.
 **Considered and not taken.** *The client must own every cross-organisation
 app* (§6). *A departing firm's instance follows the sandbox rule exactly,
 or is exported and removed, or removed outright* (§7). *A playbook with no
-rows of any kind* (§10). *Generated code on the server* (§11). *A pre-built
-returns app hand-built by Infora before the builder* — Claude's recommended
+rows of any kind* (§10). *Generated code on the server* (§11). *A chat that fills the builder's steps in, instead of steps with an agent beside them* (the 2026-09-06 addendum, ruling 6). *A pre-built returns app hand-built by Infora before the builder* — Claude's recommended
 first step; the owner chose the builder first, and tests it by building the
 returns app in it. And, from Session X, still declined: a labelled
 agent-drafted narrative in the export; a declared "system" tier; the creator
