@@ -1,0 +1,392 @@
+<title>Infora — The app builder stepped-flow mockup</title>
+<style>
+/* ============ Infora design tokens (from docs/design, verbatim values) ============ */
+:root {
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', Menlo, Consolas, monospace;
+
+  --neutral-0:#ffffff; --neutral-50:#faf9f7; --neutral-100:#f2f1ed; --neutral-150:#efeeeb;
+  --neutral-200:#ececea; --neutral-300:#e0ded8; --neutral-400:#c7c5be; --neutral-500:#78766f;
+  --neutral-600:#57564f; --neutral-900:#1c1b18;
+  --frame-base:#dedad0; --frame-hover:#e5e3dc; --frame-active:#c9c5b8;
+  --green-500:#2f9e52; --green-600:#1a7a3a; --green-tint:#e8f5ea;
+  --red-500:#b23b34; --red-tint:#fbeceb;
+  --amber-500:#c4901f; --amber-600:#8a5a12; --amber-tint:#f8efdd;
+  --slate-500:#274a6d; --slate-tint:#e9eff6;
+
+  --surface-frame:var(--frame-base); --surface-pane:var(--neutral-0); --surface-sunken:var(--neutral-150);
+  --surface-hover:var(--neutral-150); --surface-active:var(--neutral-200); --surface-row-hover:var(--neutral-50);
+  --surface-frame-hover:var(--frame-hover); --surface-frame-active:var(--frame-active); --surface-frame-sunken:var(--frame-hover);
+  --border-default:var(--neutral-200); --border-subtle:var(--neutral-100);
+  --text-primary:var(--neutral-900); --text-secondary:var(--neutral-600); --text-muted:var(--neutral-500);
+  --action-primary-bg:var(--neutral-900); --action-primary-bg-hover:#000000; --action-primary-text:var(--neutral-0);
+  --action-secondary-bg:var(--neutral-0); --action-secondary-border:var(--neutral-200); --action-secondary-text:var(--neutral-600);
+  --focus-ring:#cfcac0;
+  --feedback-success-text:var(--green-600); --feedback-success-dot:var(--green-500); --feedback-success-tint:var(--green-tint);
+  --feedback-danger-text:var(--red-500); --feedback-danger-tint:var(--red-tint);
+  --feedback-warning-text:var(--amber-600); --feedback-warning-dot:var(--amber-500); --feedback-warning-tint:var(--amber-tint);
+  --feedback-info-text:var(--slate-500); --feedback-info-tint:var(--slate-tint);
+  --feedback-neutral-dot:var(--neutral-400);
+
+  --text-50:10.5px; --text-100:11.5px; --text-200:12.5px; --text-300:13px; --text-400:15.5px;
+  --text-500:18px; --text-600:24px; --text-700:29px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.3; --leading-snug:1.55; --leading-normal:1.65;
+  --text-wordmark:var(--text-500); --text-ui:var(--text-200); --text-label:var(--text-100); --text-micro:var(--text-50);
+  --tracking-micro:0.6px;
+
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px;
+  --gap-default:var(--space-2); --gap-loose:var(--space-3);
+  --pane-gap:var(--space-3); --pane-padding:var(--space-3); --card-padding:var(--space-4); --nested-card-padding:var(--space-3);
+  --rail-width:216px;
+
+  --radius-xs:4px; --radius-sm:8px; --radius-md:8px; --radius-lg:10px; --radius-full:999px; --radius-circle:50%;
+  --radius-control:var(--radius-sm); --radius-nested-card:var(--radius-md); --radius-pane:var(--radius-md); --radius-frame:var(--radius-lg);
+
+  --elevation-2:0 10px 26px rgba(20,20,20,.12);
+  --elevation-3:0 10px 28px rgba(20,20,20,.09);
+  --elevation-3-soft:0 8px 22px rgba(20,20,20,.07);
+  --focus-shadow:0 0 0 3px var(--focus-ring);
+  --duration-fast:100ms; --duration-base:150ms; --easing:ease;
+  --transition-hover:var(--duration-base) var(--easing);
+}
+
+/* ============ Page chrome for the mockup document itself ============ */
+/* The mock commits to the app's light look (dark mode for these screens is
+   unverified in the design system), so the page ground is explicit. */
+html, body { background:#8f8b81; }
+body { margin:0; font-family:var(--font-sans); color:var(--text-primary); }
+.mock-doc { max-width:1340px; margin:0 auto; padding:36px 24px 72px; }
+.mock-head { color:#f5f4f0; margin-bottom:20px; }
+.mock-head h1 { font-family:var(--font-serif); font-size:var(--text-600); font-weight:var(--weight-semibold); margin:0 0 6px; }
+.mock-head p { font-size:var(--text-300); margin:0; color:#dcd9d1; max-width:72ch; line-height:var(--leading-snug); }
+.mock-section-label { font-size:var(--text-100); letter-spacing:var(--tracking-micro); text-transform:uppercase; color:#e8e6df; font-weight:var(--weight-bold); margin:36px 0 12px; }
+.mock-note-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:12px; }
+@media (max-width:900px){ .mock-note-grid{ grid-template-columns:1fr; } }
+.mock-note { background:#f5f4f0; border-radius:var(--radius-md); padding:14px 16px; font-size:var(--text-200); line-height:var(--leading-snug); color:var(--text-secondary); }
+.mock-note b { color:var(--text-primary); display:block; margin-bottom:4px; font-size:var(--text-200); }
+.mock-note .q { color:var(--feedback-warning-text); font-weight:var(--weight-semibold); }
+.mock-provenance { background:rgba(255,255,255,.09); border-radius:var(--radius-md); padding:10px 14px; margin-top:14px; font-size:var(--text-200); line-height:var(--leading-snug); color:#e8e6df; max-width:80ch; }
+.mock-provenance a { color:#fff; }
+.mock-provenance b { color:#fff; }
+.frame-scroll { overflow-x:auto; padding-bottom:8px; }
+
+/* ============ Infora chrome (subset, verbatim from chrome.css / the shell as captured) ============ */
+.app-frame { display:flex; background:var(--surface-frame); border-radius:var(--radius-frame); overflow:hidden; font-family:var(--font-sans); color:var(--text-primary); width:1280px; box-sizing:border-box; }
+.rail { width:var(--rail-width); min-width:var(--rail-width); display:flex; flex-direction:column; padding:var(--pane-padding) var(--space-2); box-sizing:border-box; }
+.frame-content { flex:1; min-width:0; display:flex; gap:var(--pane-gap); padding:var(--pane-padding) var(--pane-padding) var(--pane-padding) 0; box-sizing:border-box; }
+.pane { background:var(--surface-pane); border-radius:var(--radius-pane); box-shadow:var(--elevation-2); display:flex; flex-direction:column; min-width:0; box-sizing:border-box; }
+.pane.canvas { flex:1; }
+.pane-header { display:flex; align-items:center; gap:var(--gap-default); padding:var(--space-3) var(--space-5); border-bottom:1px solid var(--border-default); font-size:var(--text-ui); }
+.pane-header .crumb-chip { border:1px solid var(--border-default); border-radius:var(--radius-full); padding:3px 10px; font-weight:var(--weight-semibold); white-space:nowrap; }
+.pane-header { flex-wrap:wrap; row-gap:6px; }
+.pane-header .crumb-sep { color:var(--text-muted); }
+.wordmark { display:flex; align-items:center; gap:var(--gap-default); padding:2px 2px var(--space-3) 6px; font-family:var(--font-serif); font-size:var(--text-wordmark); color:var(--text-primary); }
+.wordmark .mark { width:18px; height:18px; border-radius:var(--radius-xs); background:var(--action-primary-bg); flex:none; }
+.org-line { display:flex; justify-content:space-between; font-size:var(--text-label); font-weight:var(--weight-semibold); color:var(--text-secondary); padding:0 8px 10px; }
+.project-block { background:var(--surface-frame-sunken); border-radius:var(--radius-control); padding:8px 10px; margin-bottom:var(--space-3); }
+.project-block .lbl { font-size:var(--text-micro); letter-spacing:var(--tracking-micro); text-transform:uppercase; color:var(--text-muted); font-weight:var(--weight-bold); }
+.project-block .name { font-size:var(--text-ui); font-weight:var(--weight-bold); line-height:var(--leading-tight); margin-top:2px; }
+.rail-nav { display:flex; flex-direction:column; gap:2px; }
+.rail-nav a { display:flex; align-items:center; gap:var(--gap-default); padding:7px 10px; border-radius:var(--radius-control); color:var(--text-secondary); font-size:var(--text-ui); font-weight:var(--weight-semibold); text-decoration:none; cursor:pointer; transition:background var(--transition-hover), color var(--transition-hover); }
+.rail-nav a:hover { background:var(--surface-frame-hover); color:var(--text-primary); }
+.rail-nav a.active { background:var(--surface-frame-active); color:var(--text-primary); font-weight:var(--weight-bold); }
+.rail-nav .glyph { width:16px; display:inline-block; text-align:center; color:var(--text-muted); font-size:12px; }
+.rail-nav .caret { margin-left:auto; color:var(--text-muted); font-size:var(--text-50); }
+.rail-spacer { flex:1; }
+.user-chip { display:flex; align-items:center; gap:var(--gap-default); background:var(--surface-frame-sunken); border-radius:var(--radius-control); padding:7px 10px; font-size:var(--text-ui); font-weight:var(--weight-semibold); color:var(--text-primary); border:none; width:100%; text-align:left; box-sizing:border-box; font-family:inherit; }
+.user-chip .sub { display:block; font-size:var(--text-label); color:var(--text-muted); font-weight:var(--weight-regular); }
+.avatar { border-radius:var(--radius-circle); background:var(--action-primary-bg); color:var(--action-primary-text); display:flex; align-items:center; justify-content:center; font-size:var(--text-50); font-weight:var(--weight-bold); flex:none; width:26px; height:26px; }
+.btn { display:inline-flex; align-items:center; gap:6px; font-family:inherit; font-size:var(--text-ui); font-weight:var(--weight-semibold); border-radius:var(--radius-control); padding:7px 15px; cursor:pointer; background:var(--action-secondary-bg); border:1px solid var(--action-secondary-border); color:var(--action-secondary-text); transition:background var(--transition-hover); }
+.btn:hover { background:var(--surface-hover); }
+.btn.primary { background:var(--action-primary-bg); border-color:var(--action-primary-bg); color:var(--action-primary-text); font-weight:var(--weight-bold); padding:8px 16px; }
+.btn.primary:hover { background:var(--action-primary-bg-hover); }
+.btn.sm { padding:5px 11px; font-size:var(--text-label); }
+.btn.quiet { border-color:transparent; background:transparent; }
+.badge { display:inline-flex; align-items:center; gap:5px; font-size:var(--text-label); font-weight:var(--weight-medium); border-radius:var(--radius-full); white-space:nowrap; }
+.badge .dot { width:6px; height:6px; border-radius:var(--radius-circle); flex:none; }
+.badge.b-success { color:var(--feedback-success-text); } .badge.b-success .dot { background:var(--feedback-success-dot); }
+.badge.b-warning { color:var(--feedback-warning-text); } .badge.b-warning .dot { background:var(--feedback-warning-dot); }
+.badge.b-danger { color:var(--feedback-danger-text); } .badge.b-danger .dot { background:var(--feedback-danger-text); }
+.badge.b-info { color:var(--feedback-info-text); } .badge.b-info .dot { background:var(--feedback-info-text); }
+.badge.b-neutral { color:var(--text-secondary); } .badge.b-neutral .dot { background:var(--feedback-neutral-dot); }
+.badge.pill { padding:4px 12px; font-weight:var(--weight-bold); }
+.badge.pill.b-success { background:var(--feedback-success-tint); }
+.badge.pill.b-warning { background:var(--feedback-warning-tint); }
+.badge.pill.b-info { background:var(--feedback-info-tint); }
+.badge.pill.b-neutral { background:var(--surface-active); color:var(--text-primary); }
+.section-label { font-size:var(--text-label); letter-spacing:var(--tracking-micro); text-transform:uppercase; color:var(--text-muted); font-weight:var(--weight-bold); }
+.card { background:var(--surface-sunken); border-radius:var(--radius-nested-card); padding:var(--nested-card-padding) var(--card-padding); box-shadow:var(--elevation-3); box-sizing:border-box; }
+.card-title { font-size:var(--text-300); font-weight:var(--weight-bold); display:block; margin-bottom:6px; }
+.card-lede { font-size:var(--text-ui); color:var(--text-secondary); line-height:var(--leading-snug); max-width:780px; margin:0 0 10px; }
+table { width:100%; border-collapse:collapse; font-size:var(--text-ui); }
+thead th { text-align:left; font-size:var(--text-micro); letter-spacing:var(--tracking-micro); text-transform:uppercase; color:var(--text-muted); font-weight:var(--weight-bold); padding:10px var(--space-2); border-bottom:1px solid var(--border-default); }
+tbody td { padding:10px var(--space-2); border-bottom:1px solid var(--border-subtle); color:var(--text-primary); vertical-align:top; }
+tbody tr:hover { background:var(--surface-row-hover); }
+.field { display:flex; flex-direction:column; gap:6px; }
+.field .label { font-size:var(--text-label); font-weight:var(--weight-semibold); color:var(--text-secondary); }
+.field .hint { font-size:var(--text-label); color:var(--text-muted); line-height:var(--leading-snug); max-width:780px; }
+.input, .select, textarea.input { font-family:inherit; font-size:var(--text-ui); color:var(--text-primary); background:var(--surface-pane); border:1px solid var(--action-secondary-border); border-radius:var(--radius-control); padding:8px 10px; outline:none; box-sizing:border-box; width:100%; max-width:780px; }
+.bubble { background:var(--surface-sunken); border-radius:var(--radius-lg); padding:10px 13px; font-size:var(--text-ui); color:var(--text-primary); max-width:92%; box-shadow:var(--elevation-3-soft); line-height:var(--leading-snug); }
+.bubble.mine { align-self:flex-end; background:var(--surface-pane); border:1px solid var(--border-default); box-shadow:none; }
+.withheld { background:var(--feedback-warning-tint); color:var(--feedback-warning-text); border-radius:var(--radius-control); padding:var(--space-2) var(--space-3); font-size:var(--text-label); line-height:var(--leading-snug); }
+.page-title { font-family:var(--font-serif); font-size:var(--text-600); font-weight:var(--weight-regular); margin:0 0 6px; }
+.page-lede { font-size:var(--text-ui); color:var(--text-secondary); line-height:var(--leading-snug); max-width:780px; margin:0 0 var(--space-4); }
+/* ============ Vocabulary this mockup proposes (new) ============ */
+.builder { flex:1; display:flex; min-height:0; }
+.steps { width:250px; min-width:250px; border-right:1px solid var(--border-default); padding:var(--space-4) var(--space-3); box-sizing:border-box; display:flex; flex-direction:column; gap:2px; }
+.step { display:flex; gap:10px; padding:8px 10px; border-radius:var(--radius-control); align-items:flex-start; }
+.step .n { width:20px; height:20px; border-radius:var(--radius-circle); background:var(--surface-active); color:var(--text-primary); font-size:var(--text-micro); font-weight:var(--weight-bold); display:flex; align-items:center; justify-content:center; flex:none; margin-top:1px; }
+.step.done .n { background:var(--action-primary-bg); color:var(--action-primary-text); }
+.step.current { background:var(--surface-active); }
+.step.current .n { background:var(--action-primary-bg); color:var(--action-primary-text); }
+.step .t { font-size:var(--text-ui); font-weight:var(--weight-semibold); color:var(--text-primary); line-height:var(--leading-tight); }
+.step .s { font-size:var(--text-label); color:var(--text-muted); line-height:var(--leading-snug); margin-top:2px; }
+.step .asks { display:inline-flex; align-items:center; gap:4px; font-size:var(--text-micro); letter-spacing:var(--tracking-micro); text-transform:uppercase; font-weight:var(--weight-bold); color:var(--feedback-info-text); background:var(--feedback-info-tint); border-radius:var(--radius-xs); padding:1px 5px; margin-top:4px; }
+.step-body { flex:1; min-width:0; overflow:auto; padding:var(--space-5) var(--space-6); display:flex; flex-direction:column; gap:var(--space-4); }
+.step-head h2 { font-family:var(--font-serif); font-size:var(--text-500); font-weight:var(--weight-semibold); margin:0 0 4px; }
+.step-head p { font-size:var(--text-ui); color:var(--text-secondary); line-height:var(--leading-snug); max-width:780px; margin:0; }
+.tbl-card { background:var(--surface-sunken); border-radius:var(--radius-nested-card); padding:var(--space-3) var(--card-padding); box-shadow:var(--elevation-3); }
+.tbl-card .row { display:flex; align-items:center; gap:var(--gap-default); margin-bottom:8px; }
+.tbl-card .row .name { font-size:var(--text-300); font-weight:var(--weight-bold); }
+.tbl-card .row .kind { margin-left:auto; }
+.cols { background:var(--surface-pane); border-radius:var(--radius-control); border:1px solid var(--border-default); overflow:hidden; }
+.cols table thead th { background:var(--surface-pane); }
+.cols td.mono, .cols th.mono { font-family:var(--font-mono); font-size:var(--text-label); color:var(--text-secondary); }
+.choice { display:flex; flex-direction:column; gap:8px; }
+.opt { display:flex; gap:10px; align-items:flex-start; background:var(--surface-pane); border:1px solid var(--border-default); border-radius:var(--radius-control); padding:10px 12px; max-width:780px; }
+.opt.on { border-color:var(--text-primary); box-shadow:var(--focus-shadow); }
+.opt .radio { width:14px; height:14px; border-radius:var(--radius-circle); border:1.5px solid var(--neutral-400); flex:none; margin-top:2px; }
+.opt.on .radio { border:4.5px solid var(--action-primary-bg); }
+.opt .l { font-size:var(--text-ui); font-weight:var(--weight-semibold); }
+.opt .d { font-size:var(--text-label); color:var(--text-secondary); line-height:var(--leading-snug); margin-top:2px; }
+.standing { display:flex; gap:10px; align-items:flex-start; font-size:var(--text-label); color:var(--text-secondary); line-height:var(--leading-snug); max-width:780px; padding:8px 10px; border-left:2px solid var(--neutral-300); }
+.step-foot { display:flex; gap:var(--gap-default); align-items:center; padding-top:var(--space-2); border-top:1px solid var(--border-subtle); }
+.step-foot .spacer { flex:1; }
+.agent { width:360px; min-width:360px; }
+.agent-body { flex:1; overflow:auto; padding:var(--space-4); display:flex; flex-direction:column; gap:10px; }
+.agent .who { font-size:var(--text-micro); letter-spacing:var(--tracking-micro); text-transform:uppercase; font-weight:var(--weight-bold); color:var(--text-muted); margin-bottom:4px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { border:1px solid var(--border-default); border-radius:var(--radius-full); padding:4px 10px; font-size:var(--text-label); font-weight:var(--weight-semibold); color:var(--text-secondary); background:transparent; }
+.composer { margin:0 var(--space-4) var(--space-4); border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 12px; font-size:var(--text-ui); color:var(--text-muted); display:flex; align-items:center; }
+.composer .send { margin-left:auto; width:22px; height:22px; border-radius:var(--radius-control); background:var(--action-primary-bg); }
+.upcoming { border-top:1px solid var(--border-subtle); padding:10px var(--space-4); font-size:var(--text-label); color:var(--text-muted); line-height:var(--leading-snug); }
+.upcoming b { color:var(--text-secondary); font-weight:var(--weight-semibold); }
+.iface { background:var(--surface-sunken); border-radius:var(--radius-nested-card); padding:var(--space-3) var(--card-padding); box-shadow:var(--elevation-3); display:grid; grid-template-columns:1fr 210px; gap:var(--space-4); }
+.iface .name { font-size:var(--text-300); font-weight:var(--weight-bold); }
+.iface .opens { font-size:var(--text-label); color:var(--text-secondary); margin-top:2px; }
+.iface .opens b { color:var(--text-primary); font-weight:var(--weight-semibold); }
+.preview { background:var(--surface-pane); border:1px solid var(--border-default); border-radius:var(--radius-control); padding:10px; font-size:var(--text-micro); color:var(--text-secondary); }
+.preview .ph { height:8px; background:var(--surface-sunken); border-radius:3px; margin:6px 0; }
+.preview .ph.w60 { width:60%; } .preview .ph.w40 { width:40%; } .preview .ph.w80 { width:80%; }
+.preview .pt { font-size:var(--text-label); font-weight:var(--weight-bold); color:var(--text-primary); margin-bottom:4px; }
+.preview .tag { display:inline-block; font-size:var(--text-micro); letter-spacing:var(--tracking-micro); text-transform:uppercase; font-weight:var(--weight-bold); color:var(--text-muted); margin-bottom:6px; }
+</style>
+
+<div class="mock-doc">
+  <header class="mock-head">
+    <h1>The app builder — the stepped flow</h1>
+    <p>Where a person defines an app step by step, with an agent beside them that asks the questions the wall needs answered. Two moments are drawn: the table step, where the agent asks whether the table holds contractual data and so needs an acceptance step; and the interface step, where it asks who may open each screen. The steps are in the owner's own words. This is the fourth tool on the Tools surface, and nothing here exists yet.</p>
+  </header>
+  <div class="mock-provenance"><b>Pending — this screen does not exist yet.</b> Drawn for T-438 against <a href="../../architecture/adr/0056-the-app-model.md">ADR-0056</a> (§1, §2a–§2b, §5, §10–§11, §13c–d) and <a href="../../architecture/adr/0057-connections-and-stored-credentials.md">ADR-0057</a>. Built by T-442; photographed into the <a href="../../architecture/user-stories-walkthrough.html">walkthrough</a>'s app-builder tool section by T-447, at which point this file is deleted (<a href="../README.md">docs/design/README.md</a>). <b>Pattern it starts from</b> (T-437, <a href="../../reference/app-builder-ui-review.md">app-builder-ui-review.md</a>): the steps borrow <b>Retool Database's field editor</b> for the table step, <b>Lovable's chat-plus-live-preview</b> for the interface step, <b>Lovable's Jobs view</b> for the schedule, and <b>Nomic's three questions</b> (what it does, what files it needs, what it produces) for the analysis step; the agent's placement follows Infora's own document creator; <b>no product has a pattern for the acceptance question or for who-may-open-each-screen</b>, so those are drawn fresh (§5 of the review). Every ruling below must reach an ADR addendum first. Names and data: the seeded Wrenfield–Ashcombe project and its people; the app's own tables and rows are illustrative, since no app exists in the seed.</div>
+
+  <div class="mock-section-label">Screen 1 — step 2, the tables · Rachel Bowen, Trentmoor Energy (project owner), building the returns app</div>
+  <div class="frame-scroll">
+  <div class="app-frame">
+    <nav class="rail">
+      <div class="wordmark"><span class="mark"></span>Infora</div>
+      <div class="org-line"><span>Trentmoor Energy</span><span>All projects ▸</span></div>
+      <div class="project-block"><div class="lbl">Project</div><div class="name">Wrenfield–Ashcombe 400kV Connection</div></div>
+      <div class="rail-nav">
+        <a href="#"><span class="glyph">⌂</span>Home</a>
+        <a href="#"><span class="glyph">✦</span>Ask</a>
+        <a href="#"><span class="glyph">✎</span>Editor</a>
+        <a href="#"><span class="glyph">▤</span>Plan</a>
+        <a href="#"><span class="glyph">▥</span>Project library<span class="caret">▸</span></a>
+        <a href="#"><span class="glyph">✓</span>Review</a>
+        <a href="#"><span class="glyph">◔</span>Notifications</a>
+        <a href="#"><span class="glyph">▧</span>Sandbox<span class="caret">▸</span></a>
+        <a href="#" class="active"><span class="glyph">⚒</span>Tools</a>
+        <a href="#"><span class="glyph">▣</span>Knowledge</a>
+        <a href="#"><span class="glyph">↻</span>History</a>
+      </div>
+      <div class="rail-spacer"></div>
+      <button class="user-chip"><span class="avatar">RB</span><span>Rachel Bowen<span class="sub">Trentmoor Energy — Owner</span></span></button>
+    </nav>
+    <div class="frame-content">
+      <section class="pane canvas">
+        <div class="pane-header">
+          <span class="crumb-chip">Wrenfield–Ashcombe 400kV Connection</span><span class="crumb-sep">·</span><span>Tools</span><span class="crumb-sep">/</span><span>App builder</span><span class="crumb-sep">/</span><b>Sustainability returns</b>
+          <span class="badge pill b-neutral" style="margin-left:8px"><span class="dot"></span>Draft — not yet open to anyone</span>
+          <span style="margin-left:auto" class="badge pill b-success"><span class="dot"></span>Owner</span>
+        </div>
+        <div class="builder">
+          <aside class="steps">
+            <div class="step done"><span class="n">1</span><div><div class="t">What the app is</div><div class="s">Sustainability returns · opens to Trentmoor Energy, Calder &amp; Hale, Redgate Ecology</div></div></div>
+            <div class="step current"><span class="n">2</span><div><div class="t">The tables</div><div class="s">What people type in — and whether it holds contractual data</div><span class="asks">✦ the agent asks</span></div></div>
+            <div class="step"><span class="n">3</span><div><div class="t">Data connections</div><div class="s">Systems outside Infora it draws on · named now, connected after deployment</div></div></div>
+            <div class="step"><span class="n">4</span><div><div class="t">The interface</div><div class="s">The screens, and who may open each</div><span class="asks">✦ the agent asks</span></div></div>
+            <div class="step"><span class="n">5</span><div><div class="t">How often it runs</div><div class="s">A schedule, or only when someone presses Run</div></div></div>
+            <div class="step"><span class="n">6</span><div><div class="t">Analysis and prompts</div><div class="s">What the agent does each run, and what it may touch</div><span class="asks">✦ the agent asks</span></div></div>
+            <div class="step"><span class="n">7</span><div><div class="t">Check and open</div><div class="s">Read the whole definition back; open it to its people; save it as a playbook</div></div></div>
+          </aside>
+          <div class="step-body">
+            <div class="step-head"><h2>The tables</h2><p>Each table is a set of columns people fill in, one row at a time. Every row remembers which organisation and which person entered it, and is read by that organisation and by Trentmoor Energy — nobody else. That is not a setting; it is how every app table works.</p></div>
+
+            <div class="tbl-card">
+              <div class="row"><span class="name">Monthly returns</span><span class="badge b-neutral kind"><span class="dot"></span>Data table · contractors enter rows</span></div>
+              <div class="cols">
+                <table>
+                  <thead><tr><th>Column</th><th>Type</th><th>Required</th><th></th></tr></thead>
+                  <tbody>
+                    <tr><td>Month</td><td class="mono">month</td><td>Yes</td><td></td></tr>
+                    <tr><td>Waste to landfill</td><td class="mono">number · tonnes</td><td>Yes</td><td></td></tr>
+                    <tr><td>Waste recycled</td><td class="mono">number · tonnes</td><td>Yes</td><td></td></tr>
+                    <tr><td>Water used</td><td class="mono">number · m³</td><td>Yes</td><td></td></tr>
+                    <tr><td>Diesel used</td><td class="mono">number · litres</td><td>No</td><td></td></tr>
+                    <tr><td>Notes</td><td class="mono">text</td><td>No</td><td></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="margin-top:8px"><button class="btn sm">+ Add a column</button></div>
+
+              <div style="margin-top:var(--space-4)" class="field">
+                <span class="label">Does this table hold contractual data?</span>
+                <span class="hint">A figure that triggers a payment, discharges a planning condition, or that Trentmoor Energy will rely on as its record. If it does, the table needs an acceptance step.</span>
+                <div class="choice" style="margin-top:6px">
+                  <div class="opt on"><span class="radio"></span><div><div class="l">Yes — add an acceptance step</div><div class="d">A row is a draft until its organisation submits it; Trentmoor Energy then accepts or rejects it. <b>Acceptance is the moment the row changes hands</b>: it becomes Trentmoor Energy's record and is never edited or deleted in place — a correction arrives as a new row that supersedes it.</div></div></div>
+                  <div class="opt"><span class="radio"></span><div><div class="l">No — rows never change hands</div><div class="d">Each organisation's rows stay its own material. Trentmoor Energy can read them; nobody accepts them.</div></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="tbl-card">
+              <div class="row"><span class="name">Insights</span><span class="badge b-info kind"><span class="dot"></span>Insight table · written by the app each run</span></div>
+              <div class="standing"><span>✦</span><span>Added when step 6 is set. One row per run — the date, what triggered it, which rows it covered, and the summary the agent wrote — stamped with the organisation the run acted as. No acceptance step: an insight is a record of a run, not a submission.</span></div>
+            </div>
+
+            <div><button class="btn">+ Add a table</button> <button class="btn quiet sm">Add a reference table (a lookup list you fill yourself — emission factors, categories)</button></div>
+
+            <div class="step-foot"><button class="btn">← Back: what the app is</button><span class="spacer"></span><span class="badge b-neutral"><span class="dot"></span>Saved as you go</span><button class="btn primary">Next: data connections →</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane agent">
+        <div class="pane-header"><b style="font-size:var(--text-300)">The builder's agent</b><span style="margin-left:auto" class="badge b-neutral"><span class="dot"></span>Step 2 of 7</span></div>
+        <div class="agent-body">
+          <div><div class="who">Agent</div><div class="bubble">You've added <b>Monthly returns</b> with six columns. Before we go on: <b>does this table hold contractual data?</b> Something a payment hangs on, that discharges a condition, or that Trentmoor Energy will rely on as its record. If so, it needs an acceptance step — a contractor submits a row, and someone at Trentmoor Energy accepts or rejects it. If not, rows stay each organisation's own and never change hands.</div></div>
+          <div class="chips"><span class="chip">Yes — it's contractual</span><span class="chip">No — it's working data</span><span class="chip">What counts as contractual?</span></div>
+          <div style="display:flex;flex-direction:column"><div class="who" style="text-align:right">Rachel Bowen</div><div class="bubble mine">Yes — the landfill and recycling figures feed the sustainability KPI in the contract, and the monthly report to the planning authority.</div></div>
+          <div><div class="who">Agent</div><div class="bubble">Done — <b>Monthly returns</b> now has an acceptance step, chosen on the left. Two things follow. An accepted row becomes Trentmoor Energy's record and cannot be edited in place; a contractor corrects it by submitting a new row. And if a contractor leaves the project, its accepted rows stay with you while its unaccepted ones remain its own material. Who decides? By default, anyone at Trentmoor Energy who can open the dashboard — you can narrow that in step 4.</div></div>
+          <div><div class="who">Agent</div><div class="bubble">Do you want a <b>reference table</b> too — say, the waste categories or emission factors contractors pick from? It would be a lookup list you fill yourself. If you later save this app as a playbook, the list's <i>shape</i> travels with it and its rows do not.</div></div>
+        </div>
+        <div class="upcoming"><b>Still to ask you:</b> who may open each interface (step 4) · what a run may touch, and as whom (step 6).</div>
+        <div class="composer">Ask the agent, or tell it what to change…<span class="send"></span></div>
+      </section>
+    </div>
+  </div>
+  </div>
+
+  <div class="mock-section-label">Screen 2 — step 4, the interface · the agent asks who may open each screen, and writes it</div>
+  <div class="frame-scroll">
+  <div class="app-frame">
+    <nav class="rail">
+      <div class="wordmark"><span class="mark"></span>Infora</div>
+      <div class="org-line"><span>Trentmoor Energy</span><span>All projects ▸</span></div>
+      <div class="project-block"><div class="lbl">Project</div><div class="name">Wrenfield–Ashcombe 400kV Connection</div></div>
+      <div class="rail-nav">
+        <a href="#"><span class="glyph">⌂</span>Home</a>
+        <a href="#"><span class="glyph">✦</span>Ask</a>
+        <a href="#"><span class="glyph">✎</span>Editor</a>
+        <a href="#"><span class="glyph">▤</span>Plan</a>
+        <a href="#"><span class="glyph">▥</span>Project library<span class="caret">▸</span></a>
+        <a href="#"><span class="glyph">✓</span>Review</a>
+        <a href="#"><span class="glyph">◔</span>Notifications</a>
+        <a href="#"><span class="glyph">▧</span>Sandbox<span class="caret">▸</span></a>
+        <a href="#" class="active"><span class="glyph">⚒</span>Tools</a>
+        <a href="#"><span class="glyph">▣</span>Knowledge</a>
+        <a href="#"><span class="glyph">↻</span>History</a>
+      </div>
+      <div class="rail-spacer"></div>
+      <button class="user-chip"><span class="avatar">RB</span><span>Rachel Bowen<span class="sub">Trentmoor Energy — Owner</span></span></button>
+    </nav>
+    <div class="frame-content">
+      <section class="pane canvas">
+        <div class="pane-header">
+          <span class="crumb-chip">Wrenfield–Ashcombe 400kV Connection</span><span class="crumb-sep">·</span><span>Tools</span><span class="crumb-sep">/</span><span>App builder</span><span class="crumb-sep">/</span><b>Sustainability returns</b>
+          <span class="badge pill b-neutral" style="margin-left:8px"><span class="dot"></span>Draft — not yet open to anyone</span>
+          <span style="margin-left:auto" class="badge pill b-success"><span class="dot"></span>Owner</span>
+        </div>
+        <div class="builder">
+          <aside class="steps">
+            <div class="step done"><span class="n">1</span><div><div class="t">What the app is</div></div></div>
+            <div class="step done"><span class="n">2</span><div><div class="t">The tables</div><div class="s">Monthly returns (acceptance step) · Insights</div></div></div>
+            <div class="step done"><span class="n">3</span><div><div class="t">Data connections</div><div class="s">None required</div></div></div>
+            <div class="step current"><span class="n">4</span><div><div class="t">The interface</div><div class="s">The screens, and who may open each</div><span class="asks">✦ the agent asks</span></div></div>
+            <div class="step"><span class="n">5</span><div><div class="t">How often it runs</div></div></div>
+            <div class="step"><span class="n">6</span><div><div class="t">Analysis and prompts</div><span class="asks">✦ the agent asks</span></div></div>
+            <div class="step"><span class="n">7</span><div><div class="t">Check and open</div></div></div>
+          </aside>
+          <div class="step-body">
+            <div class="step-head"><h2>The interface</h2><p>Describe each screen in plain words and the agent writes it. A screen runs in the viewer's own browser and shows each person only what they could already see — so choosing who may open a screen can narrow what someone sees, never widen it.</p></div>
+
+            <div class="iface">
+              <div>
+                <div class="name">Submit a return</div>
+                <div class="opens">Opens to: <b>everyone the app is open to</b> — Trentmoor Energy, Calder &amp; Hale, Redgate Ecology</div>
+                <div class="field" style="margin-top:10px"><span class="label">What this screen does</span><textarea class="input" rows="3">A form for one month's return over Monthly returns, with Save draft and Submit. Below it, the list of the viewer's own organisation's returns with each one's state.</textarea></div>
+                <div style="margin-top:8px;display:flex;gap:8px"><button class="btn sm">Rewrite the screen</button><button class="btn sm quiet">Change who may open it</button></div>
+              </div>
+              <div class="preview"><span class="tag">Preview · as Nadia Okonjo, Redgate Ecology</span><div class="pt">August 2026 return</div><div class="ph w60"></div><div class="ph w40"></div><div class="ph w40"></div><div class="ph w80"></div><div class="pt" style="margin-top:8px">Your returns — Redgate Ecology</div><div class="ph"></div><div class="ph"></div><div class="ph w80"></div></div>
+            </div>
+
+            <div class="iface">
+              <div>
+                <div class="name">Returns dashboard</div>
+                <div class="opens">Opens to: <b>Trentmoor Energy only</b></div>
+                <div class="field" style="margin-top:10px"><span class="label">What this screen does</span><textarea class="input" rows="3">Totals across every organisation, the latest insight, and the list of all returns with Accept and Reject on each submitted one. An Export button for the month's figures.</textarea></div>
+                <div style="margin-top:8px;display:flex;gap:8px"><button class="btn sm">Rewrite the screen</button><button class="btn sm quiet">Change who may open it</button></div>
+              </div>
+              <div class="preview"><span class="tag">Preview · as Rachel Bowen, Trentmoor Energy</span><div class="pt">Sustainability returns</div><div style="display:flex;gap:6px"><div class="ph" style="flex:1;height:22px"></div><div class="ph" style="flex:1;height:22px"></div><div class="ph" style="flex:1;height:22px"></div></div><div class="ph w80"></div><div class="ph"></div><div class="ph"></div><div class="ph w60"></div></div>
+            </div>
+
+            <div class="standing"><span>ⓘ</span><span>Whatever a screen is told to show, the platform decides row by row what each viewer may see. A Redgate person opening the dashboard would see Redgate's rows and totals only — which is why the agent asked whether contractors should open it at all.</span></div>
+
+            <div><button class="btn">+ Add a screen</button></div>
+            <div class="step-foot"><button class="btn">← Back: data connections</button><span class="spacer"></span><span class="badge b-neutral"><span class="dot"></span>Saved as you go</span><button class="btn primary">Next: how often it runs →</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane agent">
+        <div class="pane-header"><b style="font-size:var(--text-300)">The builder's agent</b><span style="margin-left:auto" class="badge b-neutral"><span class="dot"></span>Step 4 of 7</span></div>
+        <div class="agent-body">
+          <div><div class="who">Agent</div><div class="bubble">I've written two screens from your description. <b>Who may open the dashboard?</b> It shows every organisation's returns to whoever can already see them — for you that is all three organisations; for someone at Redgate Ecology it would be Redgate's rows only, and the totals would be Redgate's totals. Do you want contractors to open it at all?</div></div>
+          <div class="chips"><span class="chip">Trentmoor Energy only</span><span class="chip">Everyone — each sees their own</span></div>
+          <div style="display:flex;flex-direction:column"><div class="who" style="text-align:right">Rachel Bowen</div><div class="bubble mine">Trentmoor only. Contractors should just see the form and their own history.</div></div>
+          <div><div class="who">Agent</div><div class="bubble">Set: <b>Returns dashboard</b> opens to Trentmoor Energy only. Anyone at Trentmoor who can open it may accept or reject a submitted return — say if that should be narrower, for instance a named person. Nothing on either screen reaches outside Infora; the screens call Infora as the person looking at them.</div></div>
+        </div>
+        <div class="upcoming"><b>Still to ask you:</b> what a run may touch, and as whom (step 6). <b>Step 6 will ask:</b> “The scheduled run acts as you, Rachel Bowen, over the tables it declares — Monthly returns and Insights. Is that everything it should touch? If you leave the project or lose the right to build, it stops and the app shows as defunct until someone at Trentmoor takes it over.”</div>
+        <div class="composer">Ask the agent, or tell it what to change…<span class="send"></span></div>
+      </section>
+    </div>
+  </div>
+  </div>
+
+  <div class="mock-section-label">Notes — what is settled, and what rides here as an open fork</div>
+  <div class="mock-note-grid">
+    <div class="mock-note"><b>Settled (ADR-0056).</b> The steps carry the owner's own list — data connections, the interface, how often it runs, analysis and prompts — with the table step added because everything else refers to the tables. The agent asks the three questions §2b names: contractual data (step 2), who opens each screen (step 4), what a run may touch (step 6). Rows are stamped with organisation and person; an accepted row never changes in place; screens run in the browser as the viewer (§11).</div>
+    <div class="mock-note"><b><span class="q">Fork — step order.</span></b> Drawn: what the app is → tables → connections → interface → schedule → analysis → check and open. Reasoning: a screen cannot be described before its table exists, and the run's "what may it touch" question needs both. The owner's own list put connections first; the drawing puts tables ahead of them because the returns app has none. <b>T-438 closes only when the owner confirms the order.</b></div>
+    <div class="mock-note"><b><span class="q">Fork — where the app's scope lives.</span></b> Drawn in step 1, as "who the app is open to" (the ADR-0036 ladder), with per-screen "who may open it" in step 4 narrowing inside it. The alternative is one question in step 4 only. Drawn this way because §1 makes scope a property of the instance at creation, and because a builder who sets it first sees the agent's later questions in terms of it.</div>
+    <div class="mock-note"><b><span class="q">Fork — the agent as a pane, or inline.</span></b> Drawn as a separate pane beside the steps, on the document creator's "Ask the agent" precedent and the design rule that a tool acting on a thing is its own card. The alternative is a callout inside each step. The pane keeps the conversation continuous across steps; the callout puts the question exactly where the setting is. Both keep the choice itself in the form, never only in the chat.</div>
+    <div class="mock-note"><b><span class="q">Fork — a seventh "check and open" step.</span></b> Not in the owner's list. Drawn because a definition read back in one place before it opens to three organisations is where a builder catches "the dashboard is open to everyone" — and because "save as a playbook" needs a home. Could instead be the header's own buttons.</div>
+    <div class="mock-note"><b><span class="q">Fork — steps with an agent beside them, or a chat that fills the steps in.</span></b> The research found both Retool's new builder and Lovable are chat-first with a live preview, and neither has a stepped flow (review §1c, F1). Drawn with the steps as the spine because ADR-0056 §2b says the builder is <i>walked through</i> the wall's choices, and a form records a choice where a chat only discusses it. The alternative keeps the same steps as a checklist the conversation completes. The owner's call.</div>
+    <div class="mock-note"><b><span class="q">Step 7 assumes a proposal not yet ruled.</span></b> "Check and open" is drawn as a publish act — the app's people see the published definition, not the builder's working edits — which is the review's PROPOSED P1 (Retool's draft-versus-live releases). If the owner declines P1, step 7 is a read-back only and saving in any step is live at once.</div>
+    <div class="mock-note"><b>Connections and the schedule are shown, not hidden.</b> Step 3 declares a <i>requirement</i> that cannot be filled until deployment (ADR-0056 §13c, ADR-0057); step 5 stores a schedule that is honoured when a clock exists (§13d), with "Run now" until then. Drawn present and honest rather than absent, so the built flow matches the ruled shape and the owner's test walk meets the real steps.</div>
+    <div class="mock-note"><b>Reference tables.</b> Offered by the agent in step 2 as a lookup list the firm fills itself. Per §10 as amended 2026-09-06, a playbook carries the table's shape and never its rows — the agent's wording says so.</div>
+    <div class="mock-note"><b>Not drawn, on purpose.</b> The Tools card for the builder, the list of a project's apps, the playbook shelf in the workspace, the share-a-table and defunct-app dialogs — all follow the kit and T-438's entry excludes them. The agent-written screens themselves are drawing 2.</div>
+    <div class="mock-note"><b>Icons and copy.</b> Rail glyphs stand in for the Lucide icons the shell uses (a mockup limitation, not a proposal). Every noun is `CONTEXT.md`'s: app, app table, scope of an app, playbook, connection. "Contractor" is the owner's word for a submitting organisation; the seeded world has consultants, cast as contractors here.</div>
+  </div>
+</div>
