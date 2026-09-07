@@ -16,6 +16,7 @@ import type {
   AppRowResponse,
   AppTableRecord,
   GetAppResponse,
+  ListAppExportsResponse,
   ListAppRowsResponse,
   ListRosterResponse,
   MeResponse,
@@ -216,4 +217,93 @@ test('the seven steps, the agent’s two questions, and the screens its people o
   expect(asClient.map((r) => r.organisationName).sort()).toEqual(['Calder & Hale', 'Redgate Ecology']);
 
   await Promise.all([rachel.dispose(), eleanor.dispose(), nadia.dispose(), owen.dispose()]);
+});
+
+// T-444 — the export, on the seeded world, taken by two parties over the same
+// app (ADR-0056 §8).
+//
+// **The ticket's done-when, driven as both parties**: a contractor's file holds
+// its organisation's rows, the project owner's holds all of them, and the
+// stamp shows data and time only. The workbook is read back rather than
+// trusted — what is on it, and what is not.
+test('an export by a contractor and an export by the client, over one app', async () => {
+  const rachel = await ApiSession.login(SEEDED.owner); // Trentmoor Energy — the client
+  const eleanor = await ApiSession.login(SEEDED.consultant); // Calder & Hale
+  const nadia = await ApiSession.login(SEEDED.secondConsultant); // Redgate Ecology
+
+  const me = await eleanor.get<MeResponse>('/me');
+  const projectId = me.participants.find(
+    (p) => p.projectName === 'Wrenfield–Ashcombe 400kV Connection',
+  )!.projectId;
+  const roster = (await rachel.get<ListRosterResponse>(`/projects/${projectId}/participants`)).items;
+  const trentmoorOrgId = roster.find((r) => r.name === 'Rachel Bowen')!.organisationId;
+  const redgateOrgId = roster.find((r) => r.name === 'Nadia Okonjo')!.organisationId;
+
+  const app = await eleanor.post<AppRecord>(`/projects/${projectId}/apps`, {
+    name: `Returns for export ${stamp}`,
+    organisationIds: [trentmoorOrgId, redgateOrgId],
+    participantIds: [],
+  });
+  const table = await eleanor.post<AppTableRecord>(`/apps/${app.id}/tables`, {
+    name: 'Monthly returns',
+    columns: [
+      { key: 'month', label: 'Month', type: 'text', required: true },
+      { key: 'landfill', label: 'Waste to landfill (tonnes)', type: 'number', required: true },
+    ],
+    kind: 'data',
+    hasAcceptance: true,
+  });
+  await eleanor.post(`/apps/${app.id}/publish`, {});
+  await eleanor.post<AppRowResponse>(`/app-tables/${table.id}/rows`, {
+    values: { month: `October ${stamp}`, landfill: 41.5 },
+    submit: true,
+  });
+  await nadia.post<AppRowResponse>(`/app-tables/${table.id}/rows`, {
+    values: { month: `October ${stamp}`, landfill: 7.25 },
+    submit: true,
+  });
+
+  /** The workbook as text — enough to assert which figures are in it and which
+   * are not, without a spreadsheet library in the e2e. Inline strings are what
+   * `buildXlsx` writes and zip entries are stored uncompressed, so the values
+   * are readable in the bytes. */
+  const workbook = async (session: ApiSession) => {
+    const res = await session.raw('post', `/apps/${app.id}/exports`, {
+      format: 'xlsx',
+      appTableIds: [],
+    });
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-disposition']).toContain('.xlsx');
+    return (await res.body()).toString('latin1');
+  };
+
+  const contractors = await workbook(eleanor);
+  expect(contractors).toContain('41.5');
+  expect(contractors).toContain('Calder &amp; Hale');
+  // the other consultancy's return is not in it, and neither is its name
+  expect(contractors).not.toContain('7.25');
+  expect(contractors).not.toContain('Redgate Ecology');
+
+  const clients = await workbook(rachel);
+  expect(clients).toContain('41.5');
+  expect(clients).toContain('7.25');
+  expect(clients).toContain('Redgate Ecology');
+
+  // 🔒 the stamp: what data, and when. Never who produced it.
+  expect(clients).toContain('Produced from');
+  expect(clients).toContain('Data as of');
+  for (const forbidden of ['Rachel Bowen', 'Eleanor Price', 'Produced by', 'agent', 'drafted']) {
+    expect(clients).not.toContain(forbidden);
+  }
+
+  // and it is recorded: who took it, over how much, as of when
+  const taken = await rachel.get<ListAppExportsResponse>(`/apps/${app.id}/exports`);
+  expect(taken.items.map((i) => i.exportedByName).sort()).toEqual(['Eleanor Price', 'Rachel Bowen']);
+  expect(taken.items.find((i) => i.exportedByName === 'Rachel Bowen')!.rowsCovered).toBe(2);
+  expect(taken.items.find((i) => i.exportedByName === 'Eleanor Price')!.rowsCovered).toBe(1);
+  // a firm reads its own and not a rival's
+  const asContractor = await eleanor.get<ListAppExportsResponse>(`/apps/${app.id}/exports`);
+  expect(asContractor.items.map((i) => i.exportedByName)).toEqual(['Eleanor Price']);
+
+  await Promise.all([rachel.dispose(), eleanor.dispose(), nadia.dispose()]);
 });

@@ -262,6 +262,25 @@ export function AppTableRows(props: {
                             Retire
                           </Button>
                         )}
+                        {/* T-444 — one insight, as Word. Offered on an insight
+                            table only: a Word file of one return would be a
+                            worse spreadsheet, where a Word file of an insight is
+                            the thing a person actually sends on. Its stamp says
+                            what data and when, and nothing about who or what
+                            produced it (ADR-0056 §8). */}
+                        {table.kind === 'insight' && (
+                          <Button
+                            variant="quiet"
+                            onClick={() =>
+                              void act(
+                                () => api.exportAppInsight(table.appId, row.id),
+                                'That could not be downloaded.',
+                              )
+                            }
+                          >
+                            Download as Word
+                          </Button>
+                        )}
                       </div>
                       {rejecting === row.id && (
                         <div style={{ marginTop: 6 }}>

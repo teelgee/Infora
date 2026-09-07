@@ -1275,3 +1275,14 @@ are not recorded here.
   settled question every time the builder walked back through the steps, or
   count a default as a decision — and ADR-0056 §2b's whole point is that these
   two are walked through rather than found.
+
+- **2026-09-07 (T-444) — `AppExportRecord` has no producer field, and never
+  will.** *Plainly: the record of a download says what data it covered and
+  when, and who took it — and the file itself says only what data and when.*
+  The **reason the two differ** is ADR-0056 §8: an export is a file a person
+  issues, and a stamp naming the app's agent as author would drift into the
+  agent-drafted label the owner declined. So the audit answer (who took a copy)
+  lives on the row, where an auditor can read it, and the file carries
+  provenance alone — because the file is the person's to edit and put through
+  the normal review cycles, and a claim about authorship travelling with it is
+  a claim they did not make.

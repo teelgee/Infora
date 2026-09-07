@@ -94,7 +94,7 @@ function checkValues(columns: AppColumn[], values: Record<string, unknown>): str
 type StoredRow = typeof s.appRows.$inferSelect;
 
 /** Everything needed to judge and render one table's rows, loaded once. */
-type TableContext = {
+export type TableContext = {
   table: typeof s.appTables.$inferSelect;
   app: LoadedApp;
   slice: EntitledSlice;
@@ -105,7 +105,11 @@ type TableContext = {
   liveMemberOrganisationIds: string[];
 };
 
-async function reachTable(
+/** Exported for T-444: an export reads through the SAME resolution the rows
+ * screen does. A second way to reach a table would be a second place the read
+ * predicate could be got wrong — which is the one thing ADR-0056's research
+ * says every app-builder incident had in common. */
+export async function reachTable(
   db: Db,
   user: UserRow,
   appTableId: string,
@@ -248,7 +252,7 @@ function dtoOf(
 /** Rows this requester may read, newest first, with the archived prior
  * versions left out — a prior version is history of the row above it, not a
  * second row somebody entered. */
-async function listRows(db: Db, context: TableContext): Promise<AppRowRecord[]> {
+export async function listRows(db: Db, context: TableContext): Promise<AppRowRecord[]> {
   const all = await db
     .select()
     .from(s.appRows)

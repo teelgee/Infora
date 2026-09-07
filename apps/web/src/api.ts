@@ -13,6 +13,7 @@ import type {
   GetAppResponse,
   GrantAppScopeBody,
   ListAppRowsResponse,
+  ListAppExportsResponse,
   ListAppRunsResponse,
   ListAppsResponse,
   PatchAppDefinitionBody,
@@ -163,6 +164,30 @@ async function downloadFile(path: string): Promise<void> {
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as ApiError | null;
     throw new RequestError(res.status, body);
+  }
+  const filename =
+    res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
+  const url = URL.createObjectURL(await res.blob());
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+// T-444 — a binary POST. An export is an ACT before it is a file: it records
+// an `app_exports` row and stores the blob, then hands the bytes back in the
+// same response. Fetched rather than navigated, for `downloadFile`'s reason.
+async function downloadPost(path: string, body: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const problem = (await res.json().catch(() => null)) as ApiError | null;
+    throw new RequestError(res.status, problem);
   }
   const filename =
     res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
@@ -1038,6 +1063,14 @@ export const api = {
       body: JSON.stringify({ trigger: 'manual' }),
     }),
   appRuns: (appId: string) => request<ListAppRunsResponse>(`/apps/${appId}/runs`),
+  // T-444 — the export. The file contains only what this person may read,
+  // decided by the same predicate over the same routes, and its stamp says what
+  // data and when — never who produced it (ADR-0056 §8).
+  exportAppData: (appId: string, appTableIds: string[] = []) =>
+    downloadPost(`/apps/${appId}/exports`, { format: 'xlsx', appTableIds }),
+  exportAppInsight: (appId: string, appRowId: string) =>
+    downloadPost(`/apps/${appId}/exports`, { format: 'docx', appRowId }),
+  appExports: (appId: string) => request<ListAppExportsResponse>(`/apps/${appId}/exports`),
   // T-441 — the rows themselves. Every row comes back with what THIS person may
   // do to it, resolved server-side: a surface that worked it out would be a
   // second copy of the access rule.

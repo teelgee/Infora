@@ -27,6 +27,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type {
   AppColumnType,
+  AppExportRecord,
   AppRecord,
   AppRunRecord,
   AppState,
@@ -155,6 +156,7 @@ export function AppScreen() {
   const [data, setData] = useState<GetAppResponse | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [runs, setRuns] = useState<AppRunRecord[]>([]);
+  const [exports, setExports] = useState<AppExportRecord[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   // T-441 — which table's rows are open. One at a time: the mockup's two seats
   // are each ONE table's worth of rows, and a page stacking every table would
@@ -165,6 +167,7 @@ export function AppScreen() {
     if (appId === undefined) return;
     void api.app(appId).then(setData, () => setData(null));
     void api.appRuns(appId).then((res) => setRuns(res.items), () => setRuns([]));
+    void api.appExports(appId).then((res) => setExports(res.items), () => setExports([]));
   }, [appId]);
   useEffect(load, [load]);
 
@@ -338,6 +341,54 @@ export function AppScreen() {
           onChanged={load}
         />
       )}
+
+      {/* T-444 — the export. Offered to everyone who can open the app, because
+          what comes out is decided by the read predicate rather than by who is
+          asking: a contractor's file holds its own rows, the client's holds
+          every organisation's, and the same button does both. */}
+      <SectionLabel>Take a copy</SectionLabel>
+      <Card>
+        <p className="page-sub">
+          Download this app's data as a spreadsheet. It contains only what you can see here, and it
+          carries a note of what data it came from and when — nothing else. The file is yours: edit
+          it, transpose it, and put it through the normal review cycles.
+        </p>
+        <div className="shelf-head" style={{ gap: 8 }}>
+          <Button
+            onClick={() =>
+              void act(() => api.exportAppData(app.id), 'That could not be downloaded.')
+            }
+          >
+            Download as a spreadsheet
+          </Button>
+        </div>
+        {exports.length > 0 && (
+          <Table>
+            <table>
+              <thead>
+                <tr>
+                  <th>Taken</th>
+                  <th>By</th>
+                  <th>Data as of</th>
+                  <th>Rows</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exports.map((record) => (
+                  <tr key={record.id}>
+                    <td>{formatDateTime(record.exportedAt)}</td>
+                    <td>
+                      {record.exportedByName} — {record.exportedByOrganisationName}
+                    </td>
+                    <td>{formatDateTime(record.dataAsOf)}</td>
+                    <td>{record.rowsCovered}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Table>
+        )}
+      </Card>
 
       <SectionLabel>Who it is open to</SectionLabel>
       <Card>

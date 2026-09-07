@@ -3084,6 +3084,46 @@ export const decideAppRowBody = z.discriminatedUnion('decision', [
 ]);
 export type DecideAppRowBody = z.infer<typeof decideAppRowBody>;
 
+/**
+ * POST /apps/:appId/exports — T-444. A person downloads the app's data as a
+ * spreadsheet, or one insight as a Word file.
+ *
+ * **The body says what to cover, never who may see it.** There is no field
+ * here by which a caller could ask for another organisation's rows, and the
+ * file is built from the same read the rows screen makes, as the same person
+ * (principle 3). `appTableIds` NARROWS the sheets, on the same footing as any
+ * other narrowing: naming a table the requester cannot read yields an empty
+ * sheet, not an error and not a row.
+ */
+export const exportAppBody = z.discriminatedUnion('format', [
+  z.object({ format: z.literal('xlsx'), appTableIds: z.array(id).max(50).default([]) }),
+  z.object({ format: z.literal('docx'), appRowId: id }),
+]);
+export type ExportAppBody = z.infer<typeof exportAppBody>;
+
+/**
+ * One export, as recorded (ADR-0056 §8, drawer 9's `app_exports`).
+ *
+ * **The stamp is provenance, not authorship.** There is no producer field here
+ * and no agent-drafted marking, and there must never be one: a stamp naming the
+ * app's agent as author would drift into the label the owner declined. Who
+ * exported IS recorded — in this row, which is an audit record, and NOT in the
+ * file, which is the person's to edit and send on.
+ */
+export type AppExportRecord = {
+  id: Id;
+  appId: Id;
+  exportedByName: string;
+  exportedByOrganisationName: string;
+  exportedAt: string;
+  /** the moment the data was read — what "as of" means on the file's stamp */
+  dataAsOf: string;
+  tablesCovered: Id[];
+  rowsCovered: number;
+};
+
+export type ListAppExportsResponse = { items: AppExportRecord[] };
+
 /** POST /apps/:appId/runs — run the app by hand. `scheduled` is stored from
  * T-443 and honoured when a clock exists (ADR-0056 §13d), so the only trigger
  * a caller may ask for today is `manual`. */
