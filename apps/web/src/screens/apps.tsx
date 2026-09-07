@@ -41,6 +41,7 @@ import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput
 import { api } from '../api';
 import { AppTableRows } from './app-rows';
 import { GeneratedScreen } from './app-screen';
+import { DeployFromPlaybook, SaveAsPlaybook } from './playbooks';
 import { formatDateTime } from './shared';
 
 /** How each state reads on a card, in the words a person would use. `defunct`
@@ -142,6 +143,11 @@ export function AppsSection({ projectId }: { projectId: string }) {
             </Button>
           </div>
         )}
+        {/* T-445 — the other way to get an app here: a copy of one of the
+            firm's own templates, with the steps already defined and every
+            table empty. Offered on the same answer as creating one from
+            nothing, because it IS creating one — the same code path makes it. */}
+        {mayCreate && <DeployFromPlaybook projectId={projectId} onDeployed={load} />}
         {error !== null && <p className="page-sub">{error}</p>}
       </Card>
     </>
@@ -219,6 +225,15 @@ export function AppScreen() {
             </span>
           )}
         </div>
+        {/* T-445 — a deployed instance names the template and the VERSION it
+            came from. There is no live link: the template can be saved again
+            a dozen times and this line will not move. */}
+        {app.deployedFrom !== null && (
+          <p className="page-sub">
+            Deployed from your firm’s template <b>{app.deployedFrom.playbookName}</b>, version{' '}
+            {app.deployedFrom.version}. Changing the template later changes nothing here.
+          </p>
+        )}
         {app.state === 'defunct' && (
           <p className="page-sub">
             The person who owned this app is no longer on the project, so nothing it does can run —
@@ -401,6 +416,11 @@ export function AppScreen() {
           </Table>
         )}
       </Card>
+
+      {/* T-445 — keeping this app as a template on the firm's own shelf. The
+          card renders itself away for anybody the server did not say may build
+          this app. */}
+      <SaveAsPlaybook appId={app.id} appName={app.name} mayBuild={app.mayBuild} />
 
       <SectionLabel>Who it is open to</SectionLabel>
       <Card>

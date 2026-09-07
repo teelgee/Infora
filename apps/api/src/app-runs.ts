@@ -214,17 +214,29 @@ export function appRunRoutes(deps: { db: Db; router: Router }) {
     );
   });
 
+  /**
+   * The runs that have happened — **your own organisation's, and the project
+   * owner's organisation sees them all** (narrowed in review 2026-09-07, to
+   * the export list's own rule one file along: T-443 made `rows_covered` and
+   * `tables_covered` real numbers, and a rival firm reading that another firm's
+   * run covered two rows last Tuesday learns about a submission it was never
+   * given).
+   */
   app.get('/apps/:appId/runs', async (c) => {
     const reached = await reachApp(deps.db, c.get('user'), c.req.param('appId'));
     if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
     const rows = await deps.db
-      .select({ run: s.appRuns, name: s.users.name })
+      .select({ run: s.appRuns, name: s.users.name, organisationId: s.users.organisationId })
       .from(s.appRuns)
       .innerJoin(s.participants, eq(s.appRuns.asParticipantId, s.participants.id))
       .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-      .where(eq(s.appRuns.appId, reached.app.row.id))
+      .where(eq(s.appRuns.appId, loaded.row.id))
       .orderBy(desc(s.appRuns.startedAt));
-    const items: AppRunRecord[] = rows.map(({ run, name }) => ({
+    const isProjectOwner = slice.organisationId === loaded.projectOwnerOrganisationId;
+    const items: AppRunRecord[] = rows
+      .filter((row) => isProjectOwner || row.organisationId === slice.organisationId)
+      .map(({ run, name }) => ({
       id: run.id,
       appId: run.appId,
       runId: run.runId,

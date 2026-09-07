@@ -54,6 +54,17 @@ const apiPrefixes = [
   '/apps',
   '/app-tables',
   '/app-rows',
+  // review 2026-09-07 — the sweep the T-443 finding demanded: every namespace
+  // api.ts fetches was checked against this list, and these seven were missing
+  // with the same silent failure waiting. The rule from here on: a new API
+  // namespace lands with its prefix in this list in the same commit.
+  '/notifications',
+  '/acceptance-codes',
+  '/conflict-exclusions',
+  '/naming-proposals',
+  '/attached-sources',
+  '/external-issues',
+  '/relationships',
 ];
 
 const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';

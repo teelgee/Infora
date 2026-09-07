@@ -157,16 +157,22 @@ test('a run acts as whoever pressed it, computes in code, and lands an insight o
   expect((await runAs(nadia)).rowsCovered).toBe(1);
   expect(await insightRows(nadia)).toHaveLength(3); // her own three, still hers
 
-  // ── The run list says what happened and never the insight's words ─────────
+  // ── The run list says what happened, to each firm about its OWN runs ──────
   //
-  // Everyone who may open the app reads this list, and an insight is not read
-  // by everyone — so it carries counts and a phrase Infora wrote.
+  // Narrowed in review 2026-09-07 to the export list's rule: a firm reads its
+  // own runs and the project owner reads them all — a rival firm reading that
+  // another firm's run covered two rows learns about a submission it was never
+  // given. What a run row carries is counts and a phrase Infora wrote, never
+  // the insight's words.
   const runsAsPeer = await nadia.get<ListAppRunsResponse>(`/apps/${app.id}/runs`);
-  expect(runsAsPeer.items.length).toBeGreaterThanOrEqual(5);
+  expect(runsAsPeer.items.length).toBeGreaterThanOrEqual(3);
   for (const run of runsAsPeer.items) {
+    expect(run.asName).toBe('Nadia Okonjo');
     expect(['an insight was written', 'the analysis could not be written']).toContain(run.outcome);
   }
   expect(JSON.stringify(runsAsPeer.items)).not.toContain('12.4');
+  const runsAsOwner = await rachel.get<ListAppRunsResponse>(`/apps/${app.id}/runs`);
+  expect(runsAsOwner.items.length).toBeGreaterThanOrEqual(5);
 
   // ── A run on a closed app is refused, so nothing is written into one ──────
   await rachel.post(`/apps/${app.id}/closure`, {});

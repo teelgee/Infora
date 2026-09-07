@@ -39,7 +39,6 @@ import {
   setAppTableAcceptanceBody,
   shareAppTableBody,
   writeAppScreenBody,
-  EMPTY_APP_DEFINITION,
   INSIGHT_TABLE_COLUMNS,
   parseAppScreen,
 } from '@infora/contracts';
@@ -69,6 +68,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { askBuilderAgent, writeAppScreen } from './app-builder-agent';
+import { createAppInstance } from './app-instance';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 
@@ -238,7 +238,7 @@ function openableInterfaces(definition: AppDefinition, slice: EntitledSlice): Ap
  * (ruling 2): everyone else gets the published copy, so a form nobody has
  * opened yet cannot be read out of the API by the people it is being built for.
  */
-async function recordOf(
+export async function recordOf(
   db: Db,
   app: LoadedApp,
   slice: EntitledSlice,
@@ -247,8 +247,31 @@ async function recordOf(
   const facts = buildFacts(app, slice);
   const mayBuild = canBuildApp(slice, mayBuildApps, facts);
   const published = (app.row.publishedDefinition as AppDefinition | null) ?? null;
+  // T-445 — what it was deployed from, named by version. There is no live link:
+  // the row this points at is never updated, so the name and the number stay
+  // what they were on the day it was deployed (ADR-0056 §10). **The deploying
+  // firm's own eyes only** (narrowed in review 2026-09-07): the shelf is
+  // org-private, so its template's name is not put in front of the client and
+  // the peer firms the instance is later opened to.
+  let deployedFrom: AppRecord['deployedFrom'] = null;
+  const ownEyes = slice.organisationId === facts.ownerOrganisationId;
+  if (ownEyes && app.row.playbookId !== null && app.row.playbookVersion !== null) {
+    const [playbook] = await db
+      .select({ name: s.playbooks.name })
+      .from(s.playbooks)
+      .where(eq(s.playbooks.id, app.row.playbookId))
+      .limit(1);
+    if (playbook) {
+      deployedFrom = {
+        playbookId: app.row.playbookId,
+        playbookName: playbook.name,
+        version: app.row.playbookVersion,
+      };
+    }
+  }
   return {
     ...summaryOf(app),
+    deployedFrom,
     definition: mayBuild ? (app.row.definition as AppDefinition) : null,
     definitionVersion: app.row.definitionVersion,
     published: published === null ? null : openableInterfaces(published, slice),
@@ -427,42 +450,19 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     const parsed = createAppBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
 
-    const [created] = await deps.db
-      .insert(s.apps)
-      .values({
-        projectId,
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        ownerParticipantId: slice.participantId,
-        createdByParticipantId: slice.participantId,
-        definitionUpdatedByParticipantId: slice.participantId,
-        definition: EMPTY_APP_DEFINITION,
-      })
-      .returning();
+    // T-445 — the ONE path that makes an app instance, shared with the playbook
+    // deployment so that a deployed app is an ordinary app: same stamps, same
+    // starting scope, same rules, with no second copy of how one is created.
+    const createdId = await createAppInstance(deps.db, {
+      projectId,
+      slice,
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      organisationIds: parsed.data.organisationIds,
+      participantIds: parsed.data.participantIds,
+    });
 
-    const organisationIds = new Set([slice.organisationId, ...parsed.data.organisationIds]);
-    for (const organisationId of organisationIds) {
-      await deps.db.insert(s.appScopeGrants).values({
-        appId: created!.id,
-        granteeType: 'organisation',
-        organisationId,
-        grantedByParticipantId: slice.participantId,
-      });
-    }
-    for (const participantId of parsed.data.participantIds) {
-      // a named person on the ladder's bottom rung; one live grant per pair
-      await deps.db
-        .insert(s.appScopeGrants)
-        .values({
-          appId: created!.id,
-          granteeType: 'participant',
-          participantId,
-          grantedByParticipantId: slice.participantId,
-        })
-        .onConflictDoNothing();
-    }
-
-    const loaded = await loadApp(deps.db, created!.id);
+    const loaded = await loadApp(deps.db, createdId);
     return c.json(await recordOf(deps.db, loaded!, slice, user.mayBuildApps), 201);
   });
 

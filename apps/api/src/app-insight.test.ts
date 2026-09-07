@@ -122,6 +122,34 @@ describe('what the model is asked for, and what it is shown', () => {
     expect(shown).not.toContain('August');
   });
 
+  it('🔒 the planted name stays out of what the ROUTER actually receives', async () => {
+    // added in review 2026-09-07: the test above asserts on figuresAsText's
+    // return value, which cannot catch a leak through the surrounding prompt —
+    // this one captures the words the router was sent and searches those
+    let seenSystem = '';
+    let seenPrompt = '';
+    const router = fakeRouter((system, prompt) => {
+      seenSystem = system;
+      seenPrompt = prompt;
+      return 'One firm returned this month.';
+    });
+    await writeInsightSentence(router, {
+      appName: 'Sustainability returns',
+      analysisPrompt: 'Say whether returns are on track.',
+      figures: [
+        figuresFor(
+          table([
+            row({ values: { month: 'August', landfill: 12.4, note: 'Landowner Mrs Ivy Hartnell disputes the access' } }),
+          ]),
+        ),
+      ],
+    });
+    expect(seenPrompt).toContain('total 12.4');
+    expect(`${seenSystem} ${seenPrompt}`).not.toContain('Ivy Hartnell');
+    expect(`${seenSystem} ${seenPrompt}`).not.toContain('disputes the access');
+    expect(`${seenSystem} ${seenPrompt}`).not.toContain('August');
+  });
+
   it('asks for one sentence about figures somebody else calculated, and passes the builder’s prompt through', async () => {
     let seenSystem = '';
     let seenPrompt = '';

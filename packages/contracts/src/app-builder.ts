@@ -276,6 +276,18 @@ export type AppRecord = AppSummary & {
   mayBuild: boolean;
   /** is this requester's organisation the project's owner organisation */
   isProjectOwner: boolean;
+  /**
+   * T-445 — which playbook, and which VERSION of it, this instance was deployed
+   * from; null for an app built here from nothing.
+   *
+   * The version is named because **there is no live link** (ADR-0056 §10):
+   * saving the template again writes a new row, and this instance keeps naming
+   * the one it came from. Somebody in the client's project reading "version 2"
+   * on their app is reading a fact that cannot silently change under them,
+   * which is the whole reason the record insisted a firm must not be able to
+   * alter what runs inside a client's project without anybody there seeing it.
+   */
+  deployedFrom: { playbookId: Id; playbookName: string; version: number } | null;
 };
 
 export type ListAppsResponse = {
@@ -369,6 +381,120 @@ export type AppRunRecord = {
 
 export type ListAppRunsResponse = { items: AppRunRecord[] };
 export type AppRunResponse = { run: AppRunRecord };
+
+// ── T-445: the playbook — the firm's judgement travels as shape ─────────────
+//
+// *In plain terms: a firm can keep a finished app as a template in its own
+// workspace and put a copy of it into the next project. What travels is the
+// shape — the steps, the screens, the tables' names and columns. Not one row
+// of anybody's data goes with it, whoever typed it, so a template that leaves
+// one client's project carries nothing of that client into the next one.*
+
+/**
+ * One declared table as it travels in a playbook (ADR-0056 §10).
+ *
+ * **This is the whole of what a table carries, and it is deliberately not an
+ * `AppTableRecord`.** There is no `id` here (an id belongs to the instance it
+ * was declared in and means nothing in another project), no `shares` (a share
+ * names an organisation on one project), no `retiredAt`, and — the point of the
+ * whole type — **nowhere a row could sit**. `kind` travels, including
+ * `reference`: the owner's clarification of 2026-09-06 is that a reference
+ * table's DEFINITION is structure and travels, while its rows do not.
+ */
+export type PlaybookTableDeclaration = {
+  name: string;
+  columns: AppColumn[];
+  kind: AppTableKind;
+  /** the per-table acceptance choice (§2a) — part of the shape, so it travels */
+  hasAcceptance: boolean;
+};
+
+/**
+ * One screen as it travels — an `AppInterface` with the two project-specific
+ * fields replaced rather than carried.
+ *
+ * **`tableName` instead of `appTableId`**: a table id belongs to the instance
+ * the table was declared in, and a screen arriving in the next project pointing
+ * at a table in the last one is a screen pointing at nothing. The name is what
+ * actually travels, and the deployment re-attaches each screen to the table it
+ * recreates under that name.
+ *
+ * **No `openToOrganisationIds` at all**: an organisation id from project A
+ * means nothing in project B — the same firm may not even be there — so who may
+ * open each screen is a question the deploying firm answers again rather than a
+ * setting it inherits without noticing.
+ */
+export type PlaybookInterface = {
+  id: string;
+  label: string;
+  /** the NAME of the declared table this screen is over; null for a screen over
+   * no table */
+  tableName: string | null;
+  /** the screen itself, in the closed grammar — pure shape, naming columns and
+   * never a row, an organisation or a person */
+  source: string | null;
+};
+
+/**
+ * The definition as it travels: the hard work of defining the steps, and
+ * nothing that belonged to one project.
+ *
+ * The schedule, the analysis prompt and the connection **requirements** all
+ * travel — a requirement is text describing what an app would need from an
+ * outside system, and there is no field in it for a key, a token or an endpoint
+ * (ADR-0057 is not built). What is absent is `answeredQuestions`: its entries
+ * name table and interface ids from the instance that was saved, and the
+ * deploying firm's own answers are recorded against its own instance.
+ */
+export type PlaybookDefinition = {
+  connections: AppConnectionRequirement[];
+  interfaces: PlaybookInterface[];
+  schedule: AppSchedule;
+  analysisPrompt: string | null;
+};
+
+/**
+ * A playbook on the firm's workspace shelf (ADR-0056 §10, §11).
+ *
+ * Org-private: a firm sees its own and the ones Infora supplies, and never
+ * another firm's. Prior versions are kept because deployed instances name them
+ * (`apps.playbookId` + `apps.playbookVersion`), so the shelf shows the latest
+ * version of each name rather than every save.
+ */
+export type PlaybookRecord = {
+  id: Id;
+  organisationId: Id;
+  name: string;
+  version: number;
+  definition: PlaybookDefinition;
+  tableDeclarations: PlaybookTableDeclaration[];
+  savedByName: string;
+  savedAt: string;
+  /** which app it was saved from, and its name at the time */
+  savedFromAppId: Id | null;
+  savedFromAppName: string | null;
+  /**
+   * The project the source app lives in — **named only to a person who is on
+   * that project themselves**, and null to everybody else. The shelf is shared
+   * by a firm's builders, and a firm may hold an internal wall over a pair of
+   * clients (ADR-0046): a shelf that told every builder which client each
+   * template came from would be a small leak through a control the register
+   * exists to keep.
+   */
+  savedFromProjectName: string | null;
+  /** Infora's own pre-built apps sit on the same shelf as a firm's own (§11) */
+  suppliedByInfora: boolean;
+  retiredAt: string | null;
+};
+
+export type ListPlaybooksResponse = {
+  items: PlaybookRecord[];
+  /** may this requester save an app here and deploy one from here (§12's
+   * toggle) — the server's answer, so no surface works it out */
+  maySave: boolean;
+};
+
+export type PlaybookResponse = { playbook: PlaybookRecord };
 
 // ── T-442: the generated screen, and why it is a grammar rather than code ───
 //

@@ -525,6 +525,17 @@ describe('a run reads as the runner, computes in code, and lands an insight', ()
     expect(await insightRows(ownerCookie, insight.id)).toHaveLength(1);
     // …and the other consultancy on the same project does not
     expect(await insightRows(peerCookie, insight.id)).toHaveLength(0);
+
+    // and the RUN LIST holds the same line (narrowed in review 2026-09-07):
+    // a rival firm reading that another firm's run covered one row learns
+    // about a submission it was never given, so each firm reads its own runs
+    // and the project owner reads them all — the export list's rule
+    const runsFor = async (cookie: string) =>
+      ((await (await get(cookie, `/apps/${created.id}/runs`)).json()) as { items: AppRunRecord[] })
+        .items;
+    expect(await runsFor(builderCookie)).toHaveLength(1);
+    expect(await runsFor(ownerCookie)).toHaveLength(1);
+    expect(await runsFor(peerCookie)).toHaveLength(0);
   });
 
   it('covers only the rows the runner may read — and covers more once the owner shares the table', async () => {
