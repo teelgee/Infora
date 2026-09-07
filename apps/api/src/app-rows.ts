@@ -204,9 +204,12 @@ async function namesFor(db: Db, rows: StoredRow[]) {
   };
 }
 
-/** A state that has not been decided yet — the set a row may still be edited,
- * submitted or retired from. */
-const BEFORE_ACCEPTANCE: Array<AppRowState | null> = [null, 'draft', 'submitted'];
+/** The states a row may still be edited from. A `submitted` row is FROZEN
+ * until the decision lands (owner-ruled 2026-09-07, ADR-0056's second
+ * addendum ruling 1 — reversing T-441's stated deviation 2): what was put in
+ * front of the client is what the client decides on, and a correction is the
+ * door after the decision. */
+const EDITABLE: Array<AppRowState | null> = [null, 'draft'];
 
 function dtoOf(
   row: StoredRow,
@@ -235,17 +238,19 @@ function dtoOf(
     supersededByRowId: superseded,
     previousVersionId: row.previousVersionId,
     retiredAt: row.retiredAt?.toISOString() ?? null,
-    // the entering organisation edits its own row until it is decided; the
-    // prior version is kept as a row of its own
-    mayEdit: mine && live && BEFORE_ACCEPTANCE.includes(row.state),
+    // the entering organisation edits its own row while it is a draft; from
+    // submission the row is frozen until the decision (owner-ruled 2026-09-07)
+    // and the prior version of any edit is kept as a row of its own
+    mayEdit: mine && live && EDITABLE.includes(row.state),
     maySubmit: mine && live && row.state === 'draft',
     // the acceptance act is the project owner's, on a submitted row only
     mayDecide: isProjectOwner && live && row.state === 'submitted',
     // a correction is a new row; it is offered once a decision has landed
     mayCorrect: mine && live && (row.state === 'accepted' || row.state === 'rejected') && superseded === null,
     // an accepted row is the owner's record and is never retired (ADR-0050 §6:
-    // whose material it is decides, and acceptance is where that changes)
-    mayRetire: mine && live && row.state !== 'accepted',
+    // whose material it is decides, and acceptance is where that changes); a
+    // submitted one is frozen with the same 2026-09-07 ruling as mayEdit
+    mayRetire: mine && live && row.state !== 'accepted' && row.state !== 'submitted',
   };
 }
 

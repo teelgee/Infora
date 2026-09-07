@@ -361,6 +361,25 @@ describe('a departed firm’s rows (ADR-0056 §7’s split)', () => {
 });
 
 describe('an edit before a decision keeps the prior version', () => {
+  it('a SUBMITTED row is frozen — no edit and no retire until the client decides', async () => {
+    // owner-ruled 2026-09-07 (ADR-0056's second addendum, ruling 1), reversing
+    // T-441's stated deviation 2: what was put in front of the client is what
+    // the client decides on
+    const { tableId } = await newTable(true);
+    const row = await enter(builderCookie, tableId, { month: 'September 2025', landfill: 3.1 }, true);
+    expect(row.mayEdit).toBe(false);
+    expect(row.mayRetire).toBe(false);
+    const editTry = await patch(builderCookie, `/app-rows/${row.id}`, {
+      values: { month: 'September 2025', landfill: 9.9 },
+    });
+    expect(editTry.status).toBe(404);
+    expect((await post(builderCookie, `/app-rows/${row.id}/retirement`)).status).toBe(404);
+    // the door after the decision is a correction, exactly as before
+    await post(ownerCookie, `/app-rows/${row.id}/decision`, { decision: 'reject', reason: 'Wrong month.' });
+    const decided = (await rows(builderCookie, tableId)).find((r) => r.id === row.id)!;
+    expect(decided.mayCorrect).toBe(true);
+  });
+
   it('replaces the figures and keeps the old ones as a row of their own, out of the list', async () => {
     const { tableId } = await newTable(true);
     const row = await enter(builderCookie, tableId, { month: 'October 2025', landfill: 1.1 }, false);
