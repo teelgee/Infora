@@ -1229,3 +1229,13 @@ are not recorded here.
   rejected row's state to `superseded` would force the reason to be erased. The
   correcting row's `supersedesRowId` is therefore the record, and this field is
   the same fact read from the other end.
+
+- **2026-09-07 (review of T-440) — `STEP_TYPES` gains `app_step`.** *Plainly:
+  an app run is recorded in the same run ledger as every agent run, so the
+  ledger's list of step kinds had to admit one for an app.* The **reason it is
+  a new step type rather than a reuse of an existing one** is ADR-0028's shape:
+  a step's type says what kind of work happened, and an app acting on its
+  tables is not a tool call or a drafting pass; naming it keeps the ledger
+  honest when the two are read side by side. The database CHECK on
+  `steps.type` was widened in the same drawing (drawer 9, migration 0067), so
+  the contract and the store moved together.

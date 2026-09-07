@@ -100,6 +100,9 @@ type TableContext = {
   slice: EntitledSlice;
   withinScope: boolean;
   sharedWithOrganisationIds: string[];
+  /** organisations holding a live membership on the project — the §7 fact
+   * (review, 2026-09-07): a departed firm's unaccepted rows go dark */
+  liveMemberOrganisationIds: string[];
 };
 
 async function reachTable(
@@ -127,12 +130,17 @@ async function reachTable(
     withinScope,
   };
   if (!canOpenApp(slice, user.mayBuildApps, facts)) return null;
+  const memberships = await db
+    .select({ organisationId: s.memberships.organisationId })
+    .from(s.memberships)
+    .where(eq(s.memberships.projectId, app.row.projectId));
   return {
     table,
     app,
     slice,
     withinScope,
     sharedWithOrganisationIds: await liveShareOrganisationIds(db, appTableId),
+    liveMemberOrganisationIds: memberships.map((m) => m.organisationId),
   };
 }
 
@@ -156,6 +164,7 @@ function visible(row: StoredRow, context: TableContext): boolean {
     enteringOrganisationId: row.organisationId,
     state: row.state,
     sharedWithOrganisationIds: context.sharedWithOrganisationIds,
+    enteringOrganisationLive: context.liveMemberOrganisationIds.includes(row.organisationId),
     withinScope: context.withinScope,
   });
 }
@@ -381,8 +390,13 @@ export function appRowRoutes(deps: { db: Db }) {
     const { row, context } = reached;
     const names = await namesFor(deps.db, [row]);
     if (!dtoOf(row, context, names, new Map()).mayDecide) return notFound(c);
-    const parsed = decideAppRowBody.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return invalid(c, 'a rejection has to say why');
+    const raw = (await c.req.json().catch(() => null)) as { decision?: unknown } | null;
+    const parsed = decideAppRowBody.safeParse(raw);
+    if (!parsed.success) {
+      // (review 2026-09-07) the worded detail belongs to the one failure it
+      // describes — a rejection missing its reason — not to every bad body
+      return raw?.decision === 'reject' ? invalid(c, 'a rejection has to say why') : invalid(c);
+    }
     await deps.db
       .update(s.appRows)
       .set({

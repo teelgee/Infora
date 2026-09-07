@@ -24,6 +24,7 @@ function row(over: Partial<AppRowVisibilityFacts> = {}): AppRowVisibilityFacts {
     enteringOrganisationId: ENTERING_ORG,
     state: 'submitted',
     sharedWithOrganisationIds: [],
+    enteringOrganisationLive: true,
     withinScope: true,
     ...over,
   };
@@ -92,6 +93,27 @@ describe('a draft is read by its entering organisation alone (ruling 3)', () => 
 
   it('a table with no acceptance step has no draft to hide', () => {
     expect(canReadAppRow(slice(OWNER_ORG), row({ state: null }))).toBe(true);
+  });
+});
+
+describe('a departed firm’s rows (§7’s split, wired in review 2026-09-07)', () => {
+  const departed = { enteringOrganisationLive: false } as const;
+
+  it('what was accepted stays the owner’s record', () => {
+    expect(canReadAppRow(slice(OWNER_ORG), row({ ...departed, state: 'accepted' }))).toBe(true);
+    expect(canReadAppRow(slice(OWNER_ORG), row({ ...departed, state: 'superseded' }))).toBe(true);
+  });
+
+  it('what never changed hands goes dark — submitted, rejected, and stateless rows alike', () => {
+    expect(canReadAppRow(slice(OWNER_ORG), row({ ...departed, state: 'submitted' }))).toBe(false);
+    expect(canReadAppRow(slice(OWNER_ORG), row({ ...departed, state: 'rejected' }))).toBe(false);
+    expect(canReadAppRow(slice(OWNER_ORG), row({ ...departed, state: null }))).toBe(false);
+    expect(
+      canReadAppRow(
+        slice(THIRD_ORG),
+        row({ ...departed, state: 'submitted', sharedWithOrganisationIds: [THIRD_ORG] }),
+      ),
+    ).toBe(false);
   });
 });
 

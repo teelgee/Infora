@@ -80,6 +80,12 @@ export type AppRowVisibilityFacts = {
   state: 'draft' | 'submitted' | 'accepted' | 'rejected' | 'superseded' | null;
   /** organisations the project owner has an OPEN share with for this table */
   sharedWithOrganisationIds: readonly string[];
+  /** does the entering organisation still hold a membership on the project —
+   * ADR-0056 §7's split, wired in review 2026-09-07: a departed firm's
+   * ACCEPTED rows stay readable (they became the owner's record at
+   * acceptance) and its unaccepted rows go dark to everyone, because
+   * material that never changed hands leaves with the firm it belongs to */
+  enteringOrganisationLive: boolean;
   /** is the reader inside the app's participant scope */
   withinScope: boolean;
 };
@@ -110,6 +116,10 @@ export function canReadAppRow(
   if (slice.organisationId === row.enteringOrganisationId) return true;
   // ruling 3: nobody else reads a draft, not even the project owner
   if (row.state === 'draft') return false;
+  // ADR-0056 §7's split (wired in review 2026-09-07): a departed firm's
+  // unaccepted rows are dark to everyone — only what was accepted changed hands
+  if (!row.enteringOrganisationLive && row.state !== 'accepted' && row.state !== 'superseded')
+    return false;
   if (slice.organisationId === row.projectOwnerOrganisationId) return true;
   return row.sharedWithOrganisationIds.includes(slice.organisationId);
 }
@@ -209,8 +219,10 @@ export function canReassignApp(
  * app whose owner has left the project is **defunct** — visibly not working,
  * with no notification (owner-ruled 2026-09-06) — and it cannot run until
  * someone reassigns or closes it. An app with nothing published has nothing for
- * a run to act against, so only its builders may run it, against the working
- * copy they are looking at.
+ * a run to act against, so NOBODY may run it: its builders are told in words
+ * to publish first, and everyone else cannot reach the app at all (docstring
+ * corrected in review 2026-09-07 — it previously described a working-copy
+ * run the code has never allowed).
  */
 export function appRunnable(app: AppBuildFacts): { runnable: boolean; because: string } {
   if (app.closed) return { runnable: false, because: 'the app is closed' };

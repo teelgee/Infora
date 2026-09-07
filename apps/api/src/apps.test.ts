@@ -322,6 +322,33 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
     expect(res.status).toBe(400);
   });
 
+  it('names a run after the person who ran it, not the app’s owner', async () => {
+    // added in review 2026-09-07: POST /runs previously answered with the
+    // OWNER's name while GET answered with the actor's — the record was right,
+    // the receipt was wrong
+    const created = await newApp(`run naming ${stamp}`);
+    await declareTable(created.id, false);
+    await post(builderCookie, `/apps/${created.id}/publish`);
+    const run = await post(ownerCookie, `/apps/${created.id}/runs`, { trigger: 'manual' });
+    expect(run.status).toBe(201);
+    const body = (await run.json()) as { run: { asName: string } };
+    expect(body.run.asName).toBe('t440-rhoda');
+  });
+
+  it('refuses handing the app to a third firm’s person — reassignment stays within the app’s own firm or the project owner’s', async () => {
+    // added in review 2026-09-07, with the recipient narrowing itself: Pia may
+    // build and is on the project, but her firm is neither the app's nor the
+    // project owner's, and a reassignment is not the door another firm's app
+    // walks through to change hands
+    const created = await newApp(`reassign scope ${stamp}`);
+    await post(builderCookie, `/apps/${created.id}/publish`);
+    const res = await post(ownerCookie, `/apps/${created.id}/reassignment`, {
+      participantId: peerParticipantId,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('within its own firm');
+  });
+
   it('refuses a peer firm taking somebody else’s app', async () => {
     const created = await newApp(`reassign peer ${stamp}`);
     await post(builderCookie, `/apps/${created.id}/publish`);

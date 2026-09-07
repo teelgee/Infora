@@ -696,6 +696,27 @@ export function appRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (!candidate || !candidate.mayBuildApps) return invalid(c);
+    // (review, 2026-09-07) — the recipient stays within ADR-0056 §7's letter
+    // plus the disclosed reading: the app remains its firm's, or moves to the
+    // project owner's own people. As first built ANY entitled participant
+    // could receive it, which would let an app change firms across the wall
+    // in one click — wider than anything ruled; flagged for the owner.
+    const [recipientOrg] = await deps.db
+      .select({ organisationId: s.users.organisationId })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.participants.id, parsed.data.participantId))
+      .limit(1);
+    if (
+      recipientOrg!.organisationId !== loaded.ownerOrganisationId &&
+      recipientOrg!.organisationId !== loaded.projectOwnerOrganisationId &&
+      recipientOrg!.organisationId !== slice.organisationId
+    ) {
+      return c.json(
+        { error: 'invalid', detail: 'an app is reassigned within its own firm or to the project owner\u2019s people' } satisfies ApiError,
+        400,
+      );
+    }
     await deps.db
       .update(s.apps)
       .set({ ownerParticipantId: parsed.data.participantId })
@@ -760,6 +781,13 @@ export function appRoutes(deps: { db: Db }) {
       .select({ id: s.appTables.id })
       .from(s.appTables)
       .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)));
+    const [actor] = await deps.db
+      .select({ name: s.users.name })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.participants.id, slice.participantId))
+      .limit(1);
+    const actorName = actor!.name;
     const [appRun] = await deps.db
       .insert(s.appRuns)
       .values({
@@ -778,7 +806,7 @@ export function appRoutes(deps: { db: Db }) {
           appId: loaded.row.id,
           runId: run!.id,
           trigger: appRun!.trigger,
-          asName: loaded.ownerName,
+          asName: actorName, // (review 2026-09-07) the ACTOR, not the owner — POST previously named the owner while GET named the actor
           definitionsVersion: appRun!.definitionsVersion,
           rowsCovered: appRun!.rowsCovered,
           tablesCovered: appRun!.tablesCovered,

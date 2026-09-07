@@ -235,16 +235,24 @@ describe('accept and reject — and a rejection carries a reason', () => {
     expect(noReason.status).toBe(400);
 
     // and the guarantee does not rest on that line: going straight at the store
-    // with the route removed from the picture is still refused
+    // with the route removed from the picture is still refused. The decider
+    // pair is filled in properly (review 2026-09-07: it used to be left null,
+    // so a DIFFERENT constraint fired and this one was never actually proved)
+    const [stored] = await db
+      .select({ enteredBy: s.appRows.enteredByParticipantId })
+      .from(s.appRows)
+      .where(eq(s.appRows.id, row.id));
     const direct = await db
       .update(s.appRows)
-      .set({ state: 'rejected', decidedByParticipantId: null, decidedAt: new Date() })
+      .set({ state: 'rejected', decidedByParticipantId: stored!.enteredBy, decidedAt: new Date() })
       .where(eq(s.appRows.id, row.id))
       .then(
         () => null,
         (e: unknown) => e as Error & { cause?: Error },
       );
-    expect(`${direct?.message ?? ''} ${direct?.cause?.message ?? ''}`).toMatch(/app_rows_/);
+    expect(`${direct?.message ?? ''} ${direct?.cause?.message ?? ''}`).toMatch(
+      /app_rows_rejection_reason_iff_rejected/,
+    );
   });
 
   it('the reason reaches the submitting organisation, on the row', async () => {
@@ -318,6 +326,37 @@ describe('acceptance is when a row becomes the owner’s record', () => {
     expect(old.state).toBe('rejected');
     expect(old.rejectionReason).toBe('Decimal slip.');
     expect(old.supersededByRowId).not.toBeNull();
+  });
+});
+
+describe('a departed firm’s rows (ADR-0056 §7’s split)', () => {
+  it('what was accepted stays readable; what never changed hands goes dark', async () => {
+    // added in review 2026-09-07, with the wiring itself: only acceptance
+    // changes hands, so when the entering firm leaves the project its
+    // accepted rows remain the owner's record and its submitted ones do not
+    const { tableId } = await newTable(true);
+    const kept = await enter(builderCookie, tableId, { month: 'May 2026', landfill: 3.3 }, true);
+    await post(ownerCookie, `/app-rows/${kept.id}/decision`, { decision: 'accept' });
+    const pending = await enter(builderCookie, tableId, { month: 'June 2026', landfill: 5.5 }, true);
+
+    // the builder firm leaves the project entirely
+    const [membership] = await db
+      .delete(s.memberships)
+      .where(eq(s.memberships.organisationId, builderOrg))
+      .returning();
+
+    try {
+      const listed = await rows(ownerCookie, tableId);
+      expect(listed.map((r) => r.id)).toContain(kept.id);
+      expect(listed.map((r) => r.id)).not.toContain(pending.id);
+    } finally {
+      // put the firm back for the tests that follow
+      await db.insert(s.memberships).values({
+        organisationId: builderOrg,
+        projectId: membership!.projectId,
+        role: membership!.role,
+      });
+    }
   });
 });
 

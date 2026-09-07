@@ -199,7 +199,7 @@ CREATE INDEX "playbooks_organisation_idx" ON "playbooks" USING btree ("organisat
 CREATE UNIQUE INDEX "playbooks_org_name_version_unique" ON "playbooks" USING btree ("organisation_id","name","version");--> statement-breakpoint
 
 -- ============================================================================
--- THE HAND-WRITTEN HALF — the six CHECKs and the six triggers the drawing
+-- THE HAND-WRITTEN HALF — the eight CHECKs and the eight triggers the drawing
 -- names, each with the reason it exists. A generated migration will never
 -- contain a CHECK, a trigger or a grant; the guarantees below are the design,
 -- not decoration, and `drizzle-kit push` would offer to drop every one of them
