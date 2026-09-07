@@ -1239,3 +1239,39 @@ are not recorded here.
   honest when the two are read side by side. The database CHECK on
   `steps.type` was widened in the same drawing (drawer 9, migration 0067), so
   the contract and the store moved together.
+
+- **2026-09-07 (T-442) — a generated screen is a closed grammar, not code.**
+  *Plainly: when the builder's agent writes an app's screen, what it writes is
+  a short list of parts from a fixed menu — a heading, a form over these
+  columns, a table of these columns, a total. Infora draws the parts.* The
+  **reason it is a grammar** is ADR-0056 §11 plus T-430's posture: the record
+  rules that generated screens hold no secret and reach no outside system, *and
+  that the generator has no code path that emits one, rather than being
+  filtered afterwards.* A grammar makes that true by construction —
+  `AppScreenBlock` is six shapes with no field capable of holding a URL, an
+  endpoint or a key, so there is no output the generator could produce that
+  names one. Freeform code inspected after generation would make the guarantee
+  only as good as the inspector. `parseAppScreen` **refuses rather than
+  sanitises** for the same reason: keeping the good blocks and dropping a bad
+  one *is* filtering. The cost is expressiveness — no chart, no map, no file
+  input — and the closed block list is pinned by a test so that widening it is
+  a deliberate reopening of §11 rather than a side-effect.
+
+- **2026-09-07 (T-442) — `patchAppDefinitionBody.definition` stops being
+  `z.unknown()`.** *Plainly: the shape of an app's definition is now checked
+  when it is saved, instead of being trusted.* The **reason it moved** is that
+  `app-builder.ts`'s own header claimed a definition that does not conform is
+  refused at the boundary, and with `z.unknown()` that was aspiration; with a
+  generated screen stored inside the definition it also became the only place a
+  screen written outside the grammar could be stopped before reaching the
+  store.
+
+- **2026-09-07 (T-442) — `AppDefinition` gains `answeredQuestions`.**
+  *Plainly: the builder's agent has two questions it must ask, and this is how
+  it knows which have been answered.* The **reason a list is needed at all** is
+  that neither answer can record that it was asked: `hasAcceptance: false` and
+  `openToOrganisationIds: []` are each both a legitimate answer and exactly what
+  an untouched field looks like. Without it the agent would either re-ask a
+  settled question every time the builder walked back through the steps, or
+  count a default as a decision — and ADR-0056 §2b's whole point is that these
+  two are walked through rather than found.

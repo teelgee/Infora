@@ -1971,3 +1971,49 @@ a.shelf-row-title:hover { text-decoration: underline; }
   font-family: var(--primitive-font-family-mono); font-size: var(--body-dense-size);
   color: var(--text-secondary); white-space: pre-wrap; overflow-x: auto;
 }
+
+/* T-442 — the stepped builder: the steps down the left, the step being worked
+   in the middle, the agent in its own pane on the right (ADR-0056's 2026-09-06
+   addendum, ruling 5 — the pane sits BESIDE the steps and does not fill them
+   in). The drawing's three columns, in the plain kit. */
+.builder { display: grid; grid-template-columns: 260px minmax(0, 1fr) 320px; gap: var(--gap-default); align-items: start; }
+@media (max-width: 1180px) { .builder { grid-template-columns: 1fr; } }
+.builder-steps { display: flex; flex-direction: column; gap: 2px; }
+.builder-step {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
+  padding: var(--gap-tight) var(--primitive-space-2); border: 0; border-radius: var(--primitive-radius-sm);
+  background: none; cursor: pointer; color: var(--text-secondary); font: inherit;
+}
+.builder-step:hover { background: var(--surface-pane); }
+.builder-step.is-current { background: var(--surface-pane); color: var(--text-primary); }
+.builder-step-n {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex;
+  align-items: center; justify-content: center; background: var(--surface-raised);
+  border: 1px solid var(--border-default); font-size: var(--ui-micro-size);
+}
+.builder-step-title { display: block; font-weight: 600; font-size: var(--ui-default-size); }
+.builder-step-sub { display: block; color: var(--text-muted); font-size: var(--body-dense-size); line-height: 1.4; }
+/* the mockup's "+ THE AGENT ASKS" mark: which steps carry a question the
+   builder has not answered yet. Computed from the definition, never from the
+   model's memory (ADR-0056 §2b). */
+.builder-step-asks {
+  display: inline-block; margin-top: 4px; font-family: var(--ui-micro-family);
+  font-size: var(--ui-micro-size); letter-spacing: var(--ui-micro-letter-spacing);
+  text-transform: var(--ui-micro-transform); color: var(--text-accent, var(--text-primary));
+}
+.builder-body { display: flex; flex-direction: column; gap: var(--gap-default); min-width: 0; }
+.builder-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-default); }
+.builder-screen {
+  border-top: 1px solid var(--border-subtle); padding-top: var(--gap-default); margin-top: var(--gap-default);
+}
+/* a question the builder still owes an answer to — marked, never buried */
+.builder-ask {
+  border-left: 2px solid var(--border-default); padding-left: var(--primitive-space-2);
+  margin: var(--gap-default) 0;
+}
+.builder-agent {
+  display: flex; flex-direction: column; gap: var(--gap-tight); min-width: 0;
+  background: var(--surface-pane); border-radius: var(--primitive-radius-sm);
+  padding: var(--primitive-space-3);
+}
+.builder-turns { display: flex; flex-direction: column; gap: var(--gap-tight); max-height: 420px; overflow-y: auto; }

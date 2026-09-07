@@ -41,6 +41,8 @@ import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { ExternalDocumentView } from './screens/external-document';
+import { ScreenBlock, screenFor } from './screens/app-screen';
+import { BuilderAgentPane } from './screens/app-builder';
 import { MemoryRouter } from 'react-router';
 import {
   CHECK_FAMILY_CATALOGUE,
@@ -2030,5 +2032,159 @@ describe('the external recipient page (T-431, ADR-0055)', () => {
     expect(html).toContain('For the attention of R. Harlow');
     expect(html).toContain('for your records');
     expect(html).toContain('consultation protocol');
+  });
+});
+
+// T-442 — the generated screen, drawn.
+//
+// **This is where the pinning test lands on the SURFACE.** The grammar cannot
+// name a URL (packages/contracts) and the renderer's module cannot reach one
+// (source rule 4); what is left to check is what the browser actually receives
+// when the text a screen carries is itself hostile — and the answer is that it
+// arrives as characters on the page, in no attribute, in no link, with no call
+// made. Every block also proves the other half of ADR-0056 §11: the rows a
+// screen draws are the rows it was handed, and the totals are sums of those.
+describe('a generated screen (T-442, ADR-0056 §11)', () => {
+  const table = {
+    id: 'table-1',
+    appId: 'app-1',
+    name: 'Monthly returns',
+    columns: [
+      { key: 'month', label: 'Month', type: 'text' as const, required: true },
+      { key: 'landfill', label: 'Waste to landfill (tonnes)', type: 'number' as const, required: true },
+    ],
+    kind: 'data' as const,
+    hasAcceptance: true,
+    retiredAt: null,
+    shares: [],
+  };
+  const rows = [
+    {
+      id: 'row-1',
+      appTableId: 'table-1',
+      values: { month: 'August 2026', landfill: 12.4 },
+      organisationId: 'org-b',
+      organisationName: 'Calder & Hale',
+      enteredByName: 'Eleanor Price',
+      enteredAt: '2026-09-01T09:00:00.000Z',
+      state: 'submitted' as const,
+      decidedByName: null,
+      decidedAt: null,
+      rejectionReason: null,
+      supersedesRowId: null,
+      supersededByRowId: null,
+      previousVersionId: null,
+      retiredAt: null,
+      mayEdit: false,
+      maySubmit: false,
+      mayDecide: false,
+      mayCorrect: false,
+      mayRetire: false,
+    },
+    {
+      id: 'row-2',
+      appTableId: 'table-1',
+      values: { month: 'September 2026', landfill: 7.6 },
+      organisationId: 'org-b',
+      organisationName: 'Calder & Hale',
+      enteredByName: 'Eleanor Price',
+      enteredAt: '2026-09-02T09:00:00.000Z',
+      state: 'accepted' as const,
+      decidedByName: 'Rachel Bowen',
+      decidedAt: '2026-09-03T09:00:00.000Z',
+      rejectionReason: null,
+      supersedesRowId: null,
+      supersededByRowId: null,
+      previousVersionId: null,
+      retiredAt: null,
+      mayEdit: false,
+      maySubmit: false,
+      mayDecide: false,
+      mayCorrect: false,
+      mayRetire: false,
+    },
+  ];
+
+  const draw = (block: unknown) =>
+    renderToStaticMarkup(
+      <ScreenBlock
+        block={block as never}
+        table={table as never}
+        rows={rows as never}
+        onEnter={() => {}}
+        pending={false}
+      />,
+    );
+
+  it('🔒 renders a hostile heading as text — in no attribute, and no link', () => {
+    const html = draw({ kind: 'heading', text: 'https://exfiltrate.example?key=sk-live-nope' });
+    expect(html).toContain('https://exfiltrate.example?key=sk-live-nope');
+    expect(html).not.toContain('href');
+    expect(html).not.toContain('<a ');
+    expect(html).not.toContain('src=');
+  });
+
+  it('draws the rows it was handed, and the columns the block named', () => {
+    const html = draw({
+      kind: 'rowTable',
+      columnKeys: ['month', 'landfill'],
+      showOrganisation: true,
+      showState: true,
+    });
+    expect(html).toContain('August 2026');
+    expect(html).toContain('Calder &amp; Hale');
+    expect(html).toContain('Accepted');
+    // the LABEL the table declared, not the key
+    expect(html).toContain('Waste to landfill (tonnes)');
+  });
+
+  it('totals and counts only what the viewer received', () => {
+    // 12.4 + 7.6 — summed from the rows this viewer received, never a figure
+    // computed elsewhere over rows they cannot read
+    expect(draw({ kind: 'total', columnKey: 'landfill', label: 'Year to date' })).toContain(
+      '<strong>20</strong>',
+    );
+    expect(draw({ kind: 'count', label: 'Returns' })).toContain('<strong>2</strong>');
+  });
+
+  it('refuses a screen naming a column the table no longer declares', () => {
+    expect(
+      screenFor(
+        JSON.stringify({
+          version: 1,
+          blocks: [{ kind: 'total', columnKey: 'diesel', label: 'Diesel' }],
+        }),
+        table as never,
+      ),
+    ).toBeNull();
+  });
+});
+
+// T-442 — the pane beside the steps (ADR-0056's addendum, ruling 5).
+describe('the builder’s agent pane', () => {
+  it('🔒 states the required questions itself, rather than waiting for a model to raise them', () => {
+    const html = renderToStaticMarkup(
+      <BuilderAgentPane
+        appId="app-1"
+        step={2}
+        questions={[
+          {
+            kind: 'contractual-data',
+            step: 2,
+            subjectId: 'table-1',
+            subjectName: 'Monthly returns',
+            question: 'Does “Monthly returns” hold contractual data?',
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('Still to ask you');
+    expect(html).toContain('hold contractual data');
+  });
+
+  it('says what it is for when nothing has been asked yet', () => {
+    const html = renderToStaticMarkup(<BuilderAgentPane appId="app-1" step={1} questions={[]} />);
+    expect(html).toContain('what an acceptance step means');
+    expect(html).not.toContain('Still to ask you');
   });
 });

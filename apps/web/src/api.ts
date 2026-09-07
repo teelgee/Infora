@@ -16,6 +16,10 @@ import type {
   ListAppRunsResponse,
   ListAppsResponse,
   PatchAppDefinitionBody,
+  AskBuilderAgentBody,
+  AskBuilderAgentResponse,
+  WriteAppScreenBody,
+  WriteAppScreenResponse,
   ConflictExclusionRecord,
   DeclareExclusionBody,
   DeclareExclusionResponse,
@@ -987,12 +991,32 @@ export const api = {
       body: JSON.stringify(body),
     }),
   publishApp: (appId: string) => request<AppRecord>(`/apps/${appId}/publish`, { method: 'POST' }),
+  // T-442 — the builder's agent. Both PROPOSE: what comes back is saved through
+  // `patchAppDefinition` like any other change, so a screen the agent drew and
+  // a screen a person edited travel the same road and meet the same validation.
+  writeAppScreen: (appId: string, body: WriteAppScreenBody) =>
+    request<WriteAppScreenResponse>(`/apps/${appId}/builder/screen`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  askBuilderAgent: (appId: string, body: AskBuilderAgentBody) =>
+    request<AskBuilderAgentResponse>(`/apps/${appId}/builder/ask`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   grantAppScope: (appId: string, body: GrantAppScopeBody) =>
     request<AppRecord>(`/apps/${appId}/scope`, { method: 'POST', body: JSON.stringify(body) }),
   revokeAppScope: (appId: string, grantId: string) =>
     request<AppRecord>(`/apps/${appId}/scope/${grantId}/revocation`, { method: 'POST' }),
   declareAppTable: (appId: string, body: DeclareAppTableBody) =>
     request<AppTableRecord>(`/apps/${appId}/tables`, { method: 'POST', body: JSON.stringify(body) }),
+  // T-442 — the one field a declared table can change, and only while it is
+  // empty: whether its rows change hands on acceptance.
+  setAppTableAcceptance: (appTableId: string, hasAcceptance: boolean) =>
+    request<AppTableRecord>(`/app-tables/${appTableId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ hasAcceptance }),
+    }),
   shareAppTable: (appTableId: string, organisationId: string) =>
     request<AppTableRecord>(`/app-tables/${appTableId}/shares`, {
       method: 'POST',

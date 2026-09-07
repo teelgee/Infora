@@ -16,7 +16,7 @@ const { db } = createDb();
 // picker can be seen working through the browser. Only when a Lens is present:
 // every earlier spec sends no `lensId` and must keep the reply it was written
 // against.
-const router = fakeRouter((system) => {
+const router = fakeRouter((system, prompt) => {
   // T-364 — the structure agent asks for JSON, not prose. Its system prompt is
   // the tell, so the substrate can drive the propose-confirm path in a browser
   // without a provider (the same reason the Lens branch below exists).
@@ -26,6 +26,29 @@ const router = fakeRouter((system) => {
         { name: 'Environmental', children: [{ name: 'Ecology' }, { name: 'Noise' }] },
         { name: 'Geotechnical', children: [{ name: 'Ground investigation' }] },
       ],
+      followUp: null,
+    });
+  }
+  // T-442 — the builder's agent writing a screen. Same reason as the branch
+  // above: the stepped builder has to be drivable in a browser with no provider
+  // behind it. The fake reads the column keys out of the prompt it was given
+  // and lays a screen over them, so what comes back is a REAL screen in the
+  // grammar and meets the same parser a provider's answer would.
+  if (system.includes('You lay out ONE screen')) {
+    const keys = [...prompt.matchAll(/^ {2}([a-z0-9_]+) — /gm)].map((match) => match[1]!);
+    if (keys.length === 0) {
+      return JSON.stringify({ screen: null, followUp: 'Which columns should it show?' });
+    }
+    return JSON.stringify({
+      screen: {
+        version: 1,
+        blocks: [
+          { kind: 'heading', text: 'Returns' },
+          { kind: 'rowForm', columnKeys: keys, submitLabel: 'Submit this return' },
+          { kind: 'rowTable', columnKeys: keys, showOrganisation: true, showState: true },
+          { kind: 'count', label: 'Returns you can see' },
+        ],
+      },
       followUp: null,
     });
   }

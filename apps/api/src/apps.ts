@@ -29,6 +29,7 @@ import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  askBuilderAgentBody,
   createAppBody,
   declareAppTableBody,
   grantAppScopeBody,
@@ -36,11 +37,14 @@ import {
   reassignAppBody,
   runAppBody,
   setAppBuilderBody,
+  setAppTableAcceptanceBody,
   shareAppTableBody,
+  writeAppScreenBody,
   EMPTY_APP_DEFINITION,
 } from '@infora/contracts';
 import type {
   ApiError,
+  AskBuilderAgentResponse,
   AppDefinition,
   AppRecord,
   AppRunRecord,
@@ -52,6 +56,7 @@ import type {
   GetAppResponse,
   ListAppRunsResponse,
   ListAppsResponse,
+  WriteAppScreenResponse,
 } from '@infora/contracts';
 import {
   appRunnable,
@@ -64,6 +69,8 @@ import {
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { Router } from '@infora/model';
+import { askBuilderAgent, writeAppScreen } from './app-builder-agent';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 
@@ -201,6 +208,34 @@ async function scopeDto(db: Db, app: LoadedApp): Promise<AppScopeGrantDto[]> {
 }
 
 /**
+ * T-442 — the published screens THIS requester may open.
+ *
+ * 🔒 **ASSEMBLED HERE, NEVER FILTERED ON THE SCREEN** (T-269's rule). An
+ * interface's `openToOrganisationIds` NARROWS who is offered it; a surface that
+ * worked the narrowing out for itself would be a second place deciding what a
+ * person may reach, and the first disagreement between the copies is a screen
+ * offered to somebody the API then refuses. So a screen this requester may not
+ * open is ABSENT from what they receive, and there is nothing on the client to
+ * get wrong.
+ *
+ * It narrows and cannot widen: an empty list means everyone the app is open to,
+ * and a non-empty one is intersected with the scope the caller already passed
+ * and then, row by row, with `canReadAppRow`. An interface naming an
+ * organisation the app's scope excludes admits nobody new, because being
+ * offered a screen is not what lets anyone read a row.
+ */
+function openableInterfaces(definition: AppDefinition, slice: EntitledSlice): AppDefinition {
+  return {
+    ...definition,
+    interfaces: definition.interfaces.filter(
+      (screen) =>
+        screen.openToOrganisationIds.length === 0 ||
+        screen.openToOrganisationIds.includes(slice.organisationId),
+    ),
+  };
+}
+
+/**
  * The record, for one requester. **The working copy goes only to a builder**
  * (ruling 2): everyone else gets the published copy, so a form nobody has
  * opened yet cannot be read out of the API by the people it is being built for.
@@ -213,11 +248,12 @@ async function recordOf(
 ): Promise<AppRecord> {
   const facts = buildFacts(app, slice);
   const mayBuild = canBuildApp(slice, mayBuildApps, facts);
+  const published = (app.row.publishedDefinition as AppDefinition | null) ?? null;
   return {
     ...summaryOf(app),
     definition: mayBuild ? (app.row.definition as AppDefinition) : null,
     definitionVersion: app.row.definitionVersion,
-    published: (app.row.publishedDefinition as AppDefinition | null) ?? null,
+    published: published === null ? null : openableInterfaces(published, slice),
     scope: await scopeDto(db, app),
     mayBuild,
     isProjectOwner: slice.organisationId === app.projectOwnerOrganisationId,
@@ -318,7 +354,7 @@ async function reachApp(
   return { app, slice };
 }
 
-export function appRoutes(deps: { db: Db }) {
+export function appRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
 
   // ── The org admin's per-person toggle (ADR-0056 §12) ──────────────────────
@@ -497,6 +533,87 @@ export function appRoutes(deps: { db: Db }) {
     return c.json(await recordOf(deps.db, fresh!, slice, user.mayBuildApps));
   });
 
+  // ── The builder's agent (T-442, ADR-0056 §2b and the addendum's ruling 5) ─
+  //
+  // Two routes, both gated by `canBuildApp` — the agent is a tool of the person
+  // building the app, and there is no seat at it for anyone else. Both PROPOSE:
+  // what comes back is saved through `PATCH /definition` like any other change,
+  // so a screen an agent wrote and a screen a person typed travel the same road
+  // and meet the same validation.
+  //
+  // 🔒 **NEITHER ROUTE ASKS THE MODEL WHAT TO ASK.** The two required questions
+  // (§2b) are computed from the definition by `pendingBuilderQuestions` in
+  // `@infora/contracts` and rendered on the steps. These routes are the pane's
+  // conversation and its screen-drawing; whether the builder is asked the two
+  // questions does not depend on what a model chooses to say.
+
+  app.post('/apps/:appId/builder/screen', async (c) => {
+    const user = c.get('user');
+    const reached = await reachApp(deps.db, user, c.req.param('appId'));
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const parsed = writeAppScreenBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const [table] = await deps.db
+      .select()
+      .from(s.appTables)
+      .where(and(eq(s.appTables.id, parsed.data.appTableId), eq(s.appTables.appId, loaded.row.id)))
+      .limit(1);
+    // a screen over a table belonging to some other app is not a screen of this
+    // app: the id is scoped to the app the requester reached, never taken bare
+    if (!table) return notFound(c);
+    const answer = await writeAppScreen(deps.router, {
+      appName: loaded.row.name,
+      purpose: parsed.data.purpose,
+      current: parsed.data.current,
+      table: {
+        tableName: table.name,
+        columns: table.columns as AppTableRecord['columns'],
+        hasAcceptance: table.hasAcceptance,
+      },
+    });
+    return c.json(answer satisfies WriteAppScreenResponse);
+  });
+
+  app.post('/apps/:appId/builder/ask', async (c) => {
+    const user = c.get('user');
+    const reached = await reachApp(deps.db, user, c.req.param('appId'));
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const parsed = askBuilderAgentBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const tables = await deps.db
+      .select()
+      .from(s.appTables)
+      .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)))
+      .orderBy(asc(s.appTables.name));
+    const definition = loaded.row.definition as AppDefinition;
+    const reply = await askBuilderAgent(deps.router, {
+      ask: parsed.data.ask,
+      context: {
+        appName: loaded.row.name,
+        step: parsed.data.step,
+        // the SHAPE of the app and nothing that is in it: no row of any table
+        // is loaded here, and the agent has no way to ask for one
+        tables: tables.map((table) => ({
+          name: table.name,
+          hasAcceptance: table.hasAcceptance,
+          columnLabels: (table.columns as AppTableRecord['columns']).map((column) => column.label),
+        })),
+        interfaces: definition.interfaces.map((screen) => ({
+          label: screen.label,
+          narrowed: screen.openToOrganisationIds.length > 0,
+        })),
+        schedule: definition.schedule,
+        connectionCount: definition.connections.length,
+        hasAnalysisPrompt: (definition.analysisPrompt ?? '') !== '',
+      },
+    });
+    return c.json({ reply } satisfies AskBuilderAgentResponse);
+  });
+
   // ── The participant scope, live-mutable (ADR-0036) ────────────────────────
 
   app.post('/apps/:appId/scope', async (c) => {
@@ -572,6 +689,61 @@ export function appRoutes(deps: { db: Db }) {
       loaded.projectOwnerOrganisationId,
     ).then((all) => all.filter((t) => t.id === created!.id));
     return c.json(record, 201);
+  });
+
+  /**
+   * T-442 — answering the agent's first required question about a table that
+   * was declared before anybody asked it (ADR-0056 §2b).
+   *
+   * 🔒 **ONLY WHILE THE TABLE IS EMPTY.** Whether a table holds contractual
+   * data is what decides whether its rows change hands on acceptance (§2a).
+   * Flipping it under rows that already exist would retrospectively turn a
+   * contractor's own figures into the project owner's record, or take a record
+   * back out of the owner's hands — neither of which anybody agreed to. So the
+   * answer is a declaration-time choice, and this route is the one narrow way
+   * to correct it before there is anything to be wrong about.
+   */
+  app.patch('/app-tables/:appTableId', async (c) => {
+    const user = c.get('user');
+    const appTableId = c.req.param('appTableId');
+    if (!isUuid(appTableId)) return notFound(c);
+    const [table] = await deps.db
+      .select()
+      .from(s.appTables)
+      .where(eq(s.appTables.id, appTableId))
+      .limit(1);
+    if (!table) return notFound(c);
+    const reached = await reachApp(deps.db, user, table.appId);
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const parsed = setAppTableAcceptanceBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const [existing] = await deps.db
+      .select({ id: s.appRows.id })
+      .from(s.appRows)
+      .where(eq(s.appRows.appTableId, appTableId))
+      .limit(1);
+    if (existing) {
+      return c.json(
+        {
+          error: 'conflict',
+          detail: 'this table already holds rows, and whether a row changes hands cannot be decided after it exists',
+        } satisfies ApiError,
+        409,
+      );
+    }
+    await deps.db
+      .update(s.appTables)
+      .set({ hasAcceptance: parsed.data.hasAcceptance })
+      .where(eq(s.appTables.id, appTableId));
+    const [record] = await tableRecords(
+      deps.db,
+      table.appId,
+      slice,
+      loaded.projectOwnerOrganisationId,
+    ).then((all) => all.filter((t) => t.id === appTableId));
+    return c.json(record);
   });
 
   // ── The owner's share of a table (ADR-0056 §6) ────────────────────────────

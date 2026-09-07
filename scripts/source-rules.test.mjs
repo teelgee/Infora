@@ -122,3 +122,55 @@ describe('the Lens-out-of-the-access-path guard', () => {
     expect(violations[0]).toContain('packages/data/src/ingest.ts:3');
   });
 });
+
+// T-442 — rule 4: the generated-screen renderer has no outward reach.
+describe('the generated-screen fence', () => {
+  it('rejects a fetch in the module that renders a generated screen', () => {
+    const violations = checkSourceRules(
+      tree({
+        'apps/web/src/screens/app-screen.tsx':
+          'export function Screen() { void fetch(block.url); return null; }',
+      }),
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatch(/outward reach/i);
+  });
+
+  it('rejects markup that could carry a URL out of a generated screen', () => {
+    expect(
+      checkSourceRules(
+        tree({ 'apps/web/src/screens/app-screen.tsx': 'return <img src={block.image} />;' }),
+      ),
+    ).toHaveLength(1);
+    expect(
+      checkSourceRules(
+        tree({ 'apps/web/src/screens/app-screen.tsx': 'return <a href={block.link}>go</a>;' }),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('rejects evaluating a screen as code, which is the lane ADR-0056 declined', () => {
+    expect(
+      checkSourceRules(
+        tree({ 'apps/web/src/screens/app-screen.tsx': 'const run = new Function(source);' }),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('leaves the renderer alone when it only draws the grammar', () => {
+    expect(
+      checkSourceRules(
+        tree({
+          'apps/web/src/screens/app-screen.tsx':
+            "if (block.kind === 'heading') return <h2>{block.text}</h2>;",
+        }),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('fences that one module and not the rest of the app', () => {
+    expect(
+      checkSourceRules(tree({ 'apps/web/src/api.ts': 'return fetch(`${base}${path}`);' })),
+    ).toHaveLength(0);
+  });
+});

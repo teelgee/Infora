@@ -66,6 +66,48 @@ const PERMISSION_PHRASES = [
 const LENS_SYMBOL = /\blens(?:es|Id|Version)?\b/i;
 const NO_LENS_PACKAGES = ['packages/governance', 'packages/knowledge', 'packages/data'];
 
+/**
+ * RULE 4 — the module that renders a GENERATED screen has no outward reach
+ * (T-442, ADR-0056 §11).
+ *
+ * The builder's agent writes an app's screens. ADR-0056 §11 rules that what it
+ * writes runs in the viewer's browser, calls Infora's API as the viewer, holds
+ * no secret and reaches no outside system — and T-442 adds T-430's posture:
+ * *the generator has no code path that emits one, pinned by a test, rather than
+ * filtered afterwards.*
+ *
+ * Two halves carry that. The first is the grammar itself
+ * (`packages/contracts/src/app-builder.ts`): a screen is a closed union of six
+ * block shapes with no field that could hold a URL or a credential, pinned by
+ * `app-screen.test.ts`. The second is this rule: the ONE module that turns
+ * those blocks into a page may not contain anything that reaches outward or
+ * evaluates text as code. Together they mean a generated screen's only data
+ * source is the typed API call written in Infora's own source — so a viewer
+ * opening one receives exactly what `canReadAppRow` allowed and nothing else
+ * arrives from anywhere.
+ *
+ * The fence is on the FILE rather than on the package for the reason the
+ * grounding-index fence is: the property is about one narrow surface, and a
+ * whole-app ban on `fetch` would be meaningless.
+ */
+const GENERATED_SCREEN_RENDERER = 'apps/web/src/screens/app-screen.tsx';
+const NO_OUTWARD_REACH = [
+  'fetch(',
+  'XMLHttpRequest',
+  'WebSocket',
+  'sendBeacon',
+  'EventSource',
+  'importScripts',
+  'dangerouslySetInnerHTML',
+  'innerHTML',
+  'eval(',
+  'new Function',
+  'href=',
+  'src=',
+  'action=',
+  'formAction',
+];
+
 const SELF = new Set(['scripts/source-rules.mjs', 'scripts/source-rules.test.mjs']);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', '.git', 'test-results', 'migrations']);
 const SOURCE = /\.(ts|tsx|mjs)$/;
@@ -121,6 +163,20 @@ export function checkSourceRules(root) {
               `must not know Lenses exist. A Lens changes register, never reach (T-281, ` +
               `non-negotiable 11). If this is a Lens-shaped retrieval scope, it is a workflow ` +
               `or a scope filter, not a Lens.`,
+          );
+        }
+      }
+
+      if (rel === GENERATED_SCREEN_RENDERER) {
+        for (const reach of NO_OUTWARD_REACH) {
+          if (!text.includes(reach)) continue;
+          const line = text.split('\n').findIndex((l) => l.includes(reach)) + 1;
+          violations.push(
+            `${rel}:${line}: "${reach}" — the module that renders a GENERATED screen must ` +
+              `have no outward reach at all (T-442, ADR-0056 §11). A generated screen runs in ` +
+              `the viewer's browser and calls the typed API as the viewer; its only data ` +
+              `source is the app-rows call in Infora's own code. If this is a new capability ` +
+              `a screen needs, it is a block in the grammar and a change to that record.`,
           );
         }
       }

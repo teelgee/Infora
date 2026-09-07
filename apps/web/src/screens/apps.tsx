@@ -39,6 +39,7 @@ import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { AppTableRows } from './app-rows';
+import { GeneratedScreen } from './app-screen';
 import { formatDateTime } from './shared';
 
 /** How each state reads on a card, in the words a person would use. `defunct`
@@ -180,6 +181,11 @@ export function AppScreen() {
 
   const { app, tables } = data;
   const state = STATE[app.state];
+  // the published copy, which is what the app's people open (ruling 2); a
+  // builder's unpublished edits are not on this screen at all
+  const publishedScreens = (app.published?.interfaces ?? []).filter(
+    (screen) => screen.source !== null && screen.appTableId !== null,
+  );
 
   const act = async (run: () => Promise<unknown>, failure: string) => {
     setNotice(null);
@@ -218,6 +224,14 @@ export function AppScreen() {
           </p>
         )}
         <div className="shelf-head" style={{ gap: 8, marginTop: 8 }}>
+          {/* T-442 — the stepped builder, offered only where the server said
+              this person may build. `mayBuild` is the API's answer; nothing
+              here works it out. */}
+          {app.mayBuild && app.state !== 'closed' && (
+            <Link to={`/projects/${projectId}/tools/apps/${app.id}/build`}>
+              <Button>Build it — the steps</Button>
+            </Link>
+          )}
           {app.mayBuild && app.state !== 'closed' && (
             <Button onClick={() => void act(() => api.publishApp(app.id), 'That could not be opened.')}>
               {app.publishedVersion === null ? 'Check and open' : 'Open the latest version'}
@@ -235,6 +249,33 @@ export function AppScreen() {
         </div>
         {notice !== null && <p className="page-sub">{notice}</p>}
       </Card>
+
+      {/* T-442 — the app's own screens, as its people open them.
+          🔒 The list is ASSEMBLED SERVER-SIDE: a screen this person may not open
+          never reached the browser (`openableInterfaces` in apps.ts), so there
+          is no narrowing decision left on this screen to get wrong. And a
+          screen draws only the rows the API gave the person looking at it,
+          which is what makes one app behave as two. */}
+      {publishedScreens.length > 0 && (
+        <>
+          <SectionLabel>Screens</SectionLabel>
+          {publishedScreens.map((screen) => {
+            const table = tables.find((t) => t.id === screen.appTableId);
+            if (table === undefined) return null;
+            return (
+              <div key={screen.id}>
+                <p className="page-sub">{screen.label}</p>
+                <GeneratedScreen
+                  source={screen.source}
+                  table={table}
+                  appState={app.state}
+                  onChanged={load}
+                />
+              </div>
+            );
+          })}
+        </>
+      )}
 
       <SectionLabel>What it holds</SectionLabel>
       <Card>

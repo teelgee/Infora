@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
 import { AppScreen } from './screens/apps';
+import { AppBuilderScreen } from './screens/app-builder';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
 import { ExternalDocumentScreen } from './screens/external-document';
@@ -74,6 +75,10 @@ const router = createBrowserRouter([
       // rather than at the top of the rail because an app IS a tool of this
       // project's, and the section it is listed in is the Tools screen's.
       { path: 'tools/apps/:appId', element: <AppScreen /> },
+      // T-442 — the stepped builder. A route of its own rather than a mode of
+      // the app screen: the app screen is what its people open, and the builder
+      // is where its working copy is edited by the people who may.
+      { path: 'tools/apps/:appId/build', element: <AppBuilderScreen /> },
       // T-422 (ADR-0054 decision 1) — Knowledge: the two shelves. Its own rail
       // item rather than a panel in Settings, which is personal.
       { path: 'knowledge', element: <KnowledgeScreen /> },

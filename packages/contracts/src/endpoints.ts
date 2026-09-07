@@ -36,6 +36,7 @@ import {
 } from './rule-set';
 import { CHECK_FAMILIES } from './checker';
 import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
+import { appDefinitionSchema } from './app-builder';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -2966,9 +2967,55 @@ export type ReassignAppBody = z.infer<typeof reassignAppBody>;
 export const patchAppDefinitionBody = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  definition: z.unknown().optional(),
+  // T-442 — validated against the real shape rather than `z.unknown()`. A
+  // screen written outside the app-screen grammar (app-builder.ts) fails HERE,
+  // so nothing that could name a URL or a credential ever reaches the store.
+  definition: appDefinitionSchema.optional(),
 });
 export type PatchAppDefinitionBody = z.infer<typeof patchAppDefinitionBody>;
+
+/**
+ * POST /apps/:appId/builder/screen — T-442. **The agent PROPOSES a screen and
+ * never applies one** (ADR-0027, and the preview-confirm lane T-337, T-364 and
+ * T-409 all stay in): what comes back is a screen in the closed grammar, which
+ * the builder then saves through the SAME `PATCH /definition` a hand-made
+ * change takes. Two ways to write a screen would be two chances for them to
+ * disagree about what a screen may contain.
+ */
+export const writeAppScreenBody = z.object({
+  /** which declared table the screen is over */
+  appTableId: id,
+  /** what the builder said the screen should do, in their own words */
+  purpose: z.string().min(1).max(2000),
+  /** the screen being revised, when the builder is asking for a change rather
+   * than a first draft */
+  current: z.string().max(20000).nullable().default(null),
+});
+export type WriteAppScreenBody = z.infer<typeof writeAppScreenBody>;
+
+/**
+ * POST /apps/:appId/builder/ask — T-442, the pane beside the steps (ADR-0056's
+ * 2026-09-06 addendum, ruling 5). The agent answers about the app being built;
+ * it writes nothing. **The two required questions are not asked from here** —
+ * they are computed by `pendingBuilderQuestions` in code, because a model that
+ * forgets to ask must not be able to skip one (ruling 6's reasoning).
+ */
+export const askBuilderAgentBody = z.object({
+  step: z.number().int().min(1).max(7),
+  ask: z.string().min(1).max(2000),
+});
+export type AskBuilderAgentBody = z.infer<typeof askBuilderAgentBody>;
+
+/** What the builder's agent says back. `screen` is null when the agent could
+ * not shape one — a follow-up question, never a failure, on T-364's rule. */
+export type WriteAppScreenResponse = {
+  /** the screen, serialised in the grammar, ready to be PATCHed onto the
+   * interface; null when the agent asked instead */
+  source: string | null;
+  followUp: string | null;
+};
+
+export type AskBuilderAgentResponse = { reply: string };
 
 /** POST /apps/:appId/tables — declare a table (ADR-0056 §2). `hasAcceptance`
  * is the builder's per-table choice (§2a), asked rather than found (§2b). */
@@ -2992,6 +3039,20 @@ export const declareAppTableBody = z.object({
   hasAcceptance: z.boolean().default(false),
 });
 export type DeclareAppTableBody = z.infer<typeof declareAppTableBody>;
+
+/**
+ * PATCH /app-tables/:appTableId — T-442. The ONLY field a declared table can
+ * change, and only while it is empty.
+ *
+ * It exists because the agent's first required question (ADR-0056 §2b) has to
+ * be answerable when it is asked — including about a table declared before
+ * anybody asked. **Only while the table holds no rows**: whether a table holds
+ * contractual data decides whether its rows change hands on acceptance (§2a),
+ * and changing that under rows that already exist would retrospectively make
+ * somebody's figure into somebody else's record, or take it back.
+ */
+export const setAppTableAcceptanceBody = z.object({ hasAcceptance: z.boolean() });
+export type SetAppTableAcceptanceBody = z.infer<typeof setAppTableAcceptanceBody>;
 
 /** POST /app-tables/:appTableId/shares — the project owner shares one table
  * with one named organisation (ADR-0056 §6): deliberate, audited, revocable,

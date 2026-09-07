@@ -25,6 +25,7 @@
 // says what an app WOULD need and carries no credential, no endpoint and no
 // key — there is no shape here that could hold one.
 
+import { z } from 'zod';
 import type { Id } from './shared';
 
 // ── The declared table's shape ─────────────────────────────────────────────
@@ -140,6 +141,18 @@ export type AppDefinition = {
   /** step 6 — what the run's agent is told to write about the rows it covers.
    * Empty until T-443 gives a run something to do with it. */
   analysisPrompt: string | null;
+  /**
+   * T-442 — which of the agent's two required questions (§2b) this builder has
+   * ANSWERED, as `contractual-data:<tableId>` / `who-may-open:<interfaceId>`.
+   *
+   * It is here because the answers themselves cannot record that they were
+   * asked: `hasAcceptance: false` and `openToOrganisationIds: []` are both
+   * legitimate answers AND both what an untouched field looks like. Without
+   * this list the agent would either re-ask a question the builder has already
+   * settled every time they walk back through the steps, or — worse — count an
+   * untouched default as an answer and stop asking.
+   */
+  answeredQuestions: string[];
 };
 
 /** A definition with nothing in it — what a freshly created app carries before
@@ -149,6 +162,7 @@ export const EMPTY_APP_DEFINITION: AppDefinition = {
   interfaces: [],
   schedule: 'manual',
   analysisPrompt: null,
+  answeredQuestions: [],
 };
 
 // ── What the API returns ───────────────────────────────────────────────────
@@ -314,3 +328,251 @@ export type AppRunRecord = {
 
 export type ListAppRunsResponse = { items: AppRunRecord[] };
 export type AppRunResponse = { run: AppRunRecord };
+
+// ── T-442: the generated screen, and why it is a grammar rather than code ───
+//
+// *In plain terms: when the builder's agent "writes a screen", what it actually
+// writes is a short list of parts chosen from a fixed menu — a heading, a form
+// over these columns, a table of these columns, a total of this column. Infora
+// draws those parts. The agent never writes program code, and there is nothing
+// it could write that would make a screen fetch something from the internet or
+// carry a password, because no part on the menu has anywhere to put one.*
+//
+// 🔒 **THIS IS CLAUDE'S MECHANISM FOR ADR-0056 §11's RULED POSTURE, NOT A NEW
+// RULING.** The record fixes the posture — generated screens run in the
+// viewer's browser, call the typed API as the viewer, hold no secret and reach
+// no outside system — and adds (on T-430's precedent) that *the generator has
+// no code path that emits one, pinned by a test, rather than filtered
+// afterwards*. The record does not say what the screen IS. Two mechanisms could
+// carry that posture: freeform JavaScript inspected after generation, or a
+// closed grammar the platform interprets. **The grammar is chosen**, because
+// with it the guarantee is true by construction: `AppScreenBlock` is a closed
+// union of six shapes, none of which has a field that could hold a URL, an
+// endpoint, a key or a token, so there is no output the generator could produce
+// that names one. Inspection-after-the-fact would make the guarantee only as
+// good as the inspector, which is the lane the ADR declined.
+//
+// 🔒 **THE PARSER REFUSES; IT DOES NOT SANITISE.** `parseAppScreen` returns the
+// screen or `null` — an unrecognised block, an unknown field on a known block,
+// or a column key the table has not declared fails the WHOLE screen. Stripping
+// the bad part and keeping the rest is filtering, which is precisely what
+// "never filtered afterwards" rules out; and a builder who is shown a screen
+// silently missing a part cannot tell that anything went wrong.
+//
+// 🔒 **NO BLOCK NAMES A ROW, AN ORGANISATION OR A PERSON.** A block names
+// COLUMNS of one declared table. Which rows appear is decided by
+// `canReadAppRow` on the server, over the same route the ordinary rows screen
+// uses. A screen therefore cannot widen a read even by construction accident:
+// there is no field in which it could ask for somebody else's rows.
+
+/**
+ * The parts a generated screen may be built from. **Adding one is a deliberate
+ * act that reopens ADR-0056 §11**, and the closed list is pinned by a test that
+ * fails when this array changes — so a seventh block cannot arrive as a
+ * side-effect of somebody making the agent more capable.
+ */
+export const APP_SCREEN_BLOCK_KINDS = [
+  'heading',
+  'paragraph',
+  'rowForm',
+  'rowTable',
+  'total',
+  'count',
+] as const;
+export type AppScreenBlockKind = (typeof APP_SCREEN_BLOCK_KINDS)[number];
+
+/**
+ * One part of a screen.
+ *
+ * Every field here is either text Infora renders as text, a boolean, or a
+ * column key that must match a column the table declared. **There is
+ * deliberately no `url`, `href`, `src`, `endpoint`, `key`, `token`, `secret` or
+ * `script` field anywhere in this union**, and a test asserts that by walking
+ * the schema's own field names rather than trusting this sentence.
+ */
+export type AppScreenBlock =
+  | { kind: 'heading'; text: string }
+  | { kind: 'paragraph'; text: string }
+  /** the form a person fills in — one row at a time, over these columns */
+  | { kind: 'rowForm'; columnKeys: string[]; submitLabel: string }
+  /** the rows this viewer may read, in these columns */
+  | { kind: 'rowTable'; columnKeys: string[]; showOrganisation: boolean; showState: boolean }
+  /** the sum of one number column over the rows this viewer may read */
+  | { kind: 'total'; columnKey: string; label: string }
+  /** how many rows this viewer may read */
+  | { kind: 'count'; label: string };
+
+/** A whole screen. `version` is the grammar's version, not the app's. */
+export type AppScreen = { version: 1; blocks: AppScreenBlock[] };
+
+const text = z.string().min(1).max(400);
+const columnKey = z.string().min(1).max(64).regex(/^[a-z0-9_]+$/);
+
+/**
+ * The grammar as zod. `strictObject` everywhere: an unknown field on a known
+ * block fails the parse rather than being dropped, which is the difference
+ * between refusing and sanitising.
+ */
+export const appScreenBlockSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('heading'), text }),
+  z.strictObject({ kind: z.literal('paragraph'), text }),
+  z.strictObject({
+    kind: z.literal('rowForm'),
+    columnKeys: z.array(columnKey).min(1).max(40),
+    submitLabel: text,
+  }),
+  z.strictObject({
+    kind: z.literal('rowTable'),
+    columnKeys: z.array(columnKey).min(1).max(40),
+    showOrganisation: z.boolean(),
+    showState: z.boolean(),
+  }),
+  z.strictObject({ kind: z.literal('total'), columnKey, label: text }),
+  z.strictObject({ kind: z.literal('count'), label: text }),
+]);
+
+export const appScreenSchema = z.strictObject({
+  version: z.literal(1),
+  blocks: z.array(appScreenBlockSchema).min(1).max(20),
+});
+
+/**
+ * Read a stored screen back, or refuse.
+ *
+ * `declaredColumnKeys`, when given, is checked too: a block naming a column the
+ * table never declared is a screen that would render an empty column and quietly
+ * misreport, so it fails here rather than on somebody's dashboard.
+ */
+export function parseAppScreen(
+  source: string | null,
+  declaredColumnKeys?: readonly string[],
+): AppScreen | null {
+  if (source === null) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(source);
+  } catch {
+    return null;
+  }
+  const parsed = appScreenSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const screen = parsed.data as AppScreen;
+  if (declaredColumnKeys !== undefined) {
+    const declared = new Set(declaredColumnKeys);
+    for (const block of screen.blocks) {
+      if ('columnKeys' in block && block.columnKeys.some((key) => !declared.has(key))) return null;
+      if ('columnKey' in block && !declared.has(block.columnKey)) return null;
+    }
+  }
+  return screen;
+}
+
+/** The stored form of a screen — the string that goes into `AppInterface.source`. */
+export function serialiseAppScreen(screen: AppScreen): string {
+  return JSON.stringify(screen);
+}
+
+// ── The two questions the builder's agent MUST ask (ADR-0056 §2b) ───────────
+//
+// **Computed in code, from the state of the definition — never left to the
+// model to remember.** ADR-0056's addendum declined a chat that fills the steps
+// in, for the reason that *"a chat can skip a question, a form cannot"*; a pane
+// beside the steps is still a chat, so the two required questions are derived
+// here and rendered both on the step rail and in the pane. A model that decides
+// not to ask cannot suppress them, because it is not what asks.
+
+export type BuilderQuestionKind = 'contractual-data' | 'who-may-open';
+
+export type BuilderQuestion = {
+  kind: BuilderQuestionKind;
+  /** which step of seven this question belongs to */
+  step: 2 | 4;
+  /** the declared table or the interface the question is about */
+  subjectId: string;
+  subjectName: string;
+  /** the question, in the words a person reads */
+  question: string;
+};
+
+/**
+ * What the agent still has to ask, given what the builder has answered.
+ *
+ * A table's answer is `hasAcceptance`, which is a stored boolean and cannot say
+ * "not asked yet" — so the question is tracked by the builder having ANSWERED
+ * it, recorded in the definition's `answeredQuestions`. That is why the
+ * definition carries the list: an unanswered question and an answered "no" look
+ * identical on the table row, and a builder who has said "no, it is working
+ * data" should not be asked again every time they open step 2.
+ */
+export function pendingBuilderQuestions(
+  definition: Pick<AppDefinition, 'interfaces' | 'answeredQuestions'>,
+  tables: ReadonlyArray<{ id: string; name: string; kind: AppTableKind }>,
+): BuilderQuestion[] {
+  const answered = new Set(definition.answeredQuestions);
+  const out: BuilderQuestion[] = [];
+  for (const table of tables) {
+    // an insight table is written by a run, never submitted by anyone, so
+    // acceptance is not a choice that applies to it
+    if (table.kind === 'insight') continue;
+    if (answered.has(`contractual-data:${table.id}`)) continue;
+    out.push({
+      kind: 'contractual-data',
+      step: 2,
+      subjectId: table.id,
+      subjectName: table.name,
+      question: `Does “${table.name}” hold contractual data? Something a payment hangs on, that discharges a condition, or that the project owner will rely on as its record. If it does, it needs an acceptance step — a row is submitted, and the owner accepts or rejects it.`,
+    });
+  }
+  for (const screen of definition.interfaces) {
+    if (answered.has(`who-may-open:${screen.id}`)) continue;
+    out.push({
+      kind: 'who-may-open',
+      step: 4,
+      subjectId: screen.id,
+      subjectName: screen.label,
+      question: `Who may open “${screen.label}”? Everyone the app is open to, or only some of those organisations. Whatever you choose, it can only narrow — a screen shows each person what they could already see, and never more.`,
+    });
+  }
+  return out;
+}
+
+// ── The definition as zod — the boundary the head of this file promises ─────
+//
+// Until T-442 the PATCH body took `z.unknown()` for the definition, so the
+// file's own opening claim ("a definition that does not conform is refused at
+// the boundary rather than at the first read") was aspiration. It is now
+// enforced: `appDefinitionSchema` is what `patchAppDefinitionBody` validates
+// against, and a stored screen that is not a screen in the grammar above cannot
+// reach `apps.definition` at all.
+
+const identifier = z.string().min(1).max(64).regex(/^[a-z0-9-]+$/);
+
+export const appConnectionRequirementSchema = z.strictObject({
+  id: identifier,
+  system: z.string().min(1).max(120),
+  needs: z.string().min(1).max(600),
+});
+
+export const appInterfaceSchema = z.strictObject({
+  id: identifier,
+  label: z.string().min(1).max(200),
+  appTableId: z.uuid().nullable(),
+  openToOrganisationIds: z.array(z.uuid()).max(50),
+  // the stored screen, checked against the grammar rather than taken on trust:
+  // a `source` that does not parse is refused here and never lands
+  source: z
+    .string()
+    .max(20000)
+    .nullable()
+    .refine((value) => value === null || parseAppScreen(value) !== null, {
+      message: 'a screen is written in the app-screen grammar and nothing else',
+    }),
+});
+
+export const appDefinitionSchema = z.strictObject({
+  connections: z.array(appConnectionRequirementSchema).max(20),
+  interfaces: z.array(appInterfaceSchema).max(20),
+  schedule: z.enum(APP_SCHEDULES),
+  analysisPrompt: z.string().max(4000).nullable(),
+  answeredQuestions: z.array(z.string().min(1).max(120)).max(200),
+});
