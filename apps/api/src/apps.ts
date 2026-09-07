@@ -41,6 +41,7 @@ import {
   shareAppTableBody,
   writeAppScreenBody,
   EMPTY_APP_DEFINITION,
+  parseAppScreen,
 } from '@infora/contracts';
 import type {
   ApiError,
@@ -488,6 +489,26 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
     const parsed = patchAppDefinitionBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
+    if (parsed.data.definition !== undefined) {
+      // (review 2026-09-07) the boundary checks column references too: the
+      // schema's own refine cannot know the tables, so a screen naming a
+      // column nobody declared used to pass PATCH and only fail at render
+      const liveTables = await deps.db
+        .select({ id: s.appTables.id, columns: s.appTables.columns })
+        .from(s.appTables)
+        .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)));
+      const keysByTable = new Map(
+        liveTables.map((table) => [
+          table.id,
+          (table.columns as AppTableRecord['columns']).map((column) => column.key),
+        ]),
+      );
+      for (const screen of parsed.data.definition.interfaces) {
+        if (screen.source === null) continue;
+        const keys = screen.appTableId === null ? [] : keysByTable.get(screen.appTableId);
+        if (keys === undefined || parseAppScreen(screen.source, keys) === null) return invalid(c);
+      }
+    }
     await deps.db
       .update(s.apps)
       .set({
@@ -713,6 +734,8 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       .where(eq(s.appTables.id, appTableId))
       .limit(1);
     if (!table) return notFound(c);
+    // (review 2026-09-07) a retired table is not edited — same answer as absence
+    if (table.retiredAt !== null) return notFound(c);
     const reached = await reachApp(deps.db, user, table.appId);
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;

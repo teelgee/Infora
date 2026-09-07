@@ -19,6 +19,7 @@
 // fixture shape: three firms on one project, and a colleague inside the
 // building firm whose own organisation has not let them build.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type {
   AppRecord,
   AppTableRecord,
@@ -252,6 +253,53 @@ describe('the generator has no code path that emits an outward reach', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('refuses a well-formed screen over undeclared columns PATCHed straight onto the definition', async () => {
+    // added in review 2026-09-07, with the boundary check itself: the schema's
+    // refine cannot know the tables, so this used to pass PATCH and only fail
+    // at render — now the route checks column references against the store
+    const built = await newApp(`t442 undeclared ${stamp}`);
+    const table = await declareTable(built.id); // declares month + landfill only
+    const overUndeclared = serialiseAppScreen({
+      version: 1,
+      blocks: [
+        { kind: 'heading', text: 'Returns' },
+        { kind: 'rowTable', columnKeys: ['month', 'secret'], showOrganisation: false, showState: true },
+      ],
+    });
+    const res = await patch(builderCookie, `/apps/${built.id}/definition`, {
+      definition: {
+        ...EMPTY_APP_DEFINITION,
+        interfaces: [
+          {
+            id: 'undeclared',
+            label: 'Returns',
+            appTableId: table.id,
+            openToOrganisationIds: [],
+            source: overUndeclared,
+          },
+        ],
+      },
+    });
+    expect(res.status).toBe(400);
+
+    // and an interface over NO table cannot carry column blocks at all
+    const noTable = await patch(builderCookie, `/apps/${built.id}/definition`, {
+      definition: {
+        ...EMPTY_APP_DEFINITION,
+        interfaces: [
+          {
+            id: 'tableless',
+            label: 'Returns',
+            appTableId: null,
+            openToOrganisationIds: [],
+            source: overUndeclared,
+          },
+        ],
+      },
+    });
+    expect(noTable.status).toBe(400);
+  });
 });
 
 // ── The agent, and who may reach it ────────────────────────────────────────
@@ -448,6 +496,18 @@ describe('whether a table holds contractual data', () => {
     const res = await patch(builderCookie, `/app-tables/${table.id}`, { hasAcceptance: false });
     expect(res.status).toBe(409);
     expect(await res.text()).toContain('changes hands');
+  });
+
+  it('cannot be changed on a retired table — same answer as absence', async () => {
+    // added in review 2026-09-07, with the guard itself
+    const built = await newApp(`t442 acceptance retired ${stamp}`);
+    const table = await declareTable(built.id);
+    await db
+      .update(s.appTables)
+      .set({ retiredAt: new Date() })
+      .where(eq(s.appTables.id, table.id));
+    const res = await patch(builderCookie, `/app-tables/${table.id}`, { hasAcceptance: false });
+    expect(res.status).toBe(404);
   });
 
   it('is not the project owner’s to change, nor a peer firm’s', async () => {
