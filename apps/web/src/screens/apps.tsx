@@ -290,6 +290,7 @@ export function AppScreen() {
               <thead>
                 <tr>
                   <th>Table</th>
+                  <th>What it is for</th>
                   <th>Columns</th>
                   <th>Acceptance</th>
                   <th>Shared with</th>
@@ -300,9 +301,20 @@ export function AppScreen() {
                 {tables.map((table) => (
                   <tr key={table.id}>
                     <td>{table.name}</td>
+                    <td>
+                      {table.kind === 'insight' ? (
+                        'Where a run writes what it found'
+                      ) : table.kind === 'reference' ? (
+                        'The firm’s own lookup rows'
+                      ) : (
+                        'Data people fill in'
+                      )}
+                    </td>
                     <td>{table.columns.map((column) => column.label).join(', ')}</td>
                     <td>
-                      {table.hasAcceptance ? (
+                      {table.kind === 'insight' ? (
+                        <span className="page-sub">None — a run writes it</span>
+                      ) : table.hasAcceptance ? (
                         <Badge tone="info">Submitted, then accepted or rejected</Badge>
                       ) : (
                         <span className="page-sub">None — rows never change hands</span>
@@ -430,6 +442,18 @@ export function AppScreen() {
         <>
           <SectionLabel>Runs</SectionLabel>
           <Card>
+            {/* 🔒 T-443 — the run list is read by everyone who may open the app,
+                and an insight is NOT: it is stamped with the organisation of the
+                person the run acted as, and read by that organisation and the
+                project owner alone. So what a run says here is how many rows it
+                covered and a fixed phrase Infora wrote — never the insight's own
+                words. The insight itself is a row in the insight table, read
+                through the same predicate as every other row. */}
+            <p className="page-sub">
+              What each run covered. The insight a run wrote is a row in the app's insight table,
+              read by the organisation that ran it and the project owner — open that table to read
+              it.
+            </p>
             <Table>
               <table>
                 <thead>
@@ -437,6 +461,8 @@ export function AppScreen() {
                     <th>Started</th>
                     <th>Trigger</th>
                     <th>Acted as</th>
+                    <th>Rows covered</th>
+                    <th>What happened</th>
                     <th>Against version</th>
                   </tr>
                 </thead>
@@ -446,6 +472,8 @@ export function AppScreen() {
                       <td>{formatDateTime(run.startedAt)}</td>
                       <td>{run.trigger === 'manual' ? 'Run by hand' : 'Scheduled'}</td>
                       <td>{run.asName}</td>
+                      <td>{run.rowsCovered}</td>
+                      <td>{run.outcome ?? '—'}</td>
                       <td>{run.definitionsVersion}</td>
                     </tr>
                   ))}
@@ -570,6 +598,9 @@ function DeclareTable(props: { appId: string; onDone: () => void }) {
       <Field label="Columns" hint="key:label:type, separated by commas">
         <TextInput value={columns} onChange={setColumns} mono />
       </Field>
+      {/* this quick form declares a DATA table; an insight table (where a run
+          writes what it found) is declared at step 2 of the stepped builder,
+          where its fixed columns can be shown alongside the choice */}
       <Field
         label="Does this table hold contractual data?"
         hint="If it does, a row is submitted and then accepted or rejected, and an accepted row becomes the project owner's record — it can never be edited or deleted afterwards."

@@ -39,6 +39,7 @@ import { agentActRoutes } from './agent-acts';
 import { appRoutes } from './apps';
 import { appRowRoutes } from './app-rows';
 import { appExportRoutes } from './app-exports';
+import { appRunRoutes } from './app-runs';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { externalIssueRoutes } from './external-issue';
@@ -360,6 +361,7 @@ export function buildApp(deps: AppDeps) {
   // insight as Word, with a provenance stamp that says what data and when and
   // nothing about who produced it (ADR-0056 §8).
   app.route('/', appExportRoutes(deps));
+  app.route('/', appRunRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

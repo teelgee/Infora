@@ -27,6 +27,7 @@ import {
   APP_SCREEN_BLOCK_KINDS,
   appScreenBlockSchema,
   appDefinitionSchema,
+  columnsNamedBy,
   EMPTY_APP_DEFINITION,
   parseAppScreen,
   pendingBuilderQuestions,
@@ -78,6 +79,13 @@ describe('the screen grammar cannot name a credential or a URL', () => {
       'code',
       'html',
       'onclick',
+      // T-443 added chart blocks, and a chart is exactly where somebody would
+      // later reach for a picture or a link. These four are forbidden ahead of
+      // that so the reach is a deliberate act, not a convenience.
+      'image',
+      'embed',
+      'iframe',
+      'link',
     ];
     const fields = everyFieldName().map((name) => name.toLowerCase());
     // `columnKey`/`columnKeys` contain "key" and are the one legitimate case:
@@ -89,7 +97,11 @@ describe('the screen grammar cannot name a credential or a URL', () => {
     expect(suspect).toEqual([]);
   });
 
-  it('pins the closed list of blocks — a seventh is a deliberate act', () => {
+  it('pins the closed list of blocks — a tenth is a deliberate act', () => {
+    // T-443 added the three charts, and this line was edited in the same commit
+    // — which is the whole point of pinning it. ADR-0056's second addendum
+    // (ruling 5) is why they exist: the owner tests blocks-versus-code at T-446
+    // and needs block-built screens worth judging.
     expect([...APP_SCREEN_BLOCK_KINDS]).toEqual([
       'heading',
       'paragraph',
@@ -97,6 +109,9 @@ describe('the screen grammar cannot name a credential or a URL', () => {
       'rowTable',
       'total',
       'count',
+      'barChart',
+      'lineChart',
+      'pieChart',
     ]);
     // and the schema and the list cannot drift apart
     expect(appScreenBlockSchema.options).toHaveLength(APP_SCREEN_BLOCK_KINDS.length);
@@ -124,6 +139,76 @@ describe('the screen grammar cannot name a credential or a URL', () => {
   it('refuses a screen naming a column the table never declared', () => {
     expect(parseAppScreen(serialiseAppScreen(screen), ['month'])).toBeNull();
     expect(parseAppScreen(serialiseAppScreen(screen), ['month', 'landfill'])).toEqual(screen);
+  });
+
+  // ── T-443's chart blocks, under the same discipline ──────────────────────
+
+  it('takes the three charts, and refuses a chart naming a column the table never declared', () => {
+    const charts: AppScreen = {
+      version: 1,
+      blocks: [
+        { kind: 'barChart', label: 'Landfill by month', categoryColumn: 'month', valueColumn: 'landfill' },
+        {
+          kind: 'lineChart',
+          label: 'Landfill over time',
+          categoryColumn: 'month',
+          valueColumn: 'landfill',
+          showTrend: true,
+        },
+        { kind: 'pieChart', label: 'Share by month', categoryColumn: 'month', valueColumn: 'landfill' },
+      ],
+    };
+    expect(parseAppScreen(serialiseAppScreen(charts), ['month', 'landfill'])).toEqual(charts);
+    // the SAME refusal the table block gets — the declared-column walk is one
+    // function (`columnsNamedBy`), so a chart cannot be the block that forgot
+    expect(parseAppScreen(serialiseAppScreen(charts), ['month'])).toBeNull();
+  });
+
+  it('names the columns a chart block uses, so nothing can be missed by the walk', () => {
+    expect(
+      columnsNamedBy({
+        kind: 'barChart',
+        label: 'x',
+        categoryColumn: 'month',
+        valueColumn: 'landfill',
+      }),
+    ).toEqual(['month', 'landfill']);
+    expect(columnsNamedBy({ kind: 'count', label: 'x' })).toEqual([]);
+  });
+
+  it('refuses a chart carrying an extra field, and a trend flag that is not a boolean', () => {
+    expect(
+      parseAppScreen(
+        JSON.stringify({
+          version: 1,
+          blocks: [
+            {
+              kind: 'barChart',
+              label: 'x',
+              categoryColumn: 'month',
+              valueColumn: 'landfill',
+              imageUrl: 'https://exfiltrate.example/chart.png',
+            },
+          ],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      parseAppScreen(
+        JSON.stringify({
+          version: 1,
+          blocks: [
+            {
+              kind: 'lineChart',
+              label: 'x',
+              categoryColumn: 'month',
+              valueColumn: 'landfill',
+              showTrend: 'yes',
+            },
+          ],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it('refuses anything that is not a screen at all', () => {

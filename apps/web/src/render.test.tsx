@@ -41,7 +41,7 @@ import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { ExternalDocumentView } from './screens/external-document';
-import { ScreenBlock, screenFor } from './screens/app-screen';
+import { ScreenBlock, chartSeries, screenFor, trendLine } from './screens/app-screen';
 import { BuilderAgentPane } from './screens/app-builder';
 import { MemoryRouter } from 'react-router';
 import {
@@ -2157,6 +2157,100 @@ describe('a generated screen (T-442, ADR-0056 §11)', () => {
         table as never,
       ),
     ).toBeNull();
+  });
+
+  // ── T-443's chart blocks, drawn from the same rows ────────────────────────
+  //
+  // The charts are SVG shapes computed in `app-screen.tsx` from the array the
+  // viewer received. These assertions read the markup: the bars are there, the
+  // figures on them are the sums of the rows handed in, and nothing in the
+  // output reaches outward.
+
+  it('draws a bar per category, each bar the sum of the rows this viewer received', () => {
+    const html = draw({
+      kind: 'barChart',
+      label: 'Waste to landfill by month',
+      categoryColumn: 'month',
+      valueColumn: 'landfill',
+    });
+    expect(html).toContain('<svg');
+    expect(html).toContain('<rect');
+    expect(html).toContain('Waste to landfill by month');
+    // one bar per month, labelled, each carrying its own figure
+    expect(html).toContain('August 2026');
+    expect(html).toContain('September 2026');
+    expect(html).toContain('>12.4<');
+    expect(html).toContain('>7.6<');
+    // 🔒 no picture, no link, nothing that fetches
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('href');
+  });
+
+  it('draws a line with its trend, and says in words that the trend is Infora’s line and not a forecast', () => {
+    const html = draw({
+      kind: 'lineChart',
+      label: 'Landfill over time',
+      categoryColumn: 'month',
+      valueColumn: 'landfill',
+      showTrend: true,
+    });
+    expect(html).toContain('<polyline');
+    expect(html).toContain('stroke-dasharray'); // the trend line itself
+    expect(html).toContain('not a forecast');
+  });
+
+  it('draws a pie with a legend naming each share', () => {
+    const html = draw({
+      kind: 'pieChart',
+      label: 'Share by month',
+      categoryColumn: 'month',
+      valueColumn: 'landfill',
+    });
+    expect(html).toContain('August 2026 — 12.4');
+    expect(html).toContain('September 2026 — 7.6');
+  });
+
+  it('says so plainly when there is nothing to draw, rather than drawing an empty axis', () => {
+    const html = renderToStaticMarkup(
+      <ScreenBlock
+        block={
+          {
+            kind: 'barChart',
+            label: 'Waste to landfill by month',
+            categoryColumn: 'month',
+            valueColumn: 'landfill',
+          } as never
+        }
+        table={table as never}
+        rows={[]}
+        onEnter={() => {}}
+        pending={false}
+      />,
+    );
+    expect(html).toContain('Nothing to draw yet.');
+  });
+
+  it('groups and totals in first-seen order, and ignores a value that is not a number', () => {
+    expect(
+      chartSeries(
+        [
+          { values: { month: 'August', landfill: 10 } },
+          { values: { month: 'July', landfill: 1 } },
+          { values: { month: 'August', landfill: 2.5 } },
+          { values: { month: 'August', landfill: 'twelve' } },
+        ] as never,
+        'month',
+        'landfill',
+      ),
+    ).toEqual([
+      { label: 'August', value: 12.5 },
+      { label: 'July', value: 1 },
+    ]);
+  });
+
+  it('fits a straight trend line, and refuses to fit one through a single point', () => {
+    expect(trendLine([1, 2, 3])).toEqual({ first: 1, last: 3 });
+    expect(trendLine([5])).toBeNull();
   });
 });
 

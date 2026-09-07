@@ -52,6 +52,20 @@ const router = fakeRouter((system, prompt) => {
       followUp: null,
     });
   }
+  // T-443 — the run's insight. Same reason as the branches above: an app run
+  // has to be drivable in a browser with no provider behind it. The fake reads
+  // the figures Infora computed out of the prompt it was given and writes a
+  // sentence about them — so what lands in the insight table is a real sentence
+  // about the real rows the runner could read, and a suite can assert that the
+  // numbers in it are the ones the platform calculated.
+  if (system.includes('about figures that have already been calculated')) {
+    const rows = /Table “(.+?)” — (\d+) row\(s\) readable\./.exec(prompt);
+    const total = /total ([\d.]+),/.exec(prompt);
+    if (rows === null) return 'There are no rows here to report on yet.';
+    return total === null
+      ? `${rows[2]} row(s) are readable in “${rows[1]}” this run, with no figures to add up.`
+      : `${rows[2]} row(s) are readable in “${rows[1]}” this run, totalling ${total[1]}.`;
+  }
   // T-336 — the checker's two prompts, for the same reason the branch above
   // exists: the substrate has to be able to drive a check through a browser
   // without a provider.

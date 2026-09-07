@@ -77,9 +77,9 @@ const NO_LENS_PACKAGES = ['packages/governance', 'packages/knowledge', 'packages
  * filtered afterwards.*
  *
  * Two halves carry that. The first is the grammar itself
- * (`packages/contracts/src/app-builder.ts`): a screen is a closed union of six
- * block shapes with no field that could hold a URL or a credential, pinned by
- * `app-screen.test.ts`. The second is this rule: the ONE module that turns
+ * (`packages/contracts/src/app-builder.ts`): a screen is a closed union of nine
+ * block shapes — six from T-442, three chart blocks from T-443 — with no field
+ * that could hold a URL or a credential, pinned by `app-screen.test.ts`. The second is this rule: the ONE module that turns
  * those blocks into a page may not contain anything that reaches outward or
  * evaluates text as code. Together they mean a generated screen's only data
  * source is the typed API call written in Infora's own source — so a viewer

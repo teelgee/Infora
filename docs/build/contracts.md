@@ -1286,3 +1286,43 @@ are not recorded here.
   provenance alone — because the file is the person's to edit and put through
   the normal review cycles, and a claim about authorship travelling with it is
   a claim they did not make.
+
+- **2026-09-07 (T-443) — the screen grammar gains three chart blocks, and the
+  pinned list of block kinds moves from six to nine.** *Plainly: a generated
+  screen can now show a bar chart, a line chart with a trend line, or a pie
+  chart.* The **reason a new block kind is worth the disturbance** is that
+  ADR-0056's second addendum (ruling 5) defers the blocks-versus-code question
+  to the owner's own acceptance walk at T-446 — *"i'm not sure i agree but
+  we'll check"* — and that walk cannot judge whether blocks draw the screens a
+  firm actually wants if the only parts on offer are a table and a total. The
+  charts are the evidence the deferred ruling needs. The **reason they carry
+  `categoryColumn` and `valueColumn` rather than the existing `columnKeys`** is
+  that a chart's two columns do different jobs — one groups, one is added up —
+  and a pair of positions in a list would have made which was which a
+  convention rather than a name. And the **reason `columnsNamedBy` now exists**
+  is that the declared-column check used to work by looking for a field called
+  `columnKey` or `columnKeys`: a block shaped differently would have slipped
+  past it silently, so the walk is one exhaustive switch that fails to compile
+  when a block is added without a decision.
+
+- **2026-09-07 (T-443) — `AppRunRecord` gains `insightRowId`, and never gains
+  the insight's words.** *Plainly: the record of a run says which row the
+  analysis landed in, not what it said.* The **reason the two are separated**
+  is that the run list is read by everyone who may open the app, while an
+  insight is stamped with the organisation of the person the run acted as and
+  is read by that organisation and the project owner alone (ADR-0056 §3).
+  Putting the sentence on the run record would hand a peer firm a summary of
+  rows it cannot see — the wall breached by a convenience. The identifier is
+  safe because reading the row behind it goes through `canReadAppRow` like
+  every other row, and it is useful because T-444's Word export takes a row id.
+  `outcome` on the same record is a fixed phrase Infora writes, for the same
+  reason.
+
+- **2026-09-07 (T-443) — `INSIGHT_TABLE_COLUMNS`: an insight table's columns
+  are Infora's, not the builder's.** *Plainly: when a builder says "this table
+  is where the run writes what it found", the four columns come with it.* The
+  **reason the builder does not name them** is that a run has to know where the
+  sentence goes: a builder who called the text column `notes` would get an
+  insight table that silently took nothing, and a run that guessed would be
+  worse. The API replaces whatever a caller sent for a table of that kind, so
+  the guarantee holds for a screen and an export as well as for the run.

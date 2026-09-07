@@ -32,12 +32,13 @@ import type {
   AppDefinition,
   AppInterface,
   AppSchedule,
+  AppTableKind,
   AppTableRecord,
   BuilderQuestion,
   GetAppResponse,
   RosterEntry,
 } from '@infora/contracts';
-import { APP_SCHEDULES, pendingBuilderQuestions } from '@infora/contracts';
+import { APP_SCHEDULES, INSIGHT_TABLE_COLUMNS, pendingBuilderQuestions } from '@infora/contracts';
 import {
   Badge,
   Button,
@@ -65,6 +66,15 @@ const STEPS = [
   { n: 6, title: 'Analysis and prompts', sub: 'what the agent says each run' },
   { n: 7, title: 'Check and open', sub: 'read it back; open it to its people' },
 ] as const;
+
+/** T-443 — what a declared table is for, in the words a builder reads.
+ * `reference` is on the enum for playbooks (T-445) and is not offered in the
+ * steps yet, so its word is here for the listing and not for the picker. */
+const TABLE_KIND_WORDS: Record<AppTableKind, string> = {
+  data: 'Data people fill in',
+  insight: 'Where a run writes what it found',
+  reference: 'The firm’s own lookup rows',
+};
 
 const SCHEDULE_WORDS: Record<AppSchedule, string> = {
   manual: 'Only when someone presses Run',
@@ -212,7 +222,7 @@ export function AppBuilderScreen() {
             />
           )}
           {step === 5 && <StepSchedule definition={definition} onSave={save} />}
-          {step === 6 && <StepAnalysis definition={definition} onSave={save} />}
+          {step === 6 && <StepAnalysis definition={definition} tables={tables} onSave={save} />}
           {step === 7 && (
             <StepCheckAndOpen
               appId={appId}
@@ -332,7 +342,12 @@ function StepTables(props: {
   const [name, setName] = useState('');
   const [columns, setColumns] = useState('month:Month:text, landfill:Waste to landfill (tonnes):number');
   const [hasAcceptance, setHasAcceptance] = useState('');
+  // T-443 — what the table is FOR. `data` is what people fill in; `insight` is
+  // where a run writes what it found, and its columns are Infora's rather than
+  // the builder's, so the run always knows where the sentence goes.
+  const [kind, setKind] = useState<AppTableKind>('data');
   const [notice, setNotice] = useState<string | null>(null);
+  const isInsight = kind === 'insight';
 
   const declare = async () => {
     const parsed = columns
@@ -351,12 +366,16 @@ function StepTables(props: {
     try {
       const table = await api.declareAppTable(props.appId, {
         name: name.trim(),
-        columns: parsed,
-        kind: 'data',
-        hasAcceptance: hasAcceptance === 'yes',
+        // the API replaces these for an insight table, and sending them here is
+        // what the builder is shown on screen — the two agree by using the one
+        // exported list rather than by both being typed out
+        columns: isInsight ? INSIGHT_TABLE_COLUMNS : parsed,
+        kind,
+        hasAcceptance: isInsight ? false : hasAcceptance === 'yes',
       });
       setName('');
       setHasAcceptance('');
+      setKind('data');
       // declaring a table ANSWERS the agent's question about it — the form
       // asked, so the pane does not ask again
       props.onAnswered(table.id);
@@ -379,6 +398,7 @@ function StepTables(props: {
             <thead>
               <tr>
                 <th>Table</th>
+                <th>What it is for</th>
                 <th>Columns</th>
                 <th>Acceptance</th>
               </tr>
@@ -387,9 +407,12 @@ function StepTables(props: {
               {props.tables.map((table) => (
                 <tr key={table.id}>
                   <td>{table.name}</td>
+                  <td>{TABLE_KIND_WORDS[table.kind]}</td>
                   <td>{table.columns.map((column) => column.label).join(', ')}</td>
                   <td>
-                    {table.hasAcceptance ? (
+                    {table.kind === 'insight' ? (
+                      <span className="page-sub">None — a run writes it</span>
+                    ) : table.hasAcceptance ? (
                       <Badge tone="info">Submitted, then accepted or rejected</Badge>
                     ) : (
                       <span className="page-sub">None — rows never change hands</span>
@@ -441,24 +464,53 @@ function StepTables(props: {
       <Field label="Name">
         <TextInput value={name} onChange={setName} placeholder="Monthly returns" />
       </Field>
-      <Field label="Columns" hint="key:label:type, separated by commas. Types: text, number, date, boolean, choice.">
-        <TextInput value={columns} onChange={setColumns} mono />
-      </Field>
       <Field
-        label="Does this table hold contractual data?"
-        hint="If it does, a row is submitted and then accepted or rejected, and an accepted row becomes the project owner's record — never edited or deleted in place; a correction arrives as a new row."
+        label="What is this table for?"
+        hint="An insight table is where the app's analysis lands each time it runs. Its columns are fixed, and nobody types into it."
       >
         <SelectInput
-          value={hasAcceptance}
-          onChange={setHasAcceptance}
+          value={kind}
+          onChange={(value) => setKind(value as AppTableKind)}
           options={[
-            { value: 'yes', label: 'Yes — add an acceptance step' },
-            { value: 'no', label: 'No — rows never change hands' },
+            { value: 'data', label: 'Data people fill in' },
+            { value: 'insight', label: 'Where a run writes what it found' },
           ]}
-          placeholder="Choose…"
         />
       </Field>
-      <Button onClick={() => void declare()} disabled={name.trim() === '' || hasAcceptance === ''}>
+      {isInsight ? (
+        /* T-443 — the columns of an insight table are Infora's, so they are
+           shown rather than asked for. A field that looked editable and was
+           overwritten by the server would be worse than no field. */
+        <p className="page-sub">
+          Its columns are fixed: {INSIGHT_TABLE_COLUMNS.map((column) => column.label).join(', ')}.
+          Each run writes one row here, stamped with the organisation of whoever ran it — so your
+          firm and the project owner read it, and nobody else does.
+        </p>
+      ) : (
+        <>
+          <Field label="Columns" hint="key:label:type, separated by commas. Types: text, number, date, boolean, choice.">
+            <TextInput value={columns} onChange={setColumns} mono />
+          </Field>
+          <Field
+            label="Does this table hold contractual data?"
+            hint="If it does, a row is submitted and then accepted or rejected, and an accepted row becomes the project owner's record — never edited or deleted in place; a correction arrives as a new row."
+          >
+            <SelectInput
+              value={hasAcceptance}
+              onChange={setHasAcceptance}
+              options={[
+                { value: 'yes', label: 'Yes — add an acceptance step' },
+                { value: 'no', label: 'No — rows never change hands' },
+              ]}
+              placeholder="Choose…"
+            />
+          </Field>
+        </>
+      )}
+      <Button
+        onClick={() => void declare()}
+        disabled={name.trim() === '' || (!isInsight && hasAcceptance === '')}
+      >
         Declare the table
       </Button>
       {notice !== null && <p className="page-sub">{notice}</p>}
@@ -797,9 +849,14 @@ function StepSchedule(props: {
 
 function StepAnalysis(props: {
   definition: AppDefinition;
+  tables: AppTableRecord[];
   onSave: (next: Partial<AppDefinition>) => Promise<void>;
 }) {
   const [prompt, setPrompt] = useState(props.definition.analysisPrompt ?? '');
+  // T-443 — an insight has to land somewhere. Saying so here, where the prompt
+  // is written, is the honest place: a prompt saved with nowhere to put its
+  // answer is a setting that looks live and does nothing.
+  const insightTable = props.tables.find((table) => table.kind === 'insight' && table.retiredAt === null);
   return (
     <Card>
       <SectionLabel>Analysis and prompts</SectionLabel>
@@ -819,10 +876,20 @@ function StepAnalysis(props: {
       <Button onClick={() => void props.onSave({ analysisPrompt: prompt === '' ? null : prompt })}>
         Save the prompt
       </Button>
-      <p className="page-sub">
-        <Badge tone="neutral">Saved, and not yet used</Badge> Running the analysis and keeping its
-        insight arrives with the next piece of work on the app builder.
-      </p>
+      {insightTable === undefined ? (
+        <p className="page-sub">
+          <Badge tone="warning">Nowhere to write it yet</Badge> A run keeps what it finds as a row
+          in an insight table, and this app has not declared one. Go back to step 2 and add a table
+          whose purpose is “where a run writes what it found”; until then a run will read the rows
+          and record that it had nowhere to write.
+        </p>
+      ) : (
+        <p className="page-sub">
+          <Badge tone="success">It has somewhere to land</Badge> Each run writes one row into “
+          {insightTable.name}”, stamped with the organisation of whoever ran it, with how many rows
+          it covered and which opened version it ran against.
+        </p>
+      )}
     </Card>
   );
 }

@@ -65,9 +65,13 @@ const SCREEN_SYSTEM = [
   '  {"kind":"rowTable","columnKeys":["…"],"showOrganisation":true|false,"showState":true|false} — the rows, in these columns',
   '  {"kind":"total","columnKey":"…","label":"…"} — the sum of one number column',
   '  {"kind":"count","label":"…"} — how many rows there are',
+  '  {"kind":"barChart","label":"…","categoryColumn":"…","valueColumn":"…"} — a bar per category, each bar the sum of the value column',
+  '  {"kind":"lineChart","label":"…","categoryColumn":"…","valueColumn":"…","showTrend":true|false} — the same points joined in order, with the straight-line trend through them when showTrend is true',
+  '  {"kind":"pieChart","label":"…","categoryColumn":"…","valueColumn":"…"} — the same totals as shares of the whole',
   'Rules:',
-  '- Every columnKey is one of the column keys you are given. Invent none.',
-  '- Between one and twenty parts. A form screen usually opens with a heading, then the form, then the rows already entered. A dashboard screen usually opens with a heading, then totals and a count, then the rows.',
+  '- Every columnKey, categoryColumn and valueColumn is one of the column keys you are given. Invent none.',
+  '- A chart groups by the categoryColumn and adds up the valueColumn, so the valueColumn is always a number column. A pie chart needs a handful of categories, not thirty.',
+  '- Between one and twenty parts. A form screen usually opens with a heading, then the form, then the rows already entered. A dashboard screen usually opens with a heading, then totals and a count, then a chart or two, then the rows.',
   '- showOrganisation belongs on a screen whose reader sees more than one organisation’s rows; it is noise on a screen whose reader sees only their own.',
   '- showState belongs on a table whose rows are submitted and then accepted or rejected.',
   '- Which rows appear is settled by Infora before your screen is drawn. Write the layout, and make no claim about who sees what.',
@@ -139,7 +143,7 @@ export function parseScreenAnswer(
     return {
       source: null,
       followUp:
-        'That came back as something a screen here cannot be — a screen is a heading, a form, a table of rows, a total and a count, over this table’s own columns. What should it show?',
+        'That came back as something a screen here cannot be — a screen is a heading, a paragraph, a form, a table of rows, a total, a count and a bar, line or pie chart, over this table’s own columns. What should it show?',
     };
   }
   // a screen and a question are not both answers: the screen wins, because the

@@ -19,11 +19,11 @@
 // would be a cache of an access fact and would go stale the first time somebody
 // was removed by a path that forgot to update it.
 //
-// **What this file deliberately does NOT do.** It does not generate a screen
-// (T-442), it does not compute an insight (T-443), it does not export a file
-// (T-444) and it does not save or deploy a playbook (T-445). The run endpoint
-// here records that a run happened, as whom, and against which PUBLISHED
-// version — the substrate T-443 then gives something to do.
+// **What this file deliberately does NOT do.** It does not export a file
+// (`app-exports.ts`, T-444), it does not run the app or write an insight
+// (`app-runs.ts`, T-443) and it does not save or deploy a playbook (T-445). It
+// proposes screens through the builder's agent and stores what a builder saves;
+// the drawing of them is `apps/web/src/screens/app-screen.tsx`.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -35,12 +35,12 @@ import {
   grantAppScopeBody,
   patchAppDefinitionBody,
   reassignAppBody,
-  runAppBody,
   setAppBuilderBody,
   setAppTableAcceptanceBody,
   shareAppTableBody,
   writeAppScreenBody,
   EMPTY_APP_DEFINITION,
+  INSIGHT_TABLE_COLUMNS,
   parseAppScreen,
 } from '@infora/contracts';
 import type {
@@ -48,19 +48,16 @@ import type {
   AskBuilderAgentResponse,
   AppDefinition,
   AppRecord,
-  AppRunRecord,
   AppScopeGrant as AppScopeGrantDto,
   AppState,
   AppSummary,
   AppTableRecord,
   AppTableShare,
   GetAppResponse,
-  ListAppRunsResponse,
   ListAppsResponse,
   WriteAppScreenResponse,
 } from '@infora/contracts';
 import {
-  appRunnable,
   canBuildApp,
   canOpenApp,
   canReassignApp,
@@ -693,14 +690,23 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
     const parsed = declareAppTableBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
+    // T-443 — 🔒 **AN INSIGHT TABLE'S SHAPE IS INFORA'S, NOT THE BUILDER'S.**
+    // A run has to know where to write the sentence, what it covered and which
+    // version it ran against, and it cannot know that if a builder named the
+    // columns; an insight table whose text column was called `notes` would take
+    // an empty insight and say nothing about it. So the four columns are fixed
+    // here (`INSIGHT_TABLE_COLUMNS`) whatever the caller sent, and acceptance is
+    // forced off: an insight is written by a run, submitted to nobody, and a
+    // submission flow over it would be a state nothing could ever move.
+    const isInsight = parsed.data.kind === 'insight';
     const [created] = await deps.db
       .insert(s.appTables)
       .values({
         appId: loaded.row.id,
         name: parsed.data.name,
-        columns: parsed.data.columns,
+        columns: isInsight ? INSIGHT_TABLE_COLUMNS : parsed.data.columns,
         kind: parsed.data.kind,
-        hasAcceptance: parsed.data.hasAcceptance,
+        hasAcceptance: isInsight ? false : parsed.data.hasAcceptance,
       })
       .returning();
     const [record] = await tableRecords(
@@ -736,6 +742,9 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!table) return notFound(c);
     // (review 2026-09-07) a retired table is not edited — same answer as absence
     if (table.retiredAt !== null) return notFound(c);
+    // T-443 — an insight table has no acceptance step to set: a run writes it,
+    // nobody submits it, and a submission state on it would never move
+    if (table.kind === 'insight') return notFound(c);
     const reached = await reachApp(deps.db, user, table.appId);
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;
@@ -937,107 +946,6 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       .where(eq(s.apps.id, loaded.row.id));
     const fresh = await loadApp(deps.db, loaded.row.id);
     return c.json(await recordOf(deps.db, fresh!, slice, user.mayBuildApps));
-  });
-
-  // ── Runs (the record; the insight is T-443) ───────────────────────────────
-  //
-  // An app run is an ADR-0028 Run: a Conversation, a Run, and a Step of the one
-  // type drawer 9 added. `definitions_version` records the PUBLISHED version,
-  // and the two actor stamps are checked against each other by the database.
-  app.post('/apps/:appId/runs', async (c) => {
-    const user = c.get('user');
-    const reached = await reachApp(deps.db, user, c.req.param('appId'));
-    if (!reached) return notFound(c);
-    const { app: loaded, slice } = reached;
-    const parsed = runAppBody.safeParse((await c.req.json().catch(() => null)) ?? {});
-    if (!parsed.success) return invalid(c);
-    const facts = buildFacts(loaded, slice);
-    const verdict = appRunnable(facts);
-    if (!verdict.runnable) {
-      return c.json({ error: 'conflict', detail: verdict.because } satisfies ApiError, 409);
-    }
-    const [conversation] = await deps.db
-      .insert(s.conversations)
-      .values({ projectId: loaded.row.projectId, surface: 'web' })
-      .returning();
-    const [run] = await deps.db
-      .insert(s.runs)
-      .values({
-        conversationId: conversation!.id,
-        agentId: `app:${loaded.row.id}`,
-        agentProvenance: 'infora',
-        request: `Run ${loaded.row.name}`,
-        environmentKey: `project:${loaded.row.projectId}`,
-        requesterParticipantId: slice.participantId,
-      })
-      .returning();
-    await deps.db.insert(s.steps).values({ runId: run!.id, type: 'app_step', status: 'completed' });
-    const tables = await deps.db
-      .select({ id: s.appTables.id })
-      .from(s.appTables)
-      .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)));
-    const [actor] = await deps.db
-      .select({ name: s.users.name })
-      .from(s.participants)
-      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-      .where(eq(s.participants.id, slice.participantId))
-      .limit(1);
-    const actorName = actor!.name;
-    const [appRun] = await deps.db
-      .insert(s.appRuns)
-      .values({
-        appId: loaded.row.id,
-        runId: run!.id,
-        trigger: parsed.data.trigger,
-        asParticipantId: slice.participantId,
-        definitionsVersion: loaded.row.publishedVersion!,
-        tablesCovered: tables.map((t) => t.id),
-      })
-      .returning();
-    return c.json(
-      {
-        run: {
-          id: appRun!.id,
-          appId: loaded.row.id,
-          runId: run!.id,
-          trigger: appRun!.trigger,
-          asName: actorName, // (review 2026-09-07) the ACTOR, not the owner — POST previously named the owner while GET named the actor
-          definitionsVersion: appRun!.definitionsVersion,
-          rowsCovered: appRun!.rowsCovered,
-          tablesCovered: appRun!.tablesCovered,
-          startedAt: appRun!.startedAt.toISOString(),
-          finishedAt: null,
-          outcome: null,
-        } satisfies AppRunRecord,
-      },
-      201,
-    );
-  });
-
-  app.get('/apps/:appId/runs', async (c) => {
-    const reached = await reachApp(deps.db, c.get('user'), c.req.param('appId'));
-    if (!reached) return notFound(c);
-    const rows = await deps.db
-      .select({ run: s.appRuns, name: s.users.name })
-      .from(s.appRuns)
-      .innerJoin(s.participants, eq(s.appRuns.asParticipantId, s.participants.id))
-      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-      .where(eq(s.appRuns.appId, reached.app.row.id))
-      .orderBy(desc(s.appRuns.startedAt));
-    const items: AppRunRecord[] = rows.map(({ run, name }) => ({
-      id: run.id,
-      appId: run.appId,
-      runId: run.runId,
-      trigger: run.trigger,
-      asName: name,
-      definitionsVersion: run.definitionsVersion,
-      rowsCovered: run.rowsCovered,
-      tablesCovered: run.tablesCovered,
-      startedAt: run.startedAt.toISOString(),
-      finishedAt: run.finishedAt?.toISOString() ?? null,
-      outcome: run.outcome,
-    }));
-    return c.json({ items } satisfies ListAppRunsResponse);
   });
 
   return app;

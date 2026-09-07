@@ -43,6 +43,17 @@ const apiPrefixes = [
   // one prefix never has to mean two things: the page is a browser navigation
   // and the document is a fetch.
   '/external-documents',
+  // T-443 — the app builder's own namespaces (ADR-0056). **They were missing,
+  // and the failure was the silent one the `/lenses` note above describes**: a
+  // browser opening an app's page fetched `/apps/:id`, the proxy handed back
+  // `index.html`, the JSON parse failed and the screen sat on "Loading…"
+  // forever. Nothing errored, and no unit or API test could see it — the app
+  // routes were only ever driven through the API directly (T-440 → T-444), so
+  // the whole builder surface had never been opened in a browser. This
+  // ticket's chart test opened one, and found it.
+  '/apps',
+  '/app-tables',
+  '/app-rows',
 ];
 
 const apiTarget = process.env.API_PROXY_TARGET ?? 'http://localhost:3000';

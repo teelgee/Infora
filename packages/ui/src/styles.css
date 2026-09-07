@@ -2017,3 +2017,11 @@ a.shelf-row-title:hover { text-decoration: underline; }
   padding: var(--primitive-space-3);
 }
 .builder-turns { display: flex; flex-direction: column; gap: var(--gap-tight); max-height: 420px; overflow-y: auto; }
+
+/* T-443 — a chart block on a generated screen. The chart itself is SVG drawn in
+   `apps/web/src/screens/app-screen.tsx` from the rows the viewer received; this
+   is only the box it sits in, so a generated screen still brings no styling of
+   its own. `max-width` keeps a two-bar chart from stretching across a wide
+   dashboard and reading as a claim about scale it is not making. */
+.app-chart { margin: var(--gap-tight) 0 var(--gap-default); max-width: 520px; }
+.app-chart svg { display: block; }

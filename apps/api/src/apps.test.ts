@@ -13,13 +13,32 @@
 // exists, in packages/governance) proves nothing about the route.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import type { AppRecord, AppTableRecord, GetAppResponse, ListAppsResponse } from '@infora/contracts';
+import type {
+  AppRecord,
+  AppRunRecord,
+  AppTableRecord,
+  GetAppResponse,
+  ListAppRowsResponse,
+  ListAppsResponse,
+} from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
-const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
+// T-443 — the router echoes the FIGURES it was shown, so the assertions below
+// can check that the numbers reaching an insight are the ones the platform
+// computed rather than anything a model made up. Every other prompt gets the
+// fake's default answer, exactly as before.
+const app = buildApp({
+  db,
+  sessionSecret: 'test-secret',
+  router: fakeRouter((system, prompt) =>
+    system.includes('about figures that have already been calculated')
+      ? `INSIGHT: ${/Table “.+?” — (\d+) row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
+      : 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
+  ),
+});
 
 const stamp = Date.now();
 const password = 'pw-t440';
@@ -420,5 +439,148 @@ describe('a scheduled-shape run acts as the app’s owner, against the published
       .returning();
     expect(appRun!.trigger).toBe('scheduled');
     expect(appRun!.definitionsVersion).toBe(published.publishedVersion);
+  });
+});
+
+// ── T-443 — what a run DOES (ADR-0056 §3, §5) ──────────────────────────────
+//
+// **Driven as each party, over HTTP, on one app.** The insight is a row like
+// any other row, so the interesting assertions are the same ones the rows suite
+// makes: the firm that ran reads it, the project owner reads it, the other
+// consultancy on the same project does not.
+
+describe('a run reads as the runner, computes in code, and lands an insight', () => {
+  /** A returns table with an acceptance step, plus the insight table the run
+   * writes into — the shape the owner's acceptance walk will build. */
+  async function returnsApp(name: string) {
+    const created = await newApp(name);
+    const data = await declareTable(created.id, true);
+    const insightRes = await post(builderCookie, `/apps/${created.id}/tables`, {
+      name: 'Insights',
+      // deliberately wrong on purpose: the API replaces an insight table's
+      // columns with Infora's own, and this proves it rather than assuming it
+      columns: [{ key: 'notes', label: 'Notes', type: 'text', required: false }],
+      kind: 'insight',
+      hasAcceptance: true,
+    });
+    expect(insightRes.status).toBe(201);
+    const insight = (await insightRes.json()) as AppTableRecord;
+    await post(builderCookie, `/apps/${created.id}/publish`);
+    return { app: created, data, insight };
+  }
+
+  const enter = (cookie: string, tableId: string, landfill: number) =>
+    post(cookie, `/app-tables/${tableId}/rows`, { values: { landfill }, submit: true });
+
+  const insightRows = async (cookie: string, tableId: string) =>
+    ((await (await get(cookie, `/app-tables/${tableId}/rows`)).json()) as ListAppRowsResponse).items;
+
+  it('fixes an insight table’s columns and refuses an acceptance step on it', async () => {
+    const { insight } = await returnsApp(`insight shape ${stamp}`);
+    expect(insight.columns.map((column) => column.key)).toEqual([
+      'as_at',
+      'insight',
+      'rows_covered',
+      'definitions_version',
+    ]);
+    // a run writes it and nobody submits it, so there is no acceptance step to
+    // set — and the route that sets one answers as if the table were not there
+    expect(insight.hasAcceptance).toBe(false);
+    const res = await app.request(`/app-tables/${insight.id}`, {
+      method: 'PATCH',
+      headers: { cookie: builderCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ hasAcceptance: true }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('lands an insight readable by the running organisation and the project owner, and not by a peer', async () => {
+    const { app: created, data, insight } = await returnsApp(`insight wall ${stamp}`);
+    expect((await enter(builderCookie, data.id, 12.5)).status).toBe(201);
+
+    const run = (await (
+      await post(builderCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(run.run.outcome).toBe('an insight was written');
+    expect(run.run.insightRowId).not.toBeNull();
+    expect(run.run.rowsCovered).toBe(1);
+    // the run covered the DATA table and not the insight table it wrote into
+    expect(run.run.tablesCovered).toEqual([data.id]);
+
+    const mine = await insightRows(builderCookie, insight.id);
+    expect(mine).toHaveLength(1);
+    // the numbers are the platform's; the model was handed them and wrote prose
+    expect(mine[0]!.values['insight']).toBe('INSIGHT: 1 rows, total 12.5');
+    expect(mine[0]!.values['rows_covered']).toBe(1);
+    expect(mine[0]!.values['definitions_version']).toBe(
+      ((await (await get(builderCookie, `/apps/${created.id}`)).json()) as GetAppResponse).app
+        .publishedVersion,
+    );
+    // stamped with the running person's organisation — which is what decides
+    // who reads it
+    expect(mine[0]!.organisationName).toContain('builder');
+    expect(mine[0]!.state).toBeNull();
+
+    // the project owner reads it…
+    expect(await insightRows(ownerCookie, insight.id)).toHaveLength(1);
+    // …and the other consultancy on the same project does not
+    expect(await insightRows(peerCookie, insight.id)).toHaveLength(0);
+  });
+
+  it('covers only the rows the runner may read — and covers more once the owner shares the table', async () => {
+    const { app: created, data, insight } = await returnsApp(`insight narrowing ${stamp}`);
+    await enter(builderCookie, data.id, 10);
+    await enter(peerCookie, data.id, 4);
+
+    // the builder firm reads its own row alone, so its run covers one
+    const asBuilder = (await (
+      await post(builderCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(asBuilder.run.rowsCovered).toBe(1);
+
+    // the project owner reads both submitted rows, so its run covers two
+    const asOwner = (await (
+      await post(ownerCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(asOwner.run.rowsCovered).toBe(2);
+
+    // and the peer, which reads only its own, covers one — until the project
+    // owner shares the table, after which the very same button covers both
+    const beforeShare = (await (
+      await post(peerCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(beforeShare.run.rowsCovered).toBe(1);
+    await post(ownerCookie, `/app-tables/${data.id}/shares`, { organisationId: peerOrg });
+    const afterShare = (await (
+      await post(peerCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(afterShare.run.rowsCovered).toBe(2);
+
+    // each firm's own insights, and the owner's view of all of them — the row
+    // predicate, applied to a row a run wrote exactly as to one a person typed
+    expect(await insightRows(builderCookie, insight.id)).toHaveLength(1);
+    expect((await insightRows(peerCookie, insight.id)).length).toBe(2);
+    expect(await insightRows(ownerCookie, insight.id)).toHaveLength(4);
+  });
+
+  it('records having nowhere to write when the app declared no insight table', async () => {
+    const created = await newApp(`no insight table ${stamp}`);
+    await declareTable(created.id, false);
+    await post(builderCookie, `/apps/${created.id}/publish`);
+    const run = (await (
+      await post(builderCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
+    ).json()) as { run: AppRunRecord };
+    expect(run.run.insightRowId).toBeNull();
+    expect(run.run.outcome).toContain('nowhere to write');
+  });
+
+  it('refuses to run a closed app, so nothing is written into one', async () => {
+    const { app: created, data, insight } = await returnsApp(`insight closed ${stamp}`);
+    await enter(builderCookie, data.id, 3);
+    await post(ownerCookie, `/apps/${created.id}/closure`);
+    const refused = await post(builderCookie, `/apps/${created.id}/runs`, { trigger: 'manual' });
+    expect(refused.status).toBe(409);
+    expect(await refused.text()).toContain('closed');
+    expect(await insightRows(builderCookie, insight.id)).toHaveLength(0);
   });
 });

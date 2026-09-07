@@ -57,6 +57,35 @@ export const APP_TABLE_KINDS = ['data', 'insight', 'reference'] as const;
 export type AppTableKind = (typeof APP_TABLE_KINDS)[number];
 
 /**
+ * T-443 — **the columns of an insight table are Infora's, not the builder's.**
+ *
+ * *In plain terms: when a builder says "this table is where the run writes its
+ * insight", Infora gives it these four columns. The builder does not choose
+ * them.*
+ *
+ * 🔒 **CLAUDE'S MECHANISM FOR ADR-0056 §3, NOT A NEW RULING.** The record says
+ * the run's insight *is a row in a declared insights table*, with its date,
+ * trigger, rows covered and definitions version. It does not say who names the
+ * columns. If a builder named them, the run would have nowhere it could be sure
+ * to write the sentence — so an insight table whose builder had called its text
+ * column `notes` would silently take an empty insight, or the run would have to
+ * guess. The columns are therefore fixed at declaration (`apps.ts` replaces
+ * whatever a caller sent for a table of this kind), and a screen or an export
+ * over an insight table can name them because they are always the same four.
+ *
+ * `rows_covered` and `definitions_version` are on the ROW as well as on the
+ * `app_runs` record, and deliberately: the run record is the audit trail, and
+ * the row is what a person reads on a dashboard six months later. An insight
+ * that does not say what it covered is a sentence with no standing.
+ */
+export const INSIGHT_TABLE_COLUMNS: AppColumn[] = [
+  { key: 'as_at', label: 'Run at', type: 'text', required: false },
+  { key: 'insight', label: 'What the run found', type: 'text', required: false },
+  { key: 'rows_covered', label: 'Rows covered', type: 'number', required: false },
+  { key: 'definitions_version', label: 'App version', type: 'number', required: false },
+];
+
+/**
  * The submission flow's states, and `null` for a table whose builder chose no
  * acceptance step. Mirrors `app_row_state`; the database keeps the two honest
  * (a trigger refuses a state on a table with no acceptance step, and refuses a
@@ -307,9 +336,18 @@ export type ListAppRowsResponse = {
 export type AppRowResponse = { row: AppRowRecord };
 
 /**
- * One app execution's record (ADR-0056 §3, §5). The insight itself is T-443;
- * what T-440 records is that a run happened, as whom, against which PUBLISHED
- * version, and over what.
+ * One app execution's record (ADR-0056 §3, §5): a run happened, as whom,
+ * against which PUBLISHED version, and over what.
+ *
+ * 🔒 **THE INSIGHT'S WORDS ARE NOT ON THIS RECORD, AND MUST NEVER BE.** The run
+ * list is read by everyone who may open the app, and the insight is stamped
+ * with the organisation of the person the run acted as — so it is read by that
+ * organisation and the project owner and nobody else (§3). Putting the sentence
+ * here would hand a peer firm an insight computed over rows it cannot see. What
+ * is here is the identifier of the row it landed in; reading that row goes
+ * through `canReadAppRow` exactly as every other row does, so a peer asking for
+ * it gets the same 404 as for any row that is not theirs. `outcome` is a fixed
+ * phrase written by Infora, never the model's text.
  */
 export type AppRunRecord = {
   id: Id;
@@ -321,6 +359,9 @@ export type AppRunRecord = {
   definitionsVersion: number;
   rowsCovered: number;
   tablesCovered: Id[];
+  /** T-443 — the row the insight landed in, or null when the app declared no
+   * insight table for it to land in. An id, never the words. */
+  insightRowId: Id | null;
   startedAt: string;
   finishedAt: string | null;
   outcome: string | null;
@@ -347,7 +388,8 @@ export type AppRunResponse = { run: AppRunRecord };
 // carry that posture: freeform JavaScript inspected after generation, or a
 // closed grammar the platform interprets. **The grammar is chosen**, because
 // with it the guarantee is true by construction: `AppScreenBlock` is a closed
-// union of six shapes, none of which has a field that could hold a URL, an
+// union of nine shapes (six from T-442, the three charts from T-443), none of
+// which has a field that could hold a URL, an
 // endpoint, a key or a token, so there is no output the generator could produce
 // that names one. Inspection-after-the-fact would make the guarantee only as
 // good as the inspector, which is the lane the ADR declined.
@@ -378,6 +420,16 @@ export const APP_SCREEN_BLOCK_KINDS = [
   'rowTable',
   'total',
   'count',
+  // T-443 — the three chart blocks. **Added deliberately, and the pinning test
+  // was edited in the same commit**, which is exactly the act the sentence
+  // above describes: ADR-0056's second addendum (ruling 5) puts the
+  // blocks-versus-code question to the owner at T-446, and the charts exist so
+  // that walk has something to judge. They are drawn by Infora over the rows
+  // the viewer already received, exactly as `rowTable` is, and they carry no
+  // field a `rowTable` does not already have the shape of.
+  'barChart',
+  'lineChart',
+  'pieChart',
 ] as const;
 export type AppScreenBlockKind = (typeof APP_SCREEN_BLOCK_KINDS)[number];
 
@@ -400,10 +452,56 @@ export type AppScreenBlock =
   /** the sum of one number column over the rows this viewer may read */
   | { kind: 'total'; columnKey: string; label: string }
   /** how many rows this viewer may read */
-  | { kind: 'count'; label: string };
+  | { kind: 'count'; label: string }
+  /**
+   * T-443's three charts. Each names TWO declared columns of the one table —
+   * what to group by, and what to add up — and nothing else. There is no field
+   * for a colour, an image, a link or a size, because a screen that could bring
+   * its own styling would be a second design system nobody reviewed (T-441's
+   * rule) and a screen that could name a picture would be a screen that reaches
+   * outward.
+   */
+  | { kind: 'barChart'; label: string; categoryColumn: string; valueColumn: string }
+  | {
+      kind: 'lineChart';
+      label: string;
+      categoryColumn: string;
+      valueColumn: string;
+      /** draw the straight line of best fit through the points as well */
+      showTrend: boolean;
+    }
+  | { kind: 'pieChart'; label: string; categoryColumn: string; valueColumn: string };
 
 /** A whole screen. `version` is the grammar's version, not the app's. */
 export type AppScreen = { version: 1; blocks: AppScreenBlock[] };
+
+/**
+ * Which declared columns a block names — the one place that question is
+ * answered, walked by `parseAppScreen` and by the renderer's own guard.
+ *
+ * **The switch is exhaustive on purpose.** A block added to the union without a
+ * case here fails to compile, so a new block cannot slip past the
+ * declared-column check by being shaped differently from the ones before it —
+ * which is how a chart naming an undeclared column would have rendered an empty
+ * axis and quietly misreported.
+ */
+export function columnsNamedBy(block: AppScreenBlock): string[] {
+  switch (block.kind) {
+    case 'heading':
+    case 'paragraph':
+    case 'count':
+      return [];
+    case 'rowForm':
+    case 'rowTable':
+      return block.columnKeys;
+    case 'total':
+      return [block.columnKey];
+    case 'barChart':
+    case 'lineChart':
+    case 'pieChart':
+      return [block.categoryColumn, block.valueColumn];
+  }
+}
 
 const text = z.string().min(1).max(400);
 const columnKey = z.string().min(1).max(64).regex(/^[a-z0-9_]+$/);
@@ -429,6 +527,25 @@ export const appScreenBlockSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('total'), columnKey, label: text }),
   z.strictObject({ kind: z.literal('count'), label: text }),
+  z.strictObject({
+    kind: z.literal('barChart'),
+    label: text,
+    categoryColumn: columnKey,
+    valueColumn: columnKey,
+  }),
+  z.strictObject({
+    kind: z.literal('lineChart'),
+    label: text,
+    categoryColumn: columnKey,
+    valueColumn: columnKey,
+    showTrend: z.boolean(),
+  }),
+  z.strictObject({
+    kind: z.literal('pieChart'),
+    label: text,
+    categoryColumn: columnKey,
+    valueColumn: columnKey,
+  }),
 ]);
 
 export const appScreenSchema = z.strictObject({
@@ -460,8 +577,7 @@ export function parseAppScreen(
   if (declaredColumnKeys !== undefined) {
     const declared = new Set(declaredColumnKeys);
     for (const block of screen.blocks) {
-      if ('columnKeys' in block && block.columnKeys.some((key) => !declared.has(key))) return null;
-      if ('columnKey' in block && !declared.has(block.columnKey)) return null;
+      if (columnsNamedBy(block).some((key) => !declared.has(key))) return null;
     }
   }
   return screen;

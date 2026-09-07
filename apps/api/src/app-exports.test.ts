@@ -305,15 +305,24 @@ describe('an insight as Word', () => {
     const table = (await (
       await post(builderCookie, `/apps/${created.id}/tables`, {
         name: 'Insights',
-        columns: [{ key: 'summary', label: 'What the run found', type: 'text', required: true }],
+        // T-443 — an insight table's columns are Infora's, not the builder's
+        // (`INSIGHT_TABLE_COLUMNS`), so whatever is sent here is replaced; the
+        // row below is written with the keys the platform declares
+        columns: [{ key: 'summary', label: 'What the run found', type: 'text', required: false }],
         kind: 'insight',
         hasAcceptance: false,
       })
     ).json()) as AppTableRecord;
+    expect(table.columns.map((column) => column.key)).toContain('insight');
     await post(builderCookie, `/apps/${created.id}/publish`);
     const entered = (await (
       await post(builderCookie, `/app-tables/${table.id}/rows`, {
-        values: { summary: 'Two organisations returned in August; one did not.' },
+        values: {
+          as_at: new Date().toISOString(),
+          insight: 'Two organisations returned in August; one did not.',
+          rows_covered: 2,
+          definitions_version: 1,
+        },
         submit: false,
       })
     ).json()) as { row: { id: string } };
