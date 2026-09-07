@@ -14,6 +14,10 @@ import type {
   GrantAppScopeBody,
   ListAppRowsResponse,
   ListAppExportsResponse,
+  ListPlaybooksResponse,
+  PlaybookResponse,
+  SaveAppAsPlaybookBody,
+  DeployPlaybookBody,
   ListAppRunsResponse,
   ListAppsResponse,
   PatchAppDefinitionBody,
@@ -1071,6 +1075,20 @@ export const api = {
   exportAppInsight: (appId: string, appRowId: string) =>
     downloadPost(`/apps/${appId}/exports`, { format: 'docx', appRowId }),
   appExports: (appId: string) => request<ListAppExportsResponse>(`/apps/${appId}/exports`),
+  // T-445 — the playbook: the firm's own shelf, saving an app onto it, and
+  // deploying a copy into another project. The shelf is org-private and carries
+  // no project at all — like the rulebook beside it, org context is portable.
+  playbooks: () => request<ListPlaybooksResponse>('/organisation/playbooks'),
+  saveAppAsPlaybook: (appId: string, body: SaveAppAsPlaybookBody) =>
+    request<PlaybookResponse>(`/apps/${appId}/playbook`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deployPlaybook: (projectId: string, body: DeployPlaybookBody) =>
+    request<GetAppResponse>(`/projects/${projectId}/apps/deployments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   // T-441 — the rows themselves. Every row comes back with what THIS person may
   // do to it, resolved server-side: a surface that worked it out would be a
   // second copy of the access rule.

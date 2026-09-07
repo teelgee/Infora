@@ -6,7 +6,7 @@
 // their pages state honestly what is coming and why it isn't here yet.
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Archive, BookOpen, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, BookOpen, Home, LayoutTemplate, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   AppFrame,
   Badge,
@@ -24,6 +24,7 @@ import { api } from '../api';
 import { useMe } from '../session';
 import { FirmShelfPane } from './knowledge';
 import type { FirmShelf } from './knowledge';
+import { PlaybookShelfPane } from './playbooks';
 import { greeting, initialsOf } from './shared';
 
 const ICON_SIZE = 15;
@@ -59,6 +60,14 @@ const SECTIONS = {
     label: 'Your knowledge',
     glyph: <BookOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
     note: "Your firm's own material — the manuals and playbooks that steer every draft, and the starting outlines your colleagues kept. It is the same shelf you see inside a project, and no client project is in scope here.",
+  },
+  // T-445 (ADR-0056 §10) — the apps your firm kept as templates, beside the
+  // rest of its own material. Same kind of thing: org-private, the same on
+  // every project, belonging to none of them.
+  playbooks: {
+    label: 'Kept apps',
+    glyph: <LayoutTemplate size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+    note: "Apps your firm built and kept as templates, ready to deploy into the next project. A template carries the shape of the work and not one row of anybody's data — deploying one makes a fresh app with empty tables.",
   },
 } as const;
 type SectionKey = keyof typeof SECTIONS;
@@ -120,6 +129,7 @@ export function WorkspaceSection() {
   const entry = SECTIONS[(section ?? '') as SectionKey];
   const [firm, setFirm] = useState<FirmShelf>({ rulebooks: null, outlines: null });
   const knowledge = section === 'knowledge';
+  const playbooks = section === 'playbooks';
 
   useEffect(() => {
     if (!knowledge) return;
@@ -148,10 +158,11 @@ export function WorkspaceSection() {
             <Badge tone="neutral">Org-private — no project context reachable here</Badge>
           </div>
         </div>
-        <div className="content" style={knowledge ? undefined : { maxWidth: 720 }}>
+        <div className="content" style={knowledge || playbooks ? undefined : { maxWidth: 720 }}>
           <h1 className="page">{entry.label}</h1>
           <p className="page-sub">{entry.note}</p>
           {knowledge && <FirmShelfPane shelf={firm} door="workspace" />}
+          {playbooks && <PlaybookShelfPane />}
         </div>
       </div>
     </AppFrame>

@@ -3130,6 +3130,48 @@ export type ListAppExportsResponse = { items: AppExportRecord[] };
 export const runAppBody = z.object({ trigger: z.literal('manual').default('manual') });
 export type RunAppBody = z.infer<typeof runAppBody>;
 
+/**
+ * POST /apps/:appId/playbook — T-445. Save this app to the firm's workspace as
+ * a playbook (ADR-0056 §10).
+ *
+ * **There is nothing in this body about what travels**, and there must never
+ * be: what travels is the definition and the table declarations, always, and no
+ * rows, ever. A field by which a caller could ask for "the reference rows too"
+ * is precisely the softening the owner struck on 2026-09-06 — *"by reference
+ * tables i meant the database structure for an app, not the content from within
+ * it"* — and the database refuses one anyway (`playbooks_carry_no_rows`).
+ *
+ * `name` is what the template is called on the shelf, defaulting to the app's
+ * own name. **Saving again under the same name makes the next VERSION** rather
+ * than a second entry, which is what keeps a shelf from filling with
+ * near-duplicates of one app.
+ */
+export const saveAppAsPlaybookBody = z.object({ name: z.string().min(1).optional() });
+export type SaveAppAsPlaybookBody = z.infer<typeof saveAppAsPlaybookBody>;
+
+/**
+ * POST /projects/:projectId/apps/deployments — T-445. Deploy a playbook into
+ * this project as a NEW app instance (ADR-0056 §10).
+ *
+ * **A copy, with no live link.** The instance records which playbook and which
+ * version it came from; editing or re-saving the playbook afterwards changes
+ * nothing that is already deployed, and building on the instance changes
+ * nothing on the shelf. That is not a policy the routes keep — a save writes a
+ * new playbook row, so there is no shared record for either side to change.
+ *
+ * The body names the playbook and, optionally, what to call the instance here.
+ * It does NOT name a scope: nothing about who could open the app in the project
+ * it was saved from means anything in this one — an organisation id from
+ * another project is another project's fact — so the deployed instance starts
+ * open to the deploying firm alone, for its builder to widen deliberately.
+ */
+export const deployPlaybookBody = z.object({
+  playbookId: id,
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+});
+export type DeployPlaybookBody = z.infer<typeof deployPlaybookBody>;
+
 /** PATCH /organisation/users/:userId/app-building — the org admin decides who
  * among their OWN people may build (ADR-0056 §12). Claude's mechanism for the
  * ADR's policy: the record fixed who decides, not the control. Widening

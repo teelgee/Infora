@@ -13,6 +13,11 @@ export {
   withinAppScope,
 } from './app';
 export type { AppBuildFacts, AppRowVisibilityFacts, AppScopeGrant } from './app';
+// T-445 — the playbook's own two predicates (ADR-0056 §10). Its own file
+// because a playbook is a different subject from an app row: org-private
+// material on a firm's shelf, holding no rows at all.
+export { canDeployPlaybook, canReadPlaybook } from './playbook';
+export type { PlaybookFacts } from './playbook';
 // T-248 — scope attenuation (finding F8): narrowing only, intersected, monotonic
 export { attenuate, reachableContainerIds } from './attenuation';
 export type { Attenuation } from './attenuation';

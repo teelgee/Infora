@@ -39,6 +39,7 @@ import { agentActRoutes } from './agent-acts';
 import { appRoutes } from './apps';
 import { appRowRoutes } from './app-rows';
 import { appExportRoutes } from './app-exports';
+import { playbookRoutes } from './playbooks';
 import { notificationRoutes } from './notifications';
 import { transmittalRoutes } from './transmittal';
 import { externalIssueRoutes } from './external-issue';
@@ -360,6 +361,10 @@ export function buildApp(deps: AppDeps) {
   // insight as Word, with a provenance stamp that says what data and when and
   // nothing about who produced it (ADR-0056 §8).
   app.route('/', appExportRoutes(deps));
+  // T-445 — playbooks: a firm keeps an app as a template on its own workspace
+  // shelf with every row stripped out, and deploys a copy of it into the next
+  // project as an ordinary new instance (ADR-0056 §10).
+  app.route('/', playbookRoutes(deps));
 
   // Principle 4: nonexistence and denial read identically — the §4 envelope,
   // and no 405 that would distinguish a live path from a dead one.

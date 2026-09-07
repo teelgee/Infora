@@ -1286,3 +1286,26 @@ are not recorded here.
   provenance alone — because the file is the person's to edit and put through
   the normal review cycles, and a claim about authorship travelling with it is
   a claim they did not make.
+
+- **2026-09-07 (T-445) — a playbook's definition is its own type,
+  `PlaybookDefinition`, and not an `AppDefinition`.** *Plainly: what a template
+  carries is deliberately a different shape from what an app carries, so the two
+  project-specific things cannot travel by accident.* The **reason it is not
+  simply reused** is that an `AppInterface` holds two facts that belong to one
+  project and mean nothing in the next: the id of a table declared in that
+  instance, and a list of organisation ids from that project's roster. Carrying
+  the type unchanged would have made both travel silently, and the second is a
+  wall question — an organisation id from Client A's project resolving to
+  nobody in Client B's is the harmless case, and resolving to the wrong firm is
+  not. So a `PlaybookInterface` names its table by **name** and has no
+  `openToOrganisationIds` field at all: who may open a screen is asked again by
+  the deploying firm, in front of somebody who knows who is on that project.
+
+- **2026-09-07 (T-445) — `AppRecord` gains `deployedFrom`.** *Plainly: an app
+  deployed from a template says which template and which version of it.* The
+  **reason the version is named and not just the template** is ADR-0056 §10's
+  no-live-link rule: saving a template again writes a new row, and the deployed
+  instance keeps pointing at the row it came from, which is never updated. The
+  number on the client's screen is therefore a fact that cannot move under
+  them, which is the whole of what the record meant by *a firm must not be able
+  to change what runs inside a client's project without anyone there seeing it.*
