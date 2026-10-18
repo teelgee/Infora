@@ -885,3 +885,174 @@ export const appDefinitionSchema = z.strictObject({
   analysisPrompt: z.string().max(4000).nullable(),
   answeredQuestions: z.array(z.string().min(1).max(120)).max(200),
 });
+
+// ── T-449: the agent-led build conversation ─────────────────────────────────
+//
+// *In plain terms: you tell the builder's agent what app you want; it builds
+// the working copy in front of you and asks what it must. What it can DO is a
+// short fixed list of the same acts a person has on the building screen —
+// declare a table, write a screen, set the schedule, the analysis prompt and
+// the connection requirements. Nothing on the list can open the app to
+// anybody, share a table, hand the app over or close it: those stay a
+// person's acts, which the agent may only suggest.*
+//
+// 🔒 **THE AGENT'S TOOL SET IS A CLOSED LIST, AND IT IS THE GRAMMAR'S POSTURE
+// APPLIED TO ACTS** (ADR-0056's third addendum, rulings 2 and 3). The model is
+// asked for a choice from `BUILDER_AGENT_ACT_KINDS` and nothing else; the
+// answer is parsed STRICTLY, and an act outside the list — or an extra field on
+// one inside it, such as `hasAcceptance` on a table — fails the WHOLE answer,
+// so nothing of it is performed. There is no kind for granting scope, sharing
+// a table, publishing, reassigning or closing, so there is no answer the model
+// could give that performs one. A test pins the list.
+//
+// 🔒 **THE TWO WALL QUESTIONS ARE ASKED BY THE AGENT AND ANSWERED BY THE
+// PERSON.** `declareTable` has no field for whether a table holds contractual
+// data, so a table the agent declares arrives with that question OPEN. The
+// agent records an answer (`answerContractualData`, `answerWhoMayOpen`) only
+// for a question an EARLIER turn of the stored conversation asked — the server
+// checks — so it cannot ask and answer in one breath, which is what defaulting
+// would look like. And the publish gate (T-448) refuses past an open one
+// whatever the agent did.
+
+/** The acts the builder's agent may perform on the working copy — every one a
+ * typed act a person already has. Pinned by a test; adding one reopens the
+ * third addendum's ruling 3. */
+export const BUILDER_AGENT_ACT_KINDS = [
+  'describeApp',
+  'declareTable',
+  'writeScreen',
+  'removeScreen',
+  'setSchedule',
+  'setAnalysisPrompt',
+  'addConnection',
+  'removeConnection',
+  'answerContractualData',
+  'answerWhoMayOpen',
+] as const;
+export type BuilderAgentActKind = (typeof BUILDER_AGENT_ACT_KINDS)[number];
+
+/**
+ * What the agent may PROPOSE for a person to do. The first two it may then
+ * perform once the person has said yes in a later turn (draft-then-confirm for
+ * the destructive acts); the rest it never performs at all — they are a
+ * person's acts on the app's own page (ADR-0056 §4, §6, §7).
+ */
+export const BUILDER_PROPOSAL_KINDS = [
+  'removeScreen',
+  'removeConnection',
+  'openTo',
+  'shareTable',
+  'publish',
+  'reassign',
+  'close',
+] as const;
+export type BuilderProposalKind = (typeof BUILDER_PROPOSAL_KINDS)[number];
+
+const agentText = z.string().min(1).max(4000);
+const agentLabel = z.string().min(1).max(200);
+/** a table named by its id or its name; a screen by its id or its label —
+ * the agent declares a table and writes a screen over it in one turn, before
+ * either has an id it could have seen */
+const tableRef = z.string().min(1).max(200);
+const screenRef = z.string().min(1).max(200);
+
+export const builderAgentActSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('describeApp'),
+    name: agentLabel.optional(),
+    description: z.string().max(600).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal('declareTable'),
+    name: agentLabel,
+    // 🔒 no `hasAcceptance`: the contractual-data question is the person's
+    tableKind: z.enum(['data', 'insight']),
+    columns: z
+      .array(
+        z.strictObject({
+          key: z.string().min(1).max(64).regex(/^[a-z0-9_]+$/),
+          label: agentLabel,
+          type: z.enum(APP_COLUMN_TYPES),
+          required: z.boolean().optional(),
+          choices: z.array(z.string().min(1).max(200)).max(50).optional(),
+        }),
+      )
+      .min(1)
+      .max(40),
+  }),
+  z.strictObject({
+    kind: z.literal('writeScreen'),
+    /** an existing screen to rewrite; absent for a new one */
+    screen: screenRef.optional(),
+    label: agentLabel,
+    table: tableRef,
+    layout: appScreenSchema,
+  }),
+  z.strictObject({ kind: z.literal('removeScreen'), screen: screenRef }),
+  z.strictObject({ kind: z.literal('setSchedule'), schedule: z.enum(APP_SCHEDULES) }),
+  z.strictObject({ kind: z.literal('setAnalysisPrompt'), prompt: agentText }),
+  z.strictObject({
+    kind: z.literal('addConnection'),
+    system: z.string().min(1).max(120),
+    needs: z.string().min(1).max(600),
+  }),
+  z.strictObject({ kind: z.literal('removeConnection'), connection: z.string().min(1).max(64) }),
+  z.strictObject({
+    kind: z.literal('answerContractualData'),
+    table: tableRef,
+    holdsContractualData: z.boolean(),
+  }),
+  z.strictObject({
+    kind: z.literal('answerWhoMayOpen'),
+    screen: screenRef,
+    /** empty = everyone the app is open to; otherwise these organisations only */
+    organisationIds: z.array(z.uuid()).max(50),
+  }),
+]);
+export type BuilderAgentAct = z.infer<typeof builderAgentActSchema>;
+
+export const builderAgentAskSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('contractual-data'), table: tableRef }),
+  z.strictObject({ kind: z.literal('who-may-open'), screen: screenRef }),
+]);
+
+export const builderProposalSchema = z.strictObject({
+  kind: z.enum(BUILDER_PROPOSAL_KINDS),
+  /** the screen, connection, table or organisation it is about, when one */
+  subject: z.string().min(1).max(200).nullable(),
+  summary: z.string().min(1).max(400),
+});
+export type BuilderProposal = z.infer<typeof builderProposalSchema>;
+
+/** One whole answer from the agent. Strict throughout: an unknown field
+ * anywhere fails the answer, and a failed answer performs nothing. */
+export const builderAgentAnswerSchema = z.strictObject({
+  say: agentText,
+  acts: z.array(builderAgentActSchema).max(25),
+  asks: z.array(builderAgentAskSchema).max(25),
+  proposals: z.array(builderProposalSchema).max(10),
+});
+export type BuilderAgentAnswer = z.infer<typeof builderAgentAnswerSchema>;
+
+/** The receipt of one act the agent performed — what the panel and the next
+ * reader of the conversation see it did. */
+export type BuilderActReceipt = { kind: BuilderAgentActKind; summary: string };
+
+/**
+ * One turn of an app's build conversation, as the people who may build the
+ * app read it. Named-person data — registered in personal-data.md ("The app
+ * builder's conversation") and deleted with the app.
+ */
+export type AppBuildTurn = {
+  id: Id;
+  seq: number;
+  role: 'person' | 'agent';
+  /** who spoke — or, for the agent, whose message it answered */
+  speakerName: string;
+  text: string;
+  /** the required-question keys this agent turn put to the person */
+  asked: string[];
+  acts: BuilderActReceipt[];
+  proposals: BuilderProposal[];
+  createdAt: string;
+};

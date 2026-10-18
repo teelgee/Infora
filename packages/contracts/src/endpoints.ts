@@ -37,7 +37,7 @@ import {
 import { CHECK_FAMILIES } from './checker';
 import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
 import { appDefinitionSchema } from './app-builder';
-import type { BuilderQuestion } from './app-builder';
+import type { AppBuildTurn, BuilderQuestion, GetAppResponse } from './app-builder';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -3017,6 +3017,26 @@ export type WriteAppScreenResponse = {
 };
 
 export type AskBuilderAgentResponse = { reply: string };
+
+/**
+ * T-449 — `POST /apps/:appId/builder/conversation`: one thing a builder says to
+ * the agent. The agent's reply, and whatever it did to the working copy, come
+ * back with the app as it now stands. Who is speaking comes from the session,
+ * never from the body (principle 3).
+ */
+export const sayToBuilderBody = z.object({ say: z.string().trim().min(1).max(4000) });
+export type SayToBuilderBody = z.infer<typeof sayToBuilderBody>;
+
+/** `GET /apps/:appId/builder/conversation` — the stored conversation, oldest
+ * first, to the people who may build the app and nobody else. */
+export type BuildConversationResponse = { turns: AppBuildTurn[] };
+
+export type SayToBuilderResponse = {
+  /** the person's turn and the agent's reply, as stored */
+  turns: AppBuildTurn[];
+  /** the app after the agent's acts — the panel redraws from this */
+  app: GetAppResponse;
+};
 
 /**
  * T-448 — what `POST /apps/:appId/publish` answers when it refuses (409).

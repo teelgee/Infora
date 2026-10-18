@@ -1368,3 +1368,35 @@ are not recorded here.
   does not** is the third addendum's "never defaulted": `hasAcceptance`
   defaults to false, and "false because nobody said" must not open the gate as
   if somebody had said "no, it is working data".
+
+- **2026-10-18 (T-449) — the builder's agent answers in `builderAgentAnswerSchema`,
+  a closed list of acts (`BUILDER_AGENT_ACT_KINDS`), parsed strictly.**
+  *Plainly: what the agent may do to an app is a short fixed menu, and an answer
+  that strays off it does nothing at all.* The **reason it is a menu the model
+  chooses from rather than tool calls the server filters** is the screen
+  grammar's own posture (T-442), applied to acts: a filter is only as good as
+  its list of things to catch, while a menu with no entry for publishing,
+  granting scope, sharing, reassigning or closing cannot be talked into one.
+  The **reason one bad act voids the whole answer** rather than being dropped is
+  the same as the grammar's: keeping the good half of an answer that also tried
+  to publish is filtering, and the builder would be shown a partial change with
+  no sign that the agent had tried something it may not do. The **reason
+  `declareTable` has no acceptance field** is the third addendum's "never
+  defaulted": the agent cannot answer the contractual-data question by
+  declaring the table that way, so a table it declares always arrives asked.
+  And the **reason table and screen references are by name as well as id** is
+  that the agent declares a table and writes a screen over it in the same turn,
+  before either has an id it could have seen.
+
+- **2026-10-18 (T-449) — `AppBuildTurn`, and the two conversation routes.**
+  *Plainly: the build conversation is stored and readable again tomorrow, by
+  the people who may build the app and nobody else.* The **reason an agent's
+  turn carries `asked`, `acts` and `proposals` as data** rather than only prose
+  is that the server needs them: an answer to a wall question is accepted only
+  for a question an EARLIER turn asked, and a removal is performed only after
+  an earlier turn proposed it — both checked against these fields, not against
+  what the text says. The **reason the reply carries the whole app back**
+  (`SayToBuilderResponse.app`) is that the agent's acts change the working
+  copy, and a surface that had to make a second request to see them would show
+  the conversation and the state disagreeing for a moment — exactly the moment
+  a person is reading both.

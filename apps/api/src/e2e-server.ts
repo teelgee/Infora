@@ -9,6 +9,7 @@ import { loadLenses } from '@infora/lenses';
 import { createWorkerRegistry } from '@infora/capabilities';
 import { loadWorkflows } from '@infora/workflows';
 import { buildApp } from './app';
+import { fakeBuilderAgent } from './fake-builder-agent';
 import { fakeRouter } from './test-router';
 
 const { db } = createDb();
@@ -17,6 +18,13 @@ const { db } = createDb();
 // every earlier spec sends no `lensId` and must keep the reply it was written
 // against.
 const router = fakeRouter((system, prompt) => {
+  // T-449 — the builder's agent in conversation. A scripted agent that answers
+  // in the closed act list, so the agent-led builder can be driven in a
+  // browser with no provider: it reads what the person said and the app's
+  // state off the prompt, drafts, asks the two wall questions in its own turn,
+  // and records an answer only once the person has given it.
+  const built = fakeBuilderAgent(system, prompt);
+  if (built !== null) return built;
   // T-364 — the structure agent asks for JSON, not prose. Its system prompt is
   // the tell, so the substrate can drive the propose-confirm path in a browser
   // without a provider (the same reason the Lens branch below exists).

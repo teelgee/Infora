@@ -36,17 +36,15 @@ import {
   patchAppDefinitionBody,
   reassignAppBody,
   setAppBuilderBody,
+  sayToBuilderBody,
   setAppTableAcceptanceBody,
   shareAppTableBody,
   writeAppScreenBody,
-  INSIGHT_TABLE_COLUMNS,
-  parseAppScreen,
-  pendingBuilderQuestions,
-  publishGateOf,
 } from '@infora/contracts';
 import type {
   ApiError,
   AskBuilderAgentResponse,
+  AppColumn,
   AppDefinition,
   AppRecord,
   AppScopeGrant as AppScopeGrantDto,
@@ -54,10 +52,11 @@ import type {
   AppSummary,
   AppTableRecord,
   AppTableShare,
+  BuildConversationResponse,
   GetAppResponse,
   ListAppsResponse,
-  PublishGate,
   PublishRefusedResponse,
+  SayToBuilderResponse,
   WriteAppScreenResponse,
 } from '@infora/contracts';
 import {
@@ -71,7 +70,13 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
-import { askBuilderAgent, writeAppScreen } from './app-builder-agent';
+import { askBuilderAgent, readConversation, runBuilderTurn, writeAppScreen } from './app-builder-agent';
+import {
+  declareTableAct,
+  publishGateFor,
+  setTableAcceptanceAct,
+  writeDefinitionAct,
+} from './app-builder-acts';
 import { createAppInstance } from './app-instance';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
@@ -363,66 +368,10 @@ export async function tableRecords(
   }));
 }
 
-/**
- * T-448 — **the publish gate, computed from the store** (ADR-0056's third
- * addendum, ruling 1).
- *
- * *In plain terms: before an app can be opened to its people, every table must
- * have been answered "does this hold contractual data?" and every screen "who
- * may open it?". This is where that is worked out, from what is actually saved
- * — not from what any screen or agent says.*
- *
- * The facts are the stored working copy (`apps.definition`, whose
- * `answeredQuestions` records each answer) and the LIVE declared tables in
- * `app_tables` — the same two things `pendingBuilderQuestions` has always read,
- * moved where no surface can route around them. A retired table is not asked
- * about: it holds nothing new and appears on no published screen.
- */
-export async function publishGateFor(
-  db: Db,
-  row: Pick<typeof s.apps.$inferSelect, 'id' | 'definition'>,
-): Promise<PublishGate> {
-  const tables = await db
-    .select({ id: s.appTables.id, name: s.appTables.name, kind: s.appTables.kind })
-    .from(s.appTables)
-    .where(and(eq(s.appTables.appId, row.id), isNull(s.appTables.retiredAt)))
-    .orderBy(asc(s.appTables.name));
-  return publishGateOf(pendingBuilderQuestions(row.definition as AppDefinition, tables));
-}
-
-/**
- * T-448 — record that a required question was answered, on the working copy.
- *
- * Used by the two ordinary acts that ARE answers to the table question —
- * declaring a table with an explicit acceptance choice, and setting that choice
- * on an empty table — so the answer is on the record however the act arrived:
- * from the building screen, the agent, or a caller driving the API directly.
- * It is an edit of the working copy, so it bumps the counter and says who and
- * when, exactly as `PATCH /definition` does.
- */
-export async function recordAnsweredQuestion(
-  db: Db,
-  appId: string,
-  participantId: string,
-  key: string,
-): Promise<void> {
-  // one statement, so an edit landing between a read and a write cannot be
-  // overwritten by a stale copy of the definition: only the list grows
-  await db
-    .update(s.apps)
-    .set({
-      definition: sql`jsonb_set(${s.apps.definition}, '{answeredQuestions}', coalesce(${s.apps.definition}->'answeredQuestions', '[]'::jsonb) || jsonb_build_array(${key}::text))`,
-      definitionVersion: sql`${s.apps.definitionVersion} + 1`,
-      definitionUpdatedByParticipantId: participantId,
-      definitionUpdatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(s.apps.id, appId),
-        sql`not (coalesce(${s.apps.definition}->'answeredQuestions', '[]'::jsonb) ? ${key})`,
-      ),
-    );
-}
+// T-448/T-449 — the gate and the answer-recording act live in
+// `app-builder-acts.ts` beside the other working-copy acts the agent shares;
+// re-exported here for the routes that already import them from this file.
+export { publishGateFor, recordAnsweredQuestion } from './app-builder-acts';
 
 /** Resolve (requester, app) → the loaded app, the slice, and whether the
  * requester may open it at all. Deny is null, and null is 404 — denial and
@@ -555,41 +504,18 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
     const parsed = patchAppDefinitionBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    if (parsed.data.definition !== undefined) {
-      // (review 2026-09-07) the boundary checks column references too: the
-      // schema's own refine cannot know the tables, so a screen naming a
-      // column nobody declared used to pass PATCH and only fail at render
-      const liveTables = await deps.db
-        .select({ id: s.appTables.id, columns: s.appTables.columns })
-        .from(s.appTables)
-        .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)));
-      const keysByTable = new Map(
-        liveTables.map((table) => [
-          table.id,
-          (table.columns as AppTableRecord['columns']).map((column) => column.key),
-        ]),
-      );
-      for (const screen of parsed.data.definition.interfaces) {
-        if (screen.source === null) continue;
-        const keys = screen.appTableId === null ? [] : keysByTable.get(screen.appTableId);
-        if (keys === undefined || parseAppScreen(screen.source, keys) === null) return invalid(c);
-      }
-    }
-    await deps.db
-      .update(s.apps)
-      .set({
-        ...(parsed.data.name !== undefined && { name: parsed.data.name }),
-        ...(parsed.data.description !== undefined && { description: parsed.data.description }),
-        ...(parsed.data.definition !== undefined && {
-          definition: parsed.data.definition as AppDefinition,
-        }),
-        // every edit bumps the working copy's counter and says who and when —
-        // which is what the unattended-schedule concern demanded
-        definitionVersion: loaded.row.definitionVersion + 1,
-        definitionUpdatedByParticipantId: slice.participantId,
-        definitionUpdatedAt: sql`now()`,
-      })
-      .where(eq(s.apps.id, loaded.row.id));
+    // T-449 — the one act, shared with the builder's agent: the shape and the
+    // column references are checked there, and the edit is stamped there
+    const written = await writeDefinitionAct(deps.db, {
+      appId: loaded.row.id,
+      participantId: slice.participantId,
+      ...(parsed.data.name !== undefined && { name: parsed.data.name }),
+      ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+      ...(parsed.data.definition !== undefined && {
+        definition: parsed.data.definition as AppDefinition,
+      }),
+    });
+    if (written === 'invalid') return invalid(c);
     const fresh = await loadApp(deps.db, loaded.row.id);
     return c.json(await recordOf(deps.db, fresh!, slice, user.mayBuildApps));
   });
@@ -715,6 +641,66 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     return c.json({ reply } satisfies AskBuilderAgentResponse);
   });
 
+  // ── T-449: the build conversation (ADR-0056's third addendum, rulings 2, 3, 5)
+  //
+  // 🔒 **READ AND SPOKEN TO BY THE PEOPLE WHO MAY BUILD THE APP, AND NOBODY
+  // ELSE.** The conversation is working material — the working copy's own
+  // standing — and it holds what named people said (personal-data.md, "The
+  // app builder's conversation"). So both routes are `canBuildApp`, and
+  // everybody else, the project owner and the app's own users included, gets
+  // the same 404 as for an app that does not exist.
+  //
+  // The agent acts AS THE REQUESTER: the turn runs with their participant and
+  // stamps every act with it. What it may do is `runBuilderTurn`'s closed list,
+  // and none of the routes below this block — scope, shares, publish,
+  // reassignment, closure — is reachable from it.
+
+  app.get('/apps/:appId/builder/conversation', async (c) => {
+    const user = c.get('user');
+    const reached = await reachApp(deps.db, user, c.req.param('appId'));
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    return c.json({
+      turns: await readConversation(deps.db, loaded.row.id),
+    } satisfies BuildConversationResponse);
+  });
+
+  app.post('/apps/:appId/builder/conversation', async (c) => {
+    const user = c.get('user');
+    const reached = await reachApp(deps.db, user, c.req.param('appId'));
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const parsed = sayToBuilderBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    // the organisations a screen may be narrowed to: those the app is open to
+    const scope = await scopeDto(deps.db, loaded);
+    const organisations = scope
+      .filter((grant) => grant.revokedAt === null && grant.organisationId !== null)
+      .map((grant) => ({
+        id: grant.organisationId!,
+        name: grant.organisationName ?? 'An organisation',
+        isProjectOwner: grant.organisationId === loaded.projectOwnerOrganisationId,
+      }));
+    const { person, agent } = await runBuilderTurn(deps, {
+      appId: loaded.row.id,
+      participantId: slice.participantId,
+      say: parsed.data.say,
+      organisations,
+    });
+    const fresh = await loadApp(deps.db, loaded.row.id);
+    const record = await recordOf(deps.db, fresh!, slice, user.mayBuildApps);
+    return c.json({
+      turns: [person, agent],
+      app: {
+        app: record,
+        tables: await tableRecords(deps.db, fresh!.row.id, slice, fresh!.projectOwnerOrganisationId),
+        publishGate: await publishGateFor(deps.db, fresh!.row),
+      },
+    } satisfies SayToBuilderResponse);
+  });
+
   // ── The participant scope, live-mutable (ADR-0036) ────────────────────────
 
   app.post('/apps/:appId/scope', async (c) => {
@@ -777,45 +763,25 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     // T-448 — **an explicit choice is an answer; a default is not.** The body
     // defaults `hasAcceptance` to false, and "false because nobody said" must
     // not count as "no, it is working data" — the third addendum's whole point
-    // is that the wall questions are never defaulted. So the contractual-data
-    // question is recorded as answered only when the caller actually SENT the
-    // choice; a table declared without one stays an open question at the gate.
-    const answeredAcceptance =
-      typeof raw === 'object' && raw !== null && 'hasAcceptance' in raw;
-    // T-443 — 🔒 **AN INSIGHT TABLE'S SHAPE IS INFORA'S, NOT THE BUILDER'S.**
-    // A run has to know where to write the sentence, what it covered and which
-    // version it ran against, and it cannot know that if a builder named the
-    // columns; an insight table whose text column was called `notes` would take
-    // an empty insight and say nothing about it. So the four columns are fixed
-    // here (`INSIGHT_TABLE_COLUMNS`) whatever the caller sent, and acceptance is
-    // forced off: an insight is written by a run, submitted to nobody, and a
-    // submission flow over it would be a state nothing could ever move.
-    const isInsight = parsed.data.kind === 'insight';
-    const [created] = await deps.db
-      .insert(s.appTables)
-      .values({
-        appId: loaded.row.id,
-        name: parsed.data.name,
-        columns: isInsight ? INSIGHT_TABLE_COLUMNS : parsed.data.columns,
-        kind: parsed.data.kind,
-        hasAcceptance: isInsight ? false : parsed.data.hasAcceptance,
-      })
-      .returning();
-    // an insight table is never asked (a run writes it, nobody submits it)
-    if (answeredAcceptance && !isInsight) {
-      await recordAnsweredQuestion(
-        deps.db,
-        loaded.row.id,
-        slice.participantId,
-        `contractual-data:${created!.id}`,
-      );
-    }
+    // is that the wall questions are never defaulted. So the act is told
+    // whether the caller actually SENT the choice.
+    const said = typeof raw === 'object' && raw !== null && 'hasAcceptance' in raw;
+    // T-449 — the one act, shared with the builder's agent (whose own act has
+    // no acceptance field at all, so a table it declares is always asked)
+    const created = await declareTableAct(deps.db, {
+      appId: loaded.row.id,
+      participantId: slice.participantId,
+      name: parsed.data.name,
+      columns: parsed.data.columns as AppColumn[],
+      kind: parsed.data.kind,
+      hasAcceptance: said ? parsed.data.hasAcceptance : undefined,
+    });
     const [record] = await tableRecords(
       deps.db,
       loaded.row.id,
       slice,
       loaded.projectOwnerOrganisationId,
-    ).then((all) => all.filter((t) => t.id === created!.id));
+    ).then((all) => all.filter((t) => t.id === created.id));
     return c.json(record, 201);
   });
 
@@ -852,12 +818,16 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
     const parsed = setAppTableAcceptanceBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    const [existing] = await deps.db
-      .select({ id: s.appRows.id })
-      .from(s.appRows)
-      .where(eq(s.appRows.appTableId, appTableId))
-      .limit(1);
-    if (existing) {
+    // T-449 — the one act, shared with the agent recording a person's answer;
+    // it refuses under existing rows and records the answer for the gate (T-448)
+    const set = await setTableAcceptanceAct(deps.db, {
+      appId: table.appId,
+      participantId: slice.participantId,
+      appTableId,
+      hasAcceptance: parsed.data.hasAcceptance,
+    });
+    if (set === 'not_found') return notFound(c);
+    if (set === 'conflict') {
       return c.json(
         {
           error: 'conflict',
@@ -866,18 +836,6 @@ export function appRoutes(deps: { db: Db; router: Router }) {
         409,
       );
     }
-    await deps.db
-      .update(s.appTables)
-      .set({ hasAcceptance: parsed.data.hasAcceptance })
-      .where(eq(s.appTables.id, appTableId));
-    // T-448 — setting the choice IS answering the question, so the gate hears
-    // it from the act itself rather than trusting a surface to record it after
-    await recordAnsweredQuestion(
-      deps.db,
-      table.appId,
-      slice.participantId,
-      `contractual-data:${appTableId}`,
-    );
     const [record] = await tableRecords(
       deps.db,
       table.appId,

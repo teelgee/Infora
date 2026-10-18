@@ -453,3 +453,62 @@ export const playbooks = pgTable(
     uniqueIndex('playbooks_org_name_version_unique').on(t.organisationId, t.name, t.version),
   ],
 );
+
+/**
+ * T-449 — who spoke in an app's build conversation (ADR-0056's third addendum,
+ * ruling 5): a person, or the builder's agent answering them.
+ */
+export const appBuildTurnRole = pgEnum('app_build_turn_role', ['person', 'agent']);
+
+/**
+ * T-449 — **the build conversation, stored against the app** (ADR-0056's third
+ * addendum, ruling 5; drawn in data-model.md, Drawer 9, before 0068 was
+ * written).
+ *
+ * *In plain terms: what a builder said to the agent while building this app,
+ * and what the agent said and did in reply, kept so the conversation can be
+ * picked up tomorrow by anybody who may build the app.*
+ *
+ * NAMED-PERSON DATA, REGISTERED AT RULING (personal-data.md, "The app builder's
+ * conversation"): free text typed by named people, and the participant who
+ * spoke. **Builders-of-this-app private** — the route checks `canBuildApp`
+ * before any row is read, so there is deliberately no organisation column and
+ * no predicate of its own: its standing is the working copy's. **Deleted with
+ * the app** — `ON DELETE CASCADE` from `apps`.
+ *
+ * APPEND-ONLY AGAINST UPDATE, NOT AGAINST DELETE (0068's trigger). What was
+ * said is never rewritten; deleting is the deletion path itself — the cascade
+ * and an erasure request — and a trigger refusing it would make the register's
+ * "deleted with the app" false.
+ *
+ * `spoken_by_participant_id` is the speaker on a `person` turn, and on an
+ * `agent` turn the builder whose message it answered: the agent acts as that
+ * person, with that person's entitlement, and as nobody else.
+ */
+export const appBuildTurns = pgTable(
+  'app_build_turns',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    appId: uuid('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    /** the order the turns were spoken — an identity, so two turns written in
+     * one breath never tie on a clock */
+    seq: integer('seq').notNull().generatedAlwaysAsIdentity(),
+    role: appBuildTurnRole('role').notNull(),
+    spokenByParticipantId: uuid('spoken_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    text: text('text').notNull(),
+    /** the required-question keys an agent turn put to the person — the record
+     * a later answer is checked against (an answer is only taken for a question
+     * that was ASKED in an earlier turn) */
+    asked: text('asked').array().notNull().default(sql`'{}'::text[]`),
+    /** what the agent did to the working copy this turn: `{kind, summary}[]` */
+    acts: jsonb('acts').notNull().default([]),
+    /** what the agent proposed for a person to do: `{kind, summary}[]` */
+    proposals: jsonb('proposals').notNull().default([]),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('app_build_turns_app_idx').on(t.appId, t.seq)],
+);

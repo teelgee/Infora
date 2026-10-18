@@ -24,7 +24,8 @@
 > was drawn 2026-09-06 and built the same day by T-439 (migration **0067**),
 > which is the state rule running end to end for the third time: the field list
 > was drawn here, the migration was written from the drawing, and the block was
-> reduced in the commit that built it. **The three connection tables at the foot
+> reduced in the commit that built it — and again for its build-conversation
+> table (T-449, migration **0068**, 2026-10-18). **The three connection tables at the foot
 > of Drawer 9 are the one thing still on the drawing board** — ADR-0057's build
 > waits for the pilot deployment's secrets store, so they keep their field list.
 > **Drawer 8 was added 2026-08-28 (T-329)** — notifications, and the first
@@ -910,7 +911,8 @@ drawing therefore stays.*
 **Shape:** [drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts)
 
 Eight tables — `apps`, `app_scope_grants`, `app_tables`, `app_rows`,
-`app_table_shares`, `app_runs`, `app_exports`, `playbooks` — behind ADR-0056's
+`app_table_shares`, `app_runs`, `app_exports`, `playbooks` — and, since T-449,
+a ninth for the build conversation (below), behind ADR-0056's
 one sentence: an app is a **project thing with a participant scope**, and its
 tables are a **third kind of project record** whose every row carries the
 organisation and the person that entered it.
@@ -965,6 +967,36 @@ same migration. ADR-0056 §12 fixed the policy — each organisation decides who
 among its own people may build — and left the control to the build; it is at
 user grain because the decision is the organisation's about its own person, and
 it rides 0067 because the app-builder slice has exactly one migration.
+
+**The build conversation, `app_build_turns` — drawn 2026-10-18 and built the same day (T-449, migration [0068](../../packages/db/migrations/0068_app-build-conversation.sql)).**
+*Plainly: what a builder says to the app builder's agent, and what the agent
+says and does in reply, kept against the app so the conversation can be picked
+up tomorrow.* ADR-0056's third addendum, ruling 5; registered in
+[personal-data.md](../architecture/personal-data.md) at ruling. Per the state
+rule its field list is gone again and
+[drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts) is the
+authority on its shape; what stays here is what the schema cannot say.
+
+- **One turn per row, ordered by an identity rather than a clock**, so two
+  turns written in one breath never tie. A turn is a person's or the agent's;
+  on an agent turn the participant stamped is the builder whose message it
+  answered, because the agent acts as that person and nobody else.
+- **The agent's turn carries its receipt** — the required questions it asked,
+  the acts it performed on the working copy, the acts it proposed for a person
+  — and a `CHECK` refuses any of the three on a person's turn, so a later
+  reader can never mistake a receipt for something a person claimed. The
+  `asked` list is load-bearing: the agent may record an answer only to a
+  question an EARLIER turn asked, and this is where that is checked.
+- **Append-only against UPDATE and deliberately not against DELETE.** What was
+  said is not rewritten; deleting is the deletion path itself (`ON DELETE
+  CASCADE` from `apps`, and an erasure request), and refusing it would make
+  the register's "deleted with the app" false. *(No route deletes an app
+  today, and an app's scope grants refuse DELETE — so the conversation goes
+  exactly when the rest of the app does, once that path exists.)*
+- **No organisation column and no read predicate of its own.** It is working
+  material with the working copy's standing — readable exactly by the people
+  who may build the app (`canBuildApp`), which the route checks before any row
+  is read.
 
 **After deployment — `connections`, `connection_loans`, `connection_calls`** *(ADR-0057; not in T-439's migration; drawn so the shape is agreed).*
 - `connections`: `id`, `organisation_id` (the owner of the outside system), `system` (e.g. `arcgis`), `mode`: `read` | `write`, `reach` (jsonb — named layers/tables/endpoints), `secret_ref` (**a pointer into the secrets store, never a value**), `created_by_participant_id`, `created_at`, `retired_at`
