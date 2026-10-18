@@ -123,7 +123,7 @@ test('two people co-edit one uploaded .xlsx in two browsers, and both see each s
   const probe = await eleanor.post<EditingSession>(`/sandbox-documents/${docId}/editing-session`, {});
   test.skip(
     probe.editorUrl === null,
-    'No editing engine on this substrate (EDITOR_ENGINE_URL unset — CI starts none). Run with `docker compose --profile editing up -d`.',
+    'No editing engine on this substrate (EDITOR_ENGINE_URL unset, or the engine unreachable — CI starts none). Run with `docker compose --profile editing up -d` and WOPI_HOST_URL set as the README says.',
   );
 
   const asEleanor = await openEditor(browser, SEEDED.consultant, projectId, docId);

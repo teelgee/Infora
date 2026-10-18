@@ -136,7 +136,7 @@ describe('the pass: one file, one sign-in, worth nothing on its own (T-453)', ()
     expect(session.wopiSrc).toBe(`http://engine-sees-this:3000/wopi/files/${docxId}`);
     expect(session.editorUrl).toBeNull(); // T-454: no engine configured here
     expect(session.accessTokenTtl).toBeGreaterThan(Date.now());
-    expect(session.accessTokenTtl).toBeLessThanOrEqual(Date.now() + 60 * 60_000);
+    expect(session.accessTokenTtl).toBeLessThanOrEqual(Date.now() + 480 * 60_000); // 480, the review's ttl
     const hash = createHash('sha256').update(session.accessToken).digest('hex');
     const [row] = await db.select().from(s.wopiAccessTokens).where(eq(s.wopiAccessTokens.tokenHash, hash));
     expect(row?.sandboxDocumentId).toBe(docxId);
@@ -167,12 +167,35 @@ describe('the pass: one file, one sign-in, worth nothing on its own (T-453)', ()
     expect((await wopi.checkFileInfo(docxId, session.accessToken)).status).toBe(401);
   });
 
-  it('dies with the sign-in that asked for it', async () => {
+  it('dies with the sign-in that asked for it — refused AND the row deleted', async () => {
     const leaver = await makeUser('t453-lee', orgA);
     const session = await pass(leaver.cookie, docxId);
     expect((await wopi.checkFileInfo(docxId, session.accessToken)).status).toBe(200);
     await app.request('/auth/session', { method: 'DELETE', headers: { cookie: leaver.cookie } });
     expect((await wopi.checkFileInfo(docxId, session.accessToken)).status).toBe(401);
+    // sessions are revoked, never deleted, so the FK cascade alone would never
+    // fire: sign-out deletes the pass row itself (review 2026-10-18)
+    const [kept] = await db
+      .select()
+      .from(s.wopiAccessTokens)
+      .where(eq(s.wopiAccessTokens.tokenHash, createHash('sha256').update(session.accessToken).digest('hex')));
+    expect(kept).toBeUndefined();
+  });
+
+  it('a save larger than the ceiling is refused in words, before anything is read (review 2026-10-18)', async () => {
+    const session = await pass(amy.cookie, docxId);
+    const res = await app.request(`/wopi/files/${docxId}/contents?access_token=${encodeURIComponent(session.accessToken)}`, {
+      method: 'POST',
+      headers: {
+        'X-WOPI-Override': 'PUT',
+        'X-WOPI-Lock': 'any',
+        'content-type': 'application/octet-stream',
+        'content-length': String(65 * 1024 * 1024),
+      },
+      body: new Uint8Array(docx(['small'])),
+    });
+    expect(res.status).toBe(413);
+    expect(await res.text()).toContain('larger than the editor may save');
   });
 });
 
@@ -474,6 +497,27 @@ describe('the history is real files (T-453, ADR-0043 P2)', () => {
     expect(res.status).toBe(200);
     expect((await docRow(xlsxId)).fileRef).toBe(history[0]!.fileRef);
     expect((await revisions(xlsxId)).at(-1)!.fileRef).toBe(history[0]!.fileRef);
+  });
+
+  it('an uploaded-era revision does not restore onto a CONVERTED document (review 2026-10-18)', async () => {
+    // converting makes the document authored; restoring a pre-conversion
+    // revision would overwrite the preserved original file and blank the
+    // authored text in one act, so it is refused in words
+    const converted = await upload(amy.cookie, 't453-convert.docx', docx(['Before conversion.']));
+    const before = await revisions(converted);
+    const conversion = await app.request(`/sandbox-documents/${converted}/conversion`, {
+      method: 'POST',
+      headers: { cookie: amy.cookie, 'content-type': 'application/json' },
+      body: '{}',
+    });
+    expect(conversion.status).toBe(200);
+    const res = await app.request(`/sandbox-documents/${converted}/restore`, {
+      method: 'POST',
+      headers: { cookie: amy.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ historyVersionId: before[0]!.id }),
+    });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain('before this document was converted');
   });
 
   it('purging the document erases every file it ever was, each counted once', async () => {

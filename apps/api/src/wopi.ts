@@ -49,11 +49,10 @@ import type { Db } from '@infora/db';
 import { getBlob } from './renditions';
 import { landFileRevision } from './file-revision';
 import { editorUrlFor } from './editor-engine';
-import {
+import { releaseIfLapsed,
   checkoutHolder,
   extendEngineLock,
   releaseEngineLock,
-  releaseLapsedEngineLock,
   swapEngineLock,
   takeEngineLock,
 } from './engine-lock';
@@ -78,7 +77,14 @@ export type EditingConfig = {
   engineUrl?: string;
 };
 
-const DEFAULT_TOKEN_MINUTES = 60;
+// 480, not 60 (review 2026-10-18): an editing session longer than an hour is
+// normal, and a mid-edit 401 loses work. The pass is hash-stored and every
+// call re-checks the session and the grants, so revocation does not wait for
+// expiry — a long ttl costs little. Still capped by the sign-in's own end.
+const DEFAULT_TOKEN_MINUTES = 480;
+
+/** The largest file a PutFile may land — 64 MB, far above any working document. */
+const WOPI_MAX_BYTES = 64 * 1024 * 1024;
 // the formats an engine edits — an uploaded PDF is the record rendition and
 // never an editing surface (ADR-0004), and authored text has its own editor
 const editableFormats = new Set(['docx', 'xlsx', 'pptx']);
@@ -285,20 +291,31 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
   // ── PutFile ───────────────────────────────────────────────────────────────
   app.post('/wopi/files/:fileId/contents', async (c) => {
     if ((c.req.header('x-wopi-override') ?? '').toUpperCase() !== 'PUT') return notFound(c);
-    const bytes = Buffer.from(await c.req.arrayBuffer());
+    // (review 2026-10-18) nothing happens before the pass is checked: no body
+    // is buffered and no lock is touched for an unauthenticated caller — and a
+    // save has a ceiling, stated in words
+    const declared = Number(c.req.header('content-length') ?? '0');
+    if (declared > WOPI_MAX_BYTES) {
+      return c.json({ error: 'invalid', detail: 'the file is larger than the editor may save' } satisfies ApiError, 413);
+    }
     const lock = c.req.header('x-wopi-lock') ?? '';
-    const fileId = c.req.param('fileId');
-    if (isUuid(fileId)) await releaseLapsedEngineLock(deps.db, fileId);
     return deps.db.transaction(async (tx) => {
       const db = tx as unknown as Db;
       const gate = await admit(db, c, true);
       if (!gate.ok) return gate.response;
       const { doc, slice } = gate.admitted;
+      // a lapsed lock is released here, inside the same transaction that holds
+      // the row, before the lock is judged (review 2026-10-18)
+      const held = await releaseIfLapsed(db, doc);
       // a save comes only through the lock that holds the head — never into an
       // unlocked file, and never past a person's freeze or another editor
-      if (!doc.headLocked) return refuse(db, c, doc, 'not_locked');
-      if (doc.wopiLock === null) return refuse(db, c, doc, 'checked_out');
-      if (doc.wopiLock !== lock) return refuse(db, c, doc, 'held_by_another_editor');
+      if (!held.headLocked) return refuse(db, c, doc, 'not_locked');
+      if (held.wopiLock === null) return refuse(db, c, doc, 'checked_out');
+      if (held.wopiLock !== lock) return refuse(db, c, doc, 'held_by_another_editor');
+      const bytes = Buffer.from(await c.req.arrayBuffer());
+      if (bytes.byteLength > WOPI_MAX_BYTES) {
+        return c.json({ error: 'invalid', detail: 'the file is larger than the editor may save' } satisfies ApiError, 413);
+      }
       const landed = await landFileRevision(db, doc, bytes, slice.participantId);
       if (!landed.ok) return c.json({ error: 'invalid', detail: landed.detail } satisfies ApiError, 400);
       // a save is activity: the engine's 30 minutes start again
@@ -317,13 +334,15 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
     }
     const lock = c.req.header('x-wopi-lock') ?? '';
     const oldLock = c.req.header('x-wopi-oldlock');
-    const fileId = c.req.param('fileId');
-    if (isUuid(fileId)) await releaseLapsedEngineLock(deps.db, fileId);
     return deps.db.transaction(async (tx) => {
       const db = tx as unknown as Db;
       const gate = await admit(db, c, true);
       if (!gate.ok) return gate.response;
-      const { doc, slice } = gate.admitted;
+      const { doc: loadedDoc, slice } = gate.admitted;
+      // the lapse release moved inside the authenticated transaction
+      // (review 2026-10-18): no unauthenticated caller moves a lock again
+      const held = await releaseIfLapsed(db, loadedDoc);
+      const doc = { ...loadedDoc, headLocked: held.headLocked, wopiLock: held.wopiLock };
       const ok = () => c.body(null, 200);
 
       if (override === 'GET_LOCK') {

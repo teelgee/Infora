@@ -73,6 +73,25 @@ export async function releaseLapsedEngineLock(db: Db, documentId: string): Promi
   });
 }
 
+/**
+ * The in-transaction form (review 2026-10-18): the caller already holds the
+ * document row FOR UPDATE, so a lapsed lock is released on the spot and the
+ * effective lock state handed back. It exists so the WOPI routes have NO
+ * pre-authentication write path — the standalone form above now serves only
+ * the authenticated, non-WOPI acts (replace, convert, freeze, delete).
+ */
+export async function releaseIfLapsed(
+  tx: Db,
+  doc: { id: string; headLocked: boolean; wopiLock: string | null; wopiLockExpiresAt: Date | null },
+): Promise<{ headLocked: boolean; wopiLock: string | null }> {
+  if (doc.wopiLock === null || doc.wopiLockExpiresAt === null || doc.wopiLockExpiresAt.getTime() > Date.now()) {
+    return { headLocked: doc.headLocked, wopiLock: doc.wopiLock };
+  }
+  const holder = await checkoutHolder(tx, doc.id);
+  await releaseEngineLock(tx, doc.id, doc.wopiLock, holder!.participantId, 'engine lock lapsed');
+  return { headLocked: false, wopiLock: null };
+}
+
 /** The engine takes an unlocked head: the check-out, with the engine's string. */
 export async function takeEngineLock(tx: Db, documentId: string, lock: string, participantId: string) {
   await tx

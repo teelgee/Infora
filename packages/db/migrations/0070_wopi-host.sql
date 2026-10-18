@@ -18,7 +18,8 @@
 -- are set together, and an engine lock never exists beside an unlocked head.
 --
 -- wopi_access_tokens keeps only a sha-256 of each pass, and cascades from both
--- the document and the session, so a signed-out sign-in's pass is gone rather
+-- the document and the session; sessions are revoked rather than deleted, so
+-- the sign-out path deletes the pass itself (review 2026-10-18) - gone rather
 -- than merely refused. Registered in personal-data.md (it names a sign-in).
 CREATE TABLE "wopi_access_tokens" (
 	"token_hash" text PRIMARY KEY NOT NULL,
@@ -37,3 +38,8 @@ ALTER TABLE "wopi_access_tokens" ADD CONSTRAINT "wopi_access_tokens_session_id_s
 CREATE INDEX "wopi_access_tokens_expires_idx" ON "wopi_access_tokens" USING btree ("expires_at");--> statement-breakpoint
 ALTER TABLE "sandbox_documents" ADD CONSTRAINT "sandbox_documents_wopi_lock_pair" CHECK (("sandbox_documents"."wopi_lock" IS NULL) = ("sandbox_documents"."wopi_lock_expires_at" IS NULL));--> statement-breakpoint
 ALTER TABLE "sandbox_documents" ADD CONSTRAINT "sandbox_documents_wopi_lock_holds_head" CHECK ("sandbox_documents"."wopi_lock" IS NULL OR "sandbox_documents"."head_locked");
+--> statement-breakpoint
+-- the house-style grant, as every hand-finished migration carries (a review
+-- 2026-10-18 addition; default privileges from 0034 already covered it, but a
+-- reader checking grants should find them stated)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "wopi_access_tokens" TO "infora_app";

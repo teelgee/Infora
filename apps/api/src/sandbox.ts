@@ -398,6 +398,20 @@ export function sandboxRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (!snapshot) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    // (review 2026-10-18) a version from the document's UPLOADED era does not
+    // restore onto a document since converted to authored: it would overwrite
+    // the preserved original file and blank the authored text in one act
+    const [docNow] = await deps.db
+      .select({ origin: s.sandboxDocuments.origin })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (docNow?.origin === 'authored' && snapshot.fileRef !== null) {
+      return c.json(
+        { error: 'conflict', detail: 'that version is from before this document was converted to the editor - restoring it would undo the conversion' } satisfies ApiError,
+        409,
+      );
+    }
     const [row] = await deps.db
       .update(s.sandboxDocuments)
       // T-453 — a revision that kept its file (migration 0070) restores the

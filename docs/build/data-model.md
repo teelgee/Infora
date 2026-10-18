@@ -324,12 +324,15 @@ this working revision had.
 
 `wopi_access_tokens` — `token_hash` (text, primary key: sha-256 of the pass;
 the pass itself is never stored); `sandbox_document_id` (FK, cascade — one
-pass, one file); `session_id` (FK to `sessions`, cascade — the pass dies with
-the sign-in that asked for it); `expires_at`; `created_at`. **Names a person
-through the session**, so it is registered in
-[personal-data.md](../architecture/personal-data.md): which sign-in opened
-which file for editing. Expired rows are swept on the next mint, so the table
-holds only live passes.
+pass, one file); `session_id` (FK to `sessions`, cascade — and, because session
+rows are REVOKED rather than deleted and the cascade alone would never fire,
+ending a session also deletes its passes outright *(made true in review
+2026-10-18; the build refused a dead session's pass but kept the row)*);
+`expires_at`; `created_at`. **Names a person through the session**, so it is
+registered in [personal-data.md](../architecture/personal-data.md): which
+sign-in opened which file for editing. Expired rows are swept on the next
+mint, dead sessions' rows at sign-out and sweep — the table holds only live
+or not-yet-swept passes.
 
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
