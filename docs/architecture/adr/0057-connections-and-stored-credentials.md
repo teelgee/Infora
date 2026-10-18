@@ -136,3 +136,19 @@ integration account* — the shared service account every incident traces to.
 to deployment on being told what it would mean. *Owner approval for read
 connections too* — declined as friction with no wall benefit: a read lands on
 the connecting organisation's own stamp.
+
+**Dated note (2026-10-18, from the Nomic docs evidence — recorded by Claude on
+delegated authority, flagged for veto in Session AC; context never authority,
+the reasoning restated in our own words).** Three disciplines for whoever
+builds the connection tables after deployment, each one this ADR already
+implies and the market's most careful connector makes explicit
+([nomic-docs-review.md](../../reference/nomic-docs-review.md) §3): **(1) a
+dedicated service account, never a person's login** — already this ADR's own
+rule, kept. **(2) Bringing data in and making it usable are two deliberate
+steps, not one** — a connection may list what exists at the source without yet
+landing rows, so the cost and the decision of ingesting are visible acts
+rather than side effects of connecting. **(3) Refuse a source that cannot
+state its permissions.** If the outside system cannot tell the connection who
+may see a folder or layer, the connection does not bring it in — the wall
+cannot honour rules it was never given, and a politely empty integration is
+better than a confidently wrong one.
