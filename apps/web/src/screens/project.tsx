@@ -1,6 +1,6 @@
 // The project shell (T-050) per the legacy mockup docs/design/mockups-legacy/project-home.html (removed 2026-08-04; in git history)
 // (historical build reference — superseded by design-tokens.json/design-rules.md): the
-// rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools ·
+// rail (Home · Ask · Editor · Documents · Review · Sandbox · Tools · Apps ·
 // History — component 8's set plus the T-108 History log; Workflows renamed
 // Tools, owner-ruled 2026-07-13/T-109: a tool is the packaged capability you
 // launch, a workflow is the codified sequence it runs; **Knowledge joined the
@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
 import type { LibraryItem, MeResponse, SandboxDocument, WorkItem } from '@infora/contracts';
-import { Archive, Bell, BookMarked, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, Bell, BookMarked, BookOpen, ClipboardCheck, ClipboardList, History as HistoryIcon, Home, LayoutGrid, PenLine, Sparkles, Wrench } from 'lucide-react';
 import {
   Badge,
   CommandBar,
@@ -53,6 +53,11 @@ const NAV = [
   { label: 'Notifications', glyph: <Bell size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'notifications' },
   { label: 'Sandbox', glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'sandbox' },
   { label: 'Tools', glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'tools' }, // Workflows renamed (T-109)
+  // T-450 (ADR-0058 decision 2) — Apps, beside Tools and no longer on its
+  // shelf: tools are what you run, apps are standing places that hold rows
+  // belonging to the firms that typed them. Navigation and words only — no
+  // access rule moved.
+  { label: 'Apps', glyph: <LayoutGrid size={ICON_SIZE} strokeWidth={ICON_STROKE} />, path: 'apps' },
   // T-422 (ADR-0054 decision 1) — Knowledge stops being "staged out of the v1
   // nav". It is its own rail item and NOT a panel in Settings: Settings is
   // where a person changes their own display name and theme, and a document

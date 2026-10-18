@@ -1,34 +1,36 @@
-// T-442 — the builder's agent: the pane beside the seven steps (ADR-0056's
-// 2026-09-06 addendum, ruling 5), and the thing that writes an app's screens.
+// T-442 → T-449/T-450 — the builder's agent: the conversation that builds an
+// app's working copy (ADR-0056's third addendum), and the thing that writes an
+// app's screens.
 //
-// *In plain terms: while somebody builds an app, an agent sits beside the steps.
-// It answers questions about what they are building, and when they describe a
-// screen in their own words it draws one. What it draws is not program code —
-// it is a short list of parts from a fixed menu, which Infora then renders.*
+// *In plain terms: a person tells the agent what app they want, and the agent
+// builds it in front of them — and when they describe a screen in their own
+// words it draws one. What it draws is not program code — it is a short list of
+// parts from a fixed menu, which Infora then renders.*
 //
-// This is the FOURTH embedded assistive agent, on the pattern T-337, T-364 and
-// T-409 established, and it keeps that pattern's properties:
+// Two halves, each with the properties of the embedded-agent pattern T-337,
+// T-364 and T-409 established:
 //
-//   1. **It PROPOSES and never applies.** A screen comes back to the surface,
-//      which saves it through the SAME `PATCH /apps/:appId/definition` a
-//      hand-made change takes. Two ways to write a screen would be two chances
-//      for them to disagree about what a screen may contain.
-//   2. **It reads no project material.** Its whole context is the app being
-//      built — its name, its declared tables' columns, and what the builder
-//      said. Not a row, not a document, not the library. A builder who cannot
-//      see a contractor's figures must not gain them by asking the agent that
-//      is helping them build the form those figures go into.
-//   3. **Anything it cannot shape becomes a question, not an error** (T-364's
-//      rule): a surface somebody is standing on should be asked, not failed.
+//   1. **The single-screen writer (T-442) PROPOSES and never applies.** A
+//      screen comes back to the surface, which saves it through the SAME
+//      `PATCH /apps/:appId/definition` a hand-made change takes.
+//   2. **The conversation (T-449) ACTS on the working copy — through a closed
+//      list of the same typed acts a person has**, which is the third
+//      addendum's ruling 2 reversing the first addendum's ruling 6: draft on
+//      the builders-only working copy, never perform an act that widens
+//      access, never answer a wall question for the person. The rules it keeps
+//      are set out where it begins, below.
+//   3. **Neither reads project material.** The whole context is the app being
+//      built — its name, its declared tables' columns, its screens, and what
+//      the builder said. Not a row, not a document, not the library.
+//   4. **Anything it cannot shape becomes a question, not an error** (T-364's
+//      rule).
 //
-// 🔒 **THE AGENT DOES NOT DECIDE WHAT TO ASK.** ADR-0056's addendum declined a
-// chat that fills the steps in, because *"a chat can skip a question, a form
-// cannot"*. A pane beside the steps is still a chat, so the two required
-// questions — whether each table holds contractual data, and who may open each
-// interface — are computed in code by `pendingBuilderQuestions`
-// (packages/contracts) from the state of the definition, and rendered on the
-// step rail and in the pane. A model that forgets to ask cannot suppress them,
-// because it is not what asks.
+// 🔒 **THE AGENT DOES NOT DECIDE WHETHER TO ASK.** The two required questions —
+// whether each table holds contractual data, and who may open each interface —
+// are computed in code by `pendingBuilderQuestions` (packages/contracts) from
+// the stored definition. The conversation adds any it has not yet asked to the
+// agent's own turn, and the publish gate (T-448) refuses past any left open, so
+// a model that forgets to ask cannot leave one unasked.
 //
 // 🔒 **THE AGENT CANNOT EMIT A SCREEN THAT REACHES OUTWARD.** Not because its
 // output is inspected — because a screen is a closed grammar with no field for
@@ -96,25 +98,6 @@ const SCREEN_SYSTEM = [
   '- showState belongs on a table whose rows are submitted and then accepted or rejected.',
   '- Which rows appear is settled by Infora before your screen is drawn. Write the layout, and make no claim about who sees what.',
   '- If what you were told is too vague to lay out, answer {"screen":null,"followUp":"<one short question>"}.',
-].join('\n');
-
-/**
- * The pane's conversational half. It answers about the app being built and
- * writes nothing — every choice lands in the form, which is what makes closing
- * the pane lose nothing (the addendum's ruling 5).
- */
-const ASK_SYSTEM = [
-  'You are the agent beside the steps while somebody builds an app inside Infora, a platform engineering consultancies use on infrastructure projects.',
-  'The seven steps, in order: what the app is and who it is open to; the tables; data connections; the interface; how often it runs; analysis and prompts; check and open.',
-  'Answer in plain English, in at most four sentences. No JSON, no code, no lists longer than three items.',
-  'What is true of every app here, and worth saying when it is relevant:',
-  '- Every row somebody types remembers which organisation and which person entered it. A row is read by that organisation and by the project owner, and by nobody else unless the project owner shares the whole table.',
-  '- A screen shows each person what that person could already see. A builder’s choices narrow what a screen shows; they never widen what anyone can reach.',
-  '- A table that holds contractual data needs an acceptance step: a row is submitted, and the project owner accepts or rejects it. An accepted row becomes the owner’s record and is never edited in place; a correction arrives as a new row.',
-  '- A schedule is stored today and starts working when there is a server that stays on. Say so rather than implying it runs.',
-  '- A data connection is described here and filled in after Infora is deployed. There is nowhere to type a password, on purpose.',
-  'You have not seen any of the project’s documents or any row of any table, and you do not pretend to have.',
-  'If you are asked for something the steps do not offer, say what the steps do offer instead.',
 ].join('\n');
 
 /** Strip a fenced code block if the model wrapped its JSON in one. */
@@ -216,62 +199,6 @@ export async function writeAppScreen(
     maxTokens: 1200,
   });
   return parseScreenAnswer(result.text, input.table.columns.map((column) => column.key));
-}
-
-/** What the agent knows about the app while it answers a question in the pane. */
-export type BuilderContext = {
-  appName: string;
-  step: number;
-  tables: Array<{ name: string; hasAcceptance: boolean; columnLabels: string[] }>;
-  interfaces: Array<{ label: string; narrowed: boolean }>;
-  schedule: string;
-  connectionCount: number;
-  hasAnalysisPrompt: boolean;
-};
-
-const STEP_NAMES = [
-  'what the app is and who it is open to',
-  'the tables',
-  'data connections',
-  'the interface',
-  'how often it runs',
-  'analysis and prompts',
-  'check and open',
-];
-
-export async function askBuilderAgent(
-  router: Router,
-  input: { ask: string; context: BuilderContext },
-): Promise<string> {
-  const { context } = input;
-  const state = [
-    `The app is called: ${context.appName}`,
-    `They are on step ${context.step} of 7 — ${STEP_NAMES[context.step - 1] ?? 'the steps'}.`,
-    context.tables.length === 0
-      ? 'No tables are declared yet.'
-      : `Tables declared: ${context.tables
-          .map(
-            (table) =>
-              `“${table.name}” (${table.columnLabels.join(', ')}) — ${table.hasAcceptance ? 'has an acceptance step' : 'no acceptance step'}`,
-          )
-          .join('; ')}`,
-    context.interfaces.length === 0
-      ? 'No screens yet.'
-      : `Screens: ${context.interfaces
-          .map((screen) => `“${screen.label}” — ${screen.narrowed ? 'opens to named organisations only' : 'opens to everyone the app is open to'}`)
-          .join('; ')}`,
-    `Schedule: ${context.schedule} (stored; it starts working when there is a server that stays on).`,
-    `Data connections described: ${context.connectionCount}.`,
-    context.hasAnalysisPrompt ? 'An analysis prompt is written.' : 'No analysis prompt yet.',
-  ].join('\n');
-  const result = await router.chat('draft', {
-    system: ASK_SYSTEM,
-    messages: [{ role: 'user', content: `${state}\n\nThey say: ${input.ask}` }],
-    maxTokens: 500,
-  });
-  const reply = result.text.trim();
-  if (reply === '') return 'I did not follow that — what would you like the app to do?';
-  return reply.slice(0, MAX_REPLY);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -585,17 +512,20 @@ export async function runBuilderTurn(
   } else {
     say = parsed.answer.say;
     proposals.push(...parsed.answer.proposals);
+    // ONE state across the turn's acts, so each act is judged against the app
+    // as the agent's own previous acts left it
+    const performState: PerformState = {
+      snapshot,
+      askedBefore,
+      proposedLastTurn,
+      receipts,
+      notes,
+      proposals,
+      askedNow,
+    };
     for (const act of parsed.answer.acts) {
       try {
-        await perform(db, ctx, act, {
-          snapshot,
-          askedBefore,
-          proposedLastTurn,
-          receipts,
-          notes,
-          proposals,
-          askedNow,
-        });
+        await perform(db, ctx, act, performState);
       } catch {
         notes.push('One of the changes I tried could not be made, so I left it.');
       }
@@ -728,6 +658,10 @@ async function perform(
       definition,
     });
     if (result === 'invalid') throw new Error('refused by the definition boundary');
+    // the agent's own write becomes what later acts in this turn are judged
+    // against — so its second act on a screen is not mistaken for a person's
+    // edit made while it was answering
+    state.snapshot = await readSnapshot(db, ctx.appId);
   };
   const done = (summary: string) => state.receipts.push({ kind: act.kind, summary });
   const fresh = await readSnapshot(db, ctx.appId);
@@ -750,6 +684,7 @@ async function perform(
         ...(name !== undefined && { name }),
         ...(description !== undefined && { description: description === '' ? null : description }),
       });
+      state.snapshot = await readSnapshot(db, ctx.appId);
       done(name !== undefined ? `Named the app “${name}”.` : 'Wrote what the app is for.');
       return;
     }

@@ -2994,18 +2994,6 @@ export const writeAppScreenBody = z.object({
 });
 export type WriteAppScreenBody = z.infer<typeof writeAppScreenBody>;
 
-/**
- * POST /apps/:appId/builder/ask — T-442, the pane beside the steps (ADR-0056's
- * 2026-09-06 addendum, ruling 5). The agent answers about the app being built;
- * it writes nothing. **The two required questions are not asked from here** —
- * they are computed by `pendingBuilderQuestions` in code, because a model that
- * forgets to ask must not be able to skip one (ruling 6's reasoning).
- */
-export const askBuilderAgentBody = z.object({
-  step: z.number().int().min(1).max(7),
-  ask: z.string().min(1).max(2000),
-});
-export type AskBuilderAgentBody = z.infer<typeof askBuilderAgentBody>;
 
 /** What the builder's agent says back. `screen` is null when the agent could
  * not shape one — a follow-up question, never a failure, on T-364's rule. */
@@ -3016,7 +3004,6 @@ export type WriteAppScreenResponse = {
   followUp: string | null;
 };
 
-export type AskBuilderAgentResponse = { reply: string };
 
 /**
  * T-449 — `POST /apps/:appId/builder/conversation`: one thing a builder says to

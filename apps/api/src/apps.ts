@@ -29,7 +29,6 @@ import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
-  askBuilderAgentBody,
   createAppBody,
   declareAppTableBody,
   grantAppScopeBody,
@@ -43,7 +42,6 @@ import {
 } from '@infora/contracts';
 import type {
   ApiError,
-  AskBuilderAgentResponse,
   AppColumn,
   AppDefinition,
   AppRecord,
@@ -70,7 +68,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
-import { askBuilderAgent, readConversation, runBuilderTurn, writeAppScreen } from './app-builder-agent';
+import { readConversation, runBuilderTurn, writeAppScreen } from './app-builder-agent';
 import {
   declareTableAct,
   publishGateFor,
@@ -560,19 +558,15 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     return c.json(await recordOf(deps.db, fresh!, slice, user.mayBuildApps));
   });
 
-  // ── The builder's agent (T-442, ADR-0056 §2b and the addendum's ruling 5) ─
+  // ── The single-screen writer (T-442) ──────────────────────────────────────
   //
-  // Two routes, both gated by `canBuildApp` — the agent is a tool of the person
-  // building the app, and there is no seat at it for anyone else. Both PROPOSE:
-  // what comes back is saved through `PATCH /definition` like any other change,
-  // so a screen an agent wrote and a screen a person typed travel the same road
-  // and meet the same validation.
-  //
-  // 🔒 **NEITHER ROUTE ASKS THE MODEL WHAT TO ASK.** The two required questions
-  // (§2b) are computed from the definition by `pendingBuilderQuestions` in
-  // `@infora/contracts` and rendered on the steps. These routes are the pane's
-  // conversation and its screen-drawing; whether the builder is asked the two
-  // questions does not depend on what a model chooses to say.
+  // Gated by `canBuildApp` — a tool of the person building the app. It
+  // PROPOSES: what comes back is saved through `PATCH /definition` like any
+  // other change, so a screen it wrote and a screen a person typed travel the
+  // same road and meet the same validation. The panel's "draw this screen" uses
+  // it; the conversation (below) writes screens through its own closed acts.
+  // *(T-450 — the stepped pane's `POST /builder/ask` is gone with the steps: the
+  // stored conversation replaced it.)*
 
   app.post('/apps/:appId/builder/screen', async (c) => {
     const user = c.get('user');
@@ -601,44 +595,6 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       },
     });
     return c.json(answer satisfies WriteAppScreenResponse);
-  });
-
-  app.post('/apps/:appId/builder/ask', async (c) => {
-    const user = c.get('user');
-    const reached = await reachApp(deps.db, user, c.req.param('appId'));
-    if (!reached) return notFound(c);
-    const { app: loaded, slice } = reached;
-    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
-    const parsed = askBuilderAgentBody.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return invalid(c);
-    const tables = await deps.db
-      .select()
-      .from(s.appTables)
-      .where(and(eq(s.appTables.appId, loaded.row.id), isNull(s.appTables.retiredAt)))
-      .orderBy(asc(s.appTables.name));
-    const definition = loaded.row.definition as AppDefinition;
-    const reply = await askBuilderAgent(deps.router, {
-      ask: parsed.data.ask,
-      context: {
-        appName: loaded.row.name,
-        step: parsed.data.step,
-        // the SHAPE of the app and nothing that is in it: no row of any table
-        // is loaded here, and the agent has no way to ask for one
-        tables: tables.map((table) => ({
-          name: table.name,
-          hasAcceptance: table.hasAcceptance,
-          columnLabels: (table.columns as AppTableRecord['columns']).map((column) => column.label),
-        })),
-        interfaces: definition.interfaces.map((screen) => ({
-          label: screen.label,
-          narrowed: screen.openToOrganisationIds.length > 0,
-        })),
-        schedule: definition.schedule,
-        connectionCount: definition.connections.length,
-        hasAnalysisPrompt: (definition.analysisPrompt ?? '') !== '',
-      },
-    });
-    return c.json({ reply } satisfies AskBuilderAgentResponse);
   });
 
   // ── T-449: the build conversation (ADR-0056's third addendum, rulings 2, 3, 5)

@@ -1400,3 +1400,13 @@ are not recorded here.
   copy, and a surface that had to make a second request to see them would show
   the conversation and the state disagreeing for a moment — exactly the moment
   a person is reading both.
+
+- **2026-10-18 (T-450) — `askBuilderAgentBody` and `AskBuilderAgentResponse`
+  are removed, with `POST /apps/:appId/builder/ask`.** *Plainly: the old chat
+  box beside the steps is gone, because the stored conversation replaced it.*
+  The **reason it is removed rather than kept beside the new one** is that two
+  ways to talk to the builder's agent — one that remembers and acts, one that
+  forgets and only talks — would leave a person unsure which one their words
+  went to, and the forgetting one was the exact thing the third addendum's
+  ruling 5 reversed. `POST /apps/:appId/builder/screen` stays: it is the
+  panel's direct "draw this screen" and still proposes rather than applies.

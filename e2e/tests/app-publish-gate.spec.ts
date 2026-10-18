@@ -67,7 +67,7 @@ test('a publish past an unanswered question is refused in words, and answering c
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection')).toBeVisible();
-  await page.goto(`/projects/${projectId}/tools/apps/${app.id}`);
+  await page.goto(`/projects/${projectId}/apps/${app.id}`);
   await page.getByRole('button', { name: 'Check and open' }).click();
   await expect(page.getByText(body.detail)).toBeVisible();
 

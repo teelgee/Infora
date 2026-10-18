@@ -1,9 +1,15 @@
 // T-440 — the app instance on screen (ADR-0056), and the section it lives in.
 //
-// *In plain terms: a project's apps appear in the Tools section; opening one
-// shows what it holds, who it is open to, and — for the people who built it —
-// the controls to publish it, share a table, hand it to somebody else or close
-// it.*
+// *In plain terms: a project's apps have their own section of the project,
+// beside Tools; opening one shows what it holds, who it is open to, and — for
+// the people who built it — the controls to publish it, share a table, hand it
+// to somebody else or close it.*
+//
+// **T-450 — apps left the Tools shelf** (ADR-0058 decision 2: tools run, apps
+// hold). Until then this list sat under Infora's standard tools on the Tools
+// screen; it is now the Apps section's own page, at `/projects/:id/apps`, and
+// an app lives at `/projects/:id/apps/:appId`. Nothing about access moved —
+// this is navigation and words, exactly as the ADR says.
 //
 // 🔒 **ASSEMBLED, NOT FILTERED** (T-269's rule, the same one the tool cards
 // follow). An app this person cannot open never reaches this component: the
@@ -54,17 +60,32 @@ const STATE: Record<AppState, { tone: BadgeTone; label: string }> = {
   closed: { tone: 'neutral', label: 'Closed — its tables can still be read' },
 };
 
-// ── The section on the Tools screen ────────────────────────────────────────
+// ── The Apps section ───────────────────────────────────────────────────────
 
 /**
- * The project's apps.
+ * T-450 — the project's Apps section: a place of its own, beside Tools.
  *
- * **Deliberately its own section rather than a tile in the standard tool
- * grid.** The Tools list above it is Infora's own standard tools, assembled
- * from what this deployment carries and what this person is entitled to; an app
- * is a thing a firm built inside one project, and putting it in the same grid
- * would say the two are the same kind of thing.
+ * **Why it left the Tools screen** (ADR-0058): a tool is something you run, and
+ * what lasts is its output in the record; an app is somewhere you go, holding
+ * rows that belong to the firms that typed them. Listing them under the tools
+ * said the two were the same kind of thing.
  */
+export function AppsScreen() {
+  const { projectId } = useParams();
+  if (projectId === undefined) return null;
+  return (
+    <div className="content">
+      <h1 className="page">Apps</h1>
+      <p className="page-sub">
+        Standing places a firm has had built inside this scheme — a form to fill in, a register, a
+        dashboard. Tools do the work; apps hold it.
+      </p>
+      <AppsSection projectId={projectId} />
+    </div>
+  );
+}
+
+/** The project's apps, and the ways to make one. */
 export function AppsSection({ projectId }: { projectId: string }) {
   const [items, setItems] = useState<AppSummary[] | null>(null);
   const [mayCreate, setMayCreate] = useState(false);
@@ -116,7 +137,7 @@ export function AppsSection({ projectId }: { projectId: string }) {
         ) : (
           <div className="tool-cards">
             {items.map((item) => (
-              <Link key={item.id} className="tool-card" to={`/projects/${projectId}/tools/apps/${item.id}`}>
+              <Link key={item.id} className="tool-card" to={`/projects/${projectId}/apps/${item.id}`}>
                 <span className="tool-card-head">
                   <span className="tool-card-name">{item.name}</span>
                   <Badge tone={STATE[item.state].tone}>{STATE[item.state].label}</Badge>
@@ -246,12 +267,12 @@ export function AppScreen() {
           </p>
         )}
         <div className="shelf-head" style={{ gap: 8, marginTop: 8 }}>
-          {/* T-442 — the stepped builder, offered only where the server said
-              this person may build. `mayBuild` is the API's answer; nothing
-              here works it out. */}
+          {/* T-442 → T-450 — the building screen, offered only where the
+              server said this person may build. `mayBuild` is the API's
+              answer; nothing here works it out. */}
           {app.mayBuild && app.state !== 'closed' && (
-            <Link to={`/projects/${projectId}/tools/apps/${app.id}/build`}>
-              <Button>Build it — the steps</Button>
+            <Link to={`/projects/${projectId}/apps/${app.id}/build`}>
+              <Button>Build it with the agent</Button>
             </Link>
           )}
           {app.mayBuild && app.state !== 'closed' && (

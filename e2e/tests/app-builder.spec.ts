@@ -58,7 +58,7 @@ test('the seven steps, the agent’s two questions, and the screens its people o
   expect((await owen.raw('get', `/apps/${app.id}`)).status()).toBe(404);
   expect(
     (
-      await owen.raw('post', `/apps/${app.id}/builder/ask`, { step: 1, ask: 'what is this?' })
+      await owen.raw('post', `/apps/${app.id}/builder/conversation`, { say: 'what is this?' })
     ).status(),
   ).toBe(404);
 

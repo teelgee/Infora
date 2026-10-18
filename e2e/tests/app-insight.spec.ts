@@ -315,7 +315,7 @@ test('a published screen draws a chart over the viewer’s own readable rows', a
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection')).toBeVisible();
-  await page.goto(`/projects/${projectId}/tools/apps/${app.id}`);
+  await page.goto(`/projects/${projectId}/apps/${app.id}`);
 
   const chart = page.locator('.app-chart').first();
   await expect(chart).toBeVisible();

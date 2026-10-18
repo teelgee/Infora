@@ -459,6 +459,35 @@ describe('the agent’s tool set', () => {
     expect(res.turns[1]!.text).toContain('I have not removed “Client dashboard” — say yes and I will.');
   });
 
+  it('lets its own acts in one turn build on each other — answering for a screen, then redrawing it', async () => {
+    const built = await newApp(`t449 chained ${stamp}`);
+    await say(builderCookie, built.id, 'Build me a monthly returns app.');
+    const before = ((await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse).app
+      .definition!;
+    const dashboard = before.interfaces.find((i) => i.label === 'Client dashboard')!;
+    scripted = () =>
+      JSON.stringify({
+        say: 'Recorded, and redrawn.',
+        acts: [
+          { kind: 'answerWhoMayOpen', screen: dashboard.id, organisationIds: [ownerOrg] },
+          {
+            kind: 'writeScreen',
+            screen: dashboard.id,
+            label: 'Client dashboard',
+            table: 'Monthly returns',
+            layout: { version: 1, blocks: [{ kind: 'count', label: 'Returns in' }] },
+          },
+        ],
+        asks: [],
+        proposals: [],
+      });
+    const res = await say(builderCookie, built.id, 'Only the client may open the dashboard; make it a count.');
+    expect(res.turns[1]!.acts.map((a) => a.kind)).toEqual(['answerWhoMayOpen', 'writeScreen']);
+    const after = res.app.app.definition!.interfaces.find((i) => i.id === dashboard.id)!;
+    expect(after.openToOrganisationIds).toEqual([ownerOrg]);
+    expect(after.source).toContain('Returns in');
+  });
+
   it('never writes over a change a person made by hand while it was answering', async () => {
     const built = await newApp(`t449 clobber ${stamp}`);
     await say(builderCookie, built.id, 'Build me a monthly returns app.');

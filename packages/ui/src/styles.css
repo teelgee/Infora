@@ -1972,51 +1972,71 @@ a.shelf-row-title:hover { text-decoration: underline; }
   color: var(--text-secondary); white-space: pre-wrap; overflow-x: auto;
 }
 
-/* T-442 — the stepped builder: the steps down the left, the step being worked
-   in the middle, the agent in its own pane on the right (ADR-0056's 2026-09-06
-   addendum, ruling 5 — the pane sits BESIDE the steps and does not fill them
-   in). The drawing's three columns, in the plain kit. */
-.builder { display: grid; grid-template-columns: 260px minmax(0, 1fr) 320px; gap: var(--gap-default); align-items: start; }
-@media (max-width: 1180px) { .builder { grid-template-columns: 1fr; } }
-.builder-steps { display: flex; flex-direction: column; gap: 2px; }
-.builder-step {
-  display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
-  padding: var(--gap-tight) var(--primitive-space-2); border: 0; border-radius: var(--primitive-radius-sm);
-  background: none; cursor: pointer; color: var(--text-secondary); font: inherit;
+/* T-450 — the building screen: the conversation first, the state of the app
+   beside it (ADR-0056's third addendum, rulings 2 and 4). T-442's three-column
+   stepped frame is gone with the steps; their seven concerns are the panel's
+   sections. Two columns in the plain kit — the conversation flexible, the panel
+   at a reading width — stacking under one another when the pane is narrow. */
+.builder-split {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
+  gap: var(--gap-default); align-items: start;
 }
-.builder-step:hover { background: var(--surface-pane); }
-.builder-step.is-current { background: var(--surface-pane); color: var(--text-primary); }
-.builder-step-n {
-  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; display: inline-flex;
-  align-items: center; justify-content: center; background: var(--surface-raised);
-  border: 1px solid var(--border-default); font-size: var(--ui-micro-size);
-}
-.builder-step-title { display: block; font-weight: 600; font-size: var(--ui-default-size); }
-.builder-step-sub { display: block; color: var(--text-muted); font-size: var(--body-dense-size); line-height: 1.4; }
-/* the mockup's "+ THE AGENT ASKS" mark: which steps carry a question the
-   builder has not answered yet. Computed from the definition, never from the
-   model's memory (ADR-0056 §2b). */
-.builder-step-asks {
-  display: inline-block; margin-top: 4px; font-family: var(--ui-micro-family);
-  font-size: var(--ui-micro-size); letter-spacing: var(--ui-micro-letter-spacing);
-  text-transform: var(--ui-micro-transform); color: var(--text-accent, var(--text-primary));
-}
-.builder-body { display: flex; flex-direction: column; gap: var(--gap-default); min-width: 0; }
-.builder-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-default); }
-.builder-screen {
-  border-top: 1px solid var(--border-subtle); padding-top: var(--gap-default); margin-top: var(--gap-default);
-}
-/* a question the builder still owes an answer to — marked, never buried */
-.builder-ask {
-  border-left: 2px solid var(--border-default); padding-left: var(--primitive-space-2);
-  margin: var(--gap-default) 0;
-}
-.builder-agent {
+@media (max-width: 1180px) { .builder-split { grid-template-columns: 1fr; } }
+.builder-conversation {
   display: flex; flex-direction: column; gap: var(--gap-tight); min-width: 0;
   background: var(--surface-pane); border-radius: var(--primitive-radius-sm);
-  padding: var(--primitive-space-3);
+  padding: var(--primitive-space-3); position: sticky; top: 0;
 }
-.builder-turns { display: flex; flex-direction: column; gap: var(--gap-tight); max-height: 420px; overflow-y: auto; }
+.builder-turns {
+  display: flex; flex-direction: column; gap: var(--gap-default);
+  max-height: 62vh; overflow-y: auto; padding-right: 2px;
+}
+.builder-turn { display: flex; flex-direction: column; gap: 4px; }
+.builder-turn.is-person { align-items: flex-end; }
+.builder-turn-who {
+  font-family: var(--ui-micro-family); font-size: var(--ui-micro-size);
+  letter-spacing: var(--ui-micro-letter-spacing); text-transform: var(--ui-micro-transform);
+  color: var(--text-muted);
+}
+/* the agent's words keep their line breaks: the questions it asks are each on
+   a line of their own, and run together they read as one long demand */
+.builder-turn-text { white-space: pre-wrap; margin: 0; }
+.builder-receipt {
+  border-left: 2px solid var(--border-subtle); padding-left: var(--primitive-space-2);
+  font-size: var(--body-dense-size); color: var(--text-secondary);
+}
+.builder-receipt ul, .builder-list { margin: 4px 0 0; padding-left: 18px; }
+.builder-panel { display: flex; flex-direction: column; gap: var(--gap-default); min-width: 0; }
+.builder-section { display: flex; flex-direction: column; gap: var(--gap-tight); }
+.builder-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-tight); }
+/* a section's label sits level with its "N to answer" mark, and a card does
+   not open on the label's page-level top margin */
+.builder-section-head .section-label { margin: 0; }
+.builder-section-head + .builder-section-head,
+.builder-section > .builder-section-head:not(:first-child) { margin-top: var(--gap-default); }
+.builder-conversation > .section-label { margin: 0 0 var(--gap-tight); }
+.builder-panel > .card { margin-bottom: 0; }
+/* a button in a section is the size of its words, and a row of them reads
+   left to right as a row, not spread to the card's two edges */
+.builder-section > .btn, .builder-item > .btn { align-self: flex-start; }
+.builder-panel .shelf-head { justify-content: flex-start; }
+.builder-item {
+  display: flex; flex-direction: column; gap: 6px;
+  border-top: 1px solid var(--border-subtle); padding-top: var(--gap-tight);
+}
+.builder-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-tight); }
+/* a question the builder still owes an answer to — marked, never buried */
+.builder-ask {
+  border-left: 2px solid var(--border-strong); padding-left: var(--primitive-space-2);
+  margin: 2px 0;
+}
+.builder-ask p { margin: 4px 0; }
+/* the publish gate's words while it is shut — the server's sentence, read
+   before anybody clicks (T-448) */
+.builder-gate.is-closed {
+  margin: 0; font-size: var(--ui-default-size); color: var(--text-primary);
+  border-left: 2px solid var(--border-strong); padding-left: var(--primitive-space-2);
+}
 
 /* T-443 — a chart block on a generated screen. The chart itself is SVG drawn in
    `apps/web/src/screens/app-screen.tsx` from the rows the viewer received; this

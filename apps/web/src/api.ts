@@ -21,9 +21,10 @@ import type {
   ListAppRunsResponse,
   ListAppsResponse,
   PatchAppDefinitionBody,
-  AskBuilderAgentBody,
-  AskBuilderAgentResponse,
   WriteAppScreenBody,
+  BuildConversationResponse,
+  SayToBuilderBody,
+  SayToBuilderResponse,
   WriteAppScreenResponse,
   ConflictExclusionRecord,
   DeclareExclusionBody,
@@ -1020,16 +1021,21 @@ export const api = {
       body: JSON.stringify(body),
     }),
   publishApp: (appId: string) => request<AppRecord>(`/apps/${appId}/publish`, { method: 'POST' }),
-  // T-442 — the builder's agent. Both PROPOSE: what comes back is saved through
-  // `patchAppDefinition` like any other change, so a screen the agent drew and
+  // T-442 — the single-screen writer. It PROPOSES: what comes back is saved
+  // through `patchAppDefinition` like any other change, so a screen it drew and
   // a screen a person edited travel the same road and meet the same validation.
   writeAppScreen: (appId: string, body: WriteAppScreenBody) =>
     request<WriteAppScreenResponse>(`/apps/${appId}/builder/screen`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  askBuilderAgent: (appId: string, body: AskBuilderAgentBody) =>
-    request<AskBuilderAgentResponse>(`/apps/${appId}/builder/ask`, {
+  // T-449/T-450 — the build conversation: stored against the app, read and
+  // spoken to by its builders alone. The agent's acts come back with the app as
+  // it now stands, so the panel and the conversation never disagree.
+  buildConversation: (appId: string) =>
+    request<BuildConversationResponse>(`/apps/${appId}/builder/conversation`),
+  sayToBuilder: (appId: string, body: SayToBuilderBody) =>
+    request<SayToBuilderResponse>(`/apps/${appId}/builder/conversation`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),

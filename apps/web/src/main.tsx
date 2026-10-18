@@ -1,9 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router';
 import '@infora/ui/styles.css';
 import { SessionGate } from './session';
-import { AppScreen } from './screens/apps';
+import { AppScreen, AppsScreen } from './screens/apps';
 import { AppBuilderScreen } from './screens/app-builder';
 import { AskScreen } from './screens/ask';
 import { EditorScreen } from './screens/editor';
@@ -71,14 +71,19 @@ const router = createBrowserRouter([
       // first step pre-filled (`?documentId=`), not a second flow: one run
       // shape, and one place the scope is stated (ADR-0053 §1).
       { path: 'tools/qa-check', element: <QaCheckerScreen /> },
-      // T-440 (ADR-0056) — one app built for this project. Under `tools/`
-      // rather than at the top of the rail because an app IS a tool of this
-      // project's, and the section it is listed in is the Tools screen's.
-      { path: 'tools/apps/:appId', element: <AppScreen /> },
-      // T-442 — the stepped builder. A route of its own rather than a mode of
-      // the app screen: the app screen is what its people open, and the builder
-      // is where its working copy is edited by the people who may.
-      { path: 'tools/apps/:appId/build', element: <AppBuilderScreen /> },
+      // T-450 (ADR-0058 decision 2) — apps leave the Tools shelf for a section
+      // of their own, beside it: a tool is something you run, an app somewhere
+      // you go. The section, one app, and the building screen.
+      { path: 'apps', element: <AppsScreen /> },
+      { path: 'apps/:appId', element: <AppScreen /> },
+      // the building screen: a route of its own rather than a mode of the app
+      // screen — the app screen is what its people open, and the building
+      // screen is where its working copy is edited by the people who may
+      { path: 'apps/:appId/build', element: <AppBuilderScreen /> },
+      // the T-440–T-449 addresses under `tools/`, kept as redirects so a link
+      // somebody saved still lands on the app rather than on nothing
+      { path: 'tools/apps/:appId', element: <MovedApp /> },
+      { path: 'tools/apps/:appId/build', element: <MovedApp build /> },
       // T-422 (ADR-0054 decision 1) — Knowledge: the two shelves. Its own rail
       // item rather than a panel in Settings, which is personal.
       { path: 'knowledge', element: <KnowledgeScreen /> },
@@ -90,6 +95,13 @@ const router = createBrowserRouter([
     ],
   },
 ]);
+
+/** T-450 — an app address from before apps left the Tools shelf, sent on to
+ * where the app now lives. */
+function MovedApp(props: { build?: boolean }) {
+  const { projectId, appId } = useParams();
+  return <Navigate replace to={`/projects/${projectId}/apps/${appId}${props.build ? '/build' : ''}`} />;
+}
 
 // The gate is applied here rather than around the whole tree, because the
 // external document is the one route that must render for somebody who is not

@@ -331,8 +331,10 @@ describe('the builder’s agent belongs to the people building the app', () => {
         })
       ).status,
     ).toBe(404);
+    // T-450 — the stepped pane's `/builder/ask` is gone; its successor, the
+    // stored conversation, refuses the colleague the same way
     expect(
-      (await post(colleagueCookie, `/apps/${built.id}/builder/ask`, { step: 2, ask: 'what is this?' }))
+      (await post(colleagueCookie, `/apps/${built.id}/builder/conversation`, { say: 'what is this?' }))
         .status,
     ).toBe(404);
   });
@@ -367,21 +369,6 @@ describe('the builder’s agent belongs to the people building the app', () => {
         })
       ).status,
     ).toBe(404);
-  });
-
-  it('answers a question in the pane without writing anything into the app', async () => {
-    const built = await newApp(`t442 pane ${stamp}`);
-    const before = (await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse;
-    const res = await post(builderCookie, `/apps/${built.id}/builder/ask`, {
-      step: 2,
-      ask: 'What does an acceptance step actually do?',
-    });
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { reply: string }).reply.length).toBeGreaterThan(0);
-    const after = (await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse;
-    // the pane wrote nothing: the definition and its version are untouched
-    expect(after.app.definitionVersion).toBe(before.app.definitionVersion);
-    expect(after.app.definition).toEqual(before.app.definition);
   });
 });
 

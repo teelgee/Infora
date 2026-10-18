@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type {
+  AppBuildTurn,
   DestinationCheckResponse,
   Finding,
   GroundingSource,
@@ -42,7 +43,7 @@ import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
 import { ExternalDocumentView } from './screens/external-document';
 import { ScreenBlock, chartSeries, screenFor, trendLine } from './screens/app-screen';
-import { BuilderAgentPane } from './screens/app-builder';
+import { BuilderConversation } from './screens/app-builder';
 import { MemoryRouter } from 'react-router';
 import {
   CHECK_FAMILY_CATALOGUE,
@@ -2254,31 +2255,46 @@ describe('a generated screen (T-442, ADR-0056 §11)', () => {
   });
 });
 
-// T-442 — the pane beside the steps (ADR-0056's addendum, ruling 5).
-describe('the builder’s agent pane', () => {
-  it('🔒 states the required questions itself, rather than waiting for a model to raise them', () => {
-    const html = renderToStaticMarkup(
-      <BuilderAgentPane
-        appId="app-1"
-        step={2}
-        questions={[
-          {
-            kind: 'contractual-data',
-            step: 2,
-            subjectId: 'table-1',
-            subjectName: 'Monthly returns',
-            question: 'Does “Monthly returns” hold contractual data?',
-          },
-        ]}
-      />,
-    );
-    expect(html).toContain('Still to ask you');
-    expect(html).toContain('hold contractual data');
+// T-450 — the conversation on the building screen (ADR-0056's third addendum).
+describe('the builder’s conversation', () => {
+  const turn = (over: Partial<AppBuildTurn>): AppBuildTurn => ({
+    id: 'turn-1',
+    seq: 1,
+    role: 'agent',
+    speakerName: 'Eleanor Price',
+    text: 'I have drafted a monthly returns app.',
+    asked: [],
+    acts: [],
+    proposals: [],
+    createdAt: '2026-10-18T10:00:00.000Z',
+    ...over,
   });
 
-  it('says what it is for when nothing has been asked yet', () => {
-    const html = renderToStaticMarkup(<BuilderAgentPane appId="app-1" step={1} questions={[]} />);
-    expect(html).toContain('what an acceptance step means');
-    expect(html).not.toContain('Still to ask you');
+  it('says what it is for, and names the two questions it must ask, before anything is said', () => {
+    const html = renderToStaticMarkup(<BuilderConversation appId="app-1" turns={[]} onTurn={() => {}} />);
+    expect(html).toContain('Describe the app in your own words');
+    expect(html).toContain('whether a table holds contractual data, and who may open each screen');
+  });
+
+  it('draws the agent’s receipt from the stored turn — what it did, and what it suggests a person does', () => {
+    const html = renderToStaticMarkup(
+      <BuilderConversation
+        appId="app-1"
+        turns={[
+          turn({ id: 'p', role: 'person', text: 'Build me a returns app.' }),
+          turn({
+            id: 'a',
+            acts: [{ kind: 'declareTable', summary: 'Declared the table “Monthly returns”.' }],
+            proposals: [{ kind: 'publish', subject: null, summary: 'Open the app to its people, from the panel.' }],
+          }),
+        ]}
+        onTurn={() => {}}
+      />,
+    );
+    expect(html).toContain('Build me a returns app.');
+    expect(html).toContain('What it did');
+    expect(html).toContain('Declared the table “Monthly returns”.');
+    expect(html).toContain('It suggests');
+    expect(html).toContain('Open the app to its people, from the panel.');
   });
 });
