@@ -48,6 +48,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { organisations, participants, projects } from './drawer1-parties.js';
+import { containers, sandboxDocuments } from './drawer2-documents.js';
 import { runs } from './drawer3-execution.js';
 
 /**
@@ -512,3 +513,75 @@ export const appBuildTurns = pgTable(
   },
   (t) => [index('app_build_turns_app_idx').on(t.appId, t.seq)],
 );
+
+/**
+ * T-451 — **the file source: an app table fed from a spreadsheet the project
+ * already holds** (ADR-0059; drawn in data-model.md, Drawer 9, before 0069 was
+ * written).
+ *
+ * *In plain terms: a table can point at one spreadsheet in the project — a
+ * sandbox document or a library record — name the block of cells that holds
+ * the data and what each column means, and every new version of that file
+ * refills the table.*
+ *
+ * ONE SOURCE PER TABLE, A TABLE PER SOURCE — `app_table_id` is unique, so a
+ * re-attach after a detach reconfigures this same row rather than adding a
+ * second one. The pointer follows the DOCUMENT, whose versions are the refresh
+ * events (the Power BI item-identity lesson): exactly one of the pair is set,
+ * `CHECK`ed in 0069.
+ *
+ * NAMED-PERSON DATA (personal-data.md, "The file source's configuration"): the
+ * builder who attached or last changed it. **Never the rows' stamp** —
+ * imported rows name the file version's uploader (ADR-0059 decision 2).
+ *
+ * No trigger guards the import discipline, deliberately (the drawing's own
+ * word): it lives in ONE act function, `app-table-source.ts`, which the
+ * version-landing hook and the refresh-now route both call.
+ */
+export const appTableSources = pgTable('app_table_sources', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  appTableId: uuid('app_table_id')
+    .notNull()
+    .unique()
+    .references(() => appTables.id, { onDelete: 'cascade' }),
+  /** ON DELETE CASCADE on both halves of the pair, and the reason is erasure:
+   * a purge (ADR-0050 §6, T-340/T-341) deletes the document, and this row
+   * QUOTES that document — its header texts — so the configuration goes with
+   * it. The rows already imported do not: they are the table's, with their
+   * ordinary lives, exactly as on a detach. */
+  sandboxDocumentId: uuid('sandbox_document_id').references(() => sandboxDocuments.id, {
+    onDelete: 'cascade',
+  }),
+  containerId: uuid('container_id').references(() => containers.id, { onDelete: 'cascade' }),
+  /** the worksheet's name */
+  sheet: text('sheet').notNull(),
+  /** the header texts of the selected table-shaped region, as they were at
+   * attach — the region is RE-FOUND by its mapped headers on every import, so
+   * a block that moved survives and one that vanished fails loudly */
+  headerRow: jsonb('header_row').notNull().default([]),
+  /** `{ header, columnKey }[]` — source column → declared column key, checked
+   * against the table's columns at attach and at every import */
+  mapping: jsonb('mapping').notNull().default([]),
+  /** the builder who attached, last changed, or detached it — the
+   * configuration's stamp, never the rows' */
+  configuredByParticipantId: uuid('configured_by_participant_id')
+    .notNull()
+    .references(() => participants.id),
+  configuredAt: timestamp('configured_at', { withTimezone: true }).notNull().defaultNow(),
+  /** which version of the document the table currently reflects — moves only
+   * on a SUCCESSFUL import */
+  lastImportVersion: text('last_import_version'),
+  /** the receipt the panel shows. A failed import says why, in words, here —
+   * and changes no rows */
+  lastImportAt: timestamp('last_import_at', { withTimezone: true }),
+  lastImportOutcome: text('last_import_outcome'),
+  /** T-451, added at build (the drawing's receipt could not say whether it was
+   * a success or a failure without parsing its own sentence) */
+  lastImportSucceeded: boolean('last_import_succeeded'),
+  /** T-451, added at build: the rows the last successful import wrote, so the
+   * next one supersedes EXACTLY those — never a row a person typed into the
+   * same table. The drawing named the supersession and no way to find them. */
+  lastImportRowIds: uuid('last_import_row_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  /** detaching stops imports and deletes nothing */
+  detachedAt: timestamp('detached_at', { withTimezone: true }),
+});

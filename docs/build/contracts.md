@@ -1410,3 +1410,27 @@ are not recorded here.
   went to, and the forgetting one was the exact thing the third addendum's
   ruling 5 reversed. `POST /apps/:appId/builder/screen` stays: it is the
   panel's direct "draw this screen" and still proposes rather than applies.
+
+- **2026-10-18 (T-451) — the file source: `attachTableSourceBody`,
+  `AppTableSourceRecord`, `SourceRegion`, and five routes.** *Plainly: an app
+  table can be pointed at a spreadsheet in the project, and the API says what
+  the table last took from it — or why it took nothing.* The **reason the
+  attach body carries the whole header row but the region is re-found by the
+  mapped headings alone** is the Power BI lesson ADR-0059 is built on: a cell
+  range breaks the first time someone inserts a row above it, while a block
+  found by its headings survives being moved — and a contractor adding a
+  "Notes" column must not break the feed, so the unmapped headings are recorded
+  for the panel and never searched for. The **reason no body field names who
+  entered the imported rows** is decision 2: the enterer is the person whose
+  act produced the file version, resolved from the document's own record, and
+  a field for it would be a way to put one firm's figures behind another
+  firm's name. The **reason the receipt is `{ succeeded, outcome }` and not a
+  sentence alone** is that the panel must say "this failed" without parsing
+  its own wording, and the **reason `AppTableSourceRecord.document.title` is
+  nullable** is decision 4: a builder who can no longer open the document
+  still sees that the table is fed, and when, but not the name of a document
+  that is no longer theirs to read. The routes are builders-only
+  (`canBuildApp`); everyone else gets the 404 an absent app gets, because a
+  source's configuration has the working copy's standing, not the published
+  app's. And there is **no agent act** among them: attaching is a person's
+  panel act this round (decision 4), pinned by `app-builder-agent.test.ts`.

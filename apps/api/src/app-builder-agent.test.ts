@@ -366,6 +366,11 @@ describe('the agent’s tool set', () => {
       '/closure`',
       'canShareAppTable',
       'canReassignApp',
+      // T-451 — the file source is a person's panel act, never the agent's
+      // (ADR-0059 decision 4): no import reaches its table or its acts
+      'appTableSources',
+      'app-table-source',
+      'attachSourceAct',
     ];
     for (const file of ['./app-builder-agent.ts', './app-builder-acts.ts']) {
       const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');

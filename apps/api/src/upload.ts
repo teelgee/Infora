@@ -32,6 +32,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { putBlob, getBlob } from './renditions';
 import { docxToText, extractText } from './extract';
+import { importOnVersionLanding } from './app-table-source';
 import { ensureDefaultSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -173,6 +174,11 @@ export function uploadRoutes(deps: { db: Db }) {
       content: updated!.content,
       createdByParticipantId: slice.participantId,
     });
+    // T-451 — THE VERSION-LANDING EVENT (ADR-0059 decision 1). A new version of
+    // this document has landed, so every app table pointed at it re-derives
+    // now, as the person who just replaced the file. Never a poll; never fails
+    // the upload — each table's receipt says what the import made of it.
+    await importOnVersionLanding(deps.db, { sandboxDocumentId: updated!.id });
     return c.json(toSandboxDocument(updated!) satisfies SandboxDocument);
   });
 

@@ -44,6 +44,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
+import { importOnVersionLanding } from './app-table-source';
 import { generateRenditions } from './renditions';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
@@ -1236,6 +1237,13 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // the record's renditions, generated beside the version (T-121, ADR-0034)
     await generateRenditions(deps.db, { id: result.versionId, content: sourceContent }, doc);
     await ingestVersion(deps.db, deps.router, result.versionId);
+    // T-451 — a new revision of a library record has landed, so an app table
+    // pointed at the record re-derives (ADR-0059 decision 1), as the producing
+    // organisation's person who issued it. Only HERE: acceptance's contractual
+    // (C) revision carries the same file as the P it accepts, and importing it
+    // again would supersede rows the client had just accepted with identical
+    // submitted copies.
+    await importOnVersionLanding(deps.db, { containerId: container.id });
 
     return c.json(result, 201);
   });

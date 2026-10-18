@@ -25,7 +25,8 @@
 > which is the state rule running end to end for the third time: the field list
 > was drawn here, the migration was written from the drawing, and the block was
 > reduced in the commit that built it — and again for its build-conversation
-> table (T-449, migration **0068**, 2026-10-18). **The three connection tables at the foot
+> table (T-449, migration **0068**, 2026-10-18) and its file source (T-451,
+> migration **0069**, 2026-10-18). **The three connection tables at the foot
 > of Drawer 9 are the one thing still on the drawing board** — ADR-0057's build
 > waits for the pilot deployment's secrets store, so they keep their field list.
 > **Drawer 8 was added 2026-08-28 (T-329)** — notifications, and the first
@@ -912,7 +913,8 @@ drawing therefore stays.*
 
 Eight tables — `apps`, `app_scope_grants`, `app_tables`, `app_rows`,
 `app_table_shares`, `app_runs`, `app_exports`, `playbooks` — and, since T-449,
-a ninth for the build conversation (below), behind ADR-0056's
+a ninth for the build conversation and, since T-451, a tenth for the file
+source (both below), behind ADR-0056's
 one sentence: an app is a **project thing with a participant scope**, and its
 tables are a **third kind of project record** whose every row carries the
 organisation and the person that entered it.
@@ -968,36 +970,52 @@ among its own people may build — and left the control to the build; it is at
 user grain because the decision is the organisation's about its own person, and
 it rides 0067 because the app-builder slice has exactly one migration.
 
-**The file source, `app_table_sources` — drawn 2026-10-18 (ADR-0059), UNBUILT: this field list is the drawing, and stays until T-451 builds it (migration 0069).**
+**The file source, `app_table_sources` — drawn 2026-10-18 (ADR-0059) and built the same day (T-451, migration [0069](../../packages/db/migrations/0069_file-source.sql)).**
 *Plainly: an app table can point at a spreadsheet the project already holds —
 a sandbox document or a library record — name the block of cells and what each
-column means, and every new version of that file refills the table.*
+column means, and every new version of that file refills the table.* Per the
+state rule the field list is gone and
+[drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts) is the
+authority on its shape; registered in
+[personal-data.md](../architecture/personal-data.md) ("The file source's
+configuration"). What stays here is what the schema cannot say.
 
-| field | type | why |
-|---|---|---|
-| `id` | uuid pk | |
-| `app_table_id` | uuid fk → app_tables, **unique** | one source per table, a table per source — the simplest true shape |
-| `sandbox_document_id` | uuid fk → sandbox documents, nullable | exactly one of this pair is set (CHECK) — the pointer follows the DOCUMENT, whose versions are the refresh events (the Power BI item-identity lesson) |
-| `container_id` | uuid fk → the library record, nullable | the other half of the pair |
-| `sheet` | text | the worksheet name |
-| `header_row` | jsonb | the header texts of the selected table-shaped region, re-found by content on each import — a region that moved survives; one that vanished fails loudly |
-| `mapping` | jsonb | source column → declared column key, typed; checked against the table's columns at attach and at every import |
-| `configured_by_participant_id` | uuid fk → participants | the builder who attached or last changed the mapping — the configuration's stamp; **never the rows' stamp** (ADR-0059 decision 2: rows name the file version's uploader) |
-| `configured_at` | timestamptz | |
-| `last_import_version` | text, nullable | which version of the document the table currently reflects |
-| `last_import_at` / `last_import_outcome` | timestamptz / text, nullable | the receipt the panel shows — an import that failed says so in words, loudly, per document |
-| `detached_at` | timestamptz, nullable | detaching stops imports and deletes nothing — the rows already imported keep their ordinary lives |
+- **One source per table, a table per source** — `app_table_id` is unique, so a
+  re-attach after a detach reconfigures the same row. **Exactly one of the
+  pointer pair** (a sandbox document or a library record) is set, the one
+  `CHECK` the drawing named; the pointer follows the DOCUMENT, whose versions
+  are the refresh events (the Power BI item-identity lesson).
+- **The region is re-found by its headings, never by coordinates.**
+  `header_row` keeps the region's header texts as they were at attach and
+  `mapping` the heading → declared-column pairs; each import looks for the
+  first row carrying every mapped heading, so a block that moved survives and
+  one whose heading vanished fails, naming it.
+- **The rows' stamp is never the configuration's.** `configured_by_participant_id`
+  is the builder who attached, last changed or detached the source; imported
+  rows name the person whose act produced the file version (ADR-0059 decision 2).
+- **The import discipline is one act function, not a trigger** —
+  [`apps/api/src/app-table-source.ts`](../../apps/api/src/app-table-source.ts),
+  called by the version-landing hooks (the replace-file route; promotion into
+  the library) and by refresh-now, never by a poll. Each import supersedes the
+  previous import's rows; on an acceptance table imported rows land `submitted`,
+  else stateless; a failure changes no rows and says why in the receipt.
 
-**What the drawing fixes beyond the fields:** the import is ONE deliberate act
-per version (ADR-0057's 2026-10-18 ingest discipline) — triggered by the
-version landing (the replace-file act today, a co-authoring save later) or by
-refresh-now, never by a poll; each import supersedes the previous import's
-rows (prior versions kept, append-only); on a table with an acceptance step
-imported rows land `submitted`, else stateless; `entered_by` on every imported
-row is the participant whose act produced the file version. **No trigger or
-CHECK beyond the exactly-one-pointer pair** — the import discipline lives in
-one act function the route and the version-landing hook both call, the
-app-builder-acts pattern.
+**Built beyond the drawing, and why** (T-451; the drawing's "no trigger or
+`CHECK` beyond the exactly-one-pointer pair" still holds):
+
+- **`last_import_succeeded`** — the drawing's receipt was a sentence, and
+  whether that sentence reports a success or a failure must not be parsed out
+  of its own wording; the panel needs the fact.
+- **`last_import_row_ids`** — "each import supersedes the previous import's
+  rows" needs to know WHICH rows those were. A person may type rows into a
+  sourced table, and superseding by anything looser — a timestamp, the
+  enterer — would sweep a typed row up. A detach clears the list, so rows
+  released into their ordinary lives are not superseded by a later re-attach.
+- **Both pointers `ON DELETE CASCADE`.** The drawing did not say; purge
+  (ADR-0050 §6, T-340/T-341) deletes sandbox documents and library records,
+  and a plain foreign key would have made a sourced document unpurgeable.
+  The configuration quotes the file's header texts, so erasure takes it too;
+  the imported rows are the table's and stay, exactly as on a detach.
 
 **The build conversation, `app_build_turns` — drawn 2026-10-18 and built the same day (T-449, migration [0068](../../packages/db/migrations/0068_app-build-conversation.sql)).**
 *Plainly: what a builder says to the app builder's agent, and what the agent

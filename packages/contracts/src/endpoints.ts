@@ -3199,3 +3199,133 @@ export type DeployPlaybookBody = z.infer<typeof deployPlaybookBody>;
  * reverses, which is why it is a toggle and not a one-way grant. */
 export const setAppBuilderBody = z.object({ mayBuildApps: z.boolean() });
 export type SetAppBuilderBody = z.infer<typeof setAppBuilderBody>;
+
+// ── T-451/T-452 — the file source (ADR-0059) ──────────────────────────────
+//
+// *In plain terms: an app table can point at one spreadsheet the project
+// already holds — a sandbox document or a library record — name the block of
+// cells that holds the data and what each column means, and every new version
+// of that file refills the table.*
+//
+// 🔒 **A PERSON'S PANEL ACT, AND NO AGENT ACT** (ADR-0059 decision 4). None of
+// these shapes appears among the builder agent's acts; attaching is done from
+// the panel, by someone who may build the app AND can open the document.
+//
+// 🔒 **THE BODY NEVER NAMES WHO ENTERED THE ROWS.** Imported rows are stamped
+// with the person whose act produced the file version (decision 2), resolved
+// from the document's own record. There is no field below by which a caller
+// could put somebody else's name, or organisation, on an imported figure.
+
+/** Which document a source points at — exactly one of the pair (0069's CHECK). */
+export const sourceDocumentRef = z
+  .object({ sandboxDocumentId: id.optional(), containerId: id.optional() })
+  .refine((b) => (b.sandboxDocumentId === undefined) !== (b.containerId === undefined), {
+    message: 'a source points at exactly one of a sandbox document or a library record',
+  });
+export type SourceDocumentRef = z.infer<typeof sourceDocumentRef>;
+
+/** One source column → one declared column. */
+export const sourceMappingEntry = z.object({
+  /** the header text in the spreadsheet, as it reads there */
+  header: z.string().trim().min(1).max(500),
+  /** the declared column's key on the app table */
+  columnKey: z.string().min(1).max(200),
+});
+export type SourceMappingEntry = z.infer<typeof sourceMappingEntry>;
+
+/**
+ * POST /app-tables/:appTableId/source — attach a source, or change an attached
+ * one's region and mapping. The first import runs in the same act, so the
+ * builder sees the rows land (or the receipt saying why they did not).
+ *
+ * `headerRow` is the WHOLE header row of the region the builder picked, as
+ * `GET /apps/:appId/source-documents/regions` listed it; the mapping names the
+ * columns that feed the table. On every later import the region is re-found by
+ * the mapped headers' texts, never by cell coordinates (the Power BI lesson).
+ */
+export const attachTableSourceBody = z
+  .object({
+    sandboxDocumentId: id.optional(),
+    containerId: id.optional(),
+    sheet: z.string().min(1).max(200),
+    headerRow: z.array(z.string().max(500)).min(1).max(500),
+    mapping: z.array(sourceMappingEntry).min(1).max(500),
+  })
+  .refine((b) => (b.sandboxDocumentId === undefined) !== (b.containerId === undefined), {
+    message: 'a source points at exactly one of a sandbox document or a library record',
+  });
+export type AttachTableSourceBody = z.infer<typeof attachTableSourceBody>;
+
+/** A spreadsheet the builder could point a table at — one they can open. */
+export type SourceDocumentOption = {
+  kind: 'sandbox' | 'library';
+  /** the sandbox document's id, or the library record's (container) id */
+  id: Id;
+  title: string;
+  /** the version the document is at now: `v0.3` for a sandbox document, the
+   * issued revision (`P02`) for a library record */
+  version: string;
+};
+
+/** `GET /apps/:appId/source-documents` — builders only. */
+export type ListSourceDocumentsResponse = { items: SourceDocumentOption[] };
+
+/**
+ * A table-shaped region Infora found in a spreadsheet: a header row of at least
+ * two headings with the rows beneath it, ending at the first blank row. **Never
+ * loose cells** — the reliable unit of selection is a block with a header row,
+ * which is the Power BI lesson ADR-0059 is built on.
+ */
+export type SourceRegion = {
+  sheet: string;
+  /** the header row's number as Excel shows it (1-based) */
+  headerRowNumber: number;
+  headers: string[];
+  /** how many rows sit under the headers today */
+  rowCount: number;
+  /** the first few rows, as text, so the builder can tell regions apart */
+  sample: string[][];
+};
+
+/** `GET /apps/:appId/source-documents/regions?sandboxDocumentId=…|containerId=…` */
+export type ListSourceRegionsResponse = { regions: SourceRegion[] };
+
+/** The last import's receipt — what the panel shows beside refresh-now. */
+export type SourceImportReceipt = {
+  at: string;
+  succeeded: boolean;
+  /** a sentence a person reads: what came in, or why nothing did */
+  outcome: string;
+};
+
+/** A table's source, as its builders see it. */
+export type AppTableSourceRecord = {
+  id: Id;
+  appTableId: Id;
+  document: {
+    kind: 'sandbox' | 'library';
+    id: Id;
+    /** null when THIS builder can no longer open the document — the source
+     * keeps feeding (decision 4), but its title is not shown to someone who
+     * may not read it */
+    title: string | null;
+    /** the version the document is at now; null when this builder cannot open it */
+    currentVersion: string | null;
+  };
+  sheet: string;
+  headerRow: string[];
+  mapping: SourceMappingEntry[];
+  configuredByName: string;
+  configuredAt: string;
+  /** which version of the document the table's rows reflect — moves only on a
+   * successful import */
+  reflectsVersion: string | null;
+  lastImport: SourceImportReceipt | null;
+  detachedAt: string | null;
+  /** may this builder change the region or mapping? Only while they can still
+   * open the document (decision 4) */
+  mayReconfigure: boolean;
+};
+
+/** `GET /app-tables/:appTableId/source`, and every source act's answer. */
+export type AppTableSourceResponse = { source: AppTableSourceRecord | null };

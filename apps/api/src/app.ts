@@ -38,6 +38,7 @@ import { suggestionRoutes } from './suggestions';
 import { agentActRoutes } from './agent-acts';
 import { appRoutes } from './apps';
 import { appRowRoutes } from './app-rows';
+import { appTableSourceRoutes } from './app-table-source';
 import { appExportRoutes } from './app-exports';
 import { appRunRoutes } from './app-runs';
 import { playbookRoutes } from './playbooks';
@@ -358,6 +359,8 @@ export function buildApp(deps: AppDeps) {
   // in @infora/governance and is called from there — never restated here.
   app.route('/', appRoutes(deps));
   app.route('/', appRowRoutes(deps));
+  // T-451 — the file source (ADR-0059): attach, refresh-now, detach
+  app.route('/', appTableSourceRoutes(deps));
   // T-444 — the export: a spreadsheet of what this person may read, or one
   // insight as Word, with a provenance stamp that says what data and when and
   // nothing about who produced it (ADR-0056 §8).

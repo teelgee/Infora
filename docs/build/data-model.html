@@ -1122,6 +1122,26 @@
         </tbody></table>
       </article>
       <article class="card d9">
+        <h3>app_table_sources</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">app_table_id</td><td class="type">uuid</td><td class="notes">→ app_tables.id</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id · nullable</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
+          <tr><td class="col">sheet</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">header_row</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">mapping</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">configured_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">configured_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+          <tr><td class="col">last_import_version</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">last_import_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">last_import_outcome</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">last_import_succeeded</td><td class="type">boolean</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">last_import_row_ids</td><td class="type">uuid[]</td><td class="notes">default</td></tr>
+          <tr><td class="col">detached_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d9">
         <h3>app_tables</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

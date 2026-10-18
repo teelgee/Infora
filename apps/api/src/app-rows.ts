@@ -62,8 +62,11 @@ const isUuid = (value: string) => z.uuid().safeParse(value).success;
  * (T-442), and a row quietly carrying fields nobody declared is how a table
  * stops being the thing its definition says it is. The check is shape only —
  * it is not, and must never become, an access decision.
+ *
+ * Exported for T-451: an IMPORTED row meets exactly this check, because an
+ * imported row is an ordinary row with an ordinary life (ADR-0059 decision 3).
  */
-function checkValues(columns: AppColumn[], values: Record<string, unknown>): string | null {
+export function checkValues(columns: AppColumn[], values: Record<string, unknown>): string | null {
   const declared = new Map(columns.map((column) => [column.key, column]));
   for (const key of Object.keys(values)) {
     if (!declared.has(key)) return `the column “${key}” is not declared on this table`;
