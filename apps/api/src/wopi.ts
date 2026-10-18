@@ -48,6 +48,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { getBlob } from './renditions';
 import { landFileRevision } from './file-revision';
+import { editorUrlFor } from './editor-engine';
 import {
   checkoutHolder,
   extendEngineLock,
@@ -69,6 +70,12 @@ export type EditingConfig = {
   tokenMinutes?: number;
   /** The web app's origin, which the engine may post messages to. */
   postMessageOrigin?: string;
+  /**
+   * T-454 — the editing engine's base URL as THIS API reaches it, for WOPI
+   * discovery (editor-engine.ts). Absent means no engine: a pass is still
+   * minted, and `editorUrl` is null, which the pane reports in words.
+   */
+  engineUrl?: string;
 };
 
 const DEFAULT_TOKEN_MINUTES = 60;
@@ -219,12 +226,14 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
       sessionId: c.get('sessionId'),
       expiresAt,
     });
+    const wopiSrc = `${config.wopiHostUrl ?? ''}/wopi/files/${id}`;
     return c.json(
       {
         documentId: id,
-        wopiSrc: `${config.wopiHostUrl ?? ''}/wopi/files/${id}`,
+        wopiSrc,
         accessToken: token,
         accessTokenTtl: expiresAt.getTime(),
+        editorUrl: config.engineUrl ? await editorUrlFor(config.engineUrl, doc!.format, wopiSrc) : null,
       } satisfies EditingSession,
       201,
     );

@@ -342,6 +342,10 @@ export type EditingSession = {
   wopiSrc: string;
   accessToken: string;
   accessTokenTtl: number;
+  // T-454 — the engine page the browser loads to edit this file (its WOPI
+  // discovery `edit` action, with WOPISrc on the end); null when this server
+  // has no editing engine, or the engine has no editor for the format
+  editorUrl: string | null;
 };
 
 export type ListSandboxDocumentsResponse = { items: SandboxDocument[] };

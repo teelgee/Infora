@@ -72,6 +72,8 @@ const MESSAGES: Record<string, string> = {
 
   // check-out / freeze
   head_locked: 'The document is checked out — release it first.',
+  // T-454 — the browser editor holds the file (the WOPI lock rides the check-out)
+  open_in_editor: 'Someone has this file open in the browser editor — it can be frozen once they close it.',
   already_checked_out: 'The document is already checked out.',
   not_locked: 'The document isn’t checked out.',
 

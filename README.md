@@ -21,6 +21,24 @@ pnpm --filter @infora/data run ingest    # embed the library (needs a real VOYAG
 pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 
+**Editing uploaded Word/Excel files in the browser** (T-453/T-454, optional).
+The editing engine — Collabora Online, the interim until Microsoft Office for
+the web (ADR-0043) — sits behind a compose profile so the line above still
+starts only the database. Start it and tell the API where it is:
+
+```bash
+docker compose --profile editing up -d   # Collabora on :9980 (a large image; first pull takes a while)
+# in .env: EDITOR_ENGINE_URL=http://localhost:9980
+#          WOPI_HOST_URL=http://host.docker.internal:3000   (the API as the engine sees it, from inside docker)
+#          EDITOR_POST_MESSAGE_ORIGIN=http://localhost:5173
+```
+
+Then a sandbox file's **More actions → Edit in browser** opens it. Without the
+engine, the pane says editing is not set up and nothing else changes. The e2e
+suite's two-browser co-edit test runs only when the substrate is started with
+those variables (pointing `WOPI_HOST_URL` at `:3210`); otherwise it skips and
+says why.
+
 Seeded dev logins (all share the password `wrenfield-dev`; log in on the web
 sign-in screen, or `POST /auth/session` with `{ email, password }`), on the
 project **Wrenfield–Ashcombe 400kV Connection** (owner: Trentmoor Energy):

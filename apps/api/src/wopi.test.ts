@@ -134,6 +134,7 @@ describe('the pass: one file, one sign-in, worth nothing on its own (T-453)', ()
   it('mints a short-lived pass for an uploaded Office file, stored only as a hash', async () => {
     const session = await pass(amy.cookie, docxId);
     expect(session.wopiSrc).toBe(`http://engine-sees-this:3000/wopi/files/${docxId}`);
+    expect(session.editorUrl).toBeNull(); // T-454: no engine configured here
     expect(session.accessTokenTtl).toBeGreaterThan(Date.now());
     expect(session.accessTokenTtl).toBeLessThanOrEqual(Date.now() + 60 * 60_000);
     const hash = createHash('sha256').update(session.accessToken).digest('hex');

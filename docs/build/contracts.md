@@ -1431,3 +1431,13 @@ are not recorded here.
   posts it to the engine verbatim, and a renamed field would have to be
   renamed back at exactly the point where nobody would notice it was wrong.
 
+- **2026-10-18 (T-454) — `EditingSession.editorUrl`.** *Plainly: the pass now
+  also says which page to load to edit the file, or says plainly that there is
+  no editor on this server.* The **reason the API works it out** rather than
+  the browser is that the page comes from the engine's WOPI discovery list,
+  which the API can reach and a browser on another network may not — and the
+  discovery read is cached on the API so a co-editing session's ten browsers do
+  not each ask the engine. The **reason it is nullable rather than an error** is
+  that the sandbox does not depend on the engine: a server with none still
+  mints a pass, and the pane says, in words, that editing is not set up.
+

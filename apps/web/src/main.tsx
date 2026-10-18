@@ -22,6 +22,7 @@ import { DeliverableStatusScreen } from './screens/deliverable-status';
 import { ReviewRecordScreen } from './screens/review-record';
 import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
+import { EditingPaneScreen } from './screens/editing-pane';
 import { SettingsScreen } from './screens/settings';
 import { WorkItemScreen } from './screens/work-item';
 import { WorkspaceLanding, WorkspaceSection } from './screens/workspace';
@@ -59,6 +60,8 @@ const router = createBrowserRouter([
       // own pane in the approved mockup; the placement fork it raised is Q-041.
       { path: 'review/:containerId/record', element: <ReviewRecordScreen /> },
       { path: 'sandbox', element: <SandboxScreen /> },
+      // T-454 — an uploaded Office file open in the browser editor
+      { path: 'sandbox/edit/:documentId', element: <EditingPaneScreen /> },
       { path: 'history', element: <HistoryScreen /> },
       { path: 'work-items/:workItemId', element: <WorkItemScreen /> },
       // T-334 — the Tools section stops being an empty state. The 2026-07-06

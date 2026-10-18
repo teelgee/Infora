@@ -46,6 +46,12 @@ const schema = z.object({
   // engine's pass — and a pass never outlives the sign-in that asked for it.
   WOPI_HOST_URL: z.string().url().optional(),
   WOPI_TOKEN_MINUTES: z.coerce.number().int().positive().max(600).optional(),
+  // T-454 — the editing engine's base URL as this API reaches it (its WOPI
+  // discovery lives under it), and the web app's origin the engine may post
+  // messages to. Unset EDITOR_ENGINE_URL means no in-browser editing: the
+  // pane says so in words and nothing else changes.
+  EDITOR_ENGINE_URL: z.string().url().optional(),
+  EDITOR_POST_MESSAGE_ORIGIN: z.string().url().optional(),
   DEPLOYMENT_TIER: z.enum(['standard', 'sovereign']).default('standard'),
   DATA_CLASSIFICATION: z.enum(['official', 'secret']).default('official'),
   // the declared egress attributes of the model endpoints (ADR-0037 §3). All
