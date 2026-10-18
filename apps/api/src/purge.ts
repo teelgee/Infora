@@ -183,8 +183,15 @@ export async function purgeSandboxDocument(
     const ambient = await tx
       .delete(s.sandboxDocumentVersions)
       .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, document.id))
-      .returning({ id: s.sandboxDocumentVersions.id });
+      .returning({ id: s.sandboxDocumentVersions.id, fileRef: s.sandboxDocumentVersions.fileRef });
     reach.ambientVersions = ambient.length;
+    // T-453 — since 0070 a working revision keeps its own file, so erasing the
+    // document erases every file it ever was, not only the current one. The
+    // newest revision shares the head's blob, so the list is de-duplicated
+    // before it is counted.
+    for (const { fileRef } of ambient) {
+      if (fileRef !== null && !blobRefs.includes(fileRef)) blobRefs.push(fileRef);
+    }
 
     const comments = await tx
       .delete(s.sandboxComments)

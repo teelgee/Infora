@@ -238,7 +238,7 @@ describe('dates and the workbook’s own day count', () => {
     expect(usesDate1904(testWorkbook([{ name: 'S', rows: [] }]))).toBe(false);
     const typed = readXlsxCells(testWorkbook([{ name: 'S', rows: [['Day', 'x'], ['31/10/2026', 'a']] }]))!;
     const refused = rowsFromWorkbook(typed, { sheet: 'S', mapping }, columns);
-    expect(!refused.ok && refused.reason).toContain('which Infora cannot read as a date without guessing');
+    expect(!refused.ok && refused.reason).toContain('holds something Infora cannot read as a date without guessing');
   });
 });
 
@@ -466,7 +466,7 @@ describe('a failed import changes no rows and says why, in words, in the stored 
     );
     expect(await rows(builderCookie, tableId)).toEqual(before);
     expect((await sourceOf(builderCookie, tableId))!.lastImport!.outcome).toBe(
-      'Nothing was imported from v0.2. Row 5, “Cost (£)” reads “TBC”, which is not a number. Row 6, “Cost (£)” holds a formula the spreadsheet never calculated — open the file in Excel and save it again.',
+      'Nothing was imported from v0.2. Row 5, “Cost (£)” holds something that is not a number. Row 6, “Cost (£)” holds a formula the spreadsheet never calculated — open the file in Excel and save it again.',
     );
   });
 
@@ -485,6 +485,12 @@ describe('a failed import changes no rows and says why, in words, in the stored 
     expect(receipt.lastImport!.outcome).toBe(
       'Imported 1 row from v0.2. The 1 row from the previous import was superseded.',
     );
+    // the refresh was the BUILDER's click, and the rows still name the
+    // UPLOADER (review 2026-10-18: pinned, having only been claimed). The list
+    // keeps the retired prior import visible as history; one row is current.
+    const landed = await rows(builderCookie, tableId);
+    expect([...new Set(landed.map((r) => r.enteredByName))]).toEqual(['t451-colm']);
+    expect(landed.filter((r) => r.retiredAt === null)).toHaveLength(1);
   });
 });
 
@@ -690,6 +696,98 @@ describe('a library record as the source', () => {
       'Infora cannot name who issued P01 of this record, so nobody could be named as entering its figures. Material loaded into the library in bulk has no issuer.',
     );
     expect(await sourceOf(builderCookie, tableId)).toBeNull();
+    expect(await rows(builderCookie, tableId)).toEqual([]);
+  });
+});
+
+
+// ── The review's guards (2026-10-18) ─────────────────────────────────────────
+
+describe('the review’s guards (2026-10-18)', () => {
+  it('refresh, detachment and the region list are no non-builder’s or peer’s either', async () => {
+    const { appId, tableId } = await newTable(false);
+    const documentId = await upload(colleagueCookie, costReport([['Oct', 1, '']]), 'guards.xlsx');
+    await attach(builderCookie, tableId, documentId);
+    for (const cookie of [nonBuilderCookie, peerCookie]) {
+      expect((await post(cookie, `/app-tables/${tableId}/source/refresh`)).status).toBe(404);
+      expect((await post(cookie, `/app-tables/${tableId}/source/detachment`)).status).toBe(404);
+      expect(
+        (await get(cookie, `/apps/${appId}/source-documents/regions?documentId=${documentId}`)).status,
+      ).toBe(404);
+    }
+  });
+
+  it('🔒 a text edit by somebody else does not make them the named enterer', async () => {
+    // the enterer is the creator of the version that LANDED the current file,
+    // not of the newest version row — a PATCH or restore also writes a version
+    // row, and before this check whoever made one became the named enterer
+    const { tableId } = await newTable(false);
+    const documentId = await upload(colleagueCookie, costReport([['Oct', 9, '']]), 'drift.xlsx');
+    await app.request(`/sandbox-documents/${documentId}`, {
+      method: 'PATCH',
+      headers: { cookie: nonBuilderCookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'a stray note' }),
+    });
+    await attach(builderCookie, tableId, documentId);
+    const landed = await rows(builderCookie, tableId);
+    expect(landed.map((r) => r.enteredByName)).toEqual(['t451-colm']);
+  });
+
+  it('a rejected imported row is RETIRED by the next import — reason intact, counted no more', async () => {
+    const { tableId } = await newTable(true);
+    const documentId = await upload(
+      colleagueCookie,
+      costReport([
+        ['Oct', 10, ''],
+        ['Nov', 120, ''],
+      ]),
+      'reject.xlsx',
+    );
+    await attach(builderCookie, tableId, documentId);
+    const first = await rows(ownerCookie, tableId);
+    const nov = first.find((r) => r.values['month'] === 'Nov')!;
+    expect(
+      (await post(ownerCookie, `/app-rows/${nov.id}/decision`, { decision: 'reject', reason: 'Too high.' })).status,
+    ).toBe(200);
+    await replaceFile(
+      colleagueCookie,
+      documentId,
+      costReport([
+        ['Oct', 10, ''],
+        ['Nov', 125, ''],
+      ]),
+    );
+    const after = await rows(ownerCookie, tableId);
+    // one CURRENT Nov, the corrected one; the rejected 120 stays readable as a
+    // retired row (the list is the record) and counts in nothing
+    const currentNov = after.filter((r) => r.values['month'] === 'Nov' && r.retiredAt === null);
+    expect(currentNov).toHaveLength(1);
+    expect(currentNov[0]!.values['cost']).toBe(125);
+    const [stored] = await db.select().from(s.appRows).where(eq(s.appRows.id, nov.id));
+    expect(stored!.retiredAt).not.toBeNull();
+    expect(stored!.state).toBe('rejected');
+    expect(stored!.rejectionReason).toBe('Too high.');
+  });
+
+  it('a table with no rows under its headings fails in words', async () => {
+    const { tableId } = await newTable(false);
+    const documentId = await upload(colleagueCookie, costReport([]), 'empty.xlsx');
+    const res = await attach(builderCookie, tableId, documentId);
+    const source = ((await res.json()) as AppTableSourceResponse).source!;
+    expect(source.lastImport!.succeeded).toBe(false);
+    expect(source.lastImport!.outcome).toContain('has no rows under its headings');
+  });
+
+  it('the 5,000-row ceiling holds at 5,001', async () => {
+    const { tableId } = await newTable(false);
+    const big = costReport(
+      Array.from({ length: 5001 }, (_, i) => [`R${i}`, i, ''] as ['string', number, ''] & [string, number, string]),
+    );
+    const documentId = await upload(colleagueCookie, big, 'big.xlsx');
+    const res = await attach(builderCookie, tableId, documentId);
+    const source = ((await res.json()) as AppTableSourceResponse).source!;
+    expect(source.lastImport!.succeeded).toBe(false);
+    expect(source.lastImport!.outcome).toContain('5,000');
     expect(await rows(builderCookie, tableId)).toEqual([]);
   });
 });

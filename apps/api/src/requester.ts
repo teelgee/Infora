@@ -22,6 +22,7 @@ import { sessionCookie } from './auth';
 import type { AgentActUndoRegistry } from './agent-acts';
 import { DEFAULT_SESSION_POLICY, resolveSession } from './sessions';
 import type { SessionPolicy } from './sessions';
+import type { EditingConfig } from './wopi';
 
 export type UserRow = typeof s.users.$inferSelect;
 // T-251 — `sessionId` rides the context so a later step can re-check the
@@ -111,6 +112,12 @@ export type AppDeps = {
    * never as free (T-254).
    */
   draftModelId?: string;
+  /**
+   * T-453 — in-browser editing of uploaded Office files: where an editing
+   * engine reaches this API, and how long a pass lasts. Absent means the WOPI
+   * host still runs (it is the tests' whole subject) with relative addresses.
+   */
+  editing?: EditingConfig;
 };
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -132,6 +139,11 @@ export function sessionMiddleware(deps: {
     // else. It is the only sessionless read of project material in the API,
     // which is why it is a prefix stated here rather than a flag a route sets.
     if (c.req.path.startsWith('/external-documents/')) return next();
+    // T-453 (ADR-0043) — an editing engine calls the WOPI host server-to-server
+    // with no cookie. Its pass names one file and one sign-in, and wopi.ts
+    // re-checks that sign-in and the person's entitlement on EVERY call, so the
+    // exemption skips the cookie, never the check.
+    if (c.req.path.startsWith('/wopi/')) return next();
     const token = await getSignedCookie(c, deps.sessionSecret, sessionCookie);
     if (!token) return c.json({ error: 'unauthenticated' } satisfies ApiError, 401);
     // T-251 — the signature proves the token was minted here; the ROW proves it

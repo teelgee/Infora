@@ -141,7 +141,7 @@ test('a failed import changes no rows and says why in the stored receipt', async
   expect(receipt.lastImport).toEqual(
     expect.objectContaining({
       succeeded: false,
-      outcome: 'Nothing was imported from v0.2. Row 5, “Cost (£)” reads “TBC”, which is not a number.',
+      outcome: 'Nothing was imported from v0.2. Row 5, “Cost (£)” holds something that is not a number.',
     }),
   );
   // the client sees exactly what they saw before the bad month arrived

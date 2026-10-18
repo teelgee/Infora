@@ -67,6 +67,8 @@ import type {
   GetConversationResponse,
   GetHistoryResponse,
   DestinationCheckResponse,
+  EditingSession,
+  ListSandboxHistoryResponse,
   DocumentCreationBody,
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
@@ -323,6 +325,12 @@ export const api = {
   // never guessed at while one is in flight.
   runPlan: (runId: string) => request<GetRunPlanResponse>(`/runs/${runId}/plan`),
   sandboxDocument: (id: string) => request<SandboxDocument>(`/sandbox-documents/${id}`),
+  // T-454 — the browser editor: a pass for the engine (one file, this sign-in),
+  // and the working revisions a save lands as
+  editingSession: (id: string) =>
+    request<EditingSession>(`/sandbox-documents/${id}/editing-session`, { method: 'POST' }),
+  sandboxDocumentHistory: (id: string) =>
+    request<ListSandboxHistoryResponse>(`/sandbox-documents/${id}/history`),
   documentSuggestions: (id: string) =>
     request<ListSuggestionsResponse>(`/sandbox-documents/${id}/suggestions`),
   // T-112 — sandbox comments: working-draft threads, mutable like the sandbox

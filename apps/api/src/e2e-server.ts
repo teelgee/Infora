@@ -317,6 +317,16 @@ const app = buildApp({
   // T-283 — the default is config, and the substrate declares one so the
   // picker's preselected state is exercised rather than assumed
   defaultLensId: 'planning-environmental',
+  // T-454 — in-browser editing. The engine is OPTIONAL here and absent in CI:
+  // with EDITOR_ENGINE_URL unset a pass is still minted and the pane says
+  // editing is not set up. Set (with `docker compose --profile editing up -d`),
+  // the engine reaches this substrate from inside docker, hence the WOPI host
+  // URL is the host-gateway address rather than localhost.
+  editing: {
+    wopiHostUrl: process.env['WOPI_HOST_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3000}`,
+    ...(process.env['EDITOR_ENGINE_URL'] && { engineUrl: process.env['EDITOR_ENGINE_URL'] }),
+    postMessageOrigin: process.env['EDITOR_POST_MESSAGE_ORIGIN'] ?? 'http://localhost:5273',
+  },
 });
 
 serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {

@@ -283,7 +283,24 @@ export type GetWorkItemResponse = WorkItem & { runs: Run[] };
 //       'uploaded' document only, a new upload of the SAME format family — writes
 //       a new blob + file_ref and bumps the working revision (an ambient
 //       snapshot). Refused while head_locked (it rewrites canonical bytes, like
-//       the T-122 conversion). Durable prior-blob retention is deferred to P2.
+//       the T-122 conversion). T-453 (P2): the prior file is retained on its
+//       working revision (sandbox_document_versions.file_ref, migration 0070).
+// POST  /sandbox-documents/:id/editing-session
+//       the pass an editing engine carries (T-453, ADR-0043 §4): one file, one
+//       sign-in, an hour at most and never past the sign-in's own end. An
+//       'uploaded' docx/xlsx/pptx the requester may read AND whose sandbox
+//       admits them; anything else 404. The pass is worth nothing on its own —
+//       every WOPI call re-checks the person's entitlement.
+// GET   /wopi/files/:fileId                CheckFileInfo   ┐ the WOPI host
+// GET   /wopi/files/:fileId/contents       GetFile         │ (T-453): the
+// POST  /wopi/files/:fileId/contents       PutFile (PUT)   │ protocol's own
+// POST  /wopi/files/:fileId                LOCK · GET_LOCK │ shapes, not
+//                                          REFRESH_LOCK ·  │ Infora's — an
+//                                          UNLOCK          ┘ engine speaks them
+//       Sessionless; `access_token` is the pass. 401 for a bad pass, 404 for a
+//       person no longer entitled. A save lands a v0.x working revision; a
+//       second writer is refused 409 with the holder named in words
+//       (X-WOPI-LockFailureReason, and `hint` in the body).
 
 export type SandboxDocument = {
   id: Id;
@@ -315,6 +332,20 @@ export type SandboxDocument = {
   // by POST /freeze and unreachable from any read. Present on list/read.
   freezeContainerId?: Id | null;
   updatedAt: string;
+};
+
+// T-453 — what a signed-in browser hands an editing engine. `wopiSrc` is the
+// file's address on the WOPI host as the ENGINE reaches it; `accessTokenTtl`
+// is WOPI's own name and meaning — the pass's expiry, in ms since the epoch.
+export type EditingSession = {
+  documentId: Id;
+  wopiSrc: string;
+  accessToken: string;
+  accessTokenTtl: number;
+  // T-454 — the engine page the browser loads to edit this file (its WOPI
+  // discovery `edit` action, with WOPISrc on the end); null when this server
+  // has no editing engine, or the engine has no editor for the format
+  editorUrl: string | null;
 };
 
 export type ListSandboxDocumentsResponse = { items: SandboxDocument[] };

@@ -263,14 +263,14 @@ function valueFor(
       if (cell.kind === 'number') return { ok: true, value: cell.value };
       const cleaned = cell.text.replace(/[,\s£$€]/g, '');
       if (/^-?\d+(\.\d+)?$/.test(cleaned)) return { ok: true, value: Number(cleaned) };
-      return { ok: false, problem: `reads “${cell.text}”, which is not a number` };
+      return { ok: false, problem: 'holds something that is not a number' };
     }
     case 'boolean': {
       if (cell.kind === 'boolean') return { ok: true, value: cell.value };
       const said = norm(cell.text);
       if (['yes', 'y', 'true', '1'].includes(said)) return { ok: true, value: true };
       if (['no', 'n', 'false', '0'].includes(said)) return { ok: true, value: false };
-      return { ok: false, problem: `reads “${cell.text}”, which is not yes or no` };
+      return { ok: false, problem: 'holds something that is not yes or no' };
     }
     case 'date': {
       if (cell.kind === 'number') {
@@ -280,7 +280,9 @@ function valueFor(
       if (/^\d{4}-\d{2}-\d{2}/.test(cell.text)) return { ok: true, value: cell.text.slice(0, 10) };
       return {
         ok: false,
-        problem: `reads “${cell.text}”, which Infora cannot read as a date without guessing — format the column as a date in Excel`,
+        // content-free on purpose (review 2026-10-18): the receipt is readable
+        // by every builder in the firm, and a cell can hold anything
+        problem: 'holds something Infora cannot read as a date without guessing — format the column as a date in Excel',
       };
     }
     case 'text':
@@ -391,7 +393,7 @@ function mappingProblem(
 // ── The document behind a source ─────────────────────────────────────────────
 
 type CurrentFile =
-  | { ok: true; bytes: Buffer; version: string; uploaderParticipantId: string }
+  | { ok: true; bytes: Buffer; version: string; uploaderParticipantId: string; token: string }
   | { ok: false; reason: string };
 
 /** The document's CURRENT file, its version's label, and the person whose act
@@ -401,26 +403,28 @@ async function currentFile(db: Db, pointer: SourceDocumentRef): Promise<CurrentF
     const [doc] = await db
       .select()
       .from(s.sandboxDocuments)
-      .where(eq(s.sandboxDocuments.id, pointer.sandboxDocumentId))
+      .where(eq(s.sandboxDocuments.id, pointer.sandboxDocumentId!))
       .limit(1);
     if (!doc) return { ok: false, reason: 'The spreadsheet is no longer in the project.' };
     if (doc.deletedAt !== null) return { ok: false, reason: 'The spreadsheet is in the bin.' };
     if (doc.origin !== 'uploaded' || doc.format !== 'xlsx' || doc.fileRef === null) {
       return { ok: false, reason: 'The document is no longer an uploaded spreadsheet.' };
     }
-    // the ambient history is the document's version record (ADR-0041): the
-    // upload is v0.1, and each replace-file adds the next — so the newest one
-    // names the person who put the CURRENT file there
+    // WHO is named: the creator of the newest version that CARRIES the current
+    // file — not merely the newest version row. A text edit or a restore also
+    // adds a version row without touching the file, and before this check
+    // (review 2026-10-18) whoever made one became the named enterer of figures
+    // they never uploaded.
     const versions = await db
-      .select({ by: s.sandboxDocumentVersions.createdByParticipantId })
+      .select({ by: s.sandboxDocumentVersions.createdByParticipantId, fileRef: s.sandboxDocumentVersions.fileRef })
       .from(s.sandboxDocumentVersions)
       .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id))
       .orderBy(asc(s.sandboxDocumentVersions.createdAt), asc(s.sandboxDocumentVersions.id));
-    const latest = versions.at(-1);
-    if (!latest) return { ok: false, reason: 'The spreadsheet has no saved version yet.' };
+    const landed = [...versions].reverse().find((row) => row.fileRef !== null && row.fileRef === doc.fileRef);
+    if (!landed) return { ok: false, reason: 'Infora cannot name who saved the current file, so nobody could be named as entering its figures.' };
     const bytes = getBlob(doc.fileRef);
     if (bytes === null) return { ok: false, reason: 'The spreadsheet file could not be read from storage.' };
-    return { ok: true, bytes, version: `v0.${versions.length}`, uploaderParticipantId: latest.by };
+    return { ok: true, bytes, version: `v0.${versions.length}`, uploaderParticipantId: landed.by, token: doc.fileRef };
   }
   const [container] = await db
     .select()
@@ -463,12 +467,15 @@ async function currentFile(db: Db, pointer: SourceDocumentRef): Promise<CurrentF
     .where(
       and(
         eq(s.versions.containerId, container.id),
-        sql`${s.versions.createdAt} <= (select v.created_at from versions v where v.id = ${current.id})`,
+        // the CURRENT revision's own transmittal, never an earlier one's
+        // (review 2026-10-18): falling back to an older revision's issuer
+        // would name a person for figures in a file they never saw
+        eq(s.versions.id, current.id),
         sql`(${s.transmittals.kind} <> 'review' or ${s.transmittals.direction} = 'return')`,
         eq(s.users.organisationId, container.producingOrganisationId),
       ),
     )
-    .orderBy(desc(s.versions.createdAt), desc(s.transmittals.issuedAt))
+    .orderBy(desc(s.transmittals.issuedAt))
     .limit(1);
   if (!issuer) {
     return {
@@ -478,7 +485,27 @@ async function currentFile(db: Db, pointer: SourceDocumentRef): Promise<CurrentF
   }
   const bytes = getBlob(native.contentRef);
   if (bytes === null) return { ok: false, reason: 'The spreadsheet file could not be read from storage.' };
-  return { ok: true, bytes, version: current.versionReference, uploaderParticipantId: issuer.participantId };
+  return { ok: true, bytes, version: current.versionReference, uploaderParticipantId: issuer.participantId, token: current.id };
+}
+
+/** The document's freshness token NOW — compared, under the import's lock,
+ * with the token the file was read at, so a slow import of an older version
+ * can never overwrite a newer one's rows (review 2026-10-18). */
+async function tokenNow(db: Db, pointer: SourceDocumentRef): Promise<string | null> {
+  if ('sandboxDocumentId' in pointer) {
+    const [doc] = await db
+      .select({ fileRef: s.sandboxDocuments.fileRef })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, pointer.sandboxDocumentId!))
+      .limit(1);
+    return doc?.fileRef ?? null;
+  }
+  const [current] = await db
+    .select({ id: s.versions.id })
+    .from(s.versions)
+    .where(and(eq(s.versions.containerId, pointer.containerId!), eq(s.versions.isCurrent, true)))
+    .limit(1);
+  return current?.id ?? null;
 }
 
 const pointerOf = (source: Pick<StoredSource, 'sandboxDocumentId' | 'containerId'>): SourceDocumentRef =>
@@ -502,7 +529,7 @@ async function documentReadable(
     const [doc] = await db
       .select()
       .from(s.sandboxDocuments)
-      .where(eq(s.sandboxDocuments.id, pointer.sandboxDocumentId))
+      .where(eq(s.sandboxDocuments.id, pointer.sandboxDocumentId!))
       .limit(1);
     if (!doc || doc.projectId !== slice.projectId || doc.organisationId !== slice.organisationId) return null;
     if (doc.deletedAt !== null || doc.origin !== 'uploaded' || doc.format !== 'xlsx') return null;
@@ -564,6 +591,7 @@ type Derived =
       ok: true;
       rows: Array<Record<string, unknown>>;
       version: string;
+      token: string;
       hasAcceptance: boolean;
       enterer: { participantId: string; organisationId: string };
     };
@@ -600,6 +628,7 @@ async function derive(db: Db, source: StoredSource): Promise<Derived> {
     ok: true,
     rows: read.rows,
     version: file.version,
+    token: file.token,
     hasAcceptance: table.table.hasAcceptance,
     enterer: { participantId: file.uploaderParticipantId, ...person },
   };
@@ -645,7 +674,7 @@ export async function importSourceAct(db: Db, sourceId: string): Promise<void> {
       .where(and(eq(s.appTableSources.id, source.id), isNull(s.appTableSources.detachedAt)));
     return;
   }
-  const { rows, version, hasAcceptance, enterer } = derived;
+  const { rows, version, token, hasAcceptance, enterer } = derived;
   try {
     await db.transaction(async (tx) => {
       // the source row is the lock: two versions landing at once import one
@@ -656,28 +685,44 @@ export async function importSourceAct(db: Db, sourceId: string): Promise<void> {
         .where(eq(s.appTableSources.id, source.id))
         .for('update');
       if (!locked || locked.detachedAt !== null) return;
+      // (review 2026-10-18) the file was read OUTSIDE this transaction: if a
+      // newer version landed meanwhile, the newer import stands and this one
+      // walks away without touching anything — not even the receipt
+      if ((await tokenNow(tx as unknown as Db, pointerOf(locked))) !== token) return;
       let superseded = 0;
       if (locked.lastImportRowIds.length > 0) {
-        const previous = await tx
-          .select({ id: s.appRows.id, state: s.appRows.state, retiredAt: s.appRows.retiredAt })
-          .from(s.appRows)
-          .where(inArray(s.appRows.id, locked.lastImportRowIds));
-        const toSupersede = previous
-          .filter((row) => row.retiredAt === null && (row.state === 'submitted' || row.state === 'accepted' || row.state === 'draft'))
-          .map((row) => row.id);
-        const toRetire = previous
-          .filter((row) => row.retiredAt === null && row.state === null)
-          .map((row) => row.id);
-        if (toSupersede.length > 0) {
-          await tx.update(s.appRows).set({ state: 'superseded' }).where(inArray(s.appRows.id, toSupersede));
-        }
-        if (toRetire.length > 0) {
-          await tx
-            .update(s.appRows)
-            .set({ retiredAt: sql`now()`, retiredByParticipantId: enterer.participantId })
-            .where(inArray(s.appRows.id, toRetire));
-        }
-        superseded = toSupersede.length + toRetire.length;
+        // STATE-GUARDED, judged at write time (review 2026-10-18): a client's
+        // reject landing between a read and this write used to violate the
+        // rejection-reason CHECK and abort the whole import. The supersede
+        // takes only rows still in a supersedable state; the retire then
+        // takes the stateless AND the rejected — a rejected row is retired on
+        // re-import, its state and required reason intact on the retired row,
+        // because the corrected file version IS the answer to the rejection
+        // and a rejected figure that kept counting on dashboards forever was
+        // the double-count T-452's own fix was meant to end.
+        const supersededRows = await tx
+          .update(s.appRows)
+          .set({ state: 'superseded' })
+          .where(
+            and(
+              inArray(s.appRows.id, locked.lastImportRowIds),
+              isNull(s.appRows.retiredAt),
+              inArray(s.appRows.state, ['submitted', 'accepted', 'draft']),
+            ),
+          )
+          .returning({ id: s.appRows.id });
+        const retiredRows = await tx
+          .update(s.appRows)
+          .set({ retiredAt: sql`now()`, retiredByParticipantId: enterer.participantId })
+          .where(
+            and(
+              inArray(s.appRows.id, locked.lastImportRowIds),
+              isNull(s.appRows.retiredAt),
+              sql`(${s.appRows.state} is null or ${s.appRows.state} = 'rejected')`,
+            ),
+          )
+          .returning({ id: s.appRows.id });
+        superseded = supersededRows.length + retiredRows.length;
       }
       const inserted = await tx
         .insert(s.appRows)

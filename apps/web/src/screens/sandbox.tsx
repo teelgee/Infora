@@ -38,6 +38,7 @@ import {
   LockOpen,
   MoreHorizontal,
   Pencil,
+  PenLine,
   Plus,
   Send,
   Settings,
@@ -1033,6 +1034,13 @@ function DocActions(props: {
         {!doc.containerId && (
           <DropdownMenuItem onClick={() => props.onRename(doc)}>
             <Pencil size={13} strokeWidth={2} /> Rename…
+          </DropdownMenuItem>
+        )}
+        {/* T-454 — edit an uploaded Office file in the browser (ADR-0043);
+            a PDF is the record rendition and never an editing surface */}
+        {doc.origin === 'uploaded' && doc.format !== 'pdf' && (
+          <DropdownMenuItem onClick={() => navigate(`/projects/${props.projectId}/sandbox/edit/${doc.id}`)}>
+            <PenLine size={13} strokeWidth={2} /> Edit in browser
           </DropdownMenuItem>
         )}
         {/* replace swaps the canonical native file — uploaded documents only */}

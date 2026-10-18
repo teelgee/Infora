@@ -25,6 +25,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { readDocumentSuggestions } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
+import { releaseLapsedEngineLock } from './engine-lock';
 import type { AppEnv } from './requester';
 
 // T-171 — a document always lives in a sandbox (sandbox_id NOT NULL). When none
@@ -397,14 +398,32 @@ export function sandboxRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (!snapshot) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    // (review 2026-10-18) a version from the document's UPLOADED era does not
+    // restore onto a document since converted to authored: it would overwrite
+    // the preserved original file and blank the authored text in one act
+    const [docNow] = await deps.db
+      .select({ origin: s.sandboxDocuments.origin })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (docNow?.origin === 'authored' && snapshot.fileRef !== null) {
+      return c.json(
+        { error: 'conflict', detail: 'that version is from before this document was converted to the editor - restoring it would undo the conversion' } satisfies ApiError,
+        409,
+      );
+    }
     const [row] = await deps.db
       .update(s.sandboxDocuments)
-      .set({ content: snapshot.content, updatedAt: sql`now()` })
+      // T-453 — a revision that kept its file (migration 0070) restores the
+      // FILE, which is the canonical half of an uploaded document; before
+      // 0070 restoring an upload copied back only its empty text
+      .set({ content: snapshot.content, ...(snapshot.fileRef && { fileRef: snapshot.fileRef }), updatedAt: sql`now()` })
       .where(eq(s.sandboxDocuments.id, c.req.param('id')))
       .returning();
     await deps.db.insert(s.sandboxDocumentVersions).values({
       sandboxDocumentId: row!.id,
       content: row!.content,
+      fileRef: snapshot.fileRef,
       createdByParticipantId: c.get('slice').participantId,
     });
     return c.json(toSandboxDocument(row!));
@@ -413,6 +432,8 @@ export function sandboxRoutes(deps: { db: Db }) {
   // T-128 — safe lifecycle (the ProjectWise A1 fold-in): soft-delete with
   // self-service restore; recovery is never a helpdesk ticket.
   app.delete('/sandbox-documents/:id', documentScope, async (c) => {
+    // T-453 — a lapsed editing-engine lock is released before it can refuse
+    await releaseLapsedEngineLock(deps.db, c.req.param('id'));
     const [locked] = await deps.db
       .select({ headLocked: s.sandboxDocuments.headLocked })
       .from(s.sandboxDocuments)

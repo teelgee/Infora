@@ -281,12 +281,14 @@ test('an export by a contractor and an export by the client, over one app', asyn
   expect(contractors).toContain('41.5');
   expect(contractors).toContain('Calder &amp; Hale');
   // the other consultancy's return is not in it, and neither is its name
-  expect(contractors).not.toContain('7.25');
+  // as a CELL value (>…<), not a bare substring: the export's own timestamp
+  // once contained ":27.250Z" and failed this line (review 2026-10-18)
+  expect(contractors).not.toContain('>7.25<');
   expect(contractors).not.toContain('Redgate Ecology');
 
   const clients = await workbook(rachel);
   expect(clients).toContain('41.5');
-  expect(clients).toContain('7.25');
+  expect(clients).toContain('>7.25<');
   expect(clients).toContain('Redgate Ecology');
 
   // 🔒 the stamp: what data, and when. Never who produced it.

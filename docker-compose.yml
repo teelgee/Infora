@@ -16,5 +16,38 @@ services:
       timeout: 2s
       retries: 15
 
+  # T-454 — the in-browser editing engine (ADR-0043's 2026-10-18 dated note):
+  # Collabora Online Development Edition, the INTERIM editing surface until
+  # Microsoft Office for the web swaps in behind the same WOPI host. Behind a
+  # profile so `docker compose up -d` still starts only the database; start it
+  # with `docker compose --profile editing up -d`.
+  #
+  # It reaches Infora ONLY through the API's WOPI host (apps/api/src/wopi.ts),
+  # server to server: the aliasgroups are the WOPI hosts it will accept, i.e.
+  # the API in dev (:3000) and the e2e substrate (:3210), seen from inside the
+  # container. frame_ancestors lets the web app (dev :5173, e2e :5273) embed it.
+  # (net.frame_ancestors logs as "obsolete" in this release and still works; its
+  # replacement takes a value with spaces, which extra_params cannot carry.) The
+  # Development Edition shows a "what's new" card to each new browser and has no
+  # switch for it; the e2e test closes it as a person would.
+  # The free Development Edition's user limits are for development — licensing
+  # at pilot scale is the owner's action and gates deployment (ADR-0043 note).
+  collabora:
+    image: collabora/code:26.04.5.1.1
+    container_name: infora-collabora
+    profiles: ["editing"]
+    environment:
+      aliasgroup1: http://host.docker.internal:3000
+      aliasgroup2: http://host.docker.internal:3210
+      extra_params: >-
+        --o:ssl.enable=false
+        --o:ssl.termination=false
+        --o:net.frame_ancestors=localhost:*
+      DONT_GEN_SSL_CERT: "1"
+    ports:
+      - "9980:9980"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   infora-pgdata:

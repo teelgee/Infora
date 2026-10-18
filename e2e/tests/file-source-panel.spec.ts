@@ -189,7 +189,7 @@ test('the panel shows a failed import in words, and refresh-now after the fix', 
   const source = page.getByRole('group', { name: 'Source of Monthly costs' });
   await expect(source.getByText('Last import failed')).toBeVisible();
   await expect(
-    source.getByText('Nothing was imported from v0.2. Row 5, “Cost (£)” reads “TBC”, which is not a number.'),
+    source.getByText('Nothing was imported from v0.2. Row 5, “Cost (£)” holds something that is not a number.'),
   ).toBeVisible();
   // the table still reflects the last version that read cleanly
   await expect(source.getByText(/The table reflects v0\.1 — the file is now at v0\.2\./)).toBeVisible();

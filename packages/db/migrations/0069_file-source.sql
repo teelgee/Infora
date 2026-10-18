@@ -58,3 +58,7 @@ ALTER TABLE "app_table_sources" ADD CONSTRAINT "app_table_sources_configured_by_
 -- lesson, ADR-0059 decision 1).
 ALTER TABLE "app_table_sources" ADD CONSTRAINT "app_table_sources_exactly_one_document"
   CHECK (num_nonnulls("sandbox_document_id", "container_id") = 1);
+--> statement-breakpoint
+-- the house-style grant (review 2026-10-18; 0034's default privileges already
+-- cover it, but a reader checking grants should find them stated)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "app_table_sources" TO "infora_app";

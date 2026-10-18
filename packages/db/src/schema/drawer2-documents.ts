@@ -2,6 +2,7 @@
 // rebuilt for Slice A per ADR-0032/0034, T-114).
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -15,7 +16,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { organisations, participants, projects, users } from './drawer1-parties.js';
+import { organisations, participants, projects, sessions, users } from './drawer1-parties.js';
 
 // rejected: the cycle was closed-rejected and never resubmitted — the document
 // stays in the library as a record and never grounds (ADR-0013/0032)
@@ -447,7 +448,20 @@ export const sandboxDocuments = pgTable('sandbox_documents', {
   // safe lifecycle (T-128, the ProjectWise A1 fold-in): soft-delete with
   // self-service restore — recovery is never a helpdesk ticket
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+  // T-453 — the editing engine's WOPI lock (ADR-0043 §2), RIDING the check-out
+  // rather than beside it: while an engine holds the head, head_locked is true
+  // and these name which engine lock it is, because WOPI requires the host to
+  // compare the engine's string on every save. A WOPI lock lapses after 30
+  // minutes unless the engine re-asserts it.
+  wopiLock: text('wopi_lock'),
+  wopiLockExpiresAt: timestamp('wopi_lock_expires_at', { withTimezone: true }),
+}, (t) => [
+  check('sandbox_documents_wopi_lock_pair', sql`(${t.wopiLock} IS NULL) = (${t.wopiLockExpiresAt} IS NULL)`),
+  // one mechanism (ADR-0043 §2): an engine lock never exists beside an
+  // unlocked head, so every path that refuses a checked-out document refuses
+  // an engine-held one for the same reason
+  check('sandbox_documents_wopi_lock_holds_head', sql`${t.wopiLock} IS NULL OR ${t.headLocked}`),
+]);
 
 // Ambient version history (ADR-0032, T-114; written from T-128): the
 // SharePoint-style automatic snapshot at each save boundary — browsable,
@@ -463,6 +477,10 @@ export const sandboxDocumentVersions = pgTable(
       .notNull()
       .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
+    // T-453 — the native file this working revision had (ADR-0043 P2): an
+    // uploaded document's history is a list of real files, not only dates.
+    // Null for authored revisions and for every revision written before 0070.
+    fileRef: text('file_ref'),
     createdByParticipantId: uuid('created_by_participant_id')
       .notNull()
       .references(() => participants.id),
@@ -569,9 +587,34 @@ export const sandboxCheckoutEvents = pgTable(
       .references(() => participants.id),
     // why released (optional) — the audited early-release note (ADR-0032)
     reason: text('reason'),
+    // T-453 — the engine lock this row's check-out or release was, when an
+    // editing engine caused it; null on a person's freeze. The participant is
+    // whose pass the engine presented, so the trail still names a person.
+    wopiLock: text('wopi_lock'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('sandbox_checkout_events_document_idx').on(t.sandboxDocumentId)],
+);
+
+// T-453 — the editing engine's pass (ADR-0043 §4; T-317's rule applied): one
+// file, one sign-in, short-lived, and worth nothing on its own — every WOPI
+// call re-resolves the person's slice and the sandbox's live grants. Stored
+// rather than self-contained so it dies with the session that asked for it;
+// only the sha-256 is kept, so reading this table cannot mint a working pass.
+export const wopiAccessTokens = pgTable(
+  'wopi_access_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    sandboxDocumentId: uuid('sandbox_document_id')
+      .notNull()
+      .references(() => sandboxDocuments.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => sessions.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('wopi_access_tokens_expires_idx').on(t.expiresAt)],
 );
 
 // ── The naming scheme (ADR-0008 homed, T-148, Beat 1) ───────────────────────

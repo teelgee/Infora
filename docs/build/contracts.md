@@ -1412,7 +1412,7 @@ are not recorded here.
   panel's direct "draw this screen" and still proposes rather than applies.
 
 - **2026-10-18 (T-451) — the file source: `attachTableSourceBody`,
-  `AppTableSourceRecord`, `SourceRegion`, and five routes.** *Plainly: an app
+  `AppTableSourceRecord`, `SourceRegion`, and six routes.** *Plainly: an app
   table can be pointed at a spreadsheet in the project, and the API says what
   the table last took from it — or why it took nothing.* The **reason the
   attach body carries the whole header row but the region is re-found by the
@@ -1434,3 +1434,33 @@ are not recorded here.
   source's configuration has the working copy's standing, not the published
   app's. And there is **no agent act** among them: attaching is a person's
   panel act this round (decision 4), pinned by `app-builder-agent.test.ts`.
+- **2026-10-18 (T-453) — `EditingSession`, `POST /sandbox-documents/:id/editing-session`, and
+  the WOPI host's four routes under `/wopi/files/`.** *Plainly: a signed-in
+  person's browser asks for a short-lived pass to one file, hands it to the
+  editing engine, and the engine then fetches and saves that file through
+  Infora — which checks the person is still allowed in on every single call.*
+  The **reason the four WOPI routes are not Infora-shaped** (PascalCase fields,
+  `X-WOPI-*` headers, 409 with the lock in a header) is that an engine speaks
+  them, not Infora's web app: they are the WOPI protocol's own contract, and
+  restating it in Infora's conventions would make the host speak a dialect no
+  engine understands. The **reason the pass is minted by a separate session
+  route** rather than by the WOPI host itself is that only a signed-in browser
+  can say who the engine is acting for; the engine has no cookie and never
+  will. The **reason a refusal carries the holder's name in `hint`** as well as
+  in `X-WOPI-LockFailureReason` is that an HTTP header is Latin-1 and a
+  person's name need not be — the header is a safe rendering, the body is the
+  exact words. And the **reason `accessTokenTtl` keeps WOPI's name** (an expiry
+  in ms since the epoch, not a duration, despite the word) is that the browser
+  posts it to the engine verbatim, and a renamed field would have to be
+  renamed back at exactly the point where nobody would notice it was wrong.
+
+- **2026-10-18 (T-454) — `EditingSession.editorUrl`.** *Plainly: the pass now
+  also says which page to load to edit the file, or says plainly that there is
+  no editor on this server.* The **reason the API works it out** rather than
+  the browser is that the page comes from the engine's WOPI discovery list,
+  which the API can reach and a browser on another network may not — and the
+  discovery read is cached on the API so a co-editing session's ten browsers do
+  not each ask the engine. The **reason it is nullable rather than an error** is
+  that the sandbox does not depend on the engine: a server with none still
+  mints a pass, and the pane says, in words, that editing is not set up.
+

@@ -19,7 +19,7 @@
 // Both thresholds are deployment configuration. The right numbers are a
 // security-session decision, not a build-time one, so nothing here picks them.
 import { randomBytes } from 'node:crypto';
-import { and, eq, isNull, lt, or, sql } from 'drizzle-orm';
+import { inArray, and, eq, isNull, lt, or, sql } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -117,6 +117,11 @@ export async function endSession(
     .update(s.sessions)
     .set({ revokedAt: new Date(), revokedReason: reason })
     .where(and(eq(s.sessions.id, token), isNull(s.sessions.revokedAt)));
+  // (review 2026-10-18) the sign-in's editor passes go WITH it — the WOPI host
+  // already refuses a dead session's pass, but 0070's record says the row is
+  // gone, so it is gone (sessions themselves are never deleted, so the FK
+  // cascade alone would never fire)
+  await db.delete(s.wopiAccessTokens).where(eq(s.wopiAccessTokens.sessionId, token));
 }
 
 /**
@@ -170,5 +175,29 @@ export async function sweepExpiredSessions(
         : and(isNull(s.sessions.revokedAt), stale, eq(s.sessions.userId, userId)),
     )
     .returning({ id: s.sessions.id });
+  if (swept.length > 0) {
+    // the sweep keeps the same promise (review 2026-10-18)
+    await db.delete(s.wopiAccessTokens).where(
+      inArray(s.wopiAccessTokens.sessionId, swept.map((row) => row.id)),
+    );
+  }
   return swept.length;
+}
+
+/**
+ * T-453 — is this session live, WITHOUT touching its idle clock.
+ *
+ * The WOPI host asks this on every call an editing engine makes on a person's
+ * behalf. It must not slide the idle window: an engine re-asserts its lock
+ * every fifteen minutes whether or not anyone is at the keyboard, so a sliding
+ * check would keep a walked-away session alive until its absolute end — the
+ * exact thing the idle clock exists to stop. The editing pane's own heartbeat
+ * (an ordinary session request) is what says a person is still there.
+ */
+export async function sessionIsLive(db: Db, sessionId: string, policy: SessionPolicy): Promise<boolean> {
+  const [row] = await db.select().from(s.sessions).where(eq(s.sessions.id, sessionId)).limit(1);
+  if (!row || row.revokedAt !== null) return false;
+  const now = Date.now();
+  if (row.expiresAt.getTime() <= now) return false;
+  return now - row.lastSeenAt.getTime() < policy.idleMinutes * 60_000;
 }

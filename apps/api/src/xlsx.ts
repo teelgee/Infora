@@ -255,7 +255,7 @@ function cellOf(attrs: string, body: string, shared: string[]): XlsxCell {
  * document. */
 function parseSheetCells(sheet: Buffer, shared: string[]): XlsxCell[][] | null {
   const rows: XlsxCell[][] = [];
-  for (const rowMatch of sheet.toString('utf8').matchAll(/<row\s([^>]*)>([\s\S]*?)<\/row>/g)) {
+  for (const rowMatch of sheet.toString('utf8').matchAll(/<row\s([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g)) {
     // honour the row's r attribute: Excel omits blank rows from the XML, and
     // collapsing them would misnumber every row beneath one. A row reference
     // beyond any plausible plan refuses the file rather than densifying to it.
@@ -263,7 +263,9 @@ function parseSheetCells(sheet: Buffer, shared: string[]): XlsxCell[][] | null {
     if (rowRef && Number(rowRef[1]) > 100_000) return null;
     if (rowRef) while (rows.length < Number(rowRef[1]) - 1) rows.push([]);
     const cells: XlsxCell[] = [];
-    for (const cellMatch of rowMatch[2]!.matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    // a self-closing <row …/> (a formatted empty row) has no body at all —
+    // the same lazy-match discipline as the cell fix (review 2026-10-18)
+    for (const cellMatch of (rowMatch[2] ?? '').matchAll(/<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs = cellMatch[1]!;
       const ref = attrs.match(/r="([A-Z]+)\d+"/);
       let column = cells.length;

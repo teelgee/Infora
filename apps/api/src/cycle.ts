@@ -8,6 +8,10 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+
+/** (review 2026-10-18) thrown inside the freeze transaction when an engine
+ * lock landed between the pre-check and the write - rolls the freeze back. */
+class OpenInEditor extends Error {}
 import { z } from 'zod';
 import {
   createReviewCommentBody,
@@ -46,6 +50,7 @@ import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { importOnVersionLanding } from './app-table-source';
 import { generateRenditions } from './renditions';
+import { releaseLapsedEngineLock } from './engine-lock';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import { loadSchemeOrDefault } from './naming';
@@ -727,6 +732,21 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!doc) return notFound(c);
     const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
     if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
+    // T-453 — an editing engine holds the head (the WOPI lock rides this same
+    // check-out): a freeze would snapshot a file someone is mid-way through
+    // changing, and an internal round would then own a lock the engine still
+    // believes is its own. Refused until the editor closes it — unless the
+    // engine's lock has lapsed, which releases it here first.
+    if (doc.wopiLock !== null) {
+      await releaseLapsedEngineLock(deps.db, doc.id);
+      const [current] = await deps.db
+        .select({ headLocked: s.sandboxDocuments.headLocked, wopiLock: s.sandboxDocuments.wopiLock })
+        .from(s.sandboxDocuments)
+        .where(eq(s.sandboxDocuments.id, doc.id));
+      if (current!.wopiLock !== null) return conflict(c, 'open_in_editor');
+      doc.headLocked = current!.headLocked;
+      doc.wopiLock = null;
+    }
 
     let [freezeContainer] = await deps.db
       .select()
@@ -812,7 +832,9 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // nothing but a longer lock
     const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, doc.projectId);
 
-    const result = await deps.db.transaction(async (tx) => {
+    let result: { versionId: string; versionReference: string; containerId: string };
+    try {
+      result = await deps.db.transaction(async (tx) => {
       await tx
         .update(s.versions)
         .set({ isCurrent: false })
@@ -874,14 +896,27 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       // the check-out: every freeze locks the head, whether or not it opened an
       // internal round — the standalone freeze and the review-round freeze are one
       // mechanism now (ADR-0032 addendum, T-180). Audited both ways.
-      await tx.update(s.sandboxDocuments).set({ headLocked: true }).where(eq(s.sandboxDocuments.id, doc.id));
+      // conditional on no engine lock having landed since the pre-check
+      // (review 2026-10-18): the freeze's read and this write were two
+      // transactions, and an engine LOCK between them left both sides holding
+      // the head — now the engine's claim wins and the freeze says so in words
+      const frozeHead = await tx
+        .update(s.sandboxDocuments)
+        .set({ headLocked: true })
+        .where(and(eq(s.sandboxDocuments.id, doc.id), isNull(s.sandboxDocuments.wopiLock)))
+        .returning({ id: s.sandboxDocuments.id });
+      if (frozeHead.length === 0) throw new OpenInEditor();
       await tx.insert(s.sandboxCheckoutEvents).values({
         sandboxDocumentId: doc.id,
         action: 'checked_out',
         byParticipantId: slice.participantId,
       });
       return { versionId: version!.id, versionReference, containerId: freezeContainer!.id };
-    });
+      });
+    } catch (error) {
+      if (error instanceof OpenInEditor) return conflict(c, 'open_in_editor');
+      throw error;
+    }
     await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
     await ingestVersion(deps.db, deps.router, result.versionId);
     return c.json(result, 201);
@@ -948,12 +983,19 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!mayRelease) return forbidden(c, 'release_not_permitted');
 
     await deps.db.transaction(async (tx) => {
-      await tx.update(s.sandboxDocuments).set({ headLocked: false }).where(eq(s.sandboxDocuments.id, doc.id));
+      // T-453 — one lock: releasing an engine's check-out ends its WOPI lock
+      // too (the engine's next save is then refused as not locked), and the
+      // trail says which engine lock the person ended
+      await tx
+        .update(s.sandboxDocuments)
+        .set({ headLocked: false, wopiLock: null, wopiLockExpiresAt: null })
+        .where(eq(s.sandboxDocuments.id, doc.id));
       await tx.insert(s.sandboxCheckoutEvents).values({
         sandboxDocumentId: doc.id,
         action: 'released',
         byParticipantId: slice.participantId,
         reason,
+        wopiLock: doc.wopiLock,
       });
     });
     return c.json({ ok: true });
@@ -1513,10 +1555,12 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       await tx.update(s.rounds).set({ state: 'issued' }).where(eq(s.rounds.id, round.id));
       if (container.scope === 'sandbox' && container.sandboxDocumentId) {
         // issue hands the pen back: the check-out lock releases (ADR-0032), audited
-        // on the same trail as a standalone release (T-180)
+        // on the same trail as a standalone release (T-180). Any engine lock is
+        // severed with it (review 2026-10-18) — unlocking the head while an
+        // engine string stood would violate 0070's CHECK and answer a 500
         await tx
           .update(s.sandboxDocuments)
-          .set({ headLocked: false })
+          .set({ headLocked: false, wopiLock: null, wopiLockExpiresAt: null })
           .where(eq(s.sandboxDocuments.id, container.sandboxDocumentId));
         await tx.insert(s.sandboxCheckoutEvents).values({
           sandboxDocumentId: container.sandboxDocumentId,
@@ -1724,9 +1768,11 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         .set({ status: 'rejected' })
         .where(eq(s.workItems.containerId, container!.id));
       if (container!.scope === 'sandbox' && container!.sandboxDocumentId) {
+        // the same severing as issue's (review 2026-10-18): the CHECK forbids
+        // an unlocked head holding an engine string
         await tx
           .update(s.sandboxDocuments)
-          .set({ headLocked: false })
+          .set({ headLocked: false, wopiLock: null, wopiLockExpiresAt: null })
           .where(eq(s.sandboxDocuments.id, container!.sandboxDocumentId));
         await tx.insert(s.sandboxCheckoutEvents).values({
           sandboxDocumentId: container!.sandboxDocumentId,
