@@ -203,8 +203,9 @@ describe('the publish gate refuses while a required question stands', () => {
       blocks: [{ kind: 'rowTable', columnKeys: ['month'], showOrganisation: true, showState: true }],
     });
     // the whole definition, written by hand: two screens, neither question about
-    // who may open them answered — and the table's answer dropped from the list
-    // too, because the caller sent a list without it
+    // who may open them answered. The table's answer, recorded when it was
+    // declared, SURVIVES this save — a stale list cannot un-answer a question
+    // (review 2026-10-18) — so two questions stay open, not three
     const handBuilt = {
       ...EMPTY_APP_DEFINITION,
       interfaces: [
@@ -223,21 +224,17 @@ describe('the publish gate refuses while a required question stands', () => {
     expect(refused.status).toBe(409);
     const body = (await refused.json()) as PublishRefusedResponse;
     expect(body.detail).toBe(
-      'This app cannot be opened yet: 3 questions still need an answer — whether “Monthly returns” holds contractual data; who may open “Submit a return”; and who may open “Client dashboard”.',
+      'This app cannot be opened yet: 2 questions still need an answer — who may open “Submit a return”; and who may open “Client dashboard”.',
     );
     // 🔒 a narrowed screen is NOT an answered one: `openToOrganisationIds` says
     // what was chosen, `answeredQuestions` says that somebody chose it
-    expect(body.questions.map((q) => q.subjectName)).toEqual([
-      'Monthly returns',
-      'Submit a return',
-      'Client dashboard',
-    ]);
+    expect(body.questions.map((q) => q.subjectName)).toEqual(['Submit a return', 'Client dashboard']);
 
-    // answer two of three — still refused, now naming only the one left
+    // answer one of the two — still refused, now naming only the one left
     await patch(builderCookie, `/apps/${built.id}/definition`, {
       definition: {
         ...handBuilt,
-        answeredQuestions: [`contractual-data:${table.id}`, 'who-may-open:submit'],
+        answeredQuestions: ['who-may-open:submit'],
       },
     });
     const still = (await (await post(builderCookie, `/apps/${built.id}/publish`)).json()) as PublishRefusedResponse;

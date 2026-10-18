@@ -24,6 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, isNull } from 'drizzle-orm';
 import type {
   AppRecord,
+  AppTableRecord,
   BuildConversationResponse,
   GetAppResponse,
   PublishRefusedResponse,
@@ -34,6 +35,9 @@ import { createDb, hashPassword, schema as s } from '@infora/db';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 import { buildApp } from './app';
+import { BUILD_TURN_CEILING } from './apps';
+import { perform, readSnapshot } from './app-builder-agent';
+import type { BuilderTurnContext, PerformState } from './app-builder-agent';
 import { fakeBuilderAgent } from './fake-builder-agent';
 import { FAKE_EMBED_DIMENSIONS, FAKE_EMBED_MODEL, fakeVector } from './test-router';
 
@@ -636,5 +640,187 @@ describe('the conversation is stored', () => {
     const refused = (await (await post(builderCookie, `/apps/${built.id}/publish`)).json()) as PublishRefusedResponse;
     expect(refused.detail).toContain('whether “Monthly returns” holds contractual data');
     expect(refused.detail).toContain('who may open “Client dashboard”');
+  });
+});
+
+// ── The review's guards (2026-10-18) — settled answers, mid-turn edits, the
+// boundary's answer keys, and the conversation's ceiling ─────────────────────
+
+describe('the review’s guards (2026-10-18)', () => {
+  async function performState(appId: string): Promise<PerformState> {
+    return {
+      snapshot: await readSnapshot(db, appId),
+      ownWrites: new Set<string>(),
+      askedBefore: new Set<string>(),
+      proposedLastTurn: [],
+      receipts: [],
+      notes: [],
+      proposals: [],
+      askedNow: new Set<string>(),
+    };
+  }
+  function ctxFor(appId: string): BuilderTurnContext {
+    return {
+      appId,
+      participantId: builderParticipantId,
+      say: '',
+      organisations: [
+        { id: ownerOrg, name: 'the client', isProjectOwner: true },
+        { id: peerOrg, name: 'the peer', isProjectOwner: false },
+      ],
+    };
+  }
+  const HEADING_ONLY = { version: 1 as const, blocks: [{ kind: 'heading' as const, text: 'Returns' }] };
+
+  it('🔒 a settled who-may-open answer is not the agent’s to change — re-answering cannot widen', async () => {
+    const built = await newApp(`t-review settled screen ${stamp}`);
+    const table = (await (
+      await post(builderCookie, `/apps/${built.id}/tables`, {
+        name: 'Monthly returns',
+        columns: [{ key: 'month', label: 'Month', type: 'text', required: true }],
+        kind: 'data',
+        hasAcceptance: true,
+      })
+    ).json()) as AppTableRecord;
+    // the person answers who-may-open from the panel: the client alone
+    const narrowed = await patch(builderCookie, `/apps/${built.id}/definition`, {
+      definition: {
+        connections: [],
+        interfaces: [
+          { id: 'dash', label: 'Dashboard', appTableId: table.id, openToOrganisationIds: [ownerOrg], source: null },
+        ],
+        schedule: 'manual',
+        analysisPrompt: null,
+        answeredQuestions: [`who-may-open:dash`],
+      },
+    });
+    expect(narrowed.status).toBe(200);
+
+    // the agent later tries to re-answer it wide open, even "asked before"
+    const state = await performState(built.id);
+    (state.askedBefore as Set<string>).add('who-may-open:dash');
+    await perform(db, ctxFor(built.id), { kind: 'answerWhoMayOpen', screen: 'dash', organisationIds: [] }, state);
+    expect(state.notes.join(' ')).toContain('already answered');
+    const { row } = await appState(built.id);
+    const definition = row.definition as { interfaces: Array<{ id: string; openToOrganisationIds: string[] }> };
+    expect(definition.interfaces.find((s2) => s2.id === 'dash')!.openToOrganisationIds).toEqual([ownerOrg]);
+  });
+
+  it('🔒 a settled contractual-data answer is not the agent’s to flip', async () => {
+    const built = await newApp(`t-review settled table ${stamp}`);
+    const table = (await (
+      await post(builderCookie, `/apps/${built.id}/tables`, {
+        name: 'Monthly returns',
+        columns: [{ key: 'month', label: 'Month', type: 'text', required: true }],
+        kind: 'data',
+        hasAcceptance: true, // explicit: the person answered at declaration
+      })
+    ).json()) as AppTableRecord;
+    const state = await performState(built.id);
+    (state.askedBefore as Set<string>).add(`contractual-data:${table.id}`);
+    await perform(
+      db,
+      ctxFor(built.id),
+      { kind: 'answerContractualData', table: table.id, holdsContractualData: false },
+      state,
+    );
+    expect(state.notes.join(' ')).toContain('already answered');
+    const { tables } = await appState(built.id);
+    expect(tables.find((t) => t.id === table.id)!.hasAcceptance).toBe(true);
+  });
+
+  it('🔒 a person’s edit landing BETWEEN two acts of one turn survives the second act', async () => {
+    // the T-450 fix re-read the store into the baseline after each act, which
+    // absorbed a concurrent hand edit and let the next act overwrite it — the
+    // ownWrites ledger replaces it (review 2026-10-18), and this is the test
+    // that could not exist before: the edit lands deterministically mid-turn
+    const built = await newApp(`t-review mid-turn ${stamp}`);
+    await post(builderCookie, `/apps/${built.id}/tables`, {
+      name: 'Monthly returns',
+      columns: [{ key: 'month', label: 'Month', type: 'text', required: true }],
+      kind: 'data',
+      hasAcceptance: true,
+    });
+    const state = await performState(built.id);
+    const ctx = ctxFor(built.id);
+    // act 1: the agent writes a screen (its own write, recorded in the ledger)
+    await perform(
+      db,
+      ctx,
+      { kind: 'writeScreen', label: 'Submit a return', table: 'Monthly returns', layout: HEADING_ONLY },
+      state,
+    );
+    expect(state.receipts).toHaveLength(1);
+    // the person changes the schedule while the model is mid-turn
+    const { row } = await appState(built.id);
+    await db
+      .update(s.apps)
+      .set({ definition: { ...(row.definition as object), schedule: 'weekly' } })
+      .where(eq(s.apps.id, built.id));
+    // act 2: the agent sets the schedule — the person's edit must win
+    await perform(db, ctx, { kind: 'setSchedule', schedule: 'monthly' }, state);
+    expect(state.notes.join(' ')).toContain('You changed the schedule');
+    const after = await appState(built.id);
+    expect((after.row.definition as { schedule: string }).schedule).toBe('weekly');
+    // and the agent still builds on its OWN first act: rewriting its screen works
+    await perform(
+      db,
+      ctx,
+      { kind: 'writeScreen', screen: 'Submit a return', label: 'Submit a return', table: 'Monthly returns', layout: HEADING_ONLY },
+      state,
+    );
+    expect(state.receipts).toHaveLength(2);
+  });
+
+  it('🔒 the boundary refuses an answer key that names no real question', async () => {
+    const built = await newApp(`t-review bogus keys ${stamp}`);
+    for (const key of ['contractual-data:no-such-table', 'who-may-open:a-screen-not-yet-made']) {
+      const res = await patch(builderCookie, `/apps/${built.id}/definition`, {
+        definition: {
+          connections: [],
+          interfaces: [],
+          schedule: 'manual',
+          analysisPrompt: null,
+          answeredQuestions: [key],
+        },
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('a stale panel save cannot un-answer a question', async () => {
+    const built = await newApp(`t-review stale save ${stamp}`);
+    const table = (await (
+      await post(builderCookie, `/apps/${built.id}/tables`, {
+        name: 'Monthly returns',
+        columns: [{ key: 'month', label: 'Month', type: 'text', required: true }],
+        kind: 'data',
+        hasAcceptance: true, // records the contractual answer
+      })
+    ).json()) as AppTableRecord;
+    // a stale whole-definition save with NO answers — read before the answer landed
+    const res = await patch(builderCookie, `/apps/${built.id}/definition`, {
+      definition: { connections: [], interfaces: [], schedule: 'manual', analysisPrompt: null, answeredQuestions: [] },
+    });
+    expect(res.status).toBe(200);
+    const { row } = await appState(built.id);
+    expect((row.definition as { answeredQuestions: string[] }).answeredQuestions).toContain(
+      `contractual-data:${table.id}`,
+    );
+  });
+
+  it('the conversation has a ceiling, worded', async () => {
+    const built = await newApp(`t-review ceiling ${stamp}`);
+    await db.insert(s.appBuildTurns).values(
+      Array.from({ length: BUILD_TURN_CEILING }, () => ({
+        appId: built.id,
+        role: 'person' as const,
+        spokenByParticipantId: builderParticipantId,
+        text: 'filler',
+      })),
+    );
+    const res = await post(builderCookie, `/apps/${built.id}/builder/conversation`, { say: 'one more?' });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain('ceiling');
   });
 });

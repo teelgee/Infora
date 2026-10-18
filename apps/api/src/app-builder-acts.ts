@@ -172,17 +172,43 @@ export async function writeDefinitionAct(
 ): Promise<'ok' | 'invalid'> {
   if (input.definition !== undefined) {
     if (!appDefinitionSchema.safeParse(input.definition).success) return 'invalid';
+    const tables = await liveTables(db, input.appId);
     const keysByTable = new Map(
-      (await liveTables(db, input.appId)).map((table) => [
-        table.id,
-        table.columns.map((column) => column.key),
-      ]),
+      tables.map((table) => [table.id, table.columns.map((column) => column.key)]),
     );
     for (const screen of input.definition.interfaces) {
       if (screen.source === null) continue;
       const keys = screen.appTableId === null ? [] : keysByTable.get(screen.appTableId);
       if (keys === undefined || parseAppScreen(screen.source, keys) === null) return 'invalid';
     }
+    // (review 2026-10-18) **an answer key has to name a real question.** The
+    // gate reads `answeredQuestions`, so a key naming no live table and no
+    // screen in this very definition — a typo, or a question pre-answered for
+    // a screen that does not exist yet — would hold the gate open or shut on
+    // nothing. Refused, never trimmed (the parser's own discipline).
+    const validKeys = new Set<string>([
+      ...tables.filter((t) => t.kind !== 'insight').map((t) => `contractual-data:${t.id}`),
+      ...input.definition.interfaces.map((screen) => `who-may-open:${screen.id}`),
+    ]);
+    if (input.definition.answeredQuestions.some((key) => !validKeys.has(key))) return 'invalid';
+    // (review 2026-10-18) **a stale copy cannot un-answer a question.** The
+    // panel saves the whole definition, and an answer recorded between its
+    // read and its save (by `recordAnsweredQuestion`, or another builder)
+    // must survive — so the stored answers are folded in, kept only where
+    // they still name something this definition has. Removing a screen drops
+    // its key here, exactly as the remove act intends.
+    const [stored] = await db
+      .select({ definition: s.apps.definition })
+      .from(s.apps)
+      .where(eq(s.apps.id, input.appId))
+      .limit(1);
+    const storedKeys = ((stored?.definition as AppDefinition | null)?.answeredQuestions ?? []).filter(
+      (key) => validKeys.has(key),
+    );
+    input.definition = {
+      ...input.definition,
+      answeredQuestions: [...new Set([...input.definition.answeredQuestions, ...storedKeys])],
+    };
   }
   await db
     .update(s.apps)

@@ -80,6 +80,9 @@ import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
+
+/** (review 2026-10-18) the most turns one app's build conversation may hold. */
+export const BUILD_TURN_CEILING = 500;
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
 
@@ -630,6 +633,22 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
     const parsed = sayToBuilderBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
+    // (review 2026-10-18) a conversation has a ceiling: every person turn is
+    // also a model call and two stored rows, and nothing else bounds them. A
+    // thousand turns is not a build conversation going well.
+    const [turnCount] = await deps.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(s.appBuildTurns)
+      .where(eq(s.appBuildTurns.appId, loaded.row.id));
+    if ((turnCount?.count ?? 0) >= BUILD_TURN_CEILING) {
+      return c.json(
+        {
+          error: 'conflict',
+          detail: 'this build conversation has reached its ceiling - the panel still edits everything directly',
+        } satisfies ApiError,
+        409,
+      );
+    }
     // the organisations a screen may be narrowed to: those the app is open to
     const scope = await scopeDto(deps.db, loaded);
     const organisations = scope

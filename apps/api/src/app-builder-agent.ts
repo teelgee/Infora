@@ -369,13 +369,13 @@ function slugFor(label: string, prefix: string, taken: ReadonlySet<string>): str
   return candidate;
 }
 
-type Snapshot = {
+export type Snapshot = {
   name: string;
   description: string | null;
   definition: AppDefinition;
 };
 
-async function readSnapshot(db: Db, appId: string): Promise<Snapshot> {
+export async function readSnapshot(db: Db, appId: string): Promise<Snapshot> {
   const [row] = await db
     .select({ name: s.apps.name, description: s.apps.description, definition: s.apps.definition })
     .from(s.apps)
@@ -446,7 +446,33 @@ function stateBlock(
  * The caller (the route in `apps.ts`) has already checked that this person may
  * build this app; everything here is done as them.
  */
+// (review 2026-10-18) **one turn at a time per app.** Two builders' turns
+// interleaving would let one turn's asked-before set and baseline go stale
+// under the other; turns on one app queue behind each other instead. The
+// queue is in-process, which is the deployment we have — one API process —
+// and is the thing to revisit when that changes.
+const turnQueues = new Map<string, Promise<unknown>>();
+
 export async function runBuilderTurn(
+  deps: { db: Db; router: Router },
+  ctx: BuilderTurnContext,
+): Promise<{ person: AppBuildTurn; agent: AppBuildTurn }> {
+  const previous = turnQueues.get(ctx.appId) ?? Promise.resolve();
+  const turn = previous.then(
+    () => runBuilderTurnNow(deps, ctx),
+    () => runBuilderTurnNow(deps, ctx),
+  );
+  turnQueues.set(
+    ctx.appId,
+    turn.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return turn;
+}
+
+async function runBuilderTurnNow(
   deps: { db: Db; router: Router },
   ctx: BuilderTurnContext,
 ): Promise<{ person: AppBuildTurn; agent: AppBuildTurn }> {
@@ -516,6 +542,7 @@ export async function runBuilderTurn(
     // as the agent's own previous acts left it
     const performState: PerformState = {
       snapshot,
+      ownWrites: new Set<string>(),
       askedBefore,
       proposedLastTurn,
       receipts,
@@ -616,9 +643,15 @@ function resolveScreen(definition: AppDefinition, ref: string): AppInterface | n
   return byLabel.length === 1 ? byLabel[0]! : null;
 }
 
-type PerformState = {
+export type PerformState = {
   /** the app as the model was shown it — what "changed since" is judged against */
   snapshot: Snapshot;
+  /** what THIS turn's own acts have already written (review 2026-10-18): the
+   * hand-edit checks consult it, so the agent builds on its own acts without
+   * absorbing a person's concurrent edit into the baseline — the previous
+   * mechanism re-read the store after each write, which folded a mid-turn
+   * hand edit in and let the next act overwrite it */
+  ownWrites: Set<string>;
   askedBefore: ReadonlySet<string>;
   proposedLastTurn: BuilderProposal[];
   receipts: BuilderActReceipt[];
@@ -643,7 +676,9 @@ function wasProposed(state: PerformState, kind: BuilderProposal['kind'], ids: st
  * somebody changed it by hand while the model was answering, and the act is
  * skipped rather than written over them.
  */
-async function perform(
+// exported for the 2026-10-18 review's concurrency tests, which need a hand
+// edit landed deterministically BETWEEN two acts of one turn
+export async function perform(
   db: Db,
   ctx: BuilderTurnContext,
   act: BuilderAgentAct,
@@ -658,10 +693,10 @@ async function perform(
       definition,
     });
     if (result === 'invalid') throw new Error('refused by the definition boundary');
-    // the agent's own write becomes what later acts in this turn are judged
-    // against — so its second act on a screen is not mistaken for a person's
-    // edit made while it was answering
-    state.snapshot = await readSnapshot(db, ctx.appId);
+    // the baseline deliberately does NOT absorb the store here: what this
+    // turn's own acts wrote is tracked in `ownWrites`, so a later act builds
+    // on them — and a person's edit landing mid-turn still differs from the
+    // baseline and is kept (review 2026-10-18)
   };
   const done = (summary: string) => state.receipts.push({ kind: act.kind, summary });
   const fresh = await readSnapshot(db, ctx.appId);
@@ -669,8 +704,9 @@ async function perform(
 
   switch (act.kind) {
     case 'describeApp': {
-      const nameChangedByHand = fresh.name !== state.snapshot.name;
-      const descriptionChangedByHand = fresh.description !== state.snapshot.description;
+      const nameChangedByHand = fresh.name !== state.snapshot.name && !state.ownWrites.has('name');
+      const descriptionChangedByHand =
+        fresh.description !== state.snapshot.description && !state.ownWrites.has('description');
       const name = act.name !== undefined && !nameChangedByHand ? act.name : undefined;
       const description =
         act.description !== undefined && !descriptionChangedByHand ? act.description : undefined;
@@ -684,7 +720,8 @@ async function perform(
         ...(name !== undefined && { name }),
         ...(description !== undefined && { description: description === '' ? null : description }),
       });
-      state.snapshot = await readSnapshot(db, ctx.appId);
+      if (name !== undefined) state.ownWrites.add('name');
+      if (description !== undefined) state.ownWrites.add('description');
       done(name !== undefined ? `Named the app “${name}”.` : 'Wrote what the app is for.');
       return;
     }
@@ -736,7 +773,7 @@ async function perform(
       }
       if (existing !== null) {
         const before = state.snapshot.definition.interfaces.find((screen) => screen.id === existing.id);
-        if (before === undefined || !same(before, existing)) {
+        if (!state.ownWrites.has(`screen:${existing.id}`) && (before === undefined || !same(before, existing))) {
           state.notes.push(`You changed “${existing.label}” while I was answering, so I left your version.`);
           return;
         }
@@ -748,6 +785,7 @@ async function perform(
               : screen,
           ),
         });
+        state.ownWrites.add(`screen:${existing.id}`);
         done(`Rewrote the screen “${act.label}”.`);
         return;
       }
@@ -760,6 +798,7 @@ async function perform(
           { id, label: act.label, appTableId: table.id, openToOrganisationIds: [], source },
         ],
       });
+      state.ownWrites.add(`screen:${id}`);
       done(`Wrote the screen “${act.label}” over “${table.name}”.`);
       return;
     }
@@ -788,20 +827,25 @@ async function perform(
       return;
     }
     case 'setSchedule': {
-      if (fresh.definition.schedule !== state.snapshot.definition.schedule) {
+      if (fresh.definition.schedule !== state.snapshot.definition.schedule && !state.ownWrites.has('schedule')) {
         state.notes.push('You changed the schedule while I was answering, so I kept yours.');
         return;
       }
       await write({ ...fresh.definition, schedule: act.schedule });
+      state.ownWrites.add('schedule');
       done(`Set it to run: ${act.schedule} (stored; it starts working when there is a server that stays on).`);
       return;
     }
     case 'setAnalysisPrompt': {
-      if (fresh.definition.analysisPrompt !== state.snapshot.definition.analysisPrompt) {
+      if (
+        fresh.definition.analysisPrompt !== state.snapshot.definition.analysisPrompt &&
+        !state.ownWrites.has('analysisPrompt')
+      ) {
         state.notes.push('You changed the analysis prompt while I was answering, so I kept yours.');
         return;
       }
       await write({ ...fresh.definition, analysisPrompt: act.prompt });
+      state.ownWrites.add('analysisPrompt');
       done('Wrote what each run’s analysis should say.');
       return;
     }
@@ -811,6 +855,7 @@ async function perform(
         ...fresh.definition,
         connections: [...fresh.definition.connections, { id, system: act.system, needs: act.needs }],
       });
+      state.ownWrites.add('connections');
       done(`Described a connection to ${act.system} (it cannot be connected until Infora is deployed).`);
       return;
     }
@@ -843,6 +888,15 @@ async function perform(
         return;
       }
       const key = `contractual-data:${table.id}`;
+      // 🔒 a question already answered is SETTLED for the agent (review
+      // 2026-10-18): re-answering could flip a person's choice under them —
+      // changing a settled answer is a person's act, from the panel
+      if (fresh.definition.answeredQuestions.includes(key)) {
+        state.notes.push(
+          `Whether “${table.name}” holds contractual data is already answered — changing that is yours to do, from the panel beside us.`,
+        );
+        return;
+      }
       // 🔒 only an answer to a question an EARLIER turn asked
       if (!state.askedBefore.has(key)) {
         state.askedNow.add(key);
@@ -876,6 +930,15 @@ async function perform(
         return;
       }
       const key = `who-may-open:${screen.id}`;
+      // 🔒 a question already answered is SETTLED for the agent (review
+      // 2026-10-18): re-answering could WIDEN a person's narrowing — the one
+      // thing nothing the agent does may ever do (third addendum, ruling 3)
+      if (fresh.definition.answeredQuestions.includes(key)) {
+        state.notes.push(
+          `Who may open “${screen.label}” is already answered — changing that is yours to do, from the panel beside us.`,
+        );
+        return;
+      }
       if (!state.askedBefore.has(key)) {
         state.askedNow.add(key);
         state.notes.push(`I have not recorded who may open “${screen.label}” — that is yours to answer, so I am asking you now.`);
@@ -888,7 +951,7 @@ async function perform(
         return;
       }
       const before = state.snapshot.definition.interfaces.find((s2) => s2.id === screen.id);
-      if (before === undefined || !same(before, screen)) {
+      if (!state.ownWrites.has(`screen:${screen.id}`) && (before === undefined || !same(before, screen))) {
         state.notes.push(`You changed “${screen.label}” while I was answering, so I left your version.`);
         return;
       }
@@ -899,6 +962,7 @@ async function perform(
         ),
         answeredQuestions: [...new Set([...fresh.definition.answeredQuestions, key])],
       });
+      state.ownWrites.add(`screen:${screen.id}`);
       const names = ctx.organisations.filter((o) => act.organisationIds.includes(o.id)).map((o) => o.name);
       done(
         names.length === 0
