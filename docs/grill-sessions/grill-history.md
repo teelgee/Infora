@@ -574,3 +574,20 @@ were separated; each left a one-line pointer behind.
 8. **Scope held narrow**: the workflow object is NAMED on the deferred register and not designed — its design session comes after this build lands.
 
 **Recorded where.** [ADR-0058](../architecture/adr/0058-tools-run-apps-hold.md); [ADR-0056](../architecture/adr/0056-the-app-model.md)'s third dated addendum (status line, the addendum, a pointer on *Considered and not taken*); [ADR-0057](../architecture/adr/0057-connections-and-stored-credentials.md)'s dated note; `CONTEXT.md`'s Tool and App entries; [personal-data.md](../architecture/personal-data.md)'s build-conversation row; the board's T-448–T-450, T-446's re-cut, the slice build-order note, and the Workflows register entry.
+
+
+### Session AD — the file source and the interim editing engine, designed on delegated authority *(2026-10-18 → ADR-0059; ADR-0043's dated note; T-451–T-454 minted; T-446 and T-326 re-cut)*
+
+*The same shape as Session AC: the owner directed the substance across the day's conversation and delegated the mechanism ("okay, let's do as you suggest"). The owner's own words carried three directions: "the spreadsheet is a must have"; "the contractor or supplier would update the spreadsheet directly or create a new one each month — the dashboard builder needs to be able to point at the sandbox or project library item and then select the cells"; and, on editing, "on the basis that CSPP will be a future thing we do — how could we enable editing of native Word and Excel files in the current build?". The research grounding both: the Power BI/Power Query documentation and the Foresight product pages (fetched 2026-10-18, context never authority).*
+
+**Claude's rulings on delegated authority — THE VETO LIST, each corrected as a dated amendment if struck:**
+1. **A table-shaped region, not loose cells** — the owner said "select the cells"; the design selects a header-topped block re-found by its header texts, because Power BI's own docs concede loose ranges break silently when the sheet changes. The gesture the owner described survives; the brittleness does not.
+2. **Imported rows name the file version's uploader as enterer** (never the builder, never a machine) — the register clarification rides this.
+3. **Imports land `submitted` on an acceptance table** — the monthly file IS the month's return.
+4. **One source per table; detach deletes nothing; import is per-version and event-driven, never a poll; values never formulas; .xlsx reader in-tree first.**
+5. **The agent gets no source act this round** — attaching is a panel act.
+6. **Collabora promoted from dev harness to INTERIM editing surface** (ADR-0043's dated note) — real Office stays the destination; the board's "never deployed to pilot" line re-cut to a licence gate; production licensing at pilot scale is the owner's action.
+7. **Parallel migration numbering fixed in advance**: 0069 to the file source, 0070 to the WOPI refs, journal gap reconciled at review (the 2026-09-02 pattern).
+8. **Round 2 named, not designed**: computed measures (planned-versus-actual, variance, S-curves — the Foresight-grade layer) wait for the owner's walk; external-API sources stay with ADR-0057.
+
+**Recorded where.** [ADR-0059](../architecture/adr/0059-the-file-source.md); [ADR-0043](../architecture/adr/0043-editing-and-coauthoring-substrate-wopi-host.md)'s dated note; drawer 9's `app_table_sources` drawing in [data-model.md](../build/data-model.md); the register's imported-rows clarification in [personal-data.md](../architecture/personal-data.md); the board's T-451–T-454, the T-446 widening, the T-326 re-cut.

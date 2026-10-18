@@ -12,6 +12,23 @@
 
 **3. The engine target is real Microsoft Office via CSPP; a self-hosted engine serves only as the interim dev harness.** The shipping co-authoring surface is genuine Microsoft Office for the web (and, as a later CSPP milestone, the desktop apps), for the fidelity AEC clients who live in Office expect — the owner's decision, matching iManage and NetDocuments. Because CSPP is a commercial partnership with an approval process (see the external dependency below), the WOPI host is built and validated against a **self-hosted engine (Collabora Online or OnlyOffice Docs)** as a dev/staging harness, then pointed at Microsoft Office once CSPP is granted. The self-hosted engine is a test rig, not a shipping target; the WOPI host is identical either way, so the swap is a configuration change, not a rebuild.
 
+> **Dated note (2026-10-18, owner-directed — "on the basis that CSPP will be a
+> future thing we do, how could we enable editing of native Word and Excel
+> files in the current build?").** Decision 3's edge moves: the self-hosted
+> engine (Collabora Online) is promoted from dev-harness-only to the
+> **interim editing surface** — in-browser, multiplayer editing of uploaded
+> Word/Excel files inside Infora, shipped against the same WOPI host, until
+> Microsoft approval arrives and real Office swaps in behind the identical
+> interface. Real Microsoft Office **remains the destination**; nothing about
+> the application changes. Two consequences: the board's "the harness is never
+> deployed to the pilot environment" line is re-cut (deploying the engine at
+> pilot is now gated on the licence check below, not forbidden), and
+> **Collabora's production licensing at pilot scale is an owner action** —
+> the free Development Edition's concurrent-user limits are meant for
+> development. Fidelity is the accepted interim trade-off: Collabora renders
+> Office formats well, not pixel-perfectly, which is why it is the interim
+> and not the end state. Tickets T-453/T-454 build it.
+
 **4. WOPI file access is gated by `sandbox_scope_grants`; the collaboration space inherits its grants.** The ethical wall is enforced where the bytes are served: the WOPI host resolves the requester's entitlement through the same grant set as every other read (ADR-0036), and a revoke drops co-authoring access in the same transaction as the read (ADR-0024). The co-authoring space **inherits the sandbox's grants** (the NetDocuments CollabSpaces pattern) — it introduces no new access object, and, consistent with ADR-0036 decision 2, there is still no within-sandbox wall.
 
 **5. Real-time collaboration splits by format.** Co-authoring of **Office-format files** is delegated to the Office/WOPI engine — Infora does not build it. Infora's own multiplayer — the shared agent **Conversation** thread, presence (T-175), and any future CRDT (ADR-0039) — governs **Infora-native authored documents and the agent conversation**. The two coexist in one surface: the file is co-authored in Office while the shared agent thread grounds against the library and the informing channel stays per-invoker (ADR-0039 unchanged).

@@ -968,6 +968,37 @@ among its own people may build — and left the control to the build; it is at
 user grain because the decision is the organisation's about its own person, and
 it rides 0067 because the app-builder slice has exactly one migration.
 
+**The file source, `app_table_sources` — drawn 2026-10-18 (ADR-0059), UNBUILT: this field list is the drawing, and stays until T-451 builds it (migration 0069).**
+*Plainly: an app table can point at a spreadsheet the project already holds —
+a sandbox document or a library record — name the block of cells and what each
+column means, and every new version of that file refills the table.*
+
+| field | type | why |
+|---|---|---|
+| `id` | uuid pk | |
+| `app_table_id` | uuid fk → app_tables, **unique** | one source per table, a table per source — the simplest true shape |
+| `sandbox_document_id` | uuid fk → sandbox documents, nullable | exactly one of this pair is set (CHECK) — the pointer follows the DOCUMENT, whose versions are the refresh events (the Power BI item-identity lesson) |
+| `container_id` | uuid fk → the library record, nullable | the other half of the pair |
+| `sheet` | text | the worksheet name |
+| `header_row` | jsonb | the header texts of the selected table-shaped region, re-found by content on each import — a region that moved survives; one that vanished fails loudly |
+| `mapping` | jsonb | source column → declared column key, typed; checked against the table's columns at attach and at every import |
+| `configured_by_participant_id` | uuid fk → participants | the builder who attached or last changed the mapping — the configuration's stamp; **never the rows' stamp** (ADR-0059 decision 2: rows name the file version's uploader) |
+| `configured_at` | timestamptz | |
+| `last_import_version` | text, nullable | which version of the document the table currently reflects |
+| `last_import_at` / `last_import_outcome` | timestamptz / text, nullable | the receipt the panel shows — an import that failed says so in words, loudly, per document |
+| `detached_at` | timestamptz, nullable | detaching stops imports and deletes nothing — the rows already imported keep their ordinary lives |
+
+**What the drawing fixes beyond the fields:** the import is ONE deliberate act
+per version (ADR-0057's 2026-10-18 ingest discipline) — triggered by the
+version landing (the replace-file act today, a co-authoring save later) or by
+refresh-now, never by a poll; each import supersedes the previous import's
+rows (prior versions kept, append-only); on a table with an acceptance step
+imported rows land `submitted`, else stateless; `entered_by` on every imported
+row is the participant whose act produced the file version. **No trigger or
+CHECK beyond the exactly-one-pointer pair** — the import discipline lives in
+one act function the route and the version-landing hook both call, the
+app-builder-acts pattern.
+
 **The build conversation, `app_build_turns` — drawn 2026-10-18 and built the same day (T-449, migration [0068](../../packages/db/migrations/0068_app-build-conversation.sql)).**
 *Plainly: what a builder says to the app builder's agent, and what the agent
 says and does in reply, kept against the app so the conversation can be picked
