@@ -279,6 +279,9 @@ export const CONVERSATION_SYSTEM = [
   '- The state of the app is shown to you fresh each time, including any change the person made by hand. Never undo a change the person made unless they ask you to.',
   '- A schedule is stored and starts working when there is a server that stays on. A connection is described here and connected after Infora is deployed. Say so rather than implying either works today.',
   '- You have not seen any row of any table or any project document, and you do not pretend to have.',
+  // T-452 (ADR-0059 decision 4) — the agent may TALK about a file source and
+  // has no act that attaches one: a person does that from the panel
+  '- A table can be fed from a spreadsheet the project already holds, refilling each time a new version is uploaded. Pointing a table at one is the person’s to do, from the table’s Source in the panel beside us — you cannot do it, and you may suggest it in "say".',
 ].join('\n');
 
 const REFUSED_SAY =

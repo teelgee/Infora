@@ -2148,6 +2148,29 @@ describe('a generated screen (T-442, ADR-0056 §11)', () => {
     expect(draw({ kind: 'count', label: 'Returns' })).toContain('<strong>2</strong>');
   });
 
+  it('T-452: draws its figures from CURRENT rows — a superseded or retired row is history, not a second figure', () => {
+    // a file source supersedes the last import every month; a chart over every
+    // row it received would grow by a whole report each time
+    const history = [
+      { ...rows[0]!, id: 'old-1', state: 'superseded' as const },
+      { ...rows[1]!, id: 'old-2', retiredAt: '2026-09-04T09:00:00.000Z' },
+      ...rows,
+    ];
+    const drawOver = (block: unknown) =>
+      renderToStaticMarkup(
+        <ScreenBlock block={block as never} table={table as never} rows={history as never} onEnter={() => {}} pending={false} />,
+      );
+    expect(drawOver({ kind: 'total', columnKey: 'landfill', label: 'Year to date' })).toContain('<strong>20</strong>');
+    expect(drawOver({ kind: 'count', label: 'Returns' })).toContain('<strong>2</strong>');
+    expect(
+      drawOver({ kind: 'barChart', label: 'By month', categoryColumn: 'month', valueColumn: 'landfill' }),
+    ).toContain('>12.4<');
+    // the table block still lists the history, each row with its state
+    expect(
+      drawOver({ kind: 'rowTable', columnKeys: ['month'], showOrganisation: false, showState: true }),
+    ).toContain('Superseded');
+  });
+
   it('refuses a screen naming a column the table no longer declares', () => {
     expect(
       screenFor(

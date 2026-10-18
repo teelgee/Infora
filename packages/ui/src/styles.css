@@ -2031,6 +2031,14 @@ a.shelf-row-title:hover { text-decoration: underline; }
   margin: 2px 0;
 }
 .builder-ask p { margin: 4px 0; }
+/* T-452 — a table's Source: the spreadsheet it is fed from, the last import's
+   receipt, and the picker. The receipt reuses `.builder-receipt`; the regions
+   are a plain list of radio choices, each one a header row and its rows. */
+.builder-source { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.builder-source > .btn { align-self: flex-start; }
+.builder-source .page-sub, .builder-receipt p { margin: 0; }
+.builder-regions { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.builder-region { display: flex; align-items: baseline; gap: 6px; font-size: var(--body-dense-size); }
 /* the publish gate's words while it is shut — the server's sentence, read
    before anybody clicks (T-448) */
 .builder-gate.is-closed {

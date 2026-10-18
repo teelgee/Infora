@@ -6,10 +6,15 @@ import type {
   AppRowResponse,
   AppRunResponse,
   AppTableRecord,
+  AppTableSourceResponse,
+  AttachTableSourceBody,
   CreateAppBody,
   DeclareAppTableBody,
   DecideAppRowBody,
   EnterAppRowBody,
+  ListSourceDocumentsResponse,
+  ListSourceRegionsResponse,
+  SourceDocumentRef,
   GetAppResponse,
   GrantAppScopeBody,
   ListAppRowsResponse,
@@ -1052,6 +1057,29 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ hasAcceptance }),
     }),
+  // T-451/T-452 — the file source (ADR-0059): a builder's panel acts. The
+  // rows an import writes name the file version's uploader, which the server
+  // resolves — nothing here could name anybody.
+  sourceDocuments: (appId: string) =>
+    request<ListSourceDocumentsResponse>(`/apps/${appId}/source-documents`),
+  sourceRegions: (appId: string, document: SourceDocumentRef) =>
+    request<ListSourceRegionsResponse>(
+      `/apps/${appId}/source-documents/regions?${new URLSearchParams(
+        document.sandboxDocumentId !== undefined
+          ? { sandboxDocumentId: document.sandboxDocumentId }
+          : { containerId: document.containerId! },
+      ).toString()}`,
+    ),
+  tableSource: (appTableId: string) => request<AppTableSourceResponse>(`/app-tables/${appTableId}/source`),
+  attachTableSource: (appTableId: string, body: AttachTableSourceBody) =>
+    request<AppTableSourceResponse>(`/app-tables/${appTableId}/source`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  refreshTableSource: (appTableId: string) =>
+    request<AppTableSourceResponse>(`/app-tables/${appTableId}/source/refresh`, { method: 'POST' }),
+  detachTableSource: (appTableId: string) =>
+    request<AppTableSourceResponse>(`/app-tables/${appTableId}/source/detachment`, { method: 'POST' }),
   shareAppTable: (appTableId: string, organisationId: string) =>
     request<AppTableRecord>(`/app-tables/${appTableId}/shares`, {
       method: 'POST',

@@ -41,9 +41,12 @@ import type {
   AppSchedule,
   AppTableKind,
   AppTableRecord,
+  AppTableSourceRecord,
   BuilderQuestion,
   GetAppResponse,
   RosterEntry,
+  SourceDocumentOption,
+  SourceRegion,
 } from '@infora/contracts';
 import { APP_SCHEDULES, INSIGHT_TABLE_COLUMNS } from '@infora/contracts';
 import {
@@ -333,6 +336,7 @@ function AppStatePanel(props: {
       <PanelWhatItIs app={data} roster={props.roster} onDone={props.onChanged} />
       <PanelTables
         appId={props.appId}
+        projectId={props.projectId}
         tables={data.tables}
         open={openFor('contractual-data')}
         onDone={props.onChanged}
@@ -456,6 +460,7 @@ function PanelWhatItIs(props: { app: GetAppResponse; roster: RosterEntry[]; onDo
  */
 function PanelTables(props: {
   appId: string;
+  projectId: string;
   tables: AppTableRecord[];
   open: BuilderQuestion[];
   onDone: () => void;
@@ -543,6 +548,9 @@ function PanelTables(props: {
             ) : (
               <span className="page-sub">Working data — rows never change hands</span>
             )}
+            {table.kind !== 'insight' && (
+              <TableSource appId={props.appId} projectId={props.projectId} table={table} />
+            )}
           </div>
         ))
       )}
@@ -604,6 +612,365 @@ function PanelTables(props: {
       )}
       {notice !== null && <p className="page-sub">{notice}</p>}
     </Card>
+  );
+}
+
+// ── T-452 — a table's Source: fed from a spreadsheet the project holds ─────
+
+/** Headings compare as a person reads them — case, spacing and a trailing
+ * unit in brackets ("Cost (£)") are not a different heading from "Cost". */
+const headingKey = (text: string) =>
+  text
+    .replace(/\([^)]*\)/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+/**
+ * **A table's Source** (ADR-0059; T-451's acts, T-452's panel).
+ *
+ * *In plain terms: point this table at a spreadsheet in the project, pick the
+ * block of cells that holds the data, say which heading fills which column —
+ * and from then on every new version of that spreadsheet refills the table by
+ * itself, in the name of whoever uploaded it.*
+ *
+ * 🔒 **A PERSON'S ACT, NEVER THE AGENT'S** (decision 4): this section is the
+ * only way a source is attached. 🔒 **NOTHING HERE DECIDES WHO THE ROWS NAME**
+ * — the server stamps them with the file version's uploader. And the receipt
+ * is the server's sentence, shown as it was written.
+ */
+function TableSource(props: { appId: string; projectId: string; table: AppTableRecord }) {
+  const { table } = props;
+  const [source, setSource] = useState<AppTableSourceRecord | null | undefined>(undefined);
+  const [picking, setPicking] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    void api.tableSource(table.id).then(
+      (res) => setSource(res.source),
+      () => setSource(null),
+    );
+  }, [table.id]);
+  useEffect(load, [load]);
+
+  const act = async (run: () => Promise<{ source: AppTableSourceRecord | null }>, failed: string) => {
+    setPending(true);
+    setNotice(null);
+    try {
+      setSource((await run()).source);
+    } catch (error) {
+      setNotice(refusal(error, failed));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  if (source === undefined) return null;
+  const live = source !== null && source.detachedAt === null;
+  const label = (key: string) => table.columns.find((column) => column.key === key)?.label ?? key;
+
+  return (
+    <div className="builder-source" role="group" aria-label={`Source of ${table.name}`}>
+      <span className="field-label">Source</span>
+      {live ? (
+        <>
+          <p className="page-sub">
+            Fed from{' '}
+            <strong>{source.document.title ?? 'a spreadsheet you can no longer open'}</strong>, sheet
+            “{source.sheet}”:{' '}
+            {source.mapping.map((entry) => `“${entry.header}” fills ${label(entry.columnKey)}`).join('; ')}.
+          </p>
+          <p className="page-sub">
+            {source.reflectsVersion === null
+              ? 'The table does not reflect any version of it yet.'
+              : `The table reflects ${source.reflectsVersion}`}
+            {source.reflectsVersion !== null &&
+              (source.document.currentVersion !== null &&
+              source.document.currentVersion !== source.reflectsVersion
+                ? ` — the file is now at ${source.document.currentVersion}.`
+                : '.')}{' '}
+            Each new version refills the table, entered by whoever uploaded it
+            {table.hasAcceptance ? ' and submitted for acceptance' : ''}.
+          </p>
+          {source.lastImport !== null && (
+            <div className="builder-receipt" aria-label="Last import">
+              <Badge tone={source.lastImport.succeeded ? 'success' : 'danger'}>
+                {source.lastImport.succeeded ? 'Last import' : 'Last import failed'}
+              </Badge>{' '}
+              <span className="page-sub">{formatDateTime(source.lastImport.at)}</span>
+              <p>{source.lastImport.outcome}</p>
+            </div>
+          )}
+          <div className="shelf-head" style={{ gap: 8 }}>
+            <Button
+              size="sm"
+              disabled={pending}
+              onClick={() =>
+                void act(() => api.refreshTableSource(table.id), 'The file could not be read just now.')
+              }
+            >
+              Refresh from the file now
+            </Button>
+            {source.mayReconfigure && !picking && (
+              <Button size="sm" variant="quiet" onClick={() => setPicking(true)}>
+                Change the cells
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={pending}
+              onClick={() =>
+                void act(() => api.detachTableSource(table.id), 'The table could not be detached.')
+              }
+            >
+              Stop feeding this table
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          {source !== null && source.detachedAt !== null && (
+            <p className="page-sub">
+              No longer fed from a spreadsheet (stopped {formatDateTime(source.detachedAt)}). The rows it
+              brought in are kept.
+            </p>
+          )}
+          {!picking && (
+            <Button size="sm" variant="quiet" onClick={() => setPicking(true)}>
+              Feed this table from a spreadsheet
+            </Button>
+          )}
+        </>
+      )}
+      {picking && (
+        <SourcePicker
+          appId={props.appId}
+          projectId={props.projectId}
+          table={table}
+          current={live ? source : null}
+          onAttached={(attached) => {
+            setSource(attached);
+            setPicking(false);
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      )}
+      {notice !== null && <p className="page-sub">{notice}</p>}
+    </div>
+  );
+}
+
+/**
+ * Choosing the cells: a spreadsheet the builder can open (or one they upload
+ * here into their own sandbox), then one of the **table-shaped regions** Infora
+ * found in it — a header row and the rows beneath, never loose cells, the Power
+ * BI lesson — then which heading fills which declared column.
+ */
+function SourcePicker(props: {
+  appId: string;
+  projectId: string;
+  table: AppTableRecord;
+  current: AppTableSourceRecord | null;
+  onAttached: (source: AppTableSourceRecord | null) => void;
+  onCancel: () => void;
+}) {
+  const { table, current } = props;
+  const [documents, setDocuments] = useState<SourceDocumentOption[] | null>(null);
+  const [chosen, setChosen] = useState(current === null ? '' : `${current.document.kind}:${current.document.id}`);
+  const [regions, setRegions] = useState<SourceRegion[] | null>(null);
+  const [regionIndex, setRegionIndex] = useState<number | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(() => {
+    void api.sourceDocuments(props.appId).then(
+      (res) => setDocuments(res.items),
+      () => setDocuments([]),
+    );
+  }, [props.appId]);
+  useEffect(loadDocuments, [loadDocuments]);
+
+  const pointer = (key: string) => {
+    const [kind, id] = key.split(':');
+    return kind === 'library' ? { containerId: id! } : { sandboxDocumentId: id! };
+  };
+
+  /** Fill the mapping from the region's headings: a heading that reads as a
+   * column's label fills it; the builder confirms or changes every one. */
+  const suggest = useCallback(
+    (region: SourceRegion) => {
+      const byHeading = new Map(region.headers.map((header) => [headingKey(header), header]));
+      const next: Record<string, string> = {};
+      for (const column of table.columns) {
+        const kept = current?.mapping.find((entry) => entry.columnKey === column.key)?.header;
+        const header =
+          kept !== undefined && region.headers.includes(kept)
+            ? kept
+            : (byHeading.get(headingKey(column.label)) ?? byHeading.get(headingKey(column.key)));
+        if (header !== undefined) next[column.key] = header;
+      }
+      setMapping(next);
+    },
+    [table.columns, current],
+  );
+
+  useEffect(() => {
+    setRegions(null);
+    setRegionIndex(null);
+    setNotice(null);
+    if (chosen === '') return;
+    void api.sourceRegions(props.appId, pointer(chosen)).then(
+      (res) => {
+        setRegions(res.regions);
+        // reconfiguring: start from the region the table is fed from now
+        const again =
+          current === null
+            ? -1
+            : res.regions.findIndex(
+                (region) =>
+                  region.sheet === current.sheet &&
+                  current.mapping.every((entry) => region.headers.includes(entry.header)),
+              );
+        const start = again >= 0 ? again : res.regions.length === 1 ? 0 : -1;
+        if (start >= 0) {
+          setRegionIndex(start);
+          suggest(res.regions[start]!);
+        }
+      },
+      (error: unknown) => {
+        setRegions([]);
+        setNotice(refusal(error, 'That spreadsheet could not be read.'));
+      },
+    );
+    // re-read only when the chosen document changes — not when the suggestion
+    // or the current source re-render, which would reset the builder's picks
+  }, [chosen, props.appId]);
+
+  const upload = async (file: File | undefined) => {
+    if (file === undefined) return;
+    setNotice(null);
+    try {
+      const uploaded = await api.uploadSandboxFile(props.projectId, file);
+      loadDocuments();
+      setChosen(`sandbox:${uploaded.id}`);
+    } catch (error) {
+      setNotice(refusal(error, 'That file could not be uploaded.'));
+    }
+  };
+
+  const region = regionIndex === null ? null : (regions?.[regionIndex] ?? null);
+  const unfed = table.columns.filter((column) => column.required && mapping[column.key] === undefined);
+
+  const attach = async () => {
+    if (region === null) return;
+    setPending(true);
+    setNotice(null);
+    try {
+      const res = await api.attachTableSource(table.id, {
+        ...pointer(chosen),
+        sheet: region.sheet,
+        headerRow: region.headers,
+        mapping: Object.entries(mapping).map(([columnKey, header]) => ({ header, columnKey })),
+      });
+      props.onAttached(res.source);
+    } catch (error) {
+      setNotice(refusal(error, 'The table could not be pointed at those cells.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="builder-item">
+      <Field label="Spreadsheet" hint="Only spreadsheets you can open are offered.">
+        <SelectInput
+          value={chosen}
+          onChange={setChosen}
+          options={(documents ?? []).map((doc) => ({
+            value: `${doc.kind}:${doc.id}`,
+            label: `${doc.title} — ${doc.kind === 'library' ? 'library' : 'your sandbox'}, ${doc.version}`,
+          }))}
+          placeholder={documents === null ? 'Loading…' : 'Choose a spreadsheet…'}
+        />
+      </Field>
+      <Field label="Or upload one to your sandbox">
+        <input type="file" accept=".xlsx" onChange={(e) => void upload(e.target.files?.[0])} />
+      </Field>
+
+      {regions !== null && regions.length === 0 && notice === null && (
+        <p className="page-sub">
+          Infora found no table in it — a row of headings with rows beneath. Add headings above the
+          figures and upload it again.
+        </p>
+      )}
+      {regions !== null && regions.length > 0 && (
+        <fieldset className="builder-regions">
+          <legend className="field-label">Which table in it?</legend>
+          {regions.map((candidate, index) => (
+            <label key={`${candidate.sheet}-${candidate.headerRowNumber}-${index}`} className="builder-region">
+              <input
+                type="radio"
+                name={`region-${table.id}`}
+                checked={regionIndex === index}
+                onChange={() => {
+                  setRegionIndex(index);
+                  suggest(candidate);
+                }}
+              />{' '}
+              <span>
+                Sheet “{candidate.sheet}”, row {candidate.headerRowNumber}: {candidate.headers.join(', ')} —{' '}
+                {candidate.rowCount === 1 ? '1 row' : `${candidate.rowCount} rows`}
+                {candidate.sample.length > 0 && (
+                  <span className="page-sub"> (first: {candidate.sample[0]!.join(', ')})</span>
+                )}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      {region !== null && (
+        <>
+          <span className="field-label">Which heading fills each column?</span>
+          {table.columns.map((column) => (
+            <Field key={column.key} label={`${column.label}${column.required ? ' (required)' : ''}`}>
+              <SelectInput
+                value={mapping[column.key] ?? ''}
+                onChange={(header) =>
+                  setMapping((before) => {
+                    const next = { ...before };
+                    if (header === '') delete next[column.key];
+                    else next[column.key] = header;
+                    return next;
+                  })
+                }
+                options={region.headers.map((header) => ({ value: header, label: header }))}
+                placeholder="Not filled from the file"
+              />
+            </Field>
+          ))}
+          {unfed.length > 0 && (
+            <p className="page-sub">
+              {unfed.map((column) => column.label).join(', ')} {unfed.length === 1 ? 'is' : 'are'}{' '}
+              required, so a heading has to fill {unfed.length === 1 ? 'it' : 'each'}.
+            </p>
+          )}
+        </>
+      )}
+
+      <div className="shelf-head" style={{ gap: 8 }}>
+        <Button size="sm" disabled={region === null || unfed.length > 0 || pending} onClick={() => void attach()}>
+          Feed the table from these cells
+        </Button>
+        <Button size="sm" variant="quiet" onClick={props.onCancel}>
+          Cancel
+        </Button>
+      </div>
+      {notice !== null && <p className="page-sub">{notice}</p>}
+    </div>
   );
 }
 

@@ -58,6 +58,23 @@ export function screenFor(source: string | null, table: AppTableRecord): AppScre
   );
 }
 
+/**
+ * T-452 — **a figure is drawn from CURRENT rows only**: neither retired nor
+ * superseded. A superseded row is the history of a figure somebody corrected,
+ * and a retired one was withdrawn by its own organisation; counting either
+ * beside its replacement double-counts. It mattered little while corrections
+ * were rare, and it is every month once a table refills from a spreadsheet
+ * (ADR-0059): each import supersedes the last, so a chart over every row would
+ * grow by a whole report a month. The table block still lists every row it
+ * received, each with its state, because history is what a table is for.
+ *
+ * This is not an access decision and narrows nothing the viewer could read —
+ * every row here already arrived through `canReadAppRow`.
+ */
+export function isCurrentRow(row: AppRowRecord): boolean {
+  return row.retiredAt === null && row.state !== 'superseded';
+}
+
 /** One block, drawn. Every branch renders text as text. */
 export function ScreenBlock(props: {
   block: AppScreenBlock;
@@ -68,6 +85,7 @@ export function ScreenBlock(props: {
 }) {
   const { block, table, rows } = props;
   const label = (key: string) => table.columns.find((column) => column.key === key)?.label ?? key;
+  const current = rows.filter(isCurrentRow);
 
   if (block.kind === 'heading') return <SectionLabel>{block.text}</SectionLabel>;
   if (block.kind === 'paragraph') return <p className="page-sub">{block.text}</p>;
@@ -75,7 +93,7 @@ export function ScreenBlock(props: {
   if (block.kind === 'count') {
     return (
       <p className="page-sub">
-        {block.label}: <strong>{rows.length}</strong>
+        {block.label}: <strong>{current.length}</strong>
       </p>
     );
   }
@@ -83,7 +101,7 @@ export function ScreenBlock(props: {
   if (block.kind === 'total') {
     // the sum of what THIS viewer received — never a figure computed elsewhere
     // and handed down, which would be a number about rows they cannot read
-    const total = rows.reduce((sum, row) => {
+    const total = current.reduce((sum, row) => {
       const value = row.values[block.columnKey];
       return typeof value === 'number' ? sum + value : sum;
     }, 0);
@@ -107,7 +125,7 @@ export function ScreenBlock(props: {
   }
 
   if (block.kind === 'barChart' || block.kind === 'lineChart' || block.kind === 'pieChart') {
-    return <ScreenChart block={block} rows={rows} />;
+    return <ScreenChart block={block} rows={current} />;
   }
 
   return (
