@@ -40,6 +40,12 @@ const schema = z.object({
   // step records `cost: null` — UNPRICED, which is reportable, rather than 0,
   // which reads as free (finding F7).
   MODEL_RATES: z.string().optional(),
+  // T-453 — in-browser editing (ADR-0043). WOPI_HOST_URL is this API's base
+  // URL as the EDITING ENGINE reaches it (inside docker that is not localhost);
+  // unset means the API's own localhost address. WOPI_TOKEN_MINUTES bounds an
+  // engine's pass — and a pass never outlives the sign-in that asked for it.
+  WOPI_HOST_URL: z.string().url().optional(),
+  WOPI_TOKEN_MINUTES: z.coerce.number().int().positive().max(600).optional(),
   DEPLOYMENT_TIER: z.enum(['standard', 'sovereign']).default('standard'),
   DATA_CLASSIFICATION: z.enum(['official', 'secret']).default('official'),
   // the declared egress attributes of the model endpoints (ADR-0037 §3). All

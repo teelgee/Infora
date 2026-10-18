@@ -51,6 +51,7 @@ import { ruleSetRoutes } from './rule-set';
 import { styleGuideRoutes } from './style-guide';
 import { toolRoutes } from './tools';
 import { uploadRoutes } from './upload';
+import { wopiRoutes } from './wopi';
 
 export type { AppDeps } from './requester';
 
@@ -341,6 +342,12 @@ export function buildApp(deps: AppDeps) {
   // its prefix by name (requester.ts) so the exemption is one visible line
   // rather than a property of a route somewhere in a file.
   app.route('/', externalIssueRoutes(deps));
+
+  // T-453 — the WOPI host (ADR-0043): an editing engine opens an uploaded
+  // Office file from Infora's own store and saves it back. Sessionless like the
+  // external read, and for the same reason exempted by name in requester.ts —
+  // but unlike it, every call re-resolves a PERSON's entitlement.
+  app.route('/', wopiRoutes(deps));
 
   // T-329 — the notification record and its read/mark-read API (ADR-0049).
   // Visibility follows the subject, re-resolved on every read.

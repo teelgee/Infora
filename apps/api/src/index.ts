@@ -108,6 +108,11 @@ const app = buildApp({
     idleMinutes: env.SESSION_IDLE_MINUTES ?? DEFAULT_SESSION_POLICY.idleMinutes,
   },
   ...(allowedOrigins !== undefined && { allowedOrigins }),
+  // T-453 — where an editing engine reaches this API's WOPI host
+  editing: {
+    wopiHostUrl: env.WOPI_HOST_URL ?? `http://localhost:${env.PORT}`,
+    ...(env.WOPI_TOKEN_MINUTES !== undefined && { tokenMinutes: env.WOPI_TOKEN_MINUTES }),
+  },
   // T-217: throttle overrides; unset vars fall through to the in-code defaults
   rateLimits: {
     ...(env.RATE_LIMIT_LOGIN_PER_MINUTE !== undefined && {

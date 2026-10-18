@@ -267,6 +267,70 @@ not exist in code, and whether the owner may perform it at all is `Q-036` — a
 value the schema carries and no code can set is a claim the schema makes
 falsely.
 
+### The editing engine's refs *(drawn 2026-10-18, T-453, migration 0070)*
+
+*In plain terms: when someone opens an uploaded Word or Excel file to edit it
+in the browser, an editing engine fetches the file from Infora and saves it
+back. Three small things have to be written down for that to be safe: which
+engine is holding the file right now (so nobody else can overwrite it), the
+file each saved version actually had (so the history is real files, not just
+dates), and the short-lived pass the engine carries for one person and one
+file (so Infora can check, on every call, that the person is still allowed in).*
+
+**The lock is not a second lock** ([ADR-0043](../architecture/adr/0043-editing-and-coauthoring-substrate-wopi-host.md)
+§2). WOPI — the protocol an editing engine speaks to a file store — has its own
+lock, an opaque string the engine chooses. It rides the check-out that already
+exists: while an engine holds a file, `head_locked` is true, a `checked_out`
+row is in `sandbox_checkout_events`, and every path that already refuses a
+checked-out document (edit, replace, convert, delete, freeze) refuses this one
+for the same reason. What is added is only **which engine lock** holds the
+head, because WOPI requires the host to compare the string on every save and
+answer a mismatch with the current holder.
+
+**A version keeps its file.** T-220's replace-file swapped the canonical blob
+and orphaned the old one ("durable prior-blob retention is deferred to P2").
+This is P2: each working revision now carries the `file_ref` it had, so the
+version history of an uploaded document is a list of real files. Nullable,
+because every revision written before this — and every authored document's
+revisions — has no file of its own.
+
+**The engine's pass is stored, hashed, and tied to the session that asked for
+it.** A WOPI access token is the credential an engine presents on each call.
+It is deliberately **not** a signed self-contained token: that would either
+outlive a signed-out session (a bearer capability, which T-317's rule forbids)
+or have to carry the session cookie's own secret into a page the engine
+renders. Stored, it dies with the session and with the document, and only its
+hash is kept, so reading the table cannot mint a working pass. **Possession
+proves nothing on its own**: every call re-resolves the person's project slice
+and the sandbox's live grants, so a revoked grant refuses the very next call.
+
+**Fields drawn before the migration was written:**
+
+`sandbox_documents` gains `wopi_lock` (text, nullable — the engine's lock
+string while an engine holds the head) and `wopi_lock_expires_at` (timestamptz,
+nullable — WOPI locks lapse after 30 minutes unless the engine re-asserts
+them). Two hand-written `CHECK`s: the pair is both set or both null, and **a
+WOPI lock implies `head_locked`** — so an engine lock can never exist beside an
+unlocked head, which is the one-mechanism rule stated where the database can
+hold it.
+
+`sandbox_checkout_events` gains `wopi_lock` (text, nullable) — set on the
+check-out and release rows an engine caused, null on a person's freeze. The
+participant on the row is the person whose pass the engine presented, so the
+trail still answers "who had it checked out" in a name.
+
+`sandbox_document_versions` gains `file_ref` (text, nullable) — the native file
+this working revision had.
+
+`wopi_access_tokens` — `token_hash` (text, primary key: sha-256 of the pass;
+the pass itself is never stored); `sandbox_document_id` (FK, cascade — one
+pass, one file); `session_id` (FK to `sessions`, cascade — the pass dies with
+the sign-in that asked for it); `expires_at`; `created_at`. **Names a person
+through the session**, so it is registered in
+[personal-data.md](../architecture/personal-data.md): which sign-in opened
+which file for editing. Expired rows are swept on the next mint, so the table
+holds only live passes.
+
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
 (ADR-0025, 0028.)*

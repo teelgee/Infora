@@ -172,3 +172,21 @@ export async function sweepExpiredSessions(
     .returning({ id: s.sessions.id });
   return swept.length;
 }
+
+/**
+ * T-453 — is this session live, WITHOUT touching its idle clock.
+ *
+ * The WOPI host asks this on every call an editing engine makes on a person's
+ * behalf. It must not slide the idle window: an engine re-asserts its lock
+ * every fifteen minutes whether or not anyone is at the keyboard, so a sliding
+ * check would keep a walked-away session alive until its absolute end — the
+ * exact thing the idle clock exists to stop. The editing pane's own heartbeat
+ * (an ordinary session request) is what says a person is still there.
+ */
+export async function sessionIsLive(db: Db, sessionId: string, policy: SessionPolicy): Promise<boolean> {
+  const [row] = await db.select().from(s.sessions).where(eq(s.sessions.id, sessionId)).limit(1);
+  if (!row || row.revokedAt !== null) return false;
+  const now = Date.now();
+  if (row.expiresAt.getTime() <= now) return false;
+  return now - row.lastSeenAt.getTime() < policy.idleMinutes * 60_000;
+}

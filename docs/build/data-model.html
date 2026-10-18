@@ -297,6 +297,7 @@
           <tr><td class="col">action</td><td class="type">sandbox_checkout_action</td><td class="notes"></td></tr>
           <tr><td class="col">by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">wopi_lock</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
@@ -323,6 +324,7 @@
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
           <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
           <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">file_ref</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
         </tbody></table>
@@ -347,6 +349,8 @@
           <tr><td class="col">created_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
           <tr><td class="col">updated_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">deleted_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">wopi_lock</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">wopi_lock_expires_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
         </tbody></table>
       </article>
       <article class="card d2">
@@ -414,6 +418,16 @@
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">is_current</td><td class="type">boolean</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>wopi_access_tokens</h3>
+        <table><tbody>
+          <tr><td class="col">token_hash</td><td class="type">text</td><td class="notes">PK</td></tr>
+          <tr><td class="col">sandbox_document_id</td><td class="type">uuid</td><td class="notes">→ sandbox_documents.id</td></tr>
+          <tr><td class="col">session_id</td><td class="type">text</td><td class="notes">→ sessions.id</td></tr>
+          <tr><td class="col">expires_at</td><td class="type">timestamp with time zone</td><td class="notes"></td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
     </section>

@@ -1410,3 +1410,24 @@ are not recorded here.
   went to, and the forgetting one was the exact thing the third addendum's
   ruling 5 reversed. `POST /apps/:appId/builder/screen` stays: it is the
   panel's direct "draw this screen" and still proposes rather than applies.
+
+- **2026-10-18 (T-453) — `EditingSession`, `POST /sandbox-documents/:id/editing-session`, and
+  the WOPI host's four routes under `/wopi/files/`.** *Plainly: a signed-in
+  person's browser asks for a short-lived pass to one file, hands it to the
+  editing engine, and the engine then fetches and saves that file through
+  Infora — which checks the person is still allowed in on every single call.*
+  The **reason the four WOPI routes are not Infora-shaped** (PascalCase fields,
+  `X-WOPI-*` headers, 409 with the lock in a header) is that an engine speaks
+  them, not Infora's web app: they are the WOPI protocol's own contract, and
+  restating it in Infora's conventions would make the host speak a dialect no
+  engine understands. The **reason the pass is minted by a separate session
+  route** rather than by the WOPI host itself is that only a signed-in browser
+  can say who the engine is acting for; the engine has no cookie and never
+  will. The **reason a refusal carries the holder's name in `hint`** as well as
+  in `X-WOPI-LockFailureReason` is that an HTTP header is Latin-1 and a
+  person's name need not be — the header is a safe rendering, the body is the
+  exact words. And the **reason `accessTokenTtl` keeps WOPI's name** (an expiry
+  in ms since the epoch, not a duration, despite the word) is that the browser
+  posts it to the engine verbatim, and a renamed field would have to be
+  renamed back at exactly the point where nobody would notice it was wrong.
+

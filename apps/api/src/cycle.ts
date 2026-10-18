@@ -45,6 +45,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { generateRenditions } from './renditions';
+import { releaseLapsedEngineLock } from './engine-lock';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import { loadSchemeOrDefault } from './naming';
@@ -726,6 +727,21 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!doc) return notFound(c);
     const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
     if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
+    // T-453 — an editing engine holds the head (the WOPI lock rides this same
+    // check-out): a freeze would snapshot a file someone is mid-way through
+    // changing, and an internal round would then own a lock the engine still
+    // believes is its own. Refused until the editor closes it — unless the
+    // engine's lock has lapsed, which releases it here first.
+    if (doc.wopiLock !== null) {
+      await releaseLapsedEngineLock(deps.db, doc.id);
+      const [current] = await deps.db
+        .select({ headLocked: s.sandboxDocuments.headLocked, wopiLock: s.sandboxDocuments.wopiLock })
+        .from(s.sandboxDocuments)
+        .where(eq(s.sandboxDocuments.id, doc.id));
+      if (current!.wopiLock !== null) return conflict(c, 'open_in_editor');
+      doc.headLocked = current!.headLocked;
+      doc.wopiLock = null;
+    }
 
     let [freezeContainer] = await deps.db
       .select()
@@ -947,12 +963,19 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     if (!mayRelease) return forbidden(c, 'release_not_permitted');
 
     await deps.db.transaction(async (tx) => {
-      await tx.update(s.sandboxDocuments).set({ headLocked: false }).where(eq(s.sandboxDocuments.id, doc.id));
+      // T-453 — one lock: releasing an engine's check-out ends its WOPI lock
+      // too (the engine's next save is then refused as not locked), and the
+      // trail says which engine lock the person ended
+      await tx
+        .update(s.sandboxDocuments)
+        .set({ headLocked: false, wopiLock: null, wopiLockExpiresAt: null })
+        .where(eq(s.sandboxDocuments.id, doc.id));
       await tx.insert(s.sandboxCheckoutEvents).values({
         sandboxDocumentId: doc.id,
         action: 'released',
         byParticipantId: slice.participantId,
         reason,
+        wopiLock: doc.wopiLock,
       });
     });
     return c.json({ ok: true });

@@ -32,6 +32,10 @@ const multipartPaths = [
 export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     if (!writeMethods.has(c.req.method)) return next();
+    // T-453 — the WOPI host: an editing engine's save is a raw file body, and
+    // its credential is an explicit pass, not a cookie a browser attaches
+    // unasked. CSRF forges ambient credentials; there is none here to forge.
+    if (c.req.path.startsWith('/wopi/')) return next();
 
     // gate on the presence of a body: the bodyless action POSTs (promotion,
     // revocations, heartbeats, DELETE /auth/session…) carry no forgeable

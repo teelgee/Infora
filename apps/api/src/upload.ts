@@ -31,7 +31,9 @@ import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { putBlob, getBlob } from './renditions';
-import { docxToText, extractText } from './extract';
+import { docxToText } from './extract';
+import { extractOnUpload, landFileRevision, uploadFormats } from './file-revision';
+import { releaseLapsedEngineLock } from './engine-lock';
 import { ensureDefaultSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -40,36 +42,7 @@ import { toSandboxDocument } from './sandbox';
 const invalid = (c: Context, detail?: string) =>
   c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
 
-const formats = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx', pdf: 'pdf' } as const;
-
-/**
- * The grounding text an uploaded file contributes, and the reason it does not.
- *
- * **The rule is: text arrives at upload when there is no other way to get it.**
- * A PDF (T-305), a workbook and a deck (T-306) have no editor path — conversion
- * makes a document editable, and none of the three should become an Infora text
- * document — so it is text at upload or never, and until T-306 the last two sat
- * in the sandbox as opaque blobs that never grounded.
- *
- * **A docx is the one exception, and it is not an oversight.** It has a
- * conversion path, and that path makes the extracted text *canonical* rather
- * than merely grounding. Extracting here as well would give `content` two
- * meanings for one format, and the second would be the one nobody expected. So
- * an uploaded docx keeps `''` until someone opens it in the editor (ADR-0034).
- * The bulk load has no such exception: reference material never converts, so
- * `extractText` there reads every format including docx.
- */
-function extractOnUpload(
-  format: keyof typeof formats,
-  bytes: Buffer,
-): { ok: true; content: string } | { ok: false; detail: string } {
-  if (format === 'docx') return { ok: true, content: '' };
-  const extracted = extractText(format, bytes);
-  // the refusal carries WHICH failure, because "we could not read it" and
-  // "this is a scan and Infora does not do OCR" are different things to the
-  // person holding the document, and only one of them is worth re-exporting
-  return extracted.ok ? { ok: true, content: extracted.text } : { ok: false, detail: extracted.reason };
-}
+const formats = uploadFormats;
 
 export function uploadRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -122,6 +95,8 @@ export function uploadRoutes(deps: { db: Db }) {
     await deps.db.insert(s.sandboxDocumentVersions).values({
       sandboxDocumentId: doc!.id,
       content: doc!.content,
+      // T-453 — v0.1 keeps the file it was (migration 0070)
+      fileRef,
       createdByParticipantId: slice.participantId,
     });
     return c.json(toSandboxDocument(doc!), 201);
@@ -133,9 +108,12 @@ export function uploadRoutes(deps: { db: Db }) {
   // bumps the working revision with an ambient snapshot. Refused while checked
   // out (409 head_locked): it rewrites canonical bytes, like the T-122
   // conversion. Only an 'uploaded' document has a native file to replace.
-  // Durable prior-blob retention is deferred to P2 — the old blob is orphaned.
+  // T-453 (P2) — the prior blob is now retained on its working revision, and
+  // the landing itself is `landFileRevision`, shared with the WOPI host's save.
   app.post('/sandbox-documents/:id/file', documentScope, async (c) => {
     const slice = c.get('slice');
+    // an editing engine's lock that lapsed is released before it can refuse
+    await releaseLapsedEngineLock(deps.db, c.req.param('id'));
     const [doc] = await deps.db
       .select()
       .from(s.sandboxDocuments)
@@ -154,30 +132,14 @@ export function uploadRoutes(deps: { db: Db }) {
     // same format family only — a docx is replaced by a docx (ADR-0034)
     if (format !== doc!.format) return invalid(c, 'format_mismatch');
     const bytes = Buffer.from(await file.arrayBuffer());
-    // T-305 — the replacement's text replaces the old text, or the row keeps
-    // grounding on a document that is no longer there. Refused on the same
-    // terms as a first upload: a scan swapped in for a readable PDF is a
-    // refusal, not a silently emptied document.
-    const extracted = extractOnUpload(format, bytes);
-    if (!extracted.ok) return invalid(c, extracted.detail);
-    const fileRef = putBlob(bytes, format);
-    const [updated] = await deps.db
-      .update(s.sandboxDocuments)
-      .set({ fileRef, content: extracted.content, updatedAt: sql`now()` })
-      .where(eq(s.sandboxDocuments.id, doc!.id))
-      .returning();
-    // the ambient snapshot marks the save boundary (ADR-0041) — content is the
-    // canonical-empty '' for an uploaded row; the prior blob is not retained (P2)
-    await deps.db.insert(s.sandboxDocumentVersions).values({
-      sandboxDocumentId: updated!.id,
-      content: updated!.content,
-      createdByParticipantId: slice.participantId,
-    });
-    return c.json(toSandboxDocument(updated!) satisfies SandboxDocument);
+    const landed = await landFileRevision(deps.db, doc!, bytes, slice.participantId);
+    if (!landed.ok) return invalid(c, landed.detail);
+    return c.json(toSandboxDocument(landed.doc) satisfies SandboxDocument);
   });
 
   // "Open in editor": uploaded → authored, in place, the original preserved.
   app.post('/sandbox-documents/:id/conversion', documentScope, async (c) => {
+    await releaseLapsedEngineLock(deps.db, c.req.param('id'));
     const [doc] = await deps.db
       .select()
       .from(s.sandboxDocuments)
