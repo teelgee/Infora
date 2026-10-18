@@ -82,7 +82,8 @@ test('a run acts as whoever pressed it, computes in code, and lands an insight o
       interfaces: [],
       schedule: 'monthly',
       analysisPrompt: 'Say how much waste went to landfill and how many returns are in.',
-      answeredQuestions: [],
+      // T-448 — a hand-written definition carries its answers or the gate refuses it
+      answeredQuestions: [`contractual-data:${returns.id}`],
     },
   });
   const opened = await eleanor.post<AppRecord>(`/apps/${app.id}/publish`, {});
@@ -253,7 +254,7 @@ test('a published screen draws a chart over the viewer’s own readable rows', a
       ],
       schedule: 'manual',
       analysisPrompt: null,
-      answeredQuestions: [],
+      answeredQuestions: [`contractual-data:${table.id}`, 'who-may-open:dashboard'],
     },
   });
 

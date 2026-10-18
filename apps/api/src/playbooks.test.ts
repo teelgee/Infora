@@ -524,7 +524,19 @@ describe('deploying a playbook into another project (ADR-0056 §10)', () => {
       ).json()) as GetAppResponse
     ).app;
     await post(builderCookie, `/apps/${deployed.id}/scope`, { organisationId: clientBOrg });
-    await post(builderCookie, `/apps/${deployed.id}/publish`);
+    // T-448 — who may open each screen does not travel in a playbook (§10), so
+    // the deploying firm answers it again here before the gate lets it open
+    const definition = deployed.definition!;
+    await patch(builderCookie, `/apps/${deployed.id}/definition`, {
+      definition: {
+        ...definition,
+        answeredQuestions: [
+          ...definition.answeredQuestions,
+          ...definition.interfaces.map((screen) => `who-may-open:${screen.id}`),
+        ],
+      },
+    });
+    expect((await post(builderCookie, `/apps/${deployed.id}/publish`)).status).toBe(200);
 
     const clientB = await makeUser(`t445-hana-${stamp}`, clientBOrg, { projects: [projectB] });
     const clientBCookie = await session(clientB.email);

@@ -37,6 +37,7 @@ import {
 import { CHECK_FAMILIES } from './checker';
 import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
 import { appDefinitionSchema } from './app-builder';
+import type { BuilderQuestion } from './app-builder';
 import type { ApiError } from './errors';
 
 const id = z.uuid();
@@ -3016,6 +3017,19 @@ export type WriteAppScreenResponse = {
 };
 
 export type AskBuilderAgentResponse = { reply: string };
+
+/**
+ * T-448 — what `POST /apps/:appId/publish` answers when it refuses (409).
+ *
+ * `detail` is the sentence a person reads, naming each question still open;
+ * `questions` is the same list as data, so a surface can mark each one where it
+ * lives without parsing the sentence.
+ */
+export type PublishRefusedResponse = ApiError & {
+  error: 'conflict';
+  detail: string;
+  questions: BuilderQuestion[];
+};
 
 /** POST /apps/:appId/tables — declare a table (ADR-0056 §2). `hasAcceptance`
  * is the builder's per-table choice (§2a), asked rather than found (§2b). */

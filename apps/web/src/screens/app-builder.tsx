@@ -50,7 +50,7 @@ import {
   TextArea,
   TextInput,
 } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { GeneratedScreen } from './app-screen';
 import { formatDateTime } from './shared';
 
@@ -973,8 +973,13 @@ function StepCheckAndOpen(props: {
       <div className="shelf-head" style={{ gap: 8 }}>
         <Button
           onClick={() =>
-            void api.publishApp(props.appId).then(props.onDone, () =>
-              setNotice('That could not be opened.'),
+            void api.publishApp(props.appId).then(props.onDone, (error: unknown) =>
+              // T-448 — the server's own words when the gate refuses
+              setNotice(
+                error instanceof RequestError && error.body?.detail !== undefined
+                  ? error.body.detail
+                  : 'That could not be opened.',
+              ),
             )
           }
         >

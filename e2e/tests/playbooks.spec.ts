@@ -94,7 +94,12 @@ test('a playbook: kept with no rows, deployed into a second client’s project, 
       ],
       schedule: 'monthly',
       analysisPrompt: 'Summarise the landfill trend across the returns.',
-      answeredQuestions: [`contractual-data:${returns.id}`, 'who-may-open:screen-1'],
+      // T-448 — every non-insight table is asked, the reference table included
+      answeredQuestions: [
+        `contractual-data:${returns.id}`,
+        `contractual-data:${factors.id}`,
+        'who-may-open:screen-1',
+      ],
     },
   });
   await eleanor.post(`/apps/${built.id}/publish`, {});
@@ -204,7 +209,7 @@ test('a playbook: kept with no rows, deployed into a second client’s project, 
   // keeps it again. What is already running in Marchwood's project does not
   // move, which is the sentence the ADR insisted on: a firm must not be able to
   // change what runs inside a client's project without anybody there seeing it.
-  await eleanor.post(`/apps/${built.id}/tables`, {
+  const site = await eleanor.post<AppTableRecord>(`/apps/${built.id}/tables`, {
     name: 'Site register',
     columns: [{ key: 'site', label: 'Site', type: 'text', required: true }],
     kind: 'data',
@@ -216,7 +221,12 @@ test('a playbook: kept with no rows, deployed into a second client’s project, 
       interfaces: [],
       schedule: 'weekly',
       analysisPrompt: 'Something else entirely.',
-      answeredQuestions: [],
+      // T-448 — a hand-written definition carries its answers or the gate refuses it
+      answeredQuestions: [
+        `contractual-data:${returns.id}`,
+        `contractual-data:${factors.id}`,
+        `contractual-data:${site.id}`,
+      ],
     },
   });
   await eleanor.post(`/apps/${built.id}/publish`, {});

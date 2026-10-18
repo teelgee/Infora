@@ -54,7 +54,7 @@ import type {
 import { canBuildApp, canDeployPlaybook } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { buildFacts, loadApp, reachApp, recordOf, tableRecords } from './apps';
+import { buildFacts, loadApp, publishGateFor, reachApp, recordOf, tableRecords } from './apps';
 import { createAppInstance } from './app-instance';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
@@ -442,6 +442,9 @@ export function playbookRoutes(deps: { db: Db }) {
       {
         app: await recordOf(deps.db, fresh!, slice, user.mayBuildApps),
         tables: await tableRecords(deps.db, appId, slice, fresh!.projectOwnerOrganisationId),
+        // T-448 — the deployer may build what it just deployed, so it is told
+        // what the gate still needs (who may open each screen, asked again here)
+        publishGate: await publishGateFor(deps.db, fresh!.row),
       } satisfies GetAppResponse,
       201,
     );

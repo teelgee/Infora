@@ -415,9 +415,16 @@ describe('an interface narrows who is offered it, and never widens a read', () =
             source: screen,
           },
         ],
+        // T-448 — a hand-built definition carries its answers, or the gate
+        // refuses to open it (app-publish-gate.test.ts)
+        answeredQuestions: [
+          `contractual-data:${table.id}`,
+          'who-may-open:everyone',
+          'who-may-open:client-only',
+        ],
       },
     });
-    await post(builderCookie, `/apps/${built.id}/publish`);
+    expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
 
     const labels = async (cookie: string) => {
       const body = (await (await get(cookie, `/apps/${built.id}`)).json()) as GetAppResponse;
@@ -449,9 +456,10 @@ describe('an interface narrows who is offered it, and never widens a read', () =
             }),
           },
         ],
+        answeredQuestions: [`contractual-data:${table.id}`, 'who-may-open:everyone'],
       },
     });
-    await post(builderCookie, `/apps/${built.id}/publish`);
+    expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
     // the builder firm submits a row
     const entered = await post(builderCookie, `/app-tables/${table.id}/rows`, {
       values: { month: 'August 2026', landfill: 12.4 },

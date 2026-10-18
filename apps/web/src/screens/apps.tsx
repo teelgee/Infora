@@ -38,7 +38,7 @@ import type {
 } from '@infora/contracts';
 import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { AppTableRows } from './app-rows';
 import { GeneratedScreen } from './app-screen';
 import { DeployFromPlaybook, SaveAsPlaybook } from './playbooks';
@@ -201,8 +201,12 @@ export function AppScreen() {
     try {
       await run();
       load();
-    } catch {
-      setNotice(failure);
+    } catch (error) {
+      // T-448 — a refusal that carries its reason in words (the publish gate
+      // does) is shown in those words rather than as a generic failure
+      setNotice(
+        error instanceof RequestError && error.body?.detail !== undefined ? error.body.detail : failure,
+      );
     }
   };
 

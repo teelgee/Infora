@@ -300,6 +300,29 @@ export type ListAppsResponse = {
 export type GetAppResponse = {
   app: AppRecord;
   tables: AppTableRecord[];
+  /**
+   * T-448 — the publish gate's own answer, for a person who may build this app;
+   * null for everybody else.
+   *
+   * It is computed by the SAME server function that refuses a publish, so the
+   * building screen shows the gate's state rather than a second opinion about
+   * it — a surface that worked the questions out for itself could disagree
+   * with the refusal it then receives.
+   */
+  publishGate: PublishGate | null;
+};
+
+/**
+ * T-448 — whether the working copy may be published, and if not, why, in words
+ * (ADR-0056's third addendum, ruling 1).
+ */
+export type PublishGate = {
+  /** true exactly when no required question stands unanswered */
+  open: boolean;
+  /** each required question still open, in the order a person would answer them */
+  questions: BuilderQuestion[];
+  /** one sentence a person reads — the same words a refused publish carries */
+  words: string;
 };
 
 /**
@@ -722,6 +745,13 @@ export function serialiseAppScreen(screen: AppScreen): string {
 // beside the steps is still a chat, so the two required questions are derived
 // here and rendered both on the step rail and in the pane. A model that decides
 // not to ask cannot suppress them, because it is not what asks.
+//
+// **T-448 — and the server now refuses a publish past them.** The third
+// addendum (2026-10-18) re-housed ruling 6's reason in one place no surface can
+// route around: `POST /apps/:appId/publish` calls this same function over the
+// STORED definition and the live declared tables, and answers 409 with
+// `publishGateOf`'s words while any question stands. Showing the questions and
+// refusing past them are one computation, so they cannot disagree.
 
 export type BuilderQuestionKind = 'contractual-data' | 'who-may-open';
 
@@ -776,6 +806,43 @@ export function pendingBuilderQuestions(
     });
   }
   return out;
+}
+
+/**
+ * T-448 — the publish gate, in words (ADR-0056's third addendum, ruling 1).
+ *
+ * *In plain terms: what the platform says when it will not open an app yet —
+ * which questions still need an answer, each by name.*
+ *
+ * The server computes `questions` from the store (`apps.ts`) and refuses a
+ * publish while any stands; this turns them into the sentence the refusal
+ * carries and the building screen shows before the click. One function, so the
+ * words on the screen and the words in the refusal cannot drift apart.
+ */
+export function publishGateOf(questions: BuilderQuestion[]): PublishGate {
+  if (questions.length === 0) {
+    return {
+      open: true,
+      questions,
+      words: 'Every required question has an answer, so this app can be opened.',
+    };
+  }
+  const named = questions.map((question) =>
+    question.kind === 'contractual-data'
+      ? `whether “${question.subjectName}” holds contractual data`
+      : `who may open “${question.subjectName}”`,
+  );
+  const list =
+    named.length === 1
+      ? named[0]!
+      : `${named.slice(0, -1).join('; ')}; and ${named[named.length - 1]!}`;
+  return {
+    open: false,
+    questions,
+    words: `This app cannot be opened yet: ${
+      questions.length === 1 ? 'one question still needs' : `${questions.length} questions still need`
+    } an answer — ${list}.`,
+  };
 }
 
 // ── The definition as zod — the boundary the head of this file promises ─────

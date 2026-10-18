@@ -1349,3 +1349,22 @@ are not recorded here.
   number on the client's screen is therefore a fact that cannot move under
   them, which is the whole of what the record meant by *a firm must not be able
   to change what runs inside a client's project without anyone there seeing it.*
+
+- **2026-10-18 (T-448) — `GetAppResponse` gains `publishGate`, and a refused
+  publish answers `PublishRefusedResponse`.** *Plainly: the platform will not
+  open an app while a required question is unanswered, and it says which, in
+  words — before the click as well as after it.* The **reason the gate's state
+  rides the app record rather than being worked out on the screen** is that
+  the screen had been doing exactly that since T-442 (`pendingBuilderQuestions`
+  run in the browser), and nothing behind it refused — the review of
+  2026-09-07 noted it. Now one server function computes the questions from the
+  stored definition and the live tables, and both the refusal and the panel
+  read it; a surface computing its own copy could show "ready" for an app the
+  server then refuses. The **reason the refusal carries the questions as data
+  beside the sentence** is that a building screen wants to mark each question
+  where it lives, and parsing a sentence back into ids is how such a screen
+  breaks the first time the wording is improved. The **reason an explicit
+  acceptance choice at declaration counts as an answer and the body's default
+  does not** is the third addendum's "never defaulted": `hasAcceptance`
+  defaults to false, and "false because nobody said" must not open the gate as
+  if somebody had said "no, it is working data".

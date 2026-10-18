@@ -41,6 +41,8 @@ import {
   writeAppScreenBody,
   INSIGHT_TABLE_COLUMNS,
   parseAppScreen,
+  pendingBuilderQuestions,
+  publishGateOf,
 } from '@infora/contracts';
 import type {
   ApiError,
@@ -54,6 +56,8 @@ import type {
   AppTableShare,
   GetAppResponse,
   ListAppsResponse,
+  PublishGate,
+  PublishRefusedResponse,
   WriteAppScreenResponse,
 } from '@infora/contracts';
 import {
@@ -359,6 +363,67 @@ export async function tableRecords(
   }));
 }
 
+/**
+ * T-448 — **the publish gate, computed from the store** (ADR-0056's third
+ * addendum, ruling 1).
+ *
+ * *In plain terms: before an app can be opened to its people, every table must
+ * have been answered "does this hold contractual data?" and every screen "who
+ * may open it?". This is where that is worked out, from what is actually saved
+ * — not from what any screen or agent says.*
+ *
+ * The facts are the stored working copy (`apps.definition`, whose
+ * `answeredQuestions` records each answer) and the LIVE declared tables in
+ * `app_tables` — the same two things `pendingBuilderQuestions` has always read,
+ * moved where no surface can route around them. A retired table is not asked
+ * about: it holds nothing new and appears on no published screen.
+ */
+export async function publishGateFor(
+  db: Db,
+  row: Pick<typeof s.apps.$inferSelect, 'id' | 'definition'>,
+): Promise<PublishGate> {
+  const tables = await db
+    .select({ id: s.appTables.id, name: s.appTables.name, kind: s.appTables.kind })
+    .from(s.appTables)
+    .where(and(eq(s.appTables.appId, row.id), isNull(s.appTables.retiredAt)))
+    .orderBy(asc(s.appTables.name));
+  return publishGateOf(pendingBuilderQuestions(row.definition as AppDefinition, tables));
+}
+
+/**
+ * T-448 — record that a required question was answered, on the working copy.
+ *
+ * Used by the two ordinary acts that ARE answers to the table question —
+ * declaring a table with an explicit acceptance choice, and setting that choice
+ * on an empty table — so the answer is on the record however the act arrived:
+ * from the building screen, the agent, or a caller driving the API directly.
+ * It is an edit of the working copy, so it bumps the counter and says who and
+ * when, exactly as `PATCH /definition` does.
+ */
+export async function recordAnsweredQuestion(
+  db: Db,
+  appId: string,
+  participantId: string,
+  key: string,
+): Promise<void> {
+  // one statement, so an edit landing between a read and a write cannot be
+  // overwritten by a stale copy of the definition: only the list grows
+  await db
+    .update(s.apps)
+    .set({
+      definition: sql`jsonb_set(${s.apps.definition}, '{answeredQuestions}', coalesce(${s.apps.definition}->'answeredQuestions', '[]'::jsonb) || jsonb_build_array(${key}::text))`,
+      definitionVersion: sql`${s.apps.definitionVersion} + 1`,
+      definitionUpdatedByParticipantId: participantId,
+      definitionUpdatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(s.apps.id, appId),
+        sql`not (coalesce(${s.apps.definition}->'answeredQuestions', '[]'::jsonb) ? ${key})`,
+      ),
+    );
+}
+
 /** Resolve (requester, app) → the loaded app, the slice, and whether the
  * requester may open it at all. Deny is null, and null is 404 — denial and
  * nonexistence read identically (principle 4). */
@@ -470,9 +535,13 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     const reached = await reachApp(deps.db, c.get('user'), c.req.param('appId'));
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;
+    const record = await recordOf(deps.db, loaded, slice, c.get('user').mayBuildApps);
     return c.json({
-      app: await recordOf(deps.db, loaded, slice, c.get('user').mayBuildApps),
+      app: record,
       tables: await tableRecords(deps.db, loaded.row.id, slice, loaded.projectOwnerOrganisationId),
+      // T-448 — the gate's own answer, to the people who may build the app and
+      // nobody else (the questions name the working copy's screens)
+      publishGate: record.mayBuild ? await publishGateFor(deps.db, loaded.row) : null,
     } satisfies GetAppResponse);
   });
 
@@ -531,6 +600,13 @@ export function appRoutes(deps: { db: Db; router: Router }) {
    * when. There is no body: what is published is always the working copy as it
    * stands, so there is nothing for a caller to send and nothing for a caller
    * to get wrong.
+   *
+   * 🔒 **T-448 — REFUSED WHILE A REQUIRED QUESTION STANDS UNANSWERED** (ADR-0056's
+   * third addendum, ruling 1). The questions are computed here, from the store,
+   * on every attempt: whatever built the working copy — the building screen,
+   * the agent, or somebody PATCHing a definition straight at the API — meets
+   * the same refusal, worded, naming each question. Nothing a caller sends can
+   * open the gate; only an answer recorded on the working copy can.
    */
   app.post('/apps/:appId/publish', async (c) => {
     const user = c.get('user');
@@ -538,6 +614,13 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const gate = await publishGateFor(deps.db, loaded.row);
+    if (!gate.open) {
+      return c.json(
+        { error: 'conflict', detail: gate.words, questions: gate.questions } satisfies PublishRefusedResponse,
+        409,
+      );
+    }
     await deps.db
       .update(s.apps)
       .set({
@@ -688,8 +771,17 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
-    const parsed = declareAppTableBody.safeParse(await c.req.json().catch(() => null));
+    const raw: unknown = await c.req.json().catch(() => null);
+    const parsed = declareAppTableBody.safeParse(raw);
     if (!parsed.success) return invalid(c);
+    // T-448 — **an explicit choice is an answer; a default is not.** The body
+    // defaults `hasAcceptance` to false, and "false because nobody said" must
+    // not count as "no, it is working data" — the third addendum's whole point
+    // is that the wall questions are never defaulted. So the contractual-data
+    // question is recorded as answered only when the caller actually SENT the
+    // choice; a table declared without one stays an open question at the gate.
+    const answeredAcceptance =
+      typeof raw === 'object' && raw !== null && 'hasAcceptance' in raw;
     // T-443 — 🔒 **AN INSIGHT TABLE'S SHAPE IS INFORA'S, NOT THE BUILDER'S.**
     // A run has to know where to write the sentence, what it covered and which
     // version it ran against, and it cannot know that if a builder named the
@@ -709,6 +801,15 @@ export function appRoutes(deps: { db: Db; router: Router }) {
         hasAcceptance: isInsight ? false : parsed.data.hasAcceptance,
       })
       .returning();
+    // an insight table is never asked (a run writes it, nobody submits it)
+    if (answeredAcceptance && !isInsight) {
+      await recordAnsweredQuestion(
+        deps.db,
+        loaded.row.id,
+        slice.participantId,
+        `contractual-data:${created!.id}`,
+      );
+    }
     const [record] = await tableRecords(
       deps.db,
       loaded.row.id,
@@ -769,6 +870,14 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       .update(s.appTables)
       .set({ hasAcceptance: parsed.data.hasAcceptance })
       .where(eq(s.appTables.id, appTableId));
+    // T-448 — setting the choice IS answering the question, so the gate hears
+    // it from the act itself rather than trusting a surface to record it after
+    await recordAnsweredQuestion(
+      deps.db,
+      table.appId,
+      slice.participantId,
+      `contractual-data:${appTableId}`,
+    );
     const [record] = await tableRecords(
       deps.db,
       table.appId,
