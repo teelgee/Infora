@@ -7,6 +7,9 @@ export { deliverableVisibleSql } from './visibility';
 // pre-filter retrieval uses, so the composer's Data-sources chip and the answer
 // cannot disagree about what was reachable
 export { groundingSources } from './retrieval';
+// T-459 — the register's search, on the same index and the same wall as grounding
+export { searchLibraryRows } from './register-search';
+export type { RegisterSearchParams, RegisterSearchRow } from './register-search';
 // T-249 — the access facts behind label propagation (finding F2); the policy
 // they feed is pure and lives in @infora/governance
 export {

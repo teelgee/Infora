@@ -24,13 +24,13 @@ const tab = (page: Page, name: string) =>
 test('a plan row lands on the document page, whose tabs carry the record', async ({ page }) => {
   await loginAs(page, SEEDED.owner);
   await page.getByRole('link', { name: /Plan/ }).click();
-  const firstRow = page.getByRole('row').nth(1);
-  // the table renders skeleton rows while it loads; wait for a real row. The
-  // plan's visible columns are the organisation's own standard (T-360), so the
-  // reference is read off the row wherever its column sits
-  await expect(firstRow.getByRole('cell').first()).toHaveText(/\S/);
+  // a real row (the table renders skeleton rows while it loads): one with a
+  // coded reference in it. The plan's visible columns are the organisation's
+  // own standard (T-360), so the reference is read off the row wherever it sits
+  const firstRow = page.getByRole('row').filter({ has: page.locator('td .mono') }).first();
+  await expect(firstRow).toBeVisible();
   const rowText = await firstRow.innerText();
-  await firstRow.click();
+  await firstRow.locator('td .mono').first().click();
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
   const heading = page.getByRole('heading', { level: 1 });
   await expect(heading).not.toHaveText(/Project schedule|Deliverable plan/);

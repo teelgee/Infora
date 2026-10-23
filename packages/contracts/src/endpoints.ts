@@ -522,6 +522,58 @@ export type LibraryItem = {
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
+// ── T-459 — the register's search and paging ────────────────────────────────
+//
+// GET /projects/:projectId/library/search — one row per container, paged,
+// sorted, filtered, and — when `q` is given — ranked by the same index the
+// agent grounds on: a coded reference or a title matches first (the lexical
+// arm), then the nearest passage of the current version (the vector arm,
+// under the deployment's pinned embedding model), access-resolved with the
+// identical visibility predicate the list and retrieval use. Rows, never
+// chunks: the unit a person recognises.
+//
+// `state` defaults to `live` because that is the library; `any` is the
+// register of record (superseded and withdrawn rows stand as records on the
+// plan and a document controller searches those too). Nothing here widens
+// reach: every clause intersects the wall's own.
+export const librarySearchQuery = z.object({
+  q: z.string().trim().max(500).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).default(50),
+  sort: z.enum(['relevance', 'reference', 'title', 'issued', 'producer']).default('relevance'),
+  direction: z.enum(['asc', 'desc']).default('asc'),
+  state: z.enum(['live', 'superseded', 'withdrawn', 'rejected', 'any']).default('live'),
+  kind: z.enum(['deliverable', 'reference', 'any']).default('any'),
+  discipline: z.string().trim().max(64).optional(),
+  statusCode: z.string().trim().max(16).optional(),
+  producerId: z.uuid().optional(),
+});
+export type LibrarySearchQuery = z.infer<typeof librarySearchQuery>;
+export type LibrarySearchItem = Omit<LibraryItem, 'state'> & {
+  state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  /** why the row is here when `q` was given — the reference, the title, a passage of the content, or (no `q`) none */
+  match: 'reference' | 'title' | 'content' | 'none';
+};
+export type GetLibrarySearchResponse = {
+  items: LibrarySearchItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  q: string | null;
+};
+
+// GET /projects/:projectId/plan?page=&pageSize=&q=&sort=&direction= — the
+// same read, paged and searched when asked; without `page` or `q` it answers
+// as it always has (every row), so nothing already built changes shape.
+export const planQuery = z.object({
+  q: z.string().trim().max(500).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(200).default(50),
+  sort: z.enum(['reference', 'title', 'state']).default('reference'),
+  direction: z.enum(['asc', 'desc']).default('asc'),
+});
+export type PlanQuery = z.infer<typeof planQuery>;
+
 // T-388 — CONTEXT STATE (ADR-0013 §6). **Derived, never stored**: a persisted
 // "this grounds" flag would be a second state machine that could disagree with
 // the first, and the drift would be invisible because every citation would still
@@ -957,7 +1009,14 @@ export type PlanRow = {
 // (T-360, S3): schema field keys, fixed by that org's super user for everyone
 // in the organisation — locked, no personal overrides; null = the default set
 // (an empty selection is normalised to null, never stored as []).
-export type GetPlanResponse = { items: PlanRow[]; planColumns: string[] | null };
+export type GetPlanResponse = {
+  items: PlanRow[];
+  planColumns: string[] | null;
+  // T-459 — present only when the read was paged or searched
+  total?: number;
+  page?: number;
+  pageSize?: number;
+};
 
 // One predicate for "may this schema field be a plan column" — shared by the
 // template export, the column write's legal set and the config surface, so the

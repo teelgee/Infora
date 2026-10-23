@@ -18,10 +18,13 @@ import type {
   ApiError,
   GetGroundingScopeResponse,
   GetLibraryResponse,
+  GetLibrarySearchResponse,
   GetVersionResponse,
   LibraryItem,
+  LibrarySearchItem,
 } from '@infora/contracts';
-import { deliverableVisibleSql as deliverableVisible, groundingSources, TOKEN_LIMIT } from '@infora/knowledge';
+import { librarySearchQuery } from '@infora/contracts';
+import { deliverableVisibleSql as deliverableVisible, groundingSources, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -46,27 +49,7 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
   app.get('/projects/:projectId/library', project, async (c) => {
     const slice = c.get('slice');
     const rows = await deps.db
-      .select({
-        containerId: s.containers.id,
-        documentReference: s.containers.documentReference,
-        currentVersionId: s.versions.id,
-        revision: s.versions.versionReference,
-        issuedAt: s.versions.createdAt,
-        metadata: s.containers.metadata,
-        producerName: s.organisations.name,
-        producingOrganisationId: s.containers.producingOrganisationId,
-        // T-389 — a proposed withdrawal leaves the container LIVE, so it is
-        // still on this list; the reason and its proposer come with it because
-        // the answer the owner has to give is asked for on this screen.
-        withdrawnReason: s.containers.withdrawnReason,
-        withdrawnByParticipantId: s.containers.withdrawnByParticipantId,
-        title: s.workItems.title,
-        // T-304 — the absence IS the marker: a reference-material container has
-        // no work item (the 2026-07-31 ruling), so the left join answering null
-        // is the whole distinguishing fact. Nothing is stored and nothing has
-        // to be kept in step.
-        workItemId: s.workItems.id,
-      })
+      .select(libraryRowSelect)
       .from(s.containers)
       .innerJoin(s.versions, eq(s.versions.containerId, s.containers.id))
       .innerJoin(s.organisations, eq(s.organisations.id, s.containers.producingOrganisationId))
@@ -84,59 +67,61 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
         ),
       )
       .orderBy(asc(s.containers.documentReference));
-    // T-388 — the third grounding condition, on the read where it is the ONLY
-    // one a user could not otherwise see: this list is already filtered to
-    // `in_library` and `live`, so a row that does not ground is one admitted
-    // under a code the project does not ground on — live, listed, and out of
-    // reach with nothing on screen saying so until now.
-    const codes = await admittingCodes(deps.db, rows.map((r) => r.containerId));
-    // T-389 — the proposers' names, batched. Every row on this list is `live`,
-    // so a withdrawal reason present here can only be a PROPOSED one (T-384's
-    // shape: reason + proposer recorded while the state is untouched).
-    const proposerIds = [
-      ...new Set(rows.map((r) => r.withdrawnByParticipantId).filter((x): x is string => x !== null)),
-    ];
-    const proposerRows = proposerIds.length
-      ? await deps.db
-          .select({ participantId: s.participants.id, name: s.users.name })
-          .from(s.participants)
-          .innerJoin(s.users, eq(s.participants.userId, s.users.id))
-          .where(inArray(s.participants.id, proposerIds))
-      : [];
-    const proposerName = new Map(proposerRows.map((r) => [r.participantId, r.name]));
-    const items = rows.map((row): LibraryItem => {
-      const meta = (row.metadata ?? {}) as Record<string, unknown>;
-      const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
-      return {
-        containerId: row.containerId,
-        // a library-scope container always carries a coded reference — null is
-        // sandbox-scope only (ADR-0032)
-        documentReference: row.documentReference!,
-        currentVersionId: row.currentVersionId,
-        title: str(row.title),
-        revision: row.revision,
-        suitability: str(meta['suitability']),
-        discipline: str(meta['discipline']),
-        producerName: row.producerName,
-        issuedAt: row.issuedAt.toISOString(),
-        state: 'live',
-        kind: row.workItemId === null ? 'reference' : 'deliverable',
-        contextState: contextStateOf(
-          { inLibrary: true, state: 'live' },
-          codes.get(row.containerId),
-        ),
-        producingOrganisationId: row.producingOrganisationId,
-        withdrawalProposal:
-          row.withdrawnReason !== null && row.withdrawnByParticipantId !== null
-            ? {
-                participantId: row.withdrawnByParticipantId,
-                name: proposerName.get(row.withdrawnByParticipantId) ?? '',
-                reason: row.withdrawnReason,
-              }
-            : null,
-      };
-    });
+    const items = (await toLibraryItems(deps.db, rows)).map((item): LibraryItem => ({ ...item, state: 'live' }));
     return c.json({ items } satisfies GetLibraryResponse);
+  });
+
+  // T-459 — the register's search and paging. *Plainly: one box finds a
+  // document by its code, its title or what it says, and the list comes back
+  // a page at a time, sortable and filterable — so the screens stop loading
+  // every row and a person searches the same index the AI reads.*
+  //
+  // The vector arm is a `min(distance)` over the current version's chunks
+  // under the pinned embedding model, computed per row inside the same
+  // statement as the access predicate (ADR-0022/0024's one-query rule), so a
+  // row the wall excludes is never scored. The lexical arm is the reference,
+  // the title and the description. A short query (under three characters)
+  // skips the embedding call: it is a code prefix, not a meaning.
+  app.get('/projects/:projectId/library/search', project, async (c) => {
+    const slice = c.get('slice');
+    const parsed = librarySearchQuery.safeParse(c.req.query());
+    if (!parsed.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    const p = parsed.data;
+    const q = p.q && p.q.length > 0 ? p.q : null;
+    const modelId = deps.router.embeddingModel.id;
+    let vector: number[] | null = null;
+    if (q !== null && q.length >= 3) {
+      const embedded = await deps.router.embed([q], 'query');
+      vector = embedded.embeddings[0] ?? null;
+    }
+    const { rows, total } = await searchLibraryRows(deps.db, slice, {
+      q,
+      vector,
+      modelId,
+      state: p.state,
+      kind: p.kind,
+      discipline: p.discipline,
+      statusCode: p.statusCode,
+      producerId: p.producerId,
+      sort: p.sort,
+      direction: p.direction,
+      page: p.page,
+      pageSize: p.pageSize,
+    });
+    const mapped = await toLibraryItems(deps.db, rows);
+    const items = mapped.map((item, i): LibrarySearchItem => {
+      const row = rows[i]!;
+      const match: LibrarySearchItem['match'] =
+        q === null
+          ? 'none'
+          : row.lexical <= 1 || row.documentReference!.toLowerCase().includes(q.toLowerCase())
+            ? 'reference'
+            : (row.title ?? '').toLowerCase().includes(q.toLowerCase())
+              ? 'title'
+              : 'content';
+      return { ...item, state: row.state, match };
+    });
+    return c.json({ items, total, page: p.page, pageSize: p.pageSize, q } satisfies GetLibrarySearchResponse);
   });
 
   // T-094 (2026-07-09): the cited source, readable — a citation chip opens
@@ -195,4 +180,94 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
   });
 
   return app;
+}
+
+// T-459 — the row shape the list and the search share, and the mapping to the
+// wire. One definition, so the two reads cannot describe a row differently.
+const libraryRowSelect = {
+  containerId: s.containers.id,
+  documentReference: s.containers.documentReference,
+  currentVersionId: s.versions.id,
+  revision: s.versions.versionReference,
+  issuedAt: s.versions.createdAt,
+  metadata: s.containers.metadata,
+  producerName: s.organisations.name,
+  producingOrganisationId: s.containers.producingOrganisationId,
+  // T-389 — a proposed withdrawal leaves the container LIVE, so it is still on
+  // the list; the reason and its proposer come with it because the answer the
+  // owner has to give is asked for on this screen.
+  withdrawnReason: s.containers.withdrawnReason,
+  withdrawnByParticipantId: s.containers.withdrawnByParticipantId,
+  title: s.workItems.title,
+  // T-304 — the absence IS the marker: a reference-material container has no
+  // work item (the 2026-07-31 ruling), so the left join answering null is the
+  // whole distinguishing fact. Nothing is stored and nothing has to be kept in step.
+  workItemId: s.workItems.id,
+};
+
+type LibraryRow = {
+  containerId: string;
+  documentReference: string | null;
+  currentVersionId: string;
+  revision: string;
+  issuedAt: Date;
+  metadata: unknown;
+  producerName: string;
+  producingOrganisationId: string;
+  withdrawnReason: string | null;
+  withdrawnByParticipantId: string | null;
+  title: string | null;
+  workItemId: string | null;
+  /** the record state on a searched row; the live list has none and reads as live */
+  state?: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+};
+
+async function toLibraryItems(db: Db, rows: LibraryRow[]): Promise<Array<Omit<LibraryItem, 'state'>>> {
+  // T-388 — the third grounding condition, on the read where it is the ONLY
+  // one a user could not otherwise see: a live row that does not ground is one
+  // admitted under a code the project does not ground on — live, listed, and
+  // out of reach with nothing on screen saying so unless the badge does.
+  const codes = await admittingCodes(db, rows.map((r) => r.containerId));
+  // T-389 — the proposers' names, batched. On the live list a withdrawal reason
+  // can only be a PROPOSED one (T-384's shape: reason + proposer recorded while
+  // the state is untouched); on a searched record of any state it may be the act.
+  const proposerIds = [
+    ...new Set(rows.map((r) => r.withdrawnByParticipantId).filter((x): x is string => x !== null)),
+  ];
+  const proposerRows = proposerIds.length
+    ? await db
+        .select({ participantId: s.participants.id, name: s.users.name })
+        .from(s.participants)
+        .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+        .where(inArray(s.participants.id, proposerIds))
+    : [];
+  const proposerName = new Map(proposerRows.map((r) => [r.participantId, r.name]));
+  return rows.map((row) => {
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+    return {
+      containerId: row.containerId,
+      // a library-scope container always carries a coded reference — null is
+      // sandbox-scope only (ADR-0032)
+      documentReference: row.documentReference!,
+      currentVersionId: row.currentVersionId,
+      title: str(row.title),
+      revision: row.revision,
+      suitability: str(meta['suitability']),
+      discipline: str(meta['discipline']),
+      producerName: row.producerName,
+      issuedAt: row.issuedAt.toISOString(),
+      kind: row.workItemId === null ? 'reference' : 'deliverable',
+      contextState: contextStateOf({ inLibrary: true, state: row.state ?? 'live' }, codes.get(row.containerId)),
+      producingOrganisationId: row.producingOrganisationId,
+      withdrawalProposal:
+        row.withdrawnReason !== null && row.withdrawnByParticipantId !== null
+          ? {
+              participantId: row.withdrawnByParticipantId,
+              name: proposerName.get(row.withdrawnByParticipantId) ?? '',
+              reason: row.withdrawnReason,
+            }
+          : null,
+    };
+  });
 }

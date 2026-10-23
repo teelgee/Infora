@@ -153,6 +153,9 @@ import type {
   LibraryRemovalBody,
   LibraryRemovalResponse,
   RulebookRecord,
+  GetLibrarySearchResponse,
+  LibrarySearchQuery,
+  PlanQuery,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -162,6 +165,15 @@ export class RequestError extends Error {
   ) {
     super(body?.error ?? `request failed (${status})`);
   }
+}
+
+// T-459 — a query string from a partial query object; undefined values are left out
+function queryString(query: Record<string, string | number | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  return params.toString();
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -369,6 +381,11 @@ export const api = {
     request<ListRosterResponse>(`/projects/${projectId}/participants`),
   // T-118/T-119 — the deliverable plan (ADR-0008/0033)
   plan: (projectId: string) => request<GetPlanResponse>(`/projects/${projectId}/plan`),
+  // T-459 — the register's paged and searched reads
+  planPage: (projectId: string, query: Partial<PlanQuery>) =>
+    request<GetPlanResponse>(`/projects/${projectId}/plan?${queryString(query)}`),
+  librarySearch: (projectId: string, query: Partial<LibrarySearchQuery>) =>
+    request<GetLibrarySearchResponse>(`/projects/${projectId}/library/search?${queryString(query)}`),
   // T-360 — the org-standard plan columns (locked; null = default set)
   setPlanColumns: (projectId: string, columns: string[] | null) =>
     request<{ columns: string[] | null }>(`/projects/${projectId}/plan/columns`, {

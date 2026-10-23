@@ -6,9 +6,10 @@
 // status 'planned', event-driven from here on (ADR-0032 addendum).
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  planQuery,
   createPlanRowBody,
   declineAppointmentBody,
   grantAppointmentBody,
@@ -384,6 +385,12 @@ export function planRoutes(deps: { db: Db }) {
 
   app.get('/projects/:projectId/plan', project, async (c) => {
     const slice = c.get('slice');
+    // T-459 — paged and searched when asked; the bare read answers every row
+    // as it always has, so nothing already built changes shape
+    const parsedQuery = planQuery.safeParse(c.req.query());
+    if (!parsedQuery.success) return invalid(c);
+    const pq = parsedQuery.data;
+    const paged = pq.page !== undefined || (pq.q !== undefined && pq.q.length > 0);
     const where = [
       eq(s.containers.projectId, slice.projectId),
       eq(s.containers.scope, 'library' as const),
@@ -391,11 +398,41 @@ export function planRoutes(deps: { db: Db }) {
     if (slice.membershipRole !== 'owner') {
       where.push(eq(s.containers.producingOrganisationId, slice.organisationId));
     }
-    const rows = await deps.db
-      .select()
+    if (pq.q !== undefined && pq.q.length > 0) {
+      const pattern = `%${pq.q.replace(/[%_]/g, (ch) => `\\${ch}`)}%`;
+      where.push(
+        or(
+          ilike(s.containers.documentReference, pattern),
+          ilike(s.workItems.title, pattern),
+          ilike(s.containers.description, pattern),
+        )!,
+      );
+    }
+    const dir = pq.direction === 'desc' ? desc : asc;
+    const order =
+      pq.sort === 'title'
+        ? [dir(s.workItems.title), asc(s.containers.documentReference)]
+        : pq.sort === 'state'
+          ? [dir(s.containers.state), asc(s.containers.documentReference)]
+          : [dir(s.containers.documentReference)];
+    const base = deps.db
+      .select({ container: s.containers })
       .from(s.containers)
+      .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
       .where(and(...where))
-      .orderBy(asc(s.containers.documentReference));
+      .orderBy(...order);
+    const page = pq.page ?? 1;
+    const rowsJoined = paged ? await base.limit(pq.pageSize).offset((page - 1) * pq.pageSize) : await base;
+    const rows = rowsJoined.map((r) => r.container);
+    const total = paged
+      ? (
+          await deps.db
+            .select({ total: sql<number>`count(*)::int` })
+            .from(s.containers)
+            .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+            .where(and(...where))
+        )[0]?.total ?? 0
+      : undefined;
     // the requester's organisation's column standard rides the plan read —
     // org-standard and locked (T-360), so it is the membership's, never the user's
     const [membership] = await deps.db
@@ -411,6 +448,7 @@ export function planRoutes(deps: { db: Db }) {
     return c.json({
       items: await toPlanRows(deps.db, rows, slice),
       planColumns: membership?.planColumns ?? null,
+      ...(paged && { total, page, pageSize: pq.pageSize }),
     } satisfies GetPlanResponse);
   });
 

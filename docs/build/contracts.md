@@ -1497,3 +1497,20 @@ are not recorded here.
   field rather than a second read** is that the source panel is opened from a
   citation chip, and a chip that needed a round trip to find its own document
   would be the kind of lookup the typed client exists to avoid (principle 2).
+
+- **2026-10-23 (T-459) — `GET /projects/:projectId/library/search`, and the plan
+  read paged on request.** *Plainly: one box finds a document by its code, its
+  title or what it says, and the lists come back a page at a time.* The
+  **reason the search runs on the grounding index rather than a second one** is
+  that a person and the agent should disagree about nothing: the vector arm is
+  a `min(distance)` over the current version's chunks under the pinned model,
+  computed per row inside the same statement as the wall's visibility
+  predicate, so a row the wall excludes is never scored (ADR-0022/0024's
+  one-query rule). The **reason `state` defaults to `live` but admits `any`** is
+  that the library is the live corpus while the register of record includes
+  what stands as superseded or withdrawn on the plan, and a document controller
+  searches both. The **reason the plan read gained paging as optional** rather
+  than a second endpoint is that every screen reading it today expects the
+  whole plan, and a read that changes shape under its callers is the drift the
+  typed client exists to prevent; `total`, `page` and `pageSize` appear only
+  when `page` or `q` was asked for.

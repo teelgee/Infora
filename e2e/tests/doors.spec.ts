@@ -86,9 +86,9 @@ test('the firm shelf offers the drafting-manual door to an org admin', async ({ 
 test('a plan row says who can see it, and the owner holds the share door', async ({ page }) => {
   await loginAs(page, SEEDED.owner);
   await page.getByRole('link', { name: /Plan/ }).click();
-  const row = page.getByRole('row').nth(1);
-  await expect(row.getByRole('cell').first()).toHaveText(/\S/);
-  await row.click();
+  const row = page.getByRole('row').filter({ has: page.locator('td .mono') }).first();
+  await expect(row).toBeVisible();
+  await row.locator('td .mono').first().click();
   // T-457 — the row lands on the document page, whose overview carries the list
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('list', { name: 'Who can see this' })).toBeVisible();
