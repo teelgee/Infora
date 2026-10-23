@@ -426,7 +426,13 @@ export function sandboxRoutes(deps: { db: Db }) {
       fileRef: snapshot.fileRef,
       createdByParticipantId: c.get('slice').participantId,
     });
-    return c.json(toSandboxDocument(row!));
+    // T-456 — the restore answers with the working revision it just became, so
+    // the screen can say "restored v0.1 as v0.5" rather than guess
+    const [n] = await deps.db
+      .select({ n: count() })
+      .from(s.sandboxDocumentVersions)
+      .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, row!.id));
+    return c.json(toSandboxDocument(row!, Number(n?.n ?? 0)));
   });
 
   // T-128 — safe lifecycle (the ProjectWise A1 fold-in): soft-delete with

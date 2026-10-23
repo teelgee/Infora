@@ -33,6 +33,7 @@ import {
   FolderOpen,
   FolderPlus,
   FolderTree,
+  History as HistoryGlyph,
   Link2,
   Lock,
   LockOpen,
@@ -44,6 +45,7 @@ import {
   Settings,
   Snowflake,
   Sparkles,
+  Trash2,
   Upload,
   User,
   Users,
@@ -69,6 +71,7 @@ import { MetadataModal } from '../metadata-modal';
 import { PromotionWindow } from '../promotion-window';
 import { useMe } from '../session';
 import { formatDate, sandboxLifecycleBadge } from './shared';
+import { BinModal, DeleteModal, HistoryModal } from '../sandbox-doors';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -974,6 +977,9 @@ function DocActions(props: {
   onMove: (d: SandboxDocument) => void;
   onRename: (d: SandboxDocument) => void;
   onReplace: (d: SandboxDocument) => void;
+  // T-456 — the doors: history with restore, and delete to the bin
+  onHistory: (d: SandboxDocument) => void;
+  onDelete: (d: SandboxDocument) => void;
   reload: () => Promise<unknown>;
   setNote: (text: string, tone?: 'success' | 'error') => void;
 }) {
@@ -1054,6 +1060,17 @@ function DocActions(props: {
             <Link2 size={13} strokeWidth={2} /> Bind…
           </DropdownMenuItem>
         )}
+        {/* T-456 — the ambient history (ADR-0032) and the bin (T-128), reachable
+            at last; a checked-out document cannot be deleted, so the door is
+            not drawn while it is frozen */}
+        <DropdownMenuItem onClick={() => props.onHistory(doc)}>
+          <HistoryGlyph size={13} strokeWidth={2} /> History…
+        </DropdownMenuItem>
+        {!doc.headLocked && (
+          <DropdownMenuItem onClick={() => props.onDelete(doc)}>
+            <Trash2 size={13} strokeWidth={2} /> Delete…
+          </DropdownMenuItem>
+        )}
       </DropdownMenu>
     </span>
   );
@@ -1099,6 +1116,10 @@ export function SandboxScreen() {
   const [promoteDoc, setPromoteDoc] = useState<SandboxDocument | null>(null);
   const [renameDoc, setRenameDoc] = useState<SandboxDocument | null>(null);
   const [replaceDoc, setReplaceDoc] = useState<SandboxDocument | null>(null);
+  // T-456 — the doors: a document's history, the delete confirmation, the bin
+  const [historyDoc, setHistoryDoc] = useState<SandboxDocument | null>(null);
+  const [deleteDoc, setDeleteDoc] = useState<SandboxDocument | null>(null);
+  const [binOpen, setBinOpen] = useState(false);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
@@ -1505,6 +1526,8 @@ export function SandboxScreen() {
             onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
             onRename={setRenameDoc}
             onReplace={setReplaceDoc}
+            onHistory={setHistoryDoc}
+            onDelete={setDeleteDoc}
             reload={loadDocs}
             setNote={setNote}
           />
@@ -1644,6 +1667,18 @@ export function SandboxScreen() {
             await performMove(moveItem, folderId);
             setMoveItem(null);
           }}
+        />
+      )}
+      {/* T-456 — the doors */}
+      {historyDoc && <HistoryModal doc={historyDoc} onClose={() => setHistoryDoc(null)} reload={loadDocs} setNote={setNote} />}
+      {deleteDoc && <DeleteModal doc={deleteDoc} onClose={() => setDeleteDoc(null)} reload={loadDocs} setNote={setNote} />}
+      {binOpen && (
+        <BinModal
+          projectId={projectId}
+          isOrgAdmin={me.orgRole === 'admin'}
+          onClose={() => setBinOpen(false)}
+          reload={loadDocs}
+          setNote={setNote}
         />
       )}
       {renameDoc && (
@@ -1820,6 +1855,11 @@ export function SandboxScreen() {
               e.target.value = ''; // let the same file be picked again
             }}
           />
+          {/* T-456 — the bin: deleted documents, restorable; erasable by an
+              organisation's admin with the title typed (ADR-0050 §§5–6) */}
+          <Button size="sm" variant="quiet" onClick={() => setBinOpen(true)}>
+            <Trash2 size={14} strokeWidth={2} /> Deleted
+          </Button>
           {/* creating a sandbox is a super-user act (T-186); an ordinary member
               works in their personal sandbox and any they are admitted to */}
           {participant.elevated && (
@@ -2070,6 +2110,8 @@ export function SandboxScreen() {
                           onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
                           onRename={setRenameDoc}
                           onReplace={setReplaceDoc}
+                          onHistory={setHistoryDoc}
+                          onDelete={setDeleteDoc}
                           reload={loadDocs}
                           setNote={setNote}
                         />

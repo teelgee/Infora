@@ -185,6 +185,25 @@ describe('the non-review transmittal and the acknowledgement gate (T-137, ADR-00
     expect(await libraryHas(quinnSession, containerId)).toBe(false);
   });
 
+  it('T-456 — the narrowing is readable by the receiving organisation, and absent elsewhere', async () => {
+    const containerId = await makeDeliverable(`T456-READ-${Date.now()}`);
+    await post(ownerSession, `/containers/${containerId}/transmittals`, { organisationIds: [recvOrgId] });
+    await post(paulSession, `/containers/${containerId}/acknowledgement`);
+    await post(adminSession, `/containers/${containerId}/participant-grants`, { participantId: paulParticipantId });
+
+    // the admin and a plain member of the receiving organisation both read it
+    for (const cookie of [adminSession, quinnSession]) {
+      const res = await app.request(`/containers/${containerId}/participant-grants`, { headers: { cookie } });
+      expect(res.status).toBe(200);
+      const { items } = (await res.json()) as { items: Array<{ participantId: string; revokedAt: string | null }> };
+      expect(items.map((g) => g.participantId)).toEqual([paulParticipantId]);
+      expect(items[0]!.revokedAt).toBeNull();
+    }
+    // the owner's organisation holds no share, so the list is absence, not empty
+    const ownerRes = await app.request(`/containers/${containerId}/participant-grants`, { headers: { cookie: ownerSession } });
+    expect(ownerRes.status).toBe(404);
+  });
+
   it('the standing rule auto-grants the matching participant on issue', async () => {
     // a rule keyed on a discipline code prefix, granting Quinn
     const rule = await post(adminSession, `/projects/${projectId}/grant-rules`, {

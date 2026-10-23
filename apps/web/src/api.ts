@@ -144,6 +144,15 @@ import type {
   ListContainerTransmittalsResponse,
   ListPendingTransmittalsResponse,
   ListPresenceResponse,
+  DeliverableShare,
+  ParticipantGrant,
+  ListParticipantGrantsResponse,
+  PurgeRequestBody,
+  PurgeResponse,
+  ListPurgesResponse,
+  LibraryRemovalBody,
+  LibraryRemovalResponse,
+  RulebookRecord,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -289,6 +298,28 @@ export const api = {
   version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
+  // T-456 — the bin (T-128's recycle view) and its two acts, reachable at last
+  deletedSandboxDocuments: (projectId: string) =>
+    request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents?deleted=1`),
+  deleteSandboxDocument: (id: string) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}`, { method: 'DELETE' }),
+  undeleteSandboxDocument: (id: string) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}/undelete`, { method: 'POST' }),
+  restoreSandboxVersion: (id: string, historyVersionId: string) =>
+    request<SandboxDocument>(`/sandbox-documents/${id}/restore`, {
+      method: 'POST',
+      body: JSON.stringify({ historyVersionId }),
+    }),
+  // T-456 — erasure (ADR-0050 §§5–7): the typed confirmation is checked
+  // server-side; the client only carries what the person typed
+  purgeSandboxDocument: (projectId: string, body: PurgeRequestBody) =>
+    request<PurgeResponse>(`/projects/${projectId}/purges`, { method: 'POST', body: JSON.stringify(body) }),
+  purges: (projectId: string) => request<ListPurgesResponse>(`/projects/${projectId}/purges`),
+  removeLibraryContainer: (projectId: string, body: LibraryRemovalBody) =>
+    request<LibraryRemovalResponse>(`/projects/${projectId}/library-removals`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   createSandboxDocument: (projectId: string, title: string, sandboxId?: string, folderId?: string) =>
     request<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
       method: 'POST',
@@ -394,6 +425,24 @@ export const api = {
     request<ReviewerGrant>(`/reviewers/${grantId}/revocation`, { method: 'POST' }),
   // T-377 — name the lead reviewer, replacing the standing one in a single
   // transaction; never fired as a revoke-then-grant pair (see contracts)
+  // T-456 — the owner's share (ADR-0016) and the receiving organisation's
+  // narrowing (ADR-0035 §3), both reachable from the plan row at last
+  shareDeliverable: (containerId: string, organisationId: string) =>
+    request<DeliverableShare>(`/containers/${containerId}/shares`, {
+      method: 'POST',
+      body: JSON.stringify({ organisationId }),
+    }),
+  revokeShare: (shareId: string) =>
+    request<DeliverableShare>(`/shares/${shareId}/revocation`, { method: 'POST' }),
+  participantGrants: (containerId: string) =>
+    request<ListParticipantGrantsResponse>(`/containers/${containerId}/participant-grants`),
+  grantParticipant: (containerId: string, participantId: string) =>
+    request<ParticipantGrant>(`/containers/${containerId}/participant-grants`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId }),
+    }),
+  revokeParticipantGrant: (grantId: string) =>
+    request<ParticipantGrant>(`/participant-grants/${grantId}/revocation`, { method: 'POST' }),
   nameLeadReviewer: (containerId: string, participantId: string) =>
     request<LeadReviewerReplacement>(`/containers/${containerId}/lead-reviewer`, {
       method: 'POST',
@@ -717,6 +766,16 @@ export const api = {
   // a member's read answers as nonexistence, which the Knowledge screen renders
   // as an absent list rather than a disabled control.
   rulebooks: () => request<ListRulebooksResponse>(`/organisation/rulebooks`),
+  // T-456 — load and retire the firm's drafting manual (T-308's routes, with
+  // a door at last); org-admin's tier, refused as absence to anyone else
+  loadRulebook: (file: File, title?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (title && title.trim()) form.append('title', title.trim());
+    return requestForm<RulebookRecord>(`/organisation/rulebooks`, form);
+  },
+  retireRulebook: (rulebookId: string) =>
+    request<RulebookRecord>(`/organisation/rulebooks/${rulebookId}`, { method: 'DELETE' }),
   // T-424 — a new style guide. **The file is optional** (ADR-0054 decision 2):
   // a client with no written standard starts from Infora's baseline, and the
   // same endpoint produces the same object either way.

@@ -23,10 +23,11 @@
 // **Standards and legislation are not a third shelf** (decision 1). They are
 // project library reference material, which is built (T-304) and has its own
 // screen; this one links to it rather than restating it.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { RulebookRecord, StartingOutline, StyleGuideRecord } from '@infora/contracts';
-import { Badge, Card, SectionLabel } from '@infora/ui';
+import { Badge, Button, Card, Field, SectionLabel, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 
@@ -107,6 +108,19 @@ export function KnowledgeScreen() {
   }, [projectId]);
 
   const mayCurate = participant?.membershipRole === 'owner' && participant.elevated === true;
+  // T-456 — the firm's shelf is curated by the organisation's admin (T-308's tier)
+  const reloadRulebooks = () =>
+    api
+      .rulebooks()
+      .then((res) => setFirm((shelf) => ({ ...shelf, rulebooks: res.items })))
+      .catch(() => setFirm((shelf) => ({ ...shelf, rulebooks: null })));
+  const curation =
+    me.orgRole === 'admin'
+      ? {
+          onLoad: (file: File, title: string) => api.loadRulebook(file, title).then(reloadRulebooks),
+          onRetire: (id: string) => api.retireRulebook(id).then(reloadRulebooks),
+        }
+      : undefined;
 
   return (
     <div className="content">
@@ -115,7 +129,7 @@ export function KnowledgeScreen() {
         The writing material that steers drafting and checking here — your firm’s own, and this
         project’s.
       </p>
-      <FirmShelfPane shelf={firm} door="project" />
+      <FirmShelfPane shelf={firm} door="project" {...(curation && { curation })} />
       <ProjectShelfPane
         guides={guides}
         mayCurate={mayCurate}
@@ -133,8 +147,23 @@ export function KnowledgeScreen() {
  * failure it guards against is somebody believing they are editing a
  * per-project copy of their own manual.
  */
-export function FirmShelfPane(props: { shelf: FirmShelf; door: ShelfDoor }) {
+/**
+ * T-456 — the org admin's two doors on the firm's shelf: load a drafting
+ * manual, retire one. Passed only when the viewer is an org admin (T-308's
+ * tier); absent, the shelf draws no control at all, as the rule above says.
+ */
+export type FirmShelfCuration = {
+  onLoad: (file: File, title: string) => Promise<void>;
+  onRetire: (rulebookId: string) => Promise<void>;
+};
+
+export function FirmShelfPane(props: { shelf: FirmShelf; door: ShelfDoor; curation?: FirmShelfCuration }) {
   const { rulebooks, outlines } = props.shelf;
+  const { curation } = props;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [title, setTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   return (
     <>
       <SectionLabel>Your firm’s own</SectionLabel>
@@ -151,8 +180,59 @@ export function FirmShelfPane(props: { shelf: FirmShelf; door: ShelfDoor }) {
               rulebook.retiredAt === null
                 ? `${countOf(rulebook.clauses, 'clause')}, ${rulebook.labelled} quotable by number · loaded by ${rulebook.loadedBy.name}`
                 : `Retired · ${countOf(rulebook.clauses, 'clause')} · still resolves for findings written against it`,
+            ...(curation !== undefined &&
+              rulebook.retiredAt === null && {
+                action: (
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    disabled={busy}
+                    aria-label={`Retire ${rulebook.title}`}
+                    onClick={() => {
+                      setBusy(true);
+                      void curation.onRetire(rulebook.id).finally(() => setBusy(false));
+                    }}
+                  >
+                    Retire
+                  </Button>
+                ),
+              }),
           }))}
         />
+        {curation !== undefined && rulebooks !== null && (
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+            <Field label="Load a drafting manual" hint="Word, PDF, PowerPoint or Excel. Its clauses steer the checker and the drafting tool, quoted by number where the manual numbers them, and are never cited as project fact.">
+              <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ flex: 1 }}>
+                  <TextInput value={title} onChange={setTitle} placeholder="Title (optional — the file name if left blank)" />
+                </span>
+                <Button size="sm" variant="quiet" disabled={busy} onClick={() => fileInput.current?.click()}>
+                  {busy ? 'Loading…' : 'Choose file'}
+                </Button>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept=".docx,.pdf,.pptx,.xlsx"
+                  hidden
+                  aria-label="Drafting manual file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (!file) return;
+                    setBusy(true);
+                    setProblem(null);
+                    void curation
+                      .onLoad(file, title)
+                      .then(() => setTitle(''))
+                      .catch(() => setProblem('The manual could not be read. A scanned PDF, or a file in another format, cannot be loaded.'))
+                      .finally(() => setBusy(false));
+                  }}
+                />
+              </span>
+            </Field>
+            {problem && <span className="field-hint">{problem}</span>}
+          </div>
+        )}
         <ShelfList
           heading="Saved starting outlines"
           empty="Nothing saved yet. Compose an outline in the document creator and keep it for the firm."
@@ -223,7 +303,7 @@ export function ProjectShelfPane(props: {
   );
 }
 
-export type ShelfRow = { key: string; title: string; note: string; href?: string };
+export type ShelfRow = { key: string; title: string; note: string; href?: string; action?: ReactNode };
 
 /**
  * One list on a shelf. **Three states, and they are three different sentences**:
@@ -258,6 +338,7 @@ export function ShelfList(props: {
                 </Link>
               )}
               <span className="shelf-row-note">{item.note}</span>
+              {item.action}
             </li>
           ))}
         </ul>

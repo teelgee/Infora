@@ -22,6 +22,7 @@ import type {
   GrantRule,
   ListContainerTransmittalsResponse,
   ListGrantRulesResponse,
+  ListParticipantGrantsResponse,
   ListPendingTransmittalsResponse,
   NonReviewTransmittal,
   ParticipantGrant,
@@ -285,6 +286,43 @@ export function transmittalRoutes(deps: { db: Db }) {
       })
       .returning();
     return c.json(await grantRead(deps.db, grant!.id), 201);
+  });
+
+  // T-456 — the read half of §3: an organisation's OWN live narrowing on a
+  // shared deliverable, so the plan row can say who at the firm may see it and
+  // offer the revoke. Any participant of the organisation may read it (a rule
+  // that binds you is a rule you may look up); an organisation with no live
+  // share gets absence, because there is nothing to narrow and the list would
+  // otherwise confirm a share that does not exist.
+  app.get('/containers/:containerId/participant-grants', async (c) => {
+    const container = await loadLibraryContainer(c.req.param('containerId'));
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice) return notFound(c);
+    if (!(await liveShare(container.id, slice.organisationId))) return notFound(c);
+    const rows = await deps.db
+      .select({ grant: s.deliverableParticipantGrants, name: s.users.name })
+      .from(s.deliverableParticipantGrants)
+      .innerJoin(s.participants, eq(s.deliverableParticipantGrants.participantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(
+        and(
+          eq(s.deliverableParticipantGrants.containerId, container.id),
+          eq(s.deliverableParticipantGrants.organisationId, slice.organisationId),
+          isNull(s.deliverableParticipantGrants.revokedAt),
+        ),
+      )
+      .orderBy(asc(s.users.name));
+    const items: ParticipantGrant[] = rows.map(({ grant, name }) => ({
+      id: grant.id,
+      containerId: grant.containerId,
+      organisationId: grant.organisationId,
+      participantId: grant.participantId,
+      name,
+      grantedAt: grant.grantedAt.toISOString(),
+      revokedAt: null,
+    }));
+    return c.json({ items } satisfies ListParticipantGrantsResponse);
   });
 
   app.post('/participant-grants/:grantId/revocation', async (c) => {

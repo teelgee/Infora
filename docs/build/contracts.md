@@ -1476,3 +1476,16 @@ are not recorded here.
   storage, and renaming storage to fix a label would be a migration to fix a
   word. Projects created before this note keep their copied label until their
   owner changes it on the scheme screen.
+
+- **2026-10-23 (T-456) — `GET /containers/:containerId/participant-grants`, and
+  `shareId` on a plan row's `sharedWith`.** *Plainly: a plan row can now say who
+  at your firm may see a shared deliverable, and the owner can take a share
+  back without a second read.* The narrowing routes (T-137) had a write and a
+  revoke and no read, so no screen could show the narrowing it had made; the
+  **reason the read is scoped to the requester's own organisation** is the same
+  as the write's — a firm's narrowing is its own business — and the **reason an
+  organisation with no live share gets absence rather than an empty list** is
+  that an empty list would confirm a share that does not exist. The share id
+  rides `sharedWith` because the revoke route is keyed on it and a second read
+  to find it would be the kind of round trip principle 2 refuses; only an owner
+  reader ever receives the list, as before.

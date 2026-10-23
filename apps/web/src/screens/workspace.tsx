@@ -144,6 +144,19 @@ export function WorkspaceSection() {
       .then((res) => setFirm({ rulebooks: res.items, outlines: null }))
       .catch(() => setFirm({ rulebooks: null, outlines: null }));
   }, [knowledge]);
+  // T-456 — the same two doors the project door offers: one shelf, curated once
+  const reloadRulebooks = () =>
+    api
+      .rulebooks()
+      .then((res) => setFirm({ rulebooks: res.items, outlines: null }))
+      .catch(() => setFirm({ rulebooks: null, outlines: null }));
+  const curation =
+    me.orgRole === 'admin'
+      ? {
+          onLoad: (file: File, title: string) => api.loadRulebook(file, title).then(reloadRulebooks),
+          onRetire: (id: string) => api.retireRulebook(id).then(reloadRulebooks),
+        }
+      : undefined;
 
   if (entry === undefined) return null;
 
@@ -161,7 +174,7 @@ export function WorkspaceSection() {
         <div className="content" style={knowledge || playbooks ? undefined : { maxWidth: 720 }}>
           <h1 className="page">{entry.label}</h1>
           <p className="page-sub">{entry.note}</p>
-          {knowledge && <FirmShelfPane shelf={firm} door="workspace" />}
+          {knowledge && <FirmShelfPane shelf={firm} door="workspace" {...(curation && { curation })} />}
           {playbooks && <PlaybookShelfPane />}
         </div>
       </div>

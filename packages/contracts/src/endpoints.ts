@@ -946,8 +946,10 @@ export type PlanRow = {
   withdrawalProposal: { participantId: Id; name: string; reason: string } | null;
   authors: AppointmentGrant[];
   reviewers: ReviewerGrant[];
-  // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers
-  sharedWith: Array<{ organisationId: Id; organisationName: string }>;
+  // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers.
+  // T-456 — `shareId` rides with each so the owner's screen can revoke one
+  // without a second read; only an owner reader ever sees the list at all.
+  sharedWith: Array<{ shareId: Id; organisationId: Id; organisationName: string }>;
 };
 // planColumns is the requester organisation's org-standard extra column set
 // (T-360, S3): schema field keys, fixed by that org's super user for everyone
@@ -1262,6 +1264,12 @@ export type ParticipantGrant = {
   grantedAt: string;
   revokedAt: string | null;
 };
+// T-456 — GET /containers/:containerId/participant-grants: the requester's OWN
+// organisation's live narrowing on a shared deliverable, so a screen can say
+// who at the firm may see it and offer the revoke. Absent (404) when the
+// requester's organisation holds no live share: there is nothing to narrow,
+// and the owner's and the producer's organisations are never narrowed.
+export type ListParticipantGrantsResponse = { items: ParticipantGrant[] };
 
 // The standing routing rule (§3, MVP): a code pattern → a Participant, so a
 // transmitted deliverable whose reference matches grants automatically.

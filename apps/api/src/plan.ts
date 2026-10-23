@@ -373,7 +373,7 @@ async function toPlanRows(
       reviewers: reviewerRows.filter((r) => r.grant.containerId === container.id).map(toReviewer),
       sharedWith: shareRows
         .filter((r) => r.share.containerId === container.id)
-        .map((r) => ({ organisationId: r.share.organisationId, organisationName: r.organisationName })),
+        .map((r) => ({ shareId: r.share.id, organisationId: r.share.organisationId, organisationName: r.organisationName })),
     };
   });
 }

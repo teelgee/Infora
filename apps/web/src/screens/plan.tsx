@@ -24,6 +24,8 @@ import { Badge, Button, Combobox, Field, Modal, SelectInput, Skeleton, Table, Te
 import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
+import { VisibilityPanel } from '../visibility-panel';
+import type { Viewer } from '../visibility-panel';
 import { useMe } from '../session';
 import { contextStateBadge, formatDate, lifecycleBadgeOf } from './shared';
 
@@ -309,6 +311,8 @@ function DeliverableDetail(props: {
   // NOT the document owner.
   isLeadAuthor: boolean;
   isOwnerSuper: boolean; // owner super-user: appoints/confirms reviewers directly
+  // T-456 — who is looking: decides which visibility doors are drawn
+  viewer: Viewer;
   onChanged: (updated: PlanRow) => void;
   onClose: () => void;
 }) {
@@ -476,20 +480,26 @@ function DeliverableDetail(props: {
         </span>
       )}
 
-      {row.sharedWith.length > 0 && (
-        <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
-          <span className="field-label">Shared with</span>
-          {row.sharedWith.map((sh) => (
-            <DetailRow key={sh.organisationId} label="Organisation">
-              {sh.organisationName}
-            </DetailRow>
-          ))}
-        </div>
-      )}
+      {/* T-456 — who can see this, and the share and narrowing doors */}
+      <VisibilityPanel row={row} roster={props.roster} viewer={props.viewer} onChanged={() => void reload()} />
 
       {/* T-243 — the project ontology: classification + typed relationships
           (ADR-0045). Read-only for non-producers; editable when canEdit. */}
       <OntologyPanel containerId={row.containerId} projectId={props.projectId} editable={canEditDelegated} />
+
+      {/* T-456 — erase a wrongly-loaded reference document from the library
+          (ADR-0050 §7): the owner organisation's admin, only once withdrawn,
+          only reference material, only with the reference typed */}
+      {props.viewer.isOwner && props.viewer.isOrgAdmin && isWithdrawn && row.inLibrary && row.workItem === null && (
+        <LibraryRemovalControl
+          row={row}
+          projectId={props.projectId}
+          onRemoved={() => {
+            props.onChanged(row);
+            props.onClose();
+          }}
+        />
+      )}
 
       {props.canEdit && (
         <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12, marginTop: 4 }}>
@@ -544,6 +554,68 @@ function DeliverableDetail(props: {
         </div>
       )}
     </Modal>
+  );
+}
+
+// T-456 — the second step after withdrawal, and it cannot be the first
+// (ADR-0050 §7): erase a withdrawn reference document from the owner's
+// library. The typed reference is checked on the server; this control only
+// carries what the person typed, and says plainly that there is no undo.
+function LibraryRemovalControl(props: { row: PlanRow; projectId: string; onRemoved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reference = props.row.documentReference ?? '';
+  return (
+    <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+      <span className="field-label">Library</span>
+      {open ? (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <Field
+            label="Type the reference to confirm"
+            hint="Erases every version, index entry and stored file of this reference document. The record of the erasure is kept. There is no undo."
+          >
+            <TextInput value={confirmation} onChange={setConfirmation} placeholder={reference} />
+          </Field>
+          {error && <span className="field-hint" style={{ color: 'var(--danger-text, inherit)' }}>{error}</span>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="quiet" onClick={() => { setOpen(false); setConfirmation(''); setError(null); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={busy || confirmation.trim() === ''}
+              onClick={() => {
+                setBusy(true);
+                setError(null);
+                void api
+                  .removeLibraryContainer(props.projectId, { containerId: props.row.containerId, confirmation })
+                  .then(() => props.onRemoved())
+                  .catch((e: unknown) =>
+                    setError(
+                      e instanceof RequestError && e.body?.detail === 'confirmation_mismatch'
+                        ? 'The reference typed does not match — type it exactly as shown.'
+                        : e instanceof RequestError && e.status === 409
+                          ? `Refused — ${e.body?.detail ?? 'the document cannot be removed in its current state'}.`
+                          : 'Refused.',
+                    ),
+                  )
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Erase {reference} from the library
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Button variant="quiet" onClick={() => setOpen(true)}>
+            Erase from the library permanently…
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -807,6 +879,13 @@ export function PlanScreen() {
           canEdit={isSuper && detailRow.producingOrganisationId === me.organisationId}
           isLeadAuthor={isRowLeadAuthor(detailRow)}
           isOwnerSuper={isSuper && isOwner}
+          viewer={{
+            organisationId: me.organisationId,
+            organisationName: me.organisationName,
+            isOwner,
+            isOrgAdmin: me.orgRole === 'admin',
+            ownerOrganisationName: participant.ownerOrganisationName,
+          }}
           onChanged={() => load()}
           onClose={() => setDetailRow(null)}
         />
