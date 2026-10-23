@@ -2372,6 +2372,21 @@ export type PendingTransmittal = {
 };
 export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };
 
+// ── T-465 — the record-state change record ──────────────────────────────────
+// GET /containers/:containerId/state-changes — every change of the container's
+// record state, newest first, with who, when and why. *Plainly: the document's
+// own history of being withdrawn, restored or superseded — both halves of an
+// undone act stay on it.* Read through the plan row's own visibility.
+export type ContainerStateChange = {
+  id: Id;
+  fromState: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  toState: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  reason: string | null;
+  changedBy: { participantId: Id; name: string };
+  changedAt: string;
+};
+export type ListContainerStateChangesResponse = { items: ContainerStateChange[] };
+
 // ── T-463 — the AI transparency table, and the per-project feature switch ───
 //
 // *In plain terms: a page that says, for every AI feature, what it reads, what

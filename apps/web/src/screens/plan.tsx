@@ -21,7 +21,7 @@ import type {
 } from '@infora/contracts';
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
 import { Columns3, FileCog, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, PageIntro, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, PageIntro, Register, SelectInput, Table, TextArea, TextInput, useToast } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { api, RequestError } from '../api';
@@ -311,6 +311,7 @@ export function DeliverableDetail(props: {
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const canEditDelegated = props.canEdit || props.isLeadAuthor;
   const [row, setRow] = useState<PlanRow>(props.row);
   const [removing, setRemoving] = useState(false);
@@ -565,7 +566,19 @@ export function DeliverableDetail(props: {
                     setBusy(true);
                     void api
                       .withdrawDeliverable(row.containerId, reason.trim())
-                      .then((r) => { apply(r); setRemoving(false); })
+                      .then((r) => {
+                        apply(r);
+                        setRemoving(false);
+                        // T-465 — reversible for as long as it is; both acts stay on the record
+                        toast({
+                          text: `${row.documentReference ?? 'The deliverable'} removed from the plan — the container is kept as a record.`,
+                          tone: 'success',
+                          undo: async () => {
+                            const restored = await api.restoreDeliverable(row.containerId);
+                            apply(restored);
+                          },
+                        });
+                      })
                       .finally(() => setBusy(false));
                   }}
                 >

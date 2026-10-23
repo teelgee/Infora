@@ -1515,6 +1515,15 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-23 (T-465) — `GET /containers/:containerId/state-changes`.** *Plainly:
+  a document's own history of being withdrawn, restored or superseded, who did
+  each and why.* The **reason this is a read of its own and not a field on the
+  plan row** is that a row carries a state and a record carries a history: the
+  withdrawal's reason and author used to live on the container and be cleared by
+  restoration, which made "undo" an erasure. The **reason every state-changing
+  route writes the record in the same breath** is that a record kept by some
+  routes and not others is a record nobody can trust.
+
 - **2026-10-23 (T-463) — the AI transparency table: `GET /projects/:projectId/ai-transparency`,
   `GET /ai-transparency`, `PUT /projects/:projectId/ai-features/:feature`,
   `GET …/ai-transparency/export`.** *Plainly: a page that says what each AI

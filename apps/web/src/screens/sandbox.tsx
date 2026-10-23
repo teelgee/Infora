@@ -65,6 +65,7 @@ import {
   TextInput,
   Register,
   PageIntro,
+  useToast,
 } from '@infora/ui';
 import { api } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
@@ -1129,6 +1130,7 @@ export function SandboxScreen() {
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
   const [docsLoaded, setDocsLoaded] = useState(false);
   const aiOff = useAiFeaturesOff(projectId);
+  const toast = useToast();
   const loadDocs = useCallback(
     () =>
       api.sandboxDocuments(projectId).then((r) => {
@@ -1379,8 +1381,24 @@ export function SandboxScreen() {
           await api.moveFolder(item.id, targetFolderId);
           if (selected) loadSandbox(selected);
         } else {
-          await api.moveDocument(item.id, targetFolderId);
+          // T-465 — optimistic: the row moves at once and comes back on refusal; Undo moves it home
+          const before = docs.find((d) => d.id === item.id)?.folderId ?? null;
+          setDocs((ds) => ds.map((d) => (d.id === item.id ? { ...d, folderId: targetFolderId } : d)));
+          try {
+            await api.moveDocument(item.id, targetFolderId);
+          } catch (error) {
+            setDocs((ds) => ds.map((d) => (d.id === item.id ? { ...d, folderId: before } : d)));
+            throw error;
+          }
           await loadDocs();
+          toast({
+            text: `Moved “${docs.find((d) => d.id === item.id)?.title ?? 'the document'}”.`,
+            tone: 'success',
+            undo: async () => {
+              await api.moveDocument(item.id, before);
+              await loadDocs();
+            },
+          });
         }
       } catch {
         // T-365: in a plan-locked sandbox the derived levels refuse moves —
@@ -1388,7 +1406,7 @@ export function SandboxScreen() {
         setNote('That move was refused — the plan-locked levels are set by the plan.', 'error');
       }
     },
-    [descendantsOf, loadDocs, loadSandbox, selected, setNote],
+    [descendantsOf, docs, loadDocs, loadSandbox, selected, setNote, toast],
   );
 
   const onDropInto = (targetFolderId: string | null, targetKey: string | 'root') => (e: ReactDragEvent) => {
@@ -1706,15 +1724,27 @@ export function SandboxScreen() {
           initialValue={renameDoc.title}
           onClose={() => setRenameDoc(null)}
           onSubmit={async (title) => {
+            // T-465 — optimistic: the row shows its new name at once and rolls back on refusal
+            const before = renameDoc.title;
+            setDocs((ds) => ds.map((d) => (d.id === renameDoc.id ? { ...d, title } : d)));
+            setRenameDoc(null);
             try {
               await api.renameSandboxDocument(renameDoc.id, title);
               await loadDocs();
+              toast({
+                text: `Renamed to “${title}”.`,
+                tone: 'success',
+                undo: async () => {
+                  await api.renameSandboxDocument(renameDoc.id, before);
+                  await loadDocs();
+                },
+              });
             } catch {
+              setDocs((ds) => ds.map((d) => (d.id === renameDoc.id ? { ...d, title: before } : d)));
               // the only refusal here is a bound document — its name is the
               // container's plan-owned reference (ADR-0038)
               setNote('Rename refused — a bound draft shows its plan row’s title; retitle it on the Plan page (ADR-0038).', 'error');
             }
-            setRenameDoc(null);
           }}
         />
       )}
@@ -1751,7 +1781,8 @@ export function SandboxScreen() {
             try {
               await api.bindDocument(bindDoc.id, containerId);
               await loadDocs();
-              setNote(`Bound to ${planByContainer.get(containerId)?.documentReference ?? 'the deliverable'}.`);
+              // T-465 — a bind has no reverse act (a document binds once, ADR-0038), so the toast says so rather than offering one
+              toast({ text: `Bound to ${planByContainer.get(containerId)?.documentReference ?? 'the deliverable'} — a document binds once; there is no undo.`, tone: 'success' });
             } catch {
               setNote('Bind failed — a document binds once, to its own organisation’s plan row.', 'error');
             }

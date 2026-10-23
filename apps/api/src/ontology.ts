@@ -29,6 +29,7 @@ import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { projectScope, resolveSlice } from './requester';
+import { recordStateChange } from './state-changes';
 import type { AppEnv } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -344,6 +345,9 @@ export function ontologyRoutes(deps: { db: Db }) {
         .update(s.containers)
         .set({ state: 'superseded' })
         .where(eq(s.containers.id, edge.target.id));
+      // T-465 — the record keeps the change of state, naming the replacement
+      const [from] = await deps.db.select({ ref: s.containers.documentReference }).from(s.containers).where(eq(s.containers.id, edge.row.fromContainerId)).limit(1);
+      await recordStateChange(deps.db, { containerId: edge.target.id, projectId: edge.target.projectId, from: 'live', to: 'superseded', reason: `superseded by ${from?.ref ?? 'another document'}`, participantId: edge.slice.participantId });
     }
     return c.json(toRelationship(updated!));
   });
@@ -382,6 +386,7 @@ export function ontologyRoutes(deps: { db: Db }) {
           .update(s.containers)
           .set({ state: 'live' })
           .where(eq(s.containers.id, edge.target.id));
+        await recordStateChange(deps.db, { containerId: edge.target.id, projectId: edge.target.projectId, from: 'superseded', to: 'live', reason: 'the superseding relationship was retired', participantId: edge.slice.participantId });
       }
     }
     return c.json(toRelationship(updated!));

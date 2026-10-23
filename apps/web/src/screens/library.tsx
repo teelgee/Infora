@@ -35,6 +35,7 @@ import {
   Table,
   TextArea,
   TextInput,
+  useToast,
 } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { lifecycleBadge } from '@infora/ui';
@@ -502,6 +503,7 @@ function refusalNote(verb: string, error: unknown): string {
 }
 
 export function LibraryScreen() {
+  const toast = useToast();
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
   const navigate = useNavigate();
@@ -747,13 +749,22 @@ export function LibraryScreen() {
     const mine = item.producingOrganisationId === me.organisationId;
     try {
       await api.withdrawDeliverable(item.containerId, reason);
-      setNote(
-        isOwner && !mine
-          ? `${item.documentReference} withdrawn — it stands as a record on the plan and no longer grounds.`
-          : isOwner
+      if (isOwner) {
+        // T-465 — reversible for as long as it is: restoration is the reverse act, and both stay on the record
+        toast({
+          text: mine
             ? `${item.documentReference} withdrawn.`
-            : `Withdrawal proposed for ${item.documentReference}. It stays live and keeps grounding until the owner accepts.`,
-      );
+            : `${item.documentReference} withdrawn — it stands as a record on the plan and no longer grounds.`,
+          tone: 'success',
+          undo: async () => {
+            await api.restoreDeliverable(item.containerId);
+            load();
+          },
+        });
+        setNote(null);
+      } else {
+        setNote(`Withdrawal proposed for ${item.documentReference}. It stays live and keeps grounding until the owner accepts.`);
+      }
       load();
     } catch {
       setNote('Could not withdraw — the elevated capability is required for this act.');

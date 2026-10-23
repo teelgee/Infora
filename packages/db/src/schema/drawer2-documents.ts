@@ -764,3 +764,35 @@ export const savedViews = pgTable(
   ],
 );
 
+// ── T-465 — the record-state change record (ADR-0013, ADR-0030 §6) ──────────
+// *In plain terms: every time a document's record state changes — withdrawn,
+// restored, superseded, back to live — a line is kept saying what it was, what
+// it became, who did it, when and why. Nothing is edited or deleted, so an
+// accidental withdrawal that is undone a moment later leaves BOTH acts on the
+// record, which is what makes undo safe to offer.*
+//
+// Until now a restoration cleared the withdrawal's reason and author off the
+// container, so the record could not say the withdrawal had ever happened.
+// Append-only by trigger (T-008's pattern, hand-added to the migration).
+// A NAMED PERSON on each row, registered in docs/architecture/personal-data.md.
+export const containerStateChanges = pgTable(
+  'container_state_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    fromState: containerState('from_state').notNull(),
+    toState: containerState('to_state').notNull(),
+    // the reason given with the act, where the act takes one (withdrawal does; restoration does not)
+    reason: text('reason'),
+    changedByParticipantId: uuid('changed_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('container_state_changes_container_idx').on(t.containerId, t.changedAt)],
+);

@@ -2085,3 +2085,10 @@ a.shelf-row-title:hover { text-decoration: underline; }
 .register-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
 .register-pager-note { margin-right: auto; }
 
+/* T-465 — the toast: the foot of the frame, elevation 3, one at a time stacked */
+.toast-host { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: grid; gap: 8px; z-index: 60; pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; min-width: 320px; max-width: 640px; padding: 10px 12px 10px 16px; border-radius: var(--primitive-radius-md, 10px); background: var(--surface-pane, #fff); color: var(--text-primary); border: 1px solid var(--border-default); box-shadow: var(--elevation-level3, 0 8px 24px rgba(0,0,0,0.18)); font-size: 13px; }
+.toast--success { border-left: 3px solid var(--feedback-success-fg, #2f7d4f); }
+.toast--error { border-left: 3px solid var(--feedback-danger-fg, #b4231f); }
+.toast-text { flex: 1; }
+.toast-dismiss { border: 0; background: transparent; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 0 4px; }

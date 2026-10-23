@@ -52,3 +52,5 @@ export type { LifecyclePosition } from './lifecycle';
 export { ChatBubble, ChatComposer } from './chat-composer';
 export type { ChatComposerHandle } from './chat-composer';
 export { PageIntro } from './page-intro';
+export { ToastProvider, useToast } from './toast';
+export type { ToastInput } from './toast';

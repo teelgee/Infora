@@ -115,6 +115,12 @@ For each: variants/states present in the mockups, tokens used, one-line usage no
 - **Filter chip:** the kit's `Chip` with a trailing × — removing it removes that filter; *+ Filter* opens the screen's own menu. **Bulk-action bar:** elevation 2, sticky above the table, the count on the left, the actions, *Clear* on the right; every action it offers has an undo or a confirmation. **Saved view:** a `CONTEXT.md` term — a named filter, never an access object; the menu lists the viewer's own and the firm's shared ones.
 - Use for: every list of documents. Do not hand-write a `<table>` for a register again.
 
+### Toast (`component.toast`) *(T-465, 2026-10-23)*
+- **What it is:** the message that confirms an act at the foot of the frame — elevation 3, one host per app frame, the newest at the bottom, at most three stacked. It says what happened in the words the act used ("WA-GEO-GIR-004 withdrawn — it stands as a record on the plan") and, **for as long as the act is reversible, carries Undo**: withdraw and remove (restoration), rename and move (the reverse act), delete (the bin). An act with no reverse (a bind, the first term under a facet) says so in the toast rather than offering a button that lies.
+- **Undo is the reverse act through the API, never a client-side rollback of something the server did**, so both acts stay on the record (`container_state_changes`). Optimistic updates — rename, move, bind, classification — show the result at once and roll back on refusal, with the refusal said in a note.
+- **States:** neutral · success (left rule, success hue) · error (stays until dismissed). Dismiss with × or let it go after eight seconds; an error waits.
+- Use for: every reversible act, and every act whose success the screen would otherwise state in a note. Do not render a bespoke note where a toast will do; keep the note for a refusal that needs a sentence.
+
 ### Project card (`component.projectCard`)
 - **States:** default *(designed)*, hover *(derive — same lift pattern as suggestionCallout, subtle `translateY` optional)*.
 - Use for: "your projects" list on the workspace landing; the numbered circle communicates progress (drafted/total), not a percentage bar.

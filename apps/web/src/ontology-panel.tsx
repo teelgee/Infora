@@ -6,7 +6,7 @@
 // Reads and writes go through the access-resolved API; a non-producer simply
 // sees read-only. No window.prompt; semantic tokens only.
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Field, SelectInput } from '@infora/ui';
+import { Button, Field, SelectInput, useToast } from '@infora/ui';
 import type {
   ContainerClassificationRead,
   ContainerRelationshipRead,
@@ -42,6 +42,7 @@ function SuggestedBadge() {
 }
 
 export function OntologyPanel(props: { containerId: string; projectId: string; editable: boolean }) {
+  const toast = useToast();
   const { containerId, projectId, editable } = props;
   const [facets, setFacets] = useState<
     Array<{ id: string; key: string; name: string; terms: Array<{ id: string; code: string; label: string }> }>
@@ -84,10 +85,38 @@ export function OntologyPanel(props: { containerId: string; projectId: string; e
 
   async function setClass(facetId: string, termId: string) {
     if (!termId) return;
+    // T-465 — optimistic: the facet shows the chosen term at once and rolls back
+    // on refusal; Undo puts the previous term back (the first term under a facet
+    // cannot be unset — a classification has no delete — and the toast says so)
+    const previous = classFor(facetId);
+    const before = classifications;
+    const facet = facets.find((f) => f.id === facetId);
+    const term = facet?.terms.find((t) => t.id === termId);
+    if (facet && term) {
+      setClassifications((cs) => [
+        ...cs.filter((c) => c.facetId !== facetId),
+        { id: previous?.id ?? `optimistic-${facetId}`, containerId, facetId, termId, proposed: false, setByParticipantId: null, updatedAt: new Date().toISOString(), facetKey: facet.key, termCode: term.code, termLabel: term.label },
+      ]);
+    }
     setBusy(true);
     try {
       await api.setClassification(containerId, facetId, termId);
       await reload();
+      toast(
+        previous
+          ? {
+              text: `${facet?.name ?? 'Classification'}: ${term?.label ?? termId}.`,
+              tone: 'success',
+              undo: async () => {
+                await api.setClassification(containerId, facetId, previous.termId);
+                await reload();
+              },
+            }
+          : { text: `${facet?.name ?? 'Classification'}: ${term?.label ?? termId} — the first term under a facet cannot be unset, only changed.`, tone: 'success' },
+      );
+    } catch {
+      setClassifications(before);
+      setError('That classification was refused.');
     } finally {
       setBusy(false);
     }

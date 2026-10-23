@@ -1,6 +1,7 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  ListContainerStateChangesResponse,
   AiFeatureKey,
   AiTransparencyResponse,
   SetAiFeatureBody,
@@ -438,6 +439,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
+  // T-465 — the document's own record of state changes
+  containerStateChanges: (containerId: string) =>
+    request<ListContainerStateChangesResponse>(`/containers/${containerId}/state-changes`),
   restoreDeliverable: (containerId: string) =>
     request<PlanRow>(`/containers/${containerId}/restoration`, { method: 'POST' }),
   // T-389 — the owner's answer to a producing organisation's proposed

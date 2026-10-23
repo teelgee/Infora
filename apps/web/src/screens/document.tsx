@@ -24,6 +24,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
+  ContainerStateChange,
   ExternalIssue,
   GetVersionResponse,
   MeResponse,
@@ -71,6 +72,7 @@ export function DocumentScreen() {
   const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
   const [transmittals, setTransmittals] = useState<TransmittalHistoryRow[]>([]);
   const [externalIssues, setExternalIssues] = useState<ExternalIssue[]>([]);
+  const [stateChanges, setStateChanges] = useState<ContainerStateChange[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -80,13 +82,15 @@ export function DocumentScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs, history, issues, rosterRead] = await Promise.all([
+      const [plan, cycleRead, docs, history, issues, rosterRead, changes] = await Promise.all([
         api.plan(projectId),
         api.cycle(containerId).catch(() => null),
         api.sandboxDocuments(projectId).catch(() => ({ items: [] as SandboxDocument[] })),
         api.containerTransmittals(containerId).catch(() => ({ items: [] as TransmittalHistoryRow[] })),
         api.containerExternalIssues(containerId).catch(() => ({ items: [] as ExternalIssue[] })),
         api.participants(projectId).catch(() => ({ items: [] as RosterEntry[] })),
+        // T-465 — the document's own record of state changes
+        api.containerStateChanges(containerId).catch(() => ({ items: [] as ContainerStateChange[] })),
       ]);
       const planRow =
         (plan.items.find((r) => r.containerId === containerId) ?? null) ||
@@ -96,6 +100,7 @@ export function DocumentScreen() {
       setDraft(docs.items.find((d) => d.containerId === containerId || d.freezeContainerId === containerId) ?? null);
       setTransmittals(history.items);
       setExternalIssues(issues.items);
+      setStateChanges(changes.items);
       setRoster(rosterRead.items.filter((r) => r.removedAt === null));
       setLoaded(true);
       const wanted = new Set<string>(cycleRead?.rounds.map((r) => r.versionId) ?? []);
@@ -317,7 +322,7 @@ export function DocumentScreen() {
       )}
 
       {tab === 'activity' && (
-        <ActivityTab row={row} cycle={cycle} versions={versions} transmittals={transmittals} externalIssues={externalIssues} />
+        <ActivityTab row={row} cycle={cycle} versions={versions} transmittals={transmittals} externalIssues={externalIssues} stateChanges={stateChanges} />
       )}
     </div>
   );
@@ -492,6 +497,7 @@ function TransmittalsTab(props: { transmittals: TransmittalHistoryRow[]; externa
  * organisation's own record and lives on the History screen (ADR-0039 §4).
  */
 function ActivityTab(props: {
+  stateChanges: ContainerStateChange[];
   row: PlanRow;
   cycle: ReviewCycle | null;
   versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
@@ -534,12 +540,21 @@ function ActivityTab(props: {
     events.push({ at: i.createdAt, what: `External issue to ${i.recipientName} — ${i.state}`, who: i.requestedBy.name });
     if (i.openedAt) events.push({ at: i.openedAt, what: `${i.recipientName} opened the link` });
   }
-  if (props.row.withdrawnReason && props.row.withdrawnBy) {
-    events.push({
-      at: '', // the withdrawal carries its reason and its author; the record does not expose the time on this read
-      what: `${props.row.inLibrary ? 'Withdrawn from the library' : 'Removed from the plan'} — ${props.row.withdrawnReason}`,
-      who: props.row.withdrawnBy.name,
-    });
+  // T-465 — the record of state changes, dated; a proposed withdrawal (state
+  // untouched) still reads off the row until the owner answers
+  for (const ch of props.stateChanges) {
+    const what =
+      ch.toState === 'withdrawn'
+        ? `${props.row.inLibrary ? 'Withdrawn from the library' : 'Removed from the plan'}${ch.reason ? ` — ${ch.reason}` : ''}`
+        : ch.toState === 'superseded'
+          ? `Superseded${ch.reason ? ` — ${ch.reason}` : ''}`
+          : ch.fromState === 'withdrawn'
+            ? `Restored to the ${props.row.inLibrary ? 'library' : 'plan'}`
+            : `Back to live${ch.reason ? ` — ${ch.reason}` : ''}`;
+    events.push({ at: ch.changedAt, what, who: ch.changedBy.name });
+  }
+  if (props.row.withdrawnReason && props.row.withdrawnBy && props.row.state === 'live') {
+    events.push({ at: '', what: `Withdrawal proposed — ${props.row.withdrawnReason}`, who: props.row.withdrawnBy.name });
   }
   events.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
   if (events.length === 0) {

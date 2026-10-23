@@ -335,6 +335,32 @@ sign-in opened which file for editing. Expired rows are swept on the next
 mint, dead sessions' rows at sign-out and sweep — the table holds only live
 or not-yet-swept passes.
 
+**Drawn 2026-10-23 — the record-state change record (T-465).** *Plainly: every
+time a document's record state changes — withdrawn, restored, superseded, back
+to live — one line is kept saying what it was, what it became, who did it, when
+and why. Nothing is edited or deleted. That is what makes "Undo" safe to offer
+on a withdrawal: the accident and its undoing both stay on the record.* Until
+now a restoration cleared the withdrawal's reason and author off the container,
+so the record could not say a withdrawal had ever happened.
+
+`container_state_changes` — `id`; `container_id` (FK `containers`, cascade);
+`project_id` (FK `projects`, cascade); `from_state`, `to_state` (the
+`container_state` enum: live · superseded · withdrawn · rejected); `reason`
+(text, nullable — withdrawal carries one, restoration does not);
+`changed_by_participant_id` (FK `participants` — **a named person**, registered
+in [personal-data.md](../architecture/personal-data.md)); `changed_at`.
+**Append-only by trigger** (T-008's pattern). Index on (`container_id`,
+`changed_at`). Written by every route that changes record state: withdrawal
+and the owner's acceptance of a proposed withdrawal, restoration, a confirmed
+`supersedes` edge and the retirement that returns a container to live, and the
+bulk supersession. Read on the document page's Activity tab through the same
+visibility the plan row has.
+
+*Built the same day (migration 0074); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is
+the authority on its shape.*
+
 **Drawn 2026-10-23 — a title for reference material (T-462).** *Plainly: a
 document the owner loaded as reference material — a consultee letter, a
 standard, a survey from a previous job — has had a code and no name, so the

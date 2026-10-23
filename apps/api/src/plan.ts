@@ -25,6 +25,7 @@ import {
   withdrawContainerBody,
 } from '@infora/contracts';
 import type {
+  ListContainerStateChangesResponse,
   ApiError,
   AppointmentGrant,
   DeliverableShare,
@@ -50,6 +51,7 @@ import { composeReference, loadSchemeOrDefault, templateFields } from './naming'
 import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
 import { searchPlanContainerIds } from '@infora/knowledge';
+import { listStateChanges, recordStateChange } from './state-changes';
 import type { Router } from '@infora/model';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -733,6 +735,13 @@ export function containerRoutes(deps: { db: Db }) {
   // scope='library'). planVisible admits a sandbox-scope container to its
   // producing organisation ONLY — the wall is untouched; the owner never
   // reaches an org's internal QA machinery (ADR-0032).
+  // T-465 — the document's own record of state changes, through the plan row's visibility
+  app.get('/containers/:containerId/state-changes', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    return c.json({ items: await listStateChanges(deps.db, scopedCtx.container.id) } satisfies ListContainerStateChangesResponse);
+  });
+
   app.get('/containers/:containerId/qa-row', async (c) => {
     const scopedCtx = await scoped(c, c.req.param('containerId'));
     if (!scopedCtx) return notFound(c);
@@ -906,6 +915,8 @@ export function containerRoutes(deps: { db: Db }) {
         .update(s.workItems)
         .set({ status: 'withdrawn' })
         .where(eq(s.workItems.containerId, container.id));
+      // T-465 — the record keeps the act, so undoing it later keeps both
+      await recordStateChange(deps.db, { containerId: container.id, projectId: container.projectId, from: container.state, to: 'withdrawn', reason: body.data.reason, participantId: slice.participantId });
     }
     const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
@@ -951,6 +962,8 @@ export function containerRoutes(deps: { db: Db }) {
         .update(s.workItems)
         .set({ status: 'withdrawn' })
         .where(eq(s.workItems.containerId, container.id));
+      // T-465 — the owner's acceptance is the act that changes state; the reason is the producer's
+      await recordStateChange(deps.db, { containerId: container.id, projectId: container.projectId, from: 'live', to: 'withdrawn', reason: container.withdrawnReason, participantId: slice.participantId });
     }
     const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
@@ -992,6 +1005,8 @@ export function containerRoutes(deps: { db: Db }) {
     // superseded container is superseded by a confirmed edge, so the way back is
     // retiring that edge (T-386), and a rejected one is a closed cycle's record.
     if (container.state !== 'withdrawn') return conflict(c, 'not_withdrawn');
+    // T-465 — restoration is an act of its own on the record, not an erasure of the withdrawal
+    await recordStateChange(deps.db, { containerId: container.id, projectId: container.projectId, from: 'withdrawn', to: 'live', participantId: slice.participantId });
     const [updated] = await deps.db
       .update(s.containers)
       // T-384 — the actor clears with the reason: a live row carrying the name

@@ -192,6 +192,19 @@
         </tbody></table>
       </article>
       <article class="card d2">
+        <h3>container_state_changes <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">from_state</td><td class="type">container_state</td><td class="notes"></td></tr>
+          <tr><td class="col">to_state</td><td class="type">container_state</td><td class="notes"></td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">changed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">changed_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
         <h3>containers</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

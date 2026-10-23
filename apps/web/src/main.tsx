@@ -1,4 +1,5 @@
 import { StrictMode } from 'react';
+import { ToastProvider } from '@infora/ui';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router';
 import '@infora/ui/styles.css';
@@ -121,6 +122,8 @@ const isExternal = window.location.pathname.startsWith(externalPath);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    {/* T-465 — one toast host for the whole app */}
+    <ToastProvider>
     {isExternal ? (
       <RouterProvider router={router} />
     ) : (
@@ -128,5 +131,6 @@ createRoot(document.getElementById('root')!).render(
         <RouterProvider router={router} />
       </SessionGate>
     )}
+    </ToastProvider>
   </StrictMode>,
 );
