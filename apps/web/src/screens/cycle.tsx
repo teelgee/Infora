@@ -26,7 +26,7 @@ import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
 import { PromotionWindow } from '../promotion-window';
-import { formatDateTime, statusBadge } from './shared';
+import { formatDateTime, lifecycleBadgeOf, statusBadge } from './shared';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
 // chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
@@ -146,7 +146,7 @@ export function CycleScreen() {
           : leadGrant.acceptedAt === null
             ? 'The lead reviewer has not accepted the appointment yet'
             : undefined;
-  const status = statusBadge(row.workItem?.status ?? row.state);
+  const status = lifecycleBadgeOf(row);
 
   async function act(action: () => Promise<unknown>) {
     setNotice(null);

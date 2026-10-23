@@ -26,7 +26,7 @@ import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { CycleStatusBar } from '../cycle-status-bar';
 import { useMe } from '../session';
-import { contextStateBadge, formatDate, initialsOf, statusBadge } from './shared';
+import { contextStateBadge, formatDate, initialsOf, lifecycleBadgeOf, statusBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -168,7 +168,7 @@ export function DeliverableStatusScreen() {
   const isProducerSide = row.producingOrganisationId === account.organisationId;
   const canManageReviewers = isOwner || myLeadReviewer || (isInternalQa && isProducerSide);
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
-  const status = statusBadge(row.workItem?.status ?? row.state);
+  const status = lifecycleBadgeOf(row);
   const containerState = statusBadge(row.state);
   const contextBadge = contextStateBadge(row.contextState);
   const liveAuthors = row.authors.filter((g) => g.revokedAt === null);

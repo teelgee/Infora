@@ -2118,7 +2118,10 @@ export function defaultDeliverableSchema(): { separator: string; fields: NamingS
       // Metadata attributes — carried on the deliverable, never in the code
       {
         key: 'suitability',
-        label: 'Suitability code',
+        // T-455 — the term is "status code" (ADR-0041's 2026-08-27 amendment,
+        // CONTEXT.md); the key stays, because it is stored on every project's
+        // copied schema and a key is not a label
+        label: 'Status code',
         type: 'select',
         inCode: false,
         ...opts([

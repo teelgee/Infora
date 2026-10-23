@@ -68,7 +68,7 @@ import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
 import { PromotionWindow } from '../promotion-window';
 import { useMe } from '../session';
-import { formatDate } from './shared';
+import { formatDate, sandboxLifecycleBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -1471,12 +1471,10 @@ export function SandboxScreen() {
             >
               {displayTitle}
             </button>
-            {doc.workingRevision && (
-              <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
-                {doc.workingRevision}
-              </span>
-            )}
-            {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
+            <span style={{ marginLeft: 8 }}>
+              {/* T-455 — the lifecycle badge: Working v0.x, or Frozen v0.x once checked out */}
+              <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
+            </span>
             <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
               {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
             </span>
@@ -2040,7 +2038,9 @@ export function SandboxScreen() {
                           {/* T-366 — a bound doc reads its row's title through */}
                           {row?.workItem?.title ?? doc.title}
                         </button>
-                        {doc.headLocked && <Lock size={12} strokeWidth={2} style={{ marginLeft: 6, verticalAlign: -1 }} />}
+                        <span style={{ marginLeft: 8 }}>
+                          <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
+                        </span>
                         <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
                           {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
                         </span>

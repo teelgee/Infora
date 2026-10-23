@@ -1464,3 +1464,15 @@ are not recorded here.
   that the sandbox does not depend on the engine: a server with none still
   mints a pass, and the pane says, in words, that editing is not set up.
 
+- **2026-10-23 (T-455) — the default deliverable schema's `suitability` field is
+  labelled "Status code".** *Plainly: the word on the plan and the library now
+  matches the word the record ruled.* ADR-0041's 2026-08-27 amendment settled
+  that the term is *status code*, not *suitability* (the older BS 1192 word),
+  and `CONTEXT.md` carries it; the seeded default still printed the old word on
+  every new project. The **reason the key stays `suitability`** is that a
+  project copies the default schema at creation (ADR-0003's seed-by-copy), so
+  the key is stored on every existing project's own copy and read by the
+  promotion window and the library row; a label is display text and a key is
+  storage, and renaming storage to fix a label would be a migration to fix a
+  word. Projects created before this note keep their copied label until their
+  owner changes it on the scheme screen.

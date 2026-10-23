@@ -27,7 +27,7 @@ import {
 } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
-import { contextStateBadge, formatDate } from './shared';
+import { contextStateBadge, formatDate, libraryLifecycleBadge } from './shared';
 
 // the coded reference is the primary identifier — prominent monospace, not the
 // muted 12px .mono treatment used for incidental codes
@@ -124,7 +124,7 @@ function DocumentModal(props: { item: LibraryItem; onClose: () => void }) {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
           <span style={refStyle}>{item.documentReference}</span>
           <span className="mono">{item.revision}</span>
-          <Badge tone="success">Live</Badge>
+          <Badge tone={libraryLifecycleBadge(item).tone}>{libraryLifecycleBadge(item).label}</Badge>
         </span>
       }
       footer={
@@ -837,7 +837,8 @@ export function LibraryScreen() {
               <th>Reference</th>
               <th>Title</th>
               <th>Revision</th>
-              <th>Suitability</th>
+              <th>State</th>
+              <th>Status code</th>
               <th>Discipline</th>
               <th>Producer</th>
               <th>Issued</th>
@@ -897,7 +898,10 @@ export function LibraryScreen() {
                     </div>
                   )}
                 </td>
-                <td><span className="mono">{item.revision}</span></td>
+                <td>
+                  {/* T-455 — the lifecycle badge, the same words as the plan and the review screens */}
+                  <Badge tone={libraryLifecycleBadge(item).tone}>{libraryLifecycleBadge(item).label}</Badge>
+                </td>
                 <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td>{item.discipline ? <span className="mono">{item.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                 <td>{item.producerName}</td>

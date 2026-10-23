@@ -43,5 +43,8 @@ export { CompletionFooter, formatStepCost } from './completion-footer';
 export { AgentReceipt } from './agent-receipt';
 export { Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
+// T-455 — the lifecycle vocabulary: one label table for where a document is
+export { LIFECYCLE_LABELS, LifecycleBadge, lifecycleBadge } from './lifecycle';
+export type { LifecyclePosition } from './lifecycle';
 export { ChatBubble, ChatComposer } from './chat-composer';
 export type { ChatComposerHandle } from './chat-composer';

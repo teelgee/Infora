@@ -21,7 +21,7 @@ import { useNavigate, useOutletContext } from 'react-router';
 import type { MeResponse, PlanRow } from '@infora/contracts';
 import { Badge, Button, SectionLabel, Table } from '@infora/ui';
 import { api } from '../api';
-import { statusBadge } from './shared';
+import { lifecycleBadgeOf } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -86,7 +86,7 @@ export function ReviewScreen() {
           </thead>
           <tbody>
             {(rows ?? []).map((row) => {
-              const status = statusBadge(row.workItem?.status ?? row.state);
+              const status = lifecycleBadgeOf(row);
               const proposed = row.reviewers.filter(
                 (g) => g.revokedAt === null && g.confirmedAt === null,
               );

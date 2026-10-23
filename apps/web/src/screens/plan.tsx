@@ -21,12 +21,11 @@ import type {
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
 import { Columns3, FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
-import type { BadgeTone } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
-import { contextStateBadge, formatDate, statusBadge } from './shared';
+import { contextStateBadge, formatDate, lifecycleBadgeOf } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -38,9 +37,6 @@ const liveNames = (
     .filter((g) => g.revokedAt === null)
     .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}${g.confirmedAt === null ? ' · proposed' : ''}`)
     .join(', ') || '—';
-
-const stateTone = (state: PlanRow['state']): BadgeTone =>
-  state === 'live' ? 'success' : state === 'rejected' ? 'danger' : 'neutral';
 
 function previewReference(scheme: NamingScheme, values: Record<string, string>): string {
   // only the code fields compose the reference (T-188)
@@ -331,13 +327,9 @@ function DeliverableDetail(props: {
   // own plan (T-189), after it is the owner stopping a published deliverable
   // being relied on. Calling both "removed from the plan" asserted the wrong
   // one half the time, and the two have different authors and different undos.
-  const st = isWithdrawn
-    ? row.inLibrary
-      ? { tone: 'neutral' as const, label: 'Withdrawn from the library' }
-      : { tone: 'neutral' as const, label: 'Removed from plan' }
-    : row.workItem
-      ? statusBadge(row.workItem.status)
-      : { tone: stateTone(row.state), label: row.state.replace(/^./, (c) => c.toUpperCase()) };
+  // T-455 — one lifecycle vocabulary: the same words this row shows in the
+  // table, the library and the review screens
+  const st = lifecycleBadgeOf(row);
   const contextBadge = contextStateBadge(row.contextState);
 
   // producing-org participants for the document-owner picker
@@ -1007,9 +999,7 @@ export function PlanScreen() {
                 {isOwner && <td style={{ color: 'var(--text-muted)' }}>{r.producingOrganisationName}</td>}
                 <td>
                   {(() => {
-                    const st = r.workItem
-                      ? statusBadge(r.workItem.status)
-                      : { tone: stateTone(r.state), label: r.state.replace(/^./, (ch) => ch.toUpperCase()) };
+                    const st = lifecycleBadgeOf(r);
                     return <Badge tone={st.tone}>{st.label}</Badge>;
                   })()}
                 </td>

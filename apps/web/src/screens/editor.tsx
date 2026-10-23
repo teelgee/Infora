@@ -59,7 +59,7 @@ import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
 import { PromotionWindow } from '../promotion-window';
 import { SourceModal } from '../source-modal';
-import { formatDate, formatDateTime } from './shared';
+import { formatDate, formatDateTime, sandboxLifecycleBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -644,9 +644,11 @@ export function EditorScreen() {
         </span>
         <div className="right">
           {documentId !== undefined && <Presence documentId={documentId} />}
+          {/* T-455 — the lifecycle badge, the same words as the sandbox row */}
+          <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
           {doc.headLocked && (
             <>
-              <Badge tone="warning">Checked out — frozen, read-only</Badge>
+              <Badge tone="neutral">Checked out — read-only until released</Badge>
               <span title="Release the check-out — hands the pen back and unlocks the head (ADR-0032)">
                 <Button
                   size="sm"
