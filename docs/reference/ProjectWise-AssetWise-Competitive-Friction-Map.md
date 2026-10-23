@@ -1,5 +1,7 @@
 # Competitive Friction Map: Building an AI-Native DMS to Beat ProjectWise & AssetWise (ALIM)
 
+> **Superseded as the DMS benchmark on 2026-10-23** by [dms-context-landscape.md](dms-context-landscape.md), which covers ProjectWise again beside seven other CDEs and three further families. This file is kept for its Part 1 keep-list and its TYLin deployment-site evidence, which the landscape does not repeat. Context, never authority.
+
 *Founder strategy brief — synthesized from Bentley's official documentation and TYLin's real-world ProjectWise deployment site.*
 
 ---
