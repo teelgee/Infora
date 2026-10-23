@@ -12,6 +12,7 @@ import { HistoryScreen } from './screens/history';
 import { KnowledgeScreen } from './screens/knowledge';
 import { NewStyleGuideScreen, StyleGuideScreen } from './screens/style-guide';
 import { LibraryScreen } from './screens/library';
+import { DocumentScreen } from './screens/document';
 import { ProjectHome, ProjectShell } from './screens/project';
 import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
 import { NotificationsScreen } from './screens/notifications';
@@ -49,6 +50,9 @@ const router = createBrowserRouter([
       { path: 'plan', element: <PlanScreen /> },
       { path: 'plan/scheme', element: <SchemaScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
+      // T-457 — the document page: one page per container, where every row,
+      // chip and link about a deliverable lands
+      { path: 'documents/:containerId', element: <DocumentScreen /> },
       { path: 'notifications', element: <NotificationsScreen /> },
       { path: 'review', element: <ReviewScreen /> },
       // T-348 — the schedule click-through lands on the status page; the

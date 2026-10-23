@@ -551,6 +551,8 @@ export type ContextState = { grounds: boolean; reason: string | null };
 // to badge. Never grounding: retrieval's pre-filters are untouched.
 export type GetVersionResponse = {
   versionId: Id;
+  // T-457 — the container, so a citation's source view can open the document page
+  containerId: Id;
   documentReference: string;
   versionReference: string;
   content: string;

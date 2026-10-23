@@ -232,7 +232,15 @@ export function DeliverableStatusScreen() {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
-            {row.documentReference ?? 'Internal QA'}
+            {row.documentReference ?? 'Internal QA'}{' '}
+            {/* T-457 — the record lives on the document page; this screen is the review */}
+            <button
+              className="linklike"
+              style={{ fontFamily: 'var(--primitive-font-family-sans, inherit)', fontSize: 12.5, fontWeight: 400, marginLeft: 8 }}
+              onClick={() => void navigate(`/projects/${me.projectId}/documents/${containerId}`)}
+            >
+              Document page
+            </button>
           </h1>
           <p className="page-sub" style={{ margin: 0 }}>
             {row.documentReference === null
@@ -783,7 +791,7 @@ function StatusCard(props: { label?: string; children: ReactNode }) {
   );
 }
 
-function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
+export function TransmittalRow({ row }: { row: TransmittalHistoryRow }) {
   const kindLabel =
     row.kind === 'review'
       ? row.direction === 'return'

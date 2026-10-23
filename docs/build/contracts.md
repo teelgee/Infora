@@ -1489,3 +1489,11 @@ are not recorded here.
   rides `sharedWith` because the revoke route is keyed on it and a second read
   to find it would be the kind of round trip principle 2 refuses; only an owner
   reader ever receives the list, as before.
+
+- **2026-10-23 (T-457) — `GetVersionResponse.containerId`.** *Plainly: a cited
+  version now says which document it belongs to, so the source view can open
+  that document's page.* The read already joined the container to report its
+  state; the id rode in the join and not on the wire. The **reason it is a
+  field rather than a second read** is that the source panel is opened from a
+  citation chip, and a chip that needed a round trip to find its own document
+  would be the kind of lookup the typed client exists to avoid (principle 2).

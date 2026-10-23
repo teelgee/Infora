@@ -152,7 +152,8 @@ test('7 — the classification renders on the plan surface', async ({ page }) =>
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Plan/ }).click();
   await page.getByRole('row').filter({ hasText: myRef }).click();
-  // the row-detail modal carries the ontology panel
+  // T-457 — the row lands on the document page; its Relationships tab carries the ontology panel
+  await page.getByRole('radiogroup', { name: 'Document page sections' }).getByRole('radio', { name: 'Relationships' }).click();
   await expect(page.getByText('Classification', { exact: true })).toBeVisible();
-  await expect(page.getByText('Relationships', { exact: true })).toBeVisible();
+  await expect(page.getByText('Propose a relationship', { exact: false })).toBeVisible();
 });

@@ -1007,6 +1007,9 @@ export const api = {
   // T-432 — the request queue and its answer. One endpoint issues or requests
   // depending on the project's setting, so `issueExternally` above is both acts
   // and the response's `state` says which happened.
+  // T-457 — the document page's Transmittals tab lists a deliverable's own issues
+  containerExternalIssues: (containerId: string) =>
+    request<ListExternalIssuesResponse>(`/containers/${containerId}/external-issues`),
   projectExternalIssues: (projectId: string) =>
     request<ListExternalIssuesResponse>(`/projects/${projectId}/external-issues`),
   answerExternalRequest: (id: string, body: AnswerExternalRequestBody) =>

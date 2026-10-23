@@ -97,7 +97,17 @@ export function ReviewScreen() {
                   onClick={() => void navigate(`/projects/${participant.projectId}/review/${row.containerId}`)}
                 >
                   <td style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>
-                    {row.documentReference}
+                    {/* T-457 — the reference is the door to the document page; the row stays the door to the review */}
+                    <button
+                      className="linklike"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void navigate(`/projects/${participant.projectId}/documents/${row.containerId}`);
+                      }}
+                      title="Open the document page"
+                    >
+                      {row.documentReference}
+                    </button>
                   </td>
                   <td>
                     <div className="title">{row.workItem?.title ?? '(reference material)'}</div>

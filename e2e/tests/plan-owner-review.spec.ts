@@ -38,6 +38,8 @@ test('the owner confirms a proposed reviewer on the deliverable card, and promot
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Plan/ }).click();
   await page.getByRole('row').filter({ hasText: `T193-${stamp}` }).click();
+  // T-457 — the row lands on the document page; the card is one click further
+  await page.getByRole('button', { name: 'Edit details…' }).click();
   await expect(page.getByText('Rachel Bowen · proposed')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(page.getByText('Rachel Bowen · proposed')).toHaveCount(0); // now confirmed

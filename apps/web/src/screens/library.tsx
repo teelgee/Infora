@@ -3,17 +3,16 @@
 // its transmittal is acknowledged) and the owner's transmit action. The main
 // list is the API's access-resolved slice: exactly what grounding admits.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router';
+import { useOutletContext, useNavigate } from 'react-router';
 import type {
   ExternalIssue,
   ExternalIssueSettings,
   LibraryItem,
   MeResponse,
   PendingTransmittal,
-  Rendition,
   RosterEntry,
 } from '@infora/contracts';
-import { BookOpen, Download, FileText, Inbox, Send, Share2 } from 'lucide-react';
+import { BookOpen, FileText, Inbox, Send, Share2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -36,7 +35,6 @@ const refStyle = {
   fontSize: 13,
   color: 'var(--text-primary)',
 } as const;
-const linkStyle = { fontSize: 13, color: 'var(--text-secondary)', alignSelf: 'center' } as const;
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -82,99 +80,8 @@ function TransmitModal(props: {
   );
 }
 
-// Opening a published deliverable shows the actual document — the PDF rendition
-// inline, the native file to download — not the raw source text. Both the owner
-// and the producer see the same file (the /renditions/:id/file endpoint is
-// access-resolved like the list). Seeded/legacy rows without renditions fall
-// back to their source text so nothing is a dead click.
-function DocumentModal(props: { item: LibraryItem; onClose: () => void }) {
-  const { item } = props;
-  const [renditions, setRenditions] = useState<Rendition[] | null>(null);
-  const [content, setContent] = useState<string | null>(null);
-
-  useEffect(() => {
-    setRenditions(null);
-    setContent(null);
-    void api.renditions(item.currentVersionId).then(
-      (r) => setRenditions(r.items),
-      () => setRenditions([]),
-    );
-  }, [item.currentVersionId]);
-
-  const noRenditions = renditions !== null && renditions.length === 0;
-  useEffect(() => {
-    if (noRenditions && content === null) {
-      void api.version(item.currentVersionId).then(
-        (v) => setContent(v.content),
-        () => setContent(''),
-      );
-    }
-  }, [noRenditions, content, item.currentVersionId]);
-
-  const pdf = renditions?.find((r) => r.kind === 'pdf') ?? null;
-  const native = renditions?.find((r) => r.kind === 'native') ?? null;
-  const fileUrl = (id: string) => `/renditions/${id}/file`;
-
-  return (
-    <Modal
-      open
-      onClose={props.onClose}
-      size="lg"
-      title={
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <span style={refStyle}>{item.documentReference}</span>
-          <span className="mono">{item.revision}</span>
-          <Badge tone={libraryLifecycleBadge(item).tone}>{libraryLifecycleBadge(item).label}</Badge>
-        </span>
-      }
-      footer={
-        <>
-          {native && (
-            <a href={fileUrl(native.id)} style={linkStyle}>
-              <Download size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
-              Download native .{native.format}
-            </a>
-          )}
-          {pdf && (
-            <a href={fileUrl(pdf.id)} target="_blank" rel="noreferrer" style={linkStyle}>
-              <Download size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
-              PDF in new tab
-            </a>
-          )}
-          <span style={{ flex: 1 }} />
-          <Button variant="quiet" onClick={props.onClose}>Close</Button>
-        </>
-      }
-    >
-      {renditions === null ? (
-        <span style={{ color: 'var(--text-muted)' }}>Loading…</span>
-      ) : pdf ? (
-        <object
-          data={fileUrl(pdf.id)}
-          type="application/pdf"
-          style={{ width: '100%', height: '64vh', border: '1px solid var(--border-default)', borderRadius: 6 }}
-        >
-          <p style={{ color: 'var(--text-muted)' }}>
-            Your browser can’t preview the PDF — <a href={fileUrl(pdf.id)}>download it</a>.
-          </p>
-        </object>
-      ) : native ? (
-        <p style={{ color: 'var(--text-secondary)' }}>
-          The native file <span className="mono">.{native.format}</span> is ready — download it below.
-        </p>
-      ) : (
-        <div>
-          <p className="field-hint" style={{ marginTop: 0 }}>
-            No rendered file for this document — showing its source text.
-          </p>
-          <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)', fontSize: 13.5, lineHeight: 1.6 }}>
-            {content ?? 'Loading…'}
-          </div>
-        </div>
-      )}
-    </Modal>
-  );
-}
+// T-457 — the document modal that opened here retired: a row lands on the
+// document page, whose Versions tab shows the same rendition inline.
 
 // T-431 — ISSUING OUTSIDE THE PROJECT (ADR-0055). The door is here, on the
 // deliverable, and not in a tool: issuing a document is something you do to a
@@ -492,13 +399,13 @@ function SupersedeModal(props: {
 export function LibraryScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
+  const navigate = useNavigate();
   const isOwner = participant.membershipRole === 'owner';
   const me = useMe();
   const [items, setItems] = useState<LibraryItem[] | null>(null);
   const [pending, setPending] = useState<PendingTransmittal[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
-  const [openItem, setOpenItem] = useState<LibraryItem | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // T-389 — the two lifecycle acts, each open on at most one row at a time
   const [endingItem, setEndingItem] = useState<LibraryItem | null>(null);
@@ -697,7 +604,6 @@ export function LibraryScreen() {
         under a code this project does not rely on stays here, badged, and out of reach.
       </p>
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
-      {openItem && <DocumentModal item={openItem} onClose={() => setOpenItem(null)} />}
       {endingItem && (
         <EndDeliverableModal
           item={endingItem}
@@ -849,9 +755,9 @@ export function LibraryScreen() {
             {(deliverables ?? []).map((item) => (
               <tr
                 key={item.containerId}
-                onClick={() => setOpenItem(item)}
+                onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}
                 style={{ cursor: 'pointer' }}
-                title="Open the current revision"
+                title="Open the document page"
               >
                 <td>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -908,7 +814,7 @@ export function LibraryScreen() {
                 <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
                 <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                   <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <Button size="sm" variant="quiet" onClick={() => setOpenItem(item)}>
+                    <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}>
                       Open
                     </Button>
                     {isOwner && (
@@ -989,9 +895,9 @@ export function LibraryScreen() {
                 {reference.map((item) => (
                   <tr
                     key={item.containerId}
-                    onClick={() => setOpenItem(item)}
+                    onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}
                     style={{ cursor: 'pointer' }}
-                    title="Open this document"
+                    title="Open the document page"
                   >
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -1008,7 +914,7 @@ export function LibraryScreen() {
                     <td>{item.producerName}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
                     <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="quiet" onClick={() => setOpenItem(item)}>
+                      <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}>
                         Open
                       </Button>
                     </td>

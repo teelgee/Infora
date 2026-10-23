@@ -104,11 +104,6 @@ export function ReviewRecordScreen() {
   const answered = visible.filter((c) => c.response !== null).length;
   const issuedRounds = rounds.filter((r) => r.state === 'issued' || r.state === 'responded').length;
   const authoringSide = rounds.some((r) => r.commentsWithheld);
-  // a response's change pointer resolves to the revision it landed in — the
-  // version id is stamped by the promotion that creates it (T-354), so this is
-  // a fact rather than a guess
-  const versionRefById = Object.fromEntries(rounds.map((r) => [r.versionId, r.versionReference]));
-
   return (
     <div className="content">
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
@@ -166,34 +161,44 @@ export function ReviewRecordScreen() {
         </p>
       )}
 
-      {rounds.length > 0 && (
-        <Table>
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 52 }}>#</th>
-                <th style={{ width: '18%' }}>Where</th>
-                <th>Comment</th>
-                <th style={{ width: 56 }}>Code</th>
-                <th style={{ width: '30%' }}>Response</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rounds.map((round, i) => (
-                <RoundBand
-                  key={round.id}
-                  round={round}
-                  versionRefById={versionRefById}
-                  hasIssuedRoundAbove={rounds
-                    .slice(0, i)
-                    .some((r) => r.state === 'issued' || r.state === 'responded')}
-                />
-              ))}
-            </tbody>
-          </table>
-        </Table>
-      )}
+      {rounds.length > 0 && <ReviewRecordTable rounds={rounds} />}
     </div>
+  );
+}
+
+/**
+ * T-457 — the record's table on its own, so the document page can carry it
+ * as a tab while this screen stays the place you can send someone.
+ */
+export function ReviewRecordTable(props: { rounds: Round[] }) {
+  const rounds = [...props.rounds].sort((a, b) => a.number - b.number);
+  const versionRefById = Object.fromEntries(rounds.map((r) => [r.versionId, r.versionReference]));
+  return (
+    <Table>
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: 52 }}>#</th>
+            <th style={{ width: '18%' }}>Where</th>
+            <th>Comment</th>
+            <th style={{ width: 56 }}>Code</th>
+            <th style={{ width: '30%' }}>Response</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rounds.map((round, i) => (
+            <RoundBand
+              key={round.id}
+              round={round}
+              versionRefById={versionRefById}
+              hasIssuedRoundAbove={rounds
+                .slice(0, i)
+                .some((r) => r.state === 'issued' || r.state === 'responded')}
+            />
+          ))}
+        </tbody>
+      </table>
+    </Table>
   );
 }
 

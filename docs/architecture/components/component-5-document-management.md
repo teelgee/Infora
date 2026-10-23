@@ -59,7 +59,7 @@ The cut is by **domain capability**, the parts as concepts, because that is how 
 **Responsibility.** Be the persistent home of one deliverable; hold its immutable versions and their stored renditions (native — docx/xlsx/pptx, generated for authored documents, the file itself for uploaded ones; and the review-and-record PDF); enforce one in-flight controlled revision at a time; carry canonical content by document origin (authored = Infora structured text, uploaded = the native file, ADR-0034).
 **Governing ADRs.** 0002, 0004, 0034.
 **Terms owned.** Container, Rendition, Formal deliverable, Document origin.
-**Surfaces.** Container / document view.
+**Surfaces.** Container / document view — built as **the document page** (T-457, 2026-10-23): one page per container at `/projects/:id/documents/:containerId` with Overview, Versions, Relationships, Review record, Transmittals and Activity tabs, which every row, chip and link about a deliverable lands on; the plan, the library, the review list, the rail drilldown and a cited version all open it. The review runs on its own screens one click away; the quick edits a plan row carries open from the page until T-458 moves them to the register's side panel.
 **Depends on.** Deliverable plan (a container is a planned row); data and db packages.
 
 ## 3. Promotion and the assurance cycle

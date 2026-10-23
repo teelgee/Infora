@@ -5,12 +5,16 @@
 // stay resolvable after the library moves on. Hover-rendering of the exact
 // retrieved chunk still waits on the chunk-provenance theme (tracker).
 import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 import type { GetVersionResponse } from '@infora/contracts';
 import { Badge, Markdown } from '@infora/ui';
 import { api } from './api';
 
 export function SourcePanel(props: { versionId: string; onClose: () => void }) {
   const [version, setVersion] = useState<GetVersionResponse | null>(null);
+  // T-457 — the source view opens the document page; the project is the route's
+  const { projectId } = useParams();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setVersion(null);
@@ -41,6 +45,15 @@ export function SourcePanel(props: { versionId: string; onClose: () => void }) {
           {version === null ? 'Loading…' : `${version.documentReference} · ${version.versionReference}`}
         </span>
         {state !== null && <Badge tone={state.tone}>{state.label}</Badge>}
+        {version !== null && projectId !== undefined && (
+          <button
+            className="linklike"
+            style={{ marginLeft: 8, fontSize: 12 }}
+            onClick={() => void navigate(`/projects/${projectId}/documents/${version.containerId}`)}
+          >
+            Open the document page
+          </button>
+        )}
         <span className="close" onClick={props.onClose} title="Close">
           ✕
         </span>

@@ -134,7 +134,9 @@ export function ProjectShell() {
         expanded: expanded.documents,
         children: (libraryItems ?? []).map((item) => ({
           label: item.documentReference,
-          onClick: () => setSourceOpen(item.currentVersionId),
+          active: location.pathname === `${base}/documents/${item.containerId}`,
+          // T-457 — the drilldown lands on the document page
+          onClick: () => void navigate(`${base}/documents/${item.containerId}`),
         })),
       };
     }

@@ -148,6 +148,7 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
     const [row] = await deps.db
       .select({
         versionId: s.versions.id,
+        containerId: s.versions.containerId,
         documentReference: s.containers.documentReference,
         versionReference: s.versions.versionReference,
         content: s.versions.content,

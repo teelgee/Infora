@@ -301,7 +301,7 @@ function AppointmentEditor(props: {
   );
 }
 
-function DeliverableDetail(props: {
+export function DeliverableDetail(props: {
   row: PlanRow;
   projectId: string;
   roster: RosterEntry[];
@@ -1056,7 +1056,9 @@ export function PlanScreen() {
             {filtered.map((r) => (
               <tr
                 key={r.containerId}
-                onClick={() => setDetailRow(r)}
+                // T-457 — a row lands on the document page; its quick edits
+                // stay one click away there ("Edit details…")
+                onClick={() => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}
                 style={{ cursor: 'pointer' }}
               >
                 <td>
