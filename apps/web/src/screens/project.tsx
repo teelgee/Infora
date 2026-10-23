@@ -29,7 +29,6 @@ import {
 import type { RailNavItem } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
-import { SourceModal } from '../source-modal';
 import { NeedsYouPanel, useNotifications } from './notifications';
 import { greeting, initialsOf, statusBadge } from './shared';
 
@@ -80,7 +79,6 @@ export function ProjectShell() {
   });
   const [sandboxDocs, setSandboxDocs] = useState<SandboxDocument[] | null>(null);
   const [libraryItems, setLibraryItems] = useState<LibraryItem[] | null>(null);
-  const [sourceOpen, setSourceOpen] = useState<string | null>(null);
   // §6b — the rail's count is the USER'S OWN, across every project they can
   // reach, and deliberately not this project's: the rail sits beneath a project
   // switcher and would otherwise inherit its scope, making a mention on a
@@ -199,9 +197,6 @@ export function ProjectShell() {
 
   return (
     <>
-      {sourceOpen !== null && (
-        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
-      )}
       <AppFrame rail={rail}>
       <div className="main">
         <div className="topbar">

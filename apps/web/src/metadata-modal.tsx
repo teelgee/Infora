@@ -28,26 +28,22 @@ type Pair = {
   optionLabels?: Record<string, string>;
 };
 
-export function MetadataModal(props: {
-  title: string;
-  identity: Array<{ label: string; value: ReactNode }>;
+// T-458 — THE EDITOR, apart from any dialog. The plan's metadata modal is
+// retired: a deliverable's description and authoring metadata are edited in
+// the register's side panel (DeliverableDetail, now the kit's Drawer) and on
+// the document page, and this is the one editor both use. The sandbox keeps
+// its modal for a working document's authoring metadata, over the same editor.
+export function MetadataEditor(props: {
   metadata: Record<string, unknown>;
   suggestedFields?: SuggestedField[];
   editable: boolean;
-  /**
-   * T-405 — WHAT THE DOCUMENT IS, in a sentence or two.
-   *
-   * A real column on the container, not a key in the metadata bag, so it is
-   * passed and saved on its own: it is the sentence the source picker shows to
-   * tell one coded reference from another, and burying it among free-form
-   * key/value pairs would make it as findable as any custom field somebody
-   * invented. Absent for callers that have no description to edit (the sandbox
-   * freeze series has none).
-   */
+  /** T-405 — what the document is; absent when the caller has none to edit */
   description?: string | null;
   onSave: (metadata: Record<string, string>, description?: string | null) => Promise<void>;
-  onClose: () => void;
+  /** the sentence shown once a save lands; the editor itself stays open */
+  savedNote?: string;
 }) {
+
   const initial = useMemo<Pair[]>(() => {
     const suggested = props.suggestedFields ?? [];
     const known = new Set(suggested.map((f) => f.key));
@@ -69,6 +65,7 @@ export function MetadataModal(props: {
   const [pairs, setPairs] = useState<Pair[]>(initial);
   const [description, setDescription] = useState(props.description ?? '');
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const setValue = (i: number, value: string) =>
     setPairs((ps) => ps.map((p, j) => (j === i ? { ...p, value } : p)));
@@ -83,47 +80,16 @@ export function MetadataModal(props: {
     for (const p of pairs) if (p.key.trim() && p.value.trim()) metadata[p.key.trim()] = p.value.trim();
     // an emptied description is CLEARED, not left behind as an empty string —
     // "nobody has written one" is a state the picker renders honestly
-    await props.onSave(
-      metadata,
-      props.description === undefined ? undefined : description.trim() || null,
-    );
+    try {
+      await props.onSave(metadata, props.description === undefined ? undefined : description.trim() || null);
+      setSaved(true);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <Modal
-      open
-      onClose={props.onClose}
-      title={props.title}
-      size="md"
-      footer={
-        props.editable ? (
-          <>
-            <Button variant="quiet" onClick={props.onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" disabled={busy} onClick={() => void save()}>
-              Save metadata
-            </Button>
-          </>
-        ) : (
-          <Button variant="quiet" onClick={props.onClose}>
-            Close
-          </Button>
-        )
-      }
-    >
-      <div>
-        <span className="field-label">Identity — plan-owned, read-only</span>
-        <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
-          {props.identity.map((row) => (
-            <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
-              <span style={{ color: 'var(--text-muted)', minWidth: 110 }}>{row.label}</span>
-              <span>{row.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
+    <>
       {props.description !== undefined && (
         <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
           <span className="field-label">
@@ -191,6 +157,59 @@ export function MetadataModal(props: {
           </div>
         )}
       </div>
+      {props.editable && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+          {saved && <span className="field-hint">{props.savedNote ?? 'Saved.'}</span>}
+          <Button variant="primary" size="sm" disabled={busy} onClick={() => void save()}>
+            Save metadata
+          </Button>
+        </div>
+      )}
+    </>
+  );
+}
+
+export function MetadataModal(props: {
+  title: string;
+  identity: Array<{ label: string; value: ReactNode }>;
+  metadata: Record<string, unknown>;
+  suggestedFields?: SuggestedField[];
+  editable: boolean;
+  description?: string | null;
+  onSave: (metadata: Record<string, string>, description?: string | null) => Promise<void>;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={props.title}
+      size="md"
+      footer={
+        <Button variant="quiet" onClick={props.onClose}>
+          {props.editable ? 'Done' : 'Close'}
+        </Button>
+      }
+    >
+      <div>
+        <span className="field-label">Identity — plan-owned, read-only</span>
+        <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+          {props.identity.map((row) => (
+            <div key={row.label} style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
+              <span style={{ color: 'var(--text-muted)', minWidth: 110 }}>{row.label}</span>
+              <span>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <MetadataEditor
+        metadata={props.metadata}
+        suggestedFields={props.suggestedFields}
+        editable={props.editable}
+        description={props.description}
+        onSave={props.onSave}
+      />
     </Modal>
   );
 }

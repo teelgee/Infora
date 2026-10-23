@@ -169,7 +169,6 @@ export function DeliverableStatusScreen() {
   const canManageReviewers = isOwner || myLeadReviewer || (isInternalQa && isProducerSide);
   const myAuthor = row.authors.find((g) => g.participantId === me.participantId && g.revokedAt === null);
   const status = lifecycleBadgeOf(row);
-  const containerState = statusBadge(row.state);
   const contextBadge = contextStateBadge(row.contextState);
   const liveAuthors = row.authors.filter((g) => g.revokedAt === null);
   const liveReviewers = row.reviewers.filter((g) => g.revokedAt === null);
@@ -659,45 +658,17 @@ export function DeliverableStatusScreen() {
             ))}
         </StatusCard>
 
+        {/* T-458 — the facts card retired: the deliverable's reference, revision,
+            verdict and owner live on its document page, and this screen is the
+            review. What stays is the review's own outcome. */}
         <StatusCard label="Deliverable">
-            <MetaRow k="Reference">
-              <span style={{ fontFamily: 'var(--primitive-font-family-mono)', fontSize: 12 }}>{row.documentReference ?? "Internal QA — no coded reference"}</span>
-            </MetaRow>
-            <MetaRow k="Producing organisation">{row.producingOrganisationName}</MetaRow>
-            <MetaRow k="State">
-              <Badge tone={containerState.tone}>{containerState.label}</Badge>
-            </MetaRow>
-            {row.currentVersion && (
-              <MetaRow k="Current revision">
-                {row.currentVersion.versionReference}
-                {(() => {
-                  // the revision with its context, per the mockup: which round
-                  // holds it, or that it is the accepted contractual issue
-                  const inRound = cycle?.rounds.find((r) => r.versionId === row.currentVersion!.versionId);
-                  // T-392 — an accepted deliverable whose current revision is
-                  // still the ROUND's P revision is the non-contractual case,
-                  // and it must say so: rendering it as "round 2 issued" would
-                  // read as still under review, and saying nothing would let the
-                  // reader assume the C is simply missing.
-                  if (inRound && cycle?.state === 'accepted')
-                    return ` — round ${inRound.number}, retained on acceptance`;
-                  if (inRound) return ` — round ${inRound.number} ${statusBadge(inRound.state).label.toLowerCase()}`;
-                  if (cycle?.state === 'accepted' && row.currentVersion!.versionReference.startsWith('C'))
-                    return ' — issued on acceptance';
-                  return '';
-                })()}
-              </MetaRow>
-            )}
-            {row.deliverableCode && (
-              <MetaRow k="Verdict">{`${row.deliverableCode.code} — ${row.deliverableCode.description}`}</MetaRow>
-            )}
-            {/* T-392 (ADR-0003 as amended, ADR-0041) — an accepting code ends
-                the cycle; only a CONTRACTUAL one issues the C revision, which is
-                the 2021 National Annex's own S4/S5 split. The surface states
-                WHICH of the two happened rather than leaving the reader to infer
-                it from a revision prefix: "accepted" and "contractually issued"
-                are different claims, and only the project's own scheme knows
-                which its codes make. */}
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+              The record — reference, revision, verdict, owner, who can see it — is on the{' '}
+              <button className="linklike" onClick={() => void navigate(`/projects/${me.projectId}/documents/${containerId}`)}>
+                document page
+              </button>
+              .
+            </p>
             {cycle?.state === 'accepted' && row.deliverableCode && (
               <MetaRow k="On acceptance">
                 {row.deliverableCode.isContractual
@@ -705,7 +676,6 @@ export function DeliverableStatusScreen() {
                   : `Not contractual — no C revision was issued, and the reviewed revision stands as the accepted content.`}
               </MetaRow>
             )}
-            {row.documentOwner && <MetaRow k="Document owner">{row.documentOwner.name}</MetaRow>}
         </StatusCard>
 
         <StatusCard label="Documents">

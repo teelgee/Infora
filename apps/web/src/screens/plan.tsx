@@ -21,11 +21,11 @@ import type {
 } from '@infora/contracts';
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
 import { Columns3, FileCog, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, DropdownMenuItem, Field, Modal, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { api, RequestError } from '../api';
-import { MetadataModal } from '../metadata-modal';
+import { MetadataEditor } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
 import { VisibilityPanel } from '../visibility-panel';
 import type { Viewer } from '../visibility-panel';
@@ -33,15 +33,6 @@ import { useMe } from '../session';
 import { contextStateBadge, formatDate, lifecycleBadgeOf } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
-
-// live appointment names, lead + proposed marked — for the read-only team display
-const liveNames = (
-  grants: Array<{ name: string; isLead: boolean; revokedAt: string | null; confirmedAt?: string | null }>,
-): string =>
-  grants
-    .filter((g) => g.revokedAt === null)
-    .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}${g.confirmedAt === null ? ' · proposed' : ''}`)
-    .join(', ') || '—';
 
 function previewReference(scheme: NamingScheme, values: Record<string, string>): string {
   // only the code fields compose the reference (T-188)
@@ -361,15 +352,22 @@ export function DeliverableDetail(props: {
       .finally(() => setBusy(false));
   };
 
+  // T-458 — the scheme, for the metadata section's proper controls (T-192);
+  // loaded here so the panel is the same from the plan and the document page
+  const [scheme, setScheme] = useState<NamingScheme | null>(null);
+  useEffect(() => {
+    void api.namingScheme(props.projectId).then(setScheme, () => setScheme(null));
+  }, [props.projectId]);
   return (
-    // T-361 (S4) — the row's detail is the design system's modal-card
-    // treatment, as the plan's metadata view already is; drawers stay for
-    // genuinely lateral context elsewhere.
-    <Modal
+    // T-458 — the register's side panel. T-361 (S4) had made this the modal-card
+    // treatment; the best-in-class ruling of 2026-10-23 (design-rules §B,
+    // Register) makes the kit's Drawer the side panel — a row's quick edits
+    // open beside the list, and the facts live on the document page. The four
+    // partial views that rendered a document's facts in a modal are retired.
+    <Drawer
       open
       onClose={props.onClose}
       title={row.documentReference ?? 'Deliverable'}
-      size="lg"
       footer={
         row.workItem && !isWithdrawn ? (
           <Button variant="primary" onClick={() => navigate(`/projects/${props.projectId}/work-items/${row.workItem!.id}`)}>
@@ -483,6 +481,34 @@ export function DeliverableDetail(props: {
         </span>
       )}
 
+      {/* T-458 — the description and the authoring metadata, edited where the
+          row's other quick edits are (the plan's metadata modal is retired) */}
+      <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--border-default)', paddingTop: 12 }}>
+        <span className="field-label">Description and metadata</span>
+        <MetadataEditor
+          metadata={Object.fromEntries(Object.entries(row.metadata).filter(([k]) => !IDENTITY_KEYS.has(k)))}
+          description={row.description}
+          editable={canEditDelegated}
+          suggestedFields={[
+            ...(scheme?.fields
+              .filter((f) => !isCodeField(f) && !f.role)
+              .map((f) => ({
+                key: f.key,
+                label: f.label,
+                type: f.type as 'text' | 'select' | undefined,
+                allowedValues: f.allowedValues,
+                allowedValueLabels: f.allowedValueLabels,
+              })) ?? []),
+            ...AUTHORING_FIELDS,
+          ]}
+          onSave={async (authoring, description) => {
+            const merged: Record<string, unknown> = { ...authoring };
+            if (row.metadata['discipline'] !== undefined) merged['discipline'] = row.metadata['discipline'];
+            await api.setContainerMetadata(row.containerId, merged, description);
+            await reload();
+          }}
+        />
+      </div>
       {/* T-456 — who can see this, and the share and narrowing doors */}
       <VisibilityPanel row={row} roster={props.roster} viewer={props.viewer} onChanged={() => void reload()} />
 
@@ -556,7 +582,7 @@ export function DeliverableDetail(props: {
           )}
         </div>
       )}
-    </Modal>
+    </Drawer>
   );
 }
 
@@ -735,9 +761,6 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
     r.authors.some(
       (a) => a.isLead && a.revokedAt === null && a.participantId === participant.participantId,
     );
-  const canEditRow = (r: PlanRow) =>
-    (isSuper && r.producingOrganisationId === me.organisationId) || isRowLeadAuthor(r);
-
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => readPlanQuery(params), [params]);
   const [result, setResult] = useState<{ items: PlanRow[]; total: number; page: number; pageSize: number } | null>(null);
@@ -746,7 +769,6 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [creating, setCreating] = useState(false);
-  const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
   const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
   // T-359 — the batch import off the T-358 template (create-only, whole-file verdict)
   const importInput = useRef<HTMLInputElement | null>(null);
@@ -955,8 +977,9 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
             align: 'right' as const,
             render: (r: PlanRow) => (
               <span onClick={(e) => e.stopPropagation()}>
-                <Button size="sm" variant="quiet" onClick={() => setMetaRow(r)}>
-                  <FileCog size={13} strokeWidth={2} /> Metadata
+                {/* T-458 — the row's quick edits open in the side panel; the row itself opens the page */}
+                <Button size="sm" variant="quiet" onClick={() => setDetailRow(r)} aria-label={`Details for ${r.documentReference ?? r.containerId}`}>
+                  <FileCog size={13} strokeWidth={2} /> Details
                 </Button>
               </span>
             ),
@@ -973,50 +996,6 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
-            load();
-          }}
-        />
-      )}
-      {metaRow && (
-        <MetadataModal
-          title={`Metadata — ${metaRow.documentReference ?? 'deliverable'}`}
-          editable={canEditRow(metaRow)}
-          identity={[
-            { label: 'Reference', value: <span className="mono">{metaRow.documentReference}</span> },
-            { label: 'Producer', value: metaRow.producingOrganisationName },
-            { label: 'Discipline', value: String(metaRow.metadata['discipline'] ?? '—') },
-            { label: 'State', value: metaRow.state },
-            { label: 'Revision', value: <span className="mono">{metaRow.currentVersion?.versionReference ?? '—'}</span> },
-            { label: 'Author(s)', value: liveNames(metaRow.authors) },
-            { label: 'Reviewer(s)', value: liveNames(metaRow.reviewers) },
-            { label: 'Document owner', value: metaRow.documentOwner?.name ?? '—' },
-          ]}
-          metadata={Object.fromEntries(
-            Object.entries(metaRow.metadata).filter(([k]) => !IDENTITY_KEYS.has(k)),
-          )}
-          // T-405 — the document's own description, edited where its metadata
-          // already is, by the same person under the same permission
-          description={metaRow.description}
-          // schema-driven: the deliverable schema's metadata fields render as their
-          // proper controls (selects with options), not raw custom text (T-192)
-          suggestedFields={[
-            ...(scheme?.fields
-              .filter((f) => !isCodeField(f) && !f.role)
-              .map((f) => ({
-                key: f.key,
-                label: f.label,
-                type: f.type as 'text' | 'select' | undefined,
-                allowedValues: f.allowedValues,
-                allowedValueLabels: f.allowedValueLabels,
-              })) ?? []),
-            ...AUTHORING_FIELDS,
-          ]}
-          onClose={() => setMetaRow(null)}
-          onSave={async (authoring, description) => {
-            const merged: Record<string, unknown> = { ...authoring };
-            if (metaRow.metadata['discipline'] !== undefined) merged['discipline'] = metaRow.metadata['discipline'];
-            await api.setContainerMetadata(metaRow.containerId, merged, description);
-            setMetaRow(null);
             load();
           }}
         />
