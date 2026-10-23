@@ -121,6 +121,11 @@ For each: variants/states present in the mockups, tokens used, one-line usage no
 - **States:** neutral · success (left rule, success hue) · error (stays until dismissed). Dismiss with × or let it go after eight seconds; an error waits.
 - Use for: every reversible act, and every act whose success the screen would otherwise state in a note. Do not render a bespoke note where a toast will do; keep the note for a refusal that needs a sentence.
 
+### Command palette (`component.palette`) *(T-466, 2026-10-23)*
+- **What it is:** ⌘K / Ctrl+K anywhere in a project opens a box at the top third of the frame (elevation 3): type a code, a title or a few words and the documents come back ranked as the registers rank them (the plan's and the library's own reads — access-resolved on the server, never here); the sections are there to jump to; the page's own actions are there to run. Enter takes the highlighted row; ↑↓ move; Esc closes. A visible hint (`Search ⌘K`) sits in the top bar and on the home's Ask bar.
+- **Keyboard moves:** F lands in a register's search box; in a review round J/K walk the comments (the same highlight the pointer gives), R opens the highlighted comment's response, E opens it as "no change was made"; ? lists the shortcuts. **Focus rule:** no single-key move fires while the person is typing — in the editor, a comment, any input — and ⌘K is the only chord.
+- Use for: finding and jumping. Do not add a second search box to a page the palette already reaches; a register keeps its own box because it filters the list in place.
+
 ### Project card (`component.projectCard`)
 - **States:** default *(designed)*, hover *(derive — same lift pattern as suggestionCallout, subtle `translateY` optional)*.
 - Use for: "your projects" list on the workspace landing; the numbered circle communicates progress (drafted/total), not a percentage bar.

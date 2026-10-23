@@ -29,6 +29,7 @@ import {
 import type { RailNavItem } from '@infora/ui';
 import { api } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
+import { CommandPalette, PaletteHint } from '../command-palette';
 import { useMe } from '../session';
 import { NeedsYouPanel, useNotifications } from './notifications';
 import { greeting, initialsOf, statusBadge } from './shared';
@@ -207,11 +208,17 @@ export function ProjectShell() {
             <b className="project-chip">{participant.projectName}</b> · Owner:{' '}
             {participant.ownerOrganisationName}
           </span>
-          <div className="right">
+          <div className="right" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* T-466 — the visible hint: the palette is one key away everywhere */}
+            <PaletteHint onOpen={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} />
             <Badge tone={role === 'Owner' ? 'info' : 'success'}>{role}</Badge>
           </div>
         </div>
         <Outlet context={{ participant } satisfies ShellContext} />
+        <CommandPalette
+          projectId={participant.projectId}
+          sections={NAV.filter((item) => !(item.path === 'ask' && aiOff.has('ask'))).map((item) => ({ label: item.label, path: item.path }))}
+        />
       </div>
       </AppFrame>
     </>

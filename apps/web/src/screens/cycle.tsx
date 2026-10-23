@@ -6,7 +6,7 @@
 // owner may close-rejected. Review happens against the frozen version; the
 // full in-PDF anchored viewer is the noted follow-up (anchors here are
 // quote/page fields; the PDF rendition downloads beside each round).
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   AcceptanceCode,
@@ -513,6 +513,32 @@ function RoundCard(props: {
   const [issueBusy, setIssueBusy] = useState(false);
   const [draftAnchor, setDraftAnchor] = useState<CommentAnchor | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  // T-466 — the keyboard moves: J/K walk the comments (the highlight is the
+  // same one the pointer gives), R opens the highlighted comment's response,
+  // E opens it as "no change was made". Never while typing.
+  const [command, setCommand] = useState<{ id: string; kind: 'respond' | 'noChange'; seq: number } | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const ids = round.comments.map((c) => c.id);
+      if (ids.length === 0) return;
+      const at = hovered ? ids.indexOf(hovered) : -1;
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        setHovered(ids[Math.min(at + 1, ids.length - 1)]!);
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        setHovered(ids[Math.max(at - 1, 0)]!);
+      } else if ((e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') && hovered) {
+        e.preventDefault();
+        setCommand((c) => ({ id: hovered, kind: e.key.toLowerCase() === 'e' ? 'noChange' : 'respond', seq: (c?.seq ?? 0) + 1 }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [round.comments, hovered]);
   const roundState = statusBadge(round.state);
   const pdf = renditions.find((r) => r.kind === 'pdf') ?? null;
 
@@ -648,6 +674,7 @@ function RoundCard(props: {
                     act={props.act}
                     hovered={hovered === comment.id}
                     onHover={setHovered}
+                    command={command?.id === comment.id ? command : null}
                     versionRefById={props.versionRefById}
                   />
                 ))}
@@ -816,10 +843,13 @@ function CommentRow(props: {
   act: (action: () => Promise<unknown>) => Promise<void>;
   hovered: boolean;
   onHover: (id: string | null) => void;
+  /** T-466 — a keyboard request for this comment: open the response (R) or open it as no change (E) */
+  command: { kind: 'respond' | 'noChange'; seq: number } | null;
   versionRefById: Record<string, string>;
 }) {
   const { comment, hovered, onHover } = props;
   const [responding, setResponding] = useState(false);
+  const responseRef = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState('');
   const [noChange, setNoChange] = useState(false);
   const [quote, setQuote] = useState('');
@@ -828,6 +858,12 @@ function CommentRow(props: {
   // the record: cancelling is genuinely "never happened"
   const [moderating, setModerating] = useState(false);
   const [moderatedBody, setModeratedBody] = useState(comment.body);
+  useEffect(() => {
+    if (!props.command || !props.canRespond || comment.response) return;
+    setResponding(true);
+    if (props.command.kind === 'noChange') setNoChange(true);
+    setTimeout(() => responseRef.current?.focus(), 0);
+  }, [props.command, props.canRespond, comment.response]);
   const [moderatedCode, setModeratedCode] = useState(comment.acceptanceCode?.id ?? '');
 
   return (
@@ -959,6 +995,7 @@ function CommentRow(props: {
       {props.canRespond && !comment.response && responding && (
         <div style={{ display: 'grid', gap: 6 }}>
           <textarea
+            ref={responseRef}
             placeholder="The response — how the comment is addressed…"
             value={body}
             onChange={(e) => setBody(e.target.value)}

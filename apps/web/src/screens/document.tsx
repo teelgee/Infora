@@ -43,6 +43,7 @@ import { useMe } from '../session';
 import { VisibilityPanel } from '../visibility-panel';
 import { TransmittalRow } from './deliverable-status';
 import { DeliverableDetail } from './plan';
+import { usePaletteActions } from '../command-palette';
 import { ReviewRecordTable } from './review-record';
 import { contextStateBadge, formatDate, formatDateTime, lifecycleBadgeOf } from './shared';
 
@@ -141,6 +142,23 @@ export function DocumentScreen() {
     }
     return out;
   }, [cycle, row]);
+
+  // T-466 — this page's actions, in the palette while the page is open. A hook,
+  // so it sits above the early returns; the row may still be loading.
+  const paletteMayEdit =
+    row !== null &&
+    ((isSuper && (row.producingOrganisationId === me.organisationId || isOwner)) ||
+      (row.producingOrganisationId === me.organisationId &&
+        row.authors.some((a) => a.isLead && a.revokedAt === null && a.participantId === participant.participantId)));
+  usePaletteActions(
+    row === null || !containerId
+      ? []
+      : [
+          ...(paletteMayEdit ? [{ id: 'edit-details', label: 'Edit details…', hint: 'This document', run: () => setEditing(true) }] : []),
+          ...(draft ? [{ id: 'open-draft', label: 'Open the draft', hint: 'This document', run: () => void navigate(`/projects/${projectId}/editor/${draft.id}`) }] : []),
+          ...(cycle || row.workItem ? [{ id: 'open-review', label: 'Open the review', hint: 'This document', run: () => void navigate(`/projects/${projectId}/review/${containerId}`) }] : []),
+        ],
+  );
 
   if (!containerId) return null;
   if (loadError) {
