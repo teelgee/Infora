@@ -6,7 +6,7 @@
 // status 'planned', event-driven from here on (ADR-0032 addendum).
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   planQuery,
@@ -49,6 +49,8 @@ import { admittingCodes, contextStateOf } from './context-state';
 import { composeReference, loadSchemeOrDefault, templateFields } from './naming';
 import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
+import { searchPlanContainerIds } from '@infora/knowledge';
+import type { Router } from '@infora/model';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 // T-372 widened this with an optional detail (cycle.ts's shape): the appointee's
@@ -330,6 +332,8 @@ async function toPlanRows(
       metadata: (container.metadata ?? {}) as Record<string, unknown>,
       // T-405 — what the document is, typed by whoever filed it
       description: container.description ?? null,
+      // T-462 — one title for every row: the work item's, or reference material's own
+      title: workItem?.title ?? container.title ?? null,
       state: container.state,
       inLibrary: container.inLibrary,
       workItem: workItem
@@ -379,7 +383,7 @@ async function toPlanRows(
   });
 }
 
-export function planRoutes(deps: { db: Db }) {
+export function planRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
 
@@ -391,48 +395,60 @@ export function planRoutes(deps: { db: Db }) {
     if (!parsedQuery.success) return invalid(c);
     const pq = parsedQuery.data;
     const paged = pq.page !== undefined || (pq.q !== undefined && pq.q.length > 0);
-    const where = [
-      eq(s.containers.projectId, slice.projectId),
-      eq(s.containers.scope, 'library' as const),
-    ];
-    if (slice.membershipRole !== 'owner') {
-      where.push(eq(s.containers.producingOrganisationId, slice.organisationId));
-    }
-    if (pq.q !== undefined && pq.q.length > 0) {
-      const pattern = `%${pq.q.replace(/[%_]/g, (ch) => `\\${ch}`)}%`;
-      where.push(
-        or(
-          ilike(s.containers.documentReference, pattern),
-          ilike(s.workItems.title, pattern),
-          ilike(s.containers.description, pattern),
-        )!,
-      );
-    }
-    const dir = pq.direction === 'desc' ? desc : asc;
-    const order =
-      pq.sort === 'title'
-        ? [dir(s.workItems.title), asc(s.containers.documentReference)]
-        : pq.sort === 'state'
-          ? [dir(s.containers.state), asc(s.containers.documentReference)]
-          : [dir(s.containers.documentReference)];
-    const base = deps.db
-      .select({ container: s.containers })
-      .from(s.containers)
-      .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
-      .where(and(...where))
-      .orderBy(...order);
     const page = pq.page ?? 1;
-    const rowsJoined = paged ? await base.limit(pq.pageSize).offset((page - 1) * pq.pageSize) : await base;
-    const rows = rowsJoined.map((r) => r.container);
-    const total = paged
-      ? (
-          await deps.db
-            .select({ total: sql<number>`count(*)::int` })
-            .from(s.containers)
-            .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
-            .where(and(...where))
-        )[0]?.total ?? 0
-      : undefined;
+    const producerScope = slice.membershipRole === 'owner' ? null : slice.organisationId;
+    let rows: ContainerRow[];
+    let total: number | undefined;
+    if (pq.q !== undefined && pq.q.length > 0) {
+      // T-462 — a searched plan reads through the register's own two arms
+      // (packages/knowledge/register-search.ts): code and title first, then
+      // what the document says, under the pinned embedding model. Short
+      // queries skip the embedding call — a code prefix is not a meaning.
+      const vector = pq.q.length >= 3 ? ((await deps.router.embed([pq.q], 'query')).embeddings[0] ?? null) : null;
+      const found = await searchPlanContainerIds(deps.db, {
+        projectId: slice.projectId,
+        producerOrganisationId: producerScope,
+        q: pq.q,
+        vector,
+        modelId: deps.router.embeddingModel.id,
+        sort: pq.sort,
+        direction: pq.direction,
+        state: pq.state,
+        kind: pq.kind,
+        producerId: pq.producerId,
+        page,
+        pageSize: pq.pageSize,
+      });
+      const loaded = found.ids.length ? await deps.db.select().from(s.containers).where(inArray(s.containers.id, found.ids)) : [];
+      const byId = new Map(loaded.map((r) => [r.id, r]));
+      rows = found.ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+      total = found.total;
+    } else {
+      const where = [eq(s.containers.projectId, slice.projectId), eq(s.containers.scope, 'library' as const)];
+      if (producerScope !== null) where.push(eq(s.containers.producingOrganisationId, producerScope));
+      if (pq.state !== 'any') where.push(eq(s.containers.state, pq.state));
+      if (pq.kind === 'deliverable') where.push(isNotNull(s.workItems.id));
+      if (pq.kind === 'reference') where.push(isNull(s.workItems.id));
+      if (pq.producerId) where.push(eq(s.containers.producingOrganisationId, pq.producerId));
+      const dir = pq.direction === 'desc' ? desc : asc;
+      const order =
+        pq.sort === 'title'
+          ? [dir(sql`coalesce(${s.workItems.title}, ${s.containers.title})`), asc(s.containers.documentReference)]
+          : pq.sort === 'state'
+            ? [dir(s.containers.state), asc(s.containers.documentReference)]
+            : [dir(s.containers.documentReference)];
+      const base = deps.db
+        .select({ container: s.containers })
+        .from(s.containers)
+        .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+        .where(and(...where))
+        .orderBy(...order);
+      const rowsJoined = paged ? await base.limit(pq.pageSize).offset((page - 1) * pq.pageSize) : await base;
+      rows = rowsJoined.map((r) => r.container);
+      total = paged
+        ? ((await deps.db.select({ total: sql<number>`count(*)::int` }).from(s.containers).leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id)).where(and(...where)))[0]?.total ?? 0)
+        : undefined;
+    }
     // the requester's organisation's column standard rides the plan read —
     // org-standard and locked (T-360), so it is the membership's, never the user's
     const [membership] = await deps.db
@@ -802,10 +818,13 @@ export function containerRoutes(deps: { db: Db }) {
     }
     const body = setPlanTitleBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
-    await deps.db
-      .update(s.workItems)
-      .set({ title: body.data.title })
-      .where(eq(s.workItems.containerId, container.id));
+    // T-462 — reference material has no work item, so its title is the container's
+    const [item] = await deps.db.select({ id: s.workItems.id }).from(s.workItems).where(eq(s.workItems.containerId, container.id)).limit(1);
+    if (item) {
+      await deps.db.update(s.workItems).set({ title: body.data.title }).where(eq(s.workItems.containerId, container.id));
+    } else {
+      await deps.db.update(s.containers).set({ title: body.data.title }).where(eq(s.containers.id, container.id));
+    }
     // a plan-locked working folder's name tracks its row (T-365)
     await syncPlanLockedFolders(deps.db, container.projectId, slice.organisationId, slice.participantId);
     const [row] = await toPlanRows(deps.db, [container], slice);

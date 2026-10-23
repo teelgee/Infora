@@ -335,6 +335,28 @@ sign-in opened which file for editing. Expired rows are swept on the next
 mint, dead sessions' rows at sign-out and sweep — the table holds only live
 or not-yet-swept passes.
 
+**Drawn 2026-10-23 — a title for reference material (T-462).** *Plainly: a
+document the owner loaded as reference material — a consultee letter, a
+standard, a survey from a previous job — has had a code and no name, so the
+register showed "Reference material" where a deliverable shows its title. It
+now has a title of its own.* A deliverable's title lives on its work item,
+because the work item is the planned thing; reference material has no work item
+**by definition** (ADR-0032's addendum — the distinguishing fact is that
+absence), so its title has nowhere to live but the container. One nullable
+column, `containers.title` (text): set from the file's name when reference
+material is loaded, editable afterwards by the organisation that loaded it
+through the same title route a plan row uses, and read by every register as
+the title of a row with no work item. Null on every deliverable — a second
+copy of the work item's title would be the drift the 2026-07-18 ruling
+("at-a-glance columns are derived by query, never duplicated") exists to
+prevent, so the reads coalesce and never store. Not personal data: it names a
+document.
+
+*Built the same day (migration 0072); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is
+the authority on its shape.*
+
 **Drawn 2026-10-23 — the register's saved views (T-460).** *Plainly: a person can
 save the way they have set up a list — what they searched, which filters and
 sort, which columns are hidden — under a name, keep it to themselves or share

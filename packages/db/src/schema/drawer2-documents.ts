@@ -87,6 +87,12 @@ export const containers = pgTable(
     // of the corpus predates it and an absent description is honest.
     // Not personal data: it describes a document, not a person.
     description: text('description'),
+    // T-462 (migration 0072, drawn in data-model.md drawer 2) — a title for a
+    // container with NO work item: reference material. A deliverable's title
+    // is its work item's and this stays null there, so the reads coalesce the
+    // two and nothing is stored twice. Set from the file's name at load,
+    // editable by the organisation that loaded it. Names a document, not a person.
+    title: text('title'),
     // plan-authored extras (ADR-0008); the per-project schema is deferred with
     // the naming scheme — at-a-glance columns are derived by query, never
     // duplicated here (2026-07-18 ruling)

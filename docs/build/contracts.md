@@ -1515,6 +1515,19 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-23 (T-462) — the plan read gains `state`, `kind`, `producerId` and a
+  `relevance` sort; `PlanRow` gains a coalesced `title`.** *Plainly: the plan
+  can be filtered and searched on the server, and reference material has a
+  name.* The **reason the filters are server-side** is that a page is a page of
+  the filtered list — a chip applied on the client to a page of fifty would
+  narrow the page, not the plan. The **reason `relevance` is the default** is
+  that a searched read ranks and an unsearched one lists; the server reads
+  `relevance` without a query as reference order, so one default serves both.
+  The **reason `title` is coalesced on the wire and never stored twice** is the
+  2026-07-18 ruling: a deliverable's title is its work item's, reference
+  material's is its container's (migration 0072), and a screen should not have
+  to know which.
+
 - **2026-10-23 (T-461) — bulk acts: `POST /projects/:projectId/bulk/transmittals`,
   `/bulk/external-issues`, `/bulk/supersessions`, `/bulk/classifications`; and
   `POST /projects/:projectId/plan/export`.** *Plainly: tick several documents

@@ -13,7 +13,7 @@
 // its context state and the surface badges it, rather than the list quietly
 // standing for two different things.
 import { Hono } from 'hono';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type {
   ApiError,
   GetGroundingScopeResponse,
@@ -198,7 +198,8 @@ const libraryRowSelect = {
   // owner has to give is asked for on this screen.
   withdrawnReason: s.containers.withdrawnReason,
   withdrawnByParticipantId: s.containers.withdrawnByParticipantId,
-  title: s.workItems.title,
+  // T-462 — a deliverable's title is its work item's; reference material's is its own (containers.title)
+  title: sql<string | null>`coalesce(${s.workItems.title}, ${s.containers.title})`,
   // T-304 — the absence IS the marker: a reference-material container has no
   // work item (the 2026-07-31 ruling), so the left join answering null is the
   // whole distinguishing fact. Nothing is stored and nothing has to be kept in step.

@@ -153,7 +153,10 @@ describe('plan read, paged', () => {
       await app.request(`/projects/${projectId}/plan?q=GIR`, { headers: { cookie: owner } })
     ).json()) as GetPlanResponse;
     expect(searched.items.length).toBeGreaterThan(0);
-    for (const row of searched.items) expect(`${row.documentReference} ${row.workItem?.title ?? ''}`).toMatch(/GIR/i);
+    // T-462 — the plan's search reads through the register's two arms, so the
+    // code match ranks first; under the fake embedding every indexed row is a
+    // content match too, so only the ordering is the substrate's to prove
+    expect(`${searched.items[0]!.documentReference} ${searched.items[0]!.title ?? ''}`).toMatch(/GIR/i);
   });
 });
 

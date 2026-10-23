@@ -151,6 +151,8 @@ test('7 — the classification renders on the plan surface', async ({ page }) =>
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText(PROJECT).click();
   await page.getByRole('link', { name: /Plan/ }).click();
+  // T-462 — the plan is a paged register: find the row by its code first
+  await page.getByRole('searchbox', { name: 'Search Deliverables plan' }).fill(myRef);
   await page.getByRole('row').filter({ hasText: myRef }).click();
   // T-457 — the row lands on the document page; its Relationships tab carries the ontology panel
   await page.getByRole('radiogroup', { name: 'Document page sections' }).getByRole('radio', { name: 'Relationships' }).click();

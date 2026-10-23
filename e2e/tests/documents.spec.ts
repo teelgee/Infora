@@ -62,6 +62,8 @@ test('the library row, the review list and the side menu reach the same page', a
 
   // the review list's reference cell is the door to the page
   await page.getByRole('link', { name: /^Review$/ }).click();
+  // T-462 — the review list is a paged register: find the row by its code first
+  await page.getByRole('searchbox', { name: 'Search Review list' }).fill(reference);
   await page.getByRole('button', { name: reference, exact: true }).first().click();
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(reference);

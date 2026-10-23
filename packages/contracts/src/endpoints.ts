@@ -490,7 +490,7 @@ export type LibraryItem = {
   containerId: Id;
   documentReference: string;
   currentVersionId: Id;
-  title: string | null; // the deliverable title (work-item), when planned
+  title: string | null; // the work item's title, or reference material's own (T-462)
   revision: string; // the current version reference (e.g. C01, P02)
   suitability: string | null; // ISO suitability code carried on the container metadata
   discipline: string | null; // discipline code carried on the container metadata
@@ -600,8 +600,13 @@ export const planQuery = z.object({
   q: z.string().trim().max(500).optional(),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
-  sort: z.enum(['reference', 'title', 'state']).default('reference'),
+  // T-462 — `relevance` ranks a searched plan as the library's search does; without a query it reads as `reference`
+  sort: z.enum(['relevance', 'reference', 'title', 'state']).default('relevance'),
   direction: z.enum(['asc', 'desc']).default('asc'),
+  // T-462 — the register's filter chips, applied on the server so a page is a page of the filtered list
+  state: z.enum(['live', 'superseded', 'withdrawn', 'rejected', 'any']).default('any'),
+  kind: z.enum(['deliverable', 'reference', 'any']).default('any'),
+  producerId: z.uuid().optional(),
 });
 export type PlanQuery = z.infer<typeof planQuery>;
 
@@ -992,6 +997,8 @@ export type PlanRow = {
    * picker is where it does its work.
    */
   description: string | null;
+  /** T-462 — the row's title however it is held: the work item's for a deliverable, the container's own for reference material (migration 0072). Never stored twice: the read coalesces. */
+  title: string | null;
   state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
   // T-389 — whether this deliverable has been published into the owner's
   // library. The surface needs it because `withdrawn` is TWO ACTS THAT SHARE A

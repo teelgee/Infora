@@ -21,7 +21,6 @@ import { SchemaScreen } from './screens/schema';
 import { CycleScreen } from './screens/cycle';
 import { DeliverableStatusScreen } from './screens/deliverable-status';
 import { ReviewRecordScreen } from './screens/review-record';
-import { ReviewScreen } from './screens/review';
 import { SandboxScreen } from './screens/sandbox';
 import { EditingPaneScreen } from './screens/editing-pane';
 import { SettingsScreen } from './screens/settings';
@@ -54,7 +53,8 @@ const router = createBrowserRouter([
       // chip and link about a deliverable lands
       { path: 'documents/:containerId', element: <DocumentScreen /> },
       { path: 'notifications', element: <NotificationsScreen /> },
-      { path: 'review', element: <ReviewScreen /> },
+      // T-462 — the review list is the plan's register seen for reviewing
+      { path: 'review', element: <PlanScreen view="review" /> },
       // T-348 — the schedule click-through lands on the status page; the
       // round tray (the review itself) is one deliberate step deeper
       { path: 'review/:containerId', element: <DeliverableStatusScreen /> },

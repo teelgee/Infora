@@ -165,6 +165,8 @@ async function loadOne(
         projectId: options.projectId,
         producingOrganisationId: options.organisationId,
         documentReference: reference,
+        // T-462 — reference material's own title: the file's name, made readable
+        title: reference.replace(/_+/g, ' '),
         scope: 'library',
         // admitted directly: received material has no cycle to be accepted by,
         // and inventing one is what the 2026-07-31 ruling refuses

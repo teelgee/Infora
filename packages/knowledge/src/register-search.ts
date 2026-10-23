@@ -69,19 +69,9 @@ export async function searchLibraryRows(
   p: RegisterSearchParams,
 ): Promise<{ rows: RegisterSearchRow[]; total: number }> {
   const q = p.q;
-  const pattern = q === null ? null : `%${q.replace(/[%_]/g, (ch) => `\\${ch}`)}%`;
-  const nearest: SQL<number | null> =
-    p.vector === null
-      ? sql<number | null>`null`
-      : sql<number | null>`(select min(${cosineDistance(s.versionChunks.embedding, p.vector)}) from ${s.versionChunks} where ${s.versionChunks.versionId} = ${s.versions.id} and ${s.versionChunks.embeddingModelId} = ${p.modelId})`;
-  const lexical: SQL<number> =
-    pattern === null
-      ? sql<number>`3`
-      : sql<number>`case
-          when upper(${s.containers.documentReference}) = upper(${q}) then 0
-          when upper(${s.containers.documentReference}) like upper(${q} || '%') then 1
-          when ${s.containers.documentReference} ilike ${pattern} or ${s.workItems.title} ilike ${pattern} or ${s.containers.description} ilike ${pattern} then 2
-          else 3 end`;
+  const pattern = patternOf(q);
+  const nearest = nearestDistance(p.vector, p.modelId);
+  const lexical = lexicalRank(q, pattern);
   const where = and(
     eq(s.containers.projectId, slice.projectId),
     // freeze-series (sandbox-scope) containers are org-private working
@@ -100,6 +90,7 @@ export async function searchLibraryRows(
       : or(
           ilike(s.containers.documentReference, pattern),
           ilike(s.workItems.title, pattern),
+          ilike(s.containers.title, pattern),
           ilike(s.containers.description, pattern),
           p.vector === null ? sql`false` : sql`${nearest} < ${CONTENT_MATCH_DISTANCE}`,
         ),
@@ -109,7 +100,7 @@ export async function searchLibraryRows(
     p.sort === 'reference'
       ? [dir(s.containers.documentReference)]
       : p.sort === 'title'
-        ? [dir(s.workItems.title), asc(s.containers.documentReference)]
+        ? [dir(sql`coalesce(${s.workItems.title}, ${s.containers.title})`), asc(s.containers.documentReference)]
         : p.sort === 'issued'
           ? [dir(s.versions.createdAt), asc(s.containers.documentReference)]
           : p.sort === 'producer'
@@ -142,7 +133,8 @@ export async function searchLibraryRows(
           producingOrganisationId: s.containers.producingOrganisationId,
           withdrawnReason: s.containers.withdrawnReason,
           withdrawnByParticipantId: s.containers.withdrawnByParticipantId,
-          title: s.workItems.title,
+          // T-462 — reference material carries its own title on the container
+          title: sql<string | null>`coalesce(${s.workItems.title}, ${s.containers.title})`,
           workItemId: s.workItems.id,
           state: s.containers.state,
           lexical,
@@ -162,4 +154,99 @@ export async function searchLibraryRows(
     rows: rows.map((r) => ({ ...r, lexical: Number(r.lexical), nearest: r.nearest === null ? null : Number(r.nearest) })),
     total: counted?.total ?? 0,
   };
+}
+
+/** the ILIKE pattern for a person's words, with the wildcards they typed escaped */
+function patternOf(q: string | null): string | null {
+  return q === null ? null : `%${q.replace(/[%_]/g, (ch) => `\\${ch}`)}%`;
+}
+/** the vector arm: the current version's nearest passage under the pinned model, or null without a query vector */
+function nearestDistance(vector: number[] | null, modelId: string): SQL<number | null> {
+  return vector === null
+    ? sql<number | null>`null`
+    : sql<number | null>`(select min(${cosineDistance(s.versionChunks.embedding, vector)}) from ${s.versionChunks} where ${s.versionChunks.versionId} = ${s.versions.id} and ${s.versionChunks.embeddingModelId} = ${modelId})`;
+}
+/** the lexical arm: 0 exact code · 1 code prefix · 2 reference, title or description mention · 3 none */
+function lexicalRank(q: string | null, pattern: string | null): SQL<number> {
+  return pattern === null
+    ? sql<number>`3`
+    : sql<number>`case
+          when upper(${s.containers.documentReference}) = upper(${q}) then 0
+          when upper(${s.containers.documentReference}) like upper(${q} || '%') then 1
+          when ${s.containers.documentReference} ilike ${pattern} or ${s.workItems.title} ilike ${pattern} or ${s.containers.title} ilike ${pattern} or ${s.containers.description} ilike ${pattern} then 2
+          else 3 end`;
+}
+
+/** T-462 — the plan's search: the same two arms over the plan's reach. The plan
+ * is every library-scope container of the project for the owner and the
+ * organisation's own for anyone else (plan.ts's rule), published or not — so
+ * the version join is outer (a planned row has no version yet and must still
+ * be found by its code or title) and no visibility pre-filter narrows it beyond
+ * the producer rule. Returns the ids in rank order and the total, and the
+ * caller assembles its rows: the plan row's shape is plan.ts's to make. */
+export async function searchPlanContainerIds(
+  db: Db,
+  p: {
+    projectId: string;
+    /** the organisation whose rows alone are in reach — null for the owner, who reaches every row */
+    producerOrganisationId: string | null;
+    q: string;
+    vector: number[] | null;
+    modelId: string;
+    sort: 'relevance' | 'reference' | 'title' | 'state';
+    direction: 'asc' | 'desc';
+    state: 'live' | 'superseded' | 'withdrawn' | 'rejected' | 'any';
+    kind: 'deliverable' | 'reference' | 'any';
+    producerId?: string | undefined;
+    page: number;
+    pageSize: number;
+  },
+): Promise<{ ids: string[]; total: number }> {
+  const pattern = patternOf(p.q);
+  const nearest = nearestDistance(p.vector, p.modelId);
+  const lexical = lexicalRank(p.q, pattern);
+  const where = and(
+    eq(s.containers.projectId, p.projectId),
+    eq(s.containers.scope, 'library'),
+    p.producerOrganisationId === null ? undefined : eq(s.containers.producingOrganisationId, p.producerOrganisationId),
+    p.state === 'any' ? undefined : eq(s.containers.state, p.state),
+    p.kind === 'deliverable' ? isNotNull(s.workItems.id) : p.kind === 'reference' ? isNull(s.workItems.id) : undefined,
+    p.producerId ? eq(s.containers.producingOrganisationId, p.producerId) : undefined,
+    or(
+      ilike(s.containers.documentReference, pattern!),
+      ilike(s.workItems.title, pattern!),
+      ilike(s.containers.title, pattern!),
+      ilike(s.containers.description, pattern!),
+      p.vector === null ? sql`false` : sql`${nearest} < ${CONTENT_MATCH_DISTANCE}`,
+    ),
+  );
+  const dir = p.direction === 'desc' ? desc : asc;
+  const order =
+    p.sort === 'reference'
+      ? [dir(s.containers.documentReference)]
+      : p.sort === 'title'
+        ? [dir(sql`coalesce(${s.workItems.title}, ${s.containers.title})`), asc(s.containers.documentReference)]
+        : p.sort === 'state'
+          ? [dir(s.containers.state), asc(s.containers.documentReference)]
+          : [asc(lexical), sql`${nearest} asc nulls last`, asc(s.containers.documentReference)];
+  const [[counted], rows] = await withProjectScope(db, p.projectId, (tx) =>
+    Promise.all([
+      tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(s.containers)
+        .leftJoin(s.versions, and(eq(s.versions.containerId, s.containers.id), eq(s.versions.isCurrent, true)))
+        .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+        .where(where),
+      tx
+        .select({ id: s.containers.id })
+        .from(s.containers)
+        .leftJoin(s.versions, and(eq(s.versions.containerId, s.containers.id), eq(s.versions.isCurrent, true)))
+        .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+        .where(where)
+        .orderBy(...order)
+        .limit(p.pageSize)
+        .offset((p.page - 1) * p.pageSize),
+    ]),
+  );
+  return { ids: rows.map((r) => r.id), total: counted?.total ?? 0 };
 }

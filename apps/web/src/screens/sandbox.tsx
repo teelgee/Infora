@@ -61,9 +61,9 @@ import {
   Modal,
   SectionLabel,
   SelectInput,
-  Skeleton,
   Table,
   TextInput,
+  Register,
 } from '@infora/ui';
 import { api } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
@@ -1199,6 +1199,9 @@ export function SandboxScreen() {
     () => (selected ? docs.filter((d) => d.sandboxId === selected) : docs),
     [docs, selected],
   );
+  // T-462 — the overview's search box: a working document's shown name, its
+  // own title, and the reference of the row it is bound to
+  const [overviewQuery, setOverviewQuery] = useState('');
   // bind candidates (T-366): live rows only (a withdrawn row is not a target —
   // and must never arrive pre-selected), not yet promoted, and not already
   // carrying a bound draft (one working draft per deliverable)
@@ -1210,6 +1213,14 @@ export function SandboxScreen() {
     );
   }, [plan, docs]);
   const planByContainer = useMemo(() => new Map(plan.map((p) => [p.containerId, p])), [plan]);
+  const overviewRows = useMemo(() => {
+    const q = overviewQuery.trim().toLowerCase();
+    if (!q) return shown;
+    return shown.filter((doc) => {
+      const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
+      return [doc.title, row?.title ?? '', row?.documentReference ?? ''].some((t) => (t ?? '').toLowerCase().includes(q));
+    });
+  }, [shown, overviewQuery, planByContainer]);
   // T-366 (ADR-0038 addendum) — one naming rule for every surface on this
   // screen: a bound document reads its plan row's title through the link
   const displayTitleOf = useCallback(
@@ -2043,92 +2054,103 @@ export function SandboxScreen() {
         // no sandbox selected — a flat overview across every accessible sandbox
         <>
           <SectionLabel>{me.organisationName} — all documents</SectionLabel>
-          <Table>
-            <table>
-              <thead>
-                <tr>
-                  <th>Document</th>
-                  <th>Deliverable</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!docsLoaded &&
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <tr key={`sk-${i}`}>
-                      <td colSpan={3}>
-                        <Skeleton height={18} />
-                      </td>
-                    </tr>
-                  ))}
-                {shown.map((doc) => {
+          {/* T-462 — the overview on the register: one search box over the
+              organisation's working documents (their names and the rows they
+              are bound to — a draft is not in the retrieval index, so this box
+              finds by name and code, not by meaning), the same grammar as the
+              plan and the library. */}
+          <Register<SandboxDocument>
+            label="All documents"
+            columns={[
+              {
+                key: 'document',
+                label: 'Document',
+                render: (doc) => {
                   const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
                   return (
-                    <tr key={doc.id}>
-                      <td>
-                        <span className="ficon">
-                          <FileText size={14} strokeWidth={2} />
-                        </span>
-                        <button
-                          type="button"
-                          className="tree-name"
-                          onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
-                          title="Open in the Editor"
-                        >
-                          {/* T-366 — a bound doc reads its row's title through */}
-                          {row?.workItem?.title ?? doc.title}
-                        </button>
-                        <span style={{ marginLeft: 8 }}>
-                          <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
-                        </span>
-                        <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
-                          {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
-                        </span>
-                      </td>
-                      <td>
-                        {doc.containerId ? (
-                          <button
-                            className="linklike"
-                            onClick={() => row?.workItem && navigate(`/projects/${projectId}/work-items/${row.workItem.id}`)}
-                            title="Open the deliverable"
-                          >
-                            <Link2 size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
-                            <span className="mono">{row?.documentReference ?? 'bound'}</span>
-                          </button>
-                        ) : (
-                          <Badge tone="neutral">Unbound</Badge>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <DocActions
-                          doc={doc}
-                          projectId={projectId}
-                          displayTitle={row?.workItem?.title ?? doc.title}
-                          onMetadata={setMetaDoc}
-                          onBind={setBindDoc}
-                          onPromote={setPromoteDoc}
-                          onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
-                          onRename={setRenameDoc}
-                          onReplace={setReplaceDoc}
-                          onHistory={setHistoryDoc}
-                          onDelete={setDeleteDoc}
-                          reload={loadDocs}
-                          setNote={setNote}
-                        />
-                      </td>
-                    </tr>
+                    <>
+                      <span className="ficon">
+                        <FileText size={14} strokeWidth={2} />
+                      </span>
+                      <button
+                        type="button"
+                        className="tree-name"
+                        onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
+                        title="Open in the Editor"
+                      >
+                        {/* T-366 — a bound doc reads its row's title through */}
+                        {row?.workItem?.title ?? doc.title}
+                      </button>
+                      <span style={{ marginLeft: 8 }}>
+                        <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
+                      </span>
+                      <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
+                        {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
+                      </span>
+                    </>
                   );
-                })}
-                {docsLoaded && shown.length === 0 && (
-                  <tr>
-                    <td colSpan={3} style={{ color: 'var(--text-muted)' }}>
-                      Nothing here yet — create a document or accept a draft from Ask.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Table>
+                },
+              },
+              {
+                key: 'deliverable',
+                label: 'Deliverable',
+                render: (doc) => {
+                  const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
+                  return (
+                    <>
+                      {doc.containerId ? (
+                        <button
+                          className="linklike"
+                          onClick={() => row?.workItem && navigate(`/projects/${projectId}/work-items/${row.workItem.id}`)}
+                          title="Open the deliverable"
+                        >
+                          <Link2 size={12} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+                          <span className="mono">{row?.documentReference ?? 'bound'}</span>
+                        </button>
+                      ) : (
+                        <Badge tone="neutral">Unbound</Badge>
+                      )}
+                    </>
+                  );
+                },
+              },
+              {
+                key: 'actions',
+                label: 'Actions',
+                align: 'right',
+                render: (doc) => {
+                  const row = doc.containerId ? planByContainer.get(doc.containerId) : undefined;
+                  return (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <DocActions
+                        doc={doc}
+                        projectId={projectId}
+                        displayTitle={row?.workItem?.title ?? doc.title}
+                        onMetadata={setMetaDoc}
+                        onBind={setBindDoc}
+                        onPromote={setPromoteDoc}
+                        onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
+                        onRename={setRenameDoc}
+                        onReplace={setReplaceDoc}
+                        onHistory={setHistoryDoc}
+                        onDelete={setDeleteDoc}
+                        reload={loadDocs}
+                        setNote={setNote}
+                      />
+                    </span>
+                  );
+                },
+              },
+            ]}
+            rows={docsLoaded ? overviewRows : null}
+            rowKey={(doc) => doc.id}
+            search={{ value: overviewQuery, onChange: setOverviewQuery, placeholder: 'Search by name or code' }}
+            empty={
+              overviewQuery.trim() !== ''
+                ? 'No working document matches that name or code.'
+                : 'No documents yet — create one, or upload a file.'
+            }
+          />
         </>
       )}
     </div>

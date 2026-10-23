@@ -330,10 +330,13 @@ test('browser — the accepted deliverable reads on the Review plan table', asyn
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText('Wrenfield–Ashcombe 400kV Connection').first().click();
   await page.goto(`/projects/${projectId}/review`);
+  // T-462 — the review list is a paged register: find the row by its code first
+  await page.getByRole('searchbox', { name: 'Search Review list' }).fill(REFERENCE);
   await expect(page.getByText(REFERENCE, { exact: true })).toBeVisible();
   // T-457 — the reference cell is the door to the document page; the ROW is the
-  // door to the review, so click the title cell
-  await page.getByRole('row').filter({ hasText: REFERENCE }).getByRole('cell').nth(1).click();
+  // door to the review, so click the title cell (T-462: the register's first
+  // cell is the row's tick box, so the title is the third)
+  await page.getByRole('row').filter({ hasText: REFERENCE }).getByRole('cell').nth(2).click();
   // T-348 — the schedule click lands on the STATUS page, not the round tray
   // T-347 — the status bar reads the accepted cycle: all four steps stand done
   await expect(page.getByText('Complete', { exact: true })).toBeVisible();

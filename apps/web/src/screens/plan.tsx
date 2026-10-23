@@ -7,7 +7,7 @@
 // register pattern and the ProjectWise friction map (B1 no-wizard, B4 attributes
 // surfaced without manual column config).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router';
+import { useNavigate, useOutletContext, useSearchParams } from 'react-router';
 import type {
   AppointmentGrant,
   MeResponse,
@@ -15,12 +15,15 @@ import type {
   PlanImportError,
   PlanImportFailure,
   PlanImportResult,
+  PlanQuery,
   PlanRow,
   RosterEntry,
 } from '@infora/contracts';
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
-import { Columns3, FileCog, FileText, FileUp, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, Field, Modal, SelectInput, Skeleton, Table, TextArea, TextInput } from '@infora/ui';
+import { Columns3, FileCog, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
+import { Badge, Button, Combobox, DropdownMenuItem, Field, Modal, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
+import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
+import { SavedViewsMenu } from '../saved-views-menu';
 import { api, RequestError } from '../api';
 import { MetadataModal } from '../metadata-modal';
 import { OntologyPanel } from '../ontology-panel';
@@ -703,7 +706,21 @@ function PlanColumnsModal(props: {
   );
 }
 
-export function PlanScreen() {
+// T-462 — THE PLAN ON THE REGISTER, and the review list folded into it as a
+// view. *In plain terms: the plan, the review list and the library now look
+// and work the same way — one search box that finds a document by its code,
+// its title or what it says, filter chips, a Columns chooser, sort, pages,
+// saved views, and tick boxes with an Export. "Review" is the same list seen
+// for reviewing: its rows open the review status page and it shows who is
+// writing and who is reviewing each deliverable.*
+//
+// The organisation-standard columns stay exactly as T-360 ruled them: set by
+// the organisation's super user for everyone in it, and never hideable from
+// a personal view — a personal view may hide the platform's own columns and
+// may not add one. The query lives in the address so a filtered view survives
+// reload, and a saved view keeps it under a name (T-460).
+export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
+  const view = props.view ?? 'plan';
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -721,13 +738,16 @@ export function PlanScreen() {
   const canEditRow = (r: PlanRow) =>
     (isSuper && r.producingOrganisationId === me.organisationId) || isRowLeadAuthor(r);
 
-  const [rows, setRows] = useState<PlanRow[] | null>(null);
+  const [params, setParams] = useSearchParams();
+  const query = useMemo(() => readPlanQuery(params), [params]);
+  const [result, setResult] = useState<{ items: PlanRow[]; total: number; page: number; pageSize: number } | null>(null);
+  const rows = result?.items ?? null;
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [creating, setCreating] = useState(false);
   const [metaRow, setMetaRow] = useState<PlanRow | null>(null);
   const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
-  const [query, setQuery] = useState('');
   // T-359 — the batch import off the T-358 template (create-only, whole-file verdict)
   const importInput = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
@@ -768,15 +788,32 @@ export function PlanScreen() {
   const [planColumns, setPlanColumns] = useState<string[] | null>(null);
   const [editingColumns, setEditingColumns] = useState(false);
 
-  const load = useCallback(
-    () =>
-      void api.plan(projectId).then((res) => {
-        setRows(res.items);
+  // responses may land out of order (a ranked search is slower than the plain
+  // page it replaces), so only the latest request's answer is kept
+  const requestSeq = useRef(0);
+  const load = useCallback(() => {
+    const seq = ++requestSeq.current;
+    void api
+      .planPage(projectId, {
+        q: query.q,
+        sort: query.sort,
+        direction: query.direction,
+        state: query.state,
+        kind: query.kind,
+        producerId: query.producerId,
+        page: query.page,
+        pageSize: PLAN_PAGE_SIZE,
+      })
+      .then((res) => {
+        if (seq !== requestSeq.current) return;
+        setResult({ items: res.items, total: res.total ?? res.items.length, page: res.page ?? 1, pageSize: res.pageSize ?? PLAN_PAGE_SIZE });
         setPlanColumns(res.planColumns);
-      }),
-    [projectId],
-  );
+      });
+  }, [projectId, query]);
   useEffect(load, [load]);
+  const setQuery = (next: Partial<PlanScreenQuery>, resetPage = true) => {
+    setParams(writePlanQuery({ ...query, ...next, ...(resetPage && !('page' in next) && { page: 1 }) }));
+  };
   // T-376 — the read never returns null, so the three states are the CLIENT's:
   // not yet arrived, arrived, and failed. They used to collapse into one `null`,
   // and the New-deliverable modal read that null as "this project has no coding
@@ -791,19 +828,23 @@ export function PlanScreen() {
   }, [projectId]);
   useEffect(() => void api.participants(projectId).then((r) => setRoster(r.items)), [projectId]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = rows ?? [];
-    if (!q) return list;
-    return list.filter(
-      (r) =>
-        (r.documentReference ?? '').toLowerCase().includes(q) ||
-        (r.workItem?.title ?? '').toLowerCase().includes(q),
-    );
-  }, [rows, query]);
-
   // the extra columns the org standard names, resolved against the schema —
   // an unknown key (schema edited since) renders nothing rather than breaking
+  const liveNamesOf = (grants: PlanRow['reviewers'] | PlanRow['authors']) =>
+    grants
+      .filter((g) => g.revokedAt === null)
+      .map((g) => `${g.name}${g.isLead ? ' (lead)' : ''}`)
+      .join(', ');
+  const producers = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of roster) if (!seen.has(r.organisationId)) seen.set(r.organisationId, r.organisationName);
+    return [...seen.entries()].map(([value, label]) => ({ value, label }));
+  }, [roster]);
+  const activeFilters: RegisterFilterChip[] = [
+    ...(query.state !== 'any' ? [{ key: 'state', label: query.state[0]!.toUpperCase() + query.state.slice(1) }] : []),
+    ...(query.kind !== 'any' ? [{ key: 'kind', label: query.kind === 'reference' ? 'Reference material' : 'Deliverables' }] : []),
+    ...(query.producerId ? [{ key: 'producer', label: `Produced by ${producers.find((p) => p.value === query.producerId)?.label ?? '…'}` }] : []),
+  ];
   const extraFields = useMemo(
     () =>
       (planColumns ?? []).flatMap((key) => {
@@ -812,7 +853,116 @@ export function PlanScreen() {
       }),
     [planColumns, scheme],
   );
-  const baseCols = (isOwner ? 7 : 6) + extraFields.length;
+
+  // the columns: the reference (never hideable), the title, the organisation's
+  // standard columns (locked — T-360), then the platform's own, which a
+  // personal view may hide; the review view adds who writes and who reviews
+  const columns: RegisterColumn<PlanRow>[] = [
+    {
+      key: 'reference',
+      label: 'Reference',
+      sortable: true,
+      render: (r) => (
+        <>
+          <span className="ficon">
+            <FileText size={14} strokeWidth={2} />
+          </span>
+          {view === 'review' ? (
+            // T-457 — the reference is the door to the document page; the row stays the door to the review
+            <button
+              className="linklike mono"
+              onClick={(e) => {
+                e.stopPropagation();
+                void navigate(`/projects/${projectId}/documents/${r.containerId}`);
+              }}
+              title="Open the document page"
+            >
+              {r.documentReference}
+            </button>
+          ) : (
+            <span className="mono">{r.documentReference}</span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (r) => r.title ?? <span style={{ color: 'var(--text-muted)' }}>Reference material</span>,
+    },
+    ...extraFields.map(
+      (f): RegisterColumn<PlanRow> => ({
+        key: `field:${f.key}`,
+        label: f.label,
+        render: (r) => {
+          const raw = r.metadata[f.key];
+          const value = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : null;
+          return <span title={value !== null ? optionLabel(value, f.allowedValueLabels) : undefined}>{value ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}</span>;
+        },
+      }),
+    ),
+    ...(isOwner
+      ? [{ key: 'producer', label: 'Producer', hideable: true, render: (r: PlanRow) => <span style={{ color: 'var(--text-muted)' }}>{r.producingOrganisationName}</span> }]
+      : []),
+    {
+      key: 'state',
+      label: 'Status',
+      sortable: true,
+      render: (r) => {
+        const st = lifecycleBadgeOf(r);
+        return <Badge tone={st.tone}>{st.label}</Badge>;
+      },
+    },
+    { key: 'revision', label: 'Revision', hideable: true, render: (r) => <span className="mono">{r.currentVersion?.versionReference ?? '—'}</span> },
+    {
+      key: 'verdict',
+      label: 'Verdict',
+      hideable: true,
+      render: (r) => (r.deliverableCode ? (view === 'review' ? r.deliverableCode.code : `${r.deliverableCode.code} · ${r.deliverableCode.description}`) : '—'),
+    },
+    ...(view === 'review'
+      ? [
+          { key: 'authors', label: 'Authors', hideable: true, render: (r: PlanRow) => <span style={{ fontSize: 12 }}>{liveNamesOf(r.authors) || '—'}</span> },
+          {
+            key: 'reviewers',
+            label: 'Reviewers',
+            hideable: true,
+            render: (r: PlanRow) => {
+              const proposed = r.reviewers.filter((g) => g.revokedAt === null && g.confirmedAt === null);
+              return (
+                <span style={{ fontSize: 12 }}>
+                  {liveNamesOf(r.reviewers.filter((g) => g.confirmedAt !== null)) || '—'}
+                  {/* proposal state reads here; the confirm act lives on the status page (T-348) — access follows confirmation, never proposal (ADR-0033) */}
+                  {proposed.length > 0 && (
+                    <span style={{ marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {proposed.map((g) => (
+                        <Badge key={g.id} tone="warning">
+                          proposed: {g.name}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
+                </span>
+              );
+            },
+          },
+        ]
+      : [
+          {
+            key: 'actions',
+            label: '',
+            align: 'right' as const,
+            render: (r: PlanRow) => (
+              <span onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="quiet" onClick={() => setMetaRow(r)}>
+                  <FileCog size={13} strokeWidth={2} /> Metadata
+                </Button>
+              </span>
+            ),
+          },
+        ]),
+  ];
 
   return (
     <div className="content">
@@ -892,76 +1042,18 @@ export function PlanScreen() {
       )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <h1 className="page">{isOwner ? 'Project schedule' : 'Deliverable plan'}</h1>
+        <h1 className="page">{view === 'review' ? 'Review' : isOwner ? 'Project schedule' : 'Deliverable plan'}</h1>
         <Badge tone="neutral">{isOwner ? 'MIDP' : 'TIDP'}</Badge>
       </div>
       <p className="page-sub">
-        {isOwner
-          ? 'Every organisation’s planned deliverables, consolidated. Each row is a container; status is event-driven.'
-          : 'Your organisation’s planned deliverables. Add a deliverable to reserve a coded container; draft it in the sandbox, then bind and promote.'}
+        {view === 'review'
+          ? isOwner
+            ? 'Every organisation’s deliverables, seen for reviewing: who is writing each, who is reviewing it, and where it stands. A row opens its status page; proposed reviewers are confirmed there.'
+            : 'Your organisation’s deliverables, seen for reviewing: who is writing each, who is reviewing it, and where it stands. A row opens its status page.'
+          : isOwner
+            ? 'Every organisation’s planned deliverables, consolidated. Each row is a container; status is event-driven.'
+            : 'Your organisation’s planned deliverables. Add a deliverable to reserve a coded container; draft it in the sandbox, then bind and promote.'}
       </p>
-
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '12px 0' }}>
-        <div className="field-input combobox-control" style={{ maxWidth: 280 }}>
-          <Search size={13} strokeWidth={2} className="combobox-icon" />
-          <input
-            className="combobox-input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search reference or title"
-          />
-        </div>
-        <span style={{ marginLeft: 'auto' }} />
-        <Button variant="quiet" size="sm" onClick={() => navigate(`/projects/${projectId}/plan/scheme`)}>
-          <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
-        </Button>
-        {isSuper && (
-          <Button variant="quiet" size="sm" onClick={() => setEditingColumns(true)}>
-            <Columns3 size={14} strokeWidth={2} /> Columns
-          </Button>
-        )}
-        {isSuper && (
-          <>
-            <input
-              ref={importInput}
-              type="file"
-              accept=".xlsx"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) void importFile(file);
-              }}
-            />
-            <Button
-              variant="quiet"
-              size="sm"
-              disabled={importing}
-              onClick={() => importInput.current?.click()}
-            >
-              <FileUp size={14} strokeWidth={2} /> {importing ? 'Importing…' : 'Import from Excel'}
-            </Button>
-            {/* fails CLOSED: with no scheme in hand there is no compliant
-                reference to generate, and the honest answer is "not yet" or
-                "not until this loads" — never a text box (T-376) */}
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={scheme === null}
-              title={
-                schemeFailed
-                  ? 'The project’s coding scheme could not be read — a deliverable cannot be planned without it.'
-                  : scheme === null
-                    ? 'Loading the project’s coding scheme…'
-                    : undefined
-              }
-              onClick={() => setCreating(true)}
-            >
-              <Plus size={14} strokeWidth={2} /> New deliverable
-            </Button>
-          </>
-        )}
-      </div>
 
       {schemeFailed && (
         <div className="banner banner--error">
@@ -1028,81 +1120,198 @@ export function PlanScreen() {
         </Modal>
       )}
 
-      <Table>
-        <table>
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Title</th>
-              {extraFields.map((f) => (
-                <th key={f.key}>{f.label}</th>
-              ))}
-              {isOwner && <th>Producer</th>}
-              <th>Status</th>
-              <th>Revision</th>
-              <th>Verdict</th>
-              <th style={{ textAlign: 'right' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows === null &&
-              Array.from({ length: 4 }).map((_, i) => (
-                <tr key={`sk-${i}`}>
-                  <td colSpan={baseCols}>
-                    <Skeleton height={18} />
-                  </td>
-                </tr>
-              ))}
-            {filtered.map((r) => (
-              <tr
-                key={r.containerId}
-                // T-457 — a row lands on the document page; its quick edits
-                // stay one click away there ("Edit details…")
-                onClick={() => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}
-                style={{ cursor: 'pointer' }}
-              >
-                <td>
-                  <span className="ficon">
-                    <FileText size={14} strokeWidth={2} />
-                  </span>
-                  <span className="mono">{r.documentReference}</span>
-                </td>
-                <td>{r.workItem?.title ?? <span style={{ color: 'var(--text-muted)' }}>Reference material</span>}</td>
-                {extraFields.map((f) => {
-                  const raw = r.metadata[f.key];
-                  const value = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : null;
-                  return (
-                    <td key={f.key} title={value !== null ? optionLabel(value, f.allowedValueLabels) : undefined}>
-                      {value ?? <span style={{ color: 'var(--text-faint)' }}>—</span>}
-                    </td>
-                  );
-                })}
-                {isOwner && <td style={{ color: 'var(--text-muted)' }}>{r.producingOrganisationName}</td>}
-                <td>
-                  {(() => {
-                    const st = lifecycleBadgeOf(r);
-                    return <Badge tone={st.tone}>{st.label}</Badge>;
-                  })()}
-                </td>
-                <td className="mono">{r.currentVersion?.versionReference ?? '—'}</td>
-                <td>{r.deliverableCode ? `${r.deliverableCode.code} · ${r.deliverableCode.description}` : '—'}</td>
-                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                  <Button size="sm" variant="quiet" onClick={() => setMetaRow(r)}>
-                    <FileCog size={13} strokeWidth={2} /> Metadata
-                  </Button>
-                </td>
-              </tr>
-            ))}
-            {rows !== null && filtered.length === 0 && (
-              <tr>
-                <td colSpan={baseCols} style={{ color: 'var(--text-muted)' }}>
-                  {rows.length === 0 ? 'No deliverables planned yet — add the first one.' : 'No matches.'}
-                </td>
-              </tr>
+      <Register<PlanRow>
+        label={view === 'review' ? 'Review list' : 'Deliverables plan'}
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.containerId}
+        rowLabel={(r) => r.documentReference ?? r.containerId}
+        selection={{
+          selected,
+          onChange: setSelected,
+          bar: (ids) => (
+            <Button size="sm" variant="quiet" onClick={() => void api.exportPlanRows(projectId, ids).catch(() => setImportProblem('Could not export — try again.'))}>
+              Export to Excel
+            </Button>
+          ),
+        }}
+        // T-457 — a plan row lands on the document page; a review row on the status page
+        onRowClick={(r) =>
+          void navigate(view === 'review' ? `/projects/${projectId}/review/${r.containerId}` : `/projects/${projectId}/documents/${r.containerId}`)
+        }
+        search={{
+          value: query.q ?? '',
+          onChange: (q) => setQuery({ q: q === '' ? undefined : q }),
+          placeholder: 'Search by code, title or what it says',
+        }}
+        filters={{
+          active: activeFilters,
+          onRemove: (key) =>
+            setQuery(key === 'state' ? { state: 'any' } : key === 'kind' ? { kind: 'any' } : key === 'producer' ? { producerId: undefined } : {}),
+          menu: (
+            <>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'live' })}>Live only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'superseded' })}>Superseded only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'withdrawn' })}>Withdrawn only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ kind: 'deliverable' })}>Deliverables only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ kind: 'reference' })}>Reference material only</DropdownMenuItem>
+              {isOwner &&
+                producers.map((p) => (
+                  <DropdownMenuItem key={p.value} onClick={() => setQuery({ producerId: p.value })}>
+                    Produced by {p.label}
+                  </DropdownMenuItem>
+                ))}
+            </>
+          ),
+        }}
+        sort={{
+          value: query.sort === 'relevance' ? null : { key: query.sort, direction: query.direction },
+          onChange: (sort: RegisterSort | null) =>
+            setQuery(sort === null ? { sort: 'relevance', direction: 'asc' } : { sort: sort.key as PlanScreenQuery['sort'], direction: sort.direction }),
+        }}
+        hiddenColumns={{ value: query.cols, onChange: (cols) => setQuery({ cols }, false) }}
+        page={result ? { page: result.page, pageSize: result.pageSize, total: result.total, onPage: (page) => setQuery({ page }, false) } : undefined}
+        views={
+          <SavedViewsMenu
+            projectId={projectId}
+            register={view === 'review' ? 'review' : 'plan'}
+            current={savedPlanShape(query)}
+            activeName={query.view ?? null}
+            onApply={(filter) => setParams(writePlanQuery({ ...readPlanQuery(new URLSearchParams()), ...fromSavedPlan(filter) }))}
+          />
+        }
+        actions={
+          <>
+            <Button variant="quiet" size="sm" onClick={() => navigate(`/projects/${projectId}/plan/scheme`)}>
+              <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
+            </Button>
+            {isSuper && (
+              <Button variant="quiet" size="sm" onClick={() => setEditingColumns(true)} aria-label="Organisation-standard columns">
+                <Columns3 size={14} strokeWidth={2} /> Standard columns
+              </Button>
             )}
-          </tbody>
-        </table>
-      </Table>
+            {isSuper && view === 'plan' && (
+              <>
+                <input
+                  ref={importInput}
+                  type="file"
+                  accept=".xlsx"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void importFile(file);
+                  }}
+                />
+                <Button variant="quiet" size="sm" disabled={importing} onClick={() => importInput.current?.click()}>
+                  <FileUp size={14} strokeWidth={2} /> {importing ? 'Importing…' : 'Import from Excel'}
+                </Button>
+                {/* fails CLOSED: with no scheme in hand there is no compliant
+                    reference to generate, and the honest answer is "not yet" or
+                    "not until this loads" — never a text box (T-376) */}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={scheme === null}
+                  title={
+                    schemeFailed
+                      ? 'The project’s coding scheme could not be read — a deliverable cannot be planned without it.'
+                      : scheme === null
+                        ? 'Loading the project’s coding scheme…'
+                        : undefined
+                  }
+                  onClick={() => setCreating(true)}
+                >
+                  <Plus size={14} strokeWidth={2} /> New deliverable
+                </Button>
+              </>
+            )}
+            {view === 'review' && (
+              // T-357 — a LINK, not a form: planning lives on the Plan screen
+              <Button size="sm" variant="primary" onClick={() => void navigate(`/projects/${projectId}/plan`)}>
+                + Plan a deliverable
+              </Button>
+            )}
+          </>
+        }
+        empty={
+          query.q || activeFilters.length > 0
+            ? 'Nothing on this plan matches. Clear a filter, or search by a different word.'
+            : isSuper
+              ? 'No deliverables planned yet — add the first one.'
+              : 'Nothing planned yet.'
+        }
+      />
+      {view === 'review' && (
+        <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          Appointments are made per deliverable from the project roster; reviewer proposals confer no
+          access until the owner confirms — on the deliverable’s status page.
+        </p>
+      )}
     </div>
   );
+}
+
+const PLAN_PAGE_SIZE = 50;
+
+/** the plan register's query, as the address carries it */
+type PlanScreenQuery = {
+  q?: string | undefined;
+  sort: NonNullable<PlanQuery['sort']>;
+  direction: NonNullable<PlanQuery['direction']>;
+  state: NonNullable<PlanQuery['state']>;
+  kind: NonNullable<PlanQuery['kind']>;
+  producerId?: string | undefined;
+  page: number;
+  cols: string[];
+  view?: string | undefined;
+};
+
+function readPlanQuery(params: URLSearchParams): PlanScreenQuery {
+  const pick = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    const v = params.get(key);
+    return v !== null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+  };
+  const page = Number.parseInt(params.get('page') ?? '1', 10);
+  return {
+    q: params.get('q') ?? undefined,
+    sort: pick('sort', ['relevance', 'reference', 'title', 'state'] as const, 'relevance'),
+    direction: pick('direction', ['asc', 'desc'] as const, 'asc'),
+    state: pick('state', ['live', 'superseded', 'withdrawn', 'rejected', 'any'] as const, 'any'),
+    kind: pick('kind', ['deliverable', 'reference', 'any'] as const, 'any'),
+    producerId: params.get('producer') ?? undefined,
+    page: Number.isFinite(page) && page >= 1 ? page : 1,
+    cols: (params.get('cols') ?? '').split(',').filter((c) => c !== ''),
+    view: params.get('view') ?? undefined,
+  };
+}
+function writePlanQuery(q: PlanScreenQuery): URLSearchParams {
+  const out = new URLSearchParams();
+  if (q.q) out.set('q', q.q);
+  if (q.sort !== 'relevance') out.set('sort', q.sort);
+  if (q.direction !== 'asc') out.set('direction', q.direction);
+  if (q.state !== 'any') out.set('state', q.state);
+  if (q.kind !== 'any') out.set('kind', q.kind);
+  if (q.producerId) out.set('producer', q.producerId);
+  if (q.page > 1) out.set('page', String(q.page));
+  if (q.cols.length > 0) out.set('cols', q.cols.join(','));
+  if (q.view) out.set('view', q.view);
+  return out;
+}
+function savedPlanShape(q: PlanScreenQuery): Record<string, unknown> {
+  return { q: q.q ?? null, sort: q.sort, direction: q.direction, state: q.state, kind: q.kind, producerId: q.producerId ?? null, cols: q.cols };
+}
+function fromSavedPlan(filter: Record<string, unknown>): Partial<PlanScreenQuery> {
+  const str = (k: string) => (typeof filter[k] === 'string' ? (filter[k] as string) : undefined);
+  const cols = Array.isArray(filter['cols']) ? (filter['cols'] as unknown[]).filter((c): c is string => typeof c === 'string') : [];
+  return {
+    q: str('q'),
+    sort: (str('sort') as PlanScreenQuery['sort'] | undefined) ?? 'relevance',
+    direction: (str('direction') as PlanScreenQuery['direction'] | undefined) ?? 'asc',
+    state: (str('state') as PlanScreenQuery['state'] | undefined) ?? 'any',
+    kind: (str('kind') as PlanScreenQuery['kind'] | undefined) ?? 'any',
+    producerId: str('producerId'),
+    cols,
+    view: str('view'),
+  };
 }

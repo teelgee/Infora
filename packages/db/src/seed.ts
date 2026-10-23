@@ -251,6 +251,7 @@ await db.insert(s.workItems).values({
 
 // ── Drawer 2: the project library ───────────────────────────────────────────
 type LibraryDoc = {
+  title: string; // T-462 — reference material's own title
   reference: string;
   state?: 'live' | 'withdrawn';
   // T-405 — what the document IS, as the person who filed it would say it.
@@ -263,6 +264,7 @@ type LibraryDoc = {
 const library: LibraryDoc[] = [
   {
     reference: 'WA-GEO-GIR-004',
+    title: 'Ground investigation report',
     description:
       'Interprets the ground investigation at Wrenfield Sidings: what the made ground is, what contamination was found in it, and what the perched water means for construction dewatering.',
     versions: [
@@ -293,6 +295,7 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-ENV-BAS-003',
+    title: 'Environmental baseline report',
     description:
       'The environmental baseline for the corridor — the existing conditions every assessment chapter measures its effects against.',
     versions: [
@@ -314,6 +317,7 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-WAT-FRA-001',
+    title: 'Flood risk assessment',
     description:
       'The flood risk assessment for the corridor, including the Ashcombe Brook crossing and how surface water leaving the compounds is managed.',
     versions: [
@@ -332,6 +336,7 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-CON-SCC-002',
+    title: 'Statement of community consultation',
     description:
       'How the community was consulted, when, and what they said — the record the routeing refinement was justified against.',
     versions: [
@@ -349,6 +354,7 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-EIA-SCP-001',
+    title: 'EIA scoping report',
     description:
       'Sets out what the Environmental Impact Assessment will and will not cover, and the register and structure every chapter is written to.',
     versions: [
@@ -369,6 +375,7 @@ const library: LibraryDoc[] = [
   },
   {
     reference: 'WA-HER-DBA-002',
+    title: 'Heritage desk-based assessment',
     description:
       'The original heritage desk-based assessment. Withdrawn: its methodology was superseded, and it must not be relied on.',
     state: 'withdrawn', // stays in the library, leaves the grounded corpus (ADR-0013)
@@ -394,6 +401,7 @@ for (const doc of library) {
       producingOrganisationId: trentmoor!.id,
       documentReference: doc.reference,
       description: doc.description,
+      title: doc.title,
       inLibrary: true,
       state: doc.state ?? 'live',
     })
