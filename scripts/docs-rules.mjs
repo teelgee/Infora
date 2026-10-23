@@ -60,6 +60,13 @@ const INDEXED = [
   // real records indefinitely.
   'docs/reference',
   'docs/grill-sessions',
+  // `docs/walks` joined 2026-10-23, in the review that merged the first
+  // acceptance walk (T-446). A walk is a narrative plus a folder of
+  // screenshots — evidence a ticket is judged on, not design — and the folder
+  // arrived unindexed, the exact condition this list exists to end. One `.md`
+  // per walk sits here; its screenshots sit in a same-named subfolder, which
+  // holds no documents and so needs no index of its own.
+  'docs/walks',
 ];
 
 /** Documented file types. The README itself is the index, never a row in it. */

@@ -29,6 +29,7 @@ const SIBLINGS = [
   'docs/design/mockups',
   'docs/reference',
   'docs/grill-sessions',
+  'docs/walks',
 ];
 
 /**
