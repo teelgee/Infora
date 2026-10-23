@@ -46,36 +46,12 @@ export function ComposerSources(props: { projectId: string; onInsert: (snippet: 
           <DropdownMenuItem>No live documents in this project&apos;s library.</DropdownMenuItem>
         )}
       </DropdownMenu>
-      <Placeholder glyph="＋" label="Attach a file" waitsOn="attached sources arrive post-skeleton" />
-      <Placeholder glyph="≡" label="Prompts" waitsOn="standard prompts — to be developed" />
-      <Placeholder
-        glyph="✒"
-        label="Style"
-        waitsOn="respond in a set style — predetermined styles from the project/organisation, to be designed (tracker)"
-      />
-      <Placeholder glyph="◍" label="Web search" waitsOn="arrives with the search provider (infra session)" />
-      <Placeholder
-        glyph="▧"
-        label="Sandbox search"
-        waitsOn="needs a ruling — the AI never grounds on the sandbox (ADR-0011)"
-      />
-      {/* T-292 stopped here rather than building it: a chip listing routes for
-          the user to choose from IS the user-facing model picker, which is
-          `Q-021` and unruled. The tooltip names the question rather than the
-          seam, so whoever picks this up finds the ruling it waits on. */}
-      <Placeholder
-        glyph="✳"
-        label="Model"
-        waitsOn="a user-facing model picker is Q-021 and is not ruled — per-request routing policy (ADR-0028 §9), to design when a second adapter lands"
-      />
+      {/* T-464 — the six placeholder chips that stood here (attach, prompts,
+          style, web search, sandbox search, model) are gone until each is built:
+          a control that does nothing is a promise the screen cannot keep. Their
+          open questions stay where they were (Q-021 the model picker; the
+          sandbox-search ruling; the search provider) and nothing here waits on them. */}
     </>
   );
 }
 
-function Placeholder(props: { glyph: string; label: string; waitsOn: string }) {
-  return (
-    <Chip disabled title={props.waitsOn}>
-      {props.glyph} {props.label}
-    </Chip>
-  );
-}

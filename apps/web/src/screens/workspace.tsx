@@ -6,12 +6,11 @@
 // their pages state honestly what is coming and why it isn't here yet.
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Archive, BookOpen, Home, LayoutTemplate, PenLine, Sparkles, Wrench, ShieldCheck } from 'lucide-react';
+import { BookOpen, Home, LayoutTemplate, ShieldCheck } from 'lucide-react';
 import {
   AppFrame,
   Badge,
   Card,
-  CommandBar,
   ProjectCard,
   ProjectSwitcher,
   Rail,
@@ -34,27 +33,11 @@ const ICON_STROKE = 2;
 
 // The workspace sections and the slice each is waiting on (grill tracker,
 // Phase 7 QA themes, 2026-07-09).
+// T-464 — the rail carries only what is built. The Ask, Editor, Personal
+// sandbox and Tools sections that stood here as notes ("arrives with the
+// workspace slice") are gone until each lands: a rail item that opens a
+// paragraph is a control that does nothing.
 const SECTIONS = {
-  ask: {
-    label: 'Ask',
-    glyph: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-    note: "Workspace Ask answers over your organisation's own knowledge — house style, templates, know-how — with no client project in scope. It arrives with the workspace slice, once the organisation-knowledge store lands.",
-  },
-  editor: {
-    label: 'Editor',
-    glyph: <PenLine size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-    note: 'The workspace Editor drafts on organisation knowledge only — nothing project-specific is reachable from here, by construction. It arrives with the workspace slice.',
-  },
-  sandbox: {
-    label: 'Personal sandbox',
-    glyph: <Archive size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-    note: 'Your private drive — folders and documents only you can see, never visible to the AI as context. It arrives with the sandbox drawer.',
-  },
-  tools: {
-    label: 'Tools',
-    glyph: <Wrench size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-    note: "Your organisation's toolkit — Infora's standard tools and the ones your firm builds; each tool runs a codified workflow. Building your own happens here too (proposed as its own slice, 2026-07-09); the builder's shape and the tool-scoping ruling (2026-07-13) are on the grill tracker.",
-  },
   // T-422 (ADR-0054 decision 1) — the placeholder stops being a note. This is
   // the SAME SHELF the project's Knowledge screen shows, reached through the
   // second of its two doors, and **no project material is shown here at all**.
@@ -217,15 +200,9 @@ export function WorkspaceLanding() {
             {greeting()}, {me.name.split(' ')[0]}
           </h1>
           <p className="page-sub">
-            Your firm&apos;s workspace — its own knowledge, sandboxes and tools. No client
+            Your firm&apos;s workspace — its own knowledge, kept apps, and how the AI works. No client
             project is in scope here.
           </p>
-
-          <div style={{ marginTop: 22 }}>
-            <CommandBar hint="⌘K">
-              Ask across your firm&apos;s own knowledge — arrives with the workspace slice
-            </CommandBar>
-          </div>
 
           <SectionLabel>Your projects</SectionLabel>
           <div className="project-grid">

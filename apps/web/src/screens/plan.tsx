@@ -21,7 +21,7 @@ import type {
 } from '@infora/contracts';
 import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
 import { Columns3, FileCog, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
-import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
+import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, PageIntro, Register, SelectInput, Table, TextArea, TextInput } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { api, RequestError } from '../api';
@@ -1024,15 +1024,22 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         <h1 className="page">{view === 'review' ? 'Review' : isOwner ? 'Project schedule' : 'Deliverable plan'}</h1>
         <Badge tone="neutral">{isOwner ? 'MIDP' : 'TIDP'}</Badge>
       </div>
-      <p className="page-sub">
-        {view === 'review'
-          ? isOwner
-            ? 'Every organisation’s deliverables, seen for reviewing: who is writing each, who is reviewing it, and where it stands. A row opens its status page; proposed reviewers are confirmed there.'
-            : 'Your organisation’s deliverables, seen for reviewing: who is writing each, who is reviewing it, and where it stands. A row opens its status page.'
-          : isOwner
-            ? 'Every organisation’s planned deliverables, consolidated. Each row is a container; status is event-driven.'
-            : 'Your organisation’s planned deliverables. Add a deliverable to reserve a coded container; draft it in the sandbox, then bind and promote.'}
-      </p>
+      <PageIntro
+        line={
+          view === 'review'
+            ? 'Every deliverable seen for reviewing: who is writing it, who is reviewing it, and where it stands.'
+            : isOwner
+              ? 'Every organisation’s planned deliverables in one schedule.'
+              : 'Your organisation’s planned deliverables, each a coded reference waiting for its draft.'
+        }
+        more={
+          view === 'review'
+            ? 'A row opens the deliverable’s review status page, where proposed reviewers are confirmed; the reference opens its document page. Reviewer proposals confer no access until the owner confirms them.'
+            : isOwner
+              ? 'Each row is a container whose status moves with the review cycle’s events, never by hand. Search by code, title or what the document says; the columns your organisation set as standard are shown to everyone in it.'
+              : 'Add a deliverable to reserve a coded reference generated from the project’s scheme; draft it in your sandbox, bind the draft to its row, then promote it into the owner’s library for review.'
+        }
+      />
 
       {schemeFailed && (
         <div className="banner banner--error">

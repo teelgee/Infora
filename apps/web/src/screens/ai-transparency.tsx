@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router';
 import type { AiFeatureRow, AiTransparencyResponse, MeResponse } from '@infora/contracts';
-import { Badge, Button, Field, Modal, SectionLabel, Table, TextArea } from '@infora/ui';
+import { Badge, Button, Field, Modal, SectionLabel, Table, TextArea, PageIntro } from '@infora/ui';
 import { api } from '../api';
 import { rememberAiFeatures } from '../ai-features';
 import { formatDate } from './shared';
@@ -33,13 +33,14 @@ export function AiTransparencyScreen() {
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="page">How the AI works here</h1>
-          <p className="page-sub">
-            Every AI feature on this project, what it reads, what it may write, where it runs, what it keeps — and that none of
-            it is ever used to train a model.{' '}
-            {table?.mayConfigure
-              ? 'As the owner’s super user you can turn a feature off for this project; a switched-off feature disappears from every screen until it is turned back on, and every change is kept here with your name.'
-              : 'Only the project owner’s super user can turn a feature off for this project; every change is listed here.'}
-          </p>
+          <PageIntro
+            line="Every AI feature on this project: what it reads, what it may write, where it runs, what it keeps — and that none of it ever trains a model."
+            more={
+              table?.mayConfigure
+                ? 'As the owner’s super user you can turn a feature off for this project, giving a reason; a switched-off feature disappears from every screen until it is turned back on, and every change is kept here with your name for everyone on the project to read.'
+                : 'Only the project owner’s super user can turn a feature off for this project; every change is listed here with a name, a date and the reason.'
+            }
+          />
         </div>
         <Button size="sm" variant="quiet" onClick={() => void api.exportAiTransparency(projectId)}>
           Export as a document

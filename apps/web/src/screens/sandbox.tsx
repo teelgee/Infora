@@ -64,6 +64,7 @@ import {
   Table,
   TextInput,
   Register,
+  PageIntro,
 } from '@infora/ui';
 import { api } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
@@ -1885,10 +1886,10 @@ export function SandboxScreen() {
           )}
         </span>
       </div>
-      <p className="page-sub">
-        Work in progress across your sandboxes. Separation is by a narrower sandbox, never a wall
-        inside a shared one; the AI never grounds on anything here.
-      </p>
+      <PageIntro
+        line="Your organisation’s work in progress, in the sandboxes you are part of."
+        more="Separation is by a narrower sandbox, never a wall inside a shared one. Nothing here is formally controlled and the AI never grounds on it, though you may attach a working file to one draft. Every document keeps a version history; freeze one for an internal check before promoting it."
+      />
       {note !== null && (
         <div className={`banner banner--${note.tone}`} style={{ marginBottom: 8 }}>
           {note.text}

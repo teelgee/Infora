@@ -80,6 +80,7 @@ import {
   SelectInput,
   TextArea,
   TextInput,
+  PageIntro,
 } from '@infora/ui';
 import { api } from '../api';
 import { useGroundingScope } from '../composer-chips';
@@ -102,10 +103,10 @@ export function ToolsScreen() {
   return (
     <div className="content">
       <h1 className="page">Tools</h1>
-      <p className="page-sub">
-        Infora’s standard tools. Each runs a codified workflow — the same inputs produce the same
-        steps, in the same order, every time.
-      </p>
+      <PageIntro
+        line="Infora’s standard tools — each runs the same steps, in the same order, every time."
+        more="A tool is a codified workflow: you choose what it reads and it says what it will do before it does it. A tool your firm cannot use, or that this project has switched off, is not shown here."
+      />
       {tools === null ? (
         <p className="page-sub">Loading…</p>
       ) : (

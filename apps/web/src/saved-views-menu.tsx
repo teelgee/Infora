@@ -77,9 +77,10 @@ export function SavedViewsMenu(props: {
           </DropdownMenuItem>
         ))}
         {views !== null && views.length === 0 && (
-          <DropdownMenuItem onClick={() => undefined}>
-            <span style={{ color: 'var(--text-muted)' }}>No saved views yet</span>
-          </DropdownMenuItem>
+          // T-464 — a note, never a menu item that does nothing
+          <span className="field-hint" style={{ display: 'block', padding: '6px 10px' }}>
+            No saved views yet
+          </span>
         )}
         <DropdownMenuItem onClick={() => setSaving(true)}>Save current view…</DropdownMenuItem>
         {(views ?? []).some((v) => v.mine) && (

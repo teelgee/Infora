@@ -85,4 +85,4 @@
 
 ## Screens
 
-The routable pages: **workspace landing**, the workspace **section pages** (Ask/Editor/Personal sandbox/Tools/Your knowledge), **project home**, **Ask**, **Editor** (and its **entry screen**), **Documents** (the project library), **Sandbox**, **Review**, **Tools** (was Workflows, T-109), **History** (your prompted turns, T-108), the **audit screen** (work item), **settings**.
+The routable pages: **workspace landing**, the workspace **section pages** (Your knowledge / Kept apps / How the AI works — the Ask, Editor, Personal sandbox and Tools placeholders were removed by T-464 until each is built), **project home**, **Ask**, **Editor** (and its **entry screen**), **Plan** (the deliverables register; **Review** is its review view), **Project library**, the **document page**, **Sandbox**, **Tools**, **Apps**, **Knowledge**, **Notifications**, **How the AI works here**, **History** (your prompted turns, T-108), the **audit screen** (work item), **settings**.

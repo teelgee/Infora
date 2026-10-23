@@ -51,3 +51,4 @@ export { LIFECYCLE_LABELS, LifecycleBadge, lifecycleBadge } from './lifecycle';
 export type { LifecyclePosition } from './lifecycle';
 export { ChatBubble, ChatComposer } from './chat-composer';
 export type { ChatComposerHandle } from './chat-composer';
+export { PageIntro } from './page-intro';

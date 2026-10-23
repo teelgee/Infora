@@ -27,7 +27,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { RulebookRecord, StartingOutline, StyleGuideRecord } from '@infora/contracts';
-import { Badge, Button, Card, Field, SectionLabel, TextInput } from '@infora/ui';
+import { Badge, Button, Card, Field, SectionLabel, TextInput, PageIntro } from '@infora/ui';
 import { api } from '../api';
 import { useMe } from '../session';
 
@@ -125,10 +125,10 @@ export function KnowledgeScreen() {
   return (
     <div className="content">
       <h1 className="page">Knowledge</h1>
-      <p className="page-sub">
-        The writing material that steers drafting and checking here — your firm’s own, and this
-        project’s.
-      </p>
+      <PageIntro
+        line="The writing material that steers drafting and checking here — your firm’s own, and this project’s."
+        more="Your firm’s rulebooks and starting outlines travel with it to every project and never reach another organisation. The project style guide binds every firm on the project; the owner accepts the rules drawn from it before they are enforced."
+      />
       <FirmShelfPane shelf={firm} door="project" {...(curation && { curation })} />
       <ProjectShelfPane
         guides={guides}

@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router';
 import type { HistoryEntry, MeResponse } from '@infora/contracts';
-import { Badge, SectionLabel, Table } from '@infora/ui';
+import { Badge, SectionLabel, Table, PageIntro } from '@infora/ui';
 import { api } from '../api';
 import { formatDateTime, statusBadge } from './shared';
 
@@ -33,10 +33,10 @@ export function HistoryScreen() {
   return (
     <div className="content">
       <h1 className="page">History</h1>
-      <p className="page-sub">
-        Your turns with the agent on this project — Ask conversations and document drafting.
-        Open one to pick the conversation back up, or to return to the document.
-      </p>
+      <PageIntro
+        line="Your turns with the agent on this project."
+        more="Ask conversations and document drafting, newest first. Open one to pick the conversation back up, or to return to the document it was about. Nobody outside your organisation sees this list."
+      />
 
       <SectionLabel>Your turns</SectionLabel>
       <Table>

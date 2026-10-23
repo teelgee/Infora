@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
   Field,
   Modal,
+  PageIntro,
   Register,
   SectionLabel,
   SegmentedControl,
@@ -942,11 +943,10 @@ export function LibraryScreen() {
   return (
     <div className="content">
       <h1 className="page">Project library</h1>
-      <p className="page-sub">
-        The governed corpus. Superseded and withdrawn documents leave this list and stand as
-        records on the plan. What the AI grounds on is narrower still: a deliverable accepted
-        under a code this project does not rely on stays here, badged, and out of reach.
-      </p>
+      <PageIntro
+        line="Every document the project relies on, searchable by code, title or what it says."
+        more="Superseded and withdrawn documents leave this list and stand as records on the plan. What the AI grounds on is narrower still: a deliverable accepted under a code this project does not rely on stays here, badged, and out of the AI’s reach. Tick rows to act on several at once; save the way you have set the list up as a view."
+      />
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
       {endingItem && (
         <EndDeliverableModal

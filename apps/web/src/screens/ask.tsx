@@ -21,7 +21,7 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
-import { ContextChip, DataSourcesChip, ToolsChip, useGroundingScope } from '../composer-chips';
+import { ContextChip, DataSourcesChip, useGroundingScope } from '../composer-chips';
 import { DestinationSelector, DestinationWarning, useDestinations } from '../destination-selector';
 import type { Destination } from '../destination-selector';
 import { LensPicker, useLenses } from '../lens-picker';
@@ -333,7 +333,6 @@ export function AskScreen() {
                     selected={refinement}
                     onChange={setRefinement}
                   />
-                  <ToolsChip />
                   <ContextChip scope={groundingScope} />
                   <ComposerSources
                     projectId={participant.projectId}

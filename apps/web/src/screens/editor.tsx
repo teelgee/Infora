@@ -25,10 +25,8 @@ import {
   Archive,
   Check,
   FileText,
-  LayoutTemplate,
   MessageSquare,
   PenLine,
-  Presentation,
   RefreshCw,
   Snowflake,
   ArrowUpFromLine,
@@ -108,22 +106,9 @@ function EditorEntry() {
           <div className="name">Word document</div>
           <div className="note">A prose deliverable — drafts here, renders to Word at promotion</div>
         </button>
-        <button
-          className="create-card disabled"
-          title="Arrives with the organisation-knowledge store — your firm's house style and templates"
-        >
-          <div className="glyph"><LayoutTemplate size={20} strokeWidth={2} /></div>
-          <div className="name">From a template</div>
-          <div className="note">Your organisation&apos;s templates — arrives with Your knowledge</div>
-        </button>
-        <button
-          className="create-card disabled"
-          title="A slide-shaped document type — arrives with the canonical-format decision (grill tracker)"
-        >
-          <div className="glyph"><Presentation size={20} strokeWidth={2} /></div>
-          <div className="name">PowerPoint</div>
-          <div className="note">Slide deck — arrives with the presentation document type</div>
-        </button>
+        {/* T-464 — the "From a template" and "PowerPoint" cards that stood here
+            disabled are gone until each is built; the document creator in Tools
+            is where a document starts from an outline today */}
       </div>
       {naming && (
         <form onSubmit={(e) => void create(e)} className="command" style={{ marginTop: 10 }}>
@@ -177,11 +162,6 @@ function EditorEntry() {
                 </td>
               </tr>
             )}
-            <tr>
-              <td colSpan={3} style={{ color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
-                Shared and personal sandboxes — and folders — arrive with the sandbox drawer.
-              </td>
-            </tr>
           </tbody>
         </table>
       </Table>

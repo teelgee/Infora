@@ -43,7 +43,7 @@ import type {
   RosterEntry,
 } from '@infora/contracts';
 import type { BadgeTone } from '@infora/ui';
-import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
+import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput, PageIntro } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
 import { AppTableRows } from './app-rows';
@@ -77,10 +77,10 @@ export function AppsScreen() {
   return (
     <div className="content">
       <h1 className="page">Apps</h1>
-      <p className="page-sub">
-        Standing places a firm has had built inside this scheme — a form to fill in, a register, a
-        dashboard. Tools do the work; apps hold it.
-      </p>
+      <PageIntro
+        line="Standing places a firm has had built for this project — a form, a register, a dashboard."
+        more="Tools do the work; apps hold it. Each app’s rows belong to the firm that typed them, shared only as that firm chose; the project owner reads what the scheme lets it read. Building an app is a conversation with the agent, and nothing opens until its open questions are answered."
+      />
       <AppsSection projectId={projectId} />
     </div>
   );
