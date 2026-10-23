@@ -108,6 +108,13 @@ For each: variants/states present in the mockups, tokens used, one-line usage no
 - Never add a shadow to a row or the table itself; the containing pane already carries `elevation.level2`.
 - Use for: Library (documents), Sandbox (folder tree, with an added indent per depth level, `table.cell.indent.folder`), and any future dense list (review comments, work items).
 
+### Register (`component.register`) *(T-460, 2026-10-23)*
+- **What it is:** the one table grammar for every list of documents (plan, library, sandbox all-documents, review list): a toolbar (search box that says *Filtered* when it is, filter chips, the saved-views menu, a column chooser, the screen's actions), an optional bulk-action bar that appears only for a selection, the Table (sticky header, sortable headers with `aria-sort`, a tick box per row), and a pager for a long list. Classes: `.register`, `.register--filtered`, `.register-toolbar`, `.register-search`, `.register-filters`, `.register-bulk-bar`, `.register-table`, `.register-row--selected`, `.register-pager`.
+- **States:** loading (skeleton rows), empty (one sentence in the table), filtered (search border strengthens and the word *Filtered* appears — a border and a word, never a hue), selected rows (`surface.active` fill), sorted column (`aria-sort` plus a ▲/▼ glyph).
+- **Side panel:** a row's *properties* open in the kit's `Drawer` (elevation 3, the lateral treatment) on row select; the row click itself opens the document page. The Drawer is the side panel; nothing else is.
+- **Filter chip:** the kit's `Chip` with a trailing × — removing it removes that filter; *+ Filter* opens the screen's own menu. **Bulk-action bar:** elevation 2, sticky above the table, the count on the left, the actions, *Clear* on the right; every action it offers has an undo or a confirmation. **Saved view:** a `CONTEXT.md` term — a named filter, never an access object; the menu lists the viewer's own and the firm's shared ones.
+- Use for: every list of documents. Do not hand-write a `<table>` for a register again.
+
 ### Project card (`component.projectCard`)
 - **States:** default *(designed)*, hover *(derive — same lift pattern as suggestionCallout, subtle `translateY` optional)*.
 - Use for: "your projects" list on the workspace landing; the numbered circle communicates progress (drafted/total), not a percentage bar.

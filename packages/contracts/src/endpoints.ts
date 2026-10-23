@@ -562,6 +562,37 @@ export type GetLibrarySearchResponse = {
   q: string | null;
 };
 
+// ── T-460 — saved views: a named filter over a register, never an access object ──
+//
+// GET    /projects/:projectId/saved-views?register=   the requester's own, and the
+//                                                      ones shared within their organisation
+// POST   /projects/:projectId/saved-views              save the current query under a name
+// DELETE /saved-views/:id                              the maker's act; an org admin's for a shared one
+export const savedViewRegister = z.enum(['library', 'plan', 'sandbox', 'review']);
+export type SavedViewRegister = z.infer<typeof savedViewRegister>;
+export const createSavedViewBody = z.object({
+  register: savedViewRegister,
+  name: z.string().trim().min(1).max(80),
+  /** the list's query as the screen sends it; stored, never interpreted by the server */
+  filter: z.record(z.string(), z.unknown()),
+  shared: z.boolean().default(false),
+});
+export type CreateSavedViewBody = z.infer<typeof createSavedViewBody>;
+export type SavedView = {
+  id: Id;
+  projectId: Id;
+  register: SavedViewRegister;
+  name: string;
+  filter: Record<string, unknown>;
+  shared: boolean;
+  /** the person who saved it — a named person on the record */
+  savedBy: { participantId: Id; name: string };
+  /** whether the requester made it (and so may delete it) */
+  mine: boolean;
+  createdAt: string;
+};
+export type ListSavedViewsResponse = { items: SavedView[] };
+
 // GET /projects/:projectId/plan?page=&pageSize=&q=&sort=&direction= — the
 // same read, paged and searched when asked; without `page` or `q` it answers
 // as it always has (every row), so nothing already built changes shape.

@@ -43,6 +43,9 @@ export { CompletionFooter, formatStepCost } from './completion-footer';
 export { AgentReceipt } from './agent-receipt';
 export { Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
+// T-460 — the register: one table grammar for every list of documents
+export { Register } from './register';
+export type { RegisterColumn, RegisterFilterChip, RegisterProps, RegisterSort } from './register';
 // T-455 — the lifecycle vocabulary: one label table for where a document is
 export { LIFECYCLE_LABELS, LifecycleBadge, lifecycleBadge } from './lifecycle';
 export type { LifecyclePosition } from './lifecycle';

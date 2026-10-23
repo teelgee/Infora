@@ -1514,3 +1514,16 @@ are not recorded here.
   whole plan, and a read that changes shape under its callers is the drift the
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
+
+- **2026-10-23 (T-460) — saved views: `GET`/`POST /projects/:projectId/saved-views`,
+  `DELETE /saved-views/:id`.** *Plainly: a person saves the way a list is set
+  up under a name, for themselves or for their firm.* The **reason the filter
+  is stored as the screen sent it and never interpreted** is that a view is a
+  convenience over a list the screen already knows how to read, and a server
+  that parsed it would be a second definition of the list's query; a stale key
+  renders nothing rather than breaking a read. The **reason the read's ceiling
+  is the organisation, in its own WHERE**, is the wall's floor (ADR-0018): a
+  shared view travels within the firm that made it and never beyond, by
+  construction rather than by a check a later route could forget. The
+  **reason a shared view may be deleted by an org admin** is that a firm's
+  shared way of looking is the firm's, and its maker may have left.

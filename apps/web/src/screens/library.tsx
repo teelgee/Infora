@@ -2,31 +2,40 @@
 // acknowledgement inbox (ADR-0035 §4 — the gate withholds the deliverable until
 // its transmittal is acknowledged) and the owner's transmit action. The main
 // list is the API's access-resolved slice: exactly what grounding admits.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext, useNavigate } from 'react-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useOutletContext, useNavigate, useSearchParams } from 'react-router';
 import type {
   ExternalIssue,
   ExternalIssueSettings,
+  GetLibrarySearchResponse,
   LibraryItem,
+  LibrarySearchItem,
+  LibrarySearchQuery,
   MeResponse,
   PendingTransmittal,
   RosterEntry,
 } from '@infora/contracts';
-import { BookOpen, FileText, Inbox, Send, Share2 } from 'lucide-react';
+import { BookOpen, FileText, Inbox, MoreHorizontal, Send, Share2 } from 'lucide-react';
 import {
   Badge,
   Button,
   Combobox,
+  DropdownMenu,
+  DropdownMenuItem,
   Field,
   Modal,
+  Register,
   SectionLabel,
   Table,
   TextArea,
   TextInput,
 } from '@infora/ui';
+import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
+import { lifecycleBadge } from '@infora/ui';
 import { api } from '../api';
+import { SavedViewsMenu } from '../saved-views-menu';
 import { useMe } from '../session';
-import { contextStateBadge, formatDate, libraryLifecycleBadge } from './shared';
+import { contextStateBadge, formatDate } from './shared';
 
 // the coded reference is the primary identifier — prominent monospace, not the
 // muted 12px .mono treatment used for incidental codes
@@ -402,7 +411,13 @@ export function LibraryScreen() {
   const navigate = useNavigate();
   const isOwner = participant.membershipRole === 'owner';
   const me = useMe();
-  const [items, setItems] = useState<LibraryItem[] | null>(null);
+  // T-460 — the register's query lives in the address, so a filtered view
+  // survives a reload and can be handed to a colleague as a link; a saved view
+  // is the same query under a name
+  const [params, setParams] = useSearchParams();
+  const query = useMemo(() => readQuery(params), [params]);
+  const [result, setResult] = useState<GetLibrarySearchResponse | null>(null);
+  const items = result?.items ?? null;
   const [pending, setPending] = useState<PendingTransmittal[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
@@ -423,11 +438,34 @@ export function LibraryScreen() {
   const [requests, setRequests] = useState<ExternalIssue[]>([]);
   const [declining, setDeclining] = useState<ExternalIssue | null>(null);
 
+  // responses may land out of order — a ranked search is slower than the plain
+  // list it replaces — so only the latest request's answer is kept, or a
+  // stale list would overwrite the filtered one a moment after it appeared
+  const requestSeq = useRef(0);
   const load = useCallback(() => {
-    void api.library(projectId).then((res) => setItems(res.items));
+    const seq = ++requestSeq.current;
+    const keep = (r: GetLibrarySearchResponse) => {
+      if (seq === requestSeq.current) setResult(r);
+    };
+    void api
+      .librarySearch(projectId, {
+        q: query.q,
+        state: query.state,
+        kind: query.kind,
+        discipline: query.discipline,
+        sort: query.sort,
+        direction: query.direction,
+        page: query.page,
+        pageSize: PAGE_SIZE,
+      })
+      .then(keep, () => keep({ items: [], total: 0, page: 1, pageSize: PAGE_SIZE, q: null }));
     void api.pendingTransmittals(projectId).then((res) => setPending(res.items));
-  }, [projectId]);
+  }, [projectId, query]);
   useEffect(load, [load]);
+  const setQuery = (next: Partial<LibraryQuery>, resetPage = true) => {
+    const merged: LibraryQuery = { ...query, ...next, ...(resetPage && !('page' in next) && { page: 1 }) };
+    setParams(writeQuery(merged));
+  };
   useEffect(() => {
     if (isOwner) void api.participants(projectId).then((r) => setRoster(r.items));
   }, [isOwner, projectId]);
@@ -449,16 +487,138 @@ export function LibraryScreen() {
   }, [projectId]);
   useEffect(loadExternal, [loadExternal]);
 
-  // T-304 — the produced record and the material this project received are two
-  // lists, split on the server's derived `kind` rather than on anything this
-  // screen infers. Kept null-vs-empty apart so "still loading" and "none" stay
-  // distinguishable, which is what lets the reference section be absent
-  // entirely on a project that has loaded none.
-  const deliverables = useMemo(
-    () => items?.filter((item) => item.kind === 'deliverable') ?? null,
+  // the rows this screen may act on through its single-row dialogs: live ones
+  const liveItems = useMemo(
+    () => (items ?? []).filter((r) => r.state === 'live').map((r): LibraryItem => ({ ...r, state: 'live' })),
     [items],
   );
-  const reference = useMemo(() => items?.filter((item) => item.kind === 'reference') ?? null, [items]);
+  const toItem = (r: LibrarySearchItem): LibraryItem => ({ ...r, state: 'live' });
+
+  // T-460 — the register's columns: the coded reference first (never hideable),
+  // the lifecycle pair, then the facts a controller sorts and hides by
+  const columns: RegisterColumn<LibrarySearchItem>[] = [
+    {
+      key: 'reference',
+      label: 'Reference',
+      sortable: true,
+      render: (r) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {r.kind === 'reference' ? (
+            <BookOpen size={14} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          ) : (
+            <FileText size={14} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          )}
+          <span style={refStyle}>{r.documentReference}</span>
+          {r.match === 'content' && <Badge tone="neutral">matches the text</Badge>}
+        </span>
+      ),
+    },
+    {
+      key: 'title',
+      label: 'Title',
+      sortable: true,
+      render: (r) => (
+        <>
+          {r.title ?? (r.kind === 'reference' ? <span style={{ color: 'var(--text-muted)' }}>Reference material</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>)}
+          {/* T-389 — a standing proposal, and the owner's answer to it, on the row the decision is about */}
+          {r.withdrawalProposal && (
+            <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }} onClick={(e) => e.stopPropagation()}>
+              Withdrawal proposed by {r.withdrawalProposal.name} — {r.withdrawalProposal.reason}
+              {isOwner && (
+                <span style={{ display: 'inline-flex', gap: 6, marginLeft: 8 }}>
+                  <Button size="sm" variant="quiet" onClick={() => void resolveProposal(toItem(r), true)}>
+                    Withdraw it
+                  </Button>
+                  <Button size="sm" variant="quiet" onClick={() => void resolveProposal(toItem(r), false)}>
+                    Decline
+                  </Button>
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'state',
+      label: 'State',
+      render: (r) => {
+        // T-455 — the lifecycle pair: where it is, and whether the AI may use it
+        const lc = lifecycleBadge(r.state !== 'live' ? r.state : r.kind === 'reference' ? 'reference' : 'accepted', r.revision);
+        const ctx = contextStateBadge(r.contextState);
+        return (
+          <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 6 }}>
+            <Badge tone={lc.tone}>{lc.label}</Badge>
+            {ctx && <Badge tone={ctx.tone}>{ctx.label}</Badge>}
+          </span>
+        );
+      },
+    },
+    { key: 'revision', label: 'Revision', hideable: true, render: (r) => <span className="mono">{r.revision}</span> },
+    {
+      key: 'statusCode',
+      label: 'Status code',
+      hideable: true,
+      render: (r) => (r.suitability ? <Badge tone="info">{r.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>),
+    },
+    {
+      key: 'discipline',
+      label: 'Discipline',
+      hideable: true,
+      render: (r) => (r.discipline ? <span className="mono">{r.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>),
+    },
+    { key: 'producer', label: 'Producer', sortable: true, hideable: true, render: (r) => r.producerName },
+    { key: 'issued', label: 'Issued', sortable: true, hideable: true, render: (r) => <span style={{ whiteSpace: 'nowrap' }}>{formatDate(r.issuedAt)}</span> },
+    {
+      key: 'actions',
+      label: '',
+      align: 'right',
+      render: (r) => (
+        <span onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu
+            align="end"
+            fixed
+            trigger={(toggle) => (
+              <Button size="sm" variant="quiet" onClick={toggle} aria-label={`Actions for ${r.documentReference}`} title="Actions">
+                <MoreHorizontal size={15} strokeWidth={2} />
+              </Button>
+            )}
+          >
+            <DropdownMenuItem onClick={() => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}>Open</DropdownMenuItem>
+            {isOwner && r.state === 'live' && (
+              <DropdownMenuItem onClick={() => setTransmitItem(toItem(r))}>
+                <Send size={13} strokeWidth={2} /> Transmit…
+              </DropdownMenuItem>
+            )}
+            {/* T-431 — the door out of the project (ADR-0055 §2); T-432 puts the REQUEST here for everybody else */}
+            {externalSettings !== null && r.state === 'live' && (
+              <DropdownMenuItem onClick={() => setExternalItem(toItem(r))}>
+                <Share2 size={13} strokeWidth={2} /> {externalSettings.mayIssue ? 'Issue externally…' : 'Request external issue…'}
+              </DropdownMenuItem>
+            )}
+            {/* T-389 — the owner ends a published deliverable, the producing organisation asks */}
+            {(isOwner || r.producingOrganisationId === me.organisationId) && r.withdrawalProposal === null && r.state === 'live' && (
+              <>
+                <DropdownMenuItem onClick={() => setSupersedingItem(toItem(r))}>Supersede…</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEndingItem(toItem(r))}>{isOwner ? 'Withdraw…' : 'Propose withdrawal…'}</DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenu>
+        </span>
+      ),
+    },
+  ];
+  const activeFilters: RegisterFilterChip[] = [
+    ...(query.state !== 'live'
+      ? [{ key: 'state', label: query.state === 'any' ? 'Including superseded and withdrawn' : query.state[0]!.toUpperCase() + query.state.slice(1) }]
+      : []),
+    ...(query.kind !== 'any' ? [{ key: 'kind', label: query.kind === 'reference' ? 'Reference material' : 'Deliverables' }] : []),
+    ...(query.discipline ? [{ key: 'discipline', label: `Discipline ${query.discipline}` }] : []),
+  ];
+  const disciplines = useMemo(
+    () => [...new Set((items ?? []).map((r) => r.discipline).filter((d): d is string => d !== null))].sort(),
+    [items],
+  );
 
   // distinct organisations on the project, excluding the owner's own
   const otherOrgs = useMemo(() => {
@@ -616,7 +776,7 @@ export function LibraryScreen() {
         <SupersedeModal
           item={supersedingItem}
           mode={isOwner ? 'confirm' : 'propose'}
-          candidates={(deliverables ?? []).filter((d) => d.containerId !== supersedingItem.containerId)}
+          candidates={liveItems.filter((d) => d.containerId !== supersedingItem.containerId)}
           onClose={() => setSupersedingItem(null)}
           onSubmit={(replacement) => supersede(supersedingItem, replacement)}
         />
@@ -735,196 +895,134 @@ export function LibraryScreen() {
         </>
       )}
 
-      <SectionLabel>Live deliverables</SectionLabel>
-      <Table>
-        <table>
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Title</th>
-              <th>Revision</th>
-              <th>State</th>
-              <th>Status code</th>
-              <th>Discipline</th>
-              <th>Producer</th>
-              <th>Issued</th>
-              <th style={{ textAlign: 'right' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(deliverables ?? []).map((item) => (
-              <tr
-                key={item.containerId}
-                onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}
-                style={{ cursor: 'pointer' }}
-                title="Open the document page"
-              >
-                <td>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <FileText size={14} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                    <span style={refStyle}>{item.documentReference}</span>
-                  </span>
-                </td>
-                <td>
-                  {item.title ?? <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                  {/* T-388 — a live deliverable can be in the library and out of
-                      the AI's reach, when the code that admitted it is one this
-                      project does not ground on. Nothing on this screen said so
-                      before, and the failure is invisible from the answer end:
-                      the citations it does return all resolve. */}
-                  {contextStateBadge(item.contextState) && (
-                    <div style={{ marginTop: 4 }}>
-                      <Badge tone={contextStateBadge(item.contextState)!.tone}>
-                        {contextStateBadge(item.contextState)!.label}
-                      </Badge>
-                    </div>
-                  )}
-                  {/* T-389 — a standing proposal, and the owner's answer to it.
-                      It sits on the row rather than in a separate queue because
-                      the thing being decided is this deliverable, and the row
-                      is where its reason, its producer and its state already
-                      are. Both sides see the proposal; only the owner answers. */}
-                  {item.withdrawalProposal && (
-                    <div
-                      style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Withdrawal proposed by {item.withdrawalProposal.name} —{' '}
-                      {item.withdrawalProposal.reason}
-                      {isOwner && (
-                        <span style={{ display: 'inline-flex', gap: 6, marginLeft: 8 }}>
-                          <Button size="sm" variant="quiet" onClick={() => void resolveProposal(item, true)}>
-                            Withdraw it
-                          </Button>
-                          <Button size="sm" variant="quiet" onClick={() => void resolveProposal(item, false)}>
-                            Decline
-                          </Button>
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  {/* T-455 — the lifecycle badge, the same words as the plan and the review screens */}
-                  <Badge tone={libraryLifecycleBadge(item).tone}>{libraryLifecycleBadge(item).label}</Badge>
-                </td>
-                <td>{item.suitability ? <Badge tone="info">{item.suitability}</Badge> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                <td>{item.discipline ? <span className="mono">{item.discipline}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                <td>{item.producerName}</td>
-                <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
-                <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                  <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}>
-                      Open
-                    </Button>
-                    {isOwner && (
-                      <Button size="sm" variant="quiet" onClick={() => setTransmitItem(item)}>
-                        <Send size={13} strokeWidth={2} /> Transmit
-                      </Button>
-                    )}
-                    {/* T-431 — the door out of the project (ADR-0055 §2), on
-                        the deliverable and beside the transmittal that stays
-                        inside it. Offered only to somebody the project's
-                        who-may-issue setting admits; T-432 puts the REQUEST
-                        action here for everybody else. */}
-                    {externalSettings !== null && (
-                      <Button size="sm" variant="quiet" onClick={() => setExternalItem(item)}>
-                        <Share2 size={13} strokeWidth={2} />{' '}
-                        {externalSettings.mayIssue ? 'Issue externally…' : 'Request external issue…'}
-                      </Button>
-                    )}
-                    {/* T-389 — the acts that did not exist. Offered to the two
-                        sides the record belongs to and to nobody else: the
-                        owner ends a published deliverable, the producing
-                        organisation asks. A member organisation that neither
-                        owns the library nor produced this row sees neither. */}
-                    {(isOwner || item.producingOrganisationId === me.organisationId) &&
-                      item.withdrawalProposal === null && (
-                        <>
-                          <Button size="sm" variant="quiet" onClick={() => setSupersedingItem(item)}>
-                            Supersede…
-                          </Button>
-                          <Button size="sm" variant="quiet" onClick={() => setEndingItem(item)}>
-                            {isOwner ? 'Withdraw…' : 'Propose withdrawal…'}
-                          </Button>
-                        </>
-                      )}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {deliverables !== null && deliverables.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ color: 'var(--text-muted)' }}>
-                  No live deliverables in this project&apos;s library.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Table>
-
-      {/* T-304 — reference material is listed APART from the produced record,
-          not merely badged inside it. Both ground and both are cited the same
-          way; the difference is that nobody here produced these, and a
-          consultee response sitting in a table headed "Live deliverables"
-          is the corpus laundering itself into the record it is supposed to
-          support. The columns differ for the same reason: there is no
-          Suitability, no Discipline and no Transmit for a document this
-          project received, and "Producer" would be a lie — the organisation
-          named is the one that HOLDS it. */}
-      {reference !== null && reference.length > 0 && (
-        <>
-          <SectionLabel>Reference material</SectionLabel>
-          <p className="page-sub" style={{ marginTop: -4 }}>
-            Received, not produced here — loaded into the library so the AI can ground and cite on
-            it. These carry no plan row and no review history.
-          </p>
-          <Table>
-            <table>
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Revision</th>
-                  <th>Held by</th>
-                  <th>Loaded</th>
-                  <th style={{ textAlign: 'right' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {reference.map((item) => (
-                  <tr
-                    key={item.containerId}
-                    onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}
-                    style={{ cursor: 'pointer' }}
-                    title="Open the document page"
-                  >
-                    <td>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <BookOpen
-                          size={14}
-                          strokeWidth={2}
-                          style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                        />
-                        <span style={refStyle}>{item.documentReference}</span>
-                        <Badge tone="neutral">Reference</Badge>
-                      </span>
-                    </td>
-                    <td><span className="mono">{item.revision}</span></td>
-                    <td>{item.producerName}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>{formatDate(item.issuedAt)}</td>
-                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                      <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/documents/${item.containerId}`)}>
-                        Open
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Table>
-        </>
-      )}
+      <SectionLabel>Documents</SectionLabel>
+      <Register<LibrarySearchItem>
+        label="Project library"
+        columns={columns}
+        rows={items}
+        rowKey={(r) => r.containerId}
+        onRowClick={(r) => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}
+        search={{
+          value: query.q ?? '',
+          onChange: (q) => setQuery({ q: q === '' ? undefined : q }),
+          placeholder: 'Search by code, title or what it says',
+        }}
+        filters={{
+          active: activeFilters,
+          onRemove: (key) =>
+            setQuery(
+              key === 'state' ? { state: 'live' } : key === 'kind' ? { kind: 'any' } : key === 'discipline' ? { discipline: undefined } : {},
+            ),
+          menu: (
+            <>
+              <DropdownMenuItem onClick={() => setQuery({ kind: 'deliverable' })}>Deliverables only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ kind: 'reference' })}>Reference material only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'any' })}>Include superseded and withdrawn</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'superseded' })}>Superseded only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ state: 'withdrawn' })}>Withdrawn only</DropdownMenuItem>
+              {disciplines.map((d) => (
+                <DropdownMenuItem key={d} onClick={() => setQuery({ discipline: d })}>
+                  Discipline {d}
+                </DropdownMenuItem>
+              ))}
+            </>
+          ),
+        }}
+        sort={{
+          value: query.sort === 'relevance' ? null : { key: query.sort, direction: query.direction },
+          onChange: (sort: RegisterSort | null) =>
+            setQuery(sort === null ? { sort: 'relevance', direction: 'asc' } : { sort: sort.key as LibraryQuery['sort'], direction: sort.direction }),
+        }}
+        hiddenColumns={{ value: query.cols, onChange: (cols) => setQuery({ cols }, false) }}
+        page={
+          result
+            ? { page: result.page, pageSize: result.pageSize, total: result.total, onPage: (page) => setQuery({ page }, false) }
+            : undefined
+        }
+        views={
+          <SavedViewsMenu
+            projectId={projectId}
+            register="library"
+            current={savedShape(query)}
+            activeName={query.view ?? null}
+            onApply={(filter) => setParams(writeQuery({ ...readQuery(new URLSearchParams()), ...fromSaved(filter) }))}
+          />
+        }
+        empty={
+          query.q || activeFilters.length > 0
+            ? 'Nothing in this library matches. Clear a filter, or search by a different word.'
+            : 'No documents in this project’s library yet.'
+        }
+      />
     </div>
   );
+}
+
+const PAGE_SIZE = 50;
+
+/** the register's query, as the address carries it */
+type LibraryQuery = {
+  q?: string | undefined;
+  state: NonNullable<LibrarySearchQuery['state']>;
+  kind: NonNullable<LibrarySearchQuery['kind']>;
+  discipline?: string | undefined;
+  sort: NonNullable<LibrarySearchQuery['sort']>;
+  direction: NonNullable<LibrarySearchQuery['direction']>;
+  page: number;
+  /** hidden columns */
+  cols: string[];
+  /** the saved view this query came from, for the menu's label */
+  view?: string | undefined;
+};
+
+function readQuery(params: URLSearchParams): LibraryQuery {
+  const pick = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    const v = params.get(key);
+    return v !== null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+  };
+  const page = Number(params.get('page') ?? '1');
+  return {
+    q: params.get('q') ?? undefined,
+    state: pick('state', ['live', 'superseded', 'withdrawn', 'rejected', 'any'] as const, 'live'),
+    kind: pick('kind', ['deliverable', 'reference', 'any'] as const, 'any'),
+    discipline: params.get('discipline') ?? undefined,
+    sort: pick('sort', ['relevance', 'reference', 'title', 'issued', 'producer'] as const, 'relevance'),
+    direction: pick('direction', ['asc', 'desc'] as const, 'asc'),
+    page: Number.isInteger(page) && page >= 1 ? page : 1,
+    cols: (params.get('cols') ?? '').split(',').filter(Boolean),
+    view: params.get('view') ?? undefined,
+  };
+}
+
+function writeQuery(q: LibraryQuery): URLSearchParams {
+  const out = new URLSearchParams();
+  if (q.q) out.set('q', q.q);
+  if (q.state !== 'live') out.set('state', q.state);
+  if (q.kind !== 'any') out.set('kind', q.kind);
+  if (q.discipline) out.set('discipline', q.discipline);
+  if (q.sort !== 'relevance') out.set('sort', q.sort);
+  if (q.direction !== 'asc') out.set('direction', q.direction);
+  if (q.page > 1) out.set('page', String(q.page));
+  if (q.cols.length > 0) out.set('cols', q.cols.join(','));
+  if (q.view) out.set('view', q.view);
+  return out;
+}
+
+/** what a saved view keeps of the query — never the page, never the view's own name */
+function savedShape(q: LibraryQuery): Record<string, unknown> {
+  const { page: _page, view: _view, ...rest } = q;
+  void _page;
+  void _view;
+  return rest;
+}
+
+/** a saved view's stored query, read back defensively: a stale key renders nothing */
+function fromSaved(filter: Record<string, unknown>): Partial<LibraryQuery> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filter)) {
+    if (k === 'cols' && Array.isArray(v)) params.set('cols', v.filter((x): x is string => typeof x === 'string').join(','));
+    else if (typeof v === 'string' || typeof v === 'number') params.set(k, String(v));
+  }
+  const read = readQuery(params);
+  return { ...read, view: typeof filter['view'] === 'string' ? filter['view'] : undefined };
 }

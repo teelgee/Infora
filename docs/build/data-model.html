@@ -396,6 +396,20 @@
         </tbody></table>
       </article>
       <article class="card d2">
+        <h3>saved_views</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">register</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">name</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">filter</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">shared</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
         <h3>version_chunks</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

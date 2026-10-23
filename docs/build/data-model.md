@@ -335,6 +335,36 @@ sign-in opened which file for editing. Expired rows are swept on the next
 mint, dead sessions' rows at sign-out and sweep — the table holds only live
 or not-yet-swept passes.
 
+**Drawn 2026-10-23 — the register's saved views (T-460).** *Plainly: a person can
+save the way they have set up a list — what they searched, which filters and
+sort, which columns are hidden — under a name, keep it to themselves or share
+it with their own firm, and come back to it.* A saved view is a **named filter,
+never an access object** (`CONTEXT.md`, Saved view): applying one changes what
+a list shows a person, never what they may see, because the rows come back
+through the same access-resolved reads as before. The table is here in drawer
+2 because the thing it describes is a view over the documents.
+
+`saved_views` — `id`; `project_id` (FK `projects`); `organisation_id` (FK
+`organisations` — the ceiling a shared view may travel within, and never
+beyond: a view is read only by its own organisation's participants on the
+project); `participant_id` (FK `participants` — the person who saved it, **a
+named person**, registered in [personal-data.md](../architecture/personal-data.md));
+`register` (text: `library` · `plan` · `sandbox` · `review` — which list it is a
+view over); `name` (text); `filter` (jsonb — the list's query as the screen
+sends it: `q`, filters, sort, hidden columns; the server stores it and never
+interprets it, so a stale key renders nothing rather than breaking); `shared`
+(boolean, default false — readable by the whole organisation on the project
+when true, by its maker alone when false); `created_at`. Unique on
+(`project_id`, `participant_id`, `register`, `name`) — one person, one name per
+list. Deleted by its maker, or by an org admin when shared. Nothing cascades
+from it, and it cascades on the project's and the participant's deletion
+(ADR-0050 §8's contract end).
+
+*Built the same day (migration 0071); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is
+the authority on its shape.*
+
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
 (ADR-0025, 0028.)*

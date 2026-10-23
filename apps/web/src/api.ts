@@ -156,6 +156,10 @@ import type {
   GetLibrarySearchResponse,
   LibrarySearchQuery,
   PlanQuery,
+  CreateSavedViewBody,
+  ListSavedViewsResponse,
+  SavedView,
+  SavedViewRegister,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -381,6 +385,12 @@ export const api = {
     request<ListRosterResponse>(`/projects/${projectId}/participants`),
   // T-118/T-119 — the deliverable plan (ADR-0008/0033)
   plan: (projectId: string) => request<GetPlanResponse>(`/projects/${projectId}/plan`),
+  // T-460 — saved views: a named filter over a register, never an access object
+  savedViews: (projectId: string, register: SavedViewRegister) =>
+    request<ListSavedViewsResponse>(`/projects/${projectId}/saved-views?register=${register}`),
+  createSavedView: (projectId: string, body: CreateSavedViewBody) =>
+    request<SavedView>(`/projects/${projectId}/saved-views`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteSavedView: (viewId: string) => request<void>(`/saved-views/${viewId}`, { method: 'DELETE' }),
   // T-459 — the register's paged and searched reads
   planPage: (projectId: string, query: Partial<PlanQuery>) =>
     request<GetPlanResponse>(`/projects/${projectId}/plan?${queryString(query)}`),

@@ -722,3 +722,39 @@ export const purgeEvents = pgTable(
   },
   (t) => [index('purge_events_org_idx').on(t.organisationId, t.purgedAt)],
 );
+
+// T-460 — the register's saved views (drawn in data-model.md drawer 2,
+// 2026-10-23). A saved view is a NAMED FILTER over a list, never an access
+// object: applying one changes what a list shows a person, never what they
+// may see. Its ceiling is the organisation — a shared view is read by its own
+// organisation's participants on the project and nobody else, by the read's
+// own WHERE (the wall's floor, ADR-0018). The maker is a named person
+// (personal-data.md).
+export const savedViews = pgTable(
+  'saved_views',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    participantId: uuid('participant_id')
+      .notNull()
+      .references(() => participants.id, { onDelete: 'cascade' }),
+    /** which list this is a view over: library · plan · sandbox · review */
+    register: text('register').notNull(),
+    name: text('name').notNull(),
+    /** the list's query exactly as the screen sends it — stored, never interpreted here */
+    filter: jsonb('filter').notNull().default({}),
+    /** readable by the whole organisation on the project when true; by its maker alone when false */
+    shared: boolean('shared').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('saved_views_maker_name_unique').on(t.projectId, t.participantId, t.register, t.name),
+    index('saved_views_project_org_idx').on(t.projectId, t.organisationId, t.register),
+  ],
+);
+

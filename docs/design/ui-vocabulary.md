@@ -25,6 +25,7 @@
 
 | Term | What it is |
 |------|------------|
+| **Register** | A list of documents in the one table grammar (`Register`, T-460): its **toolbar** (search, **filter chips**, the **views menu**, **Columns**), the **bulk bar** that appears for a selection, the table and its **pager**. |
 | **Badge** | A non-clickable status pill (`Badge`): *Live*, *Member*, *Completed*, "includes model knowledge". |
 | **Source** | The inline pill after the claim it backs (`SourceChip` — renamed from *citation chip*, 2026-07-13); clicking it opens the source panel in Ask (T-105), the source modal elsewhere (T-094/T-095). |
 | **Chip** | A clickable pill: the **source** above, the **location chip** (editor topbar → sandbox, T-098), the **open-in-editor chip** (under an Ask answer → a fresh sandbox document, T-106), and the **source-row chips** (composer, T-100 — say "source-row chip", not "source chip", now that *source* names the inline pill). |
