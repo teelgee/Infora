@@ -29,6 +29,7 @@ import {
   setExternalIssueSettingsBody,
 } from '@infora/contracts';
 import type {
+  IssueExternallyBody,
   ApiError,
   ExternalDocumentResponse,
   ExternalIssue,
@@ -75,6 +76,74 @@ export function mayIssueExternally(
 /** 32 bytes of CSPRNG: the token is the access, so it is not a guessable id. */
 function mintToken(): string {
   return randomBytes(32).toString('base64url');
+}
+
+
+// T-461 — the act itself, apart from the route: one container, one recipient,
+// recorded as an issue or as the request for one, exactly as the single route
+// has always done it. The bulk module calls this once per selected row inside
+// one transaction, so twenty issues are one dialog and one record of who sent
+// what to whom — and never a twenty-first shape of the write.
+export async function recordExternalIssue(
+  db: Db,
+  slice: EntitledSlice,
+  containerId: string,
+  versionId: string,
+  body: IssueExternallyBody,
+  may: boolean,
+): Promise<string> {
+  if (!may) {
+    const [asked] = await db
+      .insert(s.externalRecipients)
+      .values({
+        containerId: containerId,
+        versionId: versionId,
+        name: body.recipientName,
+        email: body.recipientEmail,
+        reason: body.reason,
+        message: body.message,
+        state: 'requested',
+        // (review, 2026-09-02) the asked-for duration is stored so approval
+        // honours it — the form promises nobody retypes what was asked
+        requestedExpiresDays: body.expiresInDays ?? null,
+        requestedByParticipantId: slice.participantId,
+      })
+      .returning();
+    return asked!.id;
+  }
+
+  const days = body.expiresInDays ?? EXTERNAL_LINK_DEFAULT_DAYS;
+  const [transmittal] = await db
+    .insert(s.transmittals)
+    .values({
+      kind: 'external',
+      containerId: containerId,
+      versionId: versionId,
+      senderParticipantId: slice.participantId,
+      // the discriminator's promise, held by the CHECK as well as here: no
+      // round, no direction, no organisation recipients
+      purposeCode: null,
+    })
+    .returning();
+  const [row] = await db
+    .insert(s.externalRecipients)
+    .values({
+      containerId: containerId,
+      versionId: versionId,
+      transmittalId: transmittal!.id,
+      name: body.recipientName,
+      email: body.recipientEmail,
+      reason: body.reason,
+      message: body.message,
+      state: 'issued',
+      linkToken: mintToken(),
+      expiresAt: sql`now() + make_interval(days => ${days})`,
+      requestedByParticipantId: slice.participantId,
+      issuedByParticipantId: slice.participantId,
+      decidedAt: sql`now()`,
+    })
+    .returning();
+  return row!.id;
 }
 
 export function externalIssueRoutes(deps: { db: Db }) {
@@ -216,58 +285,8 @@ export function externalIssueRoutes(deps: { db: Db }) {
     const version = await currentVersion(container.id);
     if (!version) return conflict(c, 'no_current_version');
 
-    if (!may) {
-      const [asked] = await deps.db
-        .insert(s.externalRecipients)
-        .values({
-          containerId: container.id,
-          versionId: version.id,
-          name: body.data.recipientName,
-          email: body.data.recipientEmail,
-          reason: body.data.reason,
-          message: body.data.message,
-          state: 'requested',
-          // (review, 2026-09-02) the asked-for duration is stored so approval
-          // honours it — the form promises nobody retypes what was asked
-          requestedExpiresDays: body.data.expiresInDays ?? null,
-          requestedByParticipantId: slice.participantId,
-        })
-        .returning();
-      return c.json(await issueRead(deps.db, asked!.id, true), 201);
-    }
-
-    const days = body.data.expiresInDays ?? EXTERNAL_LINK_DEFAULT_DAYS;
-    const [transmittal] = await deps.db
-      .insert(s.transmittals)
-      .values({
-        kind: 'external',
-        containerId: container.id,
-        versionId: version.id,
-        senderParticipantId: slice.participantId,
-        // the discriminator's promise, held by the CHECK as well as here: no
-        // round, no direction, no organisation recipients
-        purposeCode: null,
-      })
-      .returning();
-    const [row] = await deps.db
-      .insert(s.externalRecipients)
-      .values({
-        containerId: container.id,
-        versionId: version.id,
-        transmittalId: transmittal!.id,
-        name: body.data.recipientName,
-        email: body.data.recipientEmail,
-        reason: body.data.reason,
-        message: body.data.message,
-        state: 'issued',
-        linkToken: mintToken(),
-        expiresAt: sql`now() + make_interval(days => ${days})`,
-        requestedByParticipantId: slice.participantId,
-        issuedByParticipantId: slice.participantId,
-        decidedAt: sql`now()`,
-      })
-      .returning();
-    return c.json(await issueRead(deps.db, row!.id, true), 201);
+    const recorded = await recordExternalIssue(deps.db, slice, container.id, version.id, body.data, may);
+    return c.json(await issueRead(deps.db, recorded, true), 201);
   });
 
   // ── The deliverable's external issues, cut per viewer (ADR-0055 §8) ───────

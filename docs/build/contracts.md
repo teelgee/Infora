@@ -1515,6 +1515,23 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-23 (T-461) — bulk acts: `POST /projects/:projectId/bulk/transmittals`,
+  `/bulk/external-issues`, `/bulk/supersessions`, `/bulk/classifications`; and
+  `POST /projects/:projectId/plan/export`.** *Plainly: tick several documents
+  and act on them once.* The **reason these are routes and not a loop in the
+  screen** is that a loop over single-row calls that dies on the eleventh leaves
+  ten transmittals issued and nothing in the record saying the act was meant to
+  be twenty: a bulk route checks every row first, refuses the lot with a 409
+  carrying `failures` (so the screen can name the rows), and writes in one
+  transaction. The **reason each reuses the single route's own helpers** rather
+  than restating them is that there must never be a second definition of what a
+  transmittal, an external issue or a superseding edge is. The **reason classify
+  carries an explicit `mode`** is that "set this term on these rows" has two
+  honest meanings — fill the gaps, or overwrite — and a default would silently
+  pick one. The **reason the export's first sheet is exactly the plan template's
+  shape** is that a file that re-imports is worth more than a file that reads
+  well: the record facts live on a second sheet the import ignores.
+
 - **2026-10-23 (T-460) — saved views: `GET`/`POST /projects/:projectId/saved-views`,
   `DELETE /saved-views/:id`.** *Plainly: a person saves the way a list is set
   up under a name, for themselves or for their firm.* The **reason the filter

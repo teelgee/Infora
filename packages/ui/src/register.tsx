@@ -47,6 +47,8 @@ export type RegisterProps<Row> = {
   /** null while loading */
   rows: ReadonlyArray<Row> | null;
   rowKey: (row: Row) => string;
+  /** what a row's tick box is called for a screen reader — the reference, not the id */
+  rowLabel?: (row: Row) => string;
   onRowClick?: (row: Row) => void;
   search?: { value: string; onChange: (value: string) => void; placeholder?: string };
   filters?: {
@@ -264,7 +266,7 @@ export function Register<Row>(props: RegisterProps<Row>) {
                         type="checkbox"
                         checked={selected.has(key)}
                         onChange={() => toggleOne(key)}
-                        aria-label={`Select ${key}`}
+                        aria-label={`Select ${props.rowLabel ? props.rowLabel(row) : key}`}
                       />
                     </td>
                   )}

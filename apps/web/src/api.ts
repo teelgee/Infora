@@ -1,6 +1,14 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  BulkClassifyBody,
+  BulkClassifyResponse,
+  BulkIssueExternallyBody,
+  BulkIssueExternallyResponse,
+  BulkSupersedeBody,
+  BulkSupersedeResponse,
+  BulkTransmitBody,
+  BulkTransmitResponse,
   ApiError,
   AppRecord,
   AppRowResponse,
@@ -1106,6 +1114,18 @@ export const api = {
     request<DocumentRelationship>(`/relationships/${relationshipId}/confirmation`, { method: 'POST' }),
   retireRelationship: (relationshipId: string) =>
     request<DocumentRelationship>(`/relationships/${relationshipId}/retirement`, { method: 'POST' }),
+  // T-461 — bulk acts over a register selection: one act, refused whole with
+  // the rows named (a 409 carrying `failures`), or landed together.
+  bulkTransmit: (projectId: string, body: BulkTransmitBody) =>
+    request<BulkTransmitResponse>(`/projects/${projectId}/bulk/transmittals`, { method: 'POST', body: JSON.stringify(body) }),
+  bulkIssueExternally: (projectId: string, body: BulkIssueExternallyBody) =>
+    request<BulkIssueExternallyResponse>(`/projects/${projectId}/bulk/external-issues`, { method: 'POST', body: JSON.stringify(body) }),
+  bulkSupersede: (projectId: string, body: BulkSupersedeBody) =>
+    request<BulkSupersedeResponse>(`/projects/${projectId}/bulk/supersessions`, { method: 'POST', body: JSON.stringify(body) }),
+  bulkClassify: (projectId: string, body: BulkClassifyBody) =>
+    request<BulkClassifyResponse>(`/projects/${projectId}/bulk/classifications`, { method: 'POST', body: JSON.stringify(body) }),
+  exportPlanRows: (projectId: string, containerIds: string[]) =>
+    downloadPost(`/projects/${projectId}/plan/export`, { containerIds }),
   // T-440/T-441 — the app builder's substrate (ADR-0056). The list is
   // ASSEMBLED server-side: an app the requester cannot open never reaches this
   // client, and `mayCreate` is the server's answer to the org-admin toggle

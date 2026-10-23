@@ -41,9 +41,95 @@ const forbidden = (c: Context, detail?: string) =>
   c.json({ error: 'forbidden', ...(detail && { detail }) } satisfies ApiError, 403);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
 const isUuid = (value: string) => z.uuid().safeParse(value).success;
+export type ContainerRow = typeof s.containers.$inferSelect;
 
-type ContainerRow = typeof s.containers.$inferSelect;
 type MembershipRow = typeof s.memberships.$inferSelect;
+
+// The per-container helpers, at module scope since T-461 so the bulk module
+// (bulk.ts) issues twenty transmittals through exactly the checks one goes through.
+export async function currentVersion(db: Db, containerId: string) {
+  const [row] = await db
+    .select({ id: s.versions.id })
+    .from(s.versions)
+    .where(and(eq(s.versions.containerId, containerId), eq(s.versions.isCurrent, true)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function liveShare(db: Db, containerId: string, organisationId: string) {
+  const [row] = await db
+    .select({ id: s.deliverableShares.id })
+    .from(s.deliverableShares)
+    .where(
+      and(
+        eq(s.deliverableShares.containerId, containerId),
+        eq(s.deliverableShares.organisationId, organisationId),
+        isNull(s.deliverableShares.revokedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export async function activeMembership(db: Db, organisationId: string, projectId: string) {
+  const [row] = await db
+    .select()
+    .from(s.memberships)
+    .where(
+      and(
+        eq(s.memberships.organisationId, organisationId),
+        eq(s.memberships.projectId, projectId),
+        eq(s.memberships.state, 'active'),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+// the receiving organisation's own business (§3): its org admin, or its
+// nominated controller in controller mode — never the project owner
+export async function applyStandingRules(db: Db, container: ContainerRow, recipientOrgs: string[]): Promise<void> {
+  if (!container.documentReference) return;
+  for (const organisationId of recipientOrgs) {
+    const rules = await db
+      .select()
+      .from(s.deliverableGrantRules)
+      .where(
+        and(
+          eq(s.deliverableGrantRules.projectId, container.projectId),
+          eq(s.deliverableGrantRules.organisationId, organisationId),
+          isNull(s.deliverableGrantRules.revokedAt),
+          sql`${container.documentReference} like ${s.deliverableGrantRules.codePattern}`,
+        ),
+      );
+    for (const rule of rules) {
+      const existing = await liveParticipantGrant(db, container.id, rule.participantId);
+      if (!existing) {
+        await db.insert(s.deliverableParticipantGrants).values({
+          containerId: container.id,
+          organisationId,
+          participantId: rule.participantId,
+          grantedByParticipantId: rule.createdByParticipantId,
+        });
+      }
+    }
+  }
+}
+
+export async function liveParticipantGrant(db: Db, containerId: string, participantId: string) {
+  const [row] = await db
+    .select({ id: s.deliverableParticipantGrants.id })
+    .from(s.deliverableParticipantGrants)
+    .where(
+      and(
+        eq(s.deliverableParticipantGrants.containerId, containerId),
+        eq(s.deliverableParticipantGrants.participantId, participantId),
+        isNull(s.deliverableParticipantGrants.revokedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
 
 export function transmittalRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -60,47 +146,6 @@ export function transmittalRoutes(deps: { db: Db }) {
     return row ?? null;
   }
 
-  async function currentVersion(containerId: string) {
-    const [row] = await deps.db
-      .select({ id: s.versions.id })
-      .from(s.versions)
-      .where(and(eq(s.versions.containerId, containerId), eq(s.versions.isCurrent, true)))
-      .limit(1);
-    return row ?? null;
-  }
-
-  async function liveShare(containerId: string, organisationId: string) {
-    const [row] = await deps.db
-      .select({ id: s.deliverableShares.id })
-      .from(s.deliverableShares)
-      .where(
-        and(
-          eq(s.deliverableShares.containerId, containerId),
-          eq(s.deliverableShares.organisationId, organisationId),
-          isNull(s.deliverableShares.revokedAt),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
-  }
-
-  async function activeMembership(organisationId: string, projectId: string) {
-    const [row] = await deps.db
-      .select()
-      .from(s.memberships)
-      .where(
-        and(
-          eq(s.memberships.organisationId, organisationId),
-          eq(s.memberships.projectId, projectId),
-          eq(s.memberships.state, 'active'),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
-  }
-
-  // the receiving organisation's own business (§3): its org admin, or its
-  // nominated controller in controller mode — never the project owner
   function canNarrow(user: UserRow, slice: EntitledSlice, membership: MembershipRow): boolean {
     if (user.orgRole === 'admin') return true;
     return (
@@ -111,48 +156,6 @@ export function transmittalRoutes(deps: { db: Db }) {
 
   // §3: on issue, each receiving org's live rules whose code pattern matches the
   // deliverable reference grant their Participants automatically (idempotent)
-  async function applyStandingRules(container: ContainerRow, recipientOrgs: string[]): Promise<void> {
-    if (!container.documentReference) return;
-    for (const organisationId of recipientOrgs) {
-      const rules = await deps.db
-        .select()
-        .from(s.deliverableGrantRules)
-        .where(
-          and(
-            eq(s.deliverableGrantRules.projectId, container.projectId),
-            eq(s.deliverableGrantRules.organisationId, organisationId),
-            isNull(s.deliverableGrantRules.revokedAt),
-            sql`${container.documentReference} like ${s.deliverableGrantRules.codePattern}`,
-          ),
-        );
-      for (const rule of rules) {
-        const existing = await liveParticipantGrant(container.id, rule.participantId);
-        if (!existing) {
-          await deps.db.insert(s.deliverableParticipantGrants).values({
-            containerId: container.id,
-            organisationId,
-            participantId: rule.participantId,
-            grantedByParticipantId: rule.createdByParticipantId,
-          });
-        }
-      }
-    }
-  }
-
-  async function liveParticipantGrant(containerId: string, participantId: string) {
-    const [row] = await deps.db
-      .select({ id: s.deliverableParticipantGrants.id })
-      .from(s.deliverableParticipantGrants)
-      .where(
-        and(
-          eq(s.deliverableParticipantGrants.containerId, containerId),
-          eq(s.deliverableParticipantGrants.participantId, participantId),
-          isNull(s.deliverableParticipantGrants.revokedAt),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
-  }
 
   // ── 1. The owner issues a non-review transmittal (§1–§2) ─────────────────
   app.post('/containers/:containerId/transmittals', async (c) => {
@@ -162,7 +165,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     if (!slice || slice.membershipRole !== 'owner') return notFound(c);
     const body = issueTransmittalBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
-    const version = await currentVersion(container.id);
+    const version = await currentVersion(deps.db, container.id);
     // a non-review transmittal issues a PROMOTED deliverable — it needs a version
     if (!version) return conflict(c, 'no_current_version');
 
@@ -176,12 +179,12 @@ export function transmittalRoutes(deps: { db: Db }) {
       ) {
         return conflict(c, 'recipient_ungated');
       }
-      if (!(await activeMembership(organisationId, container.projectId))) return notFound(c);
+      if (!(await activeMembership(deps.db, organisationId, container.projectId))) return notFound(c);
     }
 
     // set each receiving org's ceiling (the share) if not already open (§2)
     for (const organisationId of recipients) {
-      if (!(await liveShare(container.id, organisationId))) {
+      if (!(await liveShare(deps.db, container.id, organisationId))) {
         await deps.db.insert(s.deliverableShares).values({
           containerId: container.id,
           organisationId,
@@ -200,7 +203,7 @@ export function transmittalRoutes(deps: { db: Db }) {
         purposeCode: body.data.purposeCode ?? null,
       })
       .returning();
-    await applyStandingRules(container, recipients);
+    await applyStandingRules(deps.db, container, recipients);
     return c.json(toTransmittal(transmittal!), 201);
   });
 
@@ -212,8 +215,8 @@ export function transmittalRoutes(deps: { db: Db }) {
     const slice = await resolveSlice(deps.db, user, container.projectId);
     if (!slice) return notFound(c);
     // there must be something to acknowledge — a live share to the requester's org
-    if (!(await liveShare(container.id, slice.organisationId))) return notFound(c);
-    const membership = await activeMembership(slice.organisationId, container.projectId);
+    if (!(await liveShare(deps.db, container.id, slice.organisationId))) return notFound(c);
+    const membership = await activeMembership(deps.db, slice.organisationId, container.projectId);
     if (!membership) return notFound(c);
     // controller mode: only the nominated controller may fire it, with the org
     // admin as the fallback so an org with no controller yet is never locked out
@@ -221,7 +224,7 @@ export function transmittalRoutes(deps: { db: Db }) {
       const isController = membership.ackControllerParticipantId === slice.participantId;
       if (!isController && user.orgRole !== 'admin') return forbidden(c, 'controller_only');
     }
-    const version = await currentVersion(container.id);
+    const version = await currentVersion(deps.db, container.id);
     if (!version) return conflict(c, 'no_current_version');
     const [existing] = await deps.db
       .select({ id: s.deliverableAcknowledgements.id })
@@ -254,10 +257,10 @@ export function transmittalRoutes(deps: { db: Db }) {
     const user = c.get('user');
     const slice = await resolveSlice(deps.db, user, container.projectId);
     if (!slice) return notFound(c);
-    const membership = await activeMembership(slice.organisationId, container.projectId);
+    const membership = await activeMembership(deps.db, slice.organisationId, container.projectId);
     if (!membership || !canNarrow(user, slice, membership)) return notFound(c);
     // the narrowing sits UNDER the organisation ceiling — a live share (§3)
-    if (!(await liveShare(container.id, slice.organisationId))) return notFound(c);
+    if (!(await liveShare(deps.db, container.id, slice.organisationId))) return notFound(c);
     const body = grantParticipantBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
     // the target must be a live Participant of the requester's own organisation
@@ -275,7 +278,7 @@ export function transmittalRoutes(deps: { db: Db }) {
       )
       .limit(1);
     if (!target) return notFound(c);
-    if (await liveParticipantGrant(container.id, target.id)) return conflict(c);
+    if (await liveParticipantGrant(deps.db, container.id, target.id)) return conflict(c);
     const [grant] = await deps.db
       .insert(s.deliverableParticipantGrants)
       .values({
@@ -299,7 +302,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     if (!container) return notFound(c);
     const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
     if (!slice) return notFound(c);
-    if (!(await liveShare(container.id, slice.organisationId))) return notFound(c);
+    if (!(await liveShare(deps.db, container.id, slice.organisationId))) return notFound(c);
     const rows = await deps.db
       .select({ grant: s.deliverableParticipantGrants, name: s.users.name })
       .from(s.deliverableParticipantGrants)
@@ -339,7 +342,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     const user = c.get('user');
     const slice = await resolveSlice(deps.db, user, container.projectId);
     if (!slice || slice.organisationId !== grant.organisationId) return notFound(c);
-    const membership = await activeMembership(slice.organisationId, container.projectId);
+    const membership = await activeMembership(deps.db, slice.organisationId, container.projectId);
     if (!membership || !canNarrow(user, slice, membership)) return notFound(c);
     await deps.db
       .update(s.deliverableParticipantGrants)
@@ -376,7 +379,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     const user = c.get('user');
     const slice = await resolveSlice(deps.db, user, projectId);
     if (!slice) return notFound(c);
-    const membership = await activeMembership(slice.organisationId, projectId);
+    const membership = await activeMembership(deps.db, slice.organisationId, projectId);
     if (!membership || !canNarrow(user, slice, membership)) return notFound(c);
     const body = createGrantRuleBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
@@ -420,7 +423,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     const user = c.get('user');
     const slice = await resolveSlice(deps.db, user, rule.projectId);
     if (!slice || slice.organisationId !== rule.organisationId) return notFound(c);
-    const membership = await activeMembership(slice.organisationId, rule.projectId);
+    const membership = await activeMembership(deps.db, slice.organisationId, rule.projectId);
     if (!membership || !canNarrow(user, slice, membership)) return notFound(c);
     await deps.db
       .update(s.deliverableGrantRules)
@@ -436,7 +439,7 @@ export function transmittalRoutes(deps: { db: Db }) {
     const slice = await resolveSlice(deps.db, user, projectId);
     if (!slice) return notFound(c);
     // the org admin sets its own organisation's mode (never the project owner's)
-    const membership = await activeMembership(slice.organisationId, projectId);
+    const membership = await activeMembership(deps.db, slice.organisationId, projectId);
     if (!membership || user.orgRole !== 'admin') return notFound(c);
     const body = setAckModeBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
@@ -493,7 +496,7 @@ export function transmittalRoutes(deps: { db: Db }) {
       .limit(1);
     const isOwnerOrg = project?.ownerOrganisationId === slice.organisationId;
     const isProducer = container.producingOrganisationId === slice.organisationId;
-    if (!isOwnerOrg && !isProducer && !(await liveShare(container.id, slice.organisationId))) {
+    if (!isOwnerOrg && !isProducer && !(await liveShare(deps.db, container.id, slice.organisationId))) {
       return notFound(c);
     }
 

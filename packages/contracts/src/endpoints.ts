@@ -2365,6 +2365,75 @@ export type PendingTransmittal = {
 };
 export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };
 
+// ── T-461 — bulk acts on a selection, and the register's export ─────────────
+//
+// *In plain terms: tick several rows and act on them once — transmit them,
+// issue them outside the project, mark them superseded by one new document,
+// classify them, or take them to Excel.*
+//
+// Every bulk write is ONE ACT over the selection: every row is checked before
+// anything is written, a single refused row refuses the lot and names itself
+// (`failures`), and the writes land in one transaction. The alternative — the
+// screen looping over the single-row routes — leaves a half-done batch on a
+// network blip with nothing in the record saying which half. Each bulk route
+// reuses the single route's own checks and write, so there is never a second
+// definition of what a transmittal or an external issue is.
+const bulkContainerIds = z.array(id).min(1).max(200);
+export type BulkFailure = { containerId: Id; documentReference: string | null; problem: string };
+/** a bulk write refused whole: 409 with the rows that refused it */
+export type BulkRefusal = ApiError & { failures: BulkFailure[] };
+
+// POST /projects/:projectId/bulk/transmittals — the owner issues the same
+// non-review transmittal for each selected row (ADR-0035): one share per
+// receiving organisation per row, one transmittal per row.
+export const bulkTransmitBody = z.object({
+  containerIds: bulkContainerIds,
+  organisationIds: z.array(id).min(1),
+  purposeCode: z.string().min(1).optional(),
+});
+export type BulkTransmitBody = z.infer<typeof bulkTransmitBody>;
+export type BulkTransmitResponse = { issued: number; transmittalIds: Id[] };
+
+// POST /projects/:projectId/bulk/external-issues — the same recipient, reason
+// and message for each row (ADR-0055); each row gets its own issue (or request)
+// because the link is per revision of per document, never a bundle.
+export const bulkIssueExternallyBody = issueExternallyBody.extend({ containerIds: bulkContainerIds });
+export type BulkIssueExternallyBody = z.infer<typeof bulkIssueExternallyBody>;
+export type BulkIssueExternallyResponse = { state: 'issued' | 'requested'; issueIds: Id[] };
+
+// POST /projects/:projectId/bulk/supersessions — one replacement supersedes
+// each selected row: a `supersedes` edge from the replacement to each (ADR-0045
+// as amended), proposed by either party and confirmed in the same act when the
+// caller is the owner. A row already carrying that proposed edge is confirmed
+// rather than refused.
+export const bulkSupersedeBody = z.object({
+  containerIds: bulkContainerIds,
+  replacementContainerId: id,
+});
+export type BulkSupersedeBody = z.infer<typeof bulkSupersedeBody>;
+export type BulkSupersedeResponse = { state: 'confirmed' | 'proposed'; relationshipIds: Id[] };
+
+// POST /projects/:projectId/bulk/classifications — one facet's term across the
+// selection, a producing-organisation act (ADR-0045). The choice is explicit:
+// `append` sets the term only on rows with nothing yet under that facet and
+// leaves the others as they were; `replace` sets it on every row.
+export const bulkClassifyBody = z.object({
+  containerIds: bulkContainerIds,
+  facetId: id,
+  termId: id,
+  mode: z.enum(['append', 'replace']),
+});
+export type BulkClassifyBody = z.infer<typeof bulkClassifyBody>;
+export type BulkClassifyResponse = { set: number; kept: number };
+
+// POST /projects/:projectId/plan/export — the selected rows as a workbook in
+// the plan template's own shape (T-358): sheet 1 is Title + the scheme's code
+// fields (read back out of each reference) + its metadata fields, so the file
+// re-imports through POST /plan/import; sheet 2 is the record (reference,
+// revision, state, producer, issued) that the import ignores by design.
+export const planExportBody = z.object({ containerIds: bulkContainerIds });
+export type PlanExportBody = z.infer<typeof planExportBody>;
+
 // ── The project ontology (Drawer 6, ADR-0045, T-241) ────────────────────────
 // Classification and relationship endpoints. Reads are pre-filtered server-side
 // (principle 2): a relationship into a container the requester cannot see is

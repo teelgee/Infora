@@ -25,6 +25,7 @@ import { namingRoutes } from './naming';
 import { healthRoutes, requestObservability } from './observability';
 import { containerRoutes, planRoutes } from './plan';
 import { savedViewRoutes } from './saved-views';
+import { bulkActRoutes } from './bulk-acts';
 import { ontologyRoutes } from './ontology';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
@@ -255,6 +256,8 @@ export function buildApp(deps: AppDeps) {
   app.route('/', planRoutes(deps));
   // T-460 — the register's saved views
   app.route('/', savedViewRoutes(deps));
+  // T-461 — bulk acts on a selection and the plan export
+  app.route('/', bulkActRoutes(deps));
   app.route('/', containerRoutes(deps));
 
   // T-241 — the project ontology (classification vocabulary + relationship

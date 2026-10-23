@@ -68,6 +68,7 @@ describe('principle 3 — the requester is resolved, never supplied', () => {
     // the requester's own identity still resolved from the session
     expect(observed).toEqual({
       addMembershipBody: ['organisationId'], // the organisation being seated
+      bulkTransmitBody: ['organisationIds'], // the recipients of a bulk issue — the same subject as issueTransmittalBody (T-461)
       createAppBody: ['organisationIds', 'participantIds'], // the app's initial scope set (T-440)
       createGrantRuleBody: ['participantId'], // the appointee the rule names
       createSandboxBody: ['organisationIds', 'participantIds'], // the initial scope set (T-187)

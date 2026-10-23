@@ -5,6 +5,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router';
 import type {
+  BulkClassifyBody,
+  BulkFailure,
+  ClassificationSchemeResponse,
   ExternalIssue,
   ExternalIssueSettings,
   GetLibrarySearchResponse,
@@ -26,13 +29,15 @@ import {
   Modal,
   Register,
   SectionLabel,
+  SegmentedControl,
+  SelectInput,
   Table,
   TextArea,
   TextInput,
 } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { lifecycleBadge } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { useMe } from '../session';
 import { contextStateBadge, formatDate } from './shared';
@@ -47,8 +52,12 @@ const refStyle = {
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
+// T-461 — every dialog here takes the rows it acts on, one or many: the bulk
+// bar and the row menu open the same door, and the title says how many.
+const countOf = (items: LibraryItem[]) => (items.length === 1 ? items[0]!.documentReference : `${items.length} documents`);
+
 function TransmitModal(props: {
-  item: LibraryItem;
+  items: LibraryItem[];
   orgs: Array<{ value: string; label: string }>;
   onSubmit: (organisationId: string) => Promise<void>;
   onClose: () => void;
@@ -59,7 +68,7 @@ function TransmitModal(props: {
     <Modal
       open
       onClose={props.onClose}
-      title={`Transmit ${props.item.documentReference}`}
+      title={`Transmit ${countOf(props.items)}`}
       size="sm"
       footer={
         <>
@@ -101,7 +110,7 @@ function TransmitModal(props: {
 // recipient — and the ADR requires that the product not read as though the
 // record were stronger than the email it replaces.
 function ExternalIssueModal(props: {
-  item: LibraryItem;
+  items: LibraryItem[];
   /** T-432 — the verb the project's setting leaves this person: issue, or ask */
   mode: 'issue' | 'request';
   onClose: () => void;
@@ -133,8 +142,8 @@ function ExternalIssueModal(props: {
       size="md"
       title={
         props.mode === 'issue'
-          ? `Issue ${props.item.documentReference} outside the project`
-          : `Request that ${props.item.documentReference} is issued outside the project`
+          ? `Issue ${countOf(props.items)} outside the project`
+          : `Request that ${countOf(props.items)} ${props.items.length === 1 ? 'is' : 'are'} issued outside the project`
       }
       footer={
         <>
@@ -168,7 +177,7 @@ function ExternalIssueModal(props: {
         </p>
       )}
       <p style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        The recipient gets a link to <strong>this revision of this document and nothing else</strong>
+        The recipient gets a link to <strong>this revision of {props.items.length === 1 ? 'this document' : 'each of these documents'} and nothing else</strong>
         — no project, no other documents, no list of people. They need no Infora account.{' '}
         <strong>Anyone holding the link can open it</strong>, so the record says what was sent and
         to which address, never who read it. A later revision does not replace what they hold.
@@ -352,7 +361,7 @@ function EndDeliverableModal(props: {
 // (ADR-0045 as amended §1), which is why this modal picks a replacement rather
 // than offering a bare "mark superseded".
 function SupersedeModal(props: {
-  item: LibraryItem;
+  items: LibraryItem[];
   candidates: LibraryItem[];
   /** the owner proposes AND confirms; the producer only proposes */
   mode: 'confirm' | 'propose';
@@ -366,7 +375,7 @@ function SupersedeModal(props: {
       open
       onClose={props.onClose}
       size="sm"
-      title={`Supersede ${props.item.documentReference}`}
+      title={`Supersede ${countOf(props.items)}`}
       footer={
         <>
           <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
@@ -384,7 +393,7 @@ function SupersedeModal(props: {
       }
     >
       <Field
-        label="Which deliverable replaces it"
+        label={props.items.length === 1 ? 'Which deliverable replaces it' : 'Which deliverable replaces them all'}
         hint={
           props.mode === 'confirm'
             ? 'The replacement supersedes this one. It stays in the record and stops being used for AI answers; retiring the relationship is the way back.'
@@ -405,6 +414,92 @@ function SupersedeModal(props: {
   );
 }
 
+// T-461 — classify a selection under one facet (ADR-0045), with the choice
+// said out loud: fill only the rows with nothing set yet, or replace what is.
+function BulkClassifyModal(props: {
+  projectId: string;
+  items: LibraryItem[];
+  onClose: () => void;
+  onSubmit: (body: Omit<BulkClassifyBody, 'containerIds'>) => Promise<void>;
+}) {
+  const [scheme, setScheme] = useState<ClassificationSchemeResponse | null>(null);
+  const [facetId, setFacetId] = useState('');
+  const [termId, setTermId] = useState('');
+  const [mode, setMode] = useState<'append' | 'replace'>('append');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void api.classificationScheme(props.projectId).then(setScheme, () => setScheme({ facets: [] }));
+  }, [props.projectId]);
+  const facet = scheme?.facets.find((f) => f.id === facetId) ?? null;
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      size="sm"
+      title={`Classify ${countOf(props.items)}`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy || facetId === '' || termId === ''}
+            onClick={async () => {
+              setBusy(true);
+              await props.onSubmit({ facetId, termId, mode });
+            }}
+          >
+            Classify
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gap: 10 }}>
+        <Field label="Facet">
+          <SelectInput
+            value={facetId}
+            onChange={(v) => {
+              setFacetId(v);
+              setTermId('');
+            }}
+            placeholder={scheme === null ? 'Loading…' : scheme.facets.length === 0 ? 'No classification scheme on this project' : 'Choose a facet'}
+            options={(scheme?.facets ?? []).map((f) => ({ value: f.id, label: f.name }))}
+          />
+        </Field>
+        <Field label="Term">
+          <SelectInput
+            value={termId}
+            onChange={setTermId}
+            disabled={facet === null}
+            placeholder="Choose a term"
+            options={(facet?.terms ?? []).filter((t) => t.retiredAt === null).map((t) => ({ value: t.id, label: `${t.code} — ${t.label}` }))}
+          />
+        </Field>
+        <Field label="Where a document already has a term under this facet" hint="Append fills only the gaps and leaves what somebody set; replace sets every selected document to this term.">
+          <SegmentedControl<'append' | 'replace'>
+            label="Append or replace"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'append', label: 'Keep it (append)' },
+              { value: 'replace', label: 'Replace it' },
+            ]}
+          />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
+/** the sentence a refused batch leaves on screen: nothing happened, and why, row by row */
+function refusalNote(verb: string, error: unknown): string {
+  const failures = error instanceof RequestError ? (error.body as { failures?: BulkFailure[] } | null)?.failures : undefined;
+  if (!failures || failures.length === 0) return `Could not ${verb} — nothing was changed.`;
+  const named = failures.slice(0, 3).map((f) => `${f.documentReference ?? 'a document'}: ${f.problem}`);
+  return `Nothing was ${verb === 'transmit' ? 'transmitted' : verb === 'classify' ? 'classified' : verb === 'supersede' ? 'superseded' : 'issued'} — ${named.join('; ')}${failures.length > 3 ? ` and ${failures.length - 3} more` : ''}.`;
+}
+
 export function LibraryScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -420,17 +515,20 @@ export function LibraryScreen() {
   const items = result?.items ?? null;
   const [pending, setPending] = useState<PendingTransmittal[]>([]);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [transmitItem, setTransmitItem] = useState<LibraryItem | null>(null);
+  const [transmitItems, setTransmitItems] = useState<LibraryItem[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
   // T-389 — the two lifecycle acts, each open on at most one row at a time
   const [endingItem, setEndingItem] = useState<LibraryItem | null>(null);
-  const [supersedingItem, setSupersedingItem] = useState<LibraryItem | null>(null);
+  const [supersedingItems, setSupersedingItems] = useState<LibraryItem[] | null>(null);
+  // T-461 — the register's selection (never in the URL: a selection is a moment, not a view) and the classify door
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [classifyItems, setClassifyItems] = useState<LibraryItem[] | null>(null);
   // T-431 — external issue. The settings read carries `mayIssue`, computed
   // server-side, so the action set is assembled rather than a disabled button
   // (T-269): a person who may not issue is offered nothing here yet, and T-432
   // gives them the request in its place.
   const [externalSettings, setExternalSettings] = useState<ExternalIssueSettings | null>(null);
-  const [externalItem, setExternalItem] = useState<LibraryItem | null>(null);
+  const [externalItems, setExternalItems] = useState<LibraryItem[] | null>(null);
   const [issued, setIssued] = useState<ExternalIssue | null>(null);
   // T-432 — the request queue. A queue on this screen and NOT a notification:
   // ADR-0055's notification set gains nothing, so a pending request is found
@@ -586,20 +684,20 @@ export function LibraryScreen() {
           >
             <DropdownMenuItem onClick={() => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}>Open</DropdownMenuItem>
             {isOwner && r.state === 'live' && (
-              <DropdownMenuItem onClick={() => setTransmitItem(toItem(r))}>
+              <DropdownMenuItem onClick={() => setTransmitItems([toItem(r)])}>
                 <Send size={13} strokeWidth={2} /> Transmit…
               </DropdownMenuItem>
             )}
             {/* T-431 — the door out of the project (ADR-0055 §2); T-432 puts the REQUEST here for everybody else */}
             {externalSettings !== null && r.state === 'live' && (
-              <DropdownMenuItem onClick={() => setExternalItem(toItem(r))}>
+              <DropdownMenuItem onClick={() => setExternalItems([toItem(r)])}>
                 <Share2 size={13} strokeWidth={2} /> {externalSettings.mayIssue ? 'Issue externally…' : 'Request external issue…'}
               </DropdownMenuItem>
             )}
             {/* T-389 — the owner ends a published deliverable, the producing organisation asks */}
             {(isOwner || r.producingOrganisationId === me.organisationId) && r.withdrawalProposal === null && r.state === 'live' && (
               <>
-                <DropdownMenuItem onClick={() => setSupersedingItem(toItem(r))}>Supersede…</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSupersedingItems([toItem(r)])}>Supersede…</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setEndingItem(toItem(r))}>{isOwner ? 'Withdraw…' : 'Propose withdrawal…'}</DropdownMenuItem>
               </>
             )}
@@ -682,24 +780,52 @@ export function LibraryScreen() {
   // proposed-then-confirmed, which is what actually happened, instead of
   // inventing a third kind of write that skips the propose/confirm shape
   // ADR-0045 built.
-  async function supersede(item: LibraryItem, replacementContainerId: string) {
+  async function supersede(items: LibraryItem[], replacementContainerId: string) {
     try {
-      const edge = await api.proposeRelationship(replacementContainerId, item.containerId, 'supersedes');
-      if (isOwner) {
-        await api.confirmRelationship(edge.id);
-        setNote(`${item.documentReference} superseded — it no longer grounds.`);
+      if (items.length === 1) {
+        const item = items[0]!;
+        const edge = await api.proposeRelationship(replacementContainerId, item.containerId, 'supersedes');
+        if (isOwner) {
+          await api.confirmRelationship(edge.id);
+          setNote(`${item.documentReference} superseded — it no longer grounds.`);
+        } else {
+          setNote(`Supersession proposed for ${item.documentReference}. The owner confirms it.`);
+        }
       } else {
-        setNote(`Supersession proposed for ${item.documentReference}. The owner confirms it.`);
+        // T-461 — many rows, one replacement, one act (bulk-acts.ts)
+        const result = await api.bulkSupersede(projectId, { containerIds: items.map((i) => i.containerId), replacementContainerId });
+        setNote(
+          result.state === 'confirmed'
+            ? `${items.length} documents superseded — they no longer ground.`
+            : `Supersession proposed for ${items.length} documents. The owner confirms it.`,
+        );
+        setSelected(new Set());
       }
       load();
-    } catch {
-      setNote('Could not record that — check the replacement is a deliverable you can both see.');
+    } catch (error) {
+      setNote(items.length === 1 ? 'Could not record that — check the replacement is a deliverable you can both see.' : refusalNote('supersede', error));
     }
-    setSupersedingItem(null);
+    setSupersedingItems(null);
+  }
+
+  // T-461 — classify a selection: a producing-organisation act, append or replace
+  async function classify(items: LibraryItem[], body: Omit<BulkClassifyBody, 'containerIds'>) {
+    try {
+      const result = await api.bulkClassify(projectId, { ...body, containerIds: items.map((i) => i.containerId) });
+      setNote(
+        result.kept > 0
+          ? `Classified ${result.set} — ${result.kept} already had a term under that facet and ${result.kept === 1 ? 'was' : 'were'} left as set.`
+          : `Classified ${result.set} ${result.set === 1 ? 'document' : 'documents'}.`,
+      );
+      setSelected(new Set());
+    } catch (error) {
+      setNote(refusalNote('classify', error));
+    }
+    setClassifyItems(null);
   }
 
   async function issueExternally(
-    item: LibraryItem,
+    items: LibraryItem[],
     body: {
       recipientName: string;
       recipientEmail: string;
@@ -709,21 +835,33 @@ export function LibraryScreen() {
     },
   ) {
     try {
-      const issue = await api.issueExternally(item.containerId, body);
-      if (issue.state === 'issued') {
-        setIssued(issue);
-        setNote(null);
+      if (items.length === 1) {
+        const item = items[0]!;
+        const issue = await api.issueExternally(item.containerId, body);
+        if (issue.state === 'issued') {
+          setIssued(issue);
+          setNote(null);
+        } else {
+          // the act the setting left this person. It must not read as a send.
+          setNote(
+            `Requested — ${item.documentReference} is not issued yet. Somebody who may issue outside the project will approve or decline it.`,
+          );
+        }
       } else {
-        // the act the setting left this person. It must not read as a send.
+        // T-461 — one recipient, many documents, each its own link (ADR-0055)
+        const result = await api.bulkIssueExternally(projectId, { ...body, containerIds: items.map((i) => i.containerId) });
         setNote(
-          `Requested — ${item.documentReference} is not issued yet. Somebody who may issue outside the project will approve or decline it.`,
+          result.state === 'issued'
+            ? `Issued ${items.length} documents to ${body.recipientName} — each link is listed on its document page.`
+            : `Requested — ${items.length} documents are not issued yet. Somebody who may issue outside the project will approve or decline each.`,
         );
+        setSelected(new Set());
       }
       loadExternal();
-    } catch {
-      setNote('Could not issue outside the project — check the deliverable has a current revision.');
+    } catch (error) {
+      setNote(items.length === 1 ? 'Could not issue outside the project — check the deliverable has a current revision.' : refusalNote('issue', error));
     }
-    setExternalItem(null);
+    setExternalItems(null);
   }
 
   async function answerRequest(request: ExternalIssue, approve: boolean, declineReason?: string) {
@@ -745,15 +883,61 @@ export function LibraryScreen() {
     setDeclining(null);
   }
 
-  async function transmit(item: LibraryItem, organisationId: string) {
+  async function transmit(items: LibraryItem[], organisationId: string) {
     try {
-      await api.issueTransmittal(item.containerId, [organisationId]);
-      setNote('Transmitted — the receiving organisation must acknowledge before it grounds.');
-    } catch {
-      setNote('Transmittal failed — check a current version exists and the organisation is a member.');
+      if (items.length === 1) {
+        await api.issueTransmittal(items[0]!.containerId, [organisationId]);
+        setNote('Transmitted — the receiving organisation must acknowledge before it grounds.');
+      } else {
+        // T-461 — twenty rows, one dialog, one act (bulk-acts.ts)
+        const result = await api.bulkTransmit(projectId, { containerIds: items.map((i) => i.containerId), organisationIds: [organisationId] });
+        setNote(`Transmitted ${result.issued} documents — the receiving organisation must acknowledge each before it grounds.`);
+        setSelected(new Set());
+      }
+    } catch (error) {
+      setNote(items.length === 1 ? 'Transmittal failed — check a current version exists and the organisation is a member.' : refusalNote('transmit', error));
     }
-    setTransmitItem(null);
+    setTransmitItems(null);
   }
+
+  // T-461 — the selection as rows this screen may act on (live ones), and the bar
+  const selectedLive = (ids: string[]) => liveItems.filter((i) => ids.includes(i.containerId));
+  const bulkBar = (ids: string[]) => {
+    const rows = selectedLive(ids);
+    const mine = rows.length > 0 && rows.every((r) => r.producingOrganisationId === me.organisationId);
+    const ends = rows.length > 0 && rows.every((r) => r.withdrawalProposal === null && (isOwner || r.producingOrganisationId === me.organisationId));
+    return (
+      <>
+        {isOwner && rows.length > 0 && (
+          <Button size="sm" variant="quiet" onClick={() => setTransmitItems(rows)}>
+            <Send size={13} strokeWidth={2} /> Transmit…
+          </Button>
+        )}
+        {externalSettings !== null && rows.length > 0 && (
+          <Button size="sm" variant="quiet" onClick={() => setExternalItems(rows)}>
+            <Share2 size={13} strokeWidth={2} /> {externalSettings.mayIssue ? 'Issue externally…' : 'Request external issue…'}
+          </Button>
+        )}
+        {ends && (
+          <Button size="sm" variant="quiet" onClick={() => setSupersedingItems(rows)}>
+            Supersede…
+          </Button>
+        )}
+        {mine && (
+          <Button size="sm" variant="quiet" onClick={() => setClassifyItems(rows)}>
+            Classify…
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="quiet"
+          onClick={() => void api.exportPlanRows(projectId, ids).catch(() => setNote('Could not export — try again.'))}
+        >
+          Export to Excel
+        </Button>
+      </>
+    );
+  };
 
   return (
     <div className="content">
@@ -772,21 +956,29 @@ export function LibraryScreen() {
           onSubmit={(reason) => endDeliverable(endingItem, reason)}
         />
       )}
-      {supersedingItem && (
+      {supersedingItems && (
         <SupersedeModal
-          item={supersedingItem}
+          items={supersedingItems}
           mode={isOwner ? 'confirm' : 'propose'}
-          candidates={liveItems.filter((d) => d.containerId !== supersedingItem.containerId)}
-          onClose={() => setSupersedingItem(null)}
-          onSubmit={(replacement) => supersede(supersedingItem, replacement)}
+          candidates={liveItems.filter((d) => !supersedingItems.some((i) => i.containerId === d.containerId))}
+          onClose={() => setSupersedingItems(null)}
+          onSubmit={(replacement) => supersede(supersedingItems, replacement)}
         />
       )}
-      {externalItem && (
+      {externalItems && (
         <ExternalIssueModal
-          item={externalItem}
+          items={externalItems}
           mode={externalSettings?.mayIssue ? 'issue' : 'request'}
-          onClose={() => setExternalItem(null)}
-          onSubmit={(body) => issueExternally(externalItem, body)}
+          onClose={() => setExternalItems(null)}
+          onSubmit={(body) => issueExternally(externalItems, body)}
+        />
+      )}
+      {classifyItems && (
+        <BulkClassifyModal
+          projectId={projectId}
+          items={classifyItems}
+          onClose={() => setClassifyItems(null)}
+          onSubmit={(body) => classify(classifyItems, body)}
         />
       )}
       {issued && <ExternalIssuedModal issue={issued} onClose={() => setIssued(null)} />}
@@ -797,12 +989,12 @@ export function LibraryScreen() {
           onSubmit={(reason) => answerRequest(declining, false, reason)}
         />
       )}
-      {transmitItem && (
+      {transmitItems && (
         <TransmitModal
-          item={transmitItem}
+          items={transmitItems}
           orgs={otherOrgs}
-          onClose={() => setTransmitItem(null)}
-          onSubmit={(orgId) => transmit(transmitItem, orgId)}
+          onClose={() => setTransmitItems(null)}
+          onSubmit={(orgId) => transmit(transmitItems, orgId)}
         />
       )}
 
@@ -901,6 +1093,8 @@ export function LibraryScreen() {
         columns={columns}
         rows={items}
         rowKey={(r) => r.containerId}
+        rowLabel={(r) => r.documentReference}
+        selection={{ selected, onChange: setSelected, bar: bulkBar }}
         onRowClick={(r) => void navigate(`/projects/${projectId}/documents/${r.containerId}`)}
         search={{
           value: query.q ?? '',

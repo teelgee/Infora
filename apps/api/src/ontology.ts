@@ -46,10 +46,10 @@ function isUniqueViolation(error: unknown): boolean {
   return false;
 }
 
-type ContainerRow = typeof s.containers.$inferSelect;
+export type ContainerRow = typeof s.containers.$inferSelect;
 type RelationshipRow = typeof s.documentRelationships.$inferSelect;
 
-const toRelationship = (r: RelationshipRow): DocumentRelationship => ({
+export const toRelationship = (r: RelationshipRow): DocumentRelationship => ({
   id: r.id,
   projectId: r.projectId,
   fromContainerId: r.fromContainerId,
@@ -61,6 +61,29 @@ const toRelationship = (r: RelationshipRow): DocumentRelationship => ({
   confirmedAt: r.confirmedAt?.toISOString() ?? null,
   retiredAt: r.retiredAt?.toISOString() ?? null,
 });
+
+export const producesIt = (container: ContainerRow, slice: EntitledSlice) =>
+  container.producingOrganisationId === slice.organisationId && container.scope === 'library';
+
+// T-386 (ADR-0045 as amended 2026-08-27) — who may write an edge, in the two
+// halves the amendment separates.
+//
+// PROPOSAL is open to either party. It was a producing-organisation act
+// throughout, which left the owner — whose library the edge is about — unable
+// to say "this one replaces that one" about its own record.
+//
+// CONFIRMATION follows the publication boundary, exactly as record state does
+// (ADR-0013 §2). It keys on the edge's TARGET, because that is the container a
+// confirmation writes to: a confirmed `supersedes` edge INTO A LIBRARY
+// CONTAINER sets that container's record state, and a record in the owner's
+// library is the owner's. A target that is not yet published is unchanged —
+// the producing organisation's own record, its own edge to confirm.
+export const mayProposeEdge = (from: ContainerRow, slice: EntitledSlice) =>
+  from.scope === 'library' &&
+  (from.producingOrganisationId === slice.organisationId || slice.membershipRole === 'owner');
+export const mayConfirmEdge = (target: ContainerRow, from: ContainerRow, slice: EntitledSlice) =>
+  target.inLibrary ? slice.membershipRole === 'owner' : producesIt(from, slice);
+
 
 export function ontologyRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -97,28 +120,6 @@ export function ontologyRoutes(deps: { db: Db }) {
       .where(and(inArray(s.containers.id, ids), deliverableVisible(slice)));
     return new Set(rows.map((r) => r.id));
   }
-
-  const producesIt = (container: ContainerRow, slice: EntitledSlice) =>
-    container.producingOrganisationId === slice.organisationId && container.scope === 'library';
-
-  // T-386 (ADR-0045 as amended 2026-08-27) — who may write an edge, in the two
-  // halves the amendment separates.
-  //
-  // PROPOSAL is open to either party. It was a producing-organisation act
-  // throughout, which left the owner — whose library the edge is about — unable
-  // to say "this one replaces that one" about its own record.
-  //
-  // CONFIRMATION follows the publication boundary, exactly as record state does
-  // (ADR-0013 §2). It keys on the edge's TARGET, because that is the container a
-  // confirmation writes to: a confirmed `supersedes` edge INTO A LIBRARY
-  // CONTAINER sets that container's record state, and a record in the owner's
-  // library is the owner's. A target that is not yet published is unchanged —
-  // the producing organisation's own record, its own edge to confirm.
-  const mayProposeEdge = (from: ContainerRow, slice: EntitledSlice) =>
-    from.scope === 'library' &&
-    (from.producingOrganisationId === slice.organisationId || slice.membershipRole === 'owner');
-  const mayConfirmEdge = (target: ContainerRow, from: ContainerRow, slice: EntitledSlice) =>
-    target.inLibrary ? slice.membershipRole === 'owner' : producesIt(from, slice);
 
   // ── The classification vocabulary (project-wide, owner-owned) ──────────────
   app.get('/projects/:projectId/classification-scheme', project, async (c) => {

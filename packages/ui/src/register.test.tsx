@@ -67,10 +67,12 @@ describe('Register', () => {
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}
+        rowLabel={(r) => r.ref}
         selection={{ selected: new Set(['a']), onChange: () => {}, bar: (ids) => <span>bulk {ids.length}</span> }}
         empty="Nothing"
       />,
     );
+    expect(selectedHtml).toContain('aria-label="Select WA-001"');
     expect(selectedHtml).toContain('register-bulk-bar');
     expect(selectedHtml).toContain('1 selected');
     expect(selectedHtml).toContain('bulk 1');
