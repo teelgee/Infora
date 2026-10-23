@@ -66,6 +66,7 @@ import {
   Register,
 } from '@infora/ui';
 import { api } from '../api';
+import { useAiFeaturesOff } from '../ai-features';
 import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
 import { PromotionWindow } from '../promotion-window';
@@ -550,6 +551,8 @@ function FolderStructureModal(props: {
    * into this same builder. Propose-confirm (ADR-0027) — nothing is created
    * until the super user confirms below. */
   sandboxId?: string;
+  /** T-463 — the project switched the structure builder off: no ask box */
+  agentOff?: boolean;
   onSubmit: (nodes: StructureNode[]) => Promise<void>;
   onClose: () => void;
 }) {
@@ -677,7 +680,7 @@ function FolderStructureModal(props: {
 
       {/* T-364 — ask for a structure; the answer fills the builder below for
           you to edit. Nothing is created until you confirm (ADR-0027). */}
-      {props.sandboxId && (
+      {props.sandboxId && !props.agentOff && (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '0 0 10px' }}>
           <div style={{ flex: 1 }}>
             <TextInput
@@ -1124,6 +1127,7 @@ export function SandboxScreen() {
 
   const loadSandboxes = useCallback(() => api.sandboxes(projectId).then((r) => setSandboxes(r.items)), [projectId]);
   const [docsLoaded, setDocsLoaded] = useState(false);
+  const aiOff = useAiFeaturesOff(projectId);
   const loadDocs = useCallback(
     () =>
       api.sandboxDocuments(projectId).then((r) => {
@@ -1609,6 +1613,7 @@ export function SandboxScreen() {
           intoName={currentFolderId ? (crumbs.at(-1)?.name ?? null) : null}
           planSeed={planSeed}
           sandboxId={selected}
+          agentOff={aiOff.has('structure_builder')}
           onClose={() => setModal(null)}
           onSubmit={async (nodes) => {
             try {

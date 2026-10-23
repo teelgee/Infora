@@ -6,7 +6,7 @@
 // their pages state honestly what is coming and why it isn't here yet.
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { Archive, BookOpen, Home, LayoutTemplate, PenLine, Sparkles, Wrench } from 'lucide-react';
+import { Archive, BookOpen, Home, LayoutTemplate, PenLine, Sparkles, Wrench, ShieldCheck } from 'lucide-react';
 import {
   AppFrame,
   Badge,
@@ -20,7 +20,9 @@ import {
   SectionLabel,
   UserChip,
 } from '@infora/ui';
+import type { AiTransparencyResponse } from '@infora/contracts';
 import { api } from '../api';
+import { TransparencyTable } from './ai-transparency';
 import { useMe } from '../session';
 import { FirmShelfPane } from './knowledge';
 import type { FirmShelf } from './knowledge';
@@ -64,6 +66,12 @@ const SECTIONS = {
   // T-445 (ADR-0056 §10) — the apps your firm kept as templates, beside the
   // rest of its own material. Same kind of thing: org-private, the same on
   // every project, belonging to none of them.
+  // T-463 — the deployment's AI facts, readable with no project in scope
+  ai: {
+    label: 'How the AI works',
+    glyph: <ShieldCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+    note: 'Every AI feature this deployment carries — what it reads, what it may write, where it runs, what it keeps, and that none of it ever trains a model. Per-project switches are set inside each project.',
+  },
   playbooks: {
     label: 'Kept apps',
     glyph: <LayoutTemplate size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
@@ -130,6 +138,11 @@ export function WorkspaceSection() {
   const [firm, setFirm] = useState<FirmShelf>({ rulebooks: null, outlines: null });
   const knowledge = section === 'knowledge';
   const playbooks = section === 'playbooks';
+  const ai = section === 'ai';
+  const [aiTable, setAiTable] = useState<AiTransparencyResponse | null>(null);
+  useEffect(() => {
+    if (ai) void api.workspaceAiTransparency().then(setAiTable, () => setAiTable(null));
+  }, [ai]);
 
   useEffect(() => {
     if (!knowledge) return;
@@ -171,11 +184,12 @@ export function WorkspaceSection() {
             <Badge tone="neutral">Org-private — no project context reachable here</Badge>
           </div>
         </div>
-        <div className="content" style={knowledge || playbooks ? undefined : { maxWidth: 720 }}>
+        <div className="content" style={knowledge || playbooks || ai ? undefined : { maxWidth: 720 }}>
           <h1 className="page">{entry.label}</h1>
           <p className="page-sub">{entry.note}</p>
           {knowledge && <FirmShelfPane shelf={firm} door="workspace" {...(curation && { curation })} />}
           {playbooks && <PlaybookShelfPane />}
+          {ai && aiTable && <TransparencyTable table={aiTable} />}
         </div>
       </div>
     </AppFrame>

@@ -45,6 +45,7 @@ import { projectScope, resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
 import { syncPlanLockedFolders, withinDeliverableFolder } from './plan-locked';
 import { planDisciplines, proposeStructure } from './structure-agent';
+import { refuseIfOff } from './ai-features';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
@@ -476,6 +477,9 @@ export function sandboxRoutes2(deps: { db: Db; router: Router }) {
     if (!ctx) return notFound(c);
     if (!canConfigureSandbox(ctx.slice, ctx.sandbox)) return forbidden(c, 'super_user_only');
     if (ctx.sandbox.planLocked) return conflict(c, 'plan_locked');
+    // T-463 — the project's switch
+    const off = await refuseIfOff(c, deps.db, ctx.sandbox.projectId, 'structure_builder');
+    if (off) return off;
     const parsed = proposeFolderStructureBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     const disciplines = await planDisciplines(

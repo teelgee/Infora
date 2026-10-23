@@ -78,6 +78,7 @@ import {
 import { createAppInstance } from './app-instance';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
+import { refuseIfOff } from './ai-features';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 
@@ -631,6 +632,9 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!reached) return notFound(c);
     const { app: loaded, slice } = reached;
     if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    // T-463 — the project's switch
+    const off = await refuseIfOff(c, deps.db, loaded.row.projectId, 'app_builder');
+    if (off) return off;
     const parsed = sayToBuilderBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
     // (review 2026-10-18) a conversation has a ceiling: every person turn is

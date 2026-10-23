@@ -1515,6 +1515,20 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-23 (T-463) — the AI transparency table: `GET /projects/:projectId/ai-transparency`,
+  `GET /ai-transparency`, `PUT /projects/:projectId/ai-features/:feature`,
+  `GET …/ai-transparency/export`.** *Plainly: a page that says what each AI
+  feature reads, writes, keeps and never trains on, with a per-project off
+  switch the owner's super user throws with a reason.* The **reason the facts
+  live in a registry beside the code, not in a table**, is that a row describing
+  a feature must change when the feature does, and a diff is the only place
+  that is seen. The **reason the posture comes from the router** is that the page
+  must say what is enforced, not what was written. The **reason the switch is
+  append-only with a required reason** is ADR-0030 §6: it is a rails change,
+  and an audit with no name and no why on it is not one. The **reason a refusal
+  is a 403 with `ai_feature_off`** rather than 404 is that the feature exists and
+  the project chose; the screens still render absence, never grey.
+
 - **2026-10-23 (T-462) — the plan read gains `state`, `kind`, `producerId` and a
   `relevance` sort; `PlanRow` gains a coalesced `title`.** *Plainly: the plan
   can be filtered and searched on the server, and reference material has a

@@ -57,6 +57,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
+import { refuseIfOff } from './ai-features';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context, detail: string) =>
@@ -105,6 +106,9 @@ export function ruleSetRoutes(deps: { db: Db; router: Router }) {
     async (c) => {
       const refused = mayCurate(c);
       if (refused !== null) return refused;
+      // T-463 — the project's switch
+      const off = await refuseIfOff(c, deps.db, c.get('slice').projectId, 'rule_extraction');
+      if (off) return off;
       const guide = await guideOf(c);
       if (guide === null) return notFound(c);
       const parsed = extractRulesBody.safeParse(await c.req.json().catch(() => null));

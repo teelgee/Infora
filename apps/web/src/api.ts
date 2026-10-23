@@ -1,6 +1,9 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  AiFeatureKey,
+  AiTransparencyResponse,
+  SetAiFeatureBody,
   BulkClassifyBody,
   BulkClassifyResponse,
   BulkIssueExternallyBody,
@@ -1126,6 +1129,12 @@ export const api = {
     request<BulkClassifyResponse>(`/projects/${projectId}/bulk/classifications`, { method: 'POST', body: JSON.stringify(body) }),
   exportPlanRows: (projectId: string, containerIds: string[]) =>
     downloadPost(`/projects/${projectId}/plan/export`, { containerIds }),
+  // T-463 — the AI transparency table and the per-project feature switch
+  aiTransparency: (projectId: string) => request<AiTransparencyResponse>(`/projects/${projectId}/ai-transparency`),
+  workspaceAiTransparency: () => request<AiTransparencyResponse>('/ai-transparency'),
+  setAiFeature: (projectId: string, feature: AiFeatureKey, body: SetAiFeatureBody) =>
+    request<AiTransparencyResponse>(`/projects/${projectId}/ai-features/${feature}`, { method: 'PUT', body: JSON.stringify(body) }),
+  exportAiTransparency: (projectId: string) => downloadFile(`/projects/${projectId}/ai-transparency/export`),
   // T-440/T-441 — the app builder's substrate (ADR-0056). The list is
   // ASSEMBLED server-side: an app the requester cannot open never reaches this
   // client, and `mayCreate` is the server's answer to the org-admin toggle

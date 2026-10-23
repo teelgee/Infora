@@ -55,6 +55,7 @@ import { resolveSession } from './sessions';
 import { DEFAULT_SESSION_POLICY } from './sessions';
 import type { SessionPolicy } from './sessions';
 import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
+import { refuseIfOff } from './ai-features';
 
 const notFound = { error: 'not_found' } satisfies ApiError;
 const invalid = (detail: string) => ({ error: 'invalid', detail }) satisfies ApiError;
@@ -185,6 +186,16 @@ export function runRoutes(deps: {
       const body = createRunBody.safeParse(await c.req.json().catch(() => null));
       if (!body.success) return c.json(invalid('request text required'), 400);
       const slice = c.get('slice');
+      // T-463 — the project's switch: a run on a document is drafting, a run
+      // without one is Ask; either may be off on this project
+      const [conv] = await deps.db
+        .select({ sandboxDocumentId: s.conversations.sandboxDocumentId })
+        .from(s.conversations)
+        .where(eq(s.conversations.id, c.req.param('conversationId')))
+        .limit(1);
+      const drafting = body.data.sandboxDocumentId !== undefined || (conv?.sandboxDocumentId ?? null) !== null;
+      const off = await refuseIfOff(c, deps.db, slice.projectId, drafting ? 'drafting' : 'ask');
+      if (off) return off;
 
       if (body.data.sandboxDocumentId !== undefined) {
         const home = await resourceHomes.sandboxDocument(deps.db, body.data.sandboxDocumentId);

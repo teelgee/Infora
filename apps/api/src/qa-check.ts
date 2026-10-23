@@ -60,6 +60,7 @@ import type { AcceptedRule } from '@infora/capabilities';
 import { writeFindings } from './findings';
 import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
+import { refuseIfOff } from './ai-features';
 
 export const QA_CHECK_WORKFLOW = 'qa-check';
 
@@ -328,12 +329,17 @@ export function qaCheckRoutes(deps: {
   };
 
   app.post('/projects/:projectId/tools/qa-check/plan', project, async (c) => {
+    // T-463 — the project's switch, before any plan or spend
+    const off = await refuseIfOff(c, deps.db, c.get('slice').projectId, 'qa_checker');
+    if (off) return off;
     const computed = await plan(c);
     if (!computed.ok) return computed.response;
     return c.json({ plan: computed.computed.plan } satisfies QaCheckPlanResponse);
   });
 
   app.post('/projects/:projectId/tools/qa-check/runs', project, async (c) => {
+    const off = await refuseIfOff(c, deps.db, c.get('slice').projectId, 'qa_checker');
+    if (off) return off;
     const computed = await plan(c);
     if (!computed.ok) return computed.response;
     const { plan: toolPlan, passes, groups, measures } = computed.computed;

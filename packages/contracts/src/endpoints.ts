@@ -2372,6 +2372,61 @@ export type PendingTransmittal = {
 };
 export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };
 
+// ── T-463 — the AI transparency table, and the per-project feature switch ───
+//
+// *In plain terms: a page that says, for every AI feature, what it reads, what
+// it may write, where it runs, what it keeps, and that it never trains on the
+// project's data; and a switch the owner's super user can turn off per project,
+// with a reason, that is written down like any other change to the project's
+// rails (ADR-0030). A switched-off feature is absent from every launcher and
+// its endpoint refuses — it is not greyed out.*
+//
+// The switch sits BENEATH the deployment tier (ADR-0037) and only narrows
+// reach: nothing here can turn a feature on that the tier or the requester's
+// own entitlement would refuse. The facts in each row are the registry's
+// (apps/api/src/ai-features.ts), written once beside the code they describe.
+export const AI_FEATURE_KEYS = [
+  'ask',
+  'drafting',
+  'document_creator',
+  'qa_checker',
+  'structure_builder',
+  'rule_extraction',
+  'app_builder',
+  'app_insights',
+] as const;
+export type AiFeatureKey = (typeof AI_FEATURE_KEYS)[number];
+export type AiFeatureRow = {
+  key: AiFeatureKey;
+  label: string;
+  /** where a person meets it */
+  where: string;
+  reads: string;
+  mayWrite: string;
+  keeps: string;
+  /** the standing commitment (ADR-0026): never */
+  trains: 'never';
+  /** the retrieval index itself is the substrate and cannot be switched */
+  switchable: boolean;
+  enabled: boolean;
+  /** the latest switch, when one has ever been thrown — who, when, why */
+  lastChange: { name: string; at: string; reason: string; enabled: boolean } | null;
+};
+export type AiTransparencyResponse = {
+  /** the deployment's posture, from the router (ADR-0037): where every call runs */
+  tier: { tier: string; region: string[]; retention: string[]; jurisdiction: string[] };
+  features: AiFeatureRow[];
+  /** the owner's super user may throw a switch */
+  mayConfigure: boolean;
+  /** the project's switch history, newest first — read by anyone on the project */
+  history: Array<{ key: AiFeatureKey; enabled: boolean; reason: string; name: string; at: string }>;
+};
+export const setAiFeatureBody = z.object({
+  enabled: z.boolean(),
+  reason: z.string().trim().min(1).max(1000),
+});
+export type SetAiFeatureBody = z.infer<typeof setAiFeatureBody>;
+
 // ── T-461 — bulk acts on a selection, and the register's export ─────────────
 //
 // *In plain terms: tick several rows and act on them once — transmit them,

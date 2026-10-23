@@ -183,6 +183,13 @@ export class Router {
     return { ...result, egress: egressOf(route, classification) };
   }
 
+  // T-463 — the deployment's posture, readable: the transparency table says
+  // where every call runs, and it must say what the router actually enforces
+  // rather than restate it in copy that could drift.
+  get posture(): TierPolicy {
+    return this.security.policy;
+  }
+
   // The embedding model id/version is pinned per index (ADR-0024); ingestion
   // records this so a model change forces a deliberate re-index, never a mix.
   get embeddingModel(): { id: string; dimensions: number } {

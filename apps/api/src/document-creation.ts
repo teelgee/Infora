@@ -64,6 +64,7 @@ import { currentRuleSetVersionIds } from '@infora/data';
 import { reviseSectionBrief } from './section-brief-agent';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
+import { refuseIfOff } from './ai-features';
 
 export const DOCUMENT_CREATION_WORKFLOW = 'document-creation';
 
@@ -385,12 +386,17 @@ export function documentCreationRoutes(deps: {
   );
 
   app.post('/projects/:projectId/tools/document-creation/plan', project, async (c) => {
+    // T-463 — the project's switch, before any plan or spend
+    const off = await refuseIfOff(c, deps.db, c.get('slice').projectId, 'document_creator');
+    if (off) return off;
     const computed = await plan(c);
     if (!computed.ok) return computed.response;
     return c.json({ plan: computed.plan } satisfies DocumentCreationPlanResponse);
   });
 
   app.post('/projects/:projectId/tools/document-creation/runs', project, async (c) => {
+    const off = await refuseIfOff(c, deps.db, c.get('slice').projectId, 'document_creator');
+    if (off) return off;
     const computed = await plan(c);
     if (!computed.ok) return computed.response;
     // ADR-0053 §5 — the refusal is said in the plan, BEFORE any spend, and the

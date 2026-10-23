@@ -50,6 +50,7 @@ import {
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
+import { useAiFeaturesOff } from '../ai-features';
 import { FindingsPanel } from '../findings-panel';
 import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
@@ -264,6 +265,8 @@ export function EditorScreen() {
   const [convId, setConvId] = useState<string | null>(null); // the shared multiplayer thread (T-160)
   const abortRef = useRef<AbortController | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
+  // T-463 — the project's AI feature switches, for the launchers this screen carries
+  const aiOff = useAiFeaturesOff(participant.projectId);
   const nextId = useRef(0);
 
   const load = useCallback(async () => {
@@ -769,6 +772,8 @@ export function EditorScreen() {
                 ONE run shape and ONE place the scope is stated (ADR-0053 §1).
                 A checker that ran straight off this button would be a second
                 launcher with no plan and no coverage statement. */}
+            {/* T-463 — absent, not greyed, when the project has switched the checker off */}
+            {!aiOff.has('qa_checker') && (
             <button
               aria-label="Check this draft"
               title="Check this draft — opens the QA checker with this document chosen"
@@ -781,6 +786,7 @@ export function EditorScreen() {
               <Check size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
               Check
             </button>
+            )}
             <span style={{ marginLeft: 'auto' }} />
             <button
               className={previewing ? undefined : 'active'}

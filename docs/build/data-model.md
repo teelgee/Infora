@@ -643,6 +643,31 @@ a guessed address, because an invented one looks checkable.
 finding written against a rule that has since been withdrawn still resolves to
 the words it quoted.
 
+### The AI feature switch *(drawn 2026-10-23, T-463, migration 0073)*
+
+*In plain terms: the owner's super user can turn an AI feature off for one
+project — the checker, say, while a client decides whether it may be used on
+their work — and must say why. Every throw of the switch is kept with the
+person's name, and nothing is edited or deleted; the feature is simply absent
+until it is turned back on.*
+
+`ai_feature_switches` — `id`; `project_id` (FK `projects`, cascade); `feature`
+(text — one of the registry's keys, `apps/api/src/ai-features.ts`); `enabled`
+(boolean); `reason` (text, required — a project decision stated in words);
+`changed_by_participant_id` (FK `participants` — **a named person**, registered
+in [personal-data.md](../architecture/personal-data.md)); `changed_at`.
+**Append-only by trigger** (T-008's pattern): the current state of a feature is
+its newest row, and a feature with no row is on. Index on (`project_id`,
+`feature`, `changed_at`). It lives in this drawer because it is governance over
+what the AI may do on a project — ADR-0030's ceiling applied to features
+(ADR-0037 addendum) — and not a record of any document. It only narrows: the
+deployment tier and each requester's own entitlement still apply above it.
+
+*Built the same day (migration 0073); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer7-context.ts](../../packages/db/src/schema/drawer7-context.ts) is the
+authority on its shape.*
+
 ### The project style guide *(drawn 2026-08-30, T-397, migration 0060)*
 
 *In plain terms: a project can have its own writing rules — an owner's house

@@ -32,6 +32,7 @@ import type { WorkerRegistry } from '@infora/capabilities';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { DOCUMENT_CREATION_WORKFLOW } from './document-creation';
 import { QA_CHECK_WORKFLOW } from './qa-check';
+import { disabledAiFeatures } from './ai-features';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -53,6 +54,9 @@ export function toolRoutes(deps: {
         authorityShelf: (await deps.authorityShelf?.(slice.organisationId)) ?? false,
       }) ?? [];
     const entitled = new Set(assembled.map((worker) => worker.name));
+    // T-463 — a feature the project has switched off is ABSENT, as a worker the
+    // requester cannot use is: same rule, one more filter beneath the tier
+    const off = await disabledAiFeatures(deps.db, slice.projectId);
 
     const items: ToolSummary[] = [];
 
@@ -63,7 +67,8 @@ export function toolRoutes(deps: {
     // cannot keep.
     if (
       deps.workflows?.get(DOCUMENT_CREATION_WORKFLOW) !== undefined &&
-      entitled.has('document_builder')
+      entitled.has('document_builder') &&
+      !off.has('document_creator')
     ) {
       items.push({
         id: DOCUMENT_CREATION_WORKFLOW,
@@ -82,7 +87,8 @@ export function toolRoutes(deps: {
     // promise the product cannot keep.
     if (
       deps.workflows?.get(QA_CHECK_WORKFLOW) !== undefined &&
-      entitled.has('qa_section_check')
+      entitled.has('qa_section_check') &&
+      !off.has('qa_checker')
     ) {
       items.push({
         id: QA_CHECK_WORKFLOW,

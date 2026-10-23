@@ -46,6 +46,7 @@ import {
 import { Badge, Button, Card, Field, IconButton, SectionLabel, SelectInput, TextArea, TextInput } from '@infora/ui';
 import { Trash2 } from 'lucide-react';
 import { api } from '../api';
+import { useAiFeaturesOff } from '../ai-features';
 import { useMe } from '../session';
 
 /** What each origin is CALLED on screen — never a code word, never an icon alone. */
@@ -94,6 +95,7 @@ export function NewStyleGuideScreen() {
   const [guideId, setGuideId] = useState<string | null>(null);
   const [rules, setRules] = useState<ProposedRule[] | null>(null);
   const [report, setReport] = useState<ExtractionReport | null>(null);
+  const aiOff = useAiFeaturesOff(projectId ?? '');
 
   const create = async () => {
     if (projectId === undefined || title.trim() === '') return;
@@ -101,12 +103,18 @@ export function NewStyleGuideScreen() {
     setError(null);
     try {
       const guide = await api.createStyleGuide(projectId, title.trim(), file ?? undefined);
+      setGuideId(guide.id);
+      // T-463 — rule extraction switched off on this project: the guide is
+      // saved and the rule set waits; the screen says so rather than failing
+      if (aiOff.has('rule_extraction')) {
+        setError('Rule extraction is switched off on this project — the guide is saved without a rule set. See “How the AI works here”.');
+        return;
+      }
       const extracted = await api.extractRules(projectId, guide.id, {
         registers,
         fillGaps,
         defaultSeverity,
       });
-      setGuideId(guide.id);
       setRules(extracted.rules);
       setReport(extracted.report);
     } catch {

@@ -17,6 +17,7 @@ import { ProjectHome, ProjectShell } from './screens/project';
 import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
 import { NotificationsScreen } from './screens/notifications';
 import { PlanScreen } from './screens/plan';
+import { AiTransparencyScreen } from './screens/ai-transparency';
 import { SchemaScreen } from './screens/schema';
 import { CycleScreen } from './screens/cycle';
 import { DeliverableStatusScreen } from './screens/deliverable-status';
@@ -47,6 +48,8 @@ const router = createBrowserRouter([
       { path: 'editor', element: <EditorScreen /> },
       { path: 'editor/:documentId', element: <EditorScreen /> },
       { path: 'plan', element: <PlanScreen /> },
+      // T-463 — how the AI works here: the transparency table and the per-project switches
+      { path: 'ai', element: <AiTransparencyScreen /> },
       { path: 'plan/scheme', element: <SchemaScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
       // T-457 — the document page: one page per container, where every row,

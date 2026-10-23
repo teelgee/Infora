@@ -28,6 +28,7 @@ import {
 } from '@infora/ui';
 import type { RailNavItem } from '@infora/ui';
 import { api } from '../api';
+import { useAiFeaturesOff } from '../ai-features';
 import { useMe } from '../session';
 import { NeedsYouPanel, useNotifications } from './notifications';
 import { greeting, initialsOf, statusBadge } from './shared';
@@ -93,6 +94,8 @@ export function ProjectShell() {
   }, [projectId]);
 
   const participant = me.participants.find((p) => p.projectId === projectId);
+  // T-463 — a feature the project switched off is absent from the rail, not greyed
+  const aiOff = useAiFeaturesOff(projectId ?? '');
   if (participant === undefined) {
     // deny reads as nonexistence on the surface too (principle 4)
     return <EmptyShell note="This project does not exist." />;
@@ -170,7 +173,7 @@ export function ProjectShell() {
           ]}
         />
         <RailNav
-          items={NAV.map((item) => ({
+          items={NAV.filter((item) => !(item.path === 'ask' && aiOff.has('ask'))).map((item) => ({
             label: item.label,
             glyph: item.glyph,
             href: `${base}/${item.path}`,
@@ -219,6 +222,7 @@ export function ProjectHome() {
   const me = useMe();
   const { participant } = useOutletContext<ShellContext>();
   const navigate = useNavigate();
+  const aiOff = useAiFeaturesOff(participant.projectId);
   const [items, setItems] = useState<WorkItem[] | null>(null);
 
   useEffect(() => {
@@ -236,14 +240,24 @@ export function ProjectHome() {
           : `${items.length} work item${items.length === 1 ? '' : 's'} on the project`}
       </p>
 
-      <div style={{ marginTop: 22 }}>
-        <CommandBar
-          hint="⌘K"
-          onClick={() => void navigate(`/projects/${participant.projectId}/ask`)}
-        >
-          Ask about the project — grounded on its library, every claim cited or withheld
-        </CommandBar>
-      </div>
+      {!aiOff.has('ask') && (
+        <div style={{ marginTop: 22 }}>
+          <CommandBar
+            hint="⌘K"
+            onClick={() => void navigate(`/projects/${participant.projectId}/ask`)}
+          >
+            Ask about the project — grounded on its library, every claim cited or withheld
+          </CommandBar>
+        </div>
+      )}
+
+      {/* T-463 — the page an owner asks for on day one, one click from home */}
+      <p style={{ margin: '10px 0 0', fontSize: 12.5 }}>
+        <button className="linklike" onClick={() => void navigate(`/projects/${participant.projectId}/ai`)}>
+          How the AI works here
+        </button>
+        <span style={{ color: 'var(--text-muted)' }}> — what each feature reads, writes and keeps, and the project’s switches.</span>
+      </p>
 
       {/* §6a — directly above the work items, so a notification sits beside the
           thing it is about. Absent at zero, never an empty state. */}

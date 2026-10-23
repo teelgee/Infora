@@ -32,9 +32,9 @@
 // early — a store walled by a different rule than `version_chunks`' must not
 // sit inside the table whose entire purpose is enforcing that one.
 import { sql } from 'drizzle-orm';
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { organisations, projects, users } from './drawer1-parties.js';
+import { organisations, participants, projects, users } from './drawer1-parties.js';
 
 export const rulebooks = pgTable(
   'rulebooks',
@@ -367,4 +367,38 @@ export const projectStyleGuideRules = pgTable(
       .on(t.proposalState)
       .where(sql`${t.proposalState} IS NOT NULL`),
   ],
+);
+
+// ── T-463 — the AI feature switch (ADR-0037 addendum, ADR-0030 §6) ──────────
+// *In plain terms: the owner's super user can turn an AI feature off for one
+// project, and must say why; every throw of the switch is kept, with the
+// person's name, and nothing is ever edited or deleted.*
+//
+// Append-only by trigger (T-008's pattern, hand-added to migration 0072's
+// successor as every trigger in this repo is): the current state of a feature
+// is the newest row for it, and a feature with no row is on. It lives in this
+// drawer because it is governance over what the AI may do on the project — the
+// rails' ceiling applied to features (ADR-0030) — and not a record of any
+// document. Only narrows reach: the tier (ADR-0037) and each requester's own
+// entitlement still apply above it.
+//
+// A NAMED PERSON on a configuration change, registered in
+// docs/architecture/personal-data.md — the reason states a project decision,
+// not anything about the person who made it.
+export const aiFeatureSwitches = pgTable(
+  'ai_feature_switches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    feature: text('feature').notNull(),
+    enabled: boolean('enabled').notNull(),
+    reason: text('reason').notNull(),
+    changedByParticipantId: uuid('changed_by_participant_id')
+      .notNull()
+      .references(() => participants.id),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('ai_feature_switches_project_feature_idx').on(t.projectId, t.feature, t.changedAt)],
 );

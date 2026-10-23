@@ -45,6 +45,7 @@ import type {
 import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, SelectInput, Table, TextInput } from '@infora/ui';
 import { api, RequestError } from '../api';
+import { useAiFeaturesOff } from '../ai-features';
 import { AppTableRows } from './app-rows';
 import { GeneratedScreen } from './app-screen';
 import { DeployFromPlaybook, SaveAsPlaybook } from './playbooks';
@@ -179,6 +180,8 @@ export function AppsSection({ projectId }: { projectId: string }) {
 
 export function AppScreen() {
   const { projectId, appId } = useParams();
+  // T-463 — the project's AI feature switches, for the building door
+  const aiOff = useAiFeaturesOff(projectId ?? '');
   const navigate = useNavigate();
   const [data, setData] = useState<GetAppResponse | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
@@ -270,7 +273,7 @@ export function AppScreen() {
           {/* T-442 → T-450 — the building screen, offered only where the
               server said this person may build. `mayBuild` is the API's
               answer; nothing here works it out. */}
-          {app.mayBuild && app.state !== 'closed' && (
+          {app.mayBuild && app.state !== 'closed' && !aiOff.has('app_builder') && (
             <Link to={`/projects/${projectId}/apps/${app.id}/build`}>
               <Button>Build it with the agent</Button>
             </Link>

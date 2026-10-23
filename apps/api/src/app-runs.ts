@@ -32,6 +32,7 @@ import { listRows, reachTable } from './app-rows';
 import { figuresFor, writeInsightSentence } from './app-insight';
 import type { CoveredTable } from './app-insight';
 import type { AppEnv } from './requester';
+import { refuseIfOff } from './ai-features';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
@@ -71,6 +72,9 @@ export function appRunRoutes(deps: { db: Db; router: Router }) {
     const { app: loaded, slice } = reached;
     const parsed = runAppBody.safeParse((await c.req.json().catch(() => null)) ?? {});
     if (!parsed.success) return invalid(c);
+    // T-463 — the project's switch
+    const off = await refuseIfOff(c, deps.db, loaded.row.projectId, 'app_insights');
+    if (off) return off;
     const facts = buildFacts(loaded, slice);
     const verdict = appRunnable(facts);
     if (!verdict.runnable) {

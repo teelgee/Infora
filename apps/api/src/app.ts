@@ -26,6 +26,7 @@ import { healthRoutes, requestObservability } from './observability';
 import { containerRoutes, planRoutes } from './plan';
 import { savedViewRoutes } from './saved-views';
 import { bulkActRoutes } from './bulk-acts';
+import { aiFeatureRoutes } from './ai-features';
 import { ontologyRoutes } from './ontology';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
@@ -258,6 +259,8 @@ export function buildApp(deps: AppDeps) {
   app.route('/', savedViewRoutes(deps));
   // T-461 — bulk acts on a selection and the plan export
   app.route('/', bulkActRoutes(deps));
+  // T-463 — the AI transparency table and the per-project feature switch
+  app.route('/', aiFeatureRoutes({ db: deps.db, router: deps.router }));
   app.route('/', containerRoutes(deps));
 
   // T-241 — the project ontology (classification vocabulary + relationship

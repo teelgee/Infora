@@ -943,6 +943,18 @@
       <h2>Drawer 7 — Context</h2>
       <p class="blurb">The scoped context stores (ADR-0020). Org context (the firm’s rulebook, T-308) and project context (the project style guide, T-397) — programme context has no tables yet.</p>
       <article class="card d7">
+        <h3>ai_feature_switches <span class="badge">append-only</span></h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">feature</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">enabled</td><td class="type">boolean</td><td class="notes"></td></tr>
+          <tr><td class="col">reason</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">changed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">changed_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d7">
         <h3>project_style_guide_clauses</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
