@@ -1933,3 +1933,18 @@ are not recorded here.
   upload to a named sandbox must never be easier to do than a create there, and
   the refusal must be the same 404 so a sandbox the person is not in cannot be
   probed for.
+
+- **2026-10-24 (T-478) — `POST /sandbox-documents/:id/internal-review`,
+  `requestInternalReviewBody`, `InternalReviewResult`.** The **reason it is one
+  act rather than three calls** (freeze, name a lead, freeze again) is that the
+  three could be left half done: a frozen draft with no reviewer, or a reviewer
+  named for a round that never opened, and the second freeze could be refused for
+  a reason the first had already spent. As one transaction the container, the
+  appointment, the freeze, the round and the note either all land or none do, and
+  a refusal (`round_open`, `unanswered_comments`, `already_checked_out`,
+  `open_in_editor`) leaves nothing behind. The **reason the named reviewer is
+  cut to the requester's own organisation** is that internal QA is org-private
+  (ADR-0032): anyone else answers 404, the same absence a missing participant
+  gets, so the act cannot be used to probe who is on a project. The **reason the
+  note rides the comment's `mentions` field** and not a new column is that the
+  existing mention rule applies without a second path.

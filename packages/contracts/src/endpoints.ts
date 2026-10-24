@@ -1562,6 +1562,19 @@ export type PromotionResult = {
 };
 export type FreezeResult = { versionId: Id; versionReference: string; containerId: Id };
 
+// T-478 — request internal review in one step: freeze, name the QA reviewer and
+// (optionally) leave a note, as one act.
+export const requestInternalReviewBody = z.object({
+  leadReviewerParticipantId: id,
+  note: z.string().trim().max(2000).optional(),
+});
+export type RequestInternalReviewBody = z.infer<typeof requestInternalReviewBody>;
+export type InternalReviewResult = FreezeResult & {
+  roundId: Id;
+  /** the note's comment on the working draft; null when no note was given */
+  noteCommentId: Id | null;
+};
+
 // T-373 (ADR-0008 addendum, 2026-08-22) — the promotion window. ADR-0008 made
 // promotion a near-empty hand-off on purpose, because a form filled in the
 // moment is a form filled wrong; the window survives that objection by

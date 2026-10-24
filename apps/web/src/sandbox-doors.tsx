@@ -14,9 +14,11 @@
 // this file — `isOrgAdmin` — decides only whether the erase controls are drawn
 // at all, because a control that will be refused is clutter (principle 4).
 import { useEffect, useState } from 'react';
-import type { PurgeRecord, SandboxDocument, SandboxDocumentVersion } from '@infora/contracts';
-import { Badge, Button, Drawer, Field, Modal, SectionLabel, Skeleton, TextInput } from '@infora/ui';
+import type { PurgeRecord, RosterEntry, SandboxDocument, SandboxDocumentVersion } from '@infora/contracts';
+import { Badge, Button, Combobox, Drawer, Field, Modal, SectionLabel, Skeleton, TextArea, TextInput } from '@infora/ui';
 import { api, RequestError } from './api';
+import { describeApiError, errorCode } from './api-errors';
+import { useMe } from './session';
 import { formatDateTime } from './screens/shared';
 
 type Note = (text: string, tone?: 'success' | 'error') => void;
@@ -329,6 +331,105 @@ export function BinModal(props: {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * T-478 - "Request internal review": one window that freezes the draft, names
+ * the QA reviewer and leaves a note, opening the internal round in a single act.
+ * One component for both doors: the sandbox row's menu and the editor's top bar.
+ *
+ * *In plain terms: you pick a colleague from your own organisation, add a note
+ * if you like, and press Request review. The draft is frozen as the next P
+ * revision, the colleague becomes the QA reviewer and the round opens - all or
+ * nothing. Before this, it took three steps on two screens.*
+ *
+ * Nothing here decides who may be named: the roster read lists the project's
+ * people, the list is cut to the requester's own organisation because internal
+ * QA is org-private (ADR-0032), and the API answers absence to anyone else.
+ */
+export function RequestReviewModal(props: {
+  doc: SandboxDocument;
+  onClose: () => void;
+  /** called after the round opened, with the freeze's revision and the reviewer's name */
+  onOpened: (result: { versionReference: string; reviewerName: string }) => Promise<unknown> | void;
+}) {
+  const me = useMe();
+  const projectId = props.doc.projectId;
+  const [people, setPeople] = useState<RosterEntry[] | null>(null);
+  const [reviewerId, setReviewerId] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  useEffect(() => {
+    void api
+      .participants(projectId)
+      .then((r) => setPeople(r.items.filter((p) => p.removedAt === null && p.organisationId === me.organisationId)))
+      .catch(() => setPeople([]));
+  }, [projectId, me.organisationId]);
+
+  const chosen = people?.find((p) => p.participantId === reviewerId) ?? null;
+  const submit = () => {
+    if (!chosen) return;
+    setBusy(true);
+    setRefusal(null);
+    api
+      .requestInternalReview(props.doc.id, {
+        leadReviewerParticipantId: chosen.participantId,
+        ...(note.trim() !== '' && { note: note.trim() }),
+      })
+      .then(async (r) => {
+        await props.onOpened({ versionReference: r.versionReference, reviewerName: chosen.name });
+        props.onClose();
+      })
+      .catch((e: unknown) => {
+        const code = errorCode(e);
+        setRefusal(
+          code === 'not_found'
+            ? 'That colleague can’t be named as QA reviewer on this draft.'
+            : describeApiError(code),
+        );
+        setBusy(false);
+      });
+  };
+
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title="Request internal review"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!chosen || busy} onClick={submit}>
+            Request review
+          </Button>
+        </>
+      }
+    >
+      <Field label="QA reviewer" hint="A colleague in your organisation. Internal review never leaves it.">
+        <Combobox
+          value={reviewerId}
+          onChange={setReviewerId}
+          placeholder={people === null ? 'Loading colleagues…' : 'Choose a QA reviewer…'}
+          emptyText="No colleagues on this project"
+          options={(people ?? []).map((p) => ({ value: p.participantId, label: p.name }))}
+        />
+      </Field>
+      <Field label="Note (optional)" hint="Appears in the draft’s comments, addressed to the reviewer.">
+        <TextArea value={note} onChange={(v) => setNote(v.slice(0, 2000))} rows={4} placeholder="What should they look at?" />
+        <span className="field-hint" style={{ display: 'block', textAlign: 'right' }}>{note.length} / 2000</span>
+      </Field>
+      <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+        This freezes the draft as the next P revision, names {chosen ? chosen.name : 'the reviewer'} as QA reviewer and
+        opens the internal round. Editing is locked until the round is issued back.
+      </p>
+      {refusal !== null && (
+        <div className="banner banner--error" role="alert" style={{ marginTop: 10 }}>
+          {refusal}
         </div>
       )}
     </Modal>

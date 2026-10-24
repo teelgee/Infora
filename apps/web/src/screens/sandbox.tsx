@@ -75,7 +75,7 @@ import { MetadataModal } from '../metadata-modal';
 import { PromotionWindow } from '../promotion-window';
 import { useMe } from '../session';
 import { formatDate, sandboxLifecycleBadge } from './shared';
-import { BinModal, DeleteModal, HistoryPanel } from '../sandbox-doors';
+import { BinModal, DeleteModal, HistoryPanel, RequestReviewModal } from '../sandbox-doors';
 import { PresenceAvatars } from '../presence';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -1100,6 +1100,8 @@ function DocActions(props: {
   onReplace: (d: SandboxDocument) => void;
   // T-456 — the doors: history with restore, and delete to the bin
   onHistory: (d: SandboxDocument) => void;
+  // T-478 - freeze, name the QA reviewer and open the round, in one window
+  onRequestReview: (d: SandboxDocument) => void;
   onDelete: (d: SandboxDocument) => void;
   reload: () => Promise<unknown>;
   setNote: (text: string, tone?: 'success' | 'error') => void;
@@ -1149,6 +1151,12 @@ function DocActions(props: {
             onClick={() => navigate(`/projects/${props.projectId}/review/${doc.freezeContainerId}`)}
           >
             <Snowflake size={13} strokeWidth={2} /> Internal QA…
+          </DropdownMenuItem>
+        )}
+        {/* T-478 - where Freeze is offered: freeze + name the QA reviewer + a note */}
+        {!doc.headLocked && (
+          <DropdownMenuItem onClick={() => props.onRequestReview(doc)}>
+            <Snowflake size={13} strokeWidth={2} /> Request internal review…
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={() => props.onMove(doc)}>
@@ -1241,6 +1249,7 @@ export function SandboxScreen() {
   const [replaceDoc, setReplaceDoc] = useState<SandboxDocument | null>(null);
   // T-456 — the doors: a document's history, the delete confirmation, the bin
   const [historyDoc, setHistoryDoc] = useState<SandboxDocument | null>(null);
+  const [reviewDoc, setReviewDoc] = useState<SandboxDocument | null>(null); // T-478
   const [deleteDoc, setDeleteDoc] = useState<SandboxDocument | null>(null);
   const [binOpen, setBinOpen] = useState(false);
   const [moveItem, setMoveItem] = useState<DragItem & { name: string } | null>(null);
@@ -1737,6 +1746,7 @@ export function SandboxScreen() {
             onRename={(d) => setRenamingId(d.id)}
             onReplace={setReplaceDoc}
             onHistory={setHistoryDoc}
+            onRequestReview={setReviewDoc}
             onDelete={setDeleteDoc}
             reload={loadDocs}
             setNote={setNote}
@@ -1881,6 +1891,16 @@ export function SandboxScreen() {
         />
       )}
       {/* T-456 — the doors */}
+      {reviewDoc && (
+        <RequestReviewModal
+          doc={reviewDoc}
+          onClose={() => setReviewDoc(null)}
+          onOpened={async (r) => {
+            await loadDocs();
+            setNote(`Internal round opened — ${r.versionReference} with ${r.reviewerName}.`);
+          }}
+        />
+      )}
       {historyDoc && <HistoryPanel doc={historyDoc} onClose={() => setHistoryDoc(null)} onRestored={() => loadDocs()} setNote={setNote} />}
       {deleteDoc && <DeleteModal doc={deleteDoc} onClose={() => setDeleteDoc(null)} reload={loadDocs} setNote={setNote} />}
       {binOpen && (
@@ -2337,6 +2357,7 @@ export function SandboxScreen() {
                         onRename={(d) => setRenamingId(d.id)}
                         onReplace={setReplaceDoc}
                         onHistory={setHistoryDoc}
+                        onRequestReview={setReviewDoc}
                         onDelete={setDeleteDoc}
                         reload={loadDocs}
                         setNote={setNote}

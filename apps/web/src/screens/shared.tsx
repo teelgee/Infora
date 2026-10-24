@@ -1,6 +1,6 @@
 import type { BadgeTone, LifecyclePosition } from '@infora/ui';
 import { lifecycleBadge } from '@infora/ui';
-import type { ContextState, LibraryItem, PlanRow, SandboxDocument } from '@infora/contracts';
+import type { ContextState, LibraryItem, PlanRow, ReviewCycle, SandboxDocument } from '@infora/contracts';
 
 export function initialsOf(name: string): string {
   return name
@@ -108,10 +108,25 @@ export function libraryLifecycleBadge(item: Pick<LibraryItem, 'kind' | 'revision
   return lifecycleBadge(item.kind === 'reference' ? 'reference' : 'accepted', item.revision);
 }
 
-/** A sandbox document is working, or frozen (checked out) at its working revision (ADR-0032, ADR-0041 §1). */
+/**
+ * A sandbox document is working, or frozen (checked out) at its working revision
+ * (ADR-0032, ADR-0041 §1). Given the freeze container's cycle (the read the
+ * editor already makes), an open internal round reads "In internal QA P01" and
+ * its acceptance "QA accepted" (T-478): the document itself carries no round, and
+ * the freeze container has no work item, so without the cycle it can only say
+ * Frozen.
+ */
 export function sandboxLifecycleBadge(
   doc: Pick<SandboxDocument, 'headLocked' | 'workingRevision'>,
+  internalCycle?: ReviewCycle | null,
 ): { tone: BadgeTone; label: string } {
+  const latest = internalCycle?.rounds.at(-1);
+  if (internalCycle && latest) {
+    if (internalCycle.state === 'accepted') return lifecycleBadge('qa_accepted', latest.versionReference);
+    if (internalCycle.state === 'active' && latest.state === 'open') {
+      return lifecycleBadge('in_qa', latest.versionReference);
+    }
+  }
   return lifecycleBadge(doc.headLocked ? 'frozen' : 'working', doc.workingRevision ?? null);
 }
 

@@ -162,7 +162,7 @@ async function readComment(db: Db, id: string): Promise<CommentRow> {
 }
 
 /** True when any mention is not an entitled same-org participant on the project. */
-async function invalidMention(
+export async function invalidMention(
   db: Db,
   slice: { projectId: string; organisationId: string },
   mentions: string[],

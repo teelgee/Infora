@@ -9,9 +9,6 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
-/** (review 2026-10-18) thrown inside the freeze transaction when an engine
- * lock landed between the pre-check and the write - rolls the freeze back. */
-class OpenInEditor extends Error {}
 import { z } from 'zod';
 import {
   createReviewCommentBody,
@@ -22,12 +19,14 @@ import {
   patchReviewCommentBody,
   promoteDocumentBody,
   releaseCheckoutBody,
+  requestInternalReviewBody,
   setDeliverableCodeBody,
 } from '@infora/contracts';
 import type {
   AcceptanceCode,
   ApiError,
   GetCycleResponse,
+  InternalReviewResult,
   PromotionPreflight,
   PromotionResult,
   ReviewComment,
@@ -52,6 +51,8 @@ import type { EntitledSlice } from '@infora/governance';
 import { importOnVersionLanding } from './app-table-source';
 import { authorshipAppendix, generateRenditions } from './renditions';
 import { releaseLapsedEngineLock } from './engine-lock';
+import { invalidMention } from './comments';
+import { liveLead, liveParticipant, nameLeadReviewer } from './reviewer-appointment';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
 import { loadSchemeOrDefault } from './naming';
@@ -710,6 +711,205 @@ async function resolvePromotion(
   };
 }
 
+/** Thrown inside the freeze transaction when the freeze is refused: rolls the
+ * whole unit back (a newly made container, a newly named reviewer included) and
+ * carries the conflict detail the route answers with. Also covers the engine
+ * lock that landed between the pre-check and the write (review 2026-10-18). */
+class FreezeRefused extends Error {
+  constructor(readonly detail: string) {
+    super(detail);
+  }
+}
+
+type SandboxDocRow = typeof s.sandboxDocuments.$inferSelect;
+
+/** T-453 - false while an editing engine still holds the head (a lapsed lock is
+ * released first). Updates `doc` to the freshly read lock state. */
+async function engineLetsGo(db: Db, doc: SandboxDocRow): Promise<boolean> {
+  if (doc.wopiLock === null) return true;
+  await releaseLapsedEngineLock(db, doc.id);
+  const [current] = await db
+    .select({ headLocked: s.sandboxDocuments.headLocked, wopiLock: s.sandboxDocuments.wopiLock })
+    .from(s.sandboxDocuments)
+    .where(eq(s.sandboxDocuments.id, doc.id));
+  if (current!.wopiLock !== null) return false;
+  doc.headLocked = current!.headLocked;
+  doc.wopiLock = null;
+  return true;
+}
+
+/** The document's org-private freeze container, made on first need. */
+async function ensureFreezeContainer(tx: Db, doc: SandboxDocRow) {
+  const [existing] = await tx
+    .select()
+    .from(s.containers)
+    .where(eq(s.containers.sandboxDocumentId, doc.id))
+    .limit(1);
+  if (existing) return existing;
+  const [created] = await tx
+    .insert(s.containers)
+    .values({
+      projectId: doc.projectId,
+      scope: 'sandbox',
+      producingOrganisationId: doc.organisationId,
+      sandboxDocumentId: doc.id,
+      inLibrary: false,
+    })
+    .returning();
+  return created!;
+}
+
+/** T-125 - the freeze itself, run inside the caller's transaction so the plain
+ * freeze route and the one-step internal review request (T-478) share one body.
+ * Throws FreezeRefused to roll the caller's unit back. */
+async function freezeInTransaction(
+  tx: Db,
+  doc: SandboxDocRow,
+  slice: EntitledSlice,
+  reviewPeriodTarget: Date,
+): Promise<{ versionId: string; versionReference: string; containerId: string }> {
+  const freezeContainer = await ensureFreezeContainer(tx, doc);
+  const reviewers = await tx
+    .select({ participantId: s.deliverableReviewers.participantId, isLead: s.deliverableReviewers.isLead })
+    .from(s.deliverableReviewers)
+    .where(
+      and(
+        eq(s.deliverableReviewers.containerId, freezeContainer.id),
+        isNull(s.deliverableReviewers.revokedAt),
+        // a refused appointment is not a lead to open a round against (T-372)
+        isNull(s.deliverableReviewers.declinedAt),
+        sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
+      ),
+    );
+  const hasLead = reviewers.some((r) => r.isLead);
+
+  const [activeCycle] = await tx
+    .select()
+    .from(s.reviewCycles)
+    .where(and(eq(s.reviewCycles.containerId, freezeContainer.id), eq(s.reviewCycles.state, 'active')))
+    .limit(1);
+  const priorRounds = activeCycle
+    ? await tx.select().from(s.rounds).where(eq(s.rounds.cycleId, activeCycle.id)).orderBy(asc(s.rounds.number))
+    : [];
+  const latestRound = priorRounds.at(-1);
+  if (activeCycle && latestRound?.state === 'open') throw new FreezeRefused('round_open');
+  if (activeCycle && latestRound?.state === 'issued') {
+    const [unanswered] = await tx
+      .select({ id: s.reviewComments.id })
+      .from(s.reviewComments)
+      .leftJoin(s.responses, eq(s.responses.commentId, s.reviewComments.id))
+      .where(and(eq(s.reviewComments.roundId, latestRound.id), isNull(s.responses.id)))
+      .limit(1);
+    if (unanswered) throw new FreezeRefused('unanswered_comments');
+  }
+  // a plain check-out already holds the head; a redundant plain re-freeze would
+  // only stack snapshots — release it first (T-180). A freeze that opens an
+  // internal round (hasLead) is still allowed: it upgrades the standalone
+  // check-out into a formal round on the same locked head.
+  if (doc.headLocked && !activeCycle && !hasLead) throw new FreezeRefused('already_checked_out');
+
+  // the ISO 19650 scheme (ADR-0041): whilst in the sandbox a document runs the
+  // working series v0.x; it earns a P revision only when it is issued into a
+  // formal review cycle (or promoted). So a plain check-out freezes the current
+  // working revision under its v0.x number; a freeze that opens an internal round
+  // issues the next P.
+  const existingRefs = (
+    await tx
+      .select({ ref: s.versions.versionReference })
+      .from(s.versions)
+      .where(eq(s.versions.containerId, freezeContainer.id))
+  ).map((r) => r.ref);
+  let versionReference: string;
+  if (hasLead) {
+    versionReference = nextRevision(existingRefs, 'P');
+  } else {
+    const ambient = await tx
+      .select({ id: s.sandboxDocumentVersions.id })
+      .from(s.sandboxDocumentVersions)
+      .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id));
+    versionReference = `v0.${Math.max(1, ambient.length)}`;
+  }
+
+
+  await tx
+    .update(s.versions)
+    .set({ isCurrent: false })
+    .where(and(eq(s.versions.containerId, freezeContainer.id), eq(s.versions.isCurrent, true)));
+  const [version] = await tx
+    .insert(s.versions)
+    .values({
+      containerId: freezeContainer.id,
+      versionReference,
+      content: doc.content,
+      isCurrent: true,
+    })
+    .returning();
+  if (hasLead) {
+    let cycleId: string;
+    let roundNumber: number;
+    if (activeCycle) {
+      cycleId = activeCycle.id;
+      roundNumber = latestRound!.number + 1;
+      await tx.update(s.rounds).set({ state: 'responded' }).where(eq(s.rounds.id, latestRound!.id));
+      await tx
+        .update(s.reviewCycles)
+        .set({ editLockHolder: 'reviewing' })
+        .where(eq(s.reviewCycles.id, activeCycle.id));
+    } else {
+      const [cycle] = await tx
+        .insert(s.reviewCycles)
+        .values({ containerId: freezeContainer.id })
+        .returning();
+      cycleId = cycle!.id;
+      roundNumber = 1;
+    }
+    const [round] = await tx
+      .insert(s.rounds)
+      .values({
+        cycleId,
+        number: roundNumber,
+        versionId: version!.id,
+        // T-371 — the internal QA round is the same workflow at the
+        // org-private scope (ADR-0032), so it gets the same guide: the
+        // status bar renders one target and one overdue state for both
+        reviewPeriodTarget,
+      })
+      .returning();
+    const [transmittal] = await tx
+      .insert(s.transmittals)
+      .values({
+        roundId: round!.id,
+        direction: 'return',
+        senderParticipantId: slice.participantId,
+        recipients: reviewers.map((r) => r.participantId),
+      })
+      .returning();
+    await tx.insert(s.reviewSnapshots).values({
+      transmittalId: transmittal!.id,
+      content: activeCycle && latestRound ? await snapshotState(tx, latestRound.id) : { comments: [], responses: [] },
+    });
+  }
+  // the check-out: every freeze locks the head, whether or not it opened an
+  // internal round — the standalone freeze and the review-round freeze are one
+  // mechanism now (ADR-0032 addendum, T-180). Audited both ways.
+  // conditional on no engine lock having landed since the pre-check
+  // (review 2026-10-18): the freeze's read and this write were two
+  // transactions, and an engine LOCK between them left both sides holding
+  // the head — now the engine's claim wins and the freeze says so in words
+  const frozeHead = await tx
+    .update(s.sandboxDocuments)
+    .set({ headLocked: true })
+    .where(and(eq(s.sandboxDocuments.id, doc.id), isNull(s.sandboxDocuments.wopiLock)))
+    .returning({ id: s.sandboxDocuments.id });
+  if (frozeHead.length === 0) throw new FreezeRefused('open_in_editor');
+  await tx.insert(s.sandboxCheckoutEvents).values({
+    sandboxDocumentId: doc.id,
+    action: 'checked_out',
+    byParticipantId: slice.participantId,
+  });
+  return { versionId: version!.id, versionReference, containerId: freezeContainer.id };
+}
+
 export function cycleRoutes(deps: { db: Db; router: Router }) {
   const app = new Hono<AppEnv>();
 
@@ -752,184 +952,110 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
     // changing, and an internal round would then own a lock the engine still
     // believes is its own. Refused until the editor closes it — unless the
     // engine's lock has lapsed, which releases it here first.
-    if (doc.wopiLock !== null) {
-      await releaseLapsedEngineLock(deps.db, doc.id);
-      const [current] = await deps.db
-        .select({ headLocked: s.sandboxDocuments.headLocked, wopiLock: s.sandboxDocuments.wopiLock })
-        .from(s.sandboxDocuments)
-        .where(eq(s.sandboxDocuments.id, doc.id));
-      if (current!.wopiLock !== null) return conflict(c, 'open_in_editor');
-      doc.headLocked = current!.headLocked;
-      doc.wopiLock = null;
-    }
-
-    let [freezeContainer] = await deps.db
-      .select()
-      .from(s.containers)
-      .where(eq(s.containers.sandboxDocumentId, doc.id))
-      .limit(1);
-    if (!freezeContainer) {
-      [freezeContainer] = await deps.db
-        .insert(s.containers)
-        .values({
-          projectId: doc.projectId,
-          scope: 'sandbox',
-          producingOrganisationId: doc.organisationId,
-          sandboxDocumentId: doc.id,
-          inLibrary: false,
-        })
-        .returning();
-    }
-
-    const reviewers = await deps.db
-      .select({ participantId: s.deliverableReviewers.participantId, isLead: s.deliverableReviewers.isLead })
-      .from(s.deliverableReviewers)
-      .where(
-        and(
-          eq(s.deliverableReviewers.containerId, freezeContainer!.id),
-          isNull(s.deliverableReviewers.revokedAt),
-          // a refused appointment is not a lead to open a round against (T-372)
-          isNull(s.deliverableReviewers.declinedAt),
-          sql`${s.deliverableReviewers.confirmedAt} IS NOT NULL`,
-        ),
-      );
-    const hasLead = reviewers.some((r) => r.isLead);
-
-    const [activeCycle] = await deps.db
-      .select()
-      .from(s.reviewCycles)
-      .where(and(eq(s.reviewCycles.containerId, freezeContainer!.id), eq(s.reviewCycles.state, 'active')))
-      .limit(1);
-    const priorRounds = activeCycle
-      ? await deps.db.select().from(s.rounds).where(eq(s.rounds.cycleId, activeCycle.id)).orderBy(asc(s.rounds.number))
-      : [];
-    const latestRound = priorRounds.at(-1);
-    if (activeCycle && latestRound?.state === 'open') return conflict(c, 'round_open');
-    if (activeCycle && latestRound?.state === 'issued') {
-      const [unanswered] = await deps.db
-        .select({ id: s.reviewComments.id })
-        .from(s.reviewComments)
-        .leftJoin(s.responses, eq(s.responses.commentId, s.reviewComments.id))
-        .where(and(eq(s.reviewComments.roundId, latestRound.id), isNull(s.responses.id)))
-        .limit(1);
-      if (unanswered) return conflict(c, 'unanswered_comments');
-    }
-    // a plain check-out already holds the head; a redundant plain re-freeze would
-    // only stack snapshots — release it first (T-180). A freeze that opens an
-    // internal round (hasLead) is still allowed: it upgrades the standalone
-    // check-out into a formal round on the same locked head.
-    if (doc.headLocked && !activeCycle && !hasLead) return conflict(c, 'already_checked_out');
-
-    // the ISO 19650 scheme (ADR-0041): whilst in the sandbox a document runs the
-    // working series v0.x; it earns a P revision only when it is issued into a
-    // formal review cycle (or promoted). So a plain check-out freezes the current
-    // working revision under its v0.x number; a freeze that opens an internal round
-    // issues the next P.
-    const existingRefs = (
-      await deps.db
-        .select({ ref: s.versions.versionReference })
-        .from(s.versions)
-        .where(eq(s.versions.containerId, freezeContainer!.id))
-    ).map((r) => r.ref);
-    let versionReference: string;
-    if (hasLead) {
-      versionReference = nextRevision(existingRefs, 'P');
-    } else {
-      const ambient = await deps.db
-        .select({ id: s.sandboxDocumentVersions.id })
-        .from(s.sandboxDocumentVersions)
-        .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id));
-      versionReference = `v0.${Math.max(1, ambient.length)}`;
-    }
-
+    if (!(await engineLetsGo(deps.db, doc))) return conflict(c, 'open_in_editor');
     // T-371 — read outside the transaction: the project default is settings, not
     // part of the atomic unit, and an extra query inside a transaction buys
     // nothing but a longer lock
     const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, doc.projectId);
-
     let result: { versionId: string; versionReference: string; containerId: string };
     try {
-      result = await deps.db.transaction(async (tx) => {
-      await tx
-        .update(s.versions)
-        .set({ isCurrent: false })
-        .where(and(eq(s.versions.containerId, freezeContainer!.id), eq(s.versions.isCurrent, true)));
-      const [version] = await tx
-        .insert(s.versions)
-        .values({
-          containerId: freezeContainer!.id,
-          versionReference,
-          content: doc.content,
-          isCurrent: true,
-        })
-        .returning();
-      if (hasLead) {
-        let cycleId: string;
-        let roundNumber: number;
-        if (activeCycle) {
-          cycleId = activeCycle.id;
-          roundNumber = latestRound!.number + 1;
-          await tx.update(s.rounds).set({ state: 'responded' }).where(eq(s.rounds.id, latestRound!.id));
-          await tx
-            .update(s.reviewCycles)
-            .set({ editLockHolder: 'reviewing' })
-            .where(eq(s.reviewCycles.id, activeCycle.id));
-        } else {
-          const [cycle] = await tx
-            .insert(s.reviewCycles)
-            .values({ containerId: freezeContainer!.id })
-            .returning();
-          cycleId = cycle!.id;
-          roundNumber = 1;
+      result = await deps.db.transaction((tx) =>
+        freezeInTransaction(tx as unknown as Db, doc, slice, reviewPeriodTarget),
+      );
+    } catch (error) {
+      if (error instanceof FreezeRefused) return conflict(c, error.detail);
+      throw error;
+    }
+    await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);
+    await ingestVersion(deps.db, deps.router, result.versionId);
+    return c.json(result, 201);
+  });
+
+  // T-478 — Request internal review: freeze + name the QA reviewer + leave a
+  // note, as ONE act. The three calls it replaces (freeze, appoint a lead,
+  // freeze again) could strand a frozen draft with no reviewer, or a reviewer
+  // with no round; here the container, the appointment, the freeze, the round
+  // and the note commit together or not at all. The freeze is the very function
+  // the plain route runs (freezeInTransaction), not a second copy.
+  app.post('/sandbox-documents/:id/internal-review', async (c) => {
+    const id = c.req.param('id');
+    if (!isUuid(id)) return notFound(c);
+    const [doc] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, id))
+      .limit(1);
+    if (!doc) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), doc.projectId);
+    if (!slice || doc.organisationId !== slice.organisationId) return notFound(c);
+    const body = requestInternalReviewBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return c.json({ error: 'invalid' } satisfies ApiError, 400);
+    // internal QA is org-private (ADR-0032): the reviewer must be a live
+    // participant of the requester's OWN organisation on this project; anyone
+    // else answers as absence
+    const target = await liveParticipant(deps.db, body.data.leadReviewerParticipantId, doc.projectId);
+    if (!target) return notFound(c);
+    const [targetUser] = await deps.db
+      .select({ organisationId: s.users.organisationId })
+      .from(s.users)
+      .where(eq(s.users.id, target.userId))
+      .limit(1);
+    if (targetUser?.organisationId !== slice.organisationId) return notFound(c);
+    // the existing mention rule: the named reviewer must be able to see this document
+    if (await invalidMention(deps.db, slice, [target.id])) return notFound(c);
+    const note = body.data.note ? body.data.note : undefined;
+    if (!(await engineLetsGo(deps.db, doc))) return conflict(c, 'open_in_editor');
+    const reviewPeriodTarget = await reviewPeriodTargetFor(deps.db, doc.projectId);
+    let result: InternalReviewResult;
+    try {
+      result = await deps.db.transaction(async (rawTx) => {
+        const tx = rawTx as unknown as Db;
+        const container = await ensureFreezeContainer(tx, doc);
+        const standing = await liveLead(tx, 'reviewers', container.id);
+        // the same person already standing keeps their grant; another lead is
+        // replaced exactly as /lead-reviewer does (revoke-and-grant, one
+        // transaction). Sandbox-scope grants auto-confirm (ADR-0032).
+        // keep a standing lead only when it is live AND confirmed; an unconfirmed
+        // one is treated like a different lead (revoked, then granted afresh)
+        const [standingRow] = standing
+          ? await tx
+              .select({ confirmedAt: s.deliverableReviewers.confirmedAt })
+              .from(s.deliverableReviewers)
+              .where(eq(s.deliverableReviewers.id, standing.id))
+          : [];
+        if (!(standing?.participantId === target.id && standingRow?.confirmedAt != null)) {
+          await nameLeadReviewer(tx, {
+            containerId: container.id,
+            targetParticipantId: target.id,
+            standing,
+            grantedByParticipantId: slice.participantId,
+            autoConfirm: true,
+          });
         }
+        const frozen = await freezeInTransaction(tx, doc, slice, reviewPeriodTarget);
         const [round] = await tx
-          .insert(s.rounds)
-          .values({
-            cycleId,
-            number: roundNumber,
-            versionId: version!.id,
-            // T-371 — the internal QA round is the same workflow at the
-            // org-private scope (ADR-0032), so it gets the same guide: the
-            // status bar renders one target and one overdue state for both
-            reviewPeriodTarget,
-          })
-          .returning();
-        const [transmittal] = await tx
-          .insert(s.transmittals)
-          .values({
-            roundId: round!.id,
-            direction: 'return',
-            senderParticipantId: slice.participantId,
-            recipients: reviewers.map((r) => r.participantId),
-          })
-          .returning();
-        await tx.insert(s.reviewSnapshots).values({
-          transmittalId: transmittal!.id,
-          content: activeCycle && latestRound ? await snapshotState(tx as unknown as Db, latestRound.id) : { comments: [], responses: [] },
-        });
-      }
-      // the check-out: every freeze locks the head, whether or not it opened an
-      // internal round — the standalone freeze and the review-round freeze are one
-      // mechanism now (ADR-0032 addendum, T-180). Audited both ways.
-      // conditional on no engine lock having landed since the pre-check
-      // (review 2026-10-18): the freeze's read and this write were two
-      // transactions, and an engine LOCK between them left both sides holding
-      // the head — now the engine's claim wins and the freeze says so in words
-      const frozeHead = await tx
-        .update(s.sandboxDocuments)
-        .set({ headLocked: true })
-        .where(and(eq(s.sandboxDocuments.id, doc.id), isNull(s.sandboxDocuments.wopiLock)))
-        .returning({ id: s.sandboxDocuments.id });
-      if (frozeHead.length === 0) throw new OpenInEditor();
-      await tx.insert(s.sandboxCheckoutEvents).values({
-        sandboxDocumentId: doc.id,
-        action: 'checked_out',
-        byParticipantId: slice.participantId,
-      });
-      return { versionId: version!.id, versionReference, containerId: freezeContainer!.id };
+          .select({ id: s.rounds.id })
+          .from(s.rounds)
+          .where(eq(s.rounds.versionId, frozen.versionId))
+          .limit(1);
+        let noteCommentId: string | null = null;
+        if (note !== undefined) {
+          const [comment] = await tx
+            .insert(s.sandboxComments)
+            .values({
+              sandboxDocumentId: doc.id,
+              authorParticipantId: slice.participantId,
+              body: `Review request: ${note}`,
+              mentions: [target.id],
+            })
+            .returning({ id: s.sandboxComments.id });
+          noteCommentId = comment!.id;
+        }
+        if (!round) throw new FreezeRefused('no_round_opened');
+        return { ...frozen, roundId: round.id, noteCommentId };
       });
     } catch (error) {
-      if (error instanceof OpenInEditor) return conflict(c, 'open_in_editor');
+      if (error instanceof FreezeRefused) return conflict(c, error.detail);
       throw error;
     }
     await generateRenditions(deps.db, { id: result.versionId, content: doc.content }, doc);

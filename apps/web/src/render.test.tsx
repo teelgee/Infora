@@ -32,6 +32,7 @@ import type {
   WorkingAreaDocument,
 } from '@infora/contracts';
 import { api } from './api';
+import { sandboxLifecycleBadge } from './screens/shared';
 import { ChatComposer, WorkingSetCard, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
@@ -3271,5 +3272,21 @@ describe('floating panel placement', () => {
     const s = panelStyle({ left: 1200, top: 100, bottom: 130 }, view, 'top');
     expect(s.bottom).toBe(706);
     expect(s.left).toBe(1280 - 460 - 16);
+  });
+});
+
+// T-478 - the editor's badge beside the document's name reads the internal round
+describe('the sandbox lifecycle badge sees the internal round (T-478)', () => {
+  const round = (state: 'open' | 'issued') => ({ versionReference: 'P01', state }) as never;
+  const cycle = (state: 'active' | 'accepted', rounds: never[]) => ({ state, rounds }) as never;
+  it('says Working, then Frozen, until a round is open', () => {
+    expect(sandboxLifecycleBadge({ headLocked: false, workingRevision: 'v0.2' }).label).toBe('Working v0.2');
+    expect(sandboxLifecycleBadge({ headLocked: true, workingRevision: 'v0.2' }, null).label).toBe('Frozen v0.2');
+  });
+  it('says In internal QA P01 while the round is open, and QA accepted after', () => {
+    const doc = { headLocked: true, workingRevision: 'v0.2' };
+    expect(sandboxLifecycleBadge(doc, cycle('active', [round('open')])).label).toBe('In internal QA P01');
+    expect(sandboxLifecycleBadge(doc, cycle('accepted', [round('issued')])).label).toBe('QA accepted P01');
+    expect(sandboxLifecycleBadge(doc, cycle('active', [round('issued')])).label).toBe('Frozen v0.2');
   });
 });

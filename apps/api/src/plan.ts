@@ -43,6 +43,7 @@ import type { Db } from '@infora/db';
 import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { isLiveAuthor, isLiveConfirmedReviewer } from './cycle';
+import { liveLead, liveParticipant, nameLeadReviewer } from './reviewer-appointment';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
@@ -1171,26 +1172,15 @@ export function containerRoutes(deps: { db: Db }) {
     const standing = await liveLead(deps.db, 'reviewers', container.id);
     if (standing?.participantId === target.id) return conflict(c, 'already_lead_reviewer');
     const autoConfirm = isOwner || container.scope === 'sandbox';
-    const newGrantId = await deps.db.transaction(async (tx) => {
-      if (standing) {
-        await tx
-          .update(s.deliverableReviewers)
-          .set({ revokedAt: sql`now()` })
-          .where(eq(s.deliverableReviewers.id, standing.id));
-      }
-      const [grant] = await tx
-        .insert(s.deliverableReviewers)
-        .values({
-          containerId: container.id,
-          participantId: target.id,
-          isLead: true,
-          grantedByParticipantId: slice.participantId,
-          confirmedByParticipantId: autoConfirm ? slice.participantId : null,
-          confirmedAt: autoConfirm ? sql`now()` : null,
-        })
-        .returning();
-      return grant!.id;
-    });
+    const newGrantId = await deps.db.transaction(async (tx) =>
+      nameLeadReviewer(tx as unknown as Db, {
+        containerId: container.id,
+        targetParticipantId: target.id,
+        standing,
+        grantedByParticipantId: slice.participantId,
+        autoConfirm,
+      }),
+    );
     return c.json(
       {
         grant: (await grantRead(deps.db, 'reviewers', newGrantId, slice)) as ReviewerGrant,
@@ -1482,42 +1472,6 @@ async function shareRead(db: Db, shareId: string): Promise<DeliverableShare> {
     grantedAt: row!.share.grantedAt.toISOString(),
     revokedAt: row!.share.revokedAt?.toISOString() ?? null,
   };
-}
-
-async function liveParticipant(db: Db, participantId: string, projectId: string) {
-  const [row] = await db
-    .select()
-    .from(s.participants)
-    .where(
-      and(
-        eq(s.participants.id, participantId),
-        eq(s.participants.projectId, projectId),
-        isNull(s.participants.removedAt),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
-/** The live lead grant that would collide with a new one — the application-side
- * twin of the one-live-lead partial unique index, and it must carry the index's
- * exact rule or the two disagree. T-372: a DECLINED reviewer appointment is not
- * a live lead, so a refusal never blocks the replacement it exists to ask for. */
-async function liveLead(db: Db, side: 'authors' | 'reviewers', containerId: string) {
-  const table = side === 'authors' ? s.deliverableAuthors : s.deliverableReviewers;
-  const [row] = await db
-    .select({ id: table.id, participantId: table.participantId })
-    .from(table)
-    .where(
-      and(
-        eq(table.containerId, containerId),
-        eq(table.isLead, true),
-        isNull(table.revokedAt),
-        ...(side === 'reviewers' ? [isNull(s.deliverableReviewers.declinedAt)] : []),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
 }
 
 async function grantRead(

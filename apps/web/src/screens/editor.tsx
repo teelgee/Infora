@@ -61,7 +61,7 @@ import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { Presence } from '../presence';
-import { HistoryPanel } from '../sandbox-doors';
+import { HistoryPanel, RequestReviewModal } from '../sandbox-doors';
 import { ConversationWorkingSet } from '../working-set-picker';
 import { useMe } from '../session';
 import { PromotionWindow } from '../promotion-window';
@@ -218,6 +218,11 @@ export function EditorScreen() {
   const [promoting, setPromoting] = useState(false);
   // T-477 — the History panel, the same component the sandbox row's menu opens
   const [historyOpen, setHistoryOpen] = useState(false);
+  // T-478 - the one-step "Request internal review" window, and the freeze
+  // container's own cycle (what lets the badge say "In internal QA P01");
+  // undefined while unread, null where the freeze has no round
+  const [requestingReview, setRequestingReview] = useState(false);
+  const [internalCycle, setInternalCycle] = useState<ReviewCycle | null | undefined>(undefined);
   const setNote = useCallback((text: string, tone: 'success' | 'error' = 'success') => setNoteState({ text, tone }), []);
   useEffect(() => {
     if (note?.tone !== 'success') return;
@@ -300,6 +305,11 @@ export function EditorScreen() {
       ? await api.cycle(document.containerId).catch(() => null)
       : null;
     setCycle(cyc);
+    // T-478 - the internal round, read from the freeze container's own cycle;
+    // no freeze yet is null, and a failed read is "unknown", never "no round"
+    setInternalCycle(
+      document.freezeContainerId ? await api.cycle(document.freezeContainerId).catch(() => undefined) : null,
+    );
     // T-366 (ADR-0038 addendum): a bound draft READS THE ROW THROUGH — the
     // chrome shows the plan row's reference and title over the container link
     if (document.containerId) {
@@ -663,6 +673,16 @@ export function EditorScreen() {
           setNote={setNote}
         />
       )}
+      {requestingReview && (
+        <RequestReviewModal
+          doc={doc}
+          onClose={() => setRequestingReview(false)}
+          onOpened={async (r) => {
+            await load();
+            setNote(`Internal round opened — ${r.versionReference} with ${r.reviewerName}.`);
+          }}
+        />
+      )}
       {sourceOpen !== null && (
         <SourceModal versionId={sourceOpen.versionId} chunkId={sourceOpen.chunkId} onClose={() => setSourceOpen(null)} />
       )}
@@ -695,6 +715,11 @@ export function EditorScreen() {
           ) : (
             <b>{doc.title}</b>
           )}
+          {/* T-455 / T-478 - the lifecycle badge sits beside the name, and reads
+              the internal round once it is open ("In internal QA P01") */}
+          <span style={{ marginLeft: 8 }}>
+            <Badge tone={sandboxLifecycleBadge(doc, internalCycle).tone}>{sandboxLifecycleBadge(doc, internalCycle).label}</Badge>
+          </span>
         </span>
         <div className="right">
           {documentId !== undefined && <Presence documentId={documentId} />}
@@ -703,8 +728,6 @@ export function EditorScreen() {
             <HistoryGlyph size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
             History
           </Button>
-          {/* T-455 — the lifecycle badge, the same words as the sandbox row */}
-          <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
           {doc.headLocked && (
             <>
               <Badge tone="neutral">Checked out — read-only until released</Badge>
@@ -746,6 +769,14 @@ export function EditorScreen() {
               Freeze
             </Button>
             </span>
+          )}
+          {/* T-478 - freeze, name the QA reviewer and open the round in one step;
+              offered on a working head, and on a plain check-out that has no round yet */}
+          {doc.origin === 'authored' && (!doc.headLocked || internalCycle === null) && (
+            <Button size="sm" variant="quiet" onClick={() => setRequestingReview(true)}>
+              <Snowflake size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Request internal review…
+            </Button>
           )}
           {/* T-373 — the reconfirming window, not a bare act (ADR-0008 addendum) */}
           {doc.containerId && !doc.headLocked && (

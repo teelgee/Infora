@@ -71,6 +71,8 @@ import type {
   CreateReviewCommentBody,
   CreateSandboxCommentBody,
   FreezeResult,
+  InternalReviewResult,
+  RequestInternalReviewBody,
   IssueRoundResponse,
   LeadReviewerReplacement,
   ListAcceptanceCodesResponse,
@@ -602,6 +604,12 @@ export const api = {
     }),
   freezeDocument: (documentId: string) =>
     request<FreezeResult>(`/sandbox-documents/${documentId}/freeze`, { method: 'POST' }),
+  // T-478 — freeze + name the QA reviewer + a note, one act
+  requestInternalReview: (documentId: string, body: RequestInternalReviewBody) =>
+    request<InternalReviewResult>(`/sandbox-documents/${documentId}/internal-review`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   releaseDocument: (documentId: string, reason?: string) =>
     request<{ ok: true }>(`/sandbox-documents/${documentId}/release`, {
       method: 'POST',
