@@ -34,6 +34,12 @@ export const ChatComposer = forwardRef<
     onCancel?: () => void;
     fontSize?: number;
     sources?: ReactNode;
+    /**
+     * T-470 — a sentence saying why sending is off right now (e.g. the chosen
+     * scope leaves nothing to read). Disables send and is printed beside it:
+     * a disabled button with no reason is a puzzle, not a control.
+     */
+    blockedReason?: string;
   }
 >(function ChatComposer(props, ref) {
   const [text, setText] = useState('');
@@ -63,7 +69,7 @@ export const ChatComposer = forwardRef<
 
   function send() {
     const value = text.trim();
-    if (value === '' || props.pending) return;
+    if (value === '' || props.pending || props.blockedReason !== undefined) return;
     setValue('');
     props.onSend(value);
   }
@@ -136,13 +142,19 @@ export const ChatComposer = forwardRef<
             size="sm"
             variant="primary"
             type="button"
-            disabled={props.pending || text.trim() === ''}
+            disabled={props.pending || text.trim() === '' || props.blockedReason !== undefined}
+            title={props.blockedReason}
             onClick={send}
           >
             ↵
           </Button>
         )}
       </div>
+      {props.blockedReason !== undefined && (
+        <span className="composer-blocked" role="status">
+          {props.blockedReason}
+        </span>
+      )}
       {props.sources !== undefined && <div className="composer-sources">{props.sources}</div>}
     </div>
   );

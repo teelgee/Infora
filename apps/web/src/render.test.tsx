@@ -19,7 +19,8 @@ import type {
   AppBuildTurn,
   DestinationCheckResponse,
   Finding,
-  GroundingSource,
+  ClassificationSchemeResponse,
+  SavedView,
   ListRuleProposalsResponse,
   ProposedRule,
   RuleProposal,
@@ -29,7 +30,8 @@ import type {
   ToolPlan,
   ToolSummary,
 } from '@infora/contracts';
-import { DataSourcesChip } from './composer-chips';
+import { api } from './api';
+import { ChatComposer } from '@infora/ui';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import {
   ExtractionReportNote,
@@ -41,6 +43,8 @@ import {
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
+import { NOTHING_TO_READ, ScopeControl, WHOLE_LIBRARY, scopeField, scopeGroups, scopeLabel, scopeOf } from './scope-control';
+import type { ScopeState } from './scope-control';
 import { ExternalDocumentView } from './screens/external-document';
 import { ScreenBlock, chartSeries, screenFor, trendLine } from './screens/app-screen';
 import { BuilderConversation } from './screens/app-builder';
@@ -55,73 +59,219 @@ import {
   AttachedCopy,
   CheckFamilyRow,
   CheckPlanCard,
-  LibraryScopePicker,
   ChosenNote,
   AgentPane,
   LibraryScopeCopy,
   ProposedDocumentCard,
   RunProgress,
   SectionComposer,
-  SourceRow,
   StyleGuidePicker,
   matchesQuery,
   StyleSourcesNote,
   ToolCard,
 } from './screens/tools';
 
-describe('T-292 — the zero-source warning is a STATEMENT, not a menu', () => {
-  const empty = { sources: [], assemblyTokenBudget: 12000 };
+// ── T-470 — the scope control (it replaced T-292's Data sources chip) ────────
+//
+// The control is a view over a `ScopeState`, so the tests hand it one: nothing
+// here needs a browser, and the parts that need a keyboard are the pure
+// functions in @infora/ui (`multiPickerStep`) and the end-to-end spec.
+const SOURCES = [
+  { containerId: 'c1', versionId: 'v1', documentReference: 'WA-GEO-001', title: 'Ground investigation', description: 'Boreholes and trial pits.' },
+  { containerId: 'c2', versionId: 'v2', documentReference: 'WA-ENV-004', title: 'Environmental baseline', description: null },
+];
+const SCHEME: ClassificationSchemeResponse = {
+  facets: [
+    {
+      id: 'f1',
+      key: 'discipline',
+      name: 'Discipline',
+      source: 'owner',
+      sortOrder: 0,
+      terms: [
+        { id: 't1', facetId: 'f1', parentTermId: null, code: 'GEO', label: 'Geotechnical', sortOrder: 0, retiredAt: null },
+        { id: 't2', facetId: 'f1', parentTermId: null, code: 'OLD', label: 'Retired discipline', sortOrder: 1, retiredAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    },
+  ],
+} as unknown as ClassificationSchemeResponse;
+const REACH = {
+  visibleLive: 5,
+  inScope: 2,
+  excludedByState: { superseded: 0, withdrawn: 0 },
+  leftOutByScope: 3,
+};
+const scopeState = (over: Partial<ScopeState> = {}): ScopeState => ({
+  projectId: 'p1',
+  value: WHOLE_LIBRARY,
+  setValue: () => {},
+  grounding: { sources: SOURCES, assemblyTokenBudget: 12000, termCounts: { t1: 4 } },
+  scheme: SCHEME,
+  saved: [],
+  reloadSaved: () => {},
+  reach: null,
+  scope: undefined,
+  nothingToRead: false,
+  blockedReason: undefined,
+  ...over,
+});
 
+describe('T-470 — the scope control keeps the old chip’s honesty about an empty library', () => {
   it('states "no sources in scope" in a warning tone, and offers nothing to open', () => {
     // a grounded answer over an empty scope is the single most misleading state
     // Ask can be in: the answer arrives, it is fluent, and nothing on the
     // screen says it rested on nothing
     const html = renderToStaticMarkup(
-      <DataSourcesChip scope={empty} selected={[]} onChange={() => {}} />,
+      <ScopeControl
+        state={scopeState({ grounding: { sources: [], assemblyTokenBudget: 12000, termCounts: {} } })}
+      />,
     );
     expect(html).toContain('No sources in scope');
     expect(html).toContain('chip-warning');
-    // THE STATEMENT-NOT-MENU HALF: there is no dropdown, because there is
-    // nothing to refine, and an empty list would read as a loading failure
-    expect(html).not.toContain('dropdown');
     expect(html).toContain('disabled');
+    expect(html).not.toContain('aria-haspopup');
   });
 
-  it('a scope that could not be READ is not zero sources, and says nothing at all', () => {
+  it('a scope that could not be READ is not zero sources, and says nothing of the kind', () => {
     // the warning is a claim about the corpus; a claim we could not check must
     // not be made
-    const html = renderToStaticMarkup(
-      <DataSourcesChip scope={null} selected={[]} onChange={() => {}} />,
-    );
+    const html = renderToStaticMarkup(<ScopeControl state={scopeState({ grounding: null })} />);
     expect(html).not.toContain('No sources in scope');
-    expect(html).toContain('Data sources');
+    expect(html).toContain('Scope: whole library');
   });
 
-  it('a non-empty scope IS a menu, so the zero case is the exception rather than the rule', () => {
+  it('a non-empty library gives a button that opens a list, so the zero case is the exception', () => {
+    const html = renderToStaticMarkup(<ScopeControl state={scopeState()} />);
+    expect(html).toContain('<button');
+    expect(html).toContain('aria-haspopup="listbox"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('Scope: whole library');
+    expect(html).not.toContain('chip-warning');
+    // closed: the list is not on the page
+    expect(html).not.toContain('role="option"');
+  });
+});
+
+describe('T-470 — the chip says what the run will read', () => {
+  const labels = new Map([['t1', 'Geotechnical'], ['t3', 'Report']]);
+  it('names a term and counts documents', () => {
+    expect(scopeLabel({ termIds: ['t1'], containerIds: ['c1', 'c2'], saved: null }, labels)).toBe('Scope: Geotechnical · 2 documents');
+    expect(scopeLabel({ termIds: [], containerIds: ['c1'], saved: null }, labels)).toBe('Scope: 1 document');
+  });
+  it('names a saved scope by its name, and the whole library by nothing', () => {
+    expect(scopeLabel({ termIds: ['t1'], containerIds: [], saved: { id: 's1', name: 'Geotech only' } }, labels)).toBe('Scope: Geotech only');
+    expect(scopeLabel(WHOLE_LIBRARY, labels)).toBe('Scope: whole library');
+  });
+  it('a scope that reaches nothing turns the chip to a warning that says so', () => {
     const html = renderToStaticMarkup(
-      <DataSourcesChip
-        scope={{
-          sources: [
-            {
-              containerId: 'c1',
-              versionId: 'v1',
-              documentReference: 'WA-GEO-001',
-              title: 'GI',
-              description: null,
-            },
-          ],
-          assemblyTokenBudget: 12000,
-        }}
-        selected={[]}
-        onChange={() => {}}
+      <ScopeControl
+        state={scopeState({
+          value: { termIds: ['t1'], containerIds: [], saved: null },
+          scope: { termIds: ['t1'] },
+          reach: { ...REACH, inScope: 0, leftOutByScope: 5 },
+          nothingToRead: true,
+          blockedReason: NOTHING_TO_READ,
+        })}
       />,
     );
-    // the items live behind a closed dropdown, which is the point: the
-    // non-empty case is a MENU you open, where the zero case is a statement
-    // you cannot
-    expect(html).toContain('1 source');
-    expect(html).not.toContain('chip-warning');
-    expect(html).not.toContain('disabled');
+    expect(html).toContain('chip-warning');
+    expect(html).toContain('nothing to read');
+  });
+});
+
+describe('T-470 — the open list: vocabulary, documents, saved scopes, in that order', () => {
+  const saved = [{ id: 's1', name: 'Geotech only', filter: { termIds: ['t1'] }, shared: false, mine: true, savedBy: { participantId: 'x', name: 'Me' } }] as unknown as SavedView[];
+  const open = (over: Partial<ScopeState> = {}) =>
+    renderToStaticMarkup(<ScopeControl initiallyOpen state={scopeState({ saved, reach: REACH, ...over })} />);
+
+  it('lists every facet term with the number of visible documents carrying it, and hides a retired term', () => {
+    const html = open();
+    expect(html).toContain('Geotechnical');
+    expect(html).toContain('Discipline');
+    expect(html).toContain('multi-picker-count">4<');
+    expect(html).not.toContain('Retired discipline');
+  });
+
+  it('lists the documents by reference and title, then the saved scopes, after the vocabulary', () => {
+    const html = open();
+    expect(html).toContain('WA-GEO-001');
+    expect(html).toContain('Ground investigation');
+    expect(html).toContain('Geotech only');
+    const order = ['Vocabulary', 'Documents', 'Saved scopes'].map((heading) => html.indexOf(heading));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('a document’s description is searched, not shown', () => {
+    const groups = scopeGroups({ scheme: SCHEME, grounding: scopeState().grounding, saved: [] });
+    const docs = groups.find((g) => g.id === 'documents')!;
+    expect(docs.options[0]).toMatchObject({ label: 'WA-GEO-001', hint: 'Ground investigation', keywords: 'Boreholes and trial pits.' });
+    expect(open()).not.toContain('Boreholes and trial pits.');
+  });
+
+  it('says what the choice reaches, in the one sentence — and "Nothing to read" when it is nothing', () => {
+    expect(open()).toContain('2 documents in your scope can be read. Your scope left out 3 you could have included.');
+    const none = open({ nothingToRead: true, reach: { ...REACH, inScope: 0 } });
+    expect(none).toContain('Nothing to read in this scope');
+  });
+
+  it('marks what is ticked, and offers to clear and to save only when something is chosen', () => {
+    const plain = open();
+    expect(plain).not.toContain('Save this scope');
+    const chosen = open({ value: { termIds: ['t1'], containerIds: [], saved: null }, scope: { termIds: ['t1'] } });
+    expect(chosen).toContain('aria-selected="true"');
+    expect(chosen).toContain('Save this scope…');
+    expect(chosen).toContain('Use the whole library');
+  });
+
+  it('applying a saved scope names it, and a saved scope is not offered to be saved again', () => {
+    const named = open({
+      value: { termIds: ['t1'], containerIds: [], saved: { id: 's1', name: 'Geotech only' } },
+      scope: { savedScopeId: 's1' },
+    });
+    expect(named).toContain('Scope: Geotech only');
+    expect(named).not.toContain('Save this scope');
+  });
+});
+
+describe('T-470 — every surface sends the scope the same way', () => {
+  it('the whole library sends no scope at all; a choice sends exactly it; a saved scope stands alone', () => {
+    expect(scopeOf(WHOLE_LIBRARY)).toBeUndefined();
+    expect(scopeField(scopeOf(WHOLE_LIBRARY))).toEqual({});
+    expect(scopeOf({ termIds: ['t1'], containerIds: [], saved: null })).toEqual({ termIds: ['t1'] });
+    expect(scopeOf({ termIds: [], containerIds: ['c1'], saved: null })).toEqual({ containerIds: ['c1'] });
+    expect(scopeOf({ termIds: ['t1'], containerIds: ['c1'], saved: null })).toEqual({ termIds: ['t1'], containerIds: ['c1'] });
+    expect(scopeOf({ termIds: ['t1'], containerIds: ['c1'], saved: { id: 's1', name: 'n' } })).toEqual({ savedScopeId: 's1' });
+    expect(scopeField({ termIds: ['t1'] })).toEqual({ scope: { termIds: ['t1'] } });
+  });
+
+  it('Ask’s request carries the scope in its body, and nothing when there is none', async () => {
+    const bodies: unknown[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({}), { status: 201, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      await api.createRun('conv', 'a question', undefined, undefined, undefined, { termIds: ['t1'] });
+      await api.createRun('conv', 'a question');
+      await api.scopePreview('p1', { containerIds: ['c1'] });
+      await api.scopePreview('p1', undefined);
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(bodies[0]).toMatchObject({ request: 'a question', scope: { termIds: ['t1'] } });
+    expect(bodies[1]).not.toHaveProperty('scope');
+    expect(bodies[2]).toEqual({ scope: { containerIds: ['c1'] } });
+    expect(bodies[3]).toEqual({});
+  });
+
+  it('a scope that reaches nothing turns the composer’s send off and says why beside it', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer placeholder="Ask" pending={false} onSend={() => {}} blockedReason={NOTHING_TO_READ} />,
+    );
+    expect(html).toContain('Nothing to read in this scope');
+    expect(html).toContain('disabled');
   });
 });
 
@@ -607,50 +757,6 @@ describe('T-407 — the author composes the outline', () => {
   });
 });
 
-// ── T-405 — the source picker says what each document IS ───────────────────
-//
-// A coded reference identifies a document; it does not say what is in it.
-// Choosing what a draft may draw on off references alone is choosing blind,
-// which is the whole of this ticket. The absent case is pinned beside the
-// present one because it is the common one — most of a real corpus predates
-// the column, and a row that spent a line saying "no description" would be
-// worse than one that says nothing.
-describe('T-405 — a source row carries reference, title and description', () => {
-  const row = (over: Partial<GroundingSource>) =>
-    renderToStaticMarkup(
-      <SourceRow
-        source={{
-          containerId: 'c1',
-          versionId: 'v1',
-          documentReference: 'WA-ENV-0004',
-          title: 'Environmental baseline',
-          description: null,
-          ...over,
-        }}
-        checked={false}
-        onToggle={() => {}}
-      />,
-    );
-
-  it('shows all three when all three are there', () => {
-    const html = row({
-      description: 'The environmental baseline for the northern section.',
-    });
-    expect(html).toContain('WA-ENV-0004');
-    expect(html).toContain('Environmental baseline');
-    expect(html).toContain('The environmental baseline for the northern section.');
-  });
-
-  it('says nothing at all where nobody has written a description', () => {
-    const html = row({ description: null });
-    expect(html).toContain('WA-ENV-0004');
-    expect(html).not.toContain('source-row-desc');
-    // and no stand-in sentence in its place — an absent description is a state,
-    // not a gap to fill with copy
-    expect(html.toLowerCase()).not.toContain('no description');
-  });
-});
-
 // ── T-311 — the two sentences the marked-up edit is sold on ─────────────────
 //
 // ADR-0053 §6 puts the mechanical/rewrite distinction **on the screen** rather
@@ -724,6 +830,25 @@ describe('T-311 — the accept-all sits above the mechanical fixes and NO rewrit
         onBulk={() => {}}
       />,
     );
+
+  it('T-470 — the header says what the check read, in the one reach sentence, when it has the counts', () => {
+    const reach = { read: 3, visibleLive: 9, inScope: 3, excludedByState: { superseded: 0, withdrawn: 1 }, leftOutByScope: 6 };
+    const withReach = renderToStaticMarkup(
+      <FindingsPanel
+        findings={[mechanical]}
+        reach={reach}
+        busy={false}
+        focused={null}
+        drifted={[]}
+        onLocate={() => {}}
+        onResolve={() => {}}
+        onBulk={() => {}}
+      />,
+    );
+    expect(withReach).toContain('Read 3 documents in your scope. Excluded: 1 withdrawn. Your scope left out 6 you could have included.');
+    // not this reader's run: no counts, so no sentence and no guess
+    expect(render([mechanical])).not.toContain('findings-reach');
+  });
 
   it('offers an accept-all over a group of mechanical fixes, and states the SIZE of the decision', () => {
     const html = render([mechanical]);
@@ -1285,70 +1410,20 @@ describe('T-415 — ticking House style says which rules will be applied', () =>
 // already access-resolved server-side, and the components take their rows as a
 // prop and reach nothing else — which is what makes "an unreachable document
 // never appears" assertable rather than merely true today.
-describe('T-416 — the library scope search, under the Accuracy check', () => {
-  const sources: GroundingSource[] = [
-    {
-      containerId: 'c1',
-      versionId: 'v1',
-      documentReference: 'WA-ENV-0004',
-      title: 'Environmental baseline',
-      description: 'The northern section.',
-    },
-    {
-      containerId: 'c2',
-      versionId: 'v2',
-      documentReference: 'WA-GEO-0011',
-      title: 'Ground investigation report',
-      description: null,
-    },
-  ];
-  const render = (over: Partial<Parameters<typeof LibraryScopePicker>[0]> = {}) =>
-    renderToStaticMarkup(
-      <LibraryScopePicker sources={sources} selected={[]} onToggle={() => {}} {...over} />,
-    );
-
-  it('shows the documents with their TITLES, not references alone', () => {
-    const html = render();
-    expect(html).toContain('Environmental baseline');
-    expect(html).toContain('Ground investigation report');
-    expect(html).toContain('WA-ENV-0004');
+describe('T-470 — the library scope under the Accuracy check is the one scope control', () => {
+  it('🔒 the control is a view over a list that was already access-resolved server-side', () => {
+    // it takes its state as a prop and the documents come from the grounding
+    // scope — the server's own access-resolved answer, not the library list. A
+    // document not in that list cannot be searched into existence.
+    const groups = scopeGroups({ scheme: null, grounding: scopeState().grounding, saved: [] });
+    expect(groups.map((g) => g.id)).toEqual(['documents']);
+    expect(groups[0]!.options.map((o) => o.label)).toEqual(['WA-GEO-001', 'WA-ENV-004']);
   });
 
-  it('offers a search, and states the whole default before it', () => {
-    // leaving everything unticked means the WHOLE library you can reach, which
-    // is the opposite of what an empty selection usually means in a form — so
-    // it is said in words rather than discovered in the coverage sentence
-    const html = render();
-    expect(html).toContain('Search by title or reference');
-    expect(html).toContain('the whole library you can reach');
-    expect(html).toContain('2 documents');
-  });
-
-  it('🔒 THE ONLY ROWS ARE THE ONES IT WAS GIVEN — there is no wider set to narrow', () => {
-    // the component takes an access-resolved list as a prop and reaches nothing
-    // else. A document not in that list cannot be searched into existence, and
-    // is not greyed or ranked low: it never reached the browser.
-    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
-    const start = source.indexOf('export function LibraryScopePicker');
-    const end = source.indexOf('export function AttachPicker');
-    const body = source.slice(start, end);
-    expect(body).not.toContain('api.');
-    expect(body).not.toContain('fetch(');
-    // and the page hands it the grounding scope, which is the server's own
-    // access-resolved answer rather than the library list
-    expect(source).toContain('sources={scope?.sources ?? null}');
-  });
-
-  it('says nothing in scope rather than showing an empty search', () => {
-    // an empty picker under a search box reads as a search that failed; the
-    // zero case is a statement, exactly as the Ask composer's is
-    const html = render({ sources: [] });
-    expect(html).toContain('nothing to check against');
-    expect(html).not.toContain('Search by title or reference');
-  });
-
-  it('a scope that could not be READ is not zero sources, and says the same thing', () => {
-    expect(render({ sources: null })).toContain('nothing to check against');
+  it('keeps the sentence that states the default before any choice is made', () => {
+    // leaving the scope alone means the WHOLE library you can reach, which is
+    // the opposite of what an empty selection usually means in a form
+    expect(renderToStaticMarkup(<LibraryScopeCopy />)).toContain('the whole library you can reach');
   });
 });
 

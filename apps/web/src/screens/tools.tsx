@@ -33,7 +33,6 @@ import type {
   DocumentSection,
   DocumentSubSection,
   DocumentType,
-  GroundingSource,
   StartingOutline,
   QaCheckRunResponse,
   Sandbox,
@@ -83,7 +82,7 @@ import {
   PageIntro,
 } from '@infora/ui';
 import { api } from '../api';
-import { useGroundingScope } from '../composer-chips';
+import { ScopeControl, scopeField, useScopeState } from '../scope-control';
 
 export function ToolsScreen() {
   const { projectId } = useParams();
@@ -175,48 +174,6 @@ export function ToolCard({ tool }: { tool: ToolSummary }) {
       {body}
       <p className="tool-card-waits">{tool.waitsOn}</p>
     </div>
-  );
-}
-
-/**
- * T-405 — one row of the source picker: what this document is, not just what it
- * is called.
- *
- * *In plain terms: choosing what a draft may draw on used to mean reading a
- * list of coded references. A reference identifies a document; it does not say
- * what is in it. The row now carries the reference, the title, and the
- * description whoever filed the document typed.*
- *
- * **The description is absent, not blank, where nobody has written one.** Most
- * of a real corpus predates the column, and a row that said "no description"
- * would spend a line saying nothing. **It is never generated** — a
- * model-written description would be an uncited claim about a document, shown
- * next to that document's own grounded content.
- *
- * One component for both tools' pickers, because it is one control over one
- * list doing one job; two copies is how the creator's rows and the checker's
- * end up telling a user different things about the same document.
- */
-export function SourceRow(props: {
-  source: GroundingSource;
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <label className="source-row">
-      <input type="checkbox" checked={props.checked} onChange={props.onToggle} />
-      <span className="source-row-body">
-        <span className="source-row-head">
-          <span className="mono">{props.source.documentReference}</span>
-          {props.source.title !== null && (
-            <span className="source-row-title">{props.source.title}</span>
-          )}
-        </span>
-        {props.source.description !== null && (
-          <span className="source-row-desc">{props.source.description}</span>
-        )}
-      </span>
-    </label>
   );
 }
 
@@ -792,7 +749,7 @@ export function ProposedDocumentCard(props: {
 export function DocumentCreatorScreen() {
   const { projectId } = useParams();
   const [params] = useSearchParams();
-  const scope = useGroundingScope(projectId ?? '');
+  const scopeState = useScopeState(projectId ?? '');
   const [destinations, setDestinations] = useState<Sandbox[]>([]);
 
   // T-406 (ADR-0053 addendum A1) — the four questions that replaced "shape"
@@ -808,13 +765,20 @@ export function DocumentCreatorScreen() {
   const [sections, setSections] = useState<DocumentSection[]>([]);
   const [brief, setBrief] = useState('');
   const [title, setTitle] = useState('');
-  const [sources, setSources] = useState<string[]>([]);
   const [destination, setDestination] = useState('');
 
   const [plan, setPlan] = useState<ToolPlan | null>(null);
   const [result, setResult] = useState<DocumentCreationRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // T-470 — a plan was drawn for one scope; choosing another discards it, as any
+  // other answer does (the answers are kept, the plan is not)
+  const scopeKey = JSON.stringify(scopeState.scope ?? null);
+  useEffect(() => {
+    setPlan(null);
+    setResult(null);
+    setError(null);
+  }, [scopeKey]);
 
   // 🔒 **T-413 (ADR-0053 addendum A4) — THERE IS NO PATH FROM THE OWNER'S PLAN
   // INTO THIS SCREEN, AND ITS ABSENCE IS A RULING.**
@@ -930,9 +894,9 @@ export function DocumentCreatorScreen() {
     language,
     documentType,
     styleGuideIds,
-    // T-469 — the part of the library the draft may draw on. Nothing ticked is
-    // the whole library you can reach (one convention); ticked is exactly those
-    ...(sources.length > 0 && { scope: { containerIds: sources } }),
+    // T-470 — the part of the library the draft may draw on, from the scope
+    // control. Absent is the whole library you can reach (one convention)
+    ...scopeField(scopeState.scope),
     destinationSandboxId: destination,
     title: title.trim(),
   });
@@ -1165,42 +1129,29 @@ export function DocumentCreatorScreen() {
 
       <Card>
         <span className="card-title">Sources this draft may use</span>
-        {/* T-469 — one convention across every tool: tick nothing and the draft
-            may use the whole library you can reach; tick some and it uses
-            exactly those. Said in words, because an empty list in a form
-            usually means the opposite. */}
+        {/* T-470 — one control, the same on every surface. Choosing nothing lets
+            the draft use the whole library you can reach; choosing narrows it to
+            exactly that. The line inside the control says how many documents the
+            choice reaches, and if it is none the plan button stays off. */}
         <p className="field-hint">
-          Tick nothing to let the draft use the whole library you can reach, or tick the documents
-          it should use.
+          By default the whole library you can reach. Narrow it to a discipline, a document type
+          or named documents if the draft should rest on less.
         </p>
-        {/* The list is `grounding-scope` — the SAME pre-filter retrieval runs, so
-            a document offered here is one the draft could actually have used
-            (T-292). Nothing unreachable is greyed: it is absent. */}
-        {scope === null || scope.sources.length === 0 ? (
-          <p className="card-lede">
-            Nothing in this project’s library is in scope for a grounded draft, so there is nothing
-            to draft from, and the plan will say so.
+        <ScopeControl state={scopeState} />
+        {scopeState.blockedReason !== undefined && (
+          <p className="field-hint" role="status">
+            {scopeState.blockedReason}.
           </p>
-        ) : (
-          scope.sources.map((source: GroundingSource) => (
-            <SourceRow
-              key={source.containerId}
-              source={source}
-              checked={sources.includes(source.containerId)}
-              onToggle={() =>
-                change(setSources)(
-                  sources.includes(source.containerId)
-                    ? sources.filter((id) => id !== source.containerId)
-                    : [...sources, source.containerId],
-                )
-              }
-            />
-          ))
         )}
       </Card>
 
       <div className="card-actions">
-        <Button variant="primary" disabled={!ready || busy} onClick={seePlan}>
+        <Button
+          variant="primary"
+          disabled={!ready || busy || scopeState.blockedReason !== undefined}
+          title={scopeState.blockedReason}
+          onClick={seePlan}
+        >
           See the plan
         </Button>
       </div>
@@ -1369,62 +1320,6 @@ export function ListSearch(props: {
           : `${props.shown} of ${props.total} match`}
       </span>
     </div>
-  );
-}
-
-/**
- * T-416 — the library scope, searchable, under the Accuracy check.
- *
- * **The default is stated before the search, not implied by an empty box.**
- * Leaving everything unticked means *the whole library you can reach*, which is
- * the opposite of what an empty selection usually means in a form — so the
- * screen says it in words rather than leaving a person to discover it in the
- * plan's coverage sentence afterwards.
- */
-export function LibraryScopePicker(props: {
-  sources: GroundingSource[] | null;
-  selected: string[];
-  onToggle: (containerId: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  if (props.sources === null || props.sources.length === 0) {
-    return (
-      <p className="field-hint">
-        Nothing in this project’s library is in scope, so this check has nothing to check against.
-        The plan will say so.
-      </p>
-    );
-  }
-  const shown = props.sources.filter((source) =>
-    matchesQuery([source.documentReference, source.title, source.description], query),
-  );
-  return (
-    <>
-      <LibraryScopeCopy />
-      <ListSearch
-        label="Search the library"
-        placeholder="Search by title or reference…"
-        value={query}
-        onChange={setQuery}
-        shown={shown.length}
-        total={props.sources.length}
-      />
-      {shown.length === 0 ? (
-        <p className="field-hint">
-          Nothing in the library you can reach matches that. Clear the search to see all{' '}
-          {props.sources.length}.
-        </p>
-      ) : (
-        shown.map((source) => (
-          <SourceRow
-            key={source.containerId}
-            source={source}
-            checked={props.selected.includes(source.containerId)}
-            onToggle={() => props.onToggle(source.containerId)}
-          />
-        ))
-      )}
-    </>
   );
 }
 
@@ -1711,7 +1606,7 @@ export function RunProgress(props: {
 export function QaCheckerScreen() {
   const { projectId } = useParams();
   const [params] = useSearchParams();
-  const scope = useGroundingScope(projectId ?? '');
+  const scopeState = useScopeState(projectId ?? '');
   const [drafts, setDrafts] = useState<SandboxDocument[]>([]);
 
   // ⚠ THE EDITOR ROUTE IS THIS ROUTE WITH ITS FIRST STEP PRE-FILLED. One
@@ -1722,7 +1617,6 @@ export function QaCheckerScreen() {
   const [preset, setPreset] = useState<'full' | 'quick'>(DEFAULT_CHECK_PRESET);
   const [families, setFamilies] = useState<CheckFamily[]>([...CHECK_FAMILIES]);
   const [depth, setDepth] = useState<CorpusDepth>(DEFAULT_CORPUS_DEPTH);
-  const [scopeContainerIds, setScopeContainerIds] = useState<string[]>([]);
   const [attached, setAttached] = useState<string[]>([]);
   // T-399 — files handed straight to this check. They live in the browser until
   // the request carries them, are parsed server-side for the run, and are
@@ -1737,6 +1631,13 @@ export function QaCheckerScreen() {
   const [result, setResult] = useState<QaCheckRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // T-470 — a plan was drawn for one scope; choosing another discards it
+  const scopeKey = JSON.stringify(scopeState.scope ?? null);
+  useEffect(() => {
+    setPlan(null);
+    setResult(null);
+    setError(null);
+  }, [scopeKey]);
   // T-418 — the run in flight: the conversation opened before it so it can be
   // looked up, how many of its steps have closed, and whether the last poll
   // answered. `running === null` is "no run in flight", which is a different
@@ -1785,8 +1686,11 @@ export function QaCheckerScreen() {
     sandboxDocumentId: documentId,
     families,
     depth,
-    // T-469 — absent is the whole library; present is exactly those documents
-    ...(scopeContainerIds.length > 0 && { scope: { containerIds: scopeContainerIds } }),
+    // T-470 — absent is the whole library; present is exactly the scope chosen.
+    // The scope belongs to the Accuracy check alone: unticked, none is sent
+    // (review fix — an empty scope must not keep the plan blocked once the
+    // check it scopes is off the plan)
+    ...(families.includes('corpus_accuracy') ? scopeField(scopeState.scope) : {}),
     attachedDocumentIds: attached,
   });
 
@@ -1980,17 +1884,13 @@ export function QaCheckerScreen() {
               {entry.family === 'corpus_accuracy' && (
                 <div className="check-family-option">
                   <span className="field-label">What it checks against</span>
-                  <LibraryScopePicker
-                    sources={scope?.sources ?? null}
-                    selected={scopeContainerIds}
-                    onToggle={(containerId) =>
-                      change(setScopeContainerIds)(
-                        scopeContainerIds.includes(containerId)
-                          ? scopeContainerIds.filter((id) => id !== containerId)
-                          : [...scopeContainerIds, containerId],
-                      )
-                    }
-                  />
+                  <LibraryScopeCopy />
+                  <ScopeControl state={scopeState} />
+                  {scopeState.blockedReason !== undefined && (
+                    <p className="field-hint" role="status">
+                      {scopeState.blockedReason}.
+                    </p>
+                  )}
                 </div>
               )}
               {/* T-415 — ticking style says WHICH RULES will be applied. The
@@ -2063,7 +1963,12 @@ export function QaCheckerScreen() {
       </Card>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <Button variant="primary" disabled={!ready || busy} onClick={seePlan}>
+        <Button
+          variant="primary"
+          disabled={!ready || busy || (families.includes('corpus_accuracy') && scopeState.blockedReason !== undefined)}
+          title={families.includes('corpus_accuracy') ? scopeState.blockedReason : undefined}
+          onClick={seePlan}
+        >
           See the plan
         </Button>
       </div>

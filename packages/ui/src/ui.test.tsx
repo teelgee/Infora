@@ -28,6 +28,9 @@ import {
   PaneHeader,
   ProjectCard,
   CompletionFooter,
+  MultiPicker,
+  filterPickerGroups,
+  multiPickerStep,
   formatStepCost,
   ProgressRail,
   ProjectSwitcher,
@@ -571,6 +574,21 @@ describe('CompletionFooter (T-294)', () => {
     railOutcomes: outcomes,
   });
 
+  // T-470 — the reach sentence is under every answer that has counts, and is
+  // the SAME sentence the function renders everywhere
+  it('states what the run read in the one reach sentence, and says nothing where there are no counts', () => {
+    const reach = {
+      read: 14,
+      visibleLive: 45,
+      inScope: 14,
+      excludedByState: { superseded: 2, withdrawn: 0 },
+      leftOutByScope: 31,
+    };
+    const html = renderToStaticMarkup(<CompletionFooter run={run({ reach })} plan={plan()} />);
+    expect(html).toContain('Read 14 documents in your scope. Excluded: 2 superseded. Your scope left out 31 you could have included.');
+    expect(renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />)).not.toContain('cf-reach');
+  });
+
   // THE hard requirement: the mode is in words and is never behind Details.
   it('states the orchestration mode in words, outside the Details affordance', () => {
     const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />);
@@ -1049,5 +1067,63 @@ describe('HoverCard, SourceChip and RuleCard (T-468)', () => {
       </RuleCard>,
     );
     expect(project).toContain('project style guide');
+  });
+});
+
+describe('MultiPicker (T-470)', () => {
+  const groups = [
+    {
+      id: 'vocabulary',
+      heading: 'Vocabulary',
+      options: [
+        { id: 't-hydro', label: 'Hydro-geology', hint: 'Discipline', count: 1 },
+        { id: 't-geo', label: 'Geotechnical', hint: 'Discipline', count: 4 },
+        { id: 't-report', label: 'Report', hint: 'Type', count: 9 },
+      ],
+    },
+    { id: 'documents', heading: 'Documents', options: [{ id: 'd-1', label: 'WA-GEO-001 Ground investigation' }] },
+  ];
+
+  it('is a multiselectable listbox of options, grouped by heading, ticked ones marked', () => {
+    const html = renderToStaticMarkup(
+      <MultiPicker label="Scope" groups={groups} selected={['t-geo']} onToggle={() => {}} onClose={() => {}} />,
+    );
+    expect(html).toContain('role="listbox"');
+    expect(html).toContain('aria-multiselectable="true"');
+    expect(html).toContain('role="combobox"');
+    expect(html.match(/role="option"/g)).toHaveLength(4);
+    expect(html).toContain('Vocabulary');
+    expect(html).toContain('Documents');
+    // exactly the ticked row says so
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-selected="true"[^>]*>(?:(?!<\/div>).)*Geotechnical/s);
+    // the highlight is announced from the search box, so focus never leaves it
+    expect(html).toContain('aria-activedescendant');
+  });
+
+  it('puts the label that STARTS with the typed word first, and drops groups with no match', () => {
+    const shown = filterPickerGroups(groups, 'geo');
+    expect(shown.map((g) => g.id)).toEqual(['vocabulary', 'documents']);
+    expect(shown[0]!.options.map((o) => o.label)).toEqual(['Geotechnical', 'Hydro-geology']);
+    expect(filterPickerGroups(groups, 'zzz')).toEqual([]);
+    // every word must be found, in the label, the hint or the keywords
+    expect(filterPickerGroups(groups, 'discipline geo')[0]!.options).toHaveLength(2);
+    expect(filterPickerGroups(groups, '  ')).toBe(groups);
+  });
+
+  it('moves with the arrows, stays inside the list, ticks on Enter, and closes on Escape', () => {
+    const at = (active: number, query = '') => ({ active, size: 3, query });
+    expect(multiPickerStep(at(0), 'ArrowDown').active).toBe(1);
+    expect(multiPickerStep(at(2), 'ArrowDown').active).toBe(2);
+    expect(multiPickerStep(at(1), 'ArrowUp').active).toBe(0);
+    expect(multiPickerStep(at(0), 'ArrowUp').active).toBe(0);
+    expect(multiPickerStep(at(1), 'Enter')).toMatchObject({ act: 'toggle', active: 1 });
+    expect(multiPickerStep(at(1), 'Escape').act).toBe('close');
+    expect(multiPickerStep({ active: 0, size: 0, query: 'x' }, 'Enter').act).toBeNull();
+  });
+
+  it('Space ticks only while the search is empty — after that a space belongs to the word', () => {
+    expect(multiPickerStep({ active: 0, size: 3, query: '' }, ' ')).toMatchObject({ act: 'toggle', handled: true });
+    expect(multiPickerStep({ active: 0, size: 3, query: 'ground' }, ' ')).toMatchObject({ act: null, handled: false });
   });
 });

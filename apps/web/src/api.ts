@@ -86,6 +86,8 @@ import type {
   DocumentCreationPlanResponse,
   DocumentCreationRunResponse,
   GetGroundingScopeResponse,
+  ScopePreviewResponse,
+  Scope,
   ListStartingOutlinesResponse,
   SaveStartingOutlineBody,
   StartingOutline,
@@ -311,6 +313,14 @@ export const api = {
   // server computes this off the same pre-filter retrieval grounds on.
   groundingScope: (projectId: string) =>
     request<GetGroundingScopeResponse>(`/projects/${projectId}/grounding-scope`),
+  // T-470 — what a scope would reach, counted by the server under the wall; runs
+  // no search and spends nothing
+  scopePreview: (projectId: string, scope: Scope | undefined, signal?: AbortSignal) =>
+    request<ScopePreviewResponse>(`/projects/${projectId}/scope-preview`, {
+      method: 'POST',
+      body: JSON.stringify(scope === undefined ? {} : { scope }),
+      ...(signal !== undefined && { signal }),
+    }),
   // T-334/T-335 — the Tools section, and the document creator's two calls. The
   // plan and the run take the SAME body: they are one request seen twice, which
   // is what stops the preview and the act disagreeing.
@@ -1084,11 +1094,10 @@ export const api = {
     // on the conversation: an answer's Lens is a property of the answer, so
     // switching changes the next one and leaves history as it was produced.
     lensId?: string,
-    // T-292, T-469 — the Data sources refinement, sent as the request's SCOPE
-    // (T-470 replaces the chip). Sent only when the user narrowed: absent means
-    // the whole library you can reach, and an empty scope is a 400, so the
-    // surface never sends one.
-    sourceContainerIds?: string[],
+    // T-470 — the scope control's choice, sent as the request's SCOPE. Sent
+    // only when the person chose one: absent means the whole library you can
+    // reach, and an empty scope is a 400, so the surface never sends one.
+    scope?: Scope,
   ) =>
     request<Run>(`/conversations/${conversationId}/runs`, {
       method: 'POST',
@@ -1096,8 +1105,7 @@ export const api = {
         request: requestText,
         ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
         ...(lensId !== undefined && { lensId }),
-        ...(sourceContainerIds !== undefined &&
-          sourceContainerIds.length > 0 && { scope: { containerIds: sourceContainerIds } }),
+        ...(scope !== undefined && { scope }),
       }),
       ...(signal !== undefined && { signal }),
     }),

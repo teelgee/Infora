@@ -1515,6 +1515,26 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-24 (T-470) — `POST /projects/:projectId/scope-preview`; term counts on
+  `GET .../grounding-scope`; `reach` on `GET .../findings`.** *Plainly: while a
+  person builds a scope, the screen says how many documents it reaches before
+  anything is asked.* The **reason the count is a server call and not a sum in
+  the browser** is the wall: which documents a person may see is decided in SQL,
+  and a browser that added up the library list itself would be a second, looser
+  definition of "visible" that a later change could let drift. The **reason it
+  spends nothing** is that it is the same count `POST /runs` takes to refuse
+  before spend (`reachCounts`) and no more — no retrieval, no model call, no run
+  row — so the control can ask on every keystroke of choosing without a cost or
+  a record. The **reason it answers a saved scope with a 404 for another firm's**
+  is the run's own rule: "not yours" and "not there" look the same from outside.
+  The **reason the per-term numbers ride the grounding scope** rather than the
+  preview is that they describe the library, not the choice: they are counted
+  over exactly the documents that list names, so a count beside a term can never
+  exceed what the Documents group shows. The **reason the findings read carries
+  `reach` only for a run the reader made** is that a run's counts were taken under
+  its maker's visibility; showing them to a colleague could show what the
+  maker's wall let through.
+
 - **2026-10-24 (T-469) — one `scope` on the request; `Run.reach`, `Plan.scope`,
   `AssemblyCoverage.reach`; `reachStatement`; the `scope` saved-view register.**
   *Plainly: choosing which part of the library a run reads is now one object

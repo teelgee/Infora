@@ -102,7 +102,7 @@ async function scope(): Promise<GetGroundingScopeResponse> {
   return (await res.json()) as GetGroundingScopeResponse;
 }
 
-describe('T-292 — the Data sources chip reads the grounding scope, not the library', () => {
+describe('T-292 — the scope control (T-470; formerly the Data sources chip) reads the grounding scope, not the library', () => {
   it('lists the indexed document and states the assembly budget', async () => {
     const { sources, assemblyTokenBudget } = await scope();
     expect(sources.map((source) => source.documentReference)).toContain(indexedReference);

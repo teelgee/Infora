@@ -44,8 +44,8 @@
 //     than inline pixel values — several of which (6px, 2px, 3px) were not on
 //     the scale at all.
 import { useState } from 'react';
-import type { CheckFamily, Finding, MechanicalFix } from '@infora/contracts';
-import { CHECK_FAMILY_CATALOGUE } from '@infora/contracts';
+import type { CheckFamily, Finding, MechanicalFix, RunReach } from '@infora/contracts';
+import { CHECK_FAMILY_CATALOGUE, reachStatement } from '@infora/contracts';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge, Button, RuleCard, SourceChip, TextArea } from '@infora/ui';
 import { cardFor } from './source-card';
@@ -62,6 +62,8 @@ export type FindingsPanelProps = {
   onBulk: (action: 'accept' | 'dismiss', findingIds: string[]) => void;
   /** anchors that no longer match the text under them, from the last attempt */
   drifted: string[];
+  /** T-470 — what the check run behind these findings read, when this reader made it */
+  reach?: RunReach | null;
 };
 
 const LABELS = new Map(CHECK_FAMILY_CATALOGUE.map((entry) => [entry.family, entry.label]));
@@ -93,6 +95,13 @@ export function FindingsPanel(props: FindingsPanelProps) {
         {closed > 0 && `, ${closed} resolved`}. Each one points into the draft — click it to go
         there.
       </p>
+      {/* T-470 — what the check covered, in the one sentence every surface
+          renders. It sits beside the count because "N findings" always means
+          "N findings in what was read". Absent where the reader did not make
+          the run: those counts were taken under the maker's visibility. */}
+      {props.reach !== undefined && props.reach !== null && (
+        <p className="findings-reach">{reachStatement(props.reach)}</p>
+      )}
       {props.drifted.length > 0 && (
         <div className="banner banner--warning">
           {props.drifted.length} {props.drifted.length === 1 ? 'mark has' : 'marks have'} moved

@@ -23,14 +23,16 @@ import type {
   GetVersionResponse,
   LibraryItem,
   LibrarySearchItem,
+  ScopePreviewResponse,
 } from '@infora/contracts';
-import { librarySearchQuery } from '@infora/contracts';
-import { deliverableVisibleSql as deliverableVisible, groundingSources, readChunkPassage, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
+import { librarySearchQuery, scopePreviewBody } from '@infora/contracts';
+import { deliverableVisibleSql as deliverableVisible, groundingSources, reachCounts, readChunkPassage, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { admittingCodes, contextStateOf } from './context-state';
 import { projectScope, resourceHomes, resourceScope } from './requester';
+import { resolveScope, scopeProblem } from './scope';
 import type { AppEnv } from './requester';
 
 // Deliverable visibility (producer | owner | acknowledged+narrowed share) is
@@ -229,10 +231,48 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
   app.get('/projects/:projectId/grounding-scope', project, async (c) => {
     const slice = c.get('slice');
     const sources = await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
+    // T-470 — how many of THESE documents carry each term: counted over the
+    // list just built, so the picker's numbers are visible documents only and
+    // the wall is not applied a second, different way.
+    const termCounts: Record<string, number> = {};
+    if (sources.length > 0) {
+      const placed = await deps.db
+        .select({ containerId: s.containerClassifications.containerId, termId: s.containerClassifications.termId })
+        .from(s.containerClassifications)
+        .where(inArray(s.containerClassifications.containerId, sources.map((source) => source.containerId)));
+      for (const row of placed) termCounts[row.termId] = (termCounts[row.termId] ?? 0) + 1;
+    }
     return c.json({
       sources,
       assemblyTokenBudget: TOKEN_LIMIT,
+      termCounts,
     } satisfies GetGroundingScopeResponse);
+  });
+
+  // T-470 — what a scope would reach, before anything is asked. It runs the
+  // count `POST /runs` takes before it spends (`reachCounts`, T-469) and
+  // nothing else: no retrieval, no model call. The wall is in the count, so a
+  // term or document the requester cannot see adds nothing and is never named.
+  app.post('/projects/:projectId/scope-preview', project, async (c) => {
+    const parsed = scopePreviewBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: 'invalid',
+          detail: scopeProblem(parsed.error) ?? 'the body may carry a scope and nothing else',
+        } satisfies ApiError,
+        400,
+      );
+    }
+    const slice = c.get('slice');
+    const resolved = await resolveScope(deps.db, slice, parsed.data.scope);
+    if (!resolved.ok) {
+      return resolved.status === 404
+        ? c.json({ error: 'not_found' } satisfies ApiError, 404)
+        : c.json({ error: 'invalid', detail: resolved.detail ?? 'the scope could not be used' } satisfies ApiError, 400);
+    }
+    const reach = await reachCounts(deps, slice, resolved.scope);
+    return c.json(reach satisfies ScopePreviewResponse);
   });
 
   return app;

@@ -1,7 +1,7 @@
 // T-469 — the scope's one convention, and the reach sentence every surface
 // renders. Pure functions, so these are the numbers-to-words contract.
 import { describe, expect, it } from 'vitest';
-import { createRunBody, documentCreationBody, qaCheckBody } from './endpoints';
+import { createRunBody, documentCreationBody, qaCheckBody, scopePreviewBody } from './endpoints';
 import { nothingToReadRefusal, reachStatement, scopeSchema } from './scope';
 import type { ReachCounts } from './scope';
 
@@ -102,5 +102,19 @@ describe('the refusal, said before any spend (T-469)', () => {
       'there are no documents in the library you can read yet',
     );
     expect(nothingToReadRefusal(reach({ visibleLive: 0, inScope: 0 }), false)).toContain('There is nothing to read');
+  });
+});
+
+describe('the scope preview asks the same question the run does (T-470)', () => {
+  it('takes a scope or nothing — nothing is the whole library', () => {
+    expect(scopePreviewBody.safeParse({}).success).toBe(true);
+    expect(scopePreviewBody.safeParse({ scope: { termIds: [ID] } }).success).toBe(true);
+    expect(scopePreviewBody.safeParse({ scope: { savedScopeId: ID } }).success).toBe(true);
+  });
+
+  it('refuses an empty scope and anything else in the body, as the run does', () => {
+    expect(scopePreviewBody.safeParse({ scope: {} }).success).toBe(false);
+    expect(scopePreviewBody.safeParse({ scope: { termIds: [] } }).success).toBe(false);
+    expect(scopePreviewBody.safeParse({ query: 'anything' }).success).toBe(false);
   });
 });

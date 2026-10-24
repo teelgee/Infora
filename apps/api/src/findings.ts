@@ -26,7 +26,7 @@
 // forward. That is ADR-0048's own open lifecycle question — given a driver by
 // ADR-0053 §13 and deliberately not ruled — and building the carry-over here
 // would be answering it in code.
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { classifyFix } from '@infora/contracts';
 import type {
   Finding,
@@ -320,7 +320,7 @@ function toFinding(row: FindingRow, closerName: string | null, suggestion: Sugge
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { bulkResolveFindingsBody, resolveFindingBody } from '@infora/contracts';
-import type { ApiError, ListFindingsResponse, ResolveFindingsResponse } from '@infora/contracts';
+import type { ApiError, ListFindingsResponse, ResolveFindingsResponse, RunReach } from '@infora/contracts';
 import { resolveSuggestion } from '@infora/orchestration';
 import { resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -337,8 +337,29 @@ export function findingRoutes(deps: { db: Db }) {
    * would still never be handed one.
    */
   app.get('/sandbox-documents/:id/findings', documentScope, async (c) => {
-    const items = await listFindings(deps.db, c.get('slice'), c.req.param('id'));
-    return c.json({ items } satisfies ListFindingsResponse);
+    const slice = c.get('slice');
+    const items = await listFindings(deps.db, slice, c.req.param('id'));
+    // T-470 — what the newest check run behind these findings reached, for the
+    // panel's header. Only a run THIS requester made: its counts were taken
+    // under the maker's own visibility, so another person's are not theirs to see.
+    const runIds = [...new Set(items.map((item) => item.runId))];
+    let reach: RunReach | null = null;
+    if (runIds.length > 0) {
+      const [newest] = await deps.db
+        .select({ reach: s.runs.reach })
+        .from(s.runs)
+        .where(
+          and(
+            inArray(s.runs.id, runIds),
+            eq(s.runs.requesterParticipantId, slice.participantId),
+            isNotNull(s.runs.reach),
+          ),
+        )
+        .orderBy(desc(s.runs.startedAt))
+        .limit(1);
+      reach = (newest?.reach as RunReach | null | undefined) ?? null;
+    }
+    return c.json({ items, reach } satisfies ListFindingsResponse);
   });
 
   /**

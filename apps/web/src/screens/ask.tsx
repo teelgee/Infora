@@ -21,7 +21,8 @@ import type { ChatComposerHandle } from '@infora/ui';
 import { statusBadge } from './shared';
 import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
-import { ContextChip, DataSourcesChip, useGroundingScope } from '../composer-chips';
+import { ContextChip } from '../composer-chips';
+import { ScopeControl, useScopeState } from '../scope-control';
 import { DestinationSelector, DestinationWarning, useDestinations } from '../destination-selector';
 import type { Destination } from '../destination-selector';
 import { LensPicker, useLenses } from '../lens-picker';
@@ -74,13 +75,13 @@ export function AskScreen() {
   // A rail that lit its first stage on send would be a client-side timer with
   // the timer hidden.
   const [railSteps, setRailSteps] = useState<PlanStep[] | null>(null);
-  // T-292 — the composer's scope chips. The refinement is per-conversation and
-  // lives here rather than on the run, because it is the user's standing
-  // narrowing for the turns that follow; each run carries the ids it was sent
-  // with. Empty means NOT NARROWED — the surface never sends an empty array,
-  // since an empty one means "narrowed to nothing" (T-248's `absent ≠ empty`).
-  const groundingScope = useGroundingScope(participant.projectId);
-  const [refinement, setRefinement] = useState<string[]>([]);
+  // T-470 — the ONE scope control. The choice is per-conversation and lives here
+  // rather than on the run, because it is the person's standing narrowing for
+  // the turns that follow; each run carries the scope it was sent with. Absent
+  // means the whole library the person can reach — the surface never sends an
+  // empty scope (it is a 400).
+  const scopeState = useScopeState(participant.projectId);
+  const groundingScope = scopeState.grounding;
   // T-295 — where answers are written. Per CONVERSATION, at the top of a new
   // one: it carries permission consequences and is chosen before asking, not
   // tidied away afterwards. `null` means the organisation's default working
@@ -198,17 +199,17 @@ export function AskScreen() {
       // the Lens is captured HERE, at send time — switching while a run is in
       // flight must not relabel the answer already being produced
       const sentUnder = lens;
-      // T-292 — the refinement is captured at send time for the same reason:
+      // T-470 — the scope is captured at send time for the same reason:
       // narrowing while a run is in flight must not relabel what that answer
       // was actually built on.
-      const narrowedTo = refinement;
+      const sentScope = scopeState.scope;
       const run = await api.createRun(
         conversationRef.current,
         request,
         undefined,
         abortRef.current.signal,
         sentUnder?.id,
-        narrowedTo,
+        sentScope,
       );
       // T-293/T-294 — ONE read of the plan the run actually wrote, after it
       // reports, serving both the rail and the footer. Two reads would be two
@@ -332,14 +333,11 @@ export function AskScreen() {
               pending={pending}
               onSend={(request) => void send(request)}
               onCancel={cancel}
+              {...(scopeState.blockedReason !== undefined && { blockedReason: scopeState.blockedReason })}
               sources={
                 <>
                   <LensPicker lenses={lenses} value={lens} onChange={setLens} />
-                  <DataSourcesChip
-                    scope={groundingScope}
-                    selected={refinement}
-                    onChange={setRefinement}
-                  />
+                  <ScopeControl state={scopeState} placement="top" />
                   <ContextChip scope={groundingScope} />
                   <ComposerSources
                     projectId={participant.projectId}

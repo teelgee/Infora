@@ -30,6 +30,7 @@
 
 import type { Locator } from './assembly';
 import type { CheckFamily } from './checker';
+import type { RunReach } from './scope';
 import type { Citation, Id, Suggestion } from './shared';
 
 /**
@@ -313,7 +314,17 @@ export type Finding = {
   createdAt: string;
 };
 
-export type ListFindingsResponse = { items: Finding[] };
+export type ListFindingsResponse = {
+  items: Finding[];
+  /**
+   * T-470 — what the most recent check run behind these findings reached, so
+   * the panel can say what was covered beside them. Present only for a run the
+   * REQUESTER made: the counts are taken under the maker's own visibility, and
+   * showing them to a colleague could show what the maker's wall let through.
+   * Null when there is none to show.
+   */
+  reach?: RunReach | null;
+};
 
 // ── T-398 — A FINDING DECLARES WHETHER ITS FIX IS MECHANICAL ────────────────
 //

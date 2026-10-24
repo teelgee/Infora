@@ -25,10 +25,6 @@ export function SavedViewsMenu(props: {
 }) {
   const [views, setViews] = useState<SavedView[] | null>(null);
   const [saving, setSaving] = useState(false);
-  const [name, setName] = useState('');
-  const [shared, setShared] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const load = () =>
     api
@@ -39,21 +35,6 @@ export function SavedViewsMenu(props: {
     void load();
     // the list is keyed on the project and the register; `load` is stable per render of those
   }, [props.projectId, props.register]);
-
-  const save = () => {
-    setBusy(true);
-    setProblem(null);
-    void api
-      .createSavedView(props.projectId, { register: props.register, name: name.trim(), filter: props.current, shared })
-      .then(() => {
-        setSaving(false);
-        setName('');
-        setShared(false);
-        return load();
-      })
-      .catch(() => setProblem('That name is already one of your views here — choose another.'))
-      .finally(() => setBusy(false));
-  };
 
   return (
     <>
@@ -97,35 +78,85 @@ export function SavedViewsMenu(props: {
         )}
       </DropdownMenu>
       {saving && (
-        <Modal
-          open
+        <SaveViewModal
+          projectId={props.projectId}
+          register={props.register}
+          filter={props.current}
           onClose={() => setSaving(false)}
-          title="Save this view"
-          size="sm"
-          footer={
-            <>
-              <Button variant="quiet" onClick={() => setSaving(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" disabled={busy || name.trim() === ''} onClick={save}>
-                Save
-              </Button>
-            </>
-          }
-        >
-          <div style={{ display: 'grid', gap: 10 }}>
-            <Field label="Name" hint="What you searched, the filters, the sort and the hidden columns are kept under it.">
-              <TextInput value={name} onChange={setName} placeholder="e.g. Geotech, live" />
-            </Field>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
-              <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
-              Share with everyone at your organisation on this project
-            </label>
-            <span className="field-hint">A view is a way of looking, never a way in: it shows people what they could already see.</span>
-            {problem && <span className="field-hint">{problem}</span>}
-          </div>
-        </Modal>
+          onSaved={() => {
+            setSaving(false);
+            return load();
+          }}
+        />
       )}
     </>
+  );
+}
+
+/**
+ * The "save under a name" dialog, shared by the register toolbars and (T-470)
+ * the scope control. It saves whatever `filter` it is handed to the `register`
+ * and says nothing about what that filter means — a view is a way of looking,
+ * never a way in.
+ */
+export function SaveViewModal(props: {
+  projectId: string;
+  register: SavedViewRegister;
+  filter: Record<string, unknown>;
+  onClose: () => void;
+  /** called after the view is stored; the caller re-reads its list */
+  onSaved: () => void | Promise<unknown>;
+  title?: string;
+  /** the line under the name box */
+  hint?: string;
+  placeholder?: string;
+}) {
+  const [name, setName] = useState('');
+  const [shared, setShared] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = () => {
+    setBusy(true);
+    setProblem(null);
+    void api
+      .createSavedView(props.projectId, { register: props.register, name: name.trim(), filter: props.filter, shared })
+      .then(() => props.onSaved())
+      .catch(() => setProblem('That name is already one of your views here — choose another.'))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <Modal
+      open
+      onClose={props.onClose}
+      title={props.title ?? 'Save this view'}
+      size="sm"
+      footer={
+        <>
+          <Button variant="quiet" onClick={props.onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={busy || name.trim() === ''} onClick={save}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gap: 10 }}>
+        <Field
+          label="Name"
+          hint={props.hint ?? 'What you searched, the filters, the sort and the hidden columns are kept under it.'}
+        >
+          <TextInput value={name} onChange={setName} placeholder={props.placeholder ?? 'e.g. Geotech, live'} />
+        </Field>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+          <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          Share with everyone at your organisation on this project
+        </label>
+        <span className="field-hint">A view is a way of looking, never a way in: it shows people what they could already see.</span>
+        {problem && <span className="field-hint">{problem}</span>}
+      </div>
+    </Modal>
   );
 }

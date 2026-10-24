@@ -40,6 +40,7 @@ import { appDefinitionSchema } from './app-builder';
 import type { AppBuildTurn, BuilderQuestion, GetAppResponse } from './app-builder';
 import type { ApiError } from './errors';
 import { scopeSchema } from './scope';
+import type { ReachCounts } from './scope';
 
 const id = z.uuid();
 
@@ -2829,7 +2830,31 @@ export type GetGroundingScopeResponse = {
   sources: GroundingSource[];
   /** the per-turn assembly token budget every run is built inside (ADR-0029 §5) */
   assemblyTokenBudget: number;
+  /**
+   * T-470 — how many of `sources` carry each classification term, keyed by
+   * term id. Counted over exactly the documents in `sources`, so it is the
+   * number of VISIBLE, readable documents and nothing the wall hides. A term
+   * no listed document carries is absent (read it as zero).
+   */
+  termCounts: Record<Id, number>;
 };
+
+// T-470 — POST /projects/:projectId/scope-preview: what a scope would reach,
+// before anything is asked.
+//
+// *In plain terms: as a person builds a scope in the picker, this says "14
+// documents in your scope can be read" — or "nothing" — without running a
+// search or a model.*
+//
+// It is the same count `POST /runs` takes before it spends anything
+// (`reachCounts`, T-469), minus `read`, which only a finished run has. The wall
+// is applied in the count itself, so the browser cannot compute this and the
+// numbers never move because of a share between two other organisations. A
+// saved scope is resolved on the server; another firm's does not exist (404).
+// Absent `scope` is the whole visible library — the one convention.
+export const scopePreviewBody = z.object({ scope: scopeSchema.optional() }).strict();
+export type ScopePreviewBody = z.infer<typeof scopePreviewBody>;
+export type ScopePreviewResponse = ReachCounts;
 
 // T-295 — GET /runs/:runId/destination-check?sandboxId=…: what the destination
 // selector shows BEFORE the click.

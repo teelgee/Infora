@@ -16,6 +16,7 @@
 // nullable steps (T-293): a plan that could not be read is a stated absence,
 // never a guess. Nothing here computes a fact the record does not hold.
 import { useState } from 'react';
+import { reachStatement } from '@infora/contracts';
 import type { Citation, Plan, Run, Step } from '@infora/contracts';
 
 const MODE_WORDS = {
@@ -99,6 +100,13 @@ export function CompletionFooter(props: {
           </>
         )}
       </div>
+
+      {/* T-470 — what the run read and what it could not, in the one sentence
+          `reachStatement` renders everywhere. An answer from before the counts
+          existed has none, and says nothing rather than guessing. */}
+      {run.reach !== undefined && run.reach !== null && (
+        <div className="cf-reach">{reachStatement(run.reach)}</div>
+      )}
 
       {/* Where verification could not be taken independently, SAY SO. The
           deterministic ground-check always runs and is code, not a model; the

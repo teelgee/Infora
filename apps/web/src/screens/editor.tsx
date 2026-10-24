@@ -17,6 +17,7 @@ import type {
   ReviewCycle,
   Round,
   Run,
+  RunReach,
   SandboxComment,
   SandboxDocument,
   Suggestion,
@@ -222,6 +223,8 @@ export function EditorScreen() {
   // canvas and the grouped-by-check panel are drawn from this, because a second
   // read would be a second answer to "what did the checker find".
   const [findings, setFindings] = useState<Finding[]>([]);
+  // T-470 — what the newest check behind them read (null when not this reader's run)
+  const [findingsReach, setFindingsReach] = useState<RunReach | null>(null);
   const [findingBusy, setFindingBusy] = useState(false);
   const [drifted, setDrifted] = useState<string[]>([]);
   const [focusedFinding, setFocusedFinding] = useState<{ id: string; at: number } | null>(null);
@@ -270,7 +273,10 @@ export function EditorScreen() {
     setDirty(false);
     setSuggestions(list.items);
     setComments(threads.items);
-    if (marks !== null) setFindings(marks.items);
+    if (marks !== null) {
+      setFindings(marks.items);
+      setFindingsReach(marks.reach ?? null);
+    }
     // T-132: if this draft's container is in review, pull the cycle so an
     // issued round's comments can be answered here, beside the canvas
     const cyc = document.containerId
@@ -1019,6 +1025,7 @@ export function EditorScreen() {
             <FindingsPanel
               onOpenSource={openCitation}
               findings={findings}
+              reach={findingsReach}
               busy={findingBusy}
               focused={focusedFinding}
               drifted={drifted}
