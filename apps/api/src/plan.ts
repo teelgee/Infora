@@ -51,6 +51,7 @@ import { composeReference, loadSchemeOrDefault, templateFields } from './naming'
 import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
 import { searchPlanContainerIds } from '@infora/knowledge';
+import { readerRow } from './library';
 import { listStateChanges, recordStateChange } from './state-changes';
 import { raiseCitedDocumentSuperseded } from './notifications';
 import type { Router } from '@infora/model';
@@ -738,9 +739,20 @@ export function containerRoutes(deps: { db: Db }) {
   // reaches an org's internal QA machinery (ADR-0032).
   // T-465 — the document's own record of state changes, through the plan row's visibility
   app.get('/containers/:containerId/state-changes', async (c) => {
-    const scopedCtx = await scoped(c, c.req.param('containerId'));
-    if (!scopedCtx) return notFound(c);
-    return c.json({ items: await listStateChanges(deps.db, scopedCtx.container.id) } satisfies ListContainerStateChangesResponse);
+    const containerId = c.req.param('containerId');
+    const scopedCtx = await scoped(c, containerId);
+    if (scopedCtx) {
+      return c.json({ items: await listStateChanges(deps.db, scopedCtx.container.id) } satisfies ListContainerStateChangesResponse);
+    }
+    // T-483 — a person who may READ the document (a standard, another firm's
+    // shared report) sees its state changes too: the same reader check the
+    // document page's reader read makes, never a second rule
+    if (!isUuid(containerId)) return notFound(c);
+    const container = await loadContainer(deps.db, containerId);
+    if (!container) return notFound(c);
+    const slice = await resolveSlice(deps.db, c.get('user'), container.projectId);
+    if (!slice || (await readerRow(deps.db, slice, container.id)) === null) return notFound(c);
+    return c.json({ items: await listStateChanges(deps.db, container.id) } satisfies ListContainerStateChangesResponse);
   });
 
   app.get('/containers/:containerId/qa-row', async (c) => {

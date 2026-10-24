@@ -20,6 +20,7 @@ import type {
   GetLibraryResponse,
   GetLibrarySearchResponse,
   GetPassageResponse,
+  GetReaderDocumentResponse,
   GetVersionResponse,
   LibraryItem,
   LibrarySearchItem,
@@ -30,6 +31,7 @@ import { deliverableVisibleSql as deliverableVisible, groundingSources, reachCou
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import type { EntitledSlice } from '@infora/governance';
 import { admittingCodes, contextStateOf } from './context-state';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import { resolveScope, scopeProblem } from './scope';
@@ -72,6 +74,24 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
       .orderBy(asc(s.containers.documentReference));
     const items = (await toLibraryItems(deps.db, rows)).map((item): LibraryItem => ({ ...item, state: 'live' }));
     return c.json({ items } satisfies GetLibraryResponse);
+  });
+
+  // T-483 — the document page for a reader. *Plainly: a person who may read a
+  // document (a standard, another firm's shared report) can open its page; this
+  // is the one read that tells the page what the document is. It tells them
+  // what the library list already tells them and nothing from the plan.*
+  // Any record state: a superseded or withdrawn document someone once cited
+  // must still open. Everything else answers the usual silent absence.
+  app.get('/containers/:containerId/reader', resourceScope(deps, 'containerId', resourceHomes.container), async (c) => {
+    const slice = c.get('slice');
+    const row = await readerRow(deps.db, slice, c.req.param('containerId'));
+    if (row === null) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    const [item] = await toLibraryItems(deps.db, [row]);
+    return c.json({
+      ...item!,
+      state: row.state,
+      withdrawnReason: row.withdrawnReason,
+    } satisfies GetReaderDocumentResponse);
   });
 
   // T-459 — the register's search and paging. *Plainly: one box finds a
@@ -281,6 +301,39 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
   });
 
   return app;
+}
+
+/**
+ * T-483 — the one question the document page asks of a person who is not on the
+ * plan row: may this person read this document? A library-scope, in-library
+ * container of the slice's project that passes the same visibility rule the
+ * list, search, grounding and citations apply — in ANY record state. Returns
+ * the library-shaped row (with its state), or null. The reader read and the
+ * state-changes read both call this, so they cannot disagree.
+ */
+export async function readerRow(
+  db: Db,
+  slice: EntitledSlice,
+  containerId: string,
+): Promise<(LibraryRow & { state: 'live' | 'superseded' | 'withdrawn' | 'rejected' }) | null> {
+  const [row] = await db
+    .select({ ...libraryRowSelect, state: s.containers.state })
+    .from(s.containers)
+    .innerJoin(s.versions, eq(s.versions.containerId, s.containers.id))
+    .innerJoin(s.organisations, eq(s.organisations.id, s.containers.producingOrganisationId))
+    .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+    .where(
+      and(
+        eq(s.containers.id, containerId),
+        eq(s.containers.projectId, slice.projectId),
+        eq(s.containers.scope, 'library'),
+        eq(s.containers.inLibrary, true),
+        eq(s.versions.isCurrent, true),
+        deliverableVisible(slice),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 // T-459 — the row shape the list and the search share, and the mapping to the

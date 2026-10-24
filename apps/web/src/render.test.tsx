@@ -35,7 +35,8 @@ import { ChatComposer, WorkingSetCard, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
-import { CurrencyCard } from './screens/document';
+import { CurrencyCard, ReaderPage } from './screens/document';
+import type { ReaderDocument } from '@infora/contracts';
 import { ImpactView } from './screens/library';
 import { CitedByList } from './ontology-panel';
 import { EVENT_LABEL } from './screens/notifications';
@@ -3187,5 +3188,67 @@ describe('T-476 — the strength map, and the disproving pass beside its price',
     expect(html).toContain('Ask the model to argue');
     for (const figure of ['0.4321', '0.1234', '0.5555']) expect(html).not.toContain(figure);
     expect(html.toLowerCase()).not.toContain('cost');
+  });
+});
+
+describe('T-483 — the document page for a reader who is not on the plan row', () => {
+  const standard: ReaderDocument = {
+    containerId: 'c1',
+    documentReference: 'WA-STD-BS5930-001',
+    currentVersionId: 'v1',
+    title: 'Code of practice for ground investigations',
+    revision: 'R01',
+    suitability: null,
+    discipline: null,
+    producerName: 'Trentmoor',
+    issuedAt: '2026-01-01T00:00:00.000Z',
+    state: 'live',
+    kind: 'reference',
+    contextState: { grounds: true, reason: null },
+    producingOrganisationId: 'o1',
+    withdrawalProposal: null,
+    notCitable: false,
+    notCitableReason: null,
+    currency: null,
+    withdrawnReason: null,
+  };
+  const page = (reader: ReaderDocument, currencyRead: Parameters<typeof ReaderPage>[0]['currencyRead']) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ReaderPage
+          reader={reader}
+          containerId="c1"
+          projectId="p1"
+          tab="overview"
+          setTab={() => undefined}
+          versions={[]}
+          renditionsByVersion={{}}
+          citedVersionId={null}
+          cited={null}
+          currencyRead={currencyRead}
+          stateChanges={[]}
+        />
+      </MemoryRouter>,
+    );
+
+  it('shows four tabs and none of the plan-only ones, and no actions', () => {
+    const html = page(standard, null);
+    for (const label of ['Overview', 'Versions', 'Relationships', 'Activity']) expect(html).toContain(label);
+    expect(html).not.toContain('Review record');
+    expect(html).not.toContain('Transmittals');
+    expect(html).not.toContain('Edit details');
+    expect(html).not.toContain('Open the review');
+    expect(html).not.toContain('Who can see this');
+    expect(html).toContain('WA-STD-BS5930-001');
+    expect(html).toContain('Trentmoor');
+  });
+
+  it('shows the Currency card for a reference document and none for a deliverable', () => {
+    const currency = {
+      currency: { state: 'unconfirmed' as const, confirmedAt: null, confirmedBy: null, recheckDue: null },
+      intervalMonths: 12,
+    };
+    expect(page(standard, currency)).toContain('Currency');
+    expect(page({ ...standard, kind: 'deliverable' }, null)).not.toContain('Currency');
   });
 });

@@ -18,9 +18,15 @@
 // partial views retire under T-458, once the register's side panel (T-460)
 // carries the quick edits the plan modal holds today.
 //
-// 🔒 Access is unchanged and resolved by the API: the row comes from the plan
-// read (or the org-private qa-row read for an internal series), and a person
-// outside the share gets "not on a plan you can see", never a page.
+// 🔒 Access is resolved by the API, in two steps (T-483). The owner and the
+// producer get the page from the plan row (or the org-private qa-row read for
+// an internal series), unchanged. A person with no plan row is asked the
+// question the rest of the product asks — may they READ this document? — through
+// the reader read (the library's own visibility rule, any record state): a
+// consultant opens a standard, Redgate another firm's shared report, each
+// seeing four tabs (Overview, Versions, Relationships, Activity) and none of
+// the plan's management facts. A person outside the share gets "This document
+// is not one you can open", never a page.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import { currencyWords } from '@infora/contracts';
@@ -33,6 +39,7 @@ import type {
   GetVersionResponse,
   MeResponse,
   PlanRow,
+  ReaderDocument,
   Rendition,
   ReviewCycle,
   RosterEntry,
@@ -74,6 +81,8 @@ export function DocumentScreen() {
   const isSuper = participant.elevated;
 
   const [row, setRow] = useState<PlanRow | null>(null);
+  // T-483 — set instead of `row` when the person may read the document but is not on its plan row
+  const [reader, setReader] = useState<ReaderDocument | null>(null);
   const [cycle, setCycle] = useState<ReviewCycle | null>(null);
   const [draft, setDraft] = useState<SandboxDocument | null>(null);
   const [renditionsByVersion, setRenditions] = useState<Record<string, Rendition[]>>({});
@@ -108,8 +117,47 @@ export function DocumentScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs, history, issues, rosterRead, changes, admitted, currencyAnswer] = await Promise.all([
-        api.plan(projectId),
+      // 1. the plan row (or the org-private QA row): the owner's and the
+      //    producer's page, unchanged
+      const plan = await api.plan(projectId);
+      const planRow =
+        (plan.items.find((r) => r.containerId === containerId) ?? null) ||
+        (await api.qaRow(containerId).catch(() => null));
+      if (planRow === null) {
+        // 2. T-483 — no plan row for this person: ask the question the rest of
+        //    the product asks, "may this person read this document?". An answer
+        //    opens the reader page; absence falls through to the old fallbacks.
+        const readerRead = await api.readerDocument(containerId).catch(() => null);
+        setRow(null);
+        setReader(readerRead);
+        // the plan-only facts of whatever this page showed before stay behind
+        setCycle(null);
+        setDraft(null);
+        setTransmittals([]);
+        setExternalIssues([]);
+        setAdmission(null);
+        setRoster([]);
+        if (readerRead !== null) {
+          const [changes, currencyAnswer] = await Promise.all([
+            api.containerStateChanges(containerId).catch(() => ({ items: [] as ContainerStateChange[] })),
+            api.containerCurrency(containerId).catch(() => null),
+          ]);
+          setStateChanges(changes.items);
+          setCurrencyRead(currencyAnswer);
+          setLoaded(true);
+          const wanted = new Set<string>([readerRead.currentVersionId]);
+          if (citedVersionId) wanted.add(citedVersionId);
+          const entries = await Promise.all(
+            [...wanted].map(async (v) => [v, await api.renditions(v).then((r) => r.items, () => [])] as const),
+          );
+          setRenditions(Object.fromEntries(entries));
+        } else {
+          setLoaded(true);
+        }
+        return;
+      }
+      setReader(null);
+      const [cycleRead, docs, history, issues, rosterRead, changes, admitted, currencyAnswer] = await Promise.all([
         api.cycle(containerId).catch(() => null),
         api.sandboxDocuments(projectId).catch(() => ({ items: [] as SandboxDocument[] })),
         api.containerTransmittals(containerId).catch(() => ({ items: [] as TransmittalHistoryRow[] })),
@@ -122,9 +170,6 @@ export function DocumentScreen() {
       ]);
       setAdmission(admitted.admission);
       setCurrencyRead(currencyAnswer);
-      const planRow =
-        (plan.items.find((r) => r.containerId === containerId) ?? null) ||
-        (await api.qaRow(containerId).catch(() => null));
       setRow(planRow);
       setCycle(cycleRead);
       setDraft(docs.items.find((d) => d.containerId === containerId || d.freezeContainerId === containerId) ?? null);
@@ -134,7 +179,7 @@ export function DocumentScreen() {
       setRoster(rosterRead.items.filter((r) => r.removedAt === null));
       setLoaded(true);
       const wanted = new Set<string>(cycleRead?.rounds.map((r) => r.versionId) ?? []);
-      if (planRow?.currentVersion) wanted.add(planRow.currentVersion.versionId);
+      if (planRow.currentVersion) wanted.add(planRow.currentVersion.versionId);
       if (citedVersionId) wanted.add(citedVersionId);
       const entries = await Promise.all(
         [...wanted].map(async (v) => [v, await api.renditions(v).then((r) => r.items, () => [])] as const),
@@ -162,6 +207,14 @@ export function DocumentScreen() {
         note: `Round ${r.number} — ${r.state}`,
       });
     }
+    if (reader) {
+      out.push({
+        versionId: reader.currentVersionId,
+        versionReference: reader.revision,
+        createdAt: reader.issuedAt,
+        note: 'Current',
+      });
+    }
     if (row?.currentVersion && !rounds.some((r) => r.versionId === row.currentVersion!.versionId)) {
       out.unshift({
         versionId: row.currentVersion.versionId,
@@ -181,7 +234,7 @@ export function DocumentScreen() {
       });
     }
     return out;
-  }, [cycle, row, citedVersionId, cited]);
+  }, [cycle, row, reader, citedVersionId, cited]);
 
   // T-466 — this page's actions, in the palette while the page is open. A hook,
   // so it sits above the early returns; the row may still be loading.
@@ -230,7 +283,7 @@ export function DocumentScreen() {
       </div>
     );
   }
-  if (row === null && loaded && citedVersionId) {
+  if (row === null && reader === null && loaded && citedVersionId) {
     // no plan row this reader can see for the container: never a dead click —
     // the source view still shows the cited passage and the version's text
     return (
@@ -243,11 +296,28 @@ export function DocumentScreen() {
       </div>
     );
   }
+  if (reader !== null) {
+    return (
+      <ReaderPage
+        reader={reader}
+        containerId={containerId}
+        projectId={projectId}
+        tab={tab}
+        setTab={setTab}
+        versions={versions}
+        renditionsByVersion={renditionsByVersion}
+        citedVersionId={citedVersionId}
+        cited={cited}
+        currencyRead={currencyRead}
+        stateChanges={stateChanges}
+      />
+    );
+  }
   if (row === null) {
     return (
       <div className="content">
         {loaded ? (
-          <p style={{ color: 'var(--text-muted)' }}>This document is not on a plan you can see.</p>
+          <p style={{ color: 'var(--text-muted)' }}>This document is not one you can open.</p>
         ) : (
           <div style={{ display: 'grid', gap: 12, maxWidth: 720 }}>
             <Skeleton height={28} width="40%" />
@@ -431,6 +501,132 @@ export function DocumentScreen() {
       {tab === 'activity' && (
         <ActivityTab row={row} cycle={cycle} versions={versions} transmittals={transmittals} externalIssues={externalIssues} stateChanges={stateChanges} admission={admission} onIndexAgain={isOwner && isSuper && admission?.needsIndexing ? () => void indexAgain() : undefined} />
       )}
+    </div>
+  );
+}
+
+// T-483 — the reader's page: the document as someone who may READ it sees it
+// (a standard; another firm's shared report). Four tabs, no plan facts, no
+// actions. The review record, the transmittals and the plan's people
+// (authors, reviewers, who may see it) belong to the producer and the owner and
+// are never fetched here.
+const READER_TABS = TABS.filter((t) => ['overview', 'versions', 'relationships', 'activity'].includes(t.value));
+
+/** The reader row in the shape the lifecycle helper reads, so its logic is not copied. */
+function readerLifecycle(reader: ReaderDocument) {
+  return lifecycleBadgeOf({
+    state: reader.state,
+    inLibrary: true,
+    workItem: reader.kind === 'reference' ? null : { status: 'accepted' },
+    currentVersion: { versionReference: reader.revision },
+    documentReference: reader.documentReference,
+  });
+}
+
+export function ReaderPage(props: {
+  reader: ReaderDocument;
+  containerId: string;
+  projectId: string;
+  tab: Tab;
+  setTab: (tab: Tab) => void;
+  versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
+  renditionsByVersion: Record<string, Rendition[]>;
+  citedVersionId: string | null;
+  cited: GetPassageResponse | null;
+  currencyRead: GetContainerCurrencyResponse | null;
+  stateChanges: ContainerStateChange[];
+}) {
+  const { reader } = props;
+  const lifecycle = readerLifecycle(reader);
+  const contextBadge = contextStateBadge(reader.contextState);
+  const title = reader.title ?? (reader.kind === 'reference' ? 'Reference material' : reader.documentReference);
+  const tab: Tab = READER_TABS.some((t) => t.value === props.tab) ? props.tab : 'overview';
+  const events: Array<{ at: string; what: string; who: string }> = props.stateChanges.map((ch) => ({
+    at: ch.changedAt,
+    who: ch.changedBy.name,
+    what:
+      ch.toState === 'withdrawn'
+        ? `Withdrawn from the library${ch.reason ? ` — ${ch.reason}` : ''}`
+        : ch.toState === 'superseded'
+          ? `Superseded${ch.reason ? ` — ${ch.reason}` : ''}`
+          : ch.fromState === 'withdrawn'
+            ? 'Restored to the library'
+            : `Back to live${ch.reason ? ` — ${ch.reason}` : ''}`,
+  }));
+  return (
+    <div className="content">
+      <h1 className="page" style={{ fontFamily: 'var(--primitive-font-family-mono)' }}>
+        {reader.documentReference}
+      </h1>
+      <p className="page-sub" style={{ margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <span>{title}</span>
+        <span>· {reader.producerName}</span>
+        <Badge tone={lifecycle.tone}>{lifecycle.label}</Badge>
+        {contextBadge && <Badge tone={contextBadge.tone}>{contextBadge.label}</Badge>}
+      </p>
+
+      <div style={{ margin: '12px 0 16px' }}>
+        <SegmentedControl value={tab} onChange={props.setTab} options={READER_TABS} label="Document page sections" />
+      </div>
+
+      {tab === 'overview' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 16 }}>
+          <Card label="Document">
+            <MetaRow k="Reference">
+              <span className="mono">{reader.documentReference}</span>
+            </MetaRow>
+            <MetaRow k="Title">{title}</MetaRow>
+            <MetaRow k="Producing organisation">{reader.producerName}</MetaRow>
+            <MetaRow k="Where it is">
+              <Badge tone={lifecycle.tone}>{lifecycle.label}</Badge>
+            </MetaRow>
+            <MetaRow k="AI reach">
+              {contextBadge ? <Badge tone={contextBadge.tone}>{contextBadge.label}</Badge> : 'In the AI’s reach'}
+            </MetaRow>
+            <MetaRow k="Current revision">{reader.revision}</MetaRow>
+            {reader.withdrawnReason && reader.state !== 'live' && (
+              <MetaRow k="Withdrawn">{reader.withdrawnReason}</MetaRow>
+            )}
+          </Card>
+          {props.currencyRead !== null && (
+            <CurrencyCard read={props.currencyRead} mayConfirm={false} confirming={false} onConfirm={() => undefined} />
+          )}
+        </div>
+      )}
+
+      {tab === 'versions' && (
+        <VersionsTab
+          versions={props.versions}
+          renditionsByVersion={props.renditionsByVersion}
+          focus={props.citedVersionId ? { versionId: props.citedVersionId, passage: props.cited } : null}
+        />
+      )}
+
+      {tab === 'relationships' && (
+        <Card label="Classification and relationships">
+          <OntologyPanel containerId={props.containerId} projectId={props.projectId} editable={false} />
+        </Card>
+      )}
+
+      {tab === 'activity' &&
+        (events.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nothing has happened to this document yet.</p>
+        ) : (
+          <Card label="What happened">
+            <ul className="shelf-rows" aria-label="Activity">
+              {events
+                .sort((a, b) => b.at.localeCompare(a.at))
+                .map((e, i) => (
+                  <li key={i}>
+                    <span className="shelf-row-title" style={{ fontWeight: 500 }}>{e.what}</span>
+                    <span className="shelf-row-note">
+                      {formatDateTime(e.at)} · {e.who}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </Card>
+        ))}
     </div>
   );
 }

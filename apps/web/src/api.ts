@@ -109,6 +109,7 @@ import type {
   ListStyleGuidesResponse,
   ListToolsResponse,
   GetLibraryResponse,
+  GetReaderDocumentResponse,
   GetPlanResponse,
   GetRunPlanResponse,
   GetPassageResponse,
@@ -326,6 +327,9 @@ export const api = {
   workItem: (workItemId: string) => request<GetWorkItemResponse>(`/work-items/${workItemId}`),
   run: (runId: string) => request<Run>(`/runs/${runId}`),
   library: (projectId: string) => request<GetLibraryResponse>(`/projects/${projectId}/library`),
+  // T-483 — the document page for a reader who is not on the plan row
+  readerDocument: (containerId: string) =>
+    request<GetReaderDocumentResponse>(`/containers/${containerId}/reader`),
 
   // T-292 — what the composer's Data sources and Context chips read. NOT the
   // library list: membership is necessary and no longer sufficient, and the

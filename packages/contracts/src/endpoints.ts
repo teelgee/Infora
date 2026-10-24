@@ -536,6 +536,19 @@ export type LibraryItem = {
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
+// T-483 — the document page's reader read: GET /containers/:containerId/reader.
+// *Plainly: a person who may read a document but is not on its plan row (a
+// standard; another firm's shared report) opens its page from this. It tells
+// them what the library list already tells them, in any record state, and
+// nothing the plan row carries (the authoring team, reviewers, who may see it).*
+// The reason a withdrawn document was withdrawn is visible to whoever may read
+// the document (ADR-0013 §4); the answer is absence when they may not.
+export type ReaderDocument = Omit<LibraryItem, 'state'> & {
+  state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  withdrawnReason: string | null;
+};
+export type GetReaderDocumentResponse = ReaderDocument;
+
 // ── T-459 — the register's search and paging ────────────────────────────────
 //
 // GET /projects/:projectId/library/search — one row per container, paged,

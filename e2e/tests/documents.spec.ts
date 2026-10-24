@@ -3,7 +3,8 @@
 // negative (a firm outside the share gets no page).
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { SEEDED } from './support/api';
+import type { DeliverableShare, GetLibraryResponse, ListRosterResponse, MeResponse } from '@infora/contracts';
+import { ApiSession, SEEDED } from './support/api';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -84,6 +85,90 @@ test('a firm outside the share gets no page', async ({ page, browser }) => {
   const page2 = await other.newPage();
   await loginAs(page2, SEEDED.secondConsultant);
   await page2.goto(target);
-  await expect(page2.getByText('This document is not on a plan you can see.')).toBeVisible();
+  await expect(page2.getByText('This document is not one you can open.')).toBeVisible();
   await other.close();
+});
+
+// T-483 — the page opens for anyone who may READ the document, not only for
+// the people on its plan row.
+const READER_TABS = ['Overview', 'Versions', 'Relationships', 'Activity'];
+
+test('a consultant opens a standard’s page and reads its currency and what cites it', async ({ page }) => {
+  await loginAs(page, SEEDED.consultant);
+  await page.getByRole('link', { name: /Project library/ }).click();
+  // the seeded standard, found by its own code (the local database is bloated)
+  await page.getByRole('searchbox', { name: /Search/ }).first().fill('WA-STD-BS5930-001');
+  await page.getByRole('row').filter({ hasText: 'WA-STD-BS5930-001' }).first().click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('WA-STD-BS5930-001');
+  // four tabs, and none of the plan's
+  for (const name of READER_TABS) await expect(tab(page, name)).toBeVisible();
+  await expect(tab(page, 'Review record')).toHaveCount(0);
+  await expect(tab(page, 'Transmittals')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Edit details/ })).toHaveCount(0);
+  // the currency card is on the overview
+  await expect(page.getByText('Currency', { exact: true })).toBeVisible();
+  await expect(page.getByText('Document', { exact: true })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Who can see this' })).toHaveCount(0);
+  // the relationships tab is read-only
+  await tab(page, 'Relationships').click();
+  await expect(page.getByText('Classification and relationships')).toBeVisible();
+});
+
+test('a consultant reads "Cited by" on the standard its own work rests on', async ({ page }) => {
+  await loginAs(page, SEEDED.consultant);
+  await page.getByRole('link', { name: /Project library/ }).click();
+  await page.getByRole('searchbox', { name: /Search/ }).first().fill('WA-GEO-GIR-004');
+  await page.getByRole('row').filter({ hasText: 'WA-GEO-GIR-004' }).first().click();
+  await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
+  await tab(page, 'Relationships').click();
+  await expect(page.getByText('Cited by', { exact: true })).toBeVisible();
+});
+
+test('Redgate opens another firm’s shared deliverable and sees no plan-only tab', async ({ page }) => {
+  const rachel = await ApiSession.login(SEEDED.owner);
+  const nadia = await ApiSession.login(SEEDED.secondConsultant);
+  const me = await nadia.get<MeResponse>('/me');
+  const projectId = me.participants.find((p) => p.projectName === PROJECT)!.projectId;
+  const roster = (await rachel.get<ListRosterResponse>(`/projects/${projectId}/participants`)).items;
+  const redgateOrgId = roster.find((r) => r.name === 'Nadia Okonjo' && r.removedAt === null)!.organisationId;
+  // a Calder & Hale deliverable on the library (the owner sees every row)
+  const library = (await rachel.get<GetLibraryResponse>(`/projects/${projectId}/library`)).items;
+  const calder = library.find((i) => i.kind === 'deliverable' && i.producerName.includes('Calder'))!;
+  expect(calder).toBeTruthy();
+  // the owner shares it with Redgate and Redgate acknowledges, through the product's own routes
+  const shareRes = await rachel.raw('post', `/containers/${calder.containerId}/shares`, { organisationId: redgateOrgId });
+  expect([201, 409]).toContain(shareRes.status());
+  const shareId = shareRes.status() === 201 ? ((await shareRes.json()) as DeliverableShare).id : null;
+  try {
+    expect([201, 409]).toContain((await nadia.raw('post', `/containers/${calder.containerId}/acknowledgement`, {})).status());
+    await loginAs(page, SEEDED.secondConsultant);
+    await page.goto(`/projects/${projectId}/documents/${calder.containerId}`);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(calder.documentReference);
+    for (const name of READER_TABS) await expect(tab(page, name)).toBeVisible();
+    await expect(tab(page, 'Review record')).toHaveCount(0);
+    await expect(tab(page, 'Transmittals')).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Who can see this' })).toHaveCount(0);
+    await expect(page.getByText('Authoring team')).toHaveCount(0);
+    await tab(page, 'Activity').click();
+    await expect(page.getByText(/What happened|Nothing has happened/)).toBeVisible();
+  } finally {
+    // leave the seed as it was: the share is the spec's own, so the spec closes it
+    if (shareId) await rachel.post(`/shares/${shareId}/revocation`, {});
+  }
+});
+
+test('an organisation outside the share is told this is not a document it can open', async ({ page }) => {
+  const rachel = await ApiSession.login(SEEDED.owner);
+  const eleanor = await ApiSession.login(SEEDED.consultant);
+  const me = await eleanor.get<MeResponse>('/me');
+  const projectId = me.participants.find((p) => p.projectName === PROJECT)!.projectId;
+  // Redgate's own deliverable, shared with nobody
+  const library = (await rachel.get<GetLibraryResponse>(`/projects/${projectId}/library`)).items;
+  const redgate = library.find((i) => i.documentReference === 'WA-ECO-PEA-001')!;
+  expect(redgate).toBeTruthy();
+  await loginAs(page, SEEDED.consultant);
+  await page.goto(`/projects/${projectId}/documents/${redgate.containerId}`);
+  await expect(page.getByText('This document is not one you can open.')).toBeVisible();
+  for (const name of READER_TABS) await expect(tab(page, name)).toHaveCount(0);
 });

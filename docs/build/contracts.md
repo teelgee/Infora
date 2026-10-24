@@ -1868,3 +1868,21 @@ are not recorded here.
   that the excerpt is the draft's own content: only the title was ruled public.
   The superseded notice is unchanged — one document, no count (ADR-0049) — and
   a test now pins it.
+
+- **2026-10-24 (T-483) — `GET /containers/:containerId/reader` and `ReaderDocument`
+  are a separate read, not a widened plan read.** *Plainly: a person who may read
+  a document but is not on its plan can now open its page; the page is built from
+  what the library list already tells them, not from the plan.* The **reason the
+  plan read was not widened** is that a plan row carries the producer's and the
+  owner's management facts (the authoring team, the reviewers, the document
+  owner, who may see it), and a reader of a standard or of another firm's shared
+  report has no business with those. A separate read answers the one question
+  asked, may this person read this document, and returns only the library row's
+  shape plus the record state and the withdrawn reason (which follows the
+  document's visibility, ADR-0013 section 4). The **reason it reuses the
+  library's visibility rule** (`deliverableVisible`) rather than writing a new
+  one is that a second rule is a second place for the wall to drift: the list,
+  search, grounding, citations and now the page all answer by the same
+  predicate. The **reason the state-changes read also admits a reader** is that
+  the Activity tab would otherwise be empty for the one person who most needs to
+  see that a standard was withdrawn; it uses the same check, through one function.
