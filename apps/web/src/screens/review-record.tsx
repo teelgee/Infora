@@ -28,7 +28,7 @@
 // reinstate it. The browser can still print, which is a browser doing its job
 // rather than Infora issuing a document.
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router';
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   MeResponse,
   PlanRow,
@@ -40,6 +40,7 @@ import { Badge, Button, Skeleton, Table } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
 import { formatDate } from './shared';
+import { responseLinkPath } from './threads';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -311,6 +312,11 @@ function CommentRow(props: {
 }) {
   const { comment, round } = props;
   const response = comment.response;
+  // T-479 — the revised passage is a link into the next version, where the
+  // record is read from (the review route and the document tab both carry both ids)
+  const { projectId, containerId } = useParams();
+  const changePath =
+    response && projectId && containerId ? responseLinkPath(projectId, containerId, response) : null;
   return (
     <tr>
       <td style={{ verticalAlign: 'top', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -359,7 +365,13 @@ function CommentRow(props: {
             </div>
             {response.nextVersionAnchor?.quote && (
               <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}>
-                “{response.nextVersionAnchor.quote}”
+                {changePath ? (
+                  <Link to={changePath} data-response-link>
+                    “{response.nextVersionAnchor.quote}”
+                  </Link>
+                ) : (
+                  <>“{response.nextVersionAnchor.quote}”</>
+                )}
               </div>
             )}
             <div className="sub">

@@ -39,7 +39,7 @@ export function usePaletteActions(actions: PaletteAction[]): void {
 
 export type PaletteSection = { label: string; path: string };
 
-const isTyping = (target: EventTarget | null) => {
+export const isTyping = (target: EventTarget | null) => {
   const el = target as HTMLElement | null;
   if (!el) return false;
   const tag = el.tagName;
@@ -49,7 +49,7 @@ const isTyping = (target: EventTarget | null) => {
 export const SHORTCUTS: Array<{ keys: string; does: string }> = [
   { keys: '⌘K / Ctrl+K', does: 'Open the palette: find a document, jump to a section, run this page’s actions' },
   { keys: 'F', does: 'On a register, land in its search box' },
-  { keys: 'J / K', does: 'In a review round, move down / up the comments' },
+  { keys: 'J / K', does: 'On a review, move down / up the Threads list (the comment is highlighted in the round)' },
   { keys: 'R', does: 'Respond to the highlighted comment' },
   { keys: 'E', does: 'Respond to the highlighted comment as “no change was made”' },
   { keys: 'Esc', does: 'Close the palette, a panel or a dialog' },

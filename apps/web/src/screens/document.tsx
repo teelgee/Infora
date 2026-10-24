@@ -53,7 +53,7 @@ import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
 import { VisibilityPanel } from '../visibility-panel';
 import { SourceModal } from '../source-modal';
-import { loadPassage, PassageText } from '../source-card';
+import { loadPassage, PassageText, QuoteText } from '../source-card';
 import { TransmittalRow } from './deliverable-status';
 import { DeliverableDetail } from './plan';
 import { usePaletteActions } from '../command-palette';
@@ -103,6 +103,11 @@ export function DocumentScreen() {
   const [searchParams] = useSearchParams();
   const citedVersionId = searchParams.get('version');
   const citedChunkId = searchParams.get('passage');
+  // T-479 — a response's link lands here as ?version=<id>&quote=<revised passage>
+  const quoteParam = searchParams.get('quote');
+  const pageParam = Number(searchParams.get('page'));
+  const citedQuote =
+    citedVersionId && quoteParam ? { text: quoteParam, ...(pageParam > 0 ? { page: pageParam } : {}) } : null;
   const [cited, setCited] = useState<GetPassageResponse | null>(null);
   const [tab, setTab] = useState<Tab>(citedVersionId ? 'versions' : 'overview');
   const [editing, setEditing] = useState(false);
@@ -308,6 +313,7 @@ export function DocumentScreen() {
         renditionsByVersion={renditionsByVersion}
         citedVersionId={citedVersionId}
         cited={cited}
+        citedQuote={citedQuote}
         currencyRead={currencyRead}
         stateChanges={stateChanges}
       />
@@ -466,7 +472,7 @@ export function DocumentScreen() {
         <VersionsTab
           versions={versions}
           renditionsByVersion={renditionsByVersion}
-          focus={citedVersionId ? { versionId: citedVersionId, passage: cited } : null}
+          focus={citedVersionId ? { versionId: citedVersionId, passage: cited, quote: citedQuote } : null}
         />
       )}
 
@@ -533,6 +539,8 @@ export function ReaderPage(props: {
   renditionsByVersion: Record<string, Rendition[]>;
   citedVersionId: string | null;
   cited: GetPassageResponse | null;
+  /** T-479 — a response's revised passage, when arriving from its link */
+  citedQuote?: { text: string; page?: number } | null;
   currencyRead: GetContainerCurrencyResponse | null;
   stateChanges: ContainerStateChange[];
 }) {
@@ -598,7 +606,7 @@ export function ReaderPage(props: {
         <VersionsTab
           versions={props.versions}
           renditionsByVersion={props.renditionsByVersion}
-          focus={props.citedVersionId ? { versionId: props.citedVersionId, passage: props.cited } : null}
+          focus={props.citedVersionId ? { versionId: props.citedVersionId, passage: props.cited, quote: props.citedQuote ?? null } : null}
         />
       )}
 
@@ -667,7 +675,12 @@ function VersionsTab(props: {
   versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
   renditionsByVersion: Record<string, Rendition[]>;
   /** T-468 — the cited version and its recorded passage, when arriving from a citation */
-  focus?: { versionId: string; passage: GetPassageResponse | null } | null;
+  focus?: {
+    versionId: string;
+    passage: GetPassageResponse | null;
+    /** T-479 — the revised passage a response pointed at, to open the version scrolled to the change */
+    quote?: { text: string; page?: number } | null;
+  } | null;
 }) {
   const [openId, setOpenId] = useState<string | null>(props.focus?.versionId ?? props.versions[0]?.versionId ?? null);
   const [text, setText] = useState<GetVersionResponse | null>(null);
@@ -675,12 +688,25 @@ function VersionsTab(props: {
   const renditions = open ? (props.renditionsByVersion[open.versionId] ?? []) : [];
   const pdf = renditions.find((r) => r.kind === 'pdf') ?? null;
   const native = renditions.find((r) => r.kind === 'native') ?? null;
+  const passage = open && props.focus?.versionId === open.versionId ? (props.focus.passage?.passage ?? null) : null;
+  const quote = open && !passage && props.focus?.versionId === open.versionId ? (props.focus.quote ?? null) : null;
+  // T-479 — a revised passage is looked for in the version's TEXT even when a
+  // PDF exists (an authored version has both); text that is not there (an
+  // upload) falls back to the PDF with the passage stated above it
+  const [textFailed, setTextFailed] = useState(false);
+  const [showPdf, setShowPdf] = useState(false);
   useEffect(() => {
     setText(null);
-    if (open && !pdf) void api.version(open.versionId).then(setText, () => setText(null));
-  }, [open, pdf]);
-
-  const passage = open && props.focus?.versionId === open.versionId ? (props.focus.passage?.passage ?? null) : null;
+    setTextFailed(false);
+    setShowPdf(false);
+    if (open && (!pdf || quote)) {
+      void api.version(open.versionId).then(setText, () => {
+        setText(null);
+        setTextFailed(true);
+      });
+    }
+  }, [open, pdf, quote]);
+  const quoteInText = pdf !== null && quote !== null && !showPdf && (text === null ? !textFailed : text.content.trim() !== '');
 
   if (props.versions.length === 0) {
     return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No versions yet — nothing has been promoted.</p>;
@@ -717,7 +743,18 @@ function VersionsTab(props: {
         </ul>
       </Card>
       <Card label={open ? `${open.versionReference}` : undefined}>
-        {!open ? null : pdf ? (
+        {!open ? null : quoteInText && text === null ? (
+          <span style={{ color: 'var(--text-muted)' }}>Loading…</span>
+        ) : quoteInText && text !== null && quote !== null ? (
+          <>
+            <p className="field-hint" style={{ marginTop: 0 }}>
+              <button type="button" className="fb-btn" onClick={() => setShowPdf(true)}>
+                Open the PDF
+              </button>
+            </p>
+            <QuoteText content={text.content} quote={quote.text} />
+          </>
+        ) : pdf ? (
           <>
             {/* an <object> cannot be highlighted inside, so a PDF opens at the
                 cited page and the verbatim passage rides above it */}
@@ -727,8 +764,14 @@ function VersionsTab(props: {
                 “{passage.verbatim}”
               </p>
             )}
+            {quote && (
+              <p className="passage-banner" data-passage-banner data-quote-banner>
+                {quote.page !== undefined ? `The revised passage, on page ${quote.page}: ` : 'The revised passage: '}
+                “{quote.text}”
+              </p>
+            )}
           <object
-            data={`/renditions/${pdf.id}/file${passage?.page !== undefined ? `#page=${passage.page}` : ''}`}
+            data={`/renditions/${pdf.id}/file${(passage?.page ?? quote?.page) !== undefined ? `#page=${passage?.page ?? quote?.page}` : ''}`}
             type="application/pdf"
             style={{ width: '100%', height: '64vh', border: '1px solid var(--border-default)', borderRadius: 6 }}
           >
@@ -743,6 +786,8 @@ function VersionsTab(props: {
           </p>
         ) : text && passage ? (
           <PassageText content={text.content} passage={passage} />
+        ) : text && quote ? (
+          <QuoteText content={text.content} quote={quote.text} />
         ) : text ? (
           <Markdown>{text.content}</Markdown>
         ) : (

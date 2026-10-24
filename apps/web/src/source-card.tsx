@@ -205,3 +205,62 @@ export function PassageText(props: { content: string; passage: NonNullable<GetPa
     </div>
   );
 }
+
+/**
+ * T-479 — where a response's revised passage sits in a version's text: the
+ * first exact occurrence, else the first ignoring case, else the first with any
+ * run of white space standing for another (a line break the reviewer's quote
+ * did not have). `null` when it is not there — the caller says so rather than
+ * landing at the top of the page as though nothing were asked.
+ */
+export function findQuote(content: string, quote: string): { start: number; end: number } | null {
+  const wanted = quote.trim();
+  if (wanted === '') return null;
+  const exact = content.indexOf(wanted);
+  if (exact >= 0) return { start: exact, end: exact + wanted.length };
+  // one pattern covers both fallbacks: any case, and a run of white space for
+  // each run in the quote
+  const pattern = wanted
+    .split(/\s+/)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  const hit = new RegExp(pattern, 'i').exec(content);
+  return hit ? { start: hit.index, end: hit.index + hit[0].length } : null;
+}
+
+/**
+ * The version's text with the revised passage marked, scrolled into view and
+ * flashed — the same mark a cited passage gets. A quote that cannot be found
+ * says so in a quiet line above the text.
+ */
+export function QuoteText(props: { content: string; quote: string }) {
+  const { content, quote } = props;
+  const marked = useMemo(() => findQuote(content, quote), [content, quote]);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (!marked) return;
+    document.querySelector('mark[data-quote]')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setFlash(true);
+    const timer = window.setTimeout(() => setFlash(false), 1400);
+    return () => window.clearTimeout(timer);
+  }, [marked]);
+  if (!marked) {
+    return (
+      <>
+        <p className="passage-banner" data-quote-missing>
+          The revised passage could not be found in this version’s text: “{quote}”
+        </p>
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.65 }}>{content}</div>
+      </>
+    );
+  }
+  return (
+    <div style={{ whiteSpace: 'pre-wrap', fontSize: 13.5, lineHeight: 1.65 }}>
+      {content.slice(0, marked.start)}
+      <mark data-passage data-quote className={flash ? 'flash' : undefined}>
+        {content.slice(marked.start, marked.end)}
+      </mark>
+      {content.slice(marked.end)}
+    </div>
+  );
+}

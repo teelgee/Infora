@@ -127,7 +127,7 @@ test('the reviewer anchors a comment from a PDF selection; the overlay paints fr
   const body = `Please cite the transect coordinates. ${stamp}`;
   await page.getByPlaceholder('Add a review comment…').fill(body);
   await page.getByRole('button', { name: 'Comment', exact: true }).click();
-  await expect(page.getByText(body)).toBeVisible();
+  await expect(page.locator('[data-comment-id]').getByText(body)).toBeVisible();
   // confirm the comment is durably on the record before reloading (don't race
   // the reload against the write's commit)
   await expect
@@ -143,7 +143,7 @@ test('the reviewer anchors a comment from a PDF selection; the overlay paints fr
   await expect(
     page.locator('.review-pdf-overlay [aria-label="anchored comment highlight"]').first(),
   ).toBeVisible();
-  await expect(page.getByText(body)).toBeVisible();
+  await expect(page.locator('[data-comment-id]').getByText(body)).toBeVisible();
 
   // the stored anchor is a page + quoted text + normalised quads (never a
   // rendition-specific sidecar)
@@ -178,5 +178,5 @@ test('the authoring side sees the overlays only once the round is issued (ADR-00
   await expect(
     page.locator('.review-pdf-overlay [aria-label="anchored comment highlight"]').first(),
   ).toBeVisible();
-  await expect(page.getByText(body)).toBeVisible();
+  await expect(page.locator('[data-comment-id]').getByText(body)).toBeVisible();
 });

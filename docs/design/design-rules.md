@@ -126,6 +126,11 @@ For each: variants/states present in the mockups, tokens used, one-line usage no
 - **Keyboard moves:** F lands in a register's search box; in a review round J/K walk the comments (the same highlight the pointer gives), R opens the highlighted comment's response, E opens it as "no change was made"; ? lists the shortcuts. **Focus rule:** no single-key move fires while the person is typing — in the editor, a comment, any input — and ⌘K is the only chord.
 - Use for: finding and jumping. Do not add a second search box to a page the palette already reaches; a register keeps its own box because it filters the list in place.
 
+### Threads list (`component.threads`) *(T-479, 2026-10-24)*
+- **What it is:** every comment of a review in one list, newest round first: state badge (Open info, Answered success, No change neutral, Overtaken warning), reviewer, round and revision, code, the first line of the comment. Filters are chips with counts in three labelled groups (state, reviewer, code); a chosen chip carries a trailing × and a "n of m comments shown · Clear filters" line states the narrowing. The selected row opens in place and is the same highlight the round's tray gives the comment.
+- **Rules:** states are derived from what is stored, never set by a person, and none of them means approval (Q-038). A round walled from the reader is stated in words, never drawn as an empty list. Any progress shown above the list is a plain line per reviewer — no "x of y", no colour implying lateness (ADR-0005).
+- Use for: reading and walking a review's comments. J/K walk the filtered list; R and E respond to the selected comment, under the palette's focus rule.
+
 ### Project card (`component.projectCard`)
 - **States:** default *(designed)*, hover *(derive — same lift pattern as suggestionCallout, subtle `translateY` optional)*.
 - Use for: "your projects" list on the workspace landing; the numbered circle communicates progress (drafted/total), not a percentage bar.

@@ -6,7 +6,7 @@
 // owner may close-rejected. Review happens against the frozen version; the
 // full in-PDF anchored viewer is the noted follow-up (anchors here are
 // quote/page fields; the PDF rendition downloads beside each round).
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   AcceptanceCode,
@@ -24,9 +24,12 @@ import { ChevronDown, Download, X } from 'lucide-react';
 import { Badge, Button, Card, Field, Modal, SectionLabel, SelectInput, Skeleton, TextArea } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
+import { isTyping } from '../command-palette';
 import { CycleStatusBar } from '../cycle-status-bar';
 import { PromotionWindow } from '../promotion-window';
 import { formatDateTime, lifecycleBadgeOf, statusBadge } from './shared';
+import { ResponseChange, ThreadsPanel } from './threads-panel';
+import { buildThreads, filterThreads, NO_FILTER, progressLines, type ThreadFilter } from './threads';
 
 // pdf.js is heavy and only the cycle page renders it — split it into its own
 // chunk (loaded when a round with a PDF rendition mounts), not the main bundle.
@@ -56,6 +59,54 @@ export function CycleScreen() {
   const [expandedRounds, setExpandedRounds] = useState<Set<string>>(new Set());
   // T-373 — the promotion window for the next version
   const [promoting, setPromoting] = useState(false);
+  // T-479 — the Threads panel: its filters, the one highlighted comment (the
+  // pointer, the J/K walk and a click on a thread all set the same highlight),
+  // and the keyboard request for the highlighted comment's response.
+  const [threadFilter, setThreadFilter] = useState<ThreadFilter>(NO_FILTER);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [command, setCommand] = useState<{ id: string; kind: 'respond' | 'noChange'; seq: number } | null>(null);
+  const [scrollTo, setScrollTo] = useState<{ id: string; seq: number } | null>(null);
+  const threads = useMemo(() => (cycle ? buildThreads(cycle) : []), [cycle]);
+  const walkIds = useMemo(() => filterThreads(threads, threadFilter).map((t) => t.comment.id), [threads, threadFilter]);
+
+  // T-466 / T-479 — the keyboard moves, in ONE place: J/K walk the filtered
+  // Threads list, R opens the highlighted comment's response, E opens it as "no
+  // change was made". The shared focus rule (never while typing) is the
+  // palette's own predicate.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (walkIds.length === 0) return;
+      const at = activeId ? walkIds.indexOf(activeId) : -1;
+      const move = (to: string) => {
+        setActiveId(to);
+        setScrollTo((m) => ({ id: to, seq: (m?.seq ?? 0) + 1 }));
+      };
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        move(walkIds[Math.min(at + 1, walkIds.length - 1)]!);
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        move(walkIds[Math.max(at - 1, 0)]!);
+      } else if ((e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') && activeId) {
+        e.preventDefault();
+        setCommand((c) => ({ id: activeId, kind: e.key.toLowerCase() === 'e' ? 'noChange' : 'respond', seq: (c?.seq ?? 0) + 1 }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [walkIds, activeId]);
+  // a keyboard move or a click brings the comment into view in both places it
+  // is drawn: its row in the list and its place in the round's tray
+  useEffect(() => {
+    if (!scrollTo) return;
+    for (const el of document.querySelectorAll(
+      `[data-thread-id="${scrollTo.id}"], [data-comment-id="${scrollTo.id}"]`,
+    )) {
+      el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [scrollTo]);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -358,6 +409,31 @@ export function CycleScreen() {
         </Card>
       )}
 
+      {/* T-479 — every comment the reader may see, in one list (ADR-0014 applied
+          by the read: a walled round is stated, not drawn empty) */}
+      {cycle && (
+        <ThreadsPanel
+          threads={threads}
+          withheldRounds={cycle.rounds.filter((r) => r.commentsWithheld)}
+          filter={threadFilter}
+          onFilter={setThreadFilter}
+          activeId={activeId}
+          onSelect={(id) => {
+            setActiveId(id);
+            setScrollTo((m) => ({ id, seq: (m?.seq ?? 0) + 1 }));
+          }}
+          // ADR-0052 — a line per confirmed reviewer for the round that is open,
+          // only where the read gives the completions; none is drawn otherwise
+          progress={cycle.rounds.flatMap((round) => {
+            const lines = progressLines(round, row.reviewers);
+            return lines === null ? [] : [{ round, lines }];
+          })}
+          projectId={me.projectId}
+          containerId={containerId}
+          versionRefById={Object.fromEntries(cycle.rounds.map((r) => [r.versionId, r.versionReference]))}
+        />
+      )}
+
       {cycle &&
         (() => {
           const newestNumber = Math.max(...cycle.rounds.map((r) => r.number));
@@ -386,6 +462,11 @@ export function CycleScreen() {
               canModerate={round.state === 'open' && (myReviewer?.isLead ?? false)}
               canRespond={round.state === 'issued' && !!myAuthor && cycle.state === 'active'}
               versionRefById={versionRefById}
+              projectId={me.projectId}
+              containerId={containerId}
+              activeId={activeId}
+              onActive={setActiveId}
+              command={command}
               collapsible={!isNewest}
               onCollapse={() =>
                 setExpandedRounds((s) => {
@@ -500,6 +581,12 @@ function RoundCard(props: {
   canModerate: boolean;
   canRespond: boolean;
   versionRefById: Record<string, string>;
+  projectId: string;
+  containerId: string;
+  /** T-479 — the one highlighted comment, held by the screen with the keys */
+  activeId: string | null;
+  onActive: (id: string | null) => void;
+  command: { id: string; kind: 'respond' | 'noChange'; seq: number } | null;
   collapsible?: boolean;
   onCollapse?: () => void;
   act: (action: () => Promise<unknown>) => Promise<void>;
@@ -512,33 +599,9 @@ function RoundCard(props: {
   const [issuing, setIssuing] = useState(false);
   const [issueBusy, setIssueBusy] = useState(false);
   const [draftAnchor, setDraftAnchor] = useState<CommentAnchor | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
-  // T-466 — the keyboard moves: J/K walk the comments (the highlight is the
-  // same one the pointer gives), R opens the highlighted comment's response,
-  // E opens it as "no change was made". Never while typing.
-  const [command, setCommand] = useState<{ id: string; kind: 'respond' | 'noChange'; seq: number } | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const ids = round.comments.map((c) => c.id);
-      if (ids.length === 0) return;
-      const at = hovered ? ids.indexOf(hovered) : -1;
-      if (e.key === 'j' || e.key === 'J') {
-        e.preventDefault();
-        setHovered(ids[Math.min(at + 1, ids.length - 1)]!);
-      } else if (e.key === 'k' || e.key === 'K') {
-        e.preventDefault();
-        setHovered(ids[Math.max(at - 1, 0)]!);
-      } else if ((e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') && hovered) {
-        e.preventDefault();
-        setCommand((c) => ({ id: hovered, kind: e.key.toLowerCase() === 'e' ? 'noChange' : 'respond', seq: (c?.seq ?? 0) + 1 }));
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [round.comments, hovered]);
+  const hovered = props.activeId;
+  const setHovered = props.onActive;
+  const command = props.command;
   const roundState = statusBadge(round.state);
   const pdf = renditions.find((r) => r.kind === 'pdf') ?? null;
 
@@ -676,6 +739,8 @@ function RoundCard(props: {
                     onHover={setHovered}
                     command={command?.id === comment.id ? command : null}
                     versionRefById={props.versionRefById}
+                    projectId={props.projectId}
+                    containerId={props.containerId}
                   />
                 ))}
               </div>
@@ -846,6 +911,8 @@ function CommentRow(props: {
   /** T-466 — a keyboard request for this comment: open the response (R) or open it as no change (E) */
   command: { kind: 'respond' | 'noChange'; seq: number } | null;
   versionRefById: Record<string, string>;
+  projectId: string;
+  containerId: string;
 }) {
   const { comment, hovered, onHover } = props;
   const [responding, setResponding] = useState(false);
@@ -868,6 +935,8 @@ function CommentRow(props: {
 
   return (
     <div
+      data-comment-id={comment.id}
+      data-active={hovered ? 'true' : undefined}
       onMouseEnter={() => onHover(comment.id)}
       onMouseLeave={() => onHover(null)}
       style={{
@@ -975,12 +1044,12 @@ function CommentRow(props: {
             <span style={{ color: 'var(--text-muted)' }}> — no change: {comment.response.noChangeReason}</span>
           ) : (
             <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
-              {comment.response.nextVersionId && props.versionRefById[comment.response.nextVersionId]
-                ? `Changed in ${props.versionRefById[comment.response.nextVersionId]}`
-                : 'Change prepared for the next revision'}
-              {comment.response.nextVersionAnchor?.quote && (
-                <> — <i>“{comment.response.nextVersionAnchor.quote}”</i></>
-              )}
+              <ResponseChange
+                response={comment.response}
+                projectId={props.projectId}
+                containerId={props.containerId}
+                versionRefById={props.versionRefById}
+              />
             </div>
           )}
         </div>
