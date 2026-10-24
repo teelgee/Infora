@@ -2841,10 +2841,14 @@ describe('T-474 — supersede impact on screen', () => {
         items={[
           { kind: 'draft', id: 'd', title: 'Chapter 9', at: '2026-10-20T10:00:00Z' },
           { kind: 'run', id: 'r', title: 'What did the ground investigation find?', at: '2026-10-19T10:00:00Z' },
+          { kind: 'library-version', id: 'v', title: 'Ground report rev B', at: '2026-10-21T10:00:00Z' },
         ]}
       />,
     );
     expect(html).toContain('Cited by');
+    // only a library revision carries the hedge — the record cannot tell whether the sentence survived
+    expect(html.match(/may rest on this/g)).toHaveLength(1);
+    expect(html).toContain('a draft of theirs cited it before the revision was issued');
     expect(html).toContain('Draft');
     expect(html).toContain('Chapter 9');
     expect(html).toContain('Answer');

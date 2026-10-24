@@ -196,6 +196,11 @@ export async function listFindings(
   );
   if (attachedIds.length === 0) return found;
   const mayRead = await readableDocumentIds(db, slice, attachedIds);
+  // A file uploaded for a one-off check has a per-run handle, not a sandbox
+  // document id, so `readableDocumentIds` never admits it. Its text belongs to
+  // the person who ran that check and to nobody else: admit the handle for the
+  // run's requester, and only for them.
+  for (const handle of await ownUploadHandles(db, slice, found)) mayRead.add(handle);
   const closedIds = [...new Set(attachedIds.filter((id) => !mayRead.has(id)))];
   if (closedIds.length === 0) return found;
   const titles = await attachedTitles(db, found, closedIds);
@@ -214,6 +219,53 @@ export async function listFindings(
       },
     };
   });
+}
+
+/**
+ * The upload handles among these findings' attached evidence that THIS reader
+ * ran the check for. A handle is an upload when it names no sandbox document
+ * and is not in its run's pinned working set (a purged draft is in the set, so
+ * it is not mistaken for an upload). Handles are minted per run, so admitting
+ * them as a flat set cannot leak one run's upload through another's.
+ */
+async function ownUploadHandles(db: Db, slice: EntitledSlice, found: readonly Finding[]): Promise<Set<string>> {
+  const attached = found.flatMap((f) =>
+    f.evidence.input === 'attached' && 'attachedSourceId' in f.evidence
+      ? [{ runId: f.runId, handle: f.evidence.attachedSourceId }]
+      : [],
+  );
+  const out = new Set<string>();
+  if (attached.length === 0) return out;
+  const runIds = [...new Set(attached.map((a) => a.runId))];
+  const mine = new Set(
+    (
+      await db
+        .select({ id: s.runs.id })
+        .from(s.runs)
+        .where(and(inArray(s.runs.id, runIds), eq(s.runs.requesterParticipantId, slice.participantId)))
+    ).map((r) => r.id),
+  );
+  const candidates = attached.filter((a) => mine.has(a.runId));
+  if (candidates.length === 0) return out;
+  const handles = [...new Set(candidates.map((a) => a.handle))];
+  const real = handles.filter((h) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(h));
+  const drafts = new Set(
+    real.length === 0
+      ? []
+      : (
+          await db.select({ id: s.sandboxDocuments.id }).from(s.sandboxDocuments).where(inArray(s.sandboxDocuments.id, real))
+        ).map((r) => r.id),
+  );
+  const pinned = new Set<string>();
+  const plans = await db
+    .select({ workingSet: s.plans.workingSet })
+    .from(s.plans)
+    .where(inArray(s.plans.runId, [...mine]));
+  for (const plan of plans) {
+    for (const entry of (plan.workingSet ?? []) as Array<{ sandboxDocumentId: string }>) pinned.add(entry.sandboxDocumentId);
+  }
+  for (const h of handles) if (!drafts.has(h) && !pinned.has(h)) out.add(h);
+  return out;
 }
 
 /**

@@ -39,10 +39,17 @@ export function CitedByList(props: { items: ImpactItem[] }) {
       <span className="field-label">Cited by</span>
       <div style={{ display: 'grid', gap: 6 }} aria-label="Cited by">
         {props.items.map((item) => (
-          <div key={`${item.kind}-${item.id}`} style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
-            <span style={{ color: 'var(--text-muted)', minWidth: 72 }}>{CITED_BY_KIND[item.kind]}</span>
-            <span style={{ flex: 1 }}>{item.title}</span>
-            <span style={{ color: 'var(--text-muted)' }}>{new Date(item.at).toLocaleDateString('en-GB')}</span>
+          <div key={`${item.kind}-${item.id}`} style={{ display: 'grid', gap: 2, fontSize: 12.5 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ color: 'var(--text-muted)', minWidth: 72 }}>{CITED_BY_KIND[item.kind]}</span>
+              <span style={{ flex: 1 }}>{item.title}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{new Date(item.at).toLocaleDateString('en-GB')}</span>
+            </div>
+            {item.kind === 'library-version' ? (
+              <span style={{ color: 'var(--text-muted)', fontSize: 11.5, paddingLeft: 80 }}>
+                may rest on this — a draft of theirs cited it before the revision was issued
+              </span>
+            ) : null}
           </div>
         ))}
       </div>

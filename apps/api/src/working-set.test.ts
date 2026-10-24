@@ -553,3 +553,48 @@ describe('findings and the plan read apply the same per-reader rule (T-471 revie
     expect(attachedOf(await read('bea'))).toEqual(['hidden', 'hidden']);
   });
 });
+
+describe('a file uploaded for a one-off check is read by the person who ran it, and nobody else (T-484 review)', () => {
+  const handle = crypto.randomUUID();
+  const quote = 'uploaded-file quote: the pile cap is 600 mm';
+
+  beforeAll(async () => {
+    const conv = await conversation('bram', docs['open']);
+    const res = await post('bram', `/conversations/${conv}/runs`, { request: 'a check with an upload', sandboxDocumentId: docs['open'] });
+    const uploadRunId = ((await res.json()) as Run).id;
+    await db.insert(s.findings).values({
+      runId: uploadRunId,
+      sandboxDocumentId: docs['open']!,
+      checkFamily: 'corpus_accuracy',
+      input: 'attached',
+      evidence: { input: 'attached', attachedSourceId: handle, excerpt: quote, label: 'pile-note.docx' },
+      anchor: { start: 0, end: 1, quote: 'x' },
+      defect: 'contradicts the uploaded pile note',
+      severity: 'advisory',
+    });
+  });
+
+  const mine = async (who: string) => {
+    const res = await get(who, `/sandbox-documents/${docs['open']}/findings`);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const items = (JSON.parse(text) as { items: Array<{ defect: string; evidence: Record<string, unknown> }> }).items;
+    return { text, item: items.find((i) => i.defect === 'contradicts the uploaded pile note')! };
+  };
+
+  it('the uploader keeps the quoted text of their own file', async () => {
+    const { item } = await mine('bram');
+    expect(item.evidence['excerpt']).toBe(quote);
+    expect(item.evidence['label']).toBe('pile-note.docx');
+  });
+
+  it('a colleague and an outsider see the finding, marked not open, with no quote and no handle', async () => {
+    for (const who of ['bo', 'bea']) {
+      const { item, text } = await mine(who);
+      expect(item.evidence).toMatchObject({ input: 'attached', openToYou: false, excerpt: '' });
+      expect(item.evidence).not.toHaveProperty('attachedSourceId');
+      expect(text).not.toContain(quote);
+      expect(text).not.toContain(handle);
+    }
+  });
+});

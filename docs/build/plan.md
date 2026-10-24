@@ -147,7 +147,7 @@ The wave design-reference blocks below are a **holding pen, not a home**. Each f
 
 ## How to read a ticket
 
-`T-###` — title. **Next free number: T-486** — **derive it, don't trust it: `pnpm run check:tickets -- --next`** scans this board, the history *and* `git log` and prints the next free number. Bump this line in the same commit that claims numbers; `pnpm run check` fails if it falls behind, or if one number is defined twice. The line stays because it is readable, but the script is the authority — the prose convention alone let concurrent sessions collide twice (T-208–T-210, T-223–T-233). **Deps:** tickets that must be done first — **tickets only, never a `Q-###`** (see the rule below).
+`T-###` — title. **Next free number: T-487** — **derive it, don't trust it: `pnpm run check:tickets -- --next`** scans this board, the history *and* `git log` and prints the next free number. Bump this line in the same commit that claims numbers; `pnpm run check` fails if it falls behind, or if one number is defined twice. The line stays because it is readable, but the script is the authority — the prose convention alone let concurrent sessions collide twice (T-208–T-210, T-223–T-233). **Deps:** tickets that must be done first — **tickets only, never a `Q-###`** (see the rule below).
 
 **⚖ The Q/T boundary — what earns a ticket number** *(adopted 2026-08-01)*. **A `T-###` is minted when the work can be *specified*. A `Q-###` exists when the question can be *stated*.** Being able to state a question precisely is not the same as being able to answer it, and it is never enough to justify a build ticket. So: unruled work is named in its slice's prose as **🌫 Fog** and ticketed when the ruling lands; a Deps field contains tickets only; and **what a question blocks lives in that question's own Blocks field**, which is the one place that relationship is recorded. The cost of getting this wrong is not theoretical — tickets minted against open questions carried the tracker's *recommendations* into their text, and when the rulings went the other way the board contradicted itself and needed a reconciliation commit (504f473). **Done when:** the acceptance test, drawn from the destination spec its slice serves — [v1.md](v1.md) for current work, [plan-history.md](plan-history.md) for the closed skeleton milestones. Package names from [repo-structure.md](repo-structure.md). A ticket is sized for one focused agent run (roughly a PR each).
 
@@ -649,8 +649,8 @@ Part 1 (the substrate and retrieval pre-filter, T-240–T-244) is **built and
 closed** — record in [plan-history.md](plan-history.md). Part 2 is deferred by
 [v1.md](v1.md) (classification stays manual at 500 documents); design in
 [ADR-0045](../architecture/adr/0045-document-ontology-classification-and-relationships.md).
-Note **who selects the retrieval scope is `Q-028`** — pointed at, not
-restated.
+Note **who selects the retrieval scope was `Q-028`** — ruled 2026-10-24
+(T-469); pointed at, not restated.
 
 *Update 2026-10-24 (T-472):* the **reference-material half is built** — the AI
 proposes a title and a classification for uploaded reference files, a person
@@ -694,16 +694,16 @@ classification rides its plan row, and the plan is the owner's instrument.
 - ~~**T-455 — One lifecycle vocabulary.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-456 — Doors for what is already built.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-457 — The document page.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- ~~**T-458 — The four partial views retire.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- ~~**T-458 — The four partial views retire.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-459 — Register search and paging endpoints.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-460 — The register component and saved views.**~~ ✅ **Built 2026-10-23** (migration **0071**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- ~~**T-461 — Bulk actions and export.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- ~~**T-461 — Bulk actions and export.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-462 — The three screens move onto the register.**~~ ✅ **Built 2026-10-23** (migration **0072**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-463 — The AI transparency table.**~~ ✅ **Built 2026-10-23** (migration **0073**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- ~~**T-464 — Copy and vocabulary.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- ~~**T-464 — Copy and vocabulary.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-465 — Undo and feedback.**~~ ✅ **Built 2026-10-23** (migration **0074**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- ~~**T-466 — The command palette and keyboard moves.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- ~~**T-467 — The home page as a work queue.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- ~~**T-466 — The command palette and keyboard moves.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- ~~**T-467 — The home page as a work queue.**~~ ✅ **Built 2026-10-23** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 
 **Slice Reach — what the AI read, and what it could not** *(the change list's 11–17)*
 
@@ -728,6 +728,7 @@ classification rides its plan row, and the plan is the owner's instrument.
 - ~~**T-483 — The document page opens any document the person may read.**~~ ✅ **Built 2026-10-24** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-484 — The replacement box, and two loose ends from the owner's answers.**~~ ✅ **Built 2026-10-24** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-485 — The walkthrough catches up with the best-in-class batches.**~~ ✅ **Built 2026-10-24** (no migration) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
+- **T-486 — Small follow-ups from the review pass of 2026-10-25.** *Plainly:* the review of the three best-in-class slices found seven small things, none of them blocking, that are worth doing together: (a) a clean checker run over the whole library says "Read no documents", because the checker's "read" counts only the documents behind findings — count what the check searched; (b) the Scope control's Documents group lists the whole grounding scope unpaged; (c) the second-look price is estimated at the check model while the calls route through `verify`, and the findings-polish e2e sort click asserts nothing; (d) matching a frozen version for uploaded and PDF documents is by time alone and untested (T-477); (e) the sandbox row badge still reads "Frozen v0.x" during internal QA, against T-455's one-vocabulary rule (T-478); (f) there is no upload size cap on reference intake beyond the server's (T-472); (g) four e2e specs (pdf-review, slice-a, slice-a2, editor-review) build a document code from the clock's last three digits and can collide on a long-lived database — use a unique suffix. **Done when:** each is fixed or ruled out, one commit per item or one for all. **Deps:** none. *(No named person; no migration expected.)*
 
 ### The rest of the map — one entry per capability
 
