@@ -13,8 +13,8 @@ async function loginAs(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
 }
 
 test('switching the checker off removes it from Tools and the editor, and the page records who and why', async ({ page, browser }) => {

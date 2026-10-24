@@ -30,6 +30,7 @@ import type { RailNavItem } from '@infora/ui';
 import { api } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
 import { CommandPalette, PaletteHint } from '../command-palette';
+import { RecentDocumentsPanel, SavedViewsPanel, WorkQueuePanel, useWorkQueue } from '../work-queue';
 import { useMe } from '../session';
 import { NeedsYouPanel, useNotifications } from './notifications';
 import { greeting, initialsOf, statusBadge } from './shared';
@@ -231,6 +232,8 @@ export function ProjectHome() {
   const navigate = useNavigate();
   const aiOff = useAiFeaturesOff(participant.projectId);
   const [items, setItems] = useState<WorkItem[] | null>(null);
+  // T-467 — the one aggregating read: what waits on you, what moved, your views
+  const queue = useWorkQueue(participant.projectId);
 
   useEffect(() => {
     void api.workItems(participant.projectId).then((res) => setItems(res.items));
@@ -242,9 +245,11 @@ export function ProjectHome() {
         {greeting()}, {me.name.split(' ')[0]}
       </h1>
       <p className="page-sub">
-        {items === null
-          ? 'Loading the project…'
-          : `${items.length} work item${items.length === 1 ? '' : 's'} on the project`}
+        {queue === null
+          ? 'Looking at what is waiting on you…'
+          : queue.items.length === 0
+            ? 'Nothing is waiting on you — the queue below is empty.'
+            : `${queue.items.length} thing${queue.items.length === 1 ? '' : 's'} waiting on you, each one click from where it is done.`}
       </p>
 
       {!aiOff.has('ask') && (
@@ -269,6 +274,8 @@ export function ProjectHome() {
       {/* §6a — directly above the work items, so a notification sits beside the
           thing it is about. Absent at zero, never an empty state. */}
       <NeedsYouPanel projectId={participant.projectId} />
+
+      <WorkQueuePanel projectId={participant.projectId} queue={queue} />
 
       <SectionLabel>Your work items</SectionLabel>
       <Table>
@@ -313,6 +320,8 @@ export function ProjectHome() {
           </tbody>
         </table>
       </Table>
+      <RecentDocumentsPanel projectId={participant.projectId} recent={queue?.recent ?? null} />
+      <SavedViewsPanel projectId={participant.projectId} views={queue?.views ?? null} />
     </div>
   );
 }

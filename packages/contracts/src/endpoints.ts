@@ -2372,6 +2372,49 @@ export type PendingTransmittal = {
 };
 export type ListPendingTransmittalsResponse = { items: PendingTransmittal[] };
 
+// ── T-467 — the home as a work queue ────────────────────────────────────────
+//
+// *In plain terms: the project home opens with what is waiting on you — a
+// reviewer to confirm, an appointment to accept, a transmittal to acknowledge,
+// a request to issue outside the project, a withdrawal to decide, comments to
+// answer, findings to close — each one click from the screen where it is done;
+// then the documents that moved most recently, and your saved views.*
+//
+// GET /projects/:projectId/work-queue — ONE aggregating read per project,
+// access-resolved on the server: every arm is the same query the screen it
+// points to runs, cut to the requester, so the queue never names a thing the
+// person could not reach by hand.
+export type WorkQueueKind =
+  | 'confirm_reviewer'
+  | 'accept_appointment'
+  | 'acknowledge_transmittal'
+  | 'approve_external_issue'
+  | 'decide_withdrawal'
+  | 'respond_to_comments'
+  | 'close_findings';
+export type WorkQueueItem = {
+  kind: WorkQueueKind;
+  /** the sentence: "Confirm Rachel Bowen as lead reviewer of WA-EIA-MST-001" */
+  label: string;
+  /** the path inside the project where the act is done */
+  href: string;
+  /** a count where the item stands for several (comments, findings) */
+  count?: number;
+  at: string | null;
+};
+export type RecentDocument = {
+  kind: 'library' | 'draft';
+  label: string;
+  reference: string | null;
+  href: string;
+  at: string;
+};
+export type GetWorkQueueResponse = {
+  items: WorkQueueItem[];
+  recent: RecentDocument[];
+  views: Array<{ id: Id; register: SavedViewRegister; name: string; filter: Record<string, unknown>; shared: boolean; mine: boolean }>;
+};
+
 // ── T-465 — the record-state change record ──────────────────────────────────
 // GET /containers/:containerId/state-changes — every change of the container's
 // record state, newest first, with who, when and why. *Plainly: the document's

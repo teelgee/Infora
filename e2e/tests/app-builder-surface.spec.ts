@@ -25,7 +25,7 @@ test('Apps beside Tools, and an app built by conversation with the panel live be
   await page.getByLabel('Email').fill(SEEDED.consultant);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection')).toBeVisible();
+  await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection').first()).toBeVisible();
   await page.goto(`/projects/${projectId}`);
 
   // ── The navigation: Apps beside Tools, each holding its own ──────────────
@@ -145,7 +145,7 @@ test('the building screen refuses Owen Vance in words — his firm has not let h
   await page.getByLabel('Email').fill('owen.vance@calderhale.example');
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection')).toBeVisible();
+  await expect(page.getByText('Wrenfield–Ashcombe 400kV Connection').first()).toBeVisible();
   await page.goto(`/projects/${projectId}/apps/${app.id}/build`);
   await expect(page.getByText('There is no app here for you to build.')).toBeVisible();
   await expect(page.getByPlaceholder('e.g. Build me a monthly sustainability returns app for three contractors.')).toHaveCount(0);

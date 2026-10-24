@@ -39,7 +39,7 @@ async function openInEditor(page: import('@playwright/test').Page) {
   await page.getByLabel('Email').fill(SEEDED.consultant);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
   // Open in Editor moved into the row's overflow kebab (T-227)
   const row = page.getByRole('row').filter({ hasText: documentTitle });

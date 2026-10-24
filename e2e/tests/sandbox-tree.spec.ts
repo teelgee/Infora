@@ -15,8 +15,8 @@ async function loginAs(page: import('@playwright/test').Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
 }
 
 test('a document nests inside a folder, hides until expanded, and re-files via Move', async ({ page }) => {

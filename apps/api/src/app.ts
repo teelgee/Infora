@@ -27,6 +27,7 @@ import { containerRoutes, planRoutes } from './plan';
 import { savedViewRoutes } from './saved-views';
 import { bulkActRoutes } from './bulk-acts';
 import { aiFeatureRoutes } from './ai-features';
+import { workQueueRoutes } from './work-queue';
 import { ontologyRoutes } from './ontology';
 import { clientIp, rateLimit } from './rate-limit';
 import { sessionMiddleware } from './requester';
@@ -261,6 +262,8 @@ export function buildApp(deps: AppDeps) {
   app.route('/', bulkActRoutes(deps));
   // T-463 — the AI transparency table and the per-project feature switch
   app.route('/', aiFeatureRoutes({ db: deps.db, router: deps.router }));
+  // T-467 — the home's one aggregating read
+  app.route('/', workQueueRoutes(deps));
   app.route('/', containerRoutes(deps));
 
   // T-241 — the project ontology (classification vocabulary + relationship

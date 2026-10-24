@@ -14,7 +14,7 @@ test('browser: the rail shows a stated absence, not a lit-up first stage', async
   await page.getByLabel('Email').fill(SEEDED.consultant);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByText('Wrenfield–Ashcombe 400kV Connection').click();
+  await page.getByText('Wrenfield–Ashcombe 400kV Connection').first().click();
   await page.getByRole('link', { name: 'Ask' }).first().click();
 
   const rail = page.locator('.progress-rail');

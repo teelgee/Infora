@@ -13,8 +13,8 @@ async function loginAs(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
 }
 
 test('a plan row’s Details open the side panel with the metadata editor; the status page points to the document page', async ({ page }) => {

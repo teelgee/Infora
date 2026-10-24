@@ -17,7 +17,7 @@ test('browser: the Lens chip is on the Ask composer, and says what a Lens does n
   await page.getByLabel('Email').fill(SEEDED.consultant);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByText('Wrenfield–Ashcombe 400kV Connection').click();
+  await page.getByText('Wrenfield–Ashcombe 400kV Connection').first().click();
 
   await page.getByRole('link', { name: 'Ask' }).first().click();
 

@@ -13,8 +13,8 @@ async function loginAs(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
 }
 
 test('the plan finds a deliverable by code in one box, keeps the organisation-standard columns, and survives a reload', async ({ page }) => {

@@ -1,6 +1,7 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  GetWorkQueueResponse,
   ListContainerStateChangesResponse,
   AiFeatureKey,
   AiTransparencyResponse,
@@ -439,6 +440,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
+  // T-467 — the home's one aggregating read
+  workQueue: (projectId: string) => request<GetWorkQueueResponse>(`/projects/${projectId}/work-queue`),
   // T-465 — the document's own record of state changes
   containerStateChanges: (containerId: string) =>
     request<ListContainerStateChangesResponse>(`/containers/${containerId}/state-changes`),

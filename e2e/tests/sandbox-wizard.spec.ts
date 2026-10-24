@@ -13,8 +13,8 @@ test('the owner super-user creates a shared sandbox through the wizard', async (
   await page.getByLabel('Email').fill(SEEDED.owner); // Rachel — owner super-user
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
   const name = `Wizard shared ${Date.now()}`;

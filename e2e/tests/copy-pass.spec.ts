@@ -13,7 +13,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
 }
 
 test('the workspace rail carries only built sections, and the landing has no dead Ask bar', async ({ page }) => {
@@ -29,7 +29,7 @@ test('the workspace rail carries only built sections, and the landing has no dea
 
 test('the Ask composer has no placeholder chips; the editor offers only what it can create; a heading has one line and Learn more', async ({ page }) => {
   await login(page, SEEDED.consultant);
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: 'Ask' }).click();
   for (const chip of ['Web search', 'Sandbox search', 'Prompts', 'Style', 'Attach a file', '⚙ Tools']) {
     await expect(page.getByText(chip, { exact: true })).toHaveCount(0);

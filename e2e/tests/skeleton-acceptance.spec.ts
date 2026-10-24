@@ -59,8 +59,8 @@ test('1 — the consultant opens the project: access resolves on the real login 
   page,
 }) => {
   await loginAs(page, SEEDED.consultant);
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
   await expect(page.getByText(WORK_ITEM)).toBeVisible(); // the governed-work anchor
 });
 
@@ -124,7 +124,7 @@ test('3 — the cited draft in the editor; accept lands it and writes the one Si
   page,
 }) => {
   await loginAs(page, SEEDED.consultant);
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
   // Open in Editor moved into the row's overflow kebab (T-227)
   const editorRow = page.getByRole('row').filter({ hasText: documentTitle });
@@ -157,7 +157,7 @@ test('4 — a manual edit lands with no ceremony: no Suggestion, no Signal', asy
   );
 
   await loginAs(page, SEEDED.consultant);
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
   // Open in Editor moved into the row's overflow kebab (T-227)
   const editorRow = page.getByRole('row').filter({ hasText: documentTitle });
@@ -197,7 +197,7 @@ test('5 — the record stays with its producer; the owner sees the review cycle'
 
   // and the walk: landing → work item → the review cycle, never the agent
   await loginAs(page, SEEDED.owner);
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByText(WORK_ITEM).click();
   await expect(page.getByText('Review cycle')).toBeVisible();
   await expect(page.getByText(run.request)).not.toBeVisible();
@@ -235,5 +235,5 @@ test('negative — the wall subjects get nothing, on the journey’s own resourc
   // the same denial on the surface: an empty workspace, not a hidden project
   await loginAs(page, SEEDED.noParticipant);
   await expect(page.getByText('No project access yet')).toBeVisible();
-  await expect(page.getByText(PROJECT)).not.toBeVisible();
+  await expect(page.getByText(PROJECT).first()).not.toBeVisible();
 });

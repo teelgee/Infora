@@ -28,7 +28,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
 }
 
 test('the cost dashboard: attach from the panel, rows land, and a colleague’s new file redraws the chart', async ({

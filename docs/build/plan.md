@@ -695,7 +695,7 @@ restated.
 - ~~**T-464 — Copy and vocabulary.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-465 — Undo and feedback.**~~ ✅ **Built 2026-10-23** (migration **0074**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-466 — The command palette and keyboard moves.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- **T-467 — The home page as a work queue.** *Plainly:* project home is "waiting on you", recent documents and your saved views; the workspace home does the same across projects; one aggregating read per project, access-resolved. **Done when:** every item in the queue is one click from the screen where it is done. **Deps:** T-460.
+- ~~**T-467 — The home page as a work queue.**~~ ✅ **Built 2026-10-23** — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 
 **Slice Reach — what the AI read, and what it could not** *(the change list's 11–17)*
 

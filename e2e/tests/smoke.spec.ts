@@ -13,13 +13,13 @@ test('browser: login → workspace landing → project home', async ({ page }) =
   await page.getByRole('button', { name: 'Sign in' }).click();
 
   // the workspace landing shows the seeded project with its role badge
-  const projectCard = page.getByText('Wrenfield–Ashcombe 400kV Connection');
+  const projectCard = page.getByText('Wrenfield–Ashcombe 400kV Connection').first();
   await expect(projectCard).toBeVisible();
   await expect(page.getByText('Owner: Trentmoor Energy')).toBeVisible();
 
   await projectCard.click();
   await expect(page.getByRole('heading', { name: /Good (morning|afternoon|evening)/ })).toBeVisible();
-  await expect(page.getByText('EIA Scoping Method Statement — Land Quality')).toBeVisible();
+  await expect(page.getByText('EIA Scoping Method Statement — Land Quality').first()).toBeVisible(); // T-467: also under Recent documents
 });
 
 test('api: the session helper resolves the seeded identities', async () => {

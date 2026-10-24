@@ -19,9 +19,10 @@ import {
   SectionLabel,
   UserChip,
 } from '@infora/ui';
-import type { AiTransparencyResponse } from '@infora/contracts';
+import type { AiTransparencyResponse, MeResponse } from '@infora/contracts';
 import { api } from '../api';
 import { TransparencyTable } from './ai-transparency';
+import { WorkQueuePanel, useWorkQueue } from '../work-queue';
 import { useMe } from '../session';
 import { FirmShelfPane } from './knowledge';
 import type { FirmShelf } from './knowledge';
@@ -224,6 +225,9 @@ export function WorkspaceLanding() {
               />
             ))}
           </div>
+
+          {/* T-467 — the same question asked of every project you are on, after the cards so the card stays the first word of each name */}
+          <AcrossProjects participants={me.participants} />
           {me.participants.length === 0 && (
             <Card>
               <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
@@ -235,4 +239,21 @@ export function WorkspaceLanding() {
       </div>
     </AppFrame>
   );
+}
+
+// T-467 — what waits on you across every project, each item one click from
+// where it is done; a project with nothing waiting is left out
+function AcrossProjects(props: { participants: MeResponse['participants'] }) {
+  return (
+    <>
+      {props.participants.map((p) => (
+        <ProjectQueue key={p.projectId} projectId={p.projectId} projectName={p.projectName} />
+      ))}
+    </>
+  );
+}
+function ProjectQueue(props: { projectId: string; projectName: string }) {
+  const queue = useWorkQueue(props.projectId);
+  if (queue !== null && queue.items.length === 0) return null;
+  return <WorkQueuePanel projectId={props.projectId} queue={queue} projectName={props.projectName} />;
 }

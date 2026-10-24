@@ -35,7 +35,7 @@ test('the owner confirms a proposed reviewer on the deliverable card, and promot
   await page.getByLabel('Email').fill(SEEDED.owner);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByText(PROJECT).click();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Plan/ }).click();
   await page.getByRole('row').filter({ hasText: `T193-${stamp}` }).click();
   // T-457 — the row lands on the document page; the card is one click further

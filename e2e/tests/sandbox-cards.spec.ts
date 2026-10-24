@@ -13,8 +13,8 @@ test('a sandbox card shows owner + scope, and clicking it reveals the tree', asy
   await page.getByLabel('Email').fill(SEEDED.consultant);
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText(PROJECT)).toBeVisible();
-  await page.getByText(PROJECT).click();
+  await expect(page.getByText(PROJECT).first()).toBeVisible();
+  await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Sandbox/ }).click();
 
   const name = `Card demo ${Date.now()}`;

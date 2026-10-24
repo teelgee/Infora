@@ -1515,6 +1515,16 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-23 (T-467) — `GET /projects/:projectId/work-queue`.** *Plainly: what
+  is waiting on you on this project, the documents that moved, and your saved
+  views, in one answer.* The **reason this is one aggregating read and not seven
+  calls from the home** is that the home is the first screen of every visit and
+  seven round-trips would make it the slowest; the **reason each arm is the
+  destination screen's own query, cut to the requester**, is that the queue must
+  never name a thing the person could not reach by hand — the owner's Confirm,
+  the appointee's Accept, the organisation's Acknowledge are each theirs alone,
+  and the queue inherits that rather than restating it.
+
 - **2026-10-23 (T-465) — `GET /containers/:containerId/state-changes`.** *Plainly:
   a document's own history of being withdrawn, restored or superseded, who did
   each and why.* The **reason this is a read of its own and not a field on the

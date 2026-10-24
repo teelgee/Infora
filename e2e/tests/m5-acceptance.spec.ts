@@ -86,8 +86,9 @@ test('browser: the owner walks to the work item and sees the review cycle, not t
   await page.getByLabel('Password').fill(SEEDED.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await page.getByText('Wrenfield–Ashcombe 400kV Connection').click();
-  await page.getByText('EIA Scoping Method Statement — Land Quality').click();
+  await page.getByText('Wrenfield–Ashcombe 400kV Connection').first().click();
+  // T-467 — the title also appears under Recent documents; the work-item row comes first
+  await page.getByText('EIA Scoping Method Statement — Land Quality').first().click();
 
   await expect(page.getByText('Review cycle')).toBeVisible();
   // the agent's internals never render here — no prompt text, no step tree
