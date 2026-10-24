@@ -9,7 +9,7 @@
 // first case here plans the same document TWICE and requires the two to be
 // identical: step counts, families, and the priced estimate.
 import { describe, expect, it } from 'vitest';
-import type { CheckFamily, Workflow } from '@infora/contracts';
+import type { CheckFamily, ReachCounts, Workflow } from '@infora/contracts';
 import { CHECK_FAMILIES } from '@infora/contracts';
 import {
   CHECK_OVERHEAD_TOKENS,
@@ -50,7 +50,13 @@ const input = (over: Partial<Parameters<typeof planQaCheck>[0]> = {}) => ({
   families: CHECK_FAMILIES as readonly CheckFamily[],
   depth: 'full' as const,
   styleClauses: { count: 12, tokens: 900 },
-  scopedDocuments: 0,
+  reach: {
+    visibleLive: 40,
+    inScope: 40,
+    excludedByState: { superseded: 0, withdrawn: 0 },
+    leftOutByScope: 0,
+  } as ReachCounts,
+  scoped: false,
   attachedDocuments: 0,
   attachedUploads: [] as readonly string[],
   checkModelId: 'check-model',
@@ -186,15 +192,42 @@ describe('coverage is stated twice, in the same shape', () => {
     const { plan } = planQaCheck(input());
     expect(plan.coverage).toContain('4 sections');
     expect(plan.coverage).toContain('5 checks');
-    expect(plan.coverage).toContain('the whole library');
+    expect(plan.coverage).toContain('the library searched');
+    expect(plan.coverage).toContain('40 documents can be read.');
     expect(plan.coverage).toContain('statement by statement');
     expect(plan.coverage).toContain('12 of 12 clauses');
   });
 
   it('a narrowed scope is named in the plan the narrowing produced (Q-028’s explicit case)', () => {
-    const { plan } = planQaCheck(input({ scopedDocuments: 3 }));
-    expect(plan.coverage).toContain('3 named library documents');
-    expect(plan.coverage).not.toContain('the whole library');
+    const { plan } = planQaCheck(
+      input({
+        scoped: true,
+        reach: { visibleLive: 40, inScope: 3, excludedByState: { superseded: 2, withdrawn: 0 }, leftOutByScope: 37 },
+      }),
+    );
+    expect(plan.coverage).toContain('3 documents in your scope can be read.');
+    expect(plan.coverage).toContain('Excluded: 2 superseded.');
+    expect(plan.coverage).toContain('Your scope left out 37 you could have included.');
+    expect(plan.refusal).toBeNull();
+  });
+
+  it('REFUSES before spend when a declared scope leaves nothing to read, in words (T-469)', () => {
+    const { plan } = planQaCheck(
+      input({
+        scoped: true,
+        reach: { visibleLive: 40, inScope: 0, excludedByState: { superseded: 0, withdrawn: 0 }, leftOutByScope: 40 },
+      }),
+    );
+    expect(plan.refusal).toContain('Your scope leaves nothing to read');
+  });
+
+  it('does not refuse a whole-library run over an empty library — that is not a choice the person made', () => {
+    const { plan } = planQaCheck(
+      input({
+        reach: { visibleLive: 0, inScope: 0, excludedByState: { superseded: 0, withdrawn: 0 }, leftOutByScope: 0 },
+      }),
+    );
+    expect(plan.refusal).toBeNull();
   });
 
   it('an attached document is named as never cited, in the plan and in a caveat', () => {

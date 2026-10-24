@@ -53,6 +53,7 @@ let otherOrgCookie: string;
 let sandboxId: string;
 let foreignSandboxId: string;
 let versionId: string;
+let containerId: string;
 
 const post = (who: string, path: string, body: unknown) =>
   app.request(path, {
@@ -76,7 +77,8 @@ const request = (overrides: Record<string, unknown> = {}) => ({
   language: 'technical',
   documentType: 'whole-document',
   styleGuideIds: [],
-  sourceVersionIds: [versionId],
+  // T-469 — the part of the library the draft may draw on, as a scope
+  scope: { containerIds: [containerId] },
   destinationSandboxId: sandboxId,
   title: 't309 built note',
   ...overrides,
@@ -199,6 +201,7 @@ beforeAll(async () => {
     })
     .returning();
   versionId = version!.id;
+  containerId = container!.id;
   // indexed, so the builder's gateway call actually reaches the passage
   await ingestVersion(db, router, versionId);
 });
@@ -221,7 +224,7 @@ describe('the plan, before the click (T-309, ADR-0053 §4)', () => {
     expect(plan.cost.priced).toBe(true);
     expect(plan.cost.total).toBeGreaterThan(0);
     // the coverage sentence, before anything runs
-    expect(plan.coverage).toBe('3 sections · 1 bound source · 1 drafting pass');
+    expect(plan.coverage).toBe('3 sections · 1 drafting pass. 1 document can be read.');
     expect(plan.refusal).toBeNull();
   });
 
@@ -255,24 +258,43 @@ describe('the plan, before the click (T-309, ADR-0053 §4)', () => {
     expect(plan.steps[0]!.estimate.cost).toBeNull();
   });
 
-  it('REFUSES IN THE PLAN, before any spend, when nothing is bound to draft from', async () => {
+  it('REFUSES IN THE PLAN, before any spend, when the scope leaves nothing to read (T-469)', async () => {
     // ADR-0053 §5 — refusal is reserved for the pathological case and is said
-    // before the click, never as a caveat under an empty document
+    // before the click, never as a caveat under an empty document. The scope
+    // names a document that does not exist for this requester: it admits
+    // nothing, and says so in words.
+    const nothing = { scope: { containerIds: [crypto.randomUUID()] } };
+    const res = await post(cookie, `/projects/${projectId}/tools/document-creation/plan`, request(nothing));
+    const { plan } = (await res.json()) as DocumentCreationPlanResponse;
+    expect(plan.refusal).toContain('Your scope leaves nothing to read');
+
+    // and the run endpoint HONOURS it rather than treating it as advice
+    const run = await post(cookie, `/projects/${projectId}/tools/document-creation/runs`, request(nothing));
+    expect(run.status).toBe(400);
+    expect(((await run.json()) as { detail: string }).detail).toContain('Your scope leaves nothing to read');
+  });
+
+  it('an EMPTY scope is a 400 in words — one convention: absent is the whole library, never an empty list (T-469)', async () => {
+    for (const scope of [{}, { containerIds: [] }, { termIds: [], containerIds: [] }]) {
+      const res = await post(
+        cookie,
+        `/projects/${projectId}/tools/document-creation/plan`,
+        request({ scope }),
+      );
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { detail: string }).detail).toContain('a scope must name at least one');
+    }
+  });
+
+  it('with NO scope the draft may draw on the whole visible library (T-469)', async () => {
     const res = await post(
       cookie,
       `/projects/${projectId}/tools/document-creation/plan`,
-      request({ sourceVersionIds: [] }),
+      request({ scope: undefined }),
     );
     const { plan } = (await res.json()) as DocumentCreationPlanResponse;
-    expect(plan.refusal).toContain('No sources are bound');
-
-    // and the run endpoint HONOURS it rather than treating it as advice
-    const run = await post(
-      cookie,
-      `/projects/${projectId}/tools/document-creation/runs`,
-      request({ sourceVersionIds: [] }),
-    );
-    expect(run.status).toBe(400);
+    expect(plan.refusal).toBeNull();
+    expect(plan.coverage).toContain('1 document can be read.');
   });
 
   // T-407 — this test used to assert that naming a template this deployment
@@ -349,9 +371,19 @@ describe('the run (T-309)', () => {
     // the SAME SHAPE as the plan's own sentence, so the difference between what
     // was promised and what happened is visible at a glance
     expect(body.coverage).toContain('of 3 sections written');
-    expect(body.coverage).toContain('of 1 bound sources used');
+    // T-469 — and ends with the ONE reach sentence every surface renders, off
+    // the counts the run itself recorded; `read` is the passage-grain audit
+    // rolled up to documents, so the sentence cannot disagree with the record
+    expect(body.coverage).toContain('Read 1 document.');
+    expect(body.run.reach).toEqual({
+      visibleLive: 1,
+      inScope: 1,
+      excludedByState: { superseded: 0, withdrawn: 0 },
+      leftOutByScope: 0,
+      read: 1,
+    });
     // and the plan the run executed is the plan the user was shown
-    expect(body.plan.coverage).toBe('3 sections · 1 bound source · 1 drafting pass');
+    expect(body.plan.coverage).toBe('3 sections · 1 drafting pass. 1 document can be read.');
     // T-402 — the tally counts sections OF THE OUTLINE. The `unsectioned`
     // bucket is a report of where words went, never a section written, and a
     // count that included it once said "1 of 4 sections written" into an empty
@@ -548,7 +580,7 @@ describe('sub-sections are sections of their own, with a parent (T-412)', () => 
     // two sections and two sub-sections is FOUR parts to draft. A coverage
     // sentence that said "2 sections" would be understating the run before it
     // started, which is the failure ADR-0053 §5 exists to prevent.
-    expect(body.plan.coverage).toBe('4 sections · 1 bound source · 1 drafting pass');
+    expect(body.plan.coverage).toBe('4 sections · 1 drafting pass. 1 document can be read.');
   });
 
   it('describes each of them on the plan, marked at its depth and under its parent', async () => {

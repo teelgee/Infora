@@ -43,7 +43,13 @@
 //
 // Still absent, and named so it is not mistaken for done: the cache keyed on
 // `query + corpus_version + scope_hash` is not built.
-import type { Assemble, AssembledItem, AssemblyCoverage, WorkerDeclaration } from '@infora/contracts';
+import type {
+  Assemble,
+  AssembledItem,
+  AssemblyCoverage,
+  Scope,
+  WorkerDeclaration,
+} from '@infora/contracts';
 
 export const CORPUS_RETRIEVAL: WorkerDeclaration = {
   name: 'corpus_retrieval',
@@ -102,6 +108,12 @@ export type CorpusRetrievalInput = {
    * constructed the gateway that admits them.
    */
   includeSuperseded?: boolean;
+  /**
+   * T-469 — the run's declared scope, carried to the gateway as the semantic
+   * pre-filter. A worker can pass the scope its run was given and no other: it
+   * narrows, and the gateway intersects it with what the requester may see.
+   */
+  scope?: Scope;
 };
 export type CorpusRetrievalOutput = { passages: CorpusPassage[]; coverageNote: string };
 
@@ -134,7 +146,11 @@ export function createCorpusRetrieval(deps: {
       // `targeted`, not `baseline`: this IS a sub-agent's narrower query
       // (ADR-0029 §4), and the two modes are the same call with the same
       // access guarantees precisely so agentic retrieval stays inside the wall
-      request: { text: input.query, mode: 'targeted' },
+      request: {
+        text: input.query,
+        mode: 'targeted',
+        ...(input.scope !== undefined && { scope: input.scope }),
+      },
       environment: { kind: 'project', projectId: environment.projectId },
       requester,
     });

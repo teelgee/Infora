@@ -18,14 +18,16 @@
 // different days and the workflow could not be `declared` at all — losing the
 // one guarantee (same inputs, same steps, same order) a tool is sold on.
 //
-// **What this endpoint does NOT do.** It resolves no scope of its own. The
-// bound sources are version ids the requester named, and an id they cannot
-// reach is not a way in: `document_builder` reads their text through the
-// assembly gateway, which resolves access as SQL pre-filters in the query that
-// fetches the passage — so an unreachable id returns nothing and is reported as
-// unreachable, exactly as a reachable one that matched nothing is (T-274's
-// rule). Validating the ids here would mean answering *"does this document
-// exist"*, which is the question deny-as-404 exists to refuse.
+// **What this endpoint does NOT do.** It does not widen anything. The scope
+// the requester names (T-469 — vocabulary terms, documents, or a saved scope)
+// is written on the plan and handed to the assembly gateway, which intersects
+// it with access and record state as SQL pre-filters in the query that fetches
+// the passages — so a document the requester cannot reach returns nothing and
+// is reported as unreachable, exactly as a reachable one that matched nothing
+// is (T-274's rule). Validating the ids here would mean answering *"does this
+// document exist"*, which is the question deny-as-404 exists to refuse. What
+// it does do before any spend is count the scope's reach and refuse one that
+// leaves nothing to read.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, desc, eq, isNull } from 'drizzle-orm';
@@ -43,10 +45,13 @@ import type {
   DocumentSection,
   Id,
   ListStartingOutlinesResponse,
+  ReachCounts,
   ReviseSectionBriefResult,
   Run,
+  Scope,
   ToolPlan,
 } from '@infora/contracts';
+import { resolveScope, scopeProblem } from './scope';
 import { coverageAfter, planDocumentCreation } from '@infora/capabilities';
 import type { TemplateRegistry } from '@infora/capabilities';
 import { canAccessSandbox } from '@infora/governance';
@@ -54,7 +59,7 @@ import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { ModelRates, Router } from '@infora/model';
-import { TOKEN_LIMIT } from '@infora/knowledge';
+import { reachCounts, TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
@@ -131,14 +136,26 @@ export function documentCreationRoutes(deps: {
    */
   const plan = async (
     c: Context<AppEnv>,
-  ): Promise<{ ok: true; plan: ToolPlan; body: ReturnType<typeof documentCreationBody.parse> } | { ok: false; response: Response }> => {
+  ): Promise<
+    | {
+        ok: true;
+        plan: ToolPlan;
+        body: ReturnType<typeof documentCreationBody.parse>;
+        /** T-469 — the scope as the gateway will see it (a saved scope already resolved) */
+        scope: Scope | undefined;
+        /** T-469 — the counts the plan was described by, taken before the click */
+        reach: ReachCounts;
+      }
+    | { ok: false; response: Response }
+  > => {
     const parsed = documentCreationBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) {
       return {
         ok: false,
         response: invalid(
           c,
-          'sections (at least one, each with a heading and a purpose), brief, purpose, language, documentType, styleGuideIds, sourceVersionIds, destinationSandboxId, title',
+          scopeProblem(parsed.error) ??
+            'sections (at least one, each with a heading and a purpose), brief, purpose, language, documentType, styleGuideIds, scope (optional), destinationSandboxId, title',
         ),
       };
     }
@@ -153,9 +170,26 @@ export function documentCreationRoutes(deps: {
       return { ok: false, response: notFound(c) };
     }
 
+    // T-469 — the scope, resolved and counted BEFORE the plan is priced: the
+    // plan states what the draft can reach, and says no — in words — when a
+    // declared scope leaves nothing to read, before any spend
+    const resolved = await resolveScope(deps.db, c.get('slice'), parsed.data.scope);
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        response:
+          resolved.status === 404
+            ? notFound(c)
+            : invalid(c, resolved.detail ?? 'the scope could not be used'),
+      };
+    }
+    const reach = await reachCounts(deps, c.get('slice'), resolved.scope);
+
     return {
       ok: true,
       body: parsed.data,
+      scope: resolved.scope,
+      reach,
       plan: planDocumentCreation({
         workflow,
         // T-407 — the outline the AUTHOR composed. There is no template lookup
@@ -164,7 +198,8 @@ export function documentCreationRoutes(deps: {
         // sections in it are the author's own.
         sections: parsed.data.sections,
         brief: parsed.data.brief,
-        sourceCount: parsed.data.sourceVersionIds.length,
+        reach,
+        scoped: resolved.scope !== undefined,
         // T-406 — the four answers reach the planner, because the plan has to
         // SAY what it is about to write and under which resolution
         purpose: parsed.data.purpose,
@@ -420,7 +455,6 @@ export function documentCreationRoutes(deps: {
         language: computed.body.language,
         document_type: computed.body.documentType,
         style_guide_ids: computed.body.styleGuideIds,
-        sources: computed.body.sourceVersionIds,
         destination_sandbox_id: computed.body.destinationSandboxId,
         title: computed.body.title,
         // 🔒 T-427 (ADR-0054 decision 7) — which version of the accepted
@@ -470,6 +504,10 @@ export function documentCreationRoutes(deps: {
           ...(bound.labelPropagation !== undefined && { labelPropagation: bound.labelPropagation }),
         },
         stages: bound.stages,
+        // T-469 — the scope on the plan before retrieval, the counts completed
+        // with `read` at the end
+        ...(computed.scope !== undefined && { scope: computed.scope }),
+        reach: computed.reach,
         ...(deps.capabilities !== undefined && { capabilities: deps.capabilities }),
         entitledCapabilities: workers.map((worker) => worker.name),
         mode: 'declared',
@@ -519,8 +557,10 @@ export function documentCreationRoutes(deps: {
           // after-sentence contradicting the before-sentence about the same
           // outline.
           sectionsPlanned: flattenOutline(computed.body.sections).length,
-          sourcesUsed: new Set(manifest.map((entry) => entry.versionId)).size,
-          sourcesBound: computed.body.sourceVersionIds.length,
+          // T-469 — the run's own reach, `read` included, off the record it was
+          // written to; the plan's counts + the manifest's distinct documents
+          // only if the record somehow carries none
+          reach: run?.reach ?? { ...computed.reach, read: new Set(manifest.map((entry) => entry.versionId)).size },
           unreachableSources: unreachableSources.length,
           withheld: withheld.length,
           outsideOutline: (output['outsideOutline'] as number | undefined) ?? 0,

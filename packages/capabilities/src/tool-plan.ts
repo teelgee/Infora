@@ -30,6 +30,8 @@ import type {
   OutlineEntry,
   PlannedToolStep,
   ProposedDocument,
+  ReachCounts,
+  RunReach,
   ToolPlan,
   Workflow,
 } from '@infora/contracts';
@@ -37,7 +39,9 @@ import {
   STYLE_PRECEDENCE,
   flattenOutline,
   languageLabel,
+  nothingToReadRefusal,
   purposeLabel,
+  reachStatement,
   typeLabel,
 } from '@infora/contracts';
 import { costOf } from '@infora/model';
@@ -75,8 +79,16 @@ export type DocumentCreationPlanInput = {
   sections: ReadonlyArray<DocumentSection>;
   /** what the author said the document is for, in their own words */
   brief: string;
-  /** how many library sources the author bound, chosen AHEAD of drafting (T-335) */
-  sourceCount: number;
+  /**
+   * T-469 — what the draft can reach, in documents, taken under the author's
+   * own visibility BEFORE the click: how many are in the declared scope (the
+   * whole visible library where none was declared), what record state keeps
+   * out, and what the scope left out. This replaces the count of bound
+   * sources, and the plan's reach sentence is rendered from it.
+   */
+  reach: ReachCounts;
+  /** whether the author declared a scope — the refusal's words differ */
+  scoped: boolean;
   /**
    * T-406 (ADR-0053 addendum A1) — the launcher's four answers. They reach the
    * planner because the plan's job is to say **what is about to happen**, and
@@ -107,7 +119,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
   // capped at the assembly budget: the gateway will not hand the builder more
   // than this, so an estimate above it would describe a call that cannot happen
   const promptTokens = Math.min(
-    OUTLINE_PROMPT_TOKENS + input.sourceCount * SOURCE_PROMPT_TOKENS,
+    OUTLINE_PROMPT_TOKENS + input.reach.inScope * SOURCE_PROMPT_TOKENS,
     input.tokenLimit,
   );
   const completionTokens = sections * SECTION_COMPLETION_TOKENS;
@@ -122,7 +134,7 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
       stage: step.stage,
       worker: step.worker ?? null,
       label: drafting
-        ? `Draft ${sections} section${sections === 1 ? '' : 's'} — ${outline.map((entry) => entry.heading).join(', ')} — from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}`
+        ? `Draft ${sections} section${sections === 1 ? '' : 's'} — ${outline.map((entry) => entry.heading).join(', ')} — from the ${input.reach.inScope} document${input.reach.inScope === 1 ? '' : 's'} ${input.scoped ? 'in your scope' : 'in the library'}`
         : `Run ${step.worker ?? step.stage}`,
       estimate: {
         calls: 1,
@@ -147,9 +159,9 @@ export function planDocumentCreation(input: DocumentCreationPlanInput): ToolPlan
     workflowId: input.workflow.id,
     workflowVersion: input.workflow.version,
     steps,
-    coverage: coverageBefore(sections, input.sourceCount),
+    coverage: coverageBefore(sections, input.reach),
     cost: { total, priced },
-    refusal: refusalOf(input.sourceCount),
+    refusal: refusalOf(input.reach, input.scoped),
     notes: notesOf(input),
     proposal: proposalOf(input),
   };
@@ -199,7 +211,7 @@ function overviewOf(input: DocumentCreationPlanInput): string {
   const sections = flattenOutline(input.sections).length;
   return [
     `${sentence(input.brief)}`,
-    `It will be written as ${aOrAn(purposeLabel(input.purpose).toLowerCase())}, ${typeLabel(input.documentType).toLowerCase()}, in ${languageLabel(input.language)} register, in ${sections} section${sections === 1 ? '' : 's'}, drawing on ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'}.`,
+    `It will be written as ${aOrAn(purposeLabel(input.purpose).toLowerCase())}, ${typeLabel(input.documentType).toLowerCase()}, in ${languageLabel(input.language)} register, in ${sections} section${sections === 1 ? '' : 's'}, drawing on ${input.reach.inScope} document${input.reach.inScope === 1 ? '' : 's'} ${input.scoped ? 'in your scope' : 'in the library'}.`,
     input.styleGuideCount > 0
       ? `It follows ${input.styleGuideCount} project style guide${input.styleGuideCount === 1 ? '' : 's'}.`
       : 'No style guide was selected for it.',
@@ -213,7 +225,7 @@ function overviewOf(input: DocumentCreationPlanInput): string {
  * two constraints that govern every sentence in it. **Stating the grounding
  * constraint per section is not padding**: the difference between "this section
  * will cover the baseline" and "this section will cover the baseline, from the
- * bound sources only, leaving out anything they do not support" is the
+ * documents in reach only, leaving out anything they do not support" is the
  * difference between a description of a document and a description of THIS
  * product's document.
  */
@@ -223,7 +235,7 @@ function computedBrief(entry: OutlineEntry, input: DocumentCreationPlanInput): s
   // reads as a section that wandered off the outline.
   const under =
     entry.parentHeading === null ? '' : ` It sits under “${entry.parentHeading}”.`;
-  return `${sentence(entry.purpose)}${under} Written in ${languageLabel(input.language)} register, from the ${input.sourceCount} bound source${input.sourceCount === 1 ? '' : 's'} only — anything the record does not support is left out.`;
+  return `${sentence(entry.purpose)}${under} Written in ${languageLabel(input.language)} register, from the documents in reach only — anything the record does not support is left out.`;
 }
 
 /** An author's phrase, ended like a sentence. */
@@ -268,24 +280,21 @@ const aOrAn = (word: string) => `${/^[aeiou]/.test(word) ? 'an' : 'a'} ${word}`;
 /**
  * The pathological case, and the ONLY one (ADR-0053 §5).
  *
- * No bound sources means the builder has nothing to draft from and will produce
+ * Nothing in reach means the builder has nothing to draft from and will produce
  * an empty document — a result indistinguishable, on screen, from one where the
  * record genuinely said nothing. Refusing before the click is the honest place
  * to say it; a caveat under an empty document is read after the disappointment.
  */
-function refusalOf(sourceCount: number): string | null {
-  return sourceCount > 0
-    ? null
-    : 'No sources are bound to this document, so nothing can be drafted from the record. Bind at least one library source and the plan will regenerate.';
+function refusalOf(reach: ReachCounts, scoped: boolean): string | null {
+  return reach.inScope > 0 ? null : nothingToReadRefusal(reach, scoped);
 }
 
-/** Before the run — what it WILL cover. */
-export function coverageBefore(sectionCount: number, sourceCount: number): string {
-  return [
-    `${sectionCount} section${sectionCount === 1 ? '' : 's'}`,
-    `${sourceCount} bound source${sourceCount === 1 ? '' : 's'}`,
-    '1 drafting pass',
-  ].join(' · ');
+/**
+ * Before the run — what it WILL cover. The reach sentence is the one every
+ * surface renders (`reachStatement`, T-469); the rest says what the plan will do.
+ */
+export function coverageBefore(sectionCount: number, reach: ReachCounts): string {
+  return `${[`${sectionCount} section${sectionCount === 1 ? '' : 's'}`, '1 drafting pass'].join(' · ')}. ${reachStatement(reach)}`;
 }
 
 /**
@@ -293,7 +302,7 @@ export function coverageBefore(sectionCount: number, sourceCount: number): strin
  *
  * The same shape matters more than the same words: a reader comparing the two
  * sentences should be able to see the difference at a glance, which is what
- * makes *"4 bound sources"* becoming *"2 sources used"* a fact rather than
+ * makes *"14 documents can be read"* becoming *"Read 2 documents"* a fact rather than
  * something they would have to go looking for. Unreachable sources, withheld
  * sentences and material written outside the outline are appended because all
  * three are absences the document itself cannot show.
@@ -312,8 +321,13 @@ export function coverageAfter(result: {
   /** sections OF THE OUTLINE written — never the `unsectioned` bucket (T-402) */
   sectionsWritten: number;
   sectionsPlanned: number;
-  sourcesUsed: number;
-  sourcesBound: number;
+  /**
+   * T-469 — the run's reach, as it turned out: the same counts the plan
+   * promised, plus `read`, the distinct documents the run's steps recorded.
+   * Rendered by `reachStatement`, so the plan's sentence and this one are the
+   * same words over different numbers.
+   */
+  reach: RunReach;
   unreachableSources: number;
   withheld: number;
   /** grounded sentences that matched no heading, so were not written (T-402) */
@@ -321,7 +335,6 @@ export function coverageAfter(result: {
 }): string {
   const parts = [
     `${result.sectionsWritten} of ${result.sectionsPlanned} sections written`,
-    `${result.sourcesUsed} of ${result.sourcesBound} bound sources used`,
     '1 drafting pass',
   ];
   if (result.unreachableSources > 0) {
@@ -339,5 +352,6 @@ export function coverageAfter(result: {
       `${result.outsideOutline} sentence${result.outsideOutline === 1 ? '' : 's'} written outside the outline and left out of the document`,
     );
   }
-  return parts.join(' · ');
+  // T-469 — the reach sentence last, from the same numbers every surface uses
+  return `${parts.join(' · ')}. ${reachStatement(result.reach)}`;
 }

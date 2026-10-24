@@ -53,8 +53,13 @@ export function createRetrieveLeaf(
       projectId: ctx.run.environmentKey,
     };
 
+    // T-469 — the run's declared scope rides EVERY assembly the leaf makes, the
+    // baseline and the sub-agent's alike (ADR-0029 §4: one call, one
+    // guarantee). The gateway intersects it with the entitled set; the leaf can
+    // neither widen it nor drop it.
+    const scope = ctx.scope === undefined ? {} : { scope: ctx.scope };
     const baseline = await gateway.assemble({
-      request: { text: request, mode: 'baseline' },
+      request: { text: request, mode: 'baseline', ...scope },
       environment,
       requester,
     });
@@ -80,7 +85,7 @@ export function createRetrieveLeaf(
 
     try {
       const targeted = await gateway.assemble({
-        request: { text: request, mode: 'targeted' },
+        request: { text: request, mode: 'targeted', ...scope },
         environment,
         requester,
       });
@@ -144,5 +149,8 @@ function fold(baseline: AssembledInput, targeted: AssembledInput): AssembledInpu
     items,
     budget: { tokenLimit: baseline.budget.tokenLimit, tokensUsed },
     ...(baseline.embedding !== undefined && { embedding: baseline.embedding }),
+    // T-469 — what was searched rides out, so the run can say how much of the
+    // library the baseline pre-filter admitted
+    ...(baseline.coverage !== undefined && { coverage: baseline.coverage }),
   };
 }

@@ -3,7 +3,7 @@
 // produce the same plan, every time, and the price is honest about what it does
 // not know.
 import { describe, expect, it } from 'vitest';
-import type { DocumentSection, Workflow } from '@infora/contracts';
+import type { DocumentSection, ReachCounts, RunReach, Workflow } from '@infora/contracts';
 import { STYLE_PRECEDENCE } from '@infora/contracts';
 import { coverageAfter, coverageBefore, planDocumentCreation } from './tool-plan';
 
@@ -28,12 +28,22 @@ const workflow: Workflow = {
   labelPropagation: 'refuse',
 };
 
+const REACH = (inScope: number, over: Partial<ReachCounts> = {}): ReachCounts => ({
+  visibleLive: inScope,
+  inScope,
+  excludedByState: { superseded: 0, withdrawn: 0 },
+  leftOutByScope: 0,
+  ...over,
+});
+const RUN_REACH = (read: number, over: Partial<RunReach> = {}): RunReach => ({ ...REACH(read), read, ...over });
+
 const plan = (overrides: Partial<Parameters<typeof planDocumentCreation>[0]> = {}) =>
   planDocumentCreation({
     workflow,
     sections,
     brief: 'does the baseline support the assessment?',
-    sourceCount: 3,
+    reach: REACH(3),
+    scoped: false,
     purpose: 'technical-note',
     language: 'technical',
     documentType: 'whole-document',
@@ -67,14 +77,18 @@ describe('the document creator’s plan is computed in code (T-309, ADR-0053 §4
   });
 
   it('caps the prompt estimate at the assembly budget — it cannot describe a call that cannot happen', () => {
-    const enormous = plan({ sourceCount: 10_000 });
+    const enormous = plan({ reach: REACH(10_000) });
     expect(enormous.steps[0]!.estimate.tokensPrompt).toBe(12000);
   });
 
-  it('refuses IN THE PLAN when nothing is bound to draft from', () => {
+  it('refuses IN THE PLAN when nothing is in reach to draft from', () => {
     // ADR-0053 §5 — the pathological case, said before any spend rather than as
-    // a caveat under an empty document
-    expect(plan({ sourceCount: 0 }).refusal).toContain('No sources are bound');
+    // a caveat under an empty document. T-469: in words, and the words differ
+    // between a scope that left everything out and a library with nothing in it
+    expect(plan({ reach: REACH(0) }).refusal).toContain('nothing to read');
+    expect(
+      plan({ reach: REACH(0, { visibleLive: 9, leftOutByScope: 9 }), scoped: true }).refusal,
+    ).toContain('Your scope leaves nothing to read');
     expect(plan().refusal).toBeNull();
   });
 });
@@ -122,7 +136,7 @@ describe('the plan is the proposed document (T-408)', () => {
     const proposal = plan().proposal!;
     expect(proposal.overview).toContain('does the baseline support the assessment?');
     expect(proposal.overview).toContain('2 sections');
-    expect(proposal.overview).toContain('3 bound sources');
+    expect(proposal.overview).toContain('3 documents in the library');
     expect(proposal.sections.map((section) => section.heading)).toEqual([
       'Purpose',
       'The evidence',
@@ -181,11 +195,17 @@ describe('the plan is the proposed document (T-408)', () => {
 });
 
 describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
-  it('before the run: what it WILL cover', () => {
-    expect(coverageBefore(2, 3)).toBe('2 sections · 3 bound sources · 1 drafting pass');
+  it('before the run: what it WILL cover, with the reach sentence every surface renders', () => {
+    expect(coverageBefore(2, REACH(3))).toBe('2 sections · 1 drafting pass. 3 documents can be read.');
     // singular, because a coverage sentence that reads wrongly is one nobody
     // trusts the numbers in
-    expect(coverageBefore(2, 1)).toBe('2 sections · 1 bound source · 1 drafting pass');
+    expect(coverageBefore(2, REACH(1))).toBe('2 sections · 1 drafting pass. 1 document can be read.');
+    // and the scope's own effect is said in the same breath
+    expect(
+      coverageBefore(2, REACH(3, { visibleLive: 5, leftOutByScope: 2, excludedByState: { superseded: 1, withdrawn: 0 } })),
+    ).toBe(
+      '2 sections · 1 drafting pass. 3 documents in your scope can be read. Excluded: 1 superseded. Your scope left out 2 you could have included.',
+    );
   });
 
   it('after it: what it DID, and the absences the document itself cannot show', () => {
@@ -193,14 +213,13 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
       coverageAfter({
         sectionsWritten: 1,
         sectionsPlanned: 2,
-        sourcesUsed: 1,
-        sourcesBound: 3,
+        reach: RUN_REACH(1),
         unreachableSources: 1,
         withheld: 2,
         outsideOutline: 0,
       }),
     ).toBe(
-      '1 of 2 sections written · 1 of 3 bound sources used · 1 drafting pass · 1 named source the library did not return · 2 sentences withheld for resting on no source',
+      '1 of 2 sections written · 1 drafting pass · 1 named source the library did not return · 2 sentences withheld for resting on no source. Read 1 document.',
     );
   });
 
@@ -213,14 +232,13 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
       coverageAfter({
         sectionsWritten: 0,
         sectionsPlanned: 4,
-        sourcesUsed: 1,
-        sourcesBound: 1,
+        reach: RUN_REACH(1),
         unreachableSources: 0,
         withheld: 0,
         outsideOutline: 3,
       }),
     ).toBe(
-      '0 of 4 sections written · 1 of 1 bound sources used · 1 drafting pass · 3 sentences written outside the outline and left out of the document',
+      '0 of 4 sections written · 1 drafting pass · 3 sentences written outside the outline and left out of the document. Read 1 document.',
     );
   });
 
@@ -229,14 +247,13 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
       coverageAfter({
         sectionsWritten: 2,
         sectionsPlanned: 2,
-        sourcesUsed: 1,
-        sourcesBound: 1,
+        reach: RUN_REACH(1),
         unreachableSources: 0,
         withheld: 0,
         outsideOutline: 1,
       }),
     ).toBe(
-      '2 of 2 sections written · 1 of 1 bound sources used · 1 drafting pass · 1 sentence written outside the outline and left out of the document',
+      '2 of 2 sections written · 1 drafting pass · 1 sentence written outside the outline and left out of the document. Read 1 document.',
     );
   });
 
@@ -245,12 +262,11 @@ describe('coverage is stated twice, in the same shape (ADR-0053 §5)', () => {
       coverageAfter({
         sectionsWritten: 2,
         sectionsPlanned: 2,
-        sourcesUsed: 3,
-        sourcesBound: 3,
+        reach: RUN_REACH(3),
         unreachableSources: 0,
         withheld: 0,
         outsideOutline: 0,
       }),
-    ).toBe('2 of 2 sections written · 3 of 3 bound sources used · 1 drafting pass');
+    ).toBe('2 of 2 sections written · 1 drafting pass. Read 3 documents.');
   });
 });

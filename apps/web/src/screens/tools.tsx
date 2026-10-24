@@ -930,7 +930,9 @@ export function DocumentCreatorScreen() {
     language,
     documentType,
     styleGuideIds,
-    sourceVersionIds: sources,
+    // T-469 — the part of the library the draft may draw on. Nothing ticked is
+    // the whole library you can reach (one convention); ticked is exactly those
+    ...(sources.length > 0 && { scope: { containerIds: sources } }),
     destinationSandboxId: destination,
     title: title.trim(),
   });
@@ -1059,9 +1061,9 @@ export function DocumentCreatorScreen() {
       <h1 className="page">Document creator</h1>
       <p className="page-sub">
         Say what kind of document this is, what language it should be in, which style guides apply
-        and whether it is a whole document, a chapter or a section — then pick the library documents
-        it may draw on. The sources are chosen before anything is drafted, so the result can be
-        checked against what you asked for.
+        and whether it is a whole document, a chapter or a section — then say which library documents
+        it may draw on — or leave that open to use the whole library you can reach. The choice is made
+        before anything is drafted, so the result can be checked against what you asked for.
       </p>
 
       {/* T-406 (ADR-0053 addendum A1) — FOUR PLAIN QUESTIONS, NOT A "SHAPE".
@@ -1163,25 +1165,33 @@ export function DocumentCreatorScreen() {
 
       <Card>
         <span className="card-title">Sources this draft may use</span>
+        {/* T-469 — one convention across every tool: tick nothing and the draft
+            may use the whole library you can reach; tick some and it uses
+            exactly those. Said in words, because an empty list in a form
+            usually means the opposite. */}
+        <p className="field-hint">
+          Tick nothing to let the draft use the whole library you can reach, or tick the documents
+          it should use.
+        </p>
         {/* The list is `grounding-scope` — the SAME pre-filter retrieval runs, so
             a document offered here is one the draft could actually have used
             (T-292). Nothing unreachable is greyed: it is absent. */}
         {scope === null || scope.sources.length === 0 ? (
           <p className="card-lede">
-            Nothing in this project’s library is in scope for a grounded draft. Without at least one
-            source there is nothing to draft from, and the plan will say so.
+            Nothing in this project’s library is in scope for a grounded draft, so there is nothing
+            to draft from, and the plan will say so.
           </p>
         ) : (
           scope.sources.map((source: GroundingSource) => (
             <SourceRow
               key={source.containerId}
               source={source}
-              checked={sources.includes(source.versionId)}
+              checked={sources.includes(source.containerId)}
               onToggle={() =>
                 change(setSources)(
-                  sources.includes(source.versionId)
-                    ? sources.filter((id) => id !== source.versionId)
-                    : [...sources, source.versionId],
+                  sources.includes(source.containerId)
+                    ? sources.filter((id) => id !== source.containerId)
+                    : [...sources, source.containerId],
                 )
               }
             />
@@ -1374,7 +1384,7 @@ export function ListSearch(props: {
 export function LibraryScopePicker(props: {
   sources: GroundingSource[] | null;
   selected: string[];
-  onToggle: (versionId: string) => void;
+  onToggle: (containerId: string) => void;
 }) {
   const [query, setQuery] = useState('');
   if (props.sources === null || props.sources.length === 0) {
@@ -1409,8 +1419,8 @@ export function LibraryScopePicker(props: {
           <SourceRow
             key={source.containerId}
             source={source}
-            checked={props.selected.includes(source.versionId)}
-            onToggle={() => props.onToggle(source.versionId)}
+            checked={props.selected.includes(source.containerId)}
+            onToggle={() => props.onToggle(source.containerId)}
           />
         ))
       )}
@@ -1712,7 +1722,7 @@ export function QaCheckerScreen() {
   const [preset, setPreset] = useState<'full' | 'quick'>(DEFAULT_CHECK_PRESET);
   const [families, setFamilies] = useState<CheckFamily[]>([...CHECK_FAMILIES]);
   const [depth, setDepth] = useState<CorpusDepth>(DEFAULT_CORPUS_DEPTH);
-  const [scopeVersionIds, setScopeVersionIds] = useState<string[]>([]);
+  const [scopeContainerIds, setScopeContainerIds] = useState<string[]>([]);
   const [attached, setAttached] = useState<string[]>([]);
   // T-399 — files handed straight to this check. They live in the browser until
   // the request carries them, are parsed server-side for the run, and are
@@ -1775,7 +1785,8 @@ export function QaCheckerScreen() {
     sandboxDocumentId: documentId,
     families,
     depth,
-    scopeVersionIds,
+    // T-469 — absent is the whole library; present is exactly those documents
+    ...(scopeContainerIds.length > 0 && { scope: { containerIds: scopeContainerIds } }),
     attachedDocumentIds: attached,
   });
 
@@ -1971,12 +1982,12 @@ export function QaCheckerScreen() {
                   <span className="field-label">What it checks against</span>
                   <LibraryScopePicker
                     sources={scope?.sources ?? null}
-                    selected={scopeVersionIds}
-                    onToggle={(versionId) =>
-                      change(setScopeVersionIds)(
-                        scopeVersionIds.includes(versionId)
-                          ? scopeVersionIds.filter((id) => id !== versionId)
-                          : [...scopeVersionIds, versionId],
+                    selected={scopeContainerIds}
+                    onToggle={(containerId) =>
+                      change(setScopeContainerIds)(
+                        scopeContainerIds.includes(containerId)
+                          ? scopeContainerIds.filter((id) => id !== containerId)
+                          : [...scopeContainerIds, containerId],
                       )
                     }
                   />

@@ -547,6 +547,7 @@
           <tr><td class="col">question</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">restatement</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">assumptions</td><td class="type">jsonb</td><td class="notes">default</td></tr>
+          <tr><td class="col">scope</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">superseded_by_plan_id</td><td class="type">uuid</td><td class="notes">→ plans.id · nullable</td></tr>
         </tbody></table>
@@ -566,6 +567,7 @@
           <tr><td class="col">ended_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
           <tr><td class="col">environment_key</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">requester_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">reach</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
         </tbody></table>
       </article>
       <article class="card d3">

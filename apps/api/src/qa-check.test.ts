@@ -89,7 +89,6 @@ const body = (over: Record<string, unknown> = {}) => ({
   sandboxDocumentId: documentId,
   families: ['style', 'corpus_accuracy', 'self_contradiction', 'readability', 'completeness'],
   depth: 'full',
-  scopeVersionIds: [],
   attachedDocumentIds: [],
   ...over,
 });
@@ -541,41 +540,54 @@ describe('a file can be handed straight to a check, and is kept nowhere (T-399)'
   });
 });
 
-// ── T-416 — narrowing the scope lands on the plan's own sentence ───────────
+// ── T-416, T-469 — narrowing the scope lands on the plan's own sentence ────
 //
 // *In plain terms: the accuracy check's scope now has a search over it. What
 // this pins is that searching changed nothing about what narrowing MEANS —
-// the same list of chosen documents rides the same request field and comes
-// back stated in the plan's coverage sentence.*
+// the same scope rides the same request field and comes back stated in the
+// plan's coverage sentence, in the one reach sentence every surface renders.*
 //
 // A search is a filter over what is rendered, never a second way to choose:
-// two paths into `scopeVersionIds` would be two chances for the plan to
-// describe a scope the run did not use.
-describe('T-416 — a scope narrowed by search is stated in the plan, exactly as a picked one is', () => {
-  it('says "the whole library" when nothing is narrowed', async () => {
+// two paths into the scope would be two chances for the plan to describe a
+// scope the run did not use. T-469 made that ONE path, and one convention: no
+// scope reads the whole visible library, a scope reads exactly it, an empty
+// scope is a 400 in words.
+describe('T-416, T-469 — a scope is stated in the plan, and an empty one is refused in words', () => {
+  it('states what the library search can reach when nothing is narrowed', async () => {
     const res = await post(`/projects/${projectId}/tools/qa-check/plan`, body());
     expect(res.status).toBe(200);
     const { plan } = (await res.json()) as QaCheckPlanResponse;
-    expect(plan.coverage).toContain('the whole library');
+    expect(plan.coverage).toContain('the library searched statement by statement');
+    expect(plan.coverage).toMatch(/No documents can be read\.|documents? can be read\./);
+    expect(plan.coverage).not.toContain('in your scope');
   });
 
-  it('names the count when documents are chosen, however they were found', async () => {
-    const res = await post(
-      `/projects/${projectId}/tools/qa-check/plan`,
-      // ids the requester cannot reach are not a way in — the run resolves
-      // them through the assembly gateway like every other id (T-274's rule)
-      // — and what is under test here is the SENTENCE the narrowing produces
-      body({
-        scopeVersionIds: [
+  it('REFUSES IN THE PLAN, before any spend, when the scope leaves nothing to read', async () => {
+    // ids the requester cannot reach are not a way in — the gateway intersects
+    // them with what they may see, so they admit nothing and the plan says so
+    const scoped = body({
+      scope: {
+        containerIds: [
           '00000000-0000-4000-8000-000000000001',
           '00000000-0000-4000-8000-000000000002',
         ],
-      }),
-    );
+      },
+    });
+    const res = await post(`/projects/${projectId}/tools/qa-check/plan`, scoped);
     expect(res.status).toBe(200);
     const { plan } = (await res.json()) as QaCheckPlanResponse;
-    expect(plan.coverage).toContain('2 named library documents');
-    expect(plan.coverage).not.toContain('the whole library');
+    expect(plan.refusal).toContain('Your scope leaves nothing to read');
+    // and the run endpoint honours it
+    const run = await post(`/projects/${projectId}/tools/qa-check/runs`, scoped);
+    expect(run.status).toBe(400);
+  });
+
+  it('an EMPTY scope is a 400 in words', async () => {
+    for (const scope of [{}, { containerIds: [] }]) {
+      const res = await post(`/projects/${projectId}/tools/qa-check/plan`, body({ scope }));
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { detail: string }).detail).toContain('a scope must name at least one');
+    }
   });
 });
 

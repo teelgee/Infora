@@ -35,7 +35,9 @@ import type {
   Id,
   QaCheckPlanResponse,
   QaCheckRunResponse,
+  ReachCounts,
   Run,
+  Scope,
 } from '@infora/contracts';
 import {
   coverageAfterQaCheck,
@@ -46,8 +48,8 @@ import {
 import type { DraftFinding, QaCheckPlan, WorkerRegistry } from '@infora/capabilities';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import type { ModelRates } from '@infora/model';
-import { TOKEN_LIMIT } from '@infora/knowledge';
+import type { ModelRates, Router } from '@infora/model';
+import { reachCounts, TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
@@ -61,6 +63,7 @@ import { writeFindings } from './findings';
 import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
 import { refuseIfOff } from './ai-features';
+import { resolveScope, scopeProblem } from './scope';
 
 export const QA_CHECK_WORKFLOW = 'qa-check';
 
@@ -193,6 +196,8 @@ async function readBody(c: Context<AppEnv>): Promise<unknown> {
 
 export function qaCheckRoutes(deps: {
   db: Db;
+  /** T-469 — for the reach counts a plan is described by and a scoped run refused by */
+  router: Router;
   leaves: ChainLeaves;
   workflows?: WorkflowRegistry;
   capabilities?: CapabilityRegistry;
@@ -227,12 +232,19 @@ export function qaCheckRoutes(deps: {
         ruleSetVersions: string[];
         /** T-428 — what the coverage sentence says about RULES, before and after */
         ruleCounts: { applied: number; total: number; byRegister: Record<string, number> };
+        /** T-469 — the scope as the gateway will see it, and the counts the plan described */
+        scope: Scope | undefined;
+        reach: ReachCounts;
       }
     | { ok: false; response: Response }
   > => {
     const parsed = qaCheckBody.safeParse(await readBody(c));
     if (!parsed.success) {
-      return { ok: false, response: invalid(c, 'sandboxDocumentId, families and depth are required') };
+      // an empty or malformed scope is a 400 in words (T-469)
+      return {
+        ok: false,
+        response: invalid(c, scopeProblem(parsed.error) ?? 'sandboxDocumentId, families and depth are required'),
+      };
     }
     // T-399 — an unreadable upload is refused BEFORE the plan is computed and
     // long before anything is spent, the same place every other refusal this
@@ -297,9 +309,26 @@ export function qaCheckRoutes(deps: {
     // rules — T-309's one-planner rule, applied to one more fact.
     const ruleSetVersions = await currentRuleSetVersionIds(deps.db, slice.projectId);
 
+    // T-469 — the scope, resolved and counted BEFORE the plan is priced: the
+    // plan states what the corpus check can reach and refuses, in words, when a
+    // declared scope leaves nothing to read
+    const resolved = await resolveScope(deps.db, slice, parsed.data.scope);
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        response:
+          resolved.status === 404
+            ? notFound(c)
+            : invalid(c, resolved.detail ?? 'the scope could not be used'),
+      };
+    }
+    const reach = await reachCounts(deps, slice, resolved.scope);
+
     return {
       ok: true,
       body: parsed.data,
+      scope: resolved.scope,
+      reach,
       sectionCount: sections.length,
       clauseCount: clauses.length,
       ruleCounts: countRules(rules),
@@ -316,7 +345,8 @@ export function qaCheckRoutes(deps: {
           tokens: clauses.reduce((sum, clause) => sum + tokensIn(clause.text), 0),
         },
         styleRules: countRules(rules),
-        scopedDocuments: parsed.data.scopeVersionIds.length,
+        reach,
+        scoped: resolved.scope !== undefined,
         attachedDocuments: parsed.data.attachedDocumentIds.length,
         // named, not counted: an upload is stored nowhere, so its name is the
         // only handle the plan and the record will ever have for it
@@ -361,7 +391,6 @@ export function qaCheckRoutes(deps: {
         measures,
         families: computed.body.families.join(','),
         depth: computed.body.depth,
-        scope_version_ids: computed.body.scopeVersionIds,
         attached_document_ids: computed.body.attachedDocumentIds,
         // 🔒 THE FINGERPRINT, NEVER THE TEXT. This is a bound parameter, so it
         // lands in `plan_steps.inputs` and stays in the record — which is
@@ -429,6 +458,10 @@ export function qaCheckRoutes(deps: {
           ...(bound.labelPropagation !== undefined && { labelPropagation: bound.labelPropagation }),
         },
         stages: bound.stages,
+        // T-469 — the scope on the plan before retrieval; the counts are
+        // completed with `read` when the run finishes
+        ...(computed.scope !== undefined && { scope: computed.scope }),
+        reach: computed.reach,
         // T-399 — the TEXT, in memory only, for the life of this walk. It
         // reaches the section check through the same door the sandbox-pinned
         // excerpts use, one step earlier.
@@ -481,6 +514,10 @@ export function qaCheckRoutes(deps: {
           }),
           discarded: gathered.discarded,
           contradictionGroups: Math.max(1, groups.length),
+          // T-469 — the one reach sentence, off the record the run wrote; said
+          // only where the corpus check was among the checks
+          ...(computed.body.families.includes('corpus_accuracy') &&
+            run?.reach !== undefined && { reach: run.reach }),
         }),
         findings,
       } satisfies QaCheckRunResponse,

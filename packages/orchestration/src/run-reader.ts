@@ -3,7 +3,7 @@
 // Citations resolve their documentReference through the version's container;
 // the Signal, when present, rides its Suggestion.
 import { asc, desc, eq, inArray } from 'drizzle-orm';
-import type { Citation, Id, Run, Step, Suggestion } from '@infora/contracts';
+import type { Citation, Id, Run, RunReach, Step, Suggestion } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -40,6 +40,9 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
     endedAt: run.endedAt?.toISOString() ?? null,
     steps: stepRows.map(toStep),
     suggestions: await readSuggestions(db, suggestionRows),
+    // T-469 — the counts the reach sentence is rendered from; absent on a run
+    // that finished before they existed
+    ...(run.reach !== null && { reach: run.reach as RunReach }),
     citations: await readStepCitations(db, stepRows.map((row) => row.id)),
   };
 }

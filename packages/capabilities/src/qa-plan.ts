@@ -31,9 +31,12 @@ import type {
   CheckFamily,
   CorpusDepth,
   PlannedToolStep,
+  ReachCounts,
+  RunReach,
   ToolPlan,
   Workflow,
 } from '@infora/contracts';
+import { nothingToReadRefusal, reachStatement } from '@infora/contracts';
 import { costOf } from '@infora/model';
 import type { ModelRates } from '@infora/model';
 import type { DraftSection } from './workers/qa-sections';
@@ -84,8 +87,15 @@ export type QaCheckPlanInput = {
    * finding.
    */
   styleRules?: { applied: number; total: number; byRegister: Record<string, number> };
-  /** how many library documents the run was narrowed to; 0 = the whole library */
-  scopedDocuments: number;
+  /**
+   * T-469 — what the corpus check can reach, in documents, under the
+   * requester's own visibility, taken BEFORE the click. Replaces the count of
+   * documents the run was narrowed to: the reach sentence is rendered from
+   * these numbers, so the plan and the result describe the same library.
+   */
+  reach: ReachCounts;
+  /** whether a scope was declared — the refusal's words differ, and only a scoped run refuses an empty reach */
+  scoped: boolean;
   attachedDocuments: number;
   /**
    * T-399 — the NAMES of files uploaded straight into this run.
@@ -198,6 +208,14 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
 
   const passes: string[] = [];
   const refusals: string[] = [];
+  // 🔒 T-469 — REFUSE BEFORE SPEND when a declared scope leaves nothing to read
+  // against. Only where the corpus check was asked for and a scope was
+  // declared: a whole-library run over an empty library keeps its old, honest
+  // behaviour (the result says the library returned nothing), because that is
+  // not a choice the person made.
+  if (wantsCorpus && input.scoped && input.reach.inScope === 0) {
+    refusals.push(nothingToReadRefusal(input.reach, true));
+  }
   // 🔒 NO PER-SECTION FAMILY, NO PER-SECTION PASSES. `style` and
   // `corpus_accuracy` are the only families read at section grain, so a run of
   // readability alone must plan — and execute — zero section calls. The fan-out
@@ -395,9 +413,7 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
   parts.push(`${input.families.length} check${input.families.length === 1 ? '' : 's'}`);
   if (input.families.includes('corpus_accuracy')) {
     parts.push(
-      input.scopedDocuments === 0
-        ? `the whole library, searched ${input.depth === 'full' ? 'statement by statement' : 'once per section'}`
-        : `${input.scopedDocuments} named library document${input.scopedDocuments === 1 ? '' : 's'}, searched ${input.depth === 'full' ? 'statement by statement' : 'once per section'}`,
+      `the library searched ${input.depth === 'full' ? 'statement by statement' : 'once per section'}`,
     );
   }
   if (input.families.includes('style')) {
@@ -413,7 +429,11 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
   if (input.attachedUploads.length > 0) {
     parts.push(`attached: ${input.attachedUploads.join(', ')} — never grounds, never cited`);
   }
-  return parts.join(' · ');
+  // T-469 — what the library search can reach, in the one sentence every
+  // surface renders; only said where the corpus check is among the checks
+  return input.families.includes('corpus_accuracy')
+    ? `${parts.join(' · ')}. ${reachStatement(input.reach)}`
+    : parts.join(' · ');
 }
 
 function styleCoverage(input: QaCheckPlanInput, passes: number): string {
@@ -476,6 +496,11 @@ export function coverageAfterQaCheck(result: {
   attachedUploads?: readonly string[];
   discarded: number;
   contradictionGroups: number;
+  /**
+   * T-469 — the run's reach, as it turned out, rendered by the one function
+   * every surface uses. Said only where the corpus check ran.
+   */
+  reach?: RunReach;
 }): string {
   const parts = [
     `${result.sectionsRead} of ${result.sectionsPlanned} section${result.sectionsPlanned === 1 ? '' : 's'} read`,
@@ -520,5 +545,7 @@ export function coverageAfterQaCheck(result: {
       `${result.discarded} suggested finding${result.discarded === 1 ? '' : 's'} discarded for not pointing at real text or a real source`,
     );
   }
-  return parts.join(' · ');
+  return result.reach === undefined
+    ? parts.join(' · ')
+    : `${parts.join(' · ')}. ${reachStatement(result.reach)}`;
 }

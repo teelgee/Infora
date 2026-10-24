@@ -4,6 +4,7 @@
 // packages/knowledge implements the signature (T-030); access resolution runs
 // INSIDE the call, before retrieval (ADR-0029 §1–2).
 
+import type { ReachCounts, Scope } from './scope';
 import type { Id } from './shared';
 
 export type AssemblyEnvironment =
@@ -11,7 +12,14 @@ export type AssemblyEnvironment =
   | { kind: 'workspace'; organisationId: Id }; // ADR-0025; workspace unused in the skeleton
 
 export type AssemblyRequest = {
-  request: { text: string; mode: 'baseline' | 'targeted' }; // ADR-0029 §4
+  // ADR-0029 §4. T-469 — `scope` is the person's declared narrowing (ADR-0029's
+  // addendum of 2026-10-24). It is NOT a widening parameter: the gateway
+  // resolves the wall, record state and the entitled slice FIRST and
+  // intersects the scope with that set, so `scope ∩ visible == what is
+  // retrieved` and a scope naming a document the requester may not see
+  // retrieves, and counts, nothing from it. Absent means the whole visible
+  // library; a present scope names at least one term or container.
+  request: { text: string; mode: 'baseline' | 'targeted'; scope?: Scope };
   environment: AssemblyEnvironment;
   requester: { organisationId: Id; participantId: Id };
 };
@@ -158,6 +166,12 @@ export type AssemblyCoverage = {
   requestedReferences: string[];
   /** …of those, the ones nothing in the reachable corpus matched */
   unmatchedReferences: string[];
+  /**
+   * T-469 — the same assembly's DOCUMENT counts (not chunks), taken under the
+   * requester's own visibility: what they may see and what record state kept
+   * out, never what exists. The reach sentence is rendered from these.
+   */
+  reach: ReachCounts;
 };
 
 export type AssembledInput = {

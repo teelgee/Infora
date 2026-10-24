@@ -1084,9 +1084,10 @@ export const api = {
     // on the conversation: an answer's Lens is a property of the answer, so
     // switching changes the next one and leaves history as it was produced.
     lensId?: string,
-    // T-292 — the Data sources refinement. Sent only when the user narrowed:
-    // absent means "not narrowed", and an empty array would mean "narrowed to
-    // nothing" (T-248's `absent ≠ empty`), so the surface never sends one.
+    // T-292, T-469 — the Data sources refinement, sent as the request's SCOPE
+    // (T-470 replaces the chip). Sent only when the user narrowed: absent means
+    // the whole library you can reach, and an empty scope is a 400, so the
+    // surface never sends one.
     sourceContainerIds?: string[],
   ) =>
     request<Run>(`/conversations/${conversationId}/runs`, {
@@ -1096,7 +1097,7 @@ export const api = {
         ...(sandboxDocumentId !== undefined && { sandboxDocumentId }),
         ...(lensId !== undefined && { lensId }),
         ...(sourceContainerIds !== undefined &&
-          sourceContainerIds.length > 0 && { sourceContainerIds }),
+          sourceContainerIds.length > 0 && { scope: { containerIds: sourceContainerIds } }),
       }),
       ...(signal !== undefined && { signal }),
     }),

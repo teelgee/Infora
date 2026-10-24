@@ -17,3 +17,4 @@ export * from './workflow';
 export * from './shared';
 export * from './endpoints';
 export * from './errors';
+export * from './scope';

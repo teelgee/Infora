@@ -107,7 +107,6 @@ describe('the wire allows one level and no more', () => {
     language: 'technical',
     documentType: 'whole-document',
     styleGuideIds: [],
-    sourceVersionIds: [],
     destinationSandboxId: '00000000-0000-4000-8000-000000000000',
     title: 'a note',
   });

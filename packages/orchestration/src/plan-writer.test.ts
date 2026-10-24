@@ -127,7 +127,8 @@ describe('the plan artefact (T-260)', () => {
     expect(plan.steps.map((step) => step.stage)).toEqual(CODED_CHAIN_PLAN.map((s) => s.stage));
     expect(plan.steps.map((step) => step.stepRowId)).toEqual(stepRows.map((row) => row.id));
     expect(plan.steps.every((step) => step.state === 'complete')).toBe(true);
-    // no step declares a worker yet (T-269), and none may ever declare a scope
+    // no step declares a worker yet (T-269), and no STEP may ever declare a scope:
+    // the PLAN's scope (T-469) is written once, before retrieval, and only narrows
     expect(plan.steps.every((step) => step.worker === null)).toBe(true);
     expect(plan.steps.every((step) => !('scope' in step))).toBe(true);
   });

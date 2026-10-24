@@ -368,6 +368,94 @@ describe('partial failure semantics (T-268)', () => {
   });
 });
 
+// T-469 — the scope is a declared part of the plan, written BEFORE retrieval, and
+// the run's reach is written in the same update that finishes it.
+describe('the scope and the reach (T-469)', () => {
+  const REACH = {
+    visibleLive: 9,
+    inScope: 3,
+    excludedByState: { superseded: 2, withdrawn: 0 },
+    leftOutByScope: 6,
+  };
+
+  it('writes the scope on the plan BEFORE the retrieve leaf runs, and hands it to the leaf', async () => {
+    const scope = { containerIds: ['00000000-0000-4000-8000-0000000000aa'] };
+    let onPlanWhenRetrieving: unknown = 'the leaf never ran';
+    let onContext: unknown = 'the leaf never ran';
+    const leaves = stubLeaves([]);
+    leaves.retrieve = async (ctx) => {
+      // the order IS the assertion: at the moment retrieval runs, the plan row
+      // already carries the scope — it was declared, not inferred afterwards
+      const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, ctx.run.id));
+      onPlanWhenRetrieving = plan!.scope;
+      onContext = ctx.scope;
+      return { output: retrieved };
+    };
+    const { run } = await runChain(db, leaves, { ...input(), scope });
+    expect(onPlanWhenRetrieving).toEqual(scope);
+    expect(onContext).toEqual(scope);
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, run.id));
+    expect(plan!.scope).toEqual(scope);
+  });
+
+  it('a run that named no scope writes null — the whole visible library', async () => {
+    const { run } = await runChain(db, stubLeaves([]), input());
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, run.id));
+    expect(plan!.scope).toBeNull();
+  });
+
+  it('writes the reach with the run’s completion, `read` being the distinct documents in the steps’ source sets', async () => {
+    // two versions of the SAME document and one of another: three versions, two documents
+    const [org] = await db.select().from(s.organisations).limit(1);
+    const second = async (reference: string) => {
+      const [container] = await db
+        .insert(s.containers)
+        .values({ projectId, producingOrganisationId: org!.id, documentReference: reference, inLibrary: true })
+        .returning();
+      const [one] = await db
+        .insert(s.versions)
+        .values({ containerId: container!.id, versionReference: 'v1', content: 'x' })
+        .returning();
+      const [two] = await db
+        .insert(s.versions)
+        .values({ containerId: container!.id, versionReference: 'v2', content: 'y' })
+        .returning();
+      return [one!.id, two!.id];
+    };
+    const [v1, v2] = await second(`T469-READ-${Date.now()}`);
+    const leaves = stubLeaves([]);
+    const many: AssembledInput = {
+      items: [
+        { channel: 'grounded', corpus: 'library', source: { versionId: v1! }, content: 'x' },
+        { channel: 'grounded', corpus: 'library', source: { versionId: v2! }, content: 'y' },
+        { channel: 'grounded', corpus: 'library', source: { versionId }, content: 'source content' },
+      ],
+      budget: { tokenLimit: 12000, tokensUsed: 3 },
+    };
+    leaves.retrieve = async () => ({ output: many });
+    const { run } = await runChain(db, leaves, { ...input(), reach: REACH });
+    expect(run.state).toBe('completed');
+    expect(run.reach).toEqual({ ...REACH, read: 2 });
+  });
+
+  it('without counts handed in, a run records none rather than inventing them', async () => {
+    const { run } = await runChain(db, stubLeaves([]), input());
+    expect(run.reach).toBeNull();
+  });
+
+  it('takes the counts from the retrieval’s own coverage when the caller supplied none', async () => {
+    const leaves = stubLeaves([]);
+    leaves.retrieve = async () => ({
+      output: {
+        ...retrieved,
+        coverage: { candidates: 4, requestedReferences: [], unmatchedReferences: [], reach: REACH },
+      },
+    });
+    const { run } = await runChain(db, leaves, input());
+    expect(run.reach).toEqual({ ...REACH, read: 1 });
+  });
+});
+
 // Review, 2026-08-31 — the fan-out ordering guarantee, pinned at its own level.
 // `{{steps.x.output}}` over an expanded step returns section outputs in section
 // order BY NUMERIC SUFFIX; eleven expansions is the case a string sort fails

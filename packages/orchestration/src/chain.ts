@@ -28,12 +28,17 @@ import type {
   Lens,
   PlanMode,
   PlanStage,
+  ReachCounts,
+  RunReach,
+  Scope,
   StepType,
   WorkerDeclaration,
   WorkflowLabelPropagation,
   WorkflowWrites,
 } from '@infora/contracts';
+import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { eq, inArray } from 'drizzle-orm';
 import {
   CODED_CHAIN_PLAN,
   finishPlan,
@@ -117,6 +122,14 @@ export type LeafContext = {
    * every run that existed before this ticket.
    */
   attachments: readonly RunAttachment[];
+  /**
+   * T-469 — the scope the person declared for this run, resolved to term and
+   * container ids and also written on the plan before the first retrieval.
+   * Every gateway call a leaf or capability makes carries it, so one narrowing
+   * governs the whole run. Absent means the whole visible library. It only
+   * ever narrows: the gateway intersects it with the entitled set.
+   */
+  scope?: Scope;
 };
 
 // A leaf returns its output plus what the Step row must record (ADR-0028 §7).
@@ -210,6 +223,20 @@ export type ChainInput = {
    * see `RunAttachment` for why a workflow parameter could not hold them.
    */
   attachments?: readonly RunAttachment[];
+  /**
+   * T-469 — the scope the person declared (a saved scope already resolved to
+   * ids by the API). Written on the plan before retrieval and carried to every
+   * leaf and capability on the context. Absent: the whole visible library.
+   */
+  scope?: Scope;
+  /**
+   * T-469 — the document counts the API took under the requester's own
+   * visibility when it accepted the request (it needs them anyway, to refuse a
+   * scope that leaves nothing to read BEFORE any spend). The run adds what it
+   * actually read and writes the whole as `runs.reach` at completion. Absent:
+   * the first retrieval's own coverage is used.
+   */
+  reach?: ReachCounts;
   /**
    * T-252 — re-resolve the requester's entitlement BEFORE each step runs
    * (finding F4, half two).
@@ -367,6 +394,8 @@ export async function runChain(
     // the evidence half (T-299): which Lens produced this answer, and which
     // version of it, recorded on the plan before the draft step runs
     lens: input.lens ?? null,
+    // T-469 — the declared scope, on the plan BEFORE the first retrieval
+    scope: input.scope ?? null,
   });
   await markPlanRunning(db, plan.id);
 
@@ -408,7 +437,13 @@ export async function runChain(
     if (plannedStepId !== null) await startPlanStep(db, plannedStepId, row.id);
     try {
       const { output, audit } = await leaf(
-        { db, run, stepId: row.id, attachments: input.attachments ?? [] },
+        {
+          db,
+          run,
+          stepId: row.id,
+          attachments: input.attachments ?? [],
+          ...(input.scope !== undefined && { scope: input.scope }),
+        },
         leafInput,
       );
       await finishStep(db, row.id, 'completed', { ...auditFrom(output), ...audit });
@@ -424,6 +459,17 @@ export async function runChain(
       if (plannedStepId !== null) await finishPlanStep(db, plannedStepId, 'failed');
       return { ok: false, reason: reasonOf(error) };
     }
+  };
+
+  // T-469 — the reach written with the run's completion: the gateway's counts
+  // plus `read`, the distinct documents in the steps' source sets (the
+  // passage-grain audit). Computed from the rows the run itself wrote, so the
+  // sentence's numbers can be checked against the audit.
+  let retrievedCoverage: ReachCounts | undefined;
+  const reachRecord = async (): Promise<RunReach | null> => {
+    const counts = input.reach ?? retrievedCoverage;
+    if (counts === undefined) return null;
+    return { ...counts, read: await documentsRead(db, run.id) };
   };
 
   const fail = async (reason: string): Promise<never> => {
@@ -590,6 +636,7 @@ export async function runChain(
         }
         retrieved = result.output;
         sourceSet = sourcesOf(retrieved);
+        retrievedCoverage = retrieved.coverage?.reach;
         continue;
       }
 
@@ -689,14 +736,17 @@ export async function runChain(
   // "nothing survived" would fail every drafting run.
   if (cited === null) {
     await finishPlan(db, plan.id, 'failed');
-    const finished = await finishRun(db, run.id, 'failed');
+    const finished = await finishRun(db, run.id, 'failed', { reach: await reachRecord() });
     if (failures.length > 0) throw new StepsFailed(failures);
     return { run: finished, suggestionIds: [], outputs: Object.fromEntries(outputs) };
   }
 
   if (failures.length === 0) {
     await finishPlan(db, plan.id, 'complete');
-    const finished = await finishRun(db, run.id, 'completed', { response: cited.answer });
+    const finished = await finishRun(db, run.id, 'completed', {
+      response: cited.answer,
+      reach: await reachRecord(),
+    });
     return { run: finished, suggestionIds: cited.suggestionIds, outputs: Object.fromEntries(outputs) };
   }
 
@@ -720,8 +770,37 @@ export async function runChain(
   ].join('\n');
 
   await finishPlan(db, plan.id, 'complete');
-  const finished = await finishRun(db, run.id, 'completed_with_failures', { response: answer });
+  const finished = await finishRun(db, run.id, 'completed_with_failures', {
+    response: answer,
+    reach: await reachRecord(),
+  });
   return { run: finished, suggestionIds: cited.suggestionIds, outputs: Object.fromEntries(outputs) };
+}
+
+/**
+ * T-469 — how many DOCUMENTS a run read: the distinct containers behind the
+ * versions named in its steps' `source_set` (authority references are not
+ * library documents and are not counted). The passage-grain audit already
+ * records which versions each step saw; this is that record, rolled up to the
+ * unit a person recognises.
+ */
+async function documentsRead(db: Db, runId: Id): Promise<number> {
+  const rows = await db
+    .select({ sourceSet: s.steps.sourceSet })
+    .from(s.steps)
+    .where(eq(s.steps.runId, runId));
+  const versionIds = new Set<string>();
+  for (const row of rows) {
+    for (const source of (row.sourceSet ?? []) as Array<{ versionId?: string }>) {
+      if (source.versionId !== undefined) versionIds.add(source.versionId);
+    }
+  }
+  if (versionIds.size === 0) return 0;
+  const containers = await db
+    .selectDistinct({ id: s.versions.containerId })
+    .from(s.versions)
+    .where(inArray(s.versions.id, [...versionIds]));
+  return containers.length;
 }
 
 /**

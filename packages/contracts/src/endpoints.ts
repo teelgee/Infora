@@ -39,6 +39,7 @@ import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator
 import { appDefinitionSchema } from './app-builder';
 import type { AppBuildTurn, BuilderQuestion, GetAppResponse } from './app-builder';
 import type { ApiError } from './errors';
+import { scopeSchema } from './scope';
 
 const id = z.uuid();
 
@@ -82,18 +83,16 @@ export const createRunBody = z.object({
   // worse than a refusal, because the answer still arrives and reads
   // plausibly. Omitted means no Lens, which is the shared core alone.
   lensId: z.string().min(1).optional(),
-  // T-292 — the Data sources chip's refinement, and the one request field in
-  // this API that names documents. **It NARROWS and cannot widen**, which is
-  // what makes it admissible beside principle 2's no-scope-parameter rule:
-  // the server hands it to `attenuate` (T-248) and the ids are intersected
-  // INTO the grounded pre-filter's own `and()` rather than applied around it,
-  // so a narrowing is never evaluated on rows the wall already excluded. An id
-  // the requester cannot reach therefore adds nothing — it removes, like every
-  // other id in the list. It is a **relevance** control, not an access one.
-  // Absent means "not narrowed"; the surface never sends an empty array,
-  // because an empty one means "narrowed to nothing" and the two must not be
-  // confused (T-248's `absent ≠ empty`).
-  sourceContainerIds: z.array(id).min(1).optional(),
+  // T-469 — the scope (ADR-0029's addendum of 2026-10-24). It replaces T-292's
+  // `sourceContainerIds`, and the creator's and checker's own narrowing
+  // fields, with ONE object and ONE convention: **absent means the whole
+  // visible library; present means exactly it; an empty scope is a `400` in
+  // words.** It NARROWS and cannot widen — the gateway intersects it with the
+  // requester's entitled set after resolution, so an id the requester cannot
+  // reach adds nothing and is never counted. A `savedScopeId` is resolved by
+  // the API to term and container ids before the gateway sees it. It is a
+  // relevance control, not an access one.
+  scope: scopeSchema.optional(),
 });
 export type CreateRunBody = z.infer<typeof createRunBody>;
 export type CreateRunResponse = Run; // completed, with steps, suggestions and citations
@@ -198,9 +197,11 @@ export type GetRunPlanResponse = { plan: Plan; canRerun: boolean };
 // **Two things a step may not say, and neither is a validation nicety.** It may
 // not name a worker outside the requester's ASSEMBLED set — the offered set is
 // the assembled one, so editing cannot reach a worker entitlement withheld. And
-// it may not declare a scope in any spelling: a step's scope derives from the
-// run's `EntitledSlice` and is not an editable field, which is what makes
-// "editing cannot widen scope" structural rather than checked.
+// it may not declare a scope in any spelling: a step declares none (T-469 put
+// the scope on the PLAN, written once before retrieval, and a rerun INHERITS
+// its plan's — the body carries no scope, so an edit cannot move the one the
+// person declared), which is what makes "editing cannot widen scope" structural
+// rather than checked.
 export const rerunPlanStep = z
   .object({
     stage: z.enum(PLAN_STAGES),
@@ -568,7 +569,10 @@ export type GetLibrarySearchResponse = {
 //                                                      ones shared within their organisation
 // POST   /projects/:projectId/saved-views              save the current query under a name
 // DELETE /saved-views/:id                              the maker's act; an org admin's for a shared one
-export const savedViewRegister = z.enum(['library', 'plan', 'sandbox', 'review']);
+// T-469 — `scope`: the one register whose `filter` the server reads. A saved
+// scope's filter is the typed scope, validated on save and resolved on use;
+// every other register's filter stays stored and never interpreted.
+export const savedViewRegister = z.enum(['library', 'plan', 'sandbox', 'review', 'scope']);
 export type SavedViewRegister = z.infer<typeof savedViewRegister>;
 export const createSavedViewBody = z.object({
   register: savedViewRegister,
@@ -3037,12 +3041,14 @@ export const documentCreationBody = z.object({
    */
   styleGuideIds: z.array(id),
   /**
-   * The library sources this draft may draw on, **chosen before drafting**. An
-   * id the requester cannot reach is not a way in — the builder reads their
-   * text through the assembly gateway, so an unreachable one returns nothing
-   * and is reported as unreachable rather than silently dropped.
+   * T-469 — the part of the library this draft may draw on, **chosen before
+   * drafting** (replaces `sourceVersionIds`). Absent means the whole visible
+   * library. The gateway's pre-filter applies it — named documents are matched
+   * by container, so the state rules retrieval already enforces pick the
+   * current live version; a document the requester cannot reach is not a way
+   * in and is never counted.
    */
-  sourceVersionIds: z.array(id),
+  scope: scopeSchema.optional(),
   destinationSandboxId: id,
   title: z.string().min(1),
 });
@@ -3220,11 +3226,13 @@ export const qaCheckBody = z.object({
   families: z.array(z.enum(CHECK_FAMILIES)).min(1),
   depth: z.enum(['quick', 'full']),
   /**
-   * Library documents to narrow to. **Empty is the DEFAULT and means the whole
-   * access-resolved library** — never "nothing". `Q-028`'s explicit case: a
-   * scope selected pre-retrieval, recorded on the plan, visible to the user.
+   * T-469 — the part of the library to check against (replaces
+   * `scopeVersionIds`). **Absent is the DEFAULT and means the whole
+   * access-resolved library**; an empty scope is a `400`, no longer a second
+   * way of saying "everything". `Q-028`'s explicit case: a scope selected
+   * pre-retrieval, recorded on the plan, visible to the user.
    */
-  scopeVersionIds: z.array(id).default([]),
+  scope: scopeSchema.optional(),
   /**
    * Documents pinned from the user's own sandbox (ADR-0022's working set).
    * **Never grounds, never cited** — the evidence is an excerpt. Pinning a

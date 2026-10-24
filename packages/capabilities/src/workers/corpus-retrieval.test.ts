@@ -2,7 +2,7 @@
 // than prose (non-negotiable 6), and it reaches the corpus only through the
 // assembly gateway (ADR-0028 §4, ADR-0029 §2).
 import { describe, expect, it, vi } from 'vitest';
-import type { Assemble, AssemblyRequest } from '@infora/contracts';
+import type { Assemble, AssemblyCoverage, AssemblyRequest } from '@infora/contracts';
 import { createCorpusRetrieval, CORPUS_RETRIEVAL } from './corpus-retrieval';
 import type { CorpusRetrievalInput } from './corpus-retrieval';
 
@@ -33,8 +33,15 @@ const assembled = (): Awaited<ReturnType<Assemble>> => ({
     },
   ],
   budget: { tokenLimit: 12000, tokensUsed: 40 },
-  coverage: { candidates: 412, requestedReferences: [], unmatchedReferences: [] },
+  coverage: { candidates: 412, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH },
 });
+
+const NO_REACH = {
+  visibleLive: 0,
+  inScope: 0,
+  excludedByState: { superseded: 0, withdrawn: 0 },
+  leftOutByScope: 0,
+};
 
 const requester = { organisationId: 'org-b', participantId: 'part-1' };
 const environment = { projectId: 'proj-1' };
@@ -82,9 +89,11 @@ describe('corpus_retrieval (T-269)', () => {
     expect(request.request.mode).toBe('targeted');
     expect(request.environment).toEqual({ kind: 'project', projectId: 'proj-1' });
     expect(request.requester).toEqual(requester);
-    // and there is nothing else on the request — no corpus, no scope, no
-    // visibility. The gateway's signature is the guarantee (wall.test.ts).
+    // and there is nothing else on the request — no corpus, no visibility. The
+    // gateway's signature is the guarantee (wall.test.ts); a run's scope, when
+    // it has one, rides INSIDE `request` and only narrows (T-469).
     expect(Object.keys(request).sort()).toEqual(['environment', 'request', 'requester']);
+    expect('scope' in request.request).toBe(false);
   });
 
   it('an unentitled requester gets no passages, exactly as they get no corpus', async () => {
@@ -95,7 +104,7 @@ describe('corpus_retrieval (T-269)', () => {
       assemble: async () => ({
         items: [],
         budget: { tokenLimit: 12000, tokensUsed: 0 },
-        coverage: { candidates: 0, requestedReferences: [], unmatchedReferences: [] },
+        coverage: { candidates: 0, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH },
       }),
     });
     const output = await worker(requester, environment, { query: 'anything' });
@@ -118,7 +127,7 @@ describe('corpus_retrieval (T-269)', () => {
 // between "we searched and found nothing" and "there was nothing to search".
 describe('the coverage note (T-272)', () => {
   const input = (
-    coverage: { candidates: number; requestedReferences: string[]; unmatchedReferences: string[] },
+    coverage: AssemblyCoverage,
     items: number,
   ) => ({
     items: Array.from({ length: items }, (_unused, at) => ({
@@ -134,10 +143,10 @@ describe('the coverage note (T-272)', () => {
 
   it('distinguishes an empty corpus from a corpus that had no match', async () => {
     const searched = createCorpusRetrieval({
-      assemble: async () => input({ candidates: 4000, requestedReferences: [], unmatchedReferences: [] }, 0),
+      assemble: async () => input({ candidates: 4000, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH }, 0),
     });
     const empty = createCorpusRetrieval({
-      assemble: async () => input({ candidates: 0, requestedReferences: [], unmatchedReferences: [] }, 0),
+      assemble: async () => input({ candidates: 0, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH }, 0),
     });
 
     const a = await searched(requester, environment, { query: 'q' });
@@ -157,6 +166,7 @@ describe('the coverage note (T-272)', () => {
             candidates: 40,
             requestedReferences: ['WA-GEO-GIR-004', 'WA-ECO-PEA-001'],
             unmatchedReferences: ['WA-ECO-PEA-001'],
+            reach: NO_REACH,
           },
           1,
         ),
@@ -178,7 +188,7 @@ describe('the coverage note (T-272)', () => {
   it('caps at 20 by default and reports that it did', async () => {
     const worker = createCorpusRetrieval({
       assemble: async () =>
-        input({ candidates: 900, requestedReferences: [], unmatchedReferences: [] }, 25),
+        input({ candidates: 900, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH }, 25),
     });
     const { passages, coverageNote } = await worker(requester, environment, { query: 'q' });
     expect(passages).toHaveLength(20);
@@ -186,12 +196,15 @@ describe('the coverage note (T-272)', () => {
   });
 });
 
-// T-272 — Q-028 is open, and its own text rules that leaving the lever unwired
-// is the SAFE STATE. This is that ruling as a test: the worker must not offer a
-// scope, because a wrongly-scoped question grounds a confident, fully-cited
-// answer on a partial library where every citation resolves.
-describe('the ontology scope filter stays unwired (Q-028)', () => {
-  it('declares no classification or document-type input', () => {
+// T-272, amended by T-469 (Q-028 ruled) — the worker offers a MODEL-CALLABLE
+// scope parameter of no kind. A plan step's inputs are what a model-chosen plan
+// can edit, so a scope there would let an edit move the one the person declared
+// (the rerun body carries none for the same reason). The scope a run was given
+// rides the run's context to the worker's INPUT TYPE, and the gateway
+// intersects it with what the requester may see: `scope ∩ visible` is what is
+// retrieved, and a wrongly-scoped question can only ever read LESS.
+describe('the scope reaches the gateway, never the plan (Q-028 ruled, T-469)', () => {
+  it('declares no classification, document-type or scope input a plan step could set', () => {
     // `include_superseded` (T-273) is a RECORD-STATE opt-in, not a scope: it
     // relaxes which revisions are admissible and reaches no row the requester
     // could not already have reached in a live one.
@@ -202,14 +215,22 @@ describe('the ontology scope filter stays unwired (Q-028)', () => {
     ]);
   });
 
-  it('is not expressible on the input type either', () => {
+  it('carries the run’s scope to the gateway, inside the request, unchanged', async () => {
+    const assemble = vi.fn<Assemble>(async () => assembled());
+    await createCorpusRetrieval({ assemble })(requester, environment, {
+      query: 'contamination',
+      scope: { containerIds: ['00000000-0000-4000-8000-000000000001'] },
+    });
+    const [request] = assemble.mock.calls[0]! as [AssemblyRequest];
+    expect(request.request.scope).toEqual({ containerIds: ['00000000-0000-4000-8000-000000000001'] });
+  });
+
+  it('has no input a caller could use to name a classification or a document type', () => {
     type Unscoped = 'classificationTermIds' extends keyof CorpusRetrievalInput
       ? false
       : 'docTypes' extends keyof CorpusRetrievalInput
         ? false
-        : 'scope' extends keyof CorpusRetrievalInput
-          ? false
-          : true;
+        : true;
     const pinned: Unscoped = true;
     expect(pinned).toBe(true);
   });
@@ -233,7 +254,7 @@ describe('include_superseded (T-273)', () => {
   const widened = async () => ({
     items: [supersededItem],
     budget: { tokenLimit: 12000, tokensUsed: 0 },
-    coverage: { candidates: 500, requestedReferences: [], unmatchedReferences: [] },
+    coverage: { candidates: 500, requestedReferences: [], unmatchedReferences: [], reach: NO_REACH },
   });
 
   it('excludes by default and says so', async () => {

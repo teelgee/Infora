@@ -1,8 +1,12 @@
 // T-033 — the wall through the gateway (M2 acceptance): the same query
 // returns content to the entitled requester and nothing to the unentitled;
 // the superseded Version never appears; every item is channel-annotated; and
-// no parameter exists by which a caller could widen scope — checked at the
-// type level, because the guarantee is the signature's shape (ADR-0029).
+// no parameter exists by which a caller could WIDEN scope — checked at the
+// type level, because the guarantee is the signature's shape (ADR-0029). T-469
+// added a request `scope`, and the invariant these tests pin is now stated for
+// what it protects: **scope ∩ visible == what is retrieved**. A scope is an
+// intersection, never a union, and one naming a document the requester may not
+// see retrieves, and counts, nothing from it — proved as each party below.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AssembledItem, AssemblyRequest } from '@infora/contracts';
 import type { Attenuation } from '@infora/governance';
@@ -135,7 +139,7 @@ describe('the wall through the gateway (T-033)', () => {
     }
   });
 
-  it('no parameter exists to widen scope — the signature is the guarantee', () => {
+  it('no parameter exists to WIDEN scope — the signature is the guarantee', () => {
     // compile-time exact-key checks: adding any widening parameter (corpus,
     // store, visibility, extra requester fields…) breaks this test's types
     type ExactKeys<T, K extends keyof T> = [Exclude<keyof T, K>] extends [never]
@@ -149,7 +153,14 @@ describe('the wall through the gateway (T-033)', () => {
       AssemblyRequest['requester'],
       'organisationId' | 'participantId'
     > = true;
-    const queryShape: ExactKeys<AssemblyRequest['request'], 'text' | 'mode'> = true;
+    // T-469 added `scope`, and this test firing is the review. It is the one
+    // request field that names documents, and it is admissible beside the
+    // guarantee because it only NARROWS: the gateway resolves the wall, record
+    // state and the entitled slice first and intersects the scope with that
+    // set, so it can remove rows and never add one. The tests below prove it
+    // as each party — a person in another organisation naming this one's
+    // document gets nothing and counts nothing.
+    const queryShape: ExactKeys<AssemblyRequest['request'], 'text' | 'mode' | 'scope'> = true;
     // T-253 added `chunkId`: an AUDIT field (which passage was seen), never a
     // scope one — it records what retrieval returned and cannot influence what
     // retrieval returns. Adding a key here is meant to be a reviewable event,
@@ -199,10 +210,10 @@ describe('the wall through the gateway (T-033)', () => {
     //     added here — an extra project, a second organisation, a corpus
     //     name — would be a widening one by construction, and the review it
     //     needs is this test failing.
-    //   • the narrowing is STILL not on `AssemblyRequest`, which the request
-    //     shape above already pins. It rides the resolved slice via a
-    //     constructed assembler, so a caller cannot name a scope at all —
-    //     it can only be handed one already narrower than its own.
+    //   • construction-time narrowing is STILL not a request field that
+    //     widens. It rides the resolved slice via a constructed assembler; the
+    //     request's own `scope` (T-469) is the same intersection spelled per
+    //     call, and the shape above pins that it is the only addition.
     const attenuationShape: ExactKeys<Attenuation, 'containerIds' | 'elevated'> = true;
 
     expect([requestShape, requesterShape, queryShape, itemShape, attenuationShape]).toEqual([
@@ -506,8 +517,11 @@ describe('include_superseded widens record state and nothing else (T-273)', () =
         ? true
         : false
       : false;
-    const stillTwoKeys: ExactKeys<AssemblyRequest['request'], 'text' | 'mode'> = true;
-    expect(stillTwoKeys).toBe(true);
+    // read for the one parameter that genuinely WIDENS: the request's keys are
+    // the query, its mode, and the narrowing-only scope (T-469) — nothing that
+    // relaxes a clause
+    const stillNoWidener: ExactKeys<AssemblyRequest['request'], 'text' | 'mode' | 'scope'> = true;
+    expect(stillNoWidener).toBe(true);
   });
 
   it('returns the superseded Version to the entitled, flagged, when built to', async () => {

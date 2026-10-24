@@ -2,6 +2,8 @@
 // carrying the 2026-07-06 rulings: Run.request, suggestions[] per-item,
 // Suggestion.kind/anchor, railOutcomes.detail).
 
+import type { RunReach, Scope } from './scope';
+
 export type Id = string; // uuid
 export type Surface = 'web' | 'word_addin' | 'copilot'; // ADR-0031
 // T-263 — the step vocabulary as a VALUE, with the type derived from it.
@@ -117,6 +119,12 @@ export type Run = {
   endedAt: string | null;
   steps: Step[]; // the append-only tree, flattened by parentStepId
   suggestions: Suggestion[]; // zero or more, per-item (ruled 2026-07-06)
+  /**
+   * T-469 — the counts behind "Read 14 documents in your scope…", written when
+   * the run completes. Absent on a run that finished before they existed and
+   * on one that failed before they could be counted.
+   */
+  reach?: RunReach;
   citations: Citation[]; // the answer's citations when no Suggestion carries them
   // (untargeted chat runs — cite-step citations surfaced; added 2026-07-09,
   // T-088, discharging the step-citation residual for web and M6 alike)
@@ -189,6 +197,12 @@ export type Plan = {
   assumptions: string[];
   createdAt: string;
   supersededByPlanId: Id | null;
+  /**
+   * T-469 — the scope the person declared, written once before the first
+   * retrieval and never edited. Absent means the whole visible library. It
+   * only narrows what the requester could already reach.
+   */
+  scope?: Scope;
   steps: PlanStep[];
 };
 

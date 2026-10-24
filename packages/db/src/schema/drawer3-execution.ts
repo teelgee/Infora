@@ -167,6 +167,17 @@ export const runs = pgTable('runs', {
   requesterParticipantId: uuid('requester_participant_id')
     .notNull()
     .references(() => participants.id),
+  // T-469 — the counts behind the run's "read 14 documents in your scope, left
+  // out 31" sentence: documents visible and live to the requester, of those in
+  // scope, excluded by record state, left out by the scope, and `read` — the
+  // distinct documents in the steps' source sets. Written in the SAME update
+  // that finishes the run (the immutability trigger freezes content columns
+  // and the state, and does not list this one, so it lands before the freeze
+  // exactly as `response` does). Null on a run that finished before this, and
+  // on a run that failed before it could be counted. Never a widening lever:
+  // it is a description of what was reached, counted under the requester's
+  // own visibility.
+  reach: jsonb('reach'),
 });
 
 // T-249 — the label-propagation override (finding F2, finding F2). The
@@ -270,6 +281,11 @@ export const plans = pgTable(
     restatement: text('restatement'), // as understood — shown to the user
     // named at the top of the answer when clarification was skipped (05 §4)
     assumptions: jsonb('assumptions').notNull().default([]),
+    // T-469 — the scope the person declared (term ids, container ids, the saved
+    // scope it came from), written once by `openPlan` BEFORE the first
+    // retrieval and never edited. Null means the whole visible library. It only
+    // narrows: the gateway intersects it with the requester's entitled set.
+    scope: jsonb('scope'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     // an edit-and-rerun creates a NEW plan on a NEW run and points the old one
     // here: supersession, never mutation, because a plan is evidence
@@ -311,10 +327,14 @@ export const planSteps = pgTable(
   ],
 );
 
-// A plan step declares no scope, deliberately (03 §3.4, 09 R8): scope derives
-// from the run's EntitledSlice and is not expressible here, so no plan edit
-// can widen reach. If a `scope` column ever appears above, that guarantee has
-// been lost.
+// A plan STEP declares no scope, deliberately (03 §3.4, 09 R8): no plan edit
+// can widen reach. T-469 added `plans.scope`, and the guarantee that survives
+// is the one this comment always protected, stated for what it is: the scope
+// lives on the PLAN, is written once before retrieval, and can only NARROW —
+// the gateway intersects it with the requester's entitled, access-resolved set
+// (ADR-0029's addendum of 2026-10-24), so it cannot reach what the requester
+// could not open by hand. A `scope` column on a plan STEP would still be a
+// different matter: it would make reach editable one step at a time.
 
 export const steps = pgTable('steps', {
   id: uuid('id').primaryKey().defaultRandom(),

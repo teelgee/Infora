@@ -275,6 +275,8 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
             maxPassages: inputs['max_passages'],
           }),
           ...(inputs['include_superseded'] === true && { includeSuperseded: true }),
+          // T-469 — the run's declared scope governs every retrieval it makes
+          ...(ctx.scope !== undefined && { scope: ctx.scope }),
         },
       );
       // every step records the access-resolved source set it saw (ADR-0028 §7)
@@ -325,7 +327,10 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
             language: oneOf(DOCUMENT_LANGUAGES, inputs['language'], DEFAULT_DOCUMENT_LANGUAGE),
             documentType: oneOf(DOCUMENT_TYPES, inputs['document_type'], DEFAULT_DOCUMENT_TYPE),
             styleGuideIds: versionIdsOf(inputs['style_guide_ids']),
-            sources: { versionIds: versionIdsOf(inputs['sources']) },
+            // T-469 — the run's declared scope, off the context: the same one
+            // written on the plan before retrieval. It replaces the version ids
+            // the author used to bind, and goes through the gateway's pre-filter.
+            ...(ctx.scope !== undefined && { scope: ctx.scope }),
             destination: {
               sandboxId: text(inputs['destination_sandbox_id']) as Id,
               title: text(inputs['title'], 'Untitled'),
@@ -359,6 +364,7 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
           {
             schemaName: text(inputs['schema']),
             scope: versionIds.length > 0 ? { versionIds } : { query: text(inputs['query']) },
+            ...(ctx.scope !== undefined && { gatewayScope: ctx.scope }),
             ...(inputs['strict'] === false && { strict: false }),
           },
         );
@@ -431,9 +437,9 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
           families: familiesOf(inputs['families']),
           depth: inputs['depth'] === 'quick' ? 'quick' : DEFAULT_CORPUS_DEPTH,
           ...(pass !== null && pass.of > 1 && { clausePass: { index: pass.index, of: pass.of } }),
-          ...(idsOf(inputs['scope_version_ids']).length > 0 && {
-            scopeVersionIds: idsOf(inputs['scope_version_ids']),
-          }),
+          // T-469 — the run's declared scope, off the context, through the
+          // gateway's pre-filter (the `scope_version_ids` parameter is gone)
+          ...(ctx.scope !== undefined && { scope: ctx.scope }),
           ...(excerpts.length > 0 && { excerpts }),
         },
       );

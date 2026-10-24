@@ -11,8 +11,15 @@
 // any per-participant narrowing — the same rule canReadDeliverable fixes,
 // applied as a SQL pre-filter (deliverableVisibleSql), never a post-filter.
 import { and, asc, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
+import { z } from 'zod';
 import type { SQL } from 'drizzle-orm';
-import type { AssemblyCoverage, AssembledItem, EmbeddingUsage } from '@infora/contracts';
+import type {
+  AssemblyCoverage,
+  AssembledItem,
+  EmbeddingUsage,
+  ReachCounts,
+  Scope,
+} from '@infora/contracts';
 import { reachableContainerIds } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s, withProjectScope } from '@infora/db';
@@ -24,17 +31,25 @@ import { locatorColumns } from './locator-columns';
 
 export const GROUNDED_CHUNK_LIMIT = 8;
 
-// The ontology's semantic pre-filter (T-242, ADR-0045): an optional set of
-// classification term ids narrows retrieval to the containers carrying one of
-// them, *before* the vector comparison — the lever that scopes a 100k-document
-// library structurally rather than searching it all. Applied in the same query
-// as the access+state pre-filter (never a post-filter), so it composes with the
-// wall for free. Multi-facet AND precedence and edge-traversal scoping are
-// deferred to Slice D (retrieval maturity); this is the substrate.
+// The ontology's semantic pre-filter (T-242, ADR-0045) and the person's scope
+// (T-469, ADR-0029's addendum of 2026-10-24): optional classification term ids
+// and container ids narrow retrieval to the containers carrying them, *before*
+// the vector comparison — the lever that scopes a 100k-document library
+// structurally rather than searching it all. Applied in the same query as the
+// access+state pre-filter (never a post-filter) and ANDed with it, never in
+// place of it, so it composes with the wall for free: `scope ∩ visible` is
+// what is retrieved, and a scope naming a document the requester may not see
+// retrieves — and counts — nothing from it.
+//
+// **Terms of one facet are OR'd; terms of different facets are AND'd** (the
+// brief's "geotechnical AND report"); named containers are AND'd with the
+// terms. Edge-traversal scoping stays deferred to Slice D.
 type RetrievalRequest = {
   text: string;
   mode: 'baseline' | 'targeted';
   classificationTermIds?: string[];
+  /** T-469 — documents the person named; ANDed with the terms and the wall */
+  containerIds?: string[];
 };
 
 /**
@@ -56,13 +71,13 @@ export type GroundedLibraryResult = {
  * T-273 — the deliberate opt-in, and where it is NOT expressible.
  *
  * It is an option on this function and a construction argument on the
- * assembler — **never a field on `AssemblyRequest`** — which is T-248's shape
- * applied in the widening direction. The wall's signature guarantee is that no
- * parameter on the CALL widens what retrieval returns; a caller can only ever
- * be handed a gateway that already admits more, exactly as it can only be
- * handed one that already admits less. A request field would have been the
- * first widening parameter on that signature, and the next one would not have
- * needed an argument.
+ * assembler — **never a field on `AssemblyRequest`**. The wall's guarantee is
+ * that no parameter on the CALL widens what retrieval returns: the request's
+ * `scope` (T-469) is an intersection with the visible set and can only remove,
+ * which the wall tests prove as each party; this opt-in is the one thing that
+ * relaxes a clause, so it is never something a caller can ask for. A caller can
+ * only ever be *handed* a gateway that already admits more, exactly as it can
+ * only be handed one that already admits less.
  *
  * What it relaxes is RECORD STATE and nothing else: the project clause, the
  * deliverable-visibility clause, the attenuation and the grounding-code clause
@@ -83,7 +98,6 @@ export async function groundedLibrary(
 ): Promise<GroundedLibraryResult> {
   const modelId = deps.router.embeddingModel.id;
 
-  const scope = request.classificationTermIds ?? [];
   const codes = extractReferenceCodes(request.text);
   // vector arm: query embedded with the same pinned model the index holds.
   // Embedded before the transaction opens — an outbound provider call has no
@@ -97,11 +111,18 @@ export async function groundedLibrary(
   // the work; RLS is the backstop for a query nobody reviewed. Scoping here
   // rather than at the callers keeps the guarantee with the only code that
   // reads this index.
-  const [byCode, bySimilarity, candidates] = await withProjectScope(
+  const [byCode, bySimilarity, candidates, reach] = await withProjectScope(
     deps.db,
     slice.projectId,
-    async (tx) =>
-      [
+    async (tx) => {
+      // T-469 — the scope, resolved once inside the transaction: terms are
+      // grouped by their facet (OR within, AND across) and ids that are not
+      // well-formed are dropped without ever widening the scope.
+      const scope = await resolveScopeFilter(tx, {
+        termIds: request.classificationTermIds,
+        containerIds: request.containerIds,
+      });
+      return [
         // lexical arm: deliverable codes named in the request beat similarity —
         // code is how this domain names documents (ADR-0022)
         codes.length > 0
@@ -114,7 +135,11 @@ export async function groundedLibrary(
         // than the table; a count taken outside the scope would be a different
         // claim wearing the same name.
         await countLiveChunks(tx, slice, modelId, scope, options),
-      ] as const,
+        // T-469 — documents, not chunks: the reach sentence's numbers, in the
+        // same transaction and under the same visibility predicate
+        await reachCountsIn(tx, slice, modelId, scope, options),
+      ] as const;
+    },
   );
 
   const seen = new Set<string>();
@@ -166,6 +191,7 @@ export async function groundedLibrary(
       candidates,
       requestedReferences: codes,
       unmatchedReferences: codes.filter((code) => !matchedCodes.has(code)),
+      reach,
     },
   };
 }
@@ -183,8 +209,9 @@ function relevanceOf(distance: number): number {
 
 // The one pre-filter both arms share: the entitled project's live grounded
 // corpus — one live version per container falls out of is_current + state.
-// An optional classification scope narrows to containers carrying one of the
-// given terms (the ontology's semantic pre-filter, T-242), in the same query.
+// An optional scope (T-242's classification terms, T-469's named documents)
+// narrows to what it admits, in the same query and ANDed with every clause
+// below — never in place of one.
 //
 // T-387 — the third condition. Library membership was sufficient for grounding
 // and is now only necessary (the ADR-0011 rider): a container grounds when it is
@@ -197,7 +224,7 @@ function relevanceOf(distance: number): number {
 function liveLibraryFilter(
   slice: EntitledSlice,
   modelId: string,
-  scope: string[] = [],
+  scope: ScopeFilter | undefined,
   options: RetrievalOptions = {},
 ) {
   // T-273 — the opt-in relaxes exactly two clauses and no others. A container
@@ -217,7 +244,7 @@ function liveLibraryFilter(
     superseded ? undefined : eq(s.versions.isCurrent, true),
     eq(s.versionChunks.embeddingModelId, modelId),
     deliverableVisibleSql(slice),
-    scope.length > 0 ? classificationScopeSql(scope) : undefined,
+    scopeSql(scope),
     // T-248 — the caller's optional narrowing, INTERSECTED into the same
     // `and()` as the wall's own clauses rather than applied around them. That
     // placement is the guarantee: a narrowing cannot be evaluated on rows the
@@ -273,16 +300,75 @@ function groundingCodeSql(): SQL {
   ) is not false`;
 }
 
-// A container is in scope if it is classified under any of the given terms —
-// a correlated EXISTS on container_classifications, so it is a pre-filter, not
-// a post-filter, and composes with the wall in one statement.
-function classificationScopeSql(termIds: string[]): SQL {
-  return sql`exists (select 1 from container_classifications cc
+/**
+ * T-469 — the scope as the SQL layer wants it, resolved once per transaction.
+ *
+ * `termGroups` is one list of term ids per facet: a container must carry one
+ * term from EVERY group (OR within a facet, AND across facets). `containerIds`
+ * is `undefined` when the scope names no documents and an array (possibly
+ * empty — "named documents, none of them well-formed" admits nothing) when it
+ * does. Either way a scope that was GIVEN can only ever remove rows: an
+ * unresolvable id becomes a clause nothing satisfies, never a dropped clause.
+ */
+export type ScopeFilter = { termGroups: string[][]; containerIds?: string[] };
+
+const wellFormed = z.uuid();
+const isUuid = (value: string) => wellFormed.safeParse(value).success;
+
+export async function resolveScopeFilter(
+  db: Db,
+  scope: { termIds?: string[] | undefined; containerIds?: string[] | undefined },
+): Promise<ScopeFilter | undefined> {
+  const wantsTerms = (scope.termIds?.length ?? 0) > 0;
+  // an EMPTY list of named documents is a scope that admits nothing, not the
+  // absence of one — the two must not be confused (T-248's absent ≠ empty)
+  const wantsContainers = scope.containerIds !== undefined;
+  if (!wantsTerms && !wantsContainers) return undefined;
+
+  const termGroups: string[][] = [];
+  if (wantsTerms) {
+    const valid = [...new Set(scope.termIds!.filter(isUuid))];
+    const rows =
+      valid.length === 0
+        ? []
+        : await db
+            .select({ id: s.classificationTerms.id, facetId: s.classificationTerms.facetId })
+            .from(s.classificationTerms)
+            .where(inArray(s.classificationTerms.id, valid));
+    const byFacet = new Map<string, string[]>();
+    for (const row of rows) byFacet.set(row.facetId, [...(byFacet.get(row.facetId) ?? []), row.id]);
+    termGroups.push(...byFacet.values());
+    // a term id that is malformed, or names no term, is a group nothing can
+    // satisfy: dropping it would widen the scope the person asked for
+    if (rows.length < valid.length || valid.length < new Set(scope.termIds).size) termGroups.push([]);
+  }
+  return {
+    termGroups,
+    ...(wantsContainers && { containerIds: [...new Set(scope.containerIds!.filter(isUuid))] }),
+  };
+}
+
+// The scope as SQL: one correlated EXISTS per facet group on
+// container_classifications (a pre-filter, not a post-filter, composing with the
+// wall in one statement), and the named containers as an id list.
+function scopeSql(scope: ScopeFilter | undefined): SQL | undefined {
+  if (scope === undefined) return undefined;
+  const clauses: SQL[] = scope.termGroups.map((group) =>
+    group.length === 0
+      ? sql`false`
+      : sql`exists (select 1 from container_classifications cc
     where cc.container_id = ${s.containers.id}
       and cc.term_id in (${sql.join(
-        termIds.map((id) => sql`${id}`),
+        group.map((id) => sql`${id}`),
         sql`, `,
-      )}))`;
+      )}))`,
+  );
+  if (scope.containerIds !== undefined) {
+    clauses.push(
+      scope.containerIds.length === 0 ? sql`false` : inArray(s.containers.id, scope.containerIds),
+    );
+  }
+  return clauses.length === 0 ? undefined : and(...clauses);
 }
 
 // T-271/T-305 — the locator's raw materials, resolved in the same query as the
@@ -323,7 +409,7 @@ function liveChunksByCode(
   slice: EntitledSlice,
   modelId: string,
   codes: string[],
-  scope: string[] = [],
+  scope: ScopeFilter | undefined,
   options: RetrievalOptions = {},
 ) {
   return db
@@ -354,7 +440,7 @@ async function countLiveChunks(
   db: Db,
   slice: EntitledSlice,
   modelId: string,
-  scope: string[] = [],
+  scope: ScopeFilter | undefined,
   options: RetrievalOptions = {},
 ): Promise<number> {
   const [row] = await db
@@ -366,12 +452,113 @@ async function countLiveChunks(
   return row?.count ?? 0;
 }
 
+/**
+ * T-469 — THE REACH COUNTS: documents, not passages, under the requester's own
+ * visibility.
+ *
+ * Counted in documents (distinct containers) because the unit is the thing a
+ * person recognises: "read 14 documents" is a claim they can check against the
+ * library, where "read 140 passages" is not. And counted under
+ * `deliverableVisibleSql` — the same predicate retrieval uses — so a number can
+ * never describe a document the requester may not open, and can never move
+ * because of a share between two OTHER organisations (the ticket's done-when).
+ *
+ *   visibleLive      the live, grounded, readable documents the requester may see
+ *   inScope          …of those, the ones the scope admits (all, where none given)
+ *   excludedByState  documents in scope they may see that record state keeps out
+ *   leftOutByScope   visibleLive − inScope
+ *
+ * `visibleLive` runs `liveLibraryFilter` itself, so it is the number of
+ * documents the AI could have read, by the same SQL that decides it.
+ */
+async function reachCountsIn(
+  db: Db,
+  slice: EntitledSlice,
+  modelId: string,
+  scope: ScopeFilter | undefined,
+  options: RetrievalOptions = {},
+): Promise<ReachCounts> {
+  const inScopeClause = scopeSql(scope);
+  const [live] = await db
+    .select({
+      visibleLive: sql<number>`count(distinct ${s.containers.id})::int`,
+      inScope:
+        inScopeClause === undefined
+          ? sql<number>`count(distinct ${s.containers.id})::int`
+          : sql<number>`count(distinct ${s.containers.id}) filter (where ${inScopeClause})::int`,
+    })
+    .from(s.versionChunks)
+    .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
+    .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+    .where(liveLibraryFilter(slice, modelId, undefined, options));
+
+  // visible but not live: the states record-keeping excludes — counted on
+  // containers alone (a superseded document may have no indexed chunks under
+  // the pinned model, and it is still a document the person could see), under
+  // the same project, library, visibility, narrowing AND scope clauses as the
+  // live count, so "excluded: 2 superseded" means two the scope would have
+  // read had they been live — never a document outside the chosen scope
+  // (review fix, T-469: the first cut counted the whole visible library). The
+  // grounding-code clause is deliberately absent: it is a property of a live
+  // acceptance, and a superseded version's old code is not what excluded it.
+  // When the superseded opt-in is on, superseded documents are readable and so
+  // are not "excluded"; withdrawn and rejected never are (ADR-0013).
+  const stateRows = await db
+    .select({ state: s.containers.state, n: sql<number>`count(*)::int` })
+    .from(s.containers)
+    .where(
+      and(
+        eq(s.containers.projectId, slice.projectId),
+        eq(s.containers.inLibrary, true),
+        inArray(s.containers.state, options.includeSuperseded === true ? ['withdrawn'] : ['superseded', 'withdrawn']),
+        deliverableVisibleSql(slice),
+        attenuationSql(slice),
+        ...(inScopeClause === undefined ? [] : [inScopeClause]),
+      ),
+    )
+    .groupBy(s.containers.state);
+  const countOf = (state: string) => stateRows.find((row) => row.state === state)?.n ?? 0;
+
+  const visibleLive = live?.visibleLive ?? 0;
+  const inScope = live?.inScope ?? 0;
+  return {
+    visibleLive,
+    inScope,
+    excludedByState: { superseded: countOf('superseded'), withdrawn: countOf('withdrawn') },
+    leftOutByScope: visibleLive - inScope,
+  };
+}
+
+/**
+ * T-469 — the reach counts for a requester and a scope, for callers outside
+ * the gateway: the API, which says them in a plan and refuses an empty scope
+ * BEFORE any spend. It resolves the scope itself and declares the project
+ * scope the chunk index's row-level security needs, exactly as retrieval does.
+ */
+export async function reachCounts(
+  deps: { db: Db; router: Router },
+  slice: EntitledSlice,
+  scope: Scope | undefined,
+  options: RetrievalOptions = {},
+): Promise<ReachCounts> {
+  const modelId = deps.router.embeddingModel.id;
+  return withProjectScope(deps.db, slice.projectId, async (tx) =>
+    reachCountsIn(
+      tx,
+      slice,
+      modelId,
+      await resolveScopeFilter(tx, { termIds: scope?.termIds, containerIds: scope?.containerIds }),
+      options,
+    ),
+  );
+}
+
 function nearestLiveChunks(
   db: Db,
   slice: EntitledSlice,
   modelId: string,
   query: number[],
-  scope: string[] = [],
+  scope: ScopeFilter | undefined,
   options: RetrievalOptions = {},
 ) {
   const distance = cosineDistance(s.versionChunks.embedding, query);
@@ -451,7 +638,7 @@ export async function groundingSources(
       .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
       .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
       .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
-      .where(liveLibraryFilter(slice, modelId, [], options))
+      .where(liveLibraryFilter(slice, modelId, undefined, options))
       .orderBy(asc(s.containers.id)),
   );
   // a library-scope container always carries its coded reference; the column is

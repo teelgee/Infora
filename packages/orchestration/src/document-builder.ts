@@ -20,11 +20,14 @@
 //     path that refused correctly and reported nothing is indistinguishable
 //     downstream from one that never checked.
 //
-// **The builder does not retrieve.** Its sources are version ids it was handed.
-// It still reaches their text only through the assembly gateway — a worker with
-// a second path to the store bypasses the wall — and a named source the gateway
-// did not return is REPORTED, never silently dropped: the caller asked about it.
-import { eq } from 'drizzle-orm';
+// **The builder draws on the scope it was handed.** T-469 — the scope (named
+// documents, or a discipline and document type) goes THROUGH the assembly
+// gateway's pre-filter, which intersects it with what the requester may see; the
+// builder no longer receives version ids and filters afterwards. It still
+// reaches text only through the gateway — a worker with a second path to the
+// store bypasses the wall — and a document the scope NAMED that the gateway did
+// not return is REPORTED, never silently dropped: the caller asked about it.
+import { eq, inArray } from 'drizzle-orm';
 import type {
   Assemble,
   AssembledItem,
@@ -34,6 +37,7 @@ import type {
   DocumentType,
   Id,
   OutlineEntry,
+  Scope,
 } from '@infora/contracts';
 import { flattenOutline, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
@@ -75,8 +79,14 @@ export type DocumentBuilderInput = {
   language: DocumentLanguage;
   documentType: DocumentType;
   styleGuideIds: Id[];
-  /** EXPLICIT, never "whatever you find" — the builder does not search */
-  sources: { versionIds: Id[] };
+  /**
+   * T-469 — what the draft may draw on. Absent means the whole visible library;
+   * present means exactly it. Passed to the gateway as the semantic pre-filter,
+   * which intersects it with the requester's entitled set — so the builder's
+   * old post-filter by version id is gone, and a narrowed run no longer pays
+   * for retrieving the whole library.
+   */
+  scope?: Scope;
   destination: { sandboxId: Id; title: string };
 };
 
@@ -194,6 +204,16 @@ export type DocumentBuilderDeps = {
 // there was no row to record one on. The builder now reports what its drafting
 // call spent and the executor's adapter writes it.
 
+/** The containers behind some version ids — what a passage was drawn from. */
+async function containersOf(db: Db, versionIds: Id[]): Promise<Set<string>> {
+  if (versionIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: s.versions.containerId })
+    .from(s.versions)
+    .where(inArray(s.versions.id, versionIds));
+  return new Set(rows.map((row) => row.id));
+}
+
 export function createDocumentBuilder(deps: DocumentBuilderDeps) {
   return async (
     requester: { organisationId: Id; participantId: Id },
@@ -204,18 +224,18 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     // shape, and for the same reason: a second path to the store is the one
     // thing a worker may never have
     const assembled = await deps.assemble({
-      request: { text: input.brief, mode: 'targeted' },
+      request: {
+        text: input.brief,
+        mode: 'targeted',
+        ...(input.scope !== undefined && { scope: input.scope }),
+      },
       environment: { kind: 'project', projectId: environment.projectId },
       requester,
     });
-    const wanted = new Set(input.sources.versionIds);
     const passages = assembled.items
       .filter(
         (item): item is AssembledItem & { source: { versionId: Id } } =>
-          item.channel === 'grounded' &&
-          item.source !== undefined &&
-          'versionId' in item.source &&
-          wanted.has(item.source.versionId),
+          item.channel === 'grounded' && item.source !== undefined && 'versionId' in item.source,
       )
       .map((item) => ({
         versionId: item.source.versionId,
@@ -225,7 +245,12 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         content: item.content,
       }));
     const reached = new Set(passages.map((passage) => passage.versionId));
-    const unreachableSources = input.sources.versionIds.filter((id) => !reached.has(id));
+    // the documents the scope NAMED that nothing came back from: out of reach,
+    // or nothing in them matched the brief — both are facts the caller asked for
+    const reachedDocuments = await containersOf(deps.db, [...reached]);
+    const unreachableSources = (input.scope?.containerIds ?? []).filter(
+      (id) => !reachedDocuments.has(id),
+    );
 
     // ── the label, computed BEFORE the model runs ────────────────────────────
     //

@@ -30,8 +30,12 @@
 # v2 (T-427, ADR-0054 decision 7): the run records WHICH VERSION OF THE WRITING
 # RULES it ran against. A version bump rather than an edit in place, because a
 # plan records the version of the workflow it ran.
+# v3 (T-469): the `scope_version_ids` parameter is gone. What the run is checked
+# against is now the run's SCOPE -- term and container ids, written once on the
+# plan before retrieval and passed to the gateway's pre-filter. Absent means the
+# whole visible library; an empty scope is refused at the door.
 id: qa-check
-version: 2
+version: 3
 label: Check a document
 description: >-
   Read a draft against the writing rules that bind it and the project record it
@@ -77,13 +81,6 @@ parameters:
     type: string
     required: true
     description: How hard the corpus check looks -- `quick` or `full`.
-  - name: scope_version_ids
-    type: id_list
-    required: false
-    description: >-
-      Library documents the run was narrowed to. Empty is the DEFAULT and means
-      the whole access-resolved library -- never "nothing".
-    default: []
   - name: attached_document_ids
     type: id_list
     required: false
@@ -157,7 +154,6 @@ steps:
       pass: '{{item}}'
       families: '{{parameters.families}}'
       depth: '{{parameters.depth}}'
-      scope_version_ids: '{{parameters.scope_version_ids}}'
       attached_document_ids: '{{parameters.attached_document_ids}}'
       attached_uploads: '{{parameters.attached_uploads}}'
     depends_on: []

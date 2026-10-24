@@ -205,7 +205,6 @@ describe('T-427 — the run records the rule-set version, once', () => {
         sandboxDocumentId: documentId,
         families: ['style', 'readability', 'completeness'],
         depth: 'quick',
-        scopeVersionIds: [],
         attachedDocumentIds: [],
       }),
     });
@@ -377,7 +376,6 @@ describe('T-428 — four kinds of five stop costing a model call', () => {
         sandboxDocumentId: checkDocumentId,
         families: ['style'],
         depth: 'quick',
-        scopeVersionIds: [],
         attachedDocumentIds: [],
       }),
     });
@@ -444,7 +442,6 @@ describe('T-428 — four kinds of five stop costing a model call', () => {
         sandboxDocumentId: checkDocumentId,
         families: ['style'],
         depth: 'quick',
-        scopeVersionIds: [],
         attachedDocumentIds: [],
       }),
     });

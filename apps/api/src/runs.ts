@@ -30,13 +30,14 @@ import { eq as dEq } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { canAccessSandbox, checkPropagation } from '@infora/governance';
-import type { Attenuation, EntitledSlice } from '@infora/governance';
+import type { EntitledSlice } from '@infora/governance';
+import type { Router } from '@infora/model';
 import type { LensRegistry } from '@infora/lenses';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { classify } from '@infora/capabilities';
 import type { Classifier, WorkerRegistry } from '@infora/capabilities';
-import { runSourceAudience, sandboxAudience } from '@infora/knowledge';
+import { reachCounts, runSourceAudience, sandboxAudience } from '@infora/knowledge';
 import {
   canRerunPlan,
   CapabilityRefused,
@@ -51,6 +52,7 @@ import {
 import type { CapabilityRegistry, ChainLeaves, Revalidate, RunRow } from '@infora/orchestration';
 import { projectScope, resolveSlice, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
+import { reachOrRefusal, resolveScope, scopeProblem } from './scope';
 import { resolveSession } from './sessions';
 import { DEFAULT_SESSION_POLICY } from './sessions';
 import type { SessionPolicy } from './sessions';
@@ -106,18 +108,13 @@ export function runRoutes(deps: {
   /** T-269 — whether this organisation holds an authority shelf (ADR-0023). */
   authorityShelf?: (organisationId: Id) => Promise<boolean>;
   /**
-   * T-292 — a retrieve leaf built on an assembler NARROWER than the
-   * requester's own, for the Data sources chip's refinement.
-   *
-   * A factory rather than a parameter on the bound leaf, because that is where
-   * T-248 put the guarantee: the narrowing is a construction argument to
-   * `createAssembler`, `attenuate` is monotonic, and there is therefore no
-   * route from the narrowed assembler back to the wider one. A refinement a
-   * user set cannot be quietly widened by a later step. Absent means the
-   * deployment offers no refinement, and the request field is then ignored
-   * rather than silently honoured by a different path.
+   * T-469 — the router, for the one thing the API itself needs from the
+   * knowledge layer: the reach counts a scoped run is refused or described by,
+   * taken before anything is spent. T-292's narrowed-leaf factory is gone — the
+   * Data sources chip's choice is now the request's `scope`, written on the
+   * plan and passed to the gateway's pre-filter like every other scope.
    */
-  narrowedRetrieve?: (narrowing: Attenuation) => ChainLeaves['retrieve'];
+  router: Router;
   /**
    * T-396 — the closed registry of built capabilities the executor dispatches
    * over (ADR-0053 §7). Absent means this deployment executes none, and a plan
@@ -184,7 +181,12 @@ export function runRoutes(deps: {
     resourceScope(deps, 'conversationId', resourceHomes.conversation),
     async (c) => {
       const body = createRunBody.safeParse(await c.req.json().catch(() => null));
-      if (!body.success) return c.json(invalid('request text required'), 400);
+      if (!body.success) {
+        // an empty or malformed scope is a 400 IN WORDS (T-469): one
+        // convention for every surface — absent is the whole library, present
+        // is exactly it, never an empty list
+        return c.json(invalid(scopeProblem(body.error) ?? 'request text required'), 400);
+      }
       const slice = c.get('slice');
       // T-463 — the project's switch: a run on a document is drafting, a run
       // without one is Ask; either may be off on this project
@@ -346,18 +348,26 @@ export function runRoutes(deps: {
         }
       }
 
-      // T-292 — the Data sources refinement. **It can only remove.** The ids
-      // are handed to `attenuate` and intersected INTO the grounded
-      // pre-filter's own `and()` (T-248), so an id the requester cannot reach
-      // is not a way in — it narrows the set exactly as a reachable one does.
-      // No validation of the ids is needed or wanted for that reason: checking
-      // them would mean answering "does this container exist", which is the
-      // question deny-as-404 exists to refuse.
-      const refinement = body.data.sourceContainerIds;
-      const leaves =
-        refinement === undefined || deps.narrowedRetrieve === undefined
-          ? deps.leaves
-          : { ...deps.leaves, retrieve: deps.narrowedRetrieve({ containerIds: refinement }) };
+      // T-469 — the scope (replaces T-292's `sourceContainerIds`). **It can only
+      // remove.** A saved scope is resolved to ids here; the gateway intersects
+      // the ids with what the requester may see, INSIDE the same pre-filter as
+      // the wall, so an id they cannot reach adds nothing and is never counted
+      // (it is not validated: checking would mean answering "does this
+      // container exist", which is the question deny-as-404 exists to refuse).
+      const resolvedScope = await resolveScope(deps.db, slice, body.data.scope);
+      if (!resolvedScope.ok) {
+        return resolvedScope.status === 404
+          ? c.json(notFound, 404)
+          : c.json(invalid(resolvedScope.detail ?? 'the scope could not be used'), 400);
+      }
+      // ── REFUSE BEFORE SPEND ──────────────────────────────────────────────
+      // The counts are taken under the requester's own visibility, once, here.
+      // A scope that resolves to nothing they may read is a 400 in words —
+      // before the classifier or any model call has cost anything — and the
+      // same counts ride the run, which adds what it actually read.
+      const { reach, refusal } = await reachOrRefusal(deps, slice, resolvedScope.scope);
+      if (refusal !== null) return c.json(invalid(refusal), 400);
+      const leaves = deps.leaves;
 
       let run: RunRow;
       try {
@@ -369,6 +379,10 @@ export function runRoutes(deps: {
           sandboxDocumentId: body.data.sandboxDocumentId ?? null,
           lens,
           revalidate,
+          // T-469 — the scope is written on the plan BEFORE retrieval, and the
+          // counts are completed with `read` when the run finishes
+          ...(resolvedScope.scope !== undefined && { scope: resolvedScope.scope }),
+          reach,
           workflow: declared,
           ...(stages !== undefined && { stages }),
           // T-396 — the executor, and the set assembled for THIS requester.
@@ -644,6 +658,18 @@ export function runRoutes(deps: {
       );
     }
 
+    // T-469 — and not the run's either. The scope lives on the PLAN, written once
+    // before retrieval; a rerun INHERITS its plan's, so an edit cannot move the
+    // one the person declared. Said by name rather than ignored.
+    if (raw !== null && typeof raw === 'object' && 'scope' in raw) {
+      return c.json(
+        invalid(
+          "a re-run may not carry a 'scope': it inherits the scope of the plan it re-runs, so editing a plan cannot change what the question was allowed to read",
+        ),
+        400,
+      );
+    }
+
     const body = rerunPlanBody.safeParse(raw);
     if (!body.success) return c.json(invalid('steps: stage, worker?, inputs?'), 400);
 
@@ -687,6 +713,11 @@ export function runRoutes(deps: {
         environmentKey: slice.projectId,
         requesterParticipantId: slice.participantId,
         lens: null,
+        // T-469 — inherited from the plan being re-run, and counted afresh: the
+        // library may have moved since the first run, and the sentence must
+        // describe what THIS run could reach
+        ...(plan.scope !== undefined && { scope: plan.scope }),
+        reach: await reachCounts(deps, slice, plan.scope),
         stages: body.data.steps.map((step) => ({
           stage: step.stage,
           worker: step.worker ?? null,

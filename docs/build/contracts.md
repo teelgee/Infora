@@ -1515,6 +1515,35 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-24 (T-469) — one `scope` on the request; `Run.reach`, `Plan.scope`,
+  `AssemblyCoverage.reach`; `reachStatement`; the `scope` saved-view register.**
+  *Plainly: choosing which part of the library a run reads is now one object
+  with one rule, and every run says in one sentence what it read.* The **reason
+  Ask, the document creator and the checker unify on one `scope` object** is that
+  three surfaces had grown three ways of narrowing — Ask attenuated the
+  assembler and recorded nothing; the creator and checker narrowed *after*
+  retrieval, by version id, so a narrowed run still paid to retrieve the whole
+  library — and carried two opposite conventions for "no list" (the checker's
+  empty meant everything, Ask's empty meant nothing). One shape, one convention
+  (absent is the whole visible library; present is exactly it; empty is a 400 in
+  words) means a person learns it once, and the pre-filter does the narrowing in
+  one place where it composes with the wall. The creator and checker now name
+  *documents* (container ids), not versions: the version is a detail the state
+  rules already resolve, and a person picks a document. The **reason reach counts
+  documents and not passages** is that "read 14 documents" is a claim a person
+  can check against the library and "read 140 passages" is not; the passage grain
+  stays in the audit (`source_set`), and `read` is that audit rolled up. The
+  **reason the counts are taken under the requester's own visibility** is the
+  done-when: a number that could move because two other organisations shared a
+  document would be a side channel across the wall. The **reason the re-run body
+  still carries no scope** is that a re-run inherits its plan's — the scope is a
+  declared part of the plan, written once before retrieval, and an edit that
+  could move it would be an edit that could change what the question was allowed
+  to read (the body names the refusal rather than ignoring a stray field). The
+  **reason a saved scope's filter is validated on save** is that it is the one
+  register whose filter the server reads: a scope saved and found unreadable
+  later would fail in front of somebody who relied on it.
+
 - **2026-10-24 (T-468) — `GET /versions/:versionId/passages/:chunkId`; `Citation`
   gains `chunkId`.** *Plainly: the passage a citation was written from, read back
   so a card can show it.* The **reason this reads one row by id and never

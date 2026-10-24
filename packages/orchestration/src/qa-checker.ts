@@ -31,6 +31,7 @@ import type {
   CheckFamily,
   CorpusDepth,
   Id,
+  Scope,
 } from '@infora/contracts';
 import { DEFAULT_READABILITY_TARGET } from '@infora/contracts';
 import {
@@ -207,12 +208,14 @@ export type QaSectionCheckInput = {
   /** ADR-0022's working set: never grounds, never cited. Supplied by the run */
   excerpts?: readonly CheckExcerpt[];
   /**
-   * Library documents the run was narrowed to (ADR-0053 §3, `Q-028`'s
-   * **explicit** case: a scope selected pre-retrieval, recorded on the plan,
-   * visible to the user). **Empty means the whole access-resolved library**,
-   * which is the default — never "nothing".
+   * T-469 — the part of the library the run was narrowed to (ADR-0053 §3,
+   * `Q-028`'s **explicit** case: a scope selected pre-retrieval, recorded on the
+   * plan, visible to the user). **Absent means the whole access-resolved
+   * library**, the default. It rides the gateway's pre-filter, so a narrowed
+   * run never retrieves outside it and no longer pays for the whole library
+   * (`scopeVersionIds`'s post-filter is gone).
    */
-  scopeVersionIds?: readonly Id[];
+  scope?: Scope;
 };
 
 export type QaSectionCheckOutput = {
@@ -291,15 +294,12 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
           ? [section.text]
           : await checkableAssertions(deps, section);
       if (input.depth === 'full') assertionsSearched = searches.length;
-      passages = await retrieveFor(deps, requester, environment, searches);
-      // the narrowing is applied to what the gateway RETURNED, never passed
-      // into it: `AssemblyRequest` has no field that widens or redirects
-      // anything, which is the wall's signature guarantee (ADR-0053 §8). A
-      // scope is a filter over what the requester could already reach.
-      if (input.scopeVersionIds !== undefined && input.scopeVersionIds.length > 0) {
-        const wanted = new Set<string>(input.scopeVersionIds);
-        passages = passages.filter((passage) => wanted.has(passage.versionId));
-      }
+      // T-469 — the scope goes INTO the gateway's pre-filter and is intersected
+      // there with what the requester may see (ADR-0053 §8's wall guarantee,
+      // restated: `scope ∩ visible`, never a union). It used to be applied to
+      // what came BACK, which left the narrowed run paying to retrieve the
+      // whole library.
+      passages = await retrieveFor(deps, requester, environment, searches, input.scope);
     }
 
     // 🔒 THE CODE PASS, BEFORE ANY MODEL CALL AND WHATEVER THE MODEL DOES NEXT.
@@ -438,11 +438,12 @@ async function retrieveFor(
   requester: { organisationId: Id; participantId: Id },
   environment: { projectId: Id },
   searches: readonly string[],
+  scope?: Scope,
 ): Promise<CheckPassage[]> {
   const byKey = new Map<string, CheckPassage>();
   for (const text of searches) {
     const assembled = await deps.assemble({
-      request: { text, mode: 'targeted' },
+      request: { text, mode: 'targeted', ...(scope !== undefined && { scope }) },
       environment: { kind: 'project', projectId: environment.projectId },
       requester,
     });

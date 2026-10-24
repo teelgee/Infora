@@ -3,19 +3,21 @@
 # where an improvised one is not: same inputs, same steps, same order.
 #
 # ONE STEP, AND THE SINGLE STEP IS THE DESIGN RATHER THAN A SHORTCUT.
-# `document_builder` DOES NOT RETRIEVE. Its sources are version ids it is
-# handed, and the owner's own description of this tool is why: "you build the
-# structure of a document, define what content you want in it, and the sources
-# it will draw from in the library". Sources are chosen AHEAD of drafting, so
-# the run carries an explicit source manifest rather than a retrieval guess --
-# which is what makes the output auditable against what the author asked for.
-# A `corpus_retrieval` step here would be a search whose answer the builder
+# `document_builder` DOES NOT RETRIEVE ON ITS OWN. The owner's own description
+# of this tool is why: "you build the structure of a document, define what
+# content you want in it, and the sources it will draw from in the library".
+# The sources are chosen AHEAD of drafting, as the run's SCOPE (T-469): written
+# on the plan before retrieval, and passed to the assembly gateway's pre-filter,
+# so the run carries an explicit scope rather than a retrieval guess -- which is
+# what makes the output auditable against what the author asked for. A
+# `corpus_retrieval` step here would be a search whose answer the builder
 # would then narrow away, and a step that spends money and changes nothing is
 # worse than no step.
 #
-# The builder still reaches those sources' TEXT only through the assembly
-# gateway, so an id the author cannot reach returns nothing and is reported as
-# unreachable rather than silently dropped (T-274's rule).
+# The builder reaches the scope's TEXT only through the assembly gateway, which
+# intersects the scope with what the author may see, so a document the author
+# cannot reach returns nothing and is reported as unreachable rather than
+# silently dropped (T-274's rule).
 #
 # `writes: sandbox_document` is load-bearing rather than descriptive. Since
 # T-396 a capability that writes runs ONLY inside a workflow that declared its
@@ -35,8 +37,12 @@
 # v3 (T-427, ADR-0054 decision 7): the run records which version of the writing
 # rules it drafted against. A version bump rather than an edit in place, for the
 # reason v2 gives -- a plan records the version it ran.
+# v4 (T-469): the `sources` parameter (version ids) is gone. What the draft may
+# draw on is now the run's SCOPE -- term and container ids, written once on the
+# plan before retrieval and carried by the run's context -- so it is no longer a
+# step input. A version bump rather than an edit in place, for the same reason.
 id: document-creation
-version: 3
+version: 4
 label: Create a document
 description: >-
   Draft a document into a named template from library sources the author chose,
@@ -83,12 +89,6 @@ parameters:
       Which of the project's style guides this document is written to. More
       than one may apply; an empty list is a real answer and means the draft
       follows the register instruction and ordinary professional convention.
-  - name: sources
-    type: id_list
-    required: true
-    description: >-
-      The library documents this draft may draw on. Chosen before drafting, so
-      the result can be checked against what you asked for.
   - name: destination_sandbox_id
     type: id
     required: true
@@ -128,7 +128,6 @@ steps:
       language: '{{parameters.language}}'
       document_type: '{{parameters.document_type}}'
       style_guide_ids: '{{parameters.style_guide_ids}}'
-      sources: '{{parameters.sources}}'
       destination_sandbox_id: '{{parameters.destination_sandbox_id}}'
       title: '{{parameters.title}}'
       rule_set_versions: '{{parameters.rule_set_versions}}'

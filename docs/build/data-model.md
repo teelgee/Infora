@@ -475,6 +475,39 @@ organisation" after the share that made it so was revoked.
 **Attached source** rides here too: the user-pinned, single-generation input
 of ADR-0022 — drawn on, badged user-supplied, never grounding.
 
+**Drawn 2026-10-24 — the run's scope, and its reach (T-469).** *Plainly: when
+a person tells a run which part of the library to read, that choice is written
+down before the run reads anything; and when the run finishes, the numbers
+behind its "read 14 documents, left out 31" sentence are kept with it. So a
+later reader can see both what the run was told and what it actually
+reached.* Until now Ask's narrowing was recorded nowhere, and the creator and
+the checker narrowed *after* retrieval, inside a step's inputs.
+
+`plans` gains `scope` (jsonb, nullable — null means the whole visible
+library): the typed scope the person declared — classification term ids,
+container ids, and the saved scope it came from, if any. Written once, by
+`openPlan`, **before** the first retrieval; never edited. It is not a widening
+lever: the gateway intersects it with the requester's entitled, access-resolved
+set, so the comment on `plan_steps` ("a plan step declares no scope") keeps
+its guarantee — a step still cannot widen anything, and neither can this
+column, which only narrows (ADR-0029's addendum of this day).
+
+`runs` gains `reach` (jsonb, nullable): the counts the reach statement is
+rendered from — documents visible and live to the requester; of those, in
+scope; excluded by record state (superseded, withdrawn, each counted);
+left out by the scope; and **read**, the distinct documents in the run's
+steps' `source_set`. Written when the run completes, in the same write that
+freezes it. Counted under the requester's own visibility, always (ADR-0018's
+note of this day).
+
+**Saved scope** reuses `saved_views` (drawer 2) with the register `scope`
+and the typed scope as its filter — the one register whose filter the server
+validates on save and reads on use. No DDL: `register` is text.
+
+No named person on either column; nothing to register.
+
+*Built the same day (migration 0076); per the state rule the field list above stands only as the drawing it was, and [drawer3-execution.ts](../../packages/db/src/schema/drawer3-execution.ts) is the authority on its shape.*
+
 ## Drawer 4 — AI output & feedback
 *What the agent proposes, and the human resolution that is the moat's raw
 material. (ADR-0021, 0026, 0028.)*
@@ -489,6 +522,29 @@ attach only to grounded-channel items; steering material is never cited
 (ADR-0021). The Signal is *captured but not sunk* — nothing distils it into
 Knowledge until Session 7 is grilled; the table exists, the loop off it does
 not.
+
+**Drawn 2026-10-24 — the passage a citation came from (T-468).** *Plainly: a
+citation today says which document and version it came from, but not which
+passage — so hovering a citation cannot show the sentence the AI actually
+read. The run already knows: the step that chose the passage carries the
+passage's id, and the cite step has it in hand and drops it before writing.
+This keeps it.* Each citation row gains the id of the stored chunk it was
+written from, so a source card can read that passage back — never re-search
+for it — and the document page can open scrolled to it.
+
+`citations` gains `chunk_id` (uuid, nullable — null on every row written
+before this, and on an authority reference, which has no chunk). **No foreign
+key, deliberately:** a re-ingest replaces a version's chunk rows, and the
+citation must keep saying which passage it recorded even once that passage is
+no longer held; the passage reader (`readRunContext`'s *unreconstructable*
+case) already says so in words rather than pretending. Written by the cite
+step (`sourceColumns` keeps the chunk id it was dropping) and by the checker's
+finding writer (which until now folded the chunk id into the citation's id
+string). Read at `GET /versions/:versionId/passages/:chunkId`, through the
+version's own visibility: one chunk, by id, the run's own record — nothing is
+retrieved again. No named person; nothing to register.
+
+*Built the same day (migration 0075); per the state rule the field list above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape.*
 
 ## Drawer 5 — Review
 *One review workflow at two scopes: the org-private internal cycle and the
@@ -521,29 +577,6 @@ cannot redirect somebody else's request to another address or another document.
 **The first opening of a link IS recorded** *(T-436, migration 0066, on the
 owner's ruling of 2026-09-02 completing ADR-0055 §5)* — `opened_at`, written
 once on the first successful open and never moved, because the receipt is that
-**Drawn 2026-10-24 — the passage a citation came from (T-468).** *Plainly: a
-citation today says which document and version it came from, but not which
-passage — so hovering a citation cannot show the sentence the AI actually
-read. The run already knows: the step that chose the passage carries the
-passage's id, and the cite step has it in hand and drops it before writing.
-This keeps it.* Each citation row gains the id of the stored chunk it was
-written from, so a source card can read that passage back — never re-search
-for it — and the document page can open scrolled to it.
-
-`citations` gains `chunk_id` (uuid, nullable — null on every row written
-before this, and on an authority reference, which has no chunk). **No foreign
-key, deliberately:** a re-ingest replaces a version's chunk rows, and the
-citation must keep saying which passage it recorded even once that passage is
-no longer held; the passage reader (`readRunContext`'s *unreconstructable*
-case) already says so in words rather than pretending. Written by the cite
-step (`sourceColumns` keeps the chunk id it was dropping) and by the checker's
-finding writer (which until now folded the chunk id into the citation's id
-string). Read at `GET /versions/:versionId/passages/:chunkId`, through the
-version's own visibility: one chunk, by id, the run's own record — nothing is
-retrieved again. No named person; nothing to register.
-
-*Built the same day (migration 0075); per the state rule the field list above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape.*
-
 the document **was read**, not how often it was looked at. It is a fact of the
 **issue record** and not a file about the person: no identity is inferred,
 since whoever holds the link is the recipient. 0065 deliberately left it out

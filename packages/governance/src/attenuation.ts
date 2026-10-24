@@ -21,9 +21,12 @@
 //      grounds on nothing rather than on everything. Conflating the two is
 //      how a narrowing quietly becomes a no-op.
 //
-// The attenuation rides the RESOLVED slice, never the request: `AssemblyRequest`
-// has no attenuation field (pinned by wall.test.ts), so a caller cannot ask for
-// a scope at all — it can only be handed one already narrower than its own.
+// The attenuation rides the RESOLVED slice, never the request. Since T-469 the
+// request may carry a person's `scope` (ADR-0029's addendum of 2026-10-24), and
+// the invariant pinned by wall.test.ts is the one above, stated for both
+// spellings: a narrowing is an INTERSECTION with the access-resolved set, never
+// a union — `scope ∩ visible == what is retrieved`. A scope naming a document
+// the requester may not see retrieves, and counts, nothing from it.
 import type { Id } from '@infora/contracts';
 import type { EntitledSlice } from './access';
 

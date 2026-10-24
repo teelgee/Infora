@@ -6,7 +6,7 @@
 // for sub-agent child Runs, parent_step_id for nesting, child_run_id on the
 // delegating step.
 import { eq } from 'drizzle-orm';
-import type { Id, Step, Surface } from '@infora/contracts';
+import type { Id, RunReach, Step, Surface } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -66,11 +66,20 @@ export async function finishRun(
   // T-263/T-268 — `completed_with_failures` is the third outcome a multi-worker
   // plan has: an answer exists AND some of what was asked for did not run.
   state: 'completed' | 'failed' | 'completed_with_failures',
-  record: { response?: string | null } = {},
+  // T-469 — `reach` lands in THIS update, before the freeze, exactly as
+  // `response` does: the immutability trigger rejects a second write once the
+  // state leaves `running`, and does not list this column among the frozen
+  // content, so one write carries the state, the answer and the counts.
+  record: { response?: string | null; reach?: RunReach | null } = {},
 ): Promise<RunRow> {
   const [row] = await db
     .update(s.runs)
-    .set({ state, endedAt: new Date(), response: record.response ?? null })
+    .set({
+      state,
+      endedAt: new Date(),
+      response: record.response ?? null,
+      reach: record.reach ?? null,
+    })
     .where(eq(s.runs.id, runId))
     .returning();
   if (!row) throw new Error(`run ${runId} not found`);

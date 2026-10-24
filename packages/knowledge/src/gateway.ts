@@ -4,6 +4,10 @@
 // touches a store; the signature carries no parameter that could widen scope,
 // so the wall is enforced by the contract's shape. Deny returns nothing — an
 // unentitled requester and an empty corpus read identically.
+//
+// T-469 — the request may carry a `scope` (the person's narrowing). That is not
+// a widening parameter: it is intersected with the access-resolved set INSIDE
+// the call, after resolution, exactly as `Attenuation` is.
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Assemble, AssembledItem, AssemblyRequest } from '@infora/contracts';
@@ -55,26 +59,39 @@ const informing: Pipeline = async (deps, slice) => informingRules(deps.db, slice
 const emptyInput = () => ({
   items: [],
   budget: { tokenLimit: TOKEN_LIMIT, tokensUsed: 0 },
-  coverage: { candidates: 0, requestedReferences: [], unmatchedReferences: [] },
+  coverage: {
+    candidates: 0,
+    requestedReferences: [],
+    unmatchedReferences: [],
+    reach: {
+      visibleLive: 0,
+      inScope: 0,
+      excludedByState: { superseded: 0, withdrawn: 0 },
+      leftOutByScope: 0,
+    },
+  },
 });
 
 /**
  * T-248 — an optionally NARROWED assembler (finding F8).
  *
- * The narrowing rides the construction, never the call: `AssemblyRequest` has
- * no attenuation field and gains none, so a caller still cannot ask this
- * gateway for a scope. What an orchestrator can do is hand a worker an
- * assembler already narrower than its own — three named documents rather than
- * the whole entitled library — and, because `attenuate` is monotonic, a worker
- * handed a narrowed assembler has no route back to the wider one.
+ * The narrowing rides the construction, and a person's scope rides the request
+ * (T-469); they are two spellings of ONE guarantee — **the narrowing is an
+ * intersection with the access-resolved set, never a union with it**. A caller
+ * can hand a worker an assembler already narrower than its own (three named
+ * documents rather than the whole entitled library), and a request can carry a
+ * scope; because `attenuate` is monotonic and the scope is ANDed into the
+ * pre-filter, neither has a route back to a wider set than the requester may
+ * already open.
  */
 /**
  * T-273 — the deliberate opt-in, and it rides CONSTRUCTION for T-248's reason
  * read in the other direction.
  *
- * `AssemblyRequest` has no field for it and gains none: the wall's signature
- * guarantee is that **no parameter on the call widens what retrieval returns**,
- * and a request field here would have been the first one. A caller can only be
+ * `AssemblyRequest` has no field for it and gains none: the wall's guarantee is
+ * that **no parameter on the call widens what retrieval returns** (T-469's
+ * `scope` only narrows, which the wall tests pin as each party), and a request
+ * field here would have been the first one that widens. A caller can only be
  * *handed* an assembler that admits superseded material, exactly as it can only
  * be handed one narrowed to three documents — so the opt-in is a capability the
  * composition granted, never something a worker or a plan step can ask for.
@@ -96,7 +113,7 @@ export function createAssembler(
     const slice = narrowing === undefined ? resolved : attenuate(resolved, narrowing);
 
     const [grounded, guidingItems, informingItems] = await Promise.all([
-      groundedLibrary(deps, slice, req.request, {
+      groundedLibrary(deps, slice, retrievalRequest(req.request), {
         ...(inclusion?.superseded !== undefined && { includeSuperseded: inclusion.superseded }),
       }),
       guiding(deps, slice, req.request),
@@ -119,6 +136,28 @@ export function createAssembler(
       ...(grounded.embedding !== undefined && { embedding: grounded.embedding }),
       coverage: grounded.coverage,
     };
+  };
+}
+
+// T-469 — the request's scope as the pipeline takes it. The saved scope was
+// resolved to term and container ids by the API before the request was built;
+// the gateway reads only the ids. Nothing here can add a row: both lists feed
+// clauses ANDed into the same pre-filter as the wall's own.
+function retrievalRequest(request: AssemblyRequest['request']) {
+  const { scope } = request;
+  // a scope that names nothing the gateway can read (a saved scope the caller
+  // failed to resolve, or an empty one) must not be read as "no scope": that
+  // would turn the tightest request into the loosest. It admits nothing.
+  const namesSomething = (scope?.termIds?.length ?? 0) > 0 || (scope?.containerIds?.length ?? 0) > 0;
+  return {
+    text: request.text,
+    mode: request.mode,
+    ...(scope !== undefined &&
+      namesSomething && {
+        ...((scope.termIds?.length ?? 0) > 0 && { classificationTermIds: scope.termIds! }),
+        ...((scope.containerIds?.length ?? 0) > 0 && { containerIds: scope.containerIds! }),
+      }),
+    ...(scope !== undefined && !namesSomething && { containerIds: [] as string[] }),
   };
 }
 

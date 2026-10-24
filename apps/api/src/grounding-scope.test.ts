@@ -127,38 +127,63 @@ describe('T-292 — the Data sources chip reads the grounding scope, not the lib
   });
 });
 
-describe('T-292 — the refinement narrows and cannot widen (T-248)', () => {
-  it('an unreachable container id removes rather than admits', async () => {
-    // the guarantee stated as a test: the ids are intersected INTO the
-    // grounded pre-filter's own `and()`, so naming a container the requester
-    // cannot see narrows the set to nothing instead of opening it. That is why
-    // the endpoint validates none of them — validating would mean answering
-    // "does this container exist", which deny-as-404 exists to refuse.
-    const { conversationId } = (await (
-      await app.request(`/projects/${projectId}/conversations`, {
-        method: 'POST',
-        headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify({ surface: 'web' }),
-      })
-    ).json()) as { conversationId: string };
-
-    const [other] = await db
-      .select({ id: s.containers.id })
-      .from(s.containers)
-      .where(eq(s.containers.documentReference, otherOrgReference))
-      .limit(1);
-
-    const res = await app.request(`/conversations/${conversationId}/runs`, {
+describe('T-292, T-469 — the scope narrows and cannot widen (T-248)', () => {
+  const openConversation = async () =>
+    (
+      (await (
+        await app.request(`/projects/${projectId}/conversations`, {
+          method: 'POST',
+          headers: { cookie, 'content-type': 'application/json' },
+          body: JSON.stringify({ surface: 'web' }),
+        })
+      ).json()) as { conversationId: string }
+    ).conversationId;
+  const ask = async (scope: unknown) =>
+    app.request(`/conversations/${await openConversation()}/runs`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        request: 'What did the survey record?',
-        sourceContainerIds: [other!.id],
-      }),
+      body: JSON.stringify({ request: 'What did the survey record?', scope }),
+    });
+  const containerOf = async (reference: string) =>
+    (
+      await db
+        .select({ id: s.containers.id })
+        .from(s.containers)
+        .where(eq(s.containers.documentReference, reference))
+        .limit(1)
+    )[0]!.id;
+
+  it('a scope naming only an unreachable container leaves nothing to read — refused in words, before any spend', async () => {
+    // the guarantee stated as a test: the ids are intersected INTO the
+    // grounded pre-filter's own `and()`, so naming a container the requester
+    // cannot see narrows the set to nothing instead of opening it. It is not
+    // validated (validating would mean answering "does this container exist",
+    // which deny-as-404 exists to refuse): it simply admits nothing, and a scope
+    // that admits nothing is refused with the same words however it got there.
+    const res = await ask({ containerIds: [await containerOf(otherOrgReference)] });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { detail: string }).detail).toContain('Your scope leaves nothing to read');
+  });
+
+  it('naming a reachable AND an unreachable container reads the first and counts only the first', async () => {
+    const res = await ask({
+      containerIds: [await containerOf(indexedReference), await containerOf(otherOrgReference)],
     });
     expect(res.status).toBe(201);
-    const run = (await res.json()) as { steps: Array<{ type: string; sourceSet: unknown[] }> };
+    const run = (await res.json()) as {
+      steps: Array<{ type: string; sourceSet: Array<{ versionId?: string }> }>;
+      reach?: { visibleLive: number; inScope: number; leftOutByScope: number; read: number };
+    };
     const retrieved = run.steps.filter((step) => step.type === 'retrieve').flatMap((s) => s.sourceSet);
-    expect(retrieved).toHaveLength(0); // narrowed to a container it cannot reach → nothing
+    expect(retrieved.length).toBeGreaterThan(0);
+    // the other organisation's document is neither read nor counted
+    expect(run.reach).toMatchObject({ visibleLive: 1, inScope: 1, leftOutByScope: 0, read: 1 });
+  });
+
+  it('an empty scope is a 400 in words — and no scope at all reads the whole visible library', async () => {
+    const empty = await ask({ containerIds: [] });
+    expect(empty.status).toBe(400);
+    expect(((await empty.json()) as { detail: string }).detail).toContain('a scope must name at least one');
+    expect((await ask(undefined)).status).toBe(201);
   });
 });

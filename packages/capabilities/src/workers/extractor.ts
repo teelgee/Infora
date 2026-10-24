@@ -25,7 +25,7 @@
 // deliverable-visibility as SQL pre-filters. It therefore does not READ
 // DOCUMENTS; it extracts from passages the gateway admitted, which is why
 // `extraction_note` reports what of the requested scope was actually seen.
-import type { Assemble, AssembledItem, WorkerDeclaration } from '@infora/contracts';
+import type { Assemble, AssembledItem, Scope, WorkerDeclaration } from '@infora/contracts';
 import { costOf } from '@infora/model';
 import type { EgressFacts, ModelIdentity, ModelRates, Router } from '@infora/model';
 import type { ExtractionField, ExtractionSchemaRegistry } from './extraction-schemas';
@@ -63,6 +63,12 @@ export type ExtractorInput = {
   scope: ExtractionScope;
   /** defaults TRUE — coercion is the failure this worker exists to refuse */
   strict?: boolean;
+  /**
+   * T-469 — the run's declared scope, carried to the gateway's pre-filter. Named
+   * apart from `scope` above (which says what to extract FROM) so neither is
+   * mistaken for the other; it narrows and the gateway intersects it.
+   */
+  gatewayScope?: Scope;
 };
 
 /** Where a row came from. Attached by this worker, never authored in a schema. */
@@ -141,7 +147,11 @@ export function createExtractor(deps: ExtractorDeps) {
     const queryText = 'versionIds' in input.scope ? schema.retrievalHint : input.scope.query;
 
     const assembled = await deps.assemble({
-      request: { text: queryText, mode: 'targeted' },
+      request: {
+        text: queryText,
+        mode: 'targeted',
+        ...(input.gatewayScope !== undefined && { scope: input.gatewayScope }),
+      },
       environment: { kind: 'project', projectId: environment.projectId },
       requester,
     });

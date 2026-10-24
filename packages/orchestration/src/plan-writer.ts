@@ -15,7 +15,16 @@
 // its run's TOP-LEVEL Step rows (the delegate step hangs beneath one of them,
 // parent_step_id, and is part of that step's execution).
 import { asc, eq } from 'drizzle-orm';
-import type { Id, Lens, Plan, PlanMode, PlanStage, PlanStepState, StepType } from '@infora/contracts';
+import type {
+  Id,
+  Lens,
+  Plan,
+  PlanMode,
+  PlanStage,
+  PlanStepState,
+  Scope,
+  StepType,
+} from '@infora/contracts';
 import type { PlannedStep } from './plan-order';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -77,6 +86,14 @@ export type OpenPlanInput = {
   assumptions?: string[];
   /** T-299 — the Lens this run was asked for, or null if it named none. */
   lens?: Lens | null;
+  /**
+   * T-469 — the scope the person declared, resolved (a saved scope already
+   * turned into term and container ids). Written on the plan BEFORE the first
+   * retrieval, so it is a declared, auditable part of the plan and never an
+   * implicit narrowing inside the retrieve leaf. Absent writes null: the whole
+   * visible library.
+   */
+  scope?: Scope | null;
 };
 
 /**
@@ -117,6 +134,8 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       lensId: input.lens?.id ?? null,
       lensVersion: input.lens?.version ?? null,
       question: input.question,
+      // T-469 — null is the honest value for a run that named no scope
+      scope: input.scope ?? null,
       // nothing restates the question until the classifier lands (T-266), and
       // echoing the question as its own restatement would be a fabrication
       restatement: null,
@@ -227,6 +246,7 @@ export async function readPlanForRun(db: Db, runId: Id): Promise<Plan | null> {
     assumptions: plan.assumptions as string[],
     createdAt: plan.createdAt.toISOString(),
     supersededByPlanId: plan.supersededByPlanId,
+    ...(plan.scope !== null && { scope: plan.scope as Scope }),
     steps: steps.map((step) => ({
       id: step.id,
       ordinal: step.ordinal,

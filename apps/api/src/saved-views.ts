@@ -11,6 +11,11 @@
 // else, so a view can never travel across the wall (ADR-0018's floor). The
 // filter is stored as the screen sent it and never interpreted here — a stale
 // key renders nothing on the screen rather than breaking a read.
+//
+// The one exception (T-469): the `scope` register. Its filter IS the typed scope
+// (term ids, container ids), validated on save and resolved on use by the run
+// routes (`scope.ts`) — a saved scope is something a run reads, so the server
+// has to be able to.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, eq, or } from 'drizzle-orm';
@@ -21,6 +26,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { projectScope, resolveSlice } from './requester';
 import type { AppEnv } from './requester';
+import { savedScopeOf } from './scope';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
@@ -68,6 +74,15 @@ export function savedViewRoutes(deps: { db: Db }) {
     const slice = c.get('slice');
     const body = createSavedViewBody.safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalid(c);
+    // T-469 — the ONE register whose filter the server reads. A saved scope's
+    // filter is the typed scope: validated here, on save, so a scope that names
+    // nothing (or is not a scope at all) is refused in words rather than saved
+    // and failing when somebody later relies on it. Every other register's
+    // filter stays stored as the screen sent it and never interpreted.
+    if (body.data.register === 'scope') {
+      const scope = savedScopeOf(body.data.filter);
+      if (!scope.ok) return c.json({ error: 'invalid', detail: `that is not a scope: ${scope.detail}` } satisfies ApiError, 400);
+    }
     const [existing] = await deps.db
       .select({ id: s.savedViews.id })
       .from(s.savedViews)

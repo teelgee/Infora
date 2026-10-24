@@ -22,6 +22,8 @@ let sandboxId: string;
 let narrowSandboxId: string;
 let openVersionId: string;
 let sharedVersionId: string;
+let openContainerId: string;
+let sharedContainerId: string;
 
 const embeddings: EmbeddingAdapter = {
   modelId: 'fake-embed',
@@ -128,8 +130,8 @@ beforeAll(async () => {
     },
   ]);
 
-  ({ versionId: openVersionId } = await makeDeliverable(`T280-A-${stamp}`, 'the baseline survey recorded three exceedances'));
-  ({ versionId: sharedVersionId } = await makeDeliverable(`T280-B-${stamp}`, 'the mitigation commits to a five-year maintenance period'));
+  ({ versionId: openVersionId, containerId: openContainerId } = await makeDeliverable(`T280-A-${stamp}`, 'the baseline survey recorded three exceedances'));
+  ({ versionId: sharedVersionId, containerId: sharedContainerId } = await makeDeliverable(`T280-B-${stamp}`, 'the mitigation commits to a five-year maintenance period'));
 });
 
 afterAll(async () => {
@@ -205,7 +207,7 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'does the baseline support the assessment?',
       ...character,
-      sources: { versionIds: [openVersionId, sharedVersionId] },
+      scope: { containerIds: [openContainerId, sharedContainerId] },
       destination: { sandboxId, title: 't280 built note' },
     });
 
@@ -279,7 +281,7 @@ describe('document_builder (T-280)', () => {
       ...character,
       language: 'simple-english',
       styleGuideIds: [guide!.id],
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't406 styled note' },
     });
 
@@ -314,7 +316,7 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'does the baseline support the assessment?',
       ...character,
-      sources: { versionIds: [openVersionId, sharedVersionId] },
+      scope: { containerIds: [openContainerId, sharedContainerId] },
       destination: { sandboxId, title: 't402 headingless note' },
     });
 
@@ -339,7 +341,7 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't280 label note' },
     });
     expect(output.label.computedLabel).toBeDefined();
@@ -360,7 +362,7 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId: narrowSandboxId, title: 't280 refused' },
     });
 
@@ -382,10 +384,10 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId, sharedVersionId] },
+      scope: { containerIds: [openContainerId, sharedContainerId] },
       destination: { sandboxId, title: 't280 partial' },
     });
-    expect(output.unreachableSources).toEqual([sharedVersionId]);
+    expect(output.unreachableSources).toEqual([sharedContainerId]);
   });
 
   // grounded-only: a built document gets no weaker guarantee than an answer
@@ -399,7 +401,7 @@ describe('document_builder (T-280)', () => {
       sections: outline,
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't280 withheld' },
     });
     expect(output.withheld.join(' ')).toContain('An invented one');
@@ -438,7 +440,7 @@ describe('document_builder (T-280)', () => {
       ],
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't407 composed note' },
     });
     const content = await builtDocumentContent(db, output.documentId!);
@@ -471,7 +473,7 @@ describe('document_builder (T-280)', () => {
       ],
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't407 repeated heading' },
     });
     // the splitter maps a repeated heading to its FIRST position, so only one
@@ -481,25 +483,40 @@ describe('document_builder (T-280)', () => {
     expect(await builtDocumentContent(db, output.documentId!)).toContain('## Mitigation');
   });
 
-  // THE BUILDER DOES NOT RETRIEVE: everything outside the named ids is dropped,
-  // whatever the gateway returned
-  it('uses only the sources it was handed', async () => {
+  // T-469 — THE SCOPE GOES INTO THE GATEWAY, NOT OVER ITS RESULT. The builder's
+  // old post-filter (keep only the version ids it was handed) is gone: the
+  // pre-filter replaces it, and the gateway intersects the scope with what the
+  // requester may see. What the builder owes is passing it, unchanged.
+  it('hands its scope to the gateway as the pre-filter and does not filter afterwards', async () => {
+    const assemble = gateway(passage(openVersionId, 'T280-A', 'wanted'));
     const builder = createDocumentBuilder({
       db,
       router: answering('Purpose\n\nA sentence [S1].'),
-      assemble: gateway(
-        passage(openVersionId, 'T280-A', 'wanted'),
-        passage(sharedVersionId, 'T280-B', 'not asked for'),
-      ),
+      assemble,
     });
     const output = await builder(requester(), { projectId }, {
       sections: outline,
       brief: 'b',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't280 explicit' },
     });
+    expect(assemble).toHaveBeenCalledWith(
+      expect.objectContaining({
+        request: expect.objectContaining({ scope: { containerIds: [openContainerId] } }),
+      }),
+    );
     expect(output.manifest.every((entry) => entry.versionId === openVersionId)).toBe(true);
+    // and with no scope given, none is sent: the whole visible library
+    const open = gateway(passage(openVersionId, 'T280-A', 'wanted'));
+    await createDocumentBuilder({ db, router: answering('Purpose\n\nA sentence [S1].'), assemble: open })(
+      requester(),
+      { projectId },
+      { sections: outline, brief: 'b', ...character, destination: { sandboxId, title: 't280 open' } },
+    );
+    const sent = (open as unknown as { mock: { calls: Array<[{ request: Record<string, unknown> }]> } }).mock
+      .calls[0]![0].request;
+    expect('scope' in sent).toBe(false);
   });
 });
 
@@ -578,7 +595,7 @@ describe('T-429 — the tidy-up pass touches the model’s output and nothing el
       brief: 'does the baseline support the assessment?',
       ...character,
       styleGuideIds: [styleGuideId],
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't429 built note' },
     });
 
@@ -610,7 +627,7 @@ describe('T-429 — the tidy-up pass touches the model’s output and nothing el
       brief: 'does the baseline support the assessment?',
       ...character,
       styleGuideIds: [styleGuideId],
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't429 brief note' },
     });
     // the judgement rule arrives as the compiled brief, not as the whole set
@@ -630,7 +647,7 @@ describe('T-429 — the tidy-up pass touches the model’s output and nothing el
       sections: [{ heading: 'Purpose', purpose: 'State what question this note answers.' }],
       brief: 'does the baseline support the assessment?',
       ...character,
-      sources: { versionIds: [openVersionId] },
+      scope: { containerIds: [openContainerId] },
       destination: { sandboxId, title: 't429 unruled note' },
     });
     expect(output.normalised).toMatchObject({ substitutions: 0, unfixed: 0 });

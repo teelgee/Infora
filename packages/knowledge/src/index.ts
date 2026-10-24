@@ -7,6 +7,9 @@ export { deliverableVisibleSql } from './visibility';
 // pre-filter retrieval uses, so the composer's Data-sources chip and the answer
 // cannot disagree about what was reachable
 export { groundingSources } from './retrieval';
+// T-469 — the reach counts (documents, not passages) under the requester's own
+// visibility, for the API's plans and its refusal of an empty scope
+export { reachCounts } from './retrieval';
 // T-459 — the register's search, on the same index and the same wall as grounding
 export { searchLibraryRows, searchPlanContainerIds } from './register-search';
 export type { RegisterSearchParams, RegisterSearchRow } from './register-search';

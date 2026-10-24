@@ -36,7 +36,10 @@ describe('T-281 — a Lens changes register, never reach', () => {
     // if a Lens ever becomes a parameter of the one gateway every retrieval
     // goes through (ADR-0028 §4), these stop compiling
     const requestShape: ExactKeys<AssemblyRequest, 'request' | 'environment' | 'requester'> = true;
-    const queryShape: ExactKeys<AssemblyRequest['request'], 'text' | 'mode'> = true;
+    // T-469 added `scope` — the PERSON's narrowing, which only intersects with
+    // what they may see. It is not a place a Lens could hide: this test firing
+    // was the review, and the Lens type below still carries no such field.
+    const queryShape: ExactKeys<AssemblyRequest['request'], 'text' | 'mode' | 'scope'> = true;
     const requesterShape: ExactKeys<
       AssemblyRequest['requester'],
       'organisationId' | 'participantId'
