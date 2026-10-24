@@ -77,6 +77,11 @@ test('the owner supersedes the report; the dialog talks only about the owner\'s 
   await page.getByRole('link', { name: /Project library/ }).click();
   const table = page.getByRole('table', { name: 'Project library' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
+  // the register is paged and grows with every run, and the dialog offers
+  // replacements only from the visible page: sort by code descending so the
+  // report and its replacement both sit on page one
+  await page.goto(`${page.url().split('?')[0]}?sort=reference&direction=desc`);
+  await expect(table.getByRole('row').nth(1)).toBeVisible();
   await table.getByRole('checkbox', { name: `Select ${REPORT}` }).check();
   await page.getByRole('region', { name: 'Selected rows' }).getByRole('button', { name: 'Supersede…' }).click();
 

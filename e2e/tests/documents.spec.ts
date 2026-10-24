@@ -52,6 +52,9 @@ test('a plan row lands on the document page, whose tabs carry the record', async
 test('the library row, the review list and the side menu reach the same page', async ({ page }) => {
   await loginAs(page, SEEDED.owner);
   await page.getByRole('link', { name: /Project library/ }).click();
+  // the register is paged, and the intake spec's "T472-…" rows sort ahead of
+  // the seeded "WA-…" codes: sort by code descending so a seeded row is on page one
+  await page.goto(`${page.url().split('?')[0]}?sort=reference&direction=desc`);
   // a live-deliverable row, by its coded reference (the screen's notice panels
   // have rows of their own above the register)
   const row = page.getByRole('row').filter({ hasText: /WA-[A-Z]{3}-[A-Z]{3}-\d{3}/ }).first();
