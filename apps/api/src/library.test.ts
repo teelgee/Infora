@@ -82,6 +82,17 @@ describe('T-086 — GET /projects/:projectId/library', () => {
     });
   });
 
+  it('a one- or two-letter search answers (review of T-471): no embedding is made for it, and the sort must not order by the null that leaves', async () => {
+    // the palette and the scope control search on the first keystroke; the
+    // e2e server's log showed every such search failing with Postgres's
+    // "non-integer constant in ORDER BY" until the distance arm was dropped
+    // from the sort when there is no vector
+    const res = await app.request(`/projects/${projectId}/library/search?q=ge`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const { items } = (await res.json()) as { items: Array<{ documentReference: string }> };
+    expect(items.some((item) => item.documentReference === 'WA-GEO-GIR-004')).toBe(true);
+  });
+
   it('omits the withdrawn container and the superseded version — the list shows what grounds', async () => {
     const res = await app.request(`/projects/${projectId}/library`, { headers: { cookie } });
     const { items } = (await res.json()) as GetLibraryResponse;

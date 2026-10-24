@@ -107,7 +107,14 @@ export async function searchLibraryRows(
             ? [dir(s.organisations.name), asc(s.containers.documentReference)]
             : q === null
               ? [asc(s.containers.documentReference)]
-              : [asc(lexical), sql`${nearest} asc nulls last`, asc(s.containers.documentReference)];
+              : p.vector === null
+                // a one- or two-letter query has no embedding: ordering by the
+                // null the distance arm then yields is a Postgres error
+                // ("non-integer constant in ORDER BY") — found in review of
+                // T-471 in the e2e server's log, hit by the palette and the
+                // scope control on the first keystrokes
+                ? [asc(lexical), asc(s.containers.documentReference)]
+                : [asc(lexical), sql`${nearest} asc nulls last`, asc(s.containers.documentReference)];
   // the chunk index is under row-level security and the policy fails closed
   // (T-247): the statement declares its project scope as retrieval's own arms
   // do, or the vector arm would see no chunks and every content match would
@@ -228,7 +235,9 @@ export async function searchPlanContainerIds(
         ? [dir(sql`coalesce(${s.workItems.title}, ${s.containers.title})`), asc(s.containers.documentReference)]
         : p.sort === 'state'
           ? [dir(s.containers.state), asc(s.containers.documentReference)]
-          : [asc(lexical), sql`${nearest} asc nulls last`, asc(s.containers.documentReference)];
+          : p.vector === null
+            ? [asc(lexical), asc(s.containers.documentReference)] // see searchLibraryRows
+            : [asc(lexical), sql`${nearest} asc nulls last`, asc(s.containers.documentReference)];
   const [[counted], rows] = await withProjectScope(db, p.projectId, (tx) =>
     Promise.all([
       tx
