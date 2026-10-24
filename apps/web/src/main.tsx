@@ -13,6 +13,7 @@ import { HistoryScreen } from './screens/history';
 import { KnowledgeScreen } from './screens/knowledge';
 import { NewStyleGuideScreen, StyleGuideScreen } from './screens/style-guide';
 import { LibraryScreen } from './screens/library';
+import { ReferenceIntakeScreen } from './screens/reference-intake';
 import { DocumentScreen } from './screens/document';
 import { ProjectHome, ProjectShell } from './screens/project';
 import { DocumentCreatorScreen, QaCheckerScreen, ToolsScreen } from './screens/tools';
@@ -53,6 +54,8 @@ const router = createBrowserRouter([
       { path: 'ai', element: <AiTransparencyScreen /> },
       { path: 'plan/scheme', element: <SchemaScreen /> },
       { path: 'documents', element: <LibraryScreen /> },
+      // T-472 — reference material waiting to be confirmed (the owner's super user)
+      { path: 'library/intake', element: <ReferenceIntakeScreen /> },
       // T-457 — the document page: one page per container, where every row,
       // chip and link about a deliverable lands
       { path: 'documents/:containerId', element: <DocumentScreen /> },

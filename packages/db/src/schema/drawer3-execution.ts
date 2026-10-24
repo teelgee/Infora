@@ -71,6 +71,10 @@ export const stepType = pgEnum('step_type', [
   // run (T-440), which is T-301's rule: a value the schema carries and no code
   // can set is a claim the schema makes falsely.
   'app_step',
+  // T-472 — the reference-material intake proposal (ADR-0011's addendum of
+  // 2026-10-24): a title and a classification proposed for an uploaded file is
+  // an agent run on the record, and its one step needs a name of its own.
+  'intake_proposal',
 ]);
 export const stepStatus = pgEnum('step_status', ['running', 'completed', 'failed']);
 export const agentProvenance = pgEnum('agent_provenance', ['infora', 'custom']);

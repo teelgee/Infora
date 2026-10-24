@@ -1515,6 +1515,54 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-24 (T-472) — `POST`/`GET /projects/:projectId/reference-intake`, the
+  confirm, bulk-confirm and reject doors, `GET /containers/:containerId/library-admission`;
+  `LibraryItem.notCitable`; `ReachCounts.notCitable`.** *Plainly: the owner's
+  super user drops reference files on the library, checks what the AI proposed
+  for each in one table, and confirms; only then do they exist as library
+  documents.* The **reason there is an intake table and not a flag on the
+  container** is that a container is the thing retrieval and the library list
+  already read: a "proposed" flag would have to be remembered by every one of
+  those readers and by every reader written later, and one that forgot would
+  ground an unchecked file. With a separate row there is no container, no
+  version and no passage until a person confirms, so "nothing grounds before
+  confirmation" is true by construction rather than by a clause in the
+  retrieval SQL. The **reason a file with no readable text is accepted here and
+  refused by the sandbox upload** is that they are different things: a working
+  draft nobody can read is a mistake, and refusing it while the person is still
+  holding the file is kind; a scanned British Standard is a fact the project
+  holds, and refusing it would send the owner away from the very document they
+  need on the shelf. It lands with the extractor's reason, gets no proposal (the
+  model has nothing to read), and if confirmed is admitted with its version
+  marked `not_citable` at insert — so the library lists it, opens it, and no run
+  can read or cite it. The **reason the upload takes one file per request** is
+  that the screen's count line ("7 of 50 uploaded · 2 could not be read") is
+  fed from each request's own answer, with no timers — and that one bad file
+  then cannot sink forty-nine good ones. The **reason the refusal for a person
+  who is not the owner's super user is a 403 with words** rather than a 404 is
+  that they are on the project and can see the library; the door is closed to
+  them by role, not hidden by the wall. The **reason confirmation is also the
+  admission** (the same `admitReference` the operator's bulk load calls) is that
+  two admission paths drift: the second one would one day forget a rendition or
+  an ingest. The **reason `proposed_by_run_id` is kept only on the classification
+  terms the person left standing** is that a term they changed is theirs, and a
+  record saying the AI proposed it would be wrong about who is responsible.
+  Two small things the drawing did not name: `step_type` gained
+  `intake_proposal` (the proposal is an agent run, and an audit step needs a name
+  of its own, as `app_step` did), and the `versions` trigger now freezes
+  `not_citable` — it names its frozen columns one by one, so a column added later
+  would otherwise have been quietly changeable. The **reason a failure is two
+  different answers**: if admission fails inside its own transaction nothing
+  landed and the row stays proposed ("Nothing was added — try again"); if only
+  the index call fails after the commit, the row is confirmed against the
+  container the transaction returned (never a lookup by reference, which could
+  find another document of the same name) and the owner's super user can run
+  `POST …/reference-intake/:id/index` — "Index again" — because the operator's
+  bulk load only revisits files in its own folder and would never finish it.
+  `ReachCounts.notCitable` is
+  optional on the wire because runs recorded before it existed carry no such
+  count.
+
 - **2026-10-24 (T-471) — `GET /projects/:projectId/working-area`; the run-time
   reach check; `Run.workingSet` / `Plan.workingSet` and the `{ hidden: true }`
   entry.** *Plainly: a person can hand the AI some of their own drafts, taken

@@ -3,9 +3,16 @@
 // A CLI, deliberately, and the same reasoning as `run-ingest.ts`: the load is
 // an operator action that is allowed to take hours
 // ([operating-envelope.md](../../../docs/architecture/operating-envelope.md)), and
-// nothing that takes hours belongs on a request path. There is no endpoint for
-// this and there should not be one until someone can say what the surface does
-// while it runs.
+// nothing that takes hours belongs on a request path. This command has no
+// endpoint, and it stays operator-only: it records nobody.
+//
+// T-472 — there now IS a surface for reference material, and it is a different
+// door: the owner's super user drops files on the library screen, each lands in
+// an intake queue, and a named person confirms it (ADR-0011's addendum of
+// 2026-10-24). That door and this one admit through the same code
+// (`reference-admission.ts`); the difference is that intake shows progress per
+// file, one request at a time, and names who confirmed what — which is what a
+// load of hundreds, run once under a signed DPA, does not need.
 //
 // It is also the act v1.md gates on the DPA: *"the firm's documents go into the
 // pilot environment's S3 bucket only, through the bulk-load path, as an

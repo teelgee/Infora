@@ -49,7 +49,16 @@ import type {
   DeclareExclusionResponse,
   ListConflictAttestationsResponse,
   ListConflictExclusionsResponse,
+  BulkConfirmIntakeBody,
+  BulkConfirmIntakeResponse,
   ClassificationSchemeResponse,
+  ConfirmIntakeBody,
+  ConfirmIntakeResult,
+  GetLibraryAdmissionResponse,
+  IndexIntakeResponse,
+  ListReferenceIntakeResponse,
+  ReferenceIntakeQuery,
+  UploadReferenceIntakeResponse,
   ContainerClassificationsResponse,
   ContainerRelationshipsResponse,
   DocumentRelationship,
@@ -790,6 +799,31 @@ export const api = {
     form.append('file', file);
     return requestForm<SandboxDocument>(`/projects/${projectId}/sandbox-uploads`, form);
   },
+  // T-472 — reference-material intake. One file per request: the screen's
+  // progress count is fed by each request's own answer.
+  uploadReferenceFile: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return requestForm<UploadReferenceIntakeResponse>(`/projects/${projectId}/reference-intake`, form);
+  },
+  referenceIntake: (projectId: string, query: ReferenceIntakeQuery = {}) =>
+    request<ListReferenceIntakeResponse>(`/projects/${projectId}/reference-intake?${queryString(query)}`),
+  confirmIntake: (projectId: string, id: string, body: ConfirmIntakeBody) =>
+    request<Extract<ConfirmIntakeResult, { ok: true }>>(`/projects/${projectId}/reference-intake/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  confirmIntakeBulk: (projectId: string, body: BulkConfirmIntakeBody) =>
+    request<BulkConfirmIntakeResponse>(`/projects/${projectId}/reference-intake/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  rejectIntake: (projectId: string, id: string) =>
+    request<{ id: string; rejected: true }>(`/projects/${projectId}/reference-intake/${id}/reject`, { method: 'POST' }),
+  indexIntake: (projectId: string, id: string) =>
+    request<IndexIntakeResponse>(`/projects/${projectId}/reference-intake/${id}/index`, { method: 'POST' }),
+  libraryAdmission: (containerId: string) =>
+    request<GetLibraryAdmissionResponse>(`/containers/${containerId}/library-admission`),
   // T-405 — `description` is OMITTED when the caller passes nothing, which the
   // server reads as "leave it alone"; `null` clears it. Sending `undefined`
   // through `JSON.stringify` drops the key, which is exactly the wanted

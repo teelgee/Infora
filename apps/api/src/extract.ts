@@ -46,6 +46,13 @@ export type Extraction =
  * would be admitted to the library, chunk to zero chunks, and sit there
  * answering nothing while looking loaded. That is the exact shape of the
  * failure v1.md's ruling is written against.
+ *
+ * T-472 — there is exactly ONE place a textless file is admitted anyway, and it
+ * is not here: the reference-material intake (ADR-0011's addendum of
+ * 2026-10-24) takes this refusal's reason, stores it as the file's text status,
+ * and — if a person confirms — admits the file with its version marked
+ * `not_citable`, so it is held and openable and no run can read or cite it. The
+ * sandbox upload, the bulk load and every other caller keep refusing.
  */
 export function extractText(format: ExtractableFormat, bytes: Buffer): Extraction {
   if (format === 'pdf') {

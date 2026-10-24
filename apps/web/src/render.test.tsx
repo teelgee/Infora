@@ -34,6 +34,10 @@ import { api } from './api';
 import { ChatComposer, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
+import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
+import type { IntakeFacet } from './screens/reference-intake';
+import { NOT_CITABLE_LABEL, describeTextStatus, uploadSentence } from './reference-intake-words';
+import type { IntakeRow } from '@infora/contracts';
 import {
   ExtractionReportNote,
   ProposalsPane,
@@ -2542,5 +2546,140 @@ describe('the builder’s conversation', () => {
     expect(html).toContain('Declared the table “Monthly returns”.');
     expect(html).toContain('It suggests');
     expect(html).toContain('Open the app to its people, from the panel.');
+  });
+});
+
+// ── T-472 — reference-material intake ───────────────────────────────────────
+//
+// *In plain terms: the table where uploaded files are checked shows each file,
+// its proposed title in a box you can correct, one choice per facet already set
+// to the proposal with the AI's own word beside it, and a tick, a Confirm and a
+// Reject on every row. A scan says there is no proposal; with the AI switched
+// off every row says so. Ticking rows and confirming sends their ids.*
+describe('the reference-material intake (T-472)', () => {
+  const FACETS: IntakeFacet[] = [
+    {
+      id: 'f-type',
+      key: 'document_type',
+      name: 'Document type',
+      source: 'iso_19650',
+      sortOrder: 0,
+      terms: [
+        { id: 't-std', facetId: 'f-type', parentTermId: null, code: 'STD', label: 'Standard', sortOrder: 0, retiredAt: null },
+        { id: 't-gdn', facetId: 'f-type', parentTermId: null, code: 'GDN', label: 'Guidance', sortOrder: 1, retiredAt: null },
+      ],
+    },
+  ];
+  const row = (over: Partial<IntakeRow>): IntakeRow => ({
+    id: 'i1',
+    originalFilename: 'BS-5228-1.pdf',
+    format: 'pdf',
+    textStatus: 'extracted',
+    readable: true,
+    proposedTitle: 'BS 5228-1 Noise and vibration',
+    proposedClassifications: [{ facetId: 'f-type', termId: 't-std', confidence: 'likely' }],
+    status: 'proposed',
+    uploadedBy: { participantId: 'p1', name: 'Rachel Bowen' },
+    uploadedAt: '2026-10-24T10:00:00.000Z',
+    confirmedBy: null,
+    confirmedAt: null,
+    containerId: null,
+    needsIndexing: false,
+    ...over,
+  });
+  const render = (rows: IntakeRow[], over: Partial<Parameters<typeof IntakeTable>[0]> = {}) =>
+    renderToStaticMarkup(
+      <IntakeTable
+        rows={rows}
+        facets={FACETS}
+        edits={Object.fromEntries(rows.map((r) => [r.id, startingEdit(r)]))}
+        proposalsOn
+        busy={false}
+        selected={new Set()}
+        onSelect={() => undefined}
+        onTitle={() => undefined}
+        onTerm={() => undefined}
+        onConfirm={() => undefined}
+        onReject={() => undefined}
+        {...over}
+      />,
+    );
+
+  it('shows the file, an editable title, the facet prefilled with the AI’s word beside it, a tick, Confirm and Reject', () => {
+    const html = render([row({})]);
+    expect(html).toContain('BS-5228-1.pdf');
+    expect(html).toContain('value="BS 5228-1 Noise and vibration"');
+    expect(html).toContain('aria-label="Title for BS-5228-1.pdf"');
+    // the facet's select is set to the proposal, and its word is beside it
+    expect(html).toContain('aria-label="Document type for BS-5228-1.pdf"');
+    expect(html).toMatch(/<option value="t-std" selected="">Standard<\/option>/);
+    expect(html).toContain('likely');
+    expect(html).toContain('aria-label="Select BS-5228-1.pdf"');
+    expect(html).toContain('aria-label="Confirm BS-5228-1.pdf"');
+    expect(html).toContain('aria-label="Reject BS-5228-1.pdf"');
+  });
+
+  it('a correction removes the word: the person’s own choice is not the AI’s guess', () => {
+    const r = row({});
+    const html = render([r], { edits: { [r.id]: { title: r.proposedTitle, terms: { 'f-type': 't-gdn' } } } });
+    expect(html).toMatch(/<option value="t-gdn" selected="">Guidance<\/option>/);
+    expect(html).not.toContain('likely');
+  });
+
+  it('a scan says there is no proposal and why; the AI being off says so on every readable row', () => {
+    const scan = row({ id: 'i2', originalFilename: 'scan.pdf', readable: false, textStatus: 'pdf_no_text', proposedClassifications: null });
+    expect(render([scan])).toContain('A scan — no text layer');
+    expect(render([scan])).toContain('No proposal — no readable text');
+    const unproposed = row({ id: 'i3', originalFilename: 'plain.pdf', proposedClassifications: null });
+    expect(render([unproposed], { proposalsOn: false })).toContain('No proposal — the AI is switched off for this project');
+    // …and not when the AI is on and simply proposed nothing
+    expect(render([unproposed], { proposalsOn: true })).not.toContain('switched off');
+  });
+
+  it('ticked rows are confirmed together: the body carries their ids, corrected titles and chosen terms', () => {
+    const a = row({ id: 'a', originalFilename: 'a.pdf' });
+    const b = row({ id: 'b', originalFilename: 'b.pdf', proposedClassifications: null, proposedTitle: 'b' });
+    const body = bulkConfirmBody([a, b], {
+      a: { title: '  A, corrected  ', terms: { 'f-type': 't-std' } },
+      b: { title: 'b', terms: {} },
+    });
+    expect(body).toEqual({
+      items: [
+        { id: 'a', title: 'A, corrected', classifications: [{ facetId: 'f-type', termId: 't-std' }] },
+        { id: 'b', title: 'b', classifications: [] },
+      ],
+    });
+  });
+
+  it('the bulk door sends exactly those ids, to the bulk route', async () => {
+    const seen: Array<{ url: string; body: unknown }> = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return new Response(JSON.stringify({ results: [], confirmed: 0, failed: 0 }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      await api.confirmIntakeBulk('p1', bulkConfirmBody([row({ id: 'a' }), row({ id: 'b' })], {}));
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(seen[0]!.url).toBe('/projects/p1/reference-intake/confirm');
+    expect((seen[0]!.body as { items: Array<{ id: string }> }).items.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+
+  it('the library’s count line is fed by what each request answered', () => {
+    expect(uploadSentence({ total: 50, uploaded: 7, scanned: 0, failed: ['x.docx: …', 'y.docx: …'], finished: false })).toBe(
+      '7 of 50 uploaded · 2 could not be read',
+    );
+    expect(uploadSentence({ total: 3, uploaded: 3, scanned: 1, failed: [], finished: true })).toBe(
+      '3 of 3 uploaded · 1 with no readable text — waiting for you in the intake queue.',
+    );
+    expect(uploadSentence({ total: 4, uploaded: 0, scanned: 0, failed: [], finished: false })).toBe('0 of 4 uploaded');
+  });
+
+  it('a held-but-unreadable file is labelled in words, never by a code', () => {
+    expect(NOT_CITABLE_LABEL).toBe('Not citable — no readable text');
+    expect(describeTextStatus('pdf_no_text')).toBe('A scan — no text layer');
+    expect(describeTextStatus('some_new_reason')).toBe('No readable text');
   });
 });

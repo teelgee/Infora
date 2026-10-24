@@ -48,6 +48,10 @@ export const STEP_TYPES = [
   // smuggled: an app run is an ADR-0028 Run, its steps are ADR-0028 Steps, and
   // without a name of its own an app step would have to borrow a worker's.
   'app_step',
+  // T-472 — the reference-material intake proposal (ADR-0011's addendum of
+  // 2026-10-24): a proposed title and classification is an agent run on the
+  // record (ADR-0028), and its one step needs a name of its own.
+  'intake_proposal',
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 

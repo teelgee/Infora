@@ -38,6 +38,8 @@ const LABEL: Record<Step['type'], string> = {
   // what made this a compile error rather than a blank line on a screen, which
   // is the third time it has caught exactly that.
   app_step: 'Ran an app',
+  // T-472 — the reference-material intake proposal (the fourth time the closed Record has caught it)
+  intake_proposal: 'Proposed a title and classification',
 };
 
 const tick = (status: Step['status']) =>

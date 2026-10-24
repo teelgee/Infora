@@ -185,3 +185,6 @@ export {
   freshModelOutput,
 } from './rule-matcher';
 export type { AcceptedRule, Normalisation, FreshModelOutput } from './rule-matcher';
+// T-472 — the reference-material intake proposal (pure compose + admit)
+export { admitIntakeProposal, composeIntakePrompt, INTAKE_READ_CHARS, INTAKE_SYSTEM } from './reference-intake';
+export type { AdmittedProposal, IntakeFacet } from './reference-intake';

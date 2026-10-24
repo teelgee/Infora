@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type {
   ContainerStateChange,
+  LibraryAdmission,
   ExternalIssue,
   GetPassageResponse,
   GetVersionResponse,
@@ -77,6 +78,8 @@ export function DocumentScreen() {
   const [transmittals, setTransmittals] = useState<TransmittalHistoryRow[]>([]);
   const [externalIssues, setExternalIssues] = useState<ExternalIssue[]>([]);
   const [stateChanges, setStateChanges] = useState<ContainerStateChange[]>([]);
+  // T-472 — who confirmed this reference document into the library, from its intake row
+  const [admission, setAdmission] = useState<LibraryAdmission | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function DocumentScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs, history, issues, rosterRead, changes] = await Promise.all([
+      const [plan, cycleRead, docs, history, issues, rosterRead, changes, admitted] = await Promise.all([
         api.plan(projectId),
         api.cycle(containerId).catch(() => null),
         api.sandboxDocuments(projectId).catch(() => ({ items: [] as SandboxDocument[] })),
@@ -108,7 +111,9 @@ export function DocumentScreen() {
         api.participants(projectId).catch(() => ({ items: [] as RosterEntry[] })),
         // T-465 — the document's own record of state changes
         api.containerStateChanges(containerId).catch(() => ({ items: [] as ContainerStateChange[] })),
+        api.libraryAdmission(containerId).catch(() => ({ admission: null as LibraryAdmission | null })),
       ]);
+      setAdmission(admitted.admission);
       const planRow =
         (plan.items.find((r) => r.containerId === containerId) ?? null) ||
         (await api.qaRow(containerId).catch(() => null));
@@ -186,6 +191,16 @@ export function DocumentScreen() {
           ...(cycle || row.workItem ? [{ id: 'open-review', label: 'Open the review', hint: 'This document', run: () => void navigate(`/projects/${projectId}/review/${containerId}`) }] : []),
         ],
   );
+
+  const indexAgain = async () => {
+    if (!admission) return;
+    try {
+      await api.indexIntake(projectId, admission.intakeId);
+    } catch {
+      /* the line below stays; the next read says whether it worked */
+    }
+    await reload();
+  };
 
   if (!containerId) return null;
   if (loadError) {
@@ -384,7 +399,7 @@ export function DocumentScreen() {
       )}
 
       {tab === 'activity' && (
-        <ActivityTab row={row} cycle={cycle} versions={versions} transmittals={transmittals} externalIssues={externalIssues} stateChanges={stateChanges} />
+        <ActivityTab row={row} cycle={cycle} versions={versions} transmittals={transmittals} externalIssues={externalIssues} stateChanges={stateChanges} admission={admission} onIndexAgain={isOwner && isSuper && admission?.needsIndexing ? () => void indexAgain() : undefined} />
       )}
     </div>
   );
@@ -581,8 +596,24 @@ function ActivityTab(props: {
   versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
   transmittals: TransmittalHistoryRow[];
   externalIssues: ExternalIssue[];
+  admission: LibraryAdmission | null;
+  /** the owner's super user may re-run indexing for an admitted file the index call failed on */
+  onIndexAgain?: (() => void) | undefined;
 }) {
   const events: Array<{ at: string; what: string; who?: string }> = [];
+  // T-472 — reference material enters the library by a person's confirmation
+  if (props.admission) {
+    events.push({
+      at: props.admission.confirmedAt,
+      what: `Added to the library by ${props.admission.confirmedBy.name} on ${formatDate(props.admission.confirmedAt)}`,
+    });
+    if (props.admission.needsIndexing) {
+      events.push({
+        at: props.admission.confirmedAt,
+        what: 'Not yet indexed — the AI cannot read this document until it is',
+      });
+    }
+  }
   for (const t of props.transmittals) {
     const what =
       t.kind === 'review'
@@ -644,6 +675,11 @@ function ActivityTab(props: {
         {events.map((e, i) => (
           <li key={i}>
             <span className="shelf-row-title" style={{ fontWeight: 500 }}>{e.what}</span>
+            {props.onIndexAgain && e.what.startsWith('Not yet indexed') && (
+              <Button size="sm" variant="quiet" onClick={props.onIndexAgain}>
+                Index again
+              </Button>
+            )}
             <span className="shelf-row-note">
               {e.at ? formatDateTime(e.at) : 'date not on this read'}
               {e.who && ` · ${e.who}`}

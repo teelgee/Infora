@@ -519,6 +519,29 @@ async function reachCountsIn(
     .groupBy(s.containers.state);
   const countOf = (state: string) => stateRows.find((row) => row.state === state)?.n ?? 0;
 
+  // T-472 — documents the library holds that no run can read: a confirmed
+  // reference file whose text could not be extracted (versions.not_citable).
+  // Counted on containers and current versions alone — such a version has no
+  // chunks, so it can never be in the live count above — under the same wall,
+  // narrowing and scope clauses, so "1 not citable" is a document the person
+  // could see and the scope would have admitted.
+  const [unreadable] = await db
+    .select({ n: sql<number>`count(distinct ${s.containers.id})::int` })
+    .from(s.containers)
+    .innerJoin(s.versions, eq(s.versions.containerId, s.containers.id))
+    .where(
+      and(
+        eq(s.containers.projectId, slice.projectId),
+        eq(s.containers.inLibrary, true),
+        eq(s.containers.state, 'live'),
+        eq(s.versions.isCurrent, true),
+        eq(s.versions.notCitable, true),
+        deliverableVisibleSql(slice),
+        attenuationSql(slice),
+        ...(inScopeClause === undefined ? [] : [inScopeClause]),
+      ),
+    );
+
   const visibleLive = live?.visibleLive ?? 0;
   const inScope = live?.inScope ?? 0;
   return {
@@ -526,6 +549,7 @@ async function reachCountsIn(
     inScope,
     excludedByState: { superseded: countOf('superseded'), withdrawn: countOf('withdrawn') },
     leftOutByScope: visibleLive - inScope,
+    notCitable: unreadable?.n ?? 0,
   };
 }
 

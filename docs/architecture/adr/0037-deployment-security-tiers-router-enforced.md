@@ -57,3 +57,6 @@ Selection has two axes applied in order: the tier policy is a **hard constraint 
 - **Where the tier is set.** Per deployment/tenant is assumed; confirm it is a deployment-level setting rather than per project or per request, and how a single client operating across classifications is handled (likely separate deployments).
 - **Standard-tier provider route.** Whether the standard tier reaches frontier models via a hyperscaler (Bedrock/Vertex/Azure UK region) or a direct enterprise contract is left to procurement; the ADR fixes the required contractual terms (ZDR, no-training, residency, sub-processor disclosure), not the vendor.
 - **Classification source.** Confirm how a request's classification is set and propagated — inherited from the project/deployment, or capable of per-deliverable elevation — since §4 depends on it arriving reliably.
+
+> **Note (2026-10-24, T-472 — ruled by Claude under the owner's delegation of 2026-10-23).** The per-project AI feature switch's list (the addendum above) gains **`reference_intake`** — the proposal of a title and classification for uploaded reference material (ADR-0011's addendum of the same day). Switched off, the intake queue still holds the files and a person fills the fields; the switch narrows, as every entry does.
+

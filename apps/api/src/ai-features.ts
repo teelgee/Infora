@@ -94,6 +94,16 @@ export const AI_FEATURES: ReadonlyArray<Facts> = [
     switchable: true,
   },
   {
+    key: 'reference_intake',
+    label: 'Reference-material intake',
+    where: 'The library — the intake screen for reference material you have just added',
+    reads: 'The first few pages of each file the project owner’s super user uploads, and the project’s own classification vocabulary; never another project’s material',
+    mayWrite: 'Only a proposed title and classification, which become the document’s own when a person confirms them; nothing is read by any run until then',
+    keeps: 'The proposal run, and who confirmed what, kept by the owner organisation (ADR-0011)',
+    trains: 'never',
+    switchable: true,
+  },
+  {
     key: 'app_builder',
     label: 'App builder',
     where: 'Apps — the building screen’s conversation',

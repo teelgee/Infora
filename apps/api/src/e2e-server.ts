@@ -25,6 +25,22 @@ const router = fakeRouter((system, prompt) => {
   // and records an answer only once the person has given it.
   const built = fakeBuilderAgent(system, prompt);
   if (built !== null) return built;
+  // T-472 — the reference-material intake proposal. The fake reads the file
+  // name and the scheme's own codes off the prompt it was given, and proposes a
+  // title plus a Standard (confident) and an Environmental discipline (likely)
+  // — only where those codes are really on offer, so what comes back meets the
+  // same admission rule a provider's answer would (a term outside the scheme is
+  // dropped, never invented).
+  if (system.includes('proposing a title and a classification for one uploaded reference document')) {
+    const name = /^File name: (.+)$/m.exec(prompt)?.[1] ?? 'Reference document';
+    const base = name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+    const classifications: Array<{ facet: string; term: string; confidence: string }> = [];
+    if (/^ {2}STD = Standard$/m.test(prompt)) classifications.push({ facet: 'document_type', term: 'STD', confidence: 'confident' });
+    if (/^ {2}V = Environmental$/m.test(prompt)) classifications.push({ facet: 'discipline', term: 'V', confidence: 'likely' });
+    // one invented term, to prove the admission rule on the live path
+    classifications.push({ facet: 'document_type', term: 'NOSUCH', confidence: 'confident' });
+    return JSON.stringify({ title: `${base.charAt(0).toUpperCase()}${base.slice(1)}`, classifications });
+  }
   // T-364 — the structure agent asks for JSON, not prose. Its system prompt is
   // the tell, so the substrate can drive the propose-confirm path in a browser
   // without a provider (the same reason the Lens branch below exists).

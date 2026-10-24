@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { organisations, participants, projects, sessions, users } from './drawer1-parties.js';
+import { runs } from './drawer3-execution.js';
 
 // rejected: the cycle was closed-rejected and never resubmitted — the document
 // stays in the library as a record and never grounds (ADR-0013/0032)
@@ -174,6 +175,10 @@ export const versions = pgTable('versions', {
   // at the infra/security session (data-model.md Drawer 2)
   content: text('content').notNull(),
   isCurrent: boolean('is_current').notNull().default(true),
+  // T-472 — a confirmed reference file whose text could not be read: held and
+  // openable, never read by a run. Set at insert only (versions are append-only);
+  // such a version has content '' and no chunks.
+  notCitable: boolean('not_citable').notNull().default(false),
 });
 
 // A stored, immutable, one-way export bound to its version — a snapshot of
@@ -795,4 +800,58 @@ export const containerStateChanges = pgTable(
     changedAt: timestamp('changed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('container_state_changes_container_idx').on(t.containerId, t.changedAt)],
+);
+
+// ── T-472 — reference-material intake (ADR-0011's addendum of 2026-10-24) ────
+// *In plain terms: a standard or guidance document the owner uploads waits here
+// — the file, its readable text and the AI's proposed title and classification
+// — until a person confirms it. Only then does a library record exist, so
+// nothing can be grounded on a file nobody has looked at.*
+//
+// MUTABLE, not append-only: the row moves from proposed to confirmed and stays
+// as the audit of who confirmed what. A rejection deletes the row and its blob.
+// Two NAMED PEOPLE (the uploader and the confirmer), registered in
+// docs/architecture/personal-data.md. No row-level security, as the sandbox
+// tables have none: the access wall is the route's (owner organisation, super
+// user), and the confirmed document is then read through the library's own wall.
+export const referenceIntakeStatus = pgEnum('reference_intake_status', [
+  'proposed',
+  'confirmed',
+  'rejected',
+]);
+
+export const referenceIntake = pgTable(
+  'reference_intake',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    organisationId: uuid('organisation_id')
+      .notNull()
+      .references(() => organisations.id),
+    uploadedByParticipantId: uuid('uploaded_by_participant_id')
+      .notNull()
+      .references(() => participants.id, { onDelete: 'cascade' }),
+    fileRef: text('file_ref').notNull(),
+    format: text('format').notNull(),
+    originalFilename: text('original_filename').notNull(),
+    /** the extracted text; null when the file has none */
+    extractedText: text('extracted_text'),
+    /** 'extracted', or the extractor's refusal reason (pdf_no_text …) */
+    textStatus: text('text_status').notNull(),
+    proposedTitle: text('proposed_title').notNull(),
+    /** [{ facetId, termId, confidence }] — null while there is no proposal */
+    proposedClassifications: jsonb('proposed_classifications'),
+    proposedByRunId: uuid('proposed_by_run_id').references((): AnyPgColumn => runs.id),
+    status: referenceIntakeStatus('status').notNull().default('proposed'),
+    confirmedByParticipantId: uuid('confirmed_by_participant_id').references(
+      () => participants.id,
+      { onDelete: 'cascade' },
+    ),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    containerId: uuid('container_id').references(() => containers.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('reference_intake_project_status_idx').on(t.projectId, t.status, t.createdAt)],
 );

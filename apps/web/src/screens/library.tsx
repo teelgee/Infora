@@ -18,7 +18,7 @@ import type {
   PendingTransmittal,
   RosterEntry,
 } from '@infora/contracts';
-import { BookOpen, FileText, Inbox, MoreHorizontal, Send, Share2 } from 'lucide-react';
+import { BookOpen, FileText, Inbox, MoreHorizontal, Plus, Send, Share2 } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -40,6 +40,9 @@ import {
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { lifecycleBadge } from '@infora/ui';
 import { api, RequestError } from '../api';
+import { describeApiError, errorCode } from '../api-errors';
+import { NOT_CITABLE_LABEL, describeTextStatus, uploadSentence } from '../reference-intake-words';
+import type { UploadProgress } from '../reference-intake-words';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { useMe } from '../session';
 import { contextStateBadge, formatDate } from './shared';
@@ -538,6 +541,37 @@ export function LibraryScreen() {
   // where the door is rather than chasing anybody into a tray.
   const [requests, setRequests] = useState<ExternalIssue[]>([]);
   const [declining, setDeclining] = useState<ExternalIssue | null>(null);
+  // T-472 — adding reference material: the owner's super user only. Files go up
+  // one request at a time, and the count line is fed from each request's own
+  // answer (server state, no timers — the progress-rail doctrine).
+  const mayAddReference = isOwner && participant.elevated;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [intakeWaiting, setIntakeWaiting] = useState<number | null>(null);
+  const [upload, setUpload] = useState<UploadProgress | null>(null);
+  const loadIntakeCount = useCallback(() => {
+    if (mayAddReference) {
+      void api.referenceIntake(projectId, { pageSize: 1 }).then((r) => setIntakeWaiting(r.total), () => setIntakeWaiting(null));
+    }
+  }, [mayAddReference, projectId]);
+  useEffect(loadIntakeCount, [loadIntakeCount]);
+  async function addReference(files: File[]) {
+    if (files.length === 0) return;
+    const state: UploadProgress = { total: files.length, uploaded: 0, scanned: 0, failed: [], finished: false };
+    setUpload({ ...state });
+    for (const file of files) {
+      try {
+        const { item } = await api.uploadReferenceFile(projectId, file);
+        state.uploaded += 1;
+        if (!item.readable) state.scanned += 1;
+      } catch (error) {
+        state.failed.push(`${file.name}: ${describeApiError(errorCode(error))}`);
+      }
+      setUpload({ ...state, failed: [...state.failed] });
+    }
+    state.finished = true;
+    setUpload({ ...state, failed: [...state.failed] });
+    loadIntakeCount();
+  }
 
   // responses may land out of order — a ranked search is slower than the plain
   // list it replaces — so only the latest request's answer is kept, or a
@@ -621,6 +655,15 @@ export function LibraryScreen() {
       render: (r) => (
         <>
           {r.title ?? (r.kind === 'reference' ? <span style={{ color: 'var(--text-muted)' }}>Reference material</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>)}
+          {/* T-472 — held in the library, openable, and never read by a run */}
+          {r.notCitable && (
+            <div style={{ marginTop: 6, fontSize: 12.5 }}>
+              <Badge tone="warning">{NOT_CITABLE_LABEL}</Badge>
+              {r.notCitableReason && (
+                <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>{describeTextStatus(r.notCitableReason)}</span>
+              )}
+            </div>
+          )}
           {/* T-389 — a standing proposal, and the owner's answer to it, on the row the decision is about */}
           {r.withdrawalProposal && (
             <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)' }} onClick={(e) => e.stopPropagation()}>
@@ -959,6 +1002,14 @@ export function LibraryScreen() {
         more="Superseded and withdrawn documents leave this list and stand as records on the plan. What the AI grounds on is narrower still: a deliverable accepted under a code this project does not rely on stays here, badged, and out of the AI’s reach. Tick rows to act on several at once; save the way you have set the list up as a view."
       />
       {note && <p style={{ color: 'var(--text-muted)' }}>{note}</p>}
+      {upload && (
+        <div role="status" aria-label="Reference material upload" style={{ color: 'var(--text-muted)' }}>
+          <p style={{ margin: 0 }}>{uploadSentence(upload)}</p>
+          {upload.failed.slice(0, 3).map((f) => (
+            <p key={f} style={{ margin: 0, fontSize: 12.5 }}>{f}</p>
+          ))}
+        </div>
+      )}
       {endingItem && (
         <EndDeliverableModal
           item={endingItem}
@@ -1139,6 +1190,31 @@ export function LibraryScreen() {
             setQuery(sort === null ? { sort: 'relevance', direction: 'asc' } : { sort: sort.key as LibraryQuery['sort'], direction: sort.direction }),
         }}
         hiddenColumns={{ value: query.cols, onChange: (cols) => setQuery({ cols }, false) }}
+        actions={
+          mayAddReference ? (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                accept=".pdf,.docx,.xlsx,.pptx"
+                aria-label="Reference material files"
+                onChange={(e) => {
+                  const files = [...(e.target.files ?? [])];
+                  e.target.value = '';
+                  void addReference(files);
+                }}
+              />
+              <Button size="sm" variant="quiet" onClick={() => fileInput.current?.click()}>
+                <Plus size={13} strokeWidth={2} /> Add reference material
+              </Button>
+              <Button size="sm" variant="quiet" onClick={() => void navigate(`/projects/${projectId}/library/intake`)}>
+                Intake{intakeWaiting !== null && intakeWaiting > 0 ? ` (${intakeWaiting})` : ''}
+              </Button>
+            </>
+          ) : undefined
+        }
         page={
           result
             ? { page: result.page, pageSize: result.pageSize, total: result.total, onPage: (page) => setQuery({ page }, false) }

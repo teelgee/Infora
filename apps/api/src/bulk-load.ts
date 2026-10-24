@@ -20,6 +20,13 @@
 // document's current version have chunks for the pinned model", not "does a
 // row exist".
 //
+// T-472 — one exception, and it is not a fault: a **not-citable** version (a
+// confirmed reference file whose text could not be read) has no chunks by
+// design, and `isVersionIndexed` answers "finished" for it. The load never
+// creates one itself — it still refuses a textless file — but it must not
+// mistake one a person confirmed for a half-landed ingest and try to embed
+// nothing.
+//
 // **What is admitted, ruled 2026-07-31 (T-304).** A legacy corpus is *received*
 // material, not *produced* material, and V1 must not invent a lifecycle to
 // admit it. Each document enters as a **reference-material container**:
@@ -37,7 +44,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { extractText, type ExtractableFormat } from './extract';
-import { generateRenditions, putBlob } from './renditions';
+import { admitReference } from './reference-admission';
 
 const FORMATS: Record<string, ExtractableFormat> = {
   '.docx': 'docx',
@@ -45,9 +52,6 @@ const FORMATS: Record<string, ExtractableFormat> = {
   '.pptx': 'pptx',
   '.pdf': 'pdf',
 };
-
-/** The genesis revision of received material. Not a P or a C: it was never issued *here*. */
-const GENESIS_REVISION = 'R01';
 
 export type LoadOutcome =
   /** admitted and indexed on this run */
@@ -154,52 +158,21 @@ async function loadOne(
   const extracted = extractText(format, bytes);
   if (!extracted.ok) return refuse(extracted.reason);
 
-  // The blob first: a container pointing at a file that was never written is a
-  // worse state to resume from than a file with no container.
-  const fileRef = putBlob(bytes, format);
-
-  const versionId = await deps.db.transaction(async (tx) => {
-    const [container] = await tx
-      .insert(s.containers)
-      .values({
-        projectId: options.projectId,
-        producingOrganisationId: options.organisationId,
-        documentReference: reference,
-        // T-462 — reference material's own title: the file's name, made readable
-        title: reference.replace(/_+/g, ' '),
-        scope: 'library',
-        // admitted directly: received material has no cycle to be accepted by,
-        // and inventing one is what the 2026-07-31 ruling refuses
-        inLibrary: true,
-        state: 'live',
-      })
-      .returning();
-    const [version] = await tx
-      .insert(s.versions)
-      .values({
-        containerId: container!.id,
-        versionReference: GENESIS_REVISION,
-        content: extracted.text,
-        isCurrent: true,
-      })
-      .returning();
-    // NO work item is created, and that is the ticket rather than an omission.
-    return version!.id;
+  // T-472 — admission is the one shared path (reference-admission.ts): the
+  // blob, the container, the genesis version, the rendition and the ingest are
+  // made there, the same way for a person's confirmation and for this load.
+  // This load records nobody and writes no classification.
+  const admitted = await admitReference(deps, {
+    projectId: options.projectId,
+    organisationId: options.organisationId,
+    reference,
+    // T-462 — reference material's own title: the file's name, made readable
+    title: reference.replace(/_+/g, ' '),
+    format,
+    bytes,
+    text: extracted.text,
   });
-
-  // the native rendition is the file itself, so the Documents view opens the
-  // real document rather than the extracted text
-  await generateRenditions(
-    deps.db,
-    { id: versionId, content: extracted.text },
-    { title: reference, origin: 'uploaded', format, fileRef },
-  );
-
-  // after the transaction commits (T-302): an outbound embedding call holds no
-  // transaction open, and a failure here leaves a resumable half — which the
-  // check at the top of this function is what makes true
-  const summary = await ingestVersion(deps.db, deps.router, versionId);
-  return { file: name, status: 'loaded', reference, chunks: summary.chunks };
+  return { file: name, status: 'loaded', reference, chunks: admitted.chunks ?? 0 };
 }
 
 /**

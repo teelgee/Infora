@@ -53,6 +53,8 @@ export type RegisterSearchRow = {
   withdrawnByParticipantId: string | null;
   title: string | null;
   workItemId: string | null;
+  /** T-472 — the current version is a confirmed reference file whose text could not be read */
+  notCitable: boolean;
   state: 'live' | 'superseded' | 'withdrawn' | 'rejected';
   /** 0 exact code · 1 code prefix · 2 reference, title or description mention · 3 none */
   lexical: number;
@@ -143,6 +145,7 @@ export async function searchLibraryRows(
           // T-462 — reference material carries its own title on the container
           title: sql<string | null>`coalesce(${s.workItems.title}, ${s.containers.title})`,
           workItemId: s.workItems.id,
+          notCitable: s.versions.notCitable,
           state: s.containers.state,
           lexical,
           nearest,

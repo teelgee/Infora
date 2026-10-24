@@ -10,6 +10,7 @@
 // retrieved**, proved as each party.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
+import { reachStatement } from '@infora/contracts';
 import type { AssemblyRequest, ReachCounts } from '@infora/contracts';
 import type { EntitledSlice } from '@infora/governance';
 import { createDb, schema as s, seedProjectOntology } from '@infora/db';
@@ -268,6 +269,7 @@ describe('the reach counts (T-469)', () => {
       inScope: 5,
       excludedByState: { superseded: 1, withdrawn: 1 },
       leftOutByScope: 0,
+      notCitable: 0,
     });
   });
 
@@ -294,6 +296,7 @@ describe('the reach counts (T-469)', () => {
       inScope: 1,
       excludedByState: { superseded: 0, withdrawn: 0 },
       leftOutByScope: 0,
+      notCitable: 0,
     });
   });
 
@@ -318,5 +321,42 @@ describe('the reach counts (T-469)', () => {
     const after = await Promise.all([reachCounts(deps, slices.b, undefined), containersRetrieved(b)]);
     expect(after[0]).toEqual(before[0]);
     expect(after[1]).toEqual(before[1]);
+  });
+});
+
+describe('a held but unreadable document (T-472)', () => {
+  it('is counted as not citable, never retrieved, and named in the reach sentence — under the wall and the scope', async () => {
+    // a confirmed reference file whose text could not be read: a version
+    // marked not_citable at insert, content '' and no passages
+    const [container] = await db
+      .insert(s.containers)
+      .values({
+        projectId,
+        producingOrganisationId: a.organisationId,
+        documentReference: `T472-SCAN-${Date.now()}`,
+        title: 'A scanned standard',
+        inLibrary: true,
+        state: 'live',
+      })
+      .returning();
+    await db
+      .insert(s.versions)
+      .values({ containerId: container!.id, versionReference: 'R01', content: '', isCurrent: true, notCitable: true });
+
+    const mine = await reachCounts(deps, slices.a, undefined);
+    expect(mine.notCitable).toBe(1);
+    // it has no passages, so it is not among the documents a run could read
+    expect(mine.visibleLive).toBe(5);
+    expect(await containersRetrieved(a)).not.toContain(container!.id);
+    expect(reachStatement({ ...mine, read: 5 })).toContain('1 not citable (scan).');
+
+    // a scope that does not admit it does not hear about it
+    expect((await reachCounts(deps, slices.a, { termIds: [termGeo] })).notCitable).toBe(0);
+    // …and one that names it does
+    expect((await reachCounts(deps, slices.a, { containerIds: [container!.id] })).notCitable).toBe(1);
+    // THE WALL: B cannot see A's unshared document, so cannot be told it exists
+    expect((await reachCounts(deps, slices.b, undefined)).notCitable).toBe(0);
+    // zero is omitted from the sentence, never printed
+    expect(reachStatement({ ...(await reachCounts(deps, slices.b, undefined)), read: 1 })).not.toContain('not citable');
   });
 });

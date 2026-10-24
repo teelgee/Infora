@@ -300,6 +300,8 @@ const libraryRowSelect = {
   // work item (the 2026-07-31 ruling), so the left join answering null is the
   // whole distinguishing fact. Nothing is stored and nothing has to be kept in step.
   workItemId: s.workItems.id,
+  // T-472 — a confirmed reference file whose text could not be read: held, never read by a run
+  notCitable: s.versions.notCitable,
 };
 
 type LibraryRow = {
@@ -315,6 +317,7 @@ type LibraryRow = {
   withdrawnByParticipantId: string | null;
   title: string | null;
   workItemId: string | null;
+  notCitable: boolean;
   /** the record state on a searched row; the live list has none and reads as live */
   state?: 'live' | 'superseded' | 'withdrawn' | 'rejected';
 };
@@ -339,6 +342,16 @@ async function toLibraryItems(db: Db, rows: LibraryRow[]): Promise<Array<Omit<Li
         .where(inArray(s.participants.id, proposerIds))
     : [];
   const proposerName = new Map(proposerRows.map((r) => [r.participantId, r.name]));
+  // T-472 — why a file is not citable is the extractor's reason, kept on the
+  // intake row that admitted it (an operator-loaded file is never not citable)
+  const unreadable = rows.filter((r) => r.notCitable).map((r) => r.containerId);
+  const reasonRows = unreadable.length
+    ? await db
+        .select({ containerId: s.referenceIntake.containerId, reason: s.referenceIntake.textStatus })
+        .from(s.referenceIntake)
+        .where(inArray(s.referenceIntake.containerId, unreadable))
+    : [];
+  const notCitableReason = new Map(reasonRows.map((r) => [r.containerId, r.reason]));
   return rows.map((row) => {
     const meta = (row.metadata ?? {}) as Record<string, unknown>;
     const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -355,6 +368,8 @@ async function toLibraryItems(db: Db, rows: LibraryRow[]): Promise<Array<Omit<Li
       producerName: row.producerName,
       issuedAt: row.issuedAt.toISOString(),
       kind: row.workItemId === null ? 'reference' : 'deliverable',
+      notCitable: row.notCitable,
+      notCitableReason: row.notCitable ? (notCitableReason.get(row.containerId) ?? null) : null,
       contextState: contextStateOf({ inLibrary: true, state: row.state ?? 'live' }, codes.get(row.containerId)),
       producingOrganisationId: row.producingOrganisationId,
       withdrawalProposal:

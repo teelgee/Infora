@@ -102,6 +102,14 @@ const MESSAGES: Record<string, string> = {
   pptx_no_text:
     'That deck has no text on its slides — a set of images has nothing to index. Speaker notes aren’t read.',
 
+  // reference-material intake (T-472)
+  reference_in_use: 'A document with that reference is already in the library — reject this file or rename it and add it again.',
+  already_confirmed: 'That file has already been confirmed.',
+  invalid_classification: 'One of the classifications isn’t one this project uses — choose again.',
+  admission_failed: 'Nothing was added — try again.',
+  index_failed: 'The document is in the library, but Infora still couldn’t index it for the AI to read. Try “Index again” in a moment.',
+  not_citable: 'That document has no readable text, so there is nothing to index.',
+
   // schema import (T-337) — each names the fix, because "rename the column" is
   // a ten-second job and is why this path never reaches for a model
   no_recognisable_headers:

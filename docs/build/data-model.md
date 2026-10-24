@@ -413,6 +413,64 @@ stands only as the drawing it was, and
 [drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is
 the authority on its shape.*
 
+**Drawn 2026-10-24 — the reference-material intake row, and the not-citable
+version (T-472).** *Plainly: a standard or guidance document the owner uploads
+does not go straight into the library. It waits in an intake queue — a row
+holding the file, its readable text and the AI's proposed title and
+classification — until a person confirms it. Only then does a library record
+exist, so nothing can be grounded on a file nobody has looked at. A scanned
+file whose text cannot be read is accepted too, and marked so the project can
+hold it without any run pretending to read it.*
+
+`reference_intake` — `id`; `project_id` (FK `projects`, cascade);
+`organisation_id` (the owner's); `uploaded_by_participant_id` (FK
+`participants` — **a named person**, registered); `file_ref` (the blob);
+`format`; `original_filename`; `extracted_text` (text, nullable); `text_status`
+(`extracted`, or the extractor's refusal reason — `pdf_no_text`,
+`pdf_encrypted`, `unreadable_file` …); `proposed_title`;
+`proposed_classifications` (jsonb, nullable — `[{ facetId, termId, confidence }]`,
+confidence a *word*: confident · likely · unsure); `proposed_by_run_id` (FK
+`runs`, nullable — the proposal is an agent run on the record); `status`
+(`proposed` · `confirmed` · `rejected`); `confirmed_by_participant_id` (FK
+`participants`, nullable — **a named person**, registered); `confirmed_at`;
+`container_id` (FK `containers`, nullable — set on confirmation);
+`created_at`. **Mutable, not append-only**: the row moves from proposed to
+confirmed and stays as the audit of who confirmed what; a rejection deletes
+the row and its blob. Row-level security as the sandbox tables. Confirmation
+admits through the one shared admission path the operator's bulk load also
+uses — container, genesis version, rendition, ingest — and writes the
+classification rows with `set_by_participant_id` (the confirmer) and
+`proposed_by_run_id` (ADR-0045 §17's reservation, used at last).
+
+`versions` gains `not_citable` (boolean, not null, default false, **set at
+insert only** — versions are append-only): true for a confirmed file whose
+text could not be read. Such a version has `content ''` and no chunks, is
+skipped by ingest and by the bulk load's resume, never grounds, and is counted
+by the reach statement as "not citable (scan)" — the mark ADR-0022's T-468
+note deferred here.
+
+*Document types for reference material*: the seeded `document_type` facet
+gains Standard · Guidance · Legislation · Consultee response (source
+`infora`), and the migration inserts them into every existing project's scheme
+where missing — data, not DDL, but carried by the same file so the two cannot
+drift.
+
+*Built the same day (migration 0078); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is the
+authority on its shape. Four things the build did that the drawing did not
+say. `step_type` gained `intake_proposal` (the proposal is an agent run, and its
+step needs a name of its own — migration 0067's `app_step` precedent). The
+`versions` trigger now names `not_citable` among its frozen columns, because it
+lists them one by one and an unnamed column would have stayed changeable after
+insert. The intake row drops its `extracted_text` when it is confirmed (the
+version holds the text; the audit keeps names, filename and dates), and it is
+deleted with its document when the owner erases one. There is no row-level
+security on `reference_intake`, as the sandbox tables have none — the wall is
+the route's (owner organisation, super user). The new terms carry no `source`
+of their own (terms have no such column; a facet has one) and use the codes
+STD, GDN, LEG and CRS.*
+
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
 (ADR-0025, 0028.)*

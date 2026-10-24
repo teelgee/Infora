@@ -32,10 +32,13 @@ export function TextInput(props: {
   autoFocus?: boolean;
   disabled?: boolean;
   onEnter?: () => void;
+  /** T-472 — names a field that has no visible label of its own (a cell in a table) */
+  ariaLabel?: string;
 }) {
   return (
     <input
       className={`field-input${props.mono ? ' mono' : ''}`}
+      aria-label={props.ariaLabel}
       value={props.value}
       placeholder={props.placeholder}
       autoFocus={props.autoFocus}
@@ -168,11 +171,14 @@ export function SelectInput(props: {
   options: ReadonlyArray<{ value: string; label: string }>;
   placeholder?: string;
   disabled?: boolean;
+  /** T-472 — names a select that has no visible label of its own (a cell in a table) */
+  ariaLabel?: string;
 }) {
   return (
     <div className="field-select-wrap">
       <select
         className="field-input field-select"
+        aria-label={props.ariaLabel}
         value={props.value}
         disabled={props.disabled}
         onChange={(e) => props.onChange(e.target.value)}

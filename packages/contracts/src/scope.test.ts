@@ -118,3 +118,19 @@ describe('the scope preview asks the same question the run does (T-470)', () => 
     expect(scopePreviewBody.safeParse({ query: 'anything' }).success).toBe(false);
   });
 });
+
+describe('the reach sentence names what is held but unreadable (T-472)', () => {
+  const counts = {
+    visibleLive: 14,
+    inScope: 14,
+    excludedByState: { superseded: 0, withdrawn: 0 },
+    leftOutByScope: 0,
+  };
+
+  it('says "N not citable (scan)" when there are some, and nothing when there are none', () => {
+    expect(reachStatement({ ...counts, notCitable: 3, read: 14 })).toBe('Read 14 documents. 3 not citable (scan).');
+    expect(reachStatement({ ...counts, notCitable: 0, read: 14 })).toBe('Read 14 documents.');
+    // a run recorded before the count existed carries none, and reads as none
+    expect(reachStatement({ ...counts, read: 14 })).toBe('Read 14 documents.');
+  });
+});

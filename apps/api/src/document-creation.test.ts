@@ -380,6 +380,8 @@ describe('the run (T-309)', () => {
       inScope: 1,
       excludedByState: { superseded: 0, withdrawn: 0 },
       leftOutByScope: 0,
+      // T-472 — the count of held-but-unreadable documents is recorded too (none here)
+      notCitable: 0,
       read: 1,
     });
     // and the plan the run executed is the plan the user was shown

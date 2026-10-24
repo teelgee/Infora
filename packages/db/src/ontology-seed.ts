@@ -71,6 +71,13 @@ export const DEFAULT_CLASSIFICATION_SCHEME: DefaultFacet[] = [
       { code: 'CA', label: 'Calculation' },
       { code: 'CE', label: 'Certificate' },
       { code: 'CO', label: 'Correspondence' },
+      // T-472 — the forms reference material takes (ADR-0011's addendum of
+      // 2026-10-24); a data migration inserts the same four into every project
+      // that already exists (0078), so the two cannot drift
+      { code: 'STD', label: 'Standard' },
+      { code: 'GDN', label: 'Guidance' },
+      { code: 'LEG', label: 'Legislation' },
+      { code: 'CRS', label: 'Consultee response' },
     ],
   },
   {

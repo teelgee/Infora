@@ -54,6 +54,7 @@ import { qaCheckRoutes } from './qa-check';
 import { ruleSetRoutes } from './rule-set';
 import { styleGuideRoutes } from './style-guide';
 import { toolRoutes } from './tools';
+import { referenceIntakeRoutes } from './reference-intake';
 import { uploadRoutes } from './upload';
 import { wopiRoutes } from './wopi';
 
@@ -323,6 +324,17 @@ export function buildApp(deps: AppDeps) {
     }),
   );
   app.route('/', uploadRoutes(deps));
+
+  // T-472 — reference-material intake: upload into a queue, a proposal, and a
+  // person's confirmation (ADR-0011's addendum of 2026-10-24)
+  app.route(
+    '/',
+    referenceIntakeRoutes({
+      db: deps.db,
+      router: deps.router,
+      ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
+    }),
+  );
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

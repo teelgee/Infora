@@ -62,6 +62,12 @@ export type ReachCounts = {
   excludedByState: { superseded: number; withdrawn: number };
   /** `visibleLive − inScope`: what the person's own choice left out */
   leftOutByScope: number;
+  /**
+   * T-472 — live, visible documents held but unreadable (a scanned file with no
+   * text layer): in the library, never read by a run. Optional because runs
+   * recorded before it existed carry no such count; absent reads as none.
+   */
+  notCitable?: number;
 };
 
 /** What a finished run writes: the counts, plus what was actually read. */
@@ -104,6 +110,9 @@ export function reachStatement(reach: ReachCounts & { read?: number }): string {
   if (reach.excludedByState.withdrawn > 0) excluded.push(`${reach.excludedByState.withdrawn} withdrawn`);
   if (excluded.length > 0) parts.push(`Excluded: ${excluded.join(', ')}.`);
   if (scoped) parts.push(`Your scope left out ${reach.leftOutByScope} you could have included.`);
+  // T-472 — a held-but-unreadable file is a fact the person is owed, named once
+  // and only when there is one ("0 not citable" would be noise)
+  if ((reach.notCitable ?? 0) > 0) parts.push(`${reach.notCitable} not citable (scan).`);
   return parts.join(' ');
 }
 

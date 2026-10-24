@@ -293,6 +293,28 @@
         </tbody></table>
       </article>
       <article class="card d2">
+        <h3>reference_intake</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">organisation_id</td><td class="type">uuid</td><td class="notes">→ organisations.id</td></tr>
+          <tr><td class="col">uploaded_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id</td></tr>
+          <tr><td class="col">file_ref</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">format</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">original_filename</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">extracted_text</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">text_status</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">proposed_title</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">proposed_classifications</td><td class="type">jsonb</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">proposed_by_run_id</td><td class="type">uuid</td><td class="notes">→ runs.id · nullable</td></tr>
+          <tr><td class="col">status</td><td class="type">reference_intake_status</td><td class="notes">default</td></tr>
+          <tr><td class="col">confirmed_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">confirmed_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id · nullable</td></tr>
+          <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
         <h3>renditions <span class="badge">append-only</span></h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
@@ -446,6 +468,7 @@
           <tr><td class="col">created_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
           <tr><td class="col">content</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">is_current</td><td class="type">boolean</td><td class="notes">default</td></tr>
+          <tr><td class="col">not_citable</td><td class="type">boolean</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
       <article class="card d2">

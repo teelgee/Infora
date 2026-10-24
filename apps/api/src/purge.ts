@@ -366,6 +366,9 @@ export async function removeLibraryContainer(
       await tx.delete(s.versions).where(inArray(s.versions.id, versionIds));
     }
     await tx.delete(s.containerClassifications).where(eq(s.containerClassifications.containerId, row.id));
+    // T-472 — the intake row that admitted this document goes with it: it names
+    // the uploader and the confirmer, and an erased document keeps no such trace
+    await tx.delete(s.referenceIntake).where(eq(s.referenceIntake.containerId, row.id));
     await tx.delete(s.deliverableShares).where(eq(s.deliverableShares.containerId, row.id));
     await tx.delete(s.containers).where(eq(s.containers.id, row.id));
 

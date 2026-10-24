@@ -116,6 +116,16 @@ export async function isVersionIndexed(
   versionId: string,
   projectId: string,
 ): Promise<boolean> {
+  // T-472 — a not-citable version (a confirmed reference file whose text could
+  // not be read) has no chunks by design and is never indexed. It is "finished",
+  // not a half-landed ingest, so a resume must neither re-embed it nor count it
+  // as a fault.
+  const [version] = await db
+    .select({ notCitable: s.versions.notCitable })
+    .from(s.versions)
+    .where(eq(s.versions.id, versionId))
+    .limit(1);
+  if (version?.notCitable === true) return true;
   // the index is under row-level security and the policy fails CLOSED (T-247),
   // so an unscoped read would answer "never indexed" for every version and
   // re-embed the whole corpus on every resume

@@ -27,6 +27,8 @@ const multipartPaths = [
   // about the run's coverage, which is the one thing this tool sells.
   /^\/projects\/[^/]+\/tools\/qa-check\/plan$/,
   /^\/projects\/[^/]+\/tools\/qa-check\/runs$/,
+  // T-472 — reference material dropped on the library: one file per request
+  /^\/projects\/[^/]+\/reference-intake$/,
 ];
 
 export function csrfGuard(options: { allowedOrigins: string[] }): MiddlewareHandler<AppEnv> {

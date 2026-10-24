@@ -521,6 +521,11 @@ export type LibraryItem = {
   // On this list because a proposal leaves the deliverable LIVE and listed: it
   // is not in force until the owner answers, and the answer is asked for here.
   withdrawalProposal: { participantId: Id; name: string; reason: string } | null;
+  // T-472 — a confirmed reference file whose text could not be read: held and
+  // openable, never read by a run. `notCitableReason` is the extractor's reason
+  // (pdf_no_text …) where the intake row keeps it, else null.
+  notCitable: boolean;
+  notCitableReason: string | null;
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
@@ -2491,6 +2496,8 @@ export const AI_FEATURE_KEYS = [
   'rule_extraction',
   'app_builder',
   'app_insights',
+  // T-472 — the AI's proposal of a title and classification for uploaded reference material
+  'reference_intake',
 ] as const;
 export type AiFeatureKey = (typeof AI_FEATURE_KEYS)[number];
 export type AiFeatureRow = {
