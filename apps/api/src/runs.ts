@@ -5,6 +5,7 @@
 // professional liability for the work product, and the client reviews the
 // *document* through the review cycle, never the agent's internals.
 // Everything else is the same not_found as nonexistence.
+import type { WorkingSetDocument } from '@infora/contracts';
 import { Hono } from 'hono';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import {
@@ -726,10 +727,13 @@ export function runRoutes(deps: {
 
     // T-471 — the working set is inherited from the plan being re-run and
     // checked again, for this requester, now: a grant may have closed since.
+    // The plan read here is the STORED one (ids and titles, no per-reader view),
+    // so every recorded id is re-checked and a draft that is gone or closed off
+    // is refused in words, not silently dropped (T-482 keeps this as it was).
     const inheritedSet = await resolveWorkingSetIds(
       deps.db,
       slice,
-      (plan.workingSet ?? []).flatMap((entry) => ('hidden' in entry ? [] : [entry.sandboxDocumentId])),
+      ((plan.workingSet ?? []) as unknown as WorkingSetDocument[]).map((entry) => entry.sandboxDocumentId),
     );
     if (!inheritedSet.ok) return c.json(invalid(inheritedSet.detail), 400);
 

@@ -1,47 +1,53 @@
 // T-471 — the words beside a run that was handed a working set, and the
 // working-area query.
 import { describe, expect, it } from 'vitest';
-import { WORKING_AREA_PAGE_SIZE, isHiddenEntry, workingAreaQuery, workingSetStatement } from './working-set';
+import { WORKING_AREA_PAGE_SIZE, isOpenEntry, workingAreaQuery, workingSetStatement } from './working-set';
 
-describe('T-471 — workingSetStatement', () => {
+describe('T-471/T-482 — workingSetStatement', () => {
+  const open = (label: string) => ({ sandboxDocumentId: 'a', label, openToYou: true as const });
+  const closed = (label: string) => ({ label, openToYou: false as const });
+  const removed = (label: string) => ({ label, openToYou: false as const, removed: true as const });
+
   it('a run handed nothing carries no line at all (not "0 documents")', () => {
     expect(workingSetStatement(undefined)).toBeNull();
     expect(workingSetStatement([])).toBeNull();
   });
 
   it('says it drew on the working area, with the count, and lists the titles for the hover', () => {
-    const s = workingSetStatement([
-      { sandboxDocumentId: 'a', label: 'Land quality method statement' },
-      { sandboxDocumentId: 'b', label: 'Ecology baseline note' },
-    ]);
+    const s = workingSetStatement([open('Land quality method statement'), open('Ecology baseline note')]);
     expect(s?.line).toBe('Drawing on your working area — 2 documents');
-    expect(s?.titles).toEqual(['Land quality method statement', 'Ecology baseline note']);
-    expect(s?.hiddenCount).toBe(0);
+    expect(s?.entries).toEqual([
+      { title: 'Land quality method statement', mark: null },
+      { title: 'Ecology baseline note', mark: null },
+    ]);
   });
 
   it('is singular for one', () => {
-    expect(workingSetStatement([{ sandboxDocumentId: 'a', label: 'x' }])?.line).toBe(
-      'Drawing on your working area — 1 document',
-    );
+    expect(workingSetStatement([open('x')])?.line).toBe('Drawing on your working area — 1 document');
   });
 
-  it('a reader in none of the working areas is told how many, with no title', () => {
-    const s = workingSetStatement([{ hidden: true }, { hidden: true }, { hidden: true }]);
-    expect(s?.line).toBe('3 documents from a working area you are not in');
-    expect(s?.titles).toEqual([]);
-    expect(s?.hiddenCount).toBe(3);
-  });
-
-  it('a reader in some of them sees the label for the whole set and the titles they may see', () => {
-    const s = workingSetStatement([{ sandboxDocumentId: 'a', label: 'Mine' }, { hidden: true }]);
+  it('a reader outside the working area reads every title, each marked, under the same line', () => {
+    const s = workingSetStatement([closed('Team draft'), closed('Narrow draft')]);
     expect(s?.line).toBe('Drawing on your working area — 2 documents');
-    expect(s?.titles).toEqual(['Mine']);
-    expect(s?.hiddenCount).toBe(1);
+    expect(s?.entries).toEqual([
+      { title: 'Team draft', mark: 'not open to you' },
+      { title: 'Narrow draft', mark: 'not open to you' },
+    ]);
   });
 
-  it('tells a hidden entry from a document', () => {
-    expect(isHiddenEntry({ hidden: true })).toBe(true);
-    expect(isHiddenEntry({ sandboxDocumentId: 'a', label: 'x' })).toBe(false);
+  it('a draft deleted for good keeps its title with the removed mark', () => {
+    expect(workingSetStatement([removed('Gone draft')])?.entries).toEqual([{ title: 'Gone draft', mark: 'document removed' }]);
+  });
+
+  it('the line is the same for a member and for an outsider', () => {
+    const member = workingSetStatement([open('A'), open('B')]);
+    const outsider = workingSetStatement([closed('A'), removed('B')]);
+    expect(outsider?.line).toBe(member?.line);
+  });
+
+  it('tells an open entry from one that is not', () => {
+    expect(isOpenEntry(closed('x'))).toBe(false);
+    expect(isOpenEntry(open('x'))).toBe(true);
   });
 });
 

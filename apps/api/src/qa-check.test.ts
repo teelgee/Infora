@@ -742,7 +742,7 @@ describe('attached drafts are checked for reach, per draft (T-471)', () => {
     // the section check was shown the excerpt, marked
     expect(seenPrompts.join('\n')).toContain('Ground model note: The ground model assumes made ground to 2 m.');
     // the run says what it was handed, by id and title
-    expect(result.run.workingSet).toEqual([{ sandboxDocumentId: ownAttachedId, label: 'Ground model note' }]);
+    expect(result.run.workingSet).toEqual([{ sandboxDocumentId: ownAttachedId, label: 'Ground model note', openToYou: true }]);
     // and the record keeps the id and the label, not the text
     const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, result.run.id));
     expect(plan!.workingSet).toEqual([{ sandboxDocumentId: ownAttachedId, label: 'Ground model note' }]);

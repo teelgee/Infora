@@ -248,9 +248,12 @@ export async function conversationWorkingSet(
 
 /**
  * A run's recorded working set, as THIS reader may see it: each entry whose
- * document sits in a working area the reader is in is returned as it was; every
- * other entry is replaced by `{ hidden: true }` — no id, no title. A document
- * that can no longer be found cannot be shown to anyone, so it is hidden too.
+ * document sits in a working area the reader is in is returned with its id and
+ * `openToYou: true`; every other entry keeps its recorded TITLE but loses its id
+ * and reads `openToYou: false`. A draft whose row is gone (deleted for good by
+ * `purgeSandboxDocument`) reads `removed: true` for every reader, the pinner
+ * included — worked out here, on read, from the row's absence. The run's
+ * recorded plan is never rewritten.
  */
 export async function visibleWorkingSet(
   db: Db,
@@ -270,9 +273,10 @@ export async function visibleWorkingSet(
   const sandboxOf = new Map(rows.map((row) => [row.id, row.sandboxId]));
   return recorded.map((entry) => {
     const sandboxId = sandboxOf.get(entry.sandboxDocumentId);
-    return sandboxId !== undefined && readable.has(sandboxId)
-      ? { sandboxDocumentId: entry.sandboxDocumentId, label: entry.label }
-      : { hidden: true as const };
+    if (sandboxId === undefined) return { label: entry.label, openToYou: false as const, removed: true as const };
+    return readable.has(sandboxId)
+      ? { sandboxDocumentId: entry.sandboxDocumentId, label: entry.label, openToYou: true as const }
+      : { label: entry.label, openToYou: false as const };
   });
 }
 
@@ -283,7 +287,7 @@ export async function withVisibleWorkingSet<T extends { workingSet?: readonly Wo
   value: T,
 ): Promise<T> {
   if (value.workingSet === undefined) return value;
-  const shown = await visibleWorkingSet(db, slice, value.workingSet as WorkingSetDocument[]);
+  const shown = await visibleWorkingSet(db, slice, value.workingSet as unknown as WorkingSetDocument[]);
   const rest: Record<string, unknown> = { ...value };
   delete rest['workingSet'];
   return (shown === undefined ? rest : { ...rest, workingSet: shown }) as T;

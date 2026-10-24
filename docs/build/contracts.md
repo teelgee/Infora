@@ -1849,3 +1849,22 @@ are not recorded here.
   construction rather than by a check a later route could forget. The
   **reason a shared view may be deleted by an org admin** is that a firm's
   shared way of looking is the firm's, and its maker may have left.
+
+- **2026-10-24 (T-482) — `WorkingSetEntry` is `openToYou: true` (with the id) or
+  `openToYou: false` (title only, `removed?`); `AttachedSource.hidden` becomes
+  `openToYou?: false`.** *Plainly: a colleague outside a working area now reads
+  the titles of the drafts pinned to a shared conversation, marked "not open to
+  you", and a draft deleted for good keeps its title marked "document removed".*
+  The **reason the title is shown but the id is withheld** is the owner's ruling
+  (ADR-0022, closing Q-057): a title is what a colleague needs to understand what
+  an answer drew on, while an id is a door handle — it is what a later request
+  would be built from — so the title is public and nothing more is. The
+  **reason "removed" is computed on read, from the draft's row being absent,
+  rather than written into the plan** is that a plan is a record of what a run
+  was handed and is never rewritten (ADR-0049's rule, and the owner's ruling
+  closing Q-058); writing a flag in would also have needed a migration and a
+  purge that reaches into past runs, for a fact the absence already states.
+  The **reason a finding's quoted excerpt stays hidden** from a non-member is
+  that the excerpt is the draft's own content: only the title was ruled public.
+  The superseded notice is unchanged — one document, no count (ADR-0049) — and
+  a test now pins it.

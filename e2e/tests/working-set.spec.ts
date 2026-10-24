@@ -4,8 +4,10 @@
 // area only you are in — open the picker, click the first, click the second,
 // press Done — and ask. The answer says "Drawing on your working area — 2
 // documents" and cites neither. Then a colleague in the same firm who is NOT in
-// that working area opens the same conversation: they are told there were two
-// documents from a working area they are not in, and are shown neither title.*
+// that working area opens the same conversation: they read both titles, each
+// marked "not open to you", and can open neither. When one draft is later
+// deleted for good, the past answer still lists its title, now with "document
+// removed" after it (T-482).*
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type {
@@ -28,7 +30,7 @@ async function login(page: Page, email: string) {
   await expect(page.getByText(PROJECT).first()).toBeVisible();
 }
 
-test('Ask: pin two drafts in four clicks, read "Drawing on your working area — 2 documents", cite neither; a colleague outside that working area sees only the count', async ({ page, browser }) => {
+test('Ask: pin two drafts in four clicks, read "Drawing on your working area — 2 documents", cite neither; a colleague outside it reads both titles marked not open to you, and a draft deleted for good keeps its title marked removed', async ({ page, browser }) => {
   // ── arrange, through the API: a working area only Eleanor is in, with two drafts ──
   const stamp = Date.now();
   const alpha = `WS draft alpha ${stamp}`;
@@ -39,10 +41,13 @@ test('Ask: pin two drafts in four clicks, read "Drawing on your working area —
     name: `Only Eleanor ${stamp}`,
     scope: 'named_user',
   });
+  const made: SandboxDocument[] = [];
   for (const title of [alpha, beta]) {
     const doc = await eleanor.post<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, { title, sandboxId: area.id });
     await eleanor.raw('patch', `/sandbox-documents/${doc.id}`, { content: `${title}: the ground model assumes made ground to 2 m.` });
+    made.push(doc);
   }
+  const [docAlpha, docBeta] = [made[0]!, made[1]!];
 
   // ── the colleague is NOT in that working area: the picker never offers them its drafts ──
   const colleague = await ApiSession.login(COLLEAGUE);
@@ -103,16 +108,42 @@ test('Ask: pin two drafts in four clicks, read "Drawing on your working area —
   const colleaguePage = await colleagueContext.newPage();
   await login(colleaguePage, COLLEAGUE);
   await colleaguePage.goto(`/projects/${projectId}/ask?conversation=${conversationId}`);
-  await expect(colleaguePage.locator('.cf-working-set').first()).toContainText(
-    '2 documents from a working area you are not in',
-    { timeout: 30_000 },
-  );
-  // the count, never the titles — not on the page, and not in what the server sent
-  await expect(colleaguePage.getByText(alpha)).toHaveCount(0);
-  await expect(colleaguePage.getByText(beta)).toHaveCount(0);
+  const theirLine = colleaguePage.locator('.cf-working-set').first();
+  await expect(theirLine).toContainText('Drawing on your working area — 2 documents', { timeout: 30_000 });
+  await theirLine.hover();
+  const theirCard = colleaguePage.getByRole('dialog', { name: /working set/i });
+  // both titles are read, each marked, and neither is a link
+  const alphaItem = theirCard.locator('li', { hasText: alpha });
+  const betaItem = theirCard.locator('li', { hasText: beta });
+  await expect(alphaItem).toContainText('not open to you');
+  await expect(betaItem).toContainText('not open to you');
+  await expect(theirCard.locator('a')).toHaveCount(0);
+  // the title is public; the id is not — not in what the server sent
   const theirs = await colleague.get<{ runs: Array<{ workingSet?: unknown[] }> }>(`/conversations/${conversationId}`);
-  expect(theirs.runs.at(-1)!.workingSet).toEqual([{ hidden: true }, { hidden: true }]);
-  expect(JSON.stringify(theirs)).not.toContain('WS draft');
+  expect(theirs.runs.at(-1)!.workingSet).toEqual([
+    { label: alpha, openToYou: false },
+    { label: beta, openToYou: false },
+  ]);
+  expect(JSON.stringify(theirs)).not.toContain(docBeta.id);
+  expect(JSON.stringify(theirs)).not.toContain(docAlpha.id);
+
+  // ── one draft is deleted for good: its title stays, with the mark ─────────
+  await eleanor.post(`/projects/${projectId}/purges`, { sandboxDocumentId: docBeta.id, confirmation: beta });
+  await colleaguePage.reload();
+  const afterLine = colleaguePage.locator('.cf-working-set').first();
+  await expect(afterLine).toContainText('Drawing on your working area — 2 documents', { timeout: 30_000 });
+  await colleaguePage.mouse.move(0, 0);
+  await afterLine.hover();
+  const afterCard = colleaguePage.getByRole('dialog', { name: /working set/i });
+  await expect(afterCard.locator('li', { hasText: beta })).toContainText('document removed');
+  await expect(afterCard.locator('li', { hasText: alpha })).toContainText('not open to you');
+  // and the person who pinned it reads the same mark on their own past answer
+  await page.goto(`/projects/${projectId}/ask?conversation=${conversationId}`);
+  const hers = page.locator('.cf-working-set').first();
+  await expect(hers).toContainText('Drawing on your working area — 2 documents', { timeout: 30_000 });
+  await page.mouse.move(0, 0);
+  await hers.hover();
+  await expect(page.getByRole('dialog', { name: /working set/i }).locator('li', { hasText: beta })).toContainText('document removed');
   await colleagueContext.close();
 
   await eleanor.dispose();

@@ -592,10 +592,10 @@ describe('CompletionFooter (T-294)', () => {
   // T-471 — a run handed a working set says so beside its answer, with the count
   // and no citation; a reader outside those drafts' working area gets only a
   // count; a run handed nothing carries no line
-  it('says it drew on the working area, and a reader outside it sees only a count', () => {
+  it('says it drew on the working area, and a reader outside it reads the same line', () => {
     const entries = [
-      { sandboxDocumentId: 'a1', label: 'Land quality method statement' },
-      { sandboxDocumentId: 'a2', label: 'Ecology baseline note' },
+      { sandboxDocumentId: 'a1', label: 'Land quality method statement', openToYou: true as const },
+      { sandboxDocumentId: 'a2', label: 'Ecology baseline note', openToYou: true as const },
     ];
     const html = renderToStaticMarkup(<CompletionFooter run={run({ workingSet: entries })} plan={plan()} />);
     expect(html).toContain('Drawing on your working area — 2 documents');
@@ -603,10 +603,9 @@ describe('CompletionFooter (T-294)', () => {
     // the manifest still lists no citation for them
     expect(html).not.toContain('class="cite');
     const hidden = renderToStaticMarkup(
-      <CompletionFooter run={run({ workingSet: [{ hidden: true }, { hidden: true }] })} plan={plan()} />,
+      <CompletionFooter run={run({ workingSet: [{ label: 'Team draft', openToYou: false }, { label: 'Gone draft', openToYou: false, removed: true }] })} plan={plan()} />,
     );
-    expect(hidden).toContain('2 documents from a working area you are not in');
-    expect(hidden).not.toContain('Drawing on your working area');
+    expect(hidden).toContain('Drawing on your working area — 2 documents');
     expect(renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />)).not.toContain('working area');
   });
 

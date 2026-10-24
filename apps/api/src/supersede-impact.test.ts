@@ -327,6 +327,13 @@ describe('T-474 — stale grounding, live and stored', () => {
     const mine = bList.items.filter((n) => n.eventType === 'cited-document-superseded');
     expect(mine).toHaveLength(1);
     expect(mine[0]!.subject.kind).toBe('sandbox-document');
+    // T-482 — the owner's ruling (ADR-0049, 2026-10-24): the notice names ONE
+    // document and carries no count. Pinned here so a later "and N more" is a
+    // deliberate change, not a drift.
+    expect(Object.keys(mine[0]!).sort()).toEqual(['createdAt', 'eventType', 'id', 'projectId', 'projectName', 'readAt', 'subject'].sort());
+    expect(Object.keys(mine[0]!.subject).sort()).toEqual(['id', 'kind', 'label', 'opens']);
+    expect(typeof mine[0]!.subject.id).toBe('string');
+    expect(JSON.stringify(mine[0])).not.toMatch(/count|more/i);
     // C: nothing. The owner caused the act: nothing either.
     const cList = (await (await req('/notifications', cCookie)).json()) as ListNotificationsResponse;
     expect(cList.items.filter((n) => n.eventType === 'cited-document-superseded')).toEqual([]);

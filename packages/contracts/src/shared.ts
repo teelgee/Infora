@@ -138,8 +138,10 @@ export type Run = {
   /**
    * T-471 — the working set this run was handed, as THIS reader may see it
    * (ADR-0022's addendum of 2026-10-24). Absent when the run was handed none.
-   * Each entry is the document, or `{ hidden: true }` for a reader outside that
-   * document's working area. It is never a citation source.
+   * Each entry carries the title it was pinned with; it is `openToYou: true`
+   * (with the id) for a reader in that document's working area, `openToYou:
+   * false` (no id) for anyone else, and `removed: true` once the draft is purged
+   * (T-482, the owner's rulings on Q-057/Q-058). It is never a citation source.
    */
   workingSet?: WorkingSetEntry[];
   citations: Citation[]; // the answer's citations when no Suggestion carries them

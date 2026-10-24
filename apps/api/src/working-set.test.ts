@@ -6,7 +6,7 @@
 // working area of; the server checks that again when a draft is pinned and when
 // a run starts (and refuses in words, never silently drops); the run records
 // what it was handed; and a reader who is not in a draft's working area sees
-// only how many, never which.*
+// the draft's title marked "not open to you", never the draft itself (T-482).*
 //
 // The world: one project, three firms, and sandboxes of every width —
 //   open    (firm B, whole firm)         "B open draft"
@@ -21,6 +21,7 @@ import { and, eq } from 'drizzle-orm';
 import type { AttachedSource, GetWorkingAreaResponse, Run, GetRunPlanResponse } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { purgeSandboxDocument } from './purge';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -298,8 +299,9 @@ describe('a run is refused — in words, naming the document — when a pinned d
 
     // unpinning it lets the question through: the refusal was about that draft and no other
     const pins = (await (await get('bram', `/conversations/${conv}/attached-sources`)).json()) as { items: AttachedSource[] };
-    // bram can no longer see it either — the entry is hidden, but it can still be unpinned by id
-    expect(pins.items[0]).toMatchObject({ hidden: true, ref: '', label: null });
+    // bram can no longer open it either — the entry keeps its title but loses its id, and can still be unpinned by id
+    expect(pins.items[0]).toMatchObject({ openToYou: false, ref: '' });
+    expect(pins.items[0]!.label).toBeTruthy();
     expect((await post('bram', `/attached-sources/${pins.items[0]!.id}/unpin`)).status).toBe(200);
     const ok = await post('bram', `/conversations/${conv}/runs`, { request: 'what have we missed?' });
     expect(ok.status).toBe(201);
@@ -366,7 +368,7 @@ describe('a run handed a working set — read as background, recorded, never cit
     const res = await post('bram', `/conversations/${conv}/runs`, { request: 'use my team draft', sandboxDocumentId: docs['open'] });
     expect(res.status).toBe(201);
     expect(lastPrompt).toContain('B team draft');
-    expect(((await res.json()) as Run).workingSet).toEqual([{ sandboxDocumentId: docs['team'], label: 'B team draft' }]);
+    expect(((await res.json()) as Run).workingSet).toEqual([{ sandboxDocumentId: docs['team'], label: 'B team draft', openToYou: true }]);
   });
 });
 
@@ -398,41 +400,71 @@ describe('the set is visible to the working area’s participants only — owner
     return { text: JSON.stringify(body), set: body.runs[0]?.workingSet };
   };
   const labelsOf = (set: Run['workingSet']) =>
-    (set ?? []).map((entry) => ('hidden' in entry ? 'HIDDEN' : entry.label)).sort();
+    (set ?? []).map((entry) => (entry.openToYou ? entry.label : `${entry.label} (not open)`)).sort();
 
   it('the owner (in all three working areas) sees all three', async () => {
     const { set } = await threadSet('bram', threadConv);
     expect(labelsOf(set)).toEqual(['B narrow draft', 'B open draft', 'B team draft']);
+    for (const entry of set ?? []) expect(entry.openToYou).toBe(true);
   });
 
-  it('a co-member of the team working area sees the drafts in the areas they are in, and a count for the rest', async () => {
+  it('a co-member of the team working area opens the drafts in the areas they are in, and reads the title of the rest', async () => {
     const { set, text } = await threadSet('bo', threadConv);
-    expect(labelsOf(set)).toEqual(['B open draft', 'B team draft', 'HIDDEN']);
-    expect(text).not.toContain('B narrow draft');
+    expect(labelsOf(set)).toEqual(['B narrow draft (not open)', 'B open draft', 'B team draft']);
+    // the title is public; the id is not
     expect(text).not.toContain(docs['narrow']!);
   });
 
-  it('a project member in none of the pinned working areas sees only how many', async () => {
+  it('a project member in none of the pinned working areas reads both titles, opens neither, and gets no id', async () => {
     const { set, text } = await threadSet('bea', hiddenConv);
-    expect(set).toEqual([{ hidden: true }, { hidden: true }]);
-    expect(text).not.toContain('B team draft');
-    expect(text).not.toContain('B narrow draft');
+    expect(labelsOf(set)).toEqual(['B narrow draft (not open)', 'B team draft (not open)']);
+    for (const entry of set ?? []) expect(entry).not.toHaveProperty('sandboxDocumentId');
     expect(text).not.toContain(docs['team']!);
     expect(text).not.toContain(docs['narrow']!);
   });
 
   it('the run read and the plan read apply the same rule', async () => {
     const run = (await (await get('bea', `/runs/${runId}`)).json()) as Run;
-    expect(labelsOf(run.workingSet)).toEqual(['B open draft', 'HIDDEN', 'HIDDEN']);
+    expect(labelsOf(run.workingSet)).toEqual(['B narrow draft (not open)', 'B open draft', 'B team draft (not open)']);
     const plan = (await (await get('bea', `/runs/${hiddenRunId}/plan`)).json()) as GetRunPlanResponse;
-    expect(plan.plan.workingSet).toEqual([{ hidden: true }, { hidden: true }]);
-    expect(JSON.stringify(plan)).not.toContain('B narrow draft');
+    expect(labelsOf(plan.plan.workingSet)).toEqual(['B narrow draft (not open)', 'B team draft (not open)']);
+    expect(JSON.stringify(plan)).not.toContain(docs['narrow']!);
     // and the shared-thread read of the pins themselves
     const pins = (await (await get('bea', `/conversations/${hiddenConv}/attached-sources`)).json()) as { items: AttachedSource[] };
     expect(pins.items).toHaveLength(2);
-    for (const item of pins.items) expect(item).toMatchObject({ hidden: true, ref: '', label: null });
+    for (const item of pins.items) expect(item).toMatchObject({ openToYou: false, ref: '' });
+    expect(pins.items.map((item) => item.label).sort()).toEqual(['B narrow draft', 'B team draft']);
+    expect(JSON.stringify(pins)).not.toContain('pinnedBy');
     const own = (await (await get('bram', `/conversations/${hiddenConv}/attached-sources`)).json()) as { items: AttachedSource[] };
     expect(own.items.map((item) => item.label).sort()).toEqual(['B narrow draft', 'B team draft']);
+  });
+
+  it('a draft deleted for good keeps its title on the past run, marked removed, for every reader', async () => {
+    const [orgRow] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, docs['narrow']!));
+    // a thread of its own, so the purge does not disturb the other tests
+    const conv = await conversation('bram', docs['open']);
+    const [extraId] = [await makeDoc('purgeme', 'B purge-me draft', 'narrow', orgB, 'bram')];
+    expect((await pin('bram', conv, extraId!)).status).toBe(201);
+    expect((await pin('bram', conv, docs['team']!)).status).toBe(201);
+    const made = await post('bram', `/conversations/${conv}/runs`, { request: 'a question', sandboxDocumentId: docs['open'] });
+    const purgeRunId = ((await made.json()) as Run).id;
+    const before = (await (await get('bram', `/runs/${purgeRunId}/plan`)).json()) as GetRunPlanResponse;
+    expect(before.plan.workingSet).toContainEqual({ sandboxDocumentId: extraId, label: 'B purge-me draft', openToYou: true });
+
+    const [admin] = await db.select().from(s.users).where(eq(s.users.organisationId, orgB)).limit(1);
+    const result = await purgeSandboxDocument(db, { documentId: extraId!, projectId, organisationId: orgRow!.organisationId, userId: admin!.id });
+    expect(result).not.toBeNull();
+
+    for (const who of ['bram', 'bea']) {
+      const plan = (await (await get(who, `/runs/${purgeRunId}/plan`)).json()) as GetRunPlanResponse;
+      const gone = plan.plan.workingSet!.find((entry) => entry.label === 'B purge-me draft');
+      expect(gone).toEqual({ label: 'B purge-me draft', openToYou: false, removed: true });
+      const run = (await (await get(who, `/runs/${purgeRunId}`)).json()) as Run;
+      expect(run.workingSet!.find((entry) => entry.label === 'B purge-me draft')).toMatchObject({ removed: true });
+    }
+    // the recorded plan itself is never rewritten
+    const [stored] = await db.select().from(s.plans).where(eq(s.plans.runId, purgeRunId));
+    expect(stored!.workingSet).toContainEqual({ sandboxDocumentId: extraId, label: 'B purge-me draft' });
   });
 
   it('another firm sees no run at all — the thread is the producing firm’s, and the set was never theirs', async () => {

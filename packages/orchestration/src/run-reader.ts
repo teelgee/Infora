@@ -3,7 +3,7 @@
 // Citations resolve their documentReference through the version's container;
 // the Signal, when present, rides its Suggestion.
 import { asc, desc, eq, inArray } from 'drizzle-orm';
-import type { Citation, Id, Run, RunReach, Step, Suggestion, WorkingSetDocument } from '@infora/contracts';
+import type { Citation, Id, Run, RunReach, Step, Suggestion, WorkingSetEntry } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { readCurrencies } from '@infora/knowledge';
@@ -48,8 +48,10 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
     ...(run.reach !== null && { reach: run.reach as RunReach }),
     // T-471 — RAW, with every entry's id and title. This is a store read and
     // resolves no permissions; the API replaces the entries the reader may not
-    // see with `{ hidden: true }` before any of it leaves the server.
-    ...(plan?.workingSet != null && { workingSet: plan.workingSet as WorkingSetDocument[] }),
+    // see with a title-only `openToYou: false` entry before any of it leaves
+    // the server. The cast is the honest admission that this is the STORED shape
+    // (no `openToYou`) standing in for the reader-facing type until then.
+    ...(plan?.workingSet != null && { workingSet: plan.workingSet as unknown as WorkingSetEntry[] }),
     citations: await readStepCitations(db, stepRows.map((row) => row.id)),
   };
 }

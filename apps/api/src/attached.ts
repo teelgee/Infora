@@ -125,9 +125,10 @@ export function attachedSourceRoutes(deps: { db: Db }) {
       rows.filter((r) => r.kind === 'library').map((r) => r.ref),
     );
     // T-471 — a `sandbox` pin is shown to a reader only if THEY are in the
-    // working area its document sits in. Anyone else on the thread gets an
-    // entry with no ref and no label — a count, never a title (ADR-0022's
-    // addendum, ruling 5). Checked per document, through the sandbox's own grants.
+    // working area its document sits in. Anyone else on the thread gets the
+    // TITLE it was pinned with and a blank ref — the title is public, the id is
+    // withheld (the owner's ruling closing Q-057, ADR-0022). `pinnedBy` is not
+    // sent. Checked per document, through the sandbox's own grants.
     const { reachable } = await checkReach(
       deps.db,
       ctx.slice,
@@ -136,7 +137,7 @@ export function attachedSourceRoutes(deps: { db: Db }) {
     const mayShow = new Set(reachable.map((doc) => doc.id as string));
     const items: AttachedSource[] = rows.map((r) =>
       r.kind === 'sandbox' && !mayShow.has(r.ref)
-        ? { id: r.id, conversationId: r.conversationId, kind: r.kind, ref: '', label: null, hidden: true, document: null }
+        ? { id: r.id, conversationId: r.conversationId, kind: r.kind, ref: '', label: r.label, openToYou: false, document: null }
         : {
             id: r.id,
             conversationId: r.conversationId,

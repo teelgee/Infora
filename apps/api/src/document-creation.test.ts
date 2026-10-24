@@ -991,7 +991,7 @@ describe('the creator’s working set (T-471)', () => {
     expect(seenPrompt).toContain('dewatering by sump pumping');
 
     // recorded on the plan as id and label — never the text
-    expect(body.run.workingSet).toEqual([{ sandboxDocumentId: ownDocId, label: 'Ada’s own method statement' }]);
+    expect(body.run.workingSet).toEqual([{ sandboxDocumentId: ownDocId, label: 'Ada’s own method statement', openToYou: true }]);
     const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, body.run.id));
     expect(JSON.stringify(plan!.workingSet)).not.toContain('dewatering');
 

@@ -31,7 +31,7 @@ import type {
   WorkingAreaDocument,
 } from '@infora/contracts';
 import { api } from './api';
-import { ChatComposer, WorkingSetLine } from '@infora/ui';
+import { ChatComposer, WorkingSetCard, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
@@ -1499,11 +1499,13 @@ describe('T-471 — the working-set picker', () => {
     expect(groups[0]!.options.map((o) => o.id)).toEqual(['a2']);
   });
 
-  it('says how many were pinned from a working area the reader is not in, and no more', () => {
+  it('lists, by title and marked, what colleagues pinned from a working area the reader is not in', () => {
     const html = renderToStaticMarkup(
-      <WorkingSetPicker projectId="p1" pinned={[]} hiddenCount={2} onToggle={() => {}} initiallyOpen initialRows={rows} />,
+      <WorkingSetPicker projectId="p1" pinned={[]} colleagues={['Team draft', 'Narrow draft']} onToggle={() => {}} initiallyOpen initialRows={rows} />,
     );
-    expect(html).toContain('2 more from a working area you are not in');
+    expect(html).toContain('Team draft');
+    expect(html).toContain('Narrow draft');
+    expect(html.match(/not open to you/g)?.length).toBe(2);
     expect(html).toContain('Working set · 2');
   });
 
@@ -1554,13 +1556,13 @@ describe('T-471 — a finding quoting a draft from a working area the reader is 
   });
 });
 
-describe('T-471 — the label beside a result, and the hidden count', () => {
+describe('T-471/T-482 — the label beside a result, and the titles in its card', () => {
   it('a result handed a working set says so with the count, and cites nothing', () => {
     const html = renderToStaticMarkup(
       <WorkingSetLine
         entries={[
-          { sandboxDocumentId: 'a1', label: 'Land quality method statement' },
-          { sandboxDocumentId: 'a2', label: 'Ecology baseline note' },
+          { sandboxDocumentId: 'a1', label: 'Land quality method statement', openToYou: true },
+          { sandboxDocumentId: 'a2', label: 'Ecology baseline note', openToYou: true },
         ]}
       />,
     );
@@ -1570,10 +1572,21 @@ describe('T-471 — the label beside a result, and the hidden count', () => {
     expect(html).not.toContain('class="cite');
   });
 
-  it('a reader outside the working area is told how many, never which', () => {
-    const html = renderToStaticMarkup(<WorkingSetLine entries={[{ hidden: true }, { hidden: true }]} />);
-    expect(html).toContain('2 documents from a working area you are not in');
-    expect(html).not.toContain('Drawing on your working area');
+  it('a reader outside the working area reads the same line, and the card lists each title marked — none a link', () => {
+    const entries = [
+      { label: 'Team draft', openToYou: false as const },
+      { label: 'Gone draft', openToYou: false as const, removed: true as const },
+    ];
+    const html = renderToStaticMarkup(<WorkingSetLine entries={entries} />);
+    expect(html).toContain('Drawing on your working area — 2 documents');
+    const card = renderToStaticMarkup(<WorkingSetCard entries={entries} />);
+    expect(card).toContain('Team draft');
+    expect(card).toContain('Gone draft');
+    expect(card).toContain('not open to you');
+    expect(card).toContain('document removed');
+    expect(card).not.toContain('<a ');
+    // an open draft carries no mark
+    expect(renderToStaticMarkup(<WorkingSetCard entries={[{ sandboxDocumentId: 'a', label: 'Mine', openToYou: true }]} />)).not.toContain('working-set-mark');
   });
 
   it('a run handed nothing carries no line', () => {
@@ -2835,6 +2848,14 @@ describe('T-474 — supersede impact on screen', () => {
 
   it('the notification\'s event is named in words', () => {
     expect(EVENT_LABEL['cited-document-superseded']).toBe('A document you cited was superseded');
+  });
+
+  it('T-482 — the superseded notice names one document and never counts more (ADR-0049, owner ruling 2026-10-24)', () => {
+    const sentence = EVENT_LABEL['cited-document-superseded'];
+    expect(sentence).not.toMatch(/\d|more|and \w+ other/i);
+    const source = readFileSync(new URL('./screens/notifications.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('notification.subject.label'); // the one document, named beside the sentence
+    expect(source).not.toMatch(/and \$\{|more\b.*notification/i);
   });
 
   it('the Checks tab shows the live list above the stored findings, saying it is not a saved finding', () => {

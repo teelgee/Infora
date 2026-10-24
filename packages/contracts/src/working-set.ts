@@ -4,8 +4,10 @@
 // working area they are part of — to a conversation, and ask a question with
 // those drafts in view. The AI reads them as background the person vouches for.
 // It never cites them, and it says on its answer that it drew on the working
-// area. Someone who is not in that working area sees only that documents were
-// pinned, never which.*
+// area. Someone who is not in that working area still reads the TITLES of the
+// pinned drafts, each marked "not open to you", but cannot open any of them —
+// the document's id is withheld. A draft deleted for good keeps its title, with
+// "document removed" after it (T-482, the owner's rulings on Q-057 and Q-058).*
 //
 // 🔒 A working set NEVER GROUNDS AND NEVER CITES. Nothing in these types can
 // become a citation: an entry is a document id and the title it had when it was
@@ -21,14 +23,19 @@ import type { Id } from './shared';
 export type WorkingSetDocument = { sandboxDocumentId: Id; label: string };
 
 /**
- * What a READER is shown of one entry. A reader who can access the document's
- * own sandbox sees the document; every other reader sees only that an entry
- * exists. The titles and ids of a working area are visible to its participants
- * and to no one else.
+ * What a READER is shown of one entry. The TITLE (the one recorded when the
+ * draft was pinned) is shown to every reader. The document's id is shown only
+ * to a reader who is in the draft's working area — `openToYou: true`. Any other
+ * reader gets `openToYou: false` and no id: the title is public, the door is
+ * not. `removed` is set when the draft has been deleted for good; it is worked
+ * out when the entry is read, never written into the run's recorded plan.
  */
-export type WorkingSetEntry = WorkingSetDocument | { hidden: true };
+export type WorkingSetEntry =
+  | { sandboxDocumentId: Id; label: string; openToYou: true }
+  | { label: string; openToYou: false; removed?: true };
 
-export const isHiddenEntry = (entry: WorkingSetEntry): entry is { hidden: true } => 'hidden' in entry;
+export const isOpenEntry = (entry: WorkingSetEntry): entry is Extract<WorkingSetEntry, { openToYou: true }> =>
+  entry.openToYou;
 
 /** The page size of the working-area read. */
 export const WORKING_AREA_PAGE_SIZE = 50;
@@ -57,25 +64,26 @@ export type GetWorkingAreaResponse = {
   q: string | null;
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** The small mark after a title, or null when the reader can open the draft. */
+export type WorkingSetMark = null | 'not open to you' | 'document removed';
 
 /**
  * The words beside an answer, a draft or a set of findings.
  *
  * `null` for a run that was handed nothing: no line, rather than a line saying
- * "0 documents". A reader who is in none of the pinned documents' working areas
- * is told how many there were and that they are not in the working area — never
- * a title.
+ * "0 documents". The line reads the same for every reader. Every entry
+ * contributes its title; an entry the reader cannot open carries a mark.
  */
 export function workingSetStatement(
   entries: readonly WorkingSetEntry[] | undefined,
-): { line: string; titles: string[]; hiddenCount: number } | null {
+): { line: string; entries: { title: string; mark: WorkingSetMark }[] } | null {
   if (entries === undefined || entries.length === 0) return null;
-  const titles = entries.filter((entry): entry is WorkingSetDocument => !isHiddenEntry(entry)).map((entry) => entry.label);
-  const hiddenCount = entries.length - titles.length;
-  const line =
-    titles.length === 0
-      ? `${plural(hiddenCount, 'document')} from a working area you are not in`
-      : `Drawing on your working area — ${plural(entries.length, 'document')}`;
-  return { line, titles, hiddenCount };
+  const line = `Drawing on your working area — ${entries.length} document${entries.length === 1 ? '' : 's'}`;
+  return {
+    line,
+    entries: entries.map((entry) => ({
+      title: entry.label,
+      mark: entry.openToYou ? null : entry.removed === true ? 'document removed' : 'not open to you',
+    })),
+  };
 }

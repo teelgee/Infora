@@ -67,8 +67,9 @@ export function WorkingSetPicker(props: {
   projectId: string;
   /** the current set */
   pinned: PinnedDoc[];
-  /** entries a colleague pinned from a working area THIS reader is not in */
-  hiddenCount?: number;
+  /** titles a colleague pinned from a working area THIS reader is not in —
+   *  listed, marked "not open to you", and neither openable nor removable here */
+  colleagues?: string[];
   /** pin (`pinned: true`) or unpin one document; the caller does the work */
   onToggle: (doc: PinnedDoc, pinned: boolean) => Promise<void> | void;
   /** documents that must not be offered (e.g. the draft being checked) */
@@ -158,14 +159,23 @@ export function WorkingSetPicker(props: {
     [props.onToggle, props.pinned, titleOf],
   );
 
-  const count = props.pinned.length + (props.hiddenCount ?? 0);
+  const count = props.pinned.length + (props.colleagues?.length ?? 0);
   const status = (
     <>
       {props.error != null && <span className="multi-picker-status--warning">{props.error} </span>}
       {failed
         ? 'The list could not be loaded — try again.'
         : `${props.pinned.length} in your working set. Read as background you vouch for — never cited.`}
-      {(props.hiddenCount ?? 0) > 0 && ` ${props.hiddenCount} more from a working area you are not in.`}
+      {(props.colleagues?.length ?? 0) > 0 && (
+        <ul className="working-set-card-list">
+          {props.colleagues!.map((title, at) => (
+            <li key={`${at}-${title}`}>
+              {title}
+              <span className="working-set-mark">not open to you</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {hasMore && ' Showing the first 50 — type to narrow.'}
     </>
   );
@@ -254,15 +264,15 @@ export function ConversationWorkingSet(props: {
 
   const sandboxPins = sources.filter((source) => source.kind === 'sandbox');
   const pinned: PinnedDoc[] = sandboxPins
-    .filter((source) => source.hidden !== true)
+    .filter((source) => source.openToYou !== false)
     .map((source) => ({ id: source.ref, title: source.label ?? source.ref }));
-  const hiddenCount = sandboxPins.filter((source) => source.hidden === true).length;
+  const colleagues = sandboxPins.filter((source) => source.openToYou === false).map((source) => source.label ?? 'A document');
 
   return (
     <WorkingSetPicker
       projectId={props.projectId}
       pinned={pinned}
-      hiddenCount={hiddenCount}
+      colleagues={colleagues}
       error={error}
       {...(props.placement !== undefined && { placement: props.placement })}
       {...(props.exclude !== undefined && { exclude: props.exclude })}

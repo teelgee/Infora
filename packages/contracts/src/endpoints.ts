@@ -2405,10 +2405,11 @@ export type AttachedSource = {
   kind: 'sandbox' | 'upload' | 'web' | 'library';
   ref: string;
   label: string | null;
-  // T-471 — set for a `sandbox` pin whose document sits in a working area the
-  // READER is not in: the ref and label are then blank, and the client says
-  // "a document from a working area you are not in". Never set for the pinner.
-  hidden?: boolean;
+  // T-471/T-482 — `false` for a `sandbox` pin whose document sits in a working
+  // area the READER is not in: the ref is then blank (the id is withheld) but
+  // the label — the title it was pinned with — is shown, and the client marks
+  // it "not open to you". Absent means open. Never `false` for the pinner.
+  openToYou?: false;
   // T-391 — THE MARKER, resolved server-side for a `library` pin and null for
   // every other kind. Pinning an out-of-context document is legal and
   // deliberate; what separates that from dangerous use is the reader knowing

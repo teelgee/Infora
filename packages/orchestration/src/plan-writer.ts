@@ -24,6 +24,7 @@ import type {
   PlanStepState,
   Scope,
   WorkingSetDocument,
+  WorkingSetEntry,
   StepType,
 } from '@infora/contracts';
 import type { PlannedStep } from './plan-order';
@@ -259,7 +260,7 @@ export async function readPlanForRun(db: Db, runId: Id): Promise<Plan | null> {
     createdAt: plan.createdAt.toISOString(),
     supersededByPlanId: plan.supersededByPlanId,
     ...(plan.scope !== null && { scope: plan.scope as Scope }),
-    ...(plan.workingSet !== null && { workingSet: plan.workingSet as WorkingSetDocument[] }),
+    ...(plan.workingSet !== null && { workingSet: plan.workingSet as unknown as WorkingSetEntry[] }),
     steps: steps.map((step) => ({
       id: step.id,
       ordinal: step.ordinal,

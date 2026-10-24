@@ -25,7 +25,7 @@ export { AppFrame, CollapseToggle, Pane, PaneHeader, ResizeGrip } from './app-fr
 export { Prose } from './prose';
 // T-468 — the card that opens on hover/focus (the source card's frame)
 export { HoverCard, hoverCardReducer } from './hover-card';
-export { WorkingSetLine } from './working-set-line';
+export { WorkingSetCard, WorkingSetLine } from './working-set-line';
 export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 export { Modal, Drawer } from './dialog';
 // T-421 — SegmentedControl: a pick-one-of-two-or-three drawn as one control
