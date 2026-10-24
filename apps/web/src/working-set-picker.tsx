@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AttachedSource, WorkingAreaDocument } from '@infora/contracts';
 import { MultiPicker } from '@infora/ui';
 import type { PickerGroup } from '@infora/ui';
+import { FloatingPanel, useOutsideClose } from './floating-panel';
 import { api, RequestError } from './api';
 
 /** A document in the set: its id and the title it is shown by. */
@@ -97,14 +98,8 @@ export function WorkingSetPicker(props: {
     chipRef.current?.focus();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useOutsideClose(open, [rootRef, panelRef], () => setOpen(false));
 
   // the server narrows the list: asked when the panel opens and, after a short
   // pause, as the person types. A stale answer is aborted, never shown.
@@ -194,7 +189,7 @@ export function WorkingSetPicker(props: {
         {`▤ ${workingSetChipLabel(count)}`}
       </button>
       {open && (
-        <div className={`scope-panel scope-panel--${props.placement ?? 'bottom'}`}>
+        <FloatingPanel anchorRef={chipRef} panelRef={panelRef} placement={props.placement ?? 'bottom'}>
           <MultiPicker
             label="Working set"
             placeholder="Search your drafts by title"
@@ -217,7 +212,7 @@ export function WorkingSetPicker(props: {
               </button>
             }
           />
-        </div>
+        </FloatingPanel>
       )}
     </div>
   );

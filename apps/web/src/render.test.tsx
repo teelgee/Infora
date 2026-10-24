@@ -14,6 +14,7 @@
 // sentence that cannot be rendered in a test is a sentence nobody is checking.
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { panelStyle } from './floating-panel';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type {
   AppBuildTurn,
@@ -3250,5 +3251,24 @@ describe('T-483 — the document page for a reader who is not on the plan row', 
     };
     expect(page(standard, currency)).toContain('Currency');
     expect(page({ ...standard, kind: 'deliverable' }, null)).not.toContain('Currency');
+  });
+});
+
+// The scope panel escapes its card (a card clips what overhangs it): placed from
+// the chip's rect, flipped up when there is no room below.
+describe('floating panel placement', () => {
+  const view = { width: 1280, height: 800 };
+  it('hangs below the chip when there is room', () => {
+    const s = panelStyle({ left: 100, top: 100, bottom: 130 }, view, 'bottom');
+    expect(s).toMatchObject({ position: 'fixed', left: 100, top: 136 });
+  });
+  it('flips up when the chip is near the bottom', () => {
+    const s = panelStyle({ left: 100, top: 700, bottom: 730 }, view, 'bottom');
+    expect(s).toMatchObject({ bottom: 106, top: 'auto' });
+  });
+  it('opens up when asked to, and stays inside the viewport sideways', () => {
+    const s = panelStyle({ left: 1200, top: 100, bottom: 130 }, view, 'top');
+    expect(s.bottom).toBe(706);
+    expect(s.left).toBe(1280 - 460 - 16);
   });
 });

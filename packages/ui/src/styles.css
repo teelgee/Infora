@@ -2178,6 +2178,10 @@ mark[data-passage].flash { background: var(--feedback-info-tint); border-bottom-
    palette's rows; ticked is a mark in the row, the highlight is the row's fill. */
 .scope-control { position: relative; display: inline-block; }
 .scope-panel { position: absolute; z-index: 60; left: 0; width: 460px; max-width: calc(100vw - 32px); background: var(--surface-pane, #fff); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: var(--primitive-radius-md, 10px); box-shadow: var(--pane-shadow); overflow: hidden; }
+/* the panel is portalled and fixed (apps/web floating-panel.tsx) with a max-height from the room on screen: the list gives way, the search and footer stay */
+.scope-panel { display: flex; flex-direction: column; }
+.scope-panel > .multi-picker { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.scope-panel .multi-picker-list { flex: 0 1 auto; min-height: 96px; }
 .scope-panel--top { bottom: calc(100% + 6px); }
 .scope-panel--bottom { top: calc(100% + 6px); }
 .multi-picker-input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--border-default); padding: 12px 14px; font-size: 14px; background: transparent; color: inherit; outline: none; }

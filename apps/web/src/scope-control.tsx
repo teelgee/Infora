@@ -26,6 +26,7 @@ import type { ClassificationSchemeResponse, ReachCounts, SavedView, Scope } from
 import { reachStatement } from '@infora/contracts';
 import { MultiPicker } from '@infora/ui';
 import type { PickerGroup } from '@infora/ui';
+import { FloatingPanel, useOutsideClose } from './floating-panel';
 import { api } from './api';
 import { useGroundingScope } from './composer-chips';
 import type { GroundingScope } from './composer-chips';
@@ -227,14 +228,8 @@ export function ScopeControl(props: {
     chipRef.current?.focus();
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (event: MouseEvent) => {
-      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useOutsideClose(open, [rootRef, panelRef], () => setOpen(false));
 
   const groups = useMemo(
     () => scopeGroups({ scheme: state.scheme, grounding: state.grounding, saved: state.saved }),
@@ -311,7 +306,7 @@ export function ScopeControl(props: {
         {`▤ ${label}${warn ? ' · nothing to read' : ''}`}
       </button>
       {open && (
-        <div className={`scope-panel scope-panel--${props.placement ?? 'bottom'}`}>
+        <FloatingPanel anchorRef={chipRef} panelRef={panelRef} placement={props.placement ?? 'bottom'}>
           <MultiPicker
             label="Scope"
             placeholder="Type a discipline, a document type, a code or a title"
@@ -342,7 +337,7 @@ export function ScopeControl(props: {
               </>
             }
           />
-        </div>
+        </FloatingPanel>
       )}
       {saving && (
         <SaveViewModal
