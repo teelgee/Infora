@@ -55,6 +55,7 @@ import { ruleSetRoutes } from './rule-set';
 import { styleGuideRoutes } from './style-guide';
 import { toolRoutes } from './tools';
 import { referenceIntakeRoutes } from './reference-intake';
+import { referenceCurrencyRoutes } from './reference-currency';
 import { uploadRoutes } from './upload';
 import { wopiRoutes } from './wopi';
 
@@ -335,6 +336,10 @@ export function buildApp(deps: AppDeps) {
       ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
     }),
   );
+
+  // T-473 — confirmed current / re-check due on reference material, and the
+  // intervals (ADR-0011's addendum of 2026-10-24, ruling 4)
+  app.route('/', referenceCurrencyRoutes(deps));
 
   // Suggestion resolution — the Signal (M4) — T-053
   app.route('/', suggestionRoutes(deps));

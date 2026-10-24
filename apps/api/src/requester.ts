@@ -249,6 +249,15 @@ export const resourceHomes = {
       .limit(1);
     return row ?? null;
   },
+  // T-473 — a container, for the currency doors (the document page's card)
+  container: async (db, id): Promise<ResourceHome> => {
+    const [row] = await db
+      .select({ projectId: s.containers.projectId })
+      .from(s.containers)
+      .where(eq(s.containers.id, id))
+      .limit(1);
+    return row ?? null;
+  },
   version: async (db, id): Promise<ResourceHome> => {
     const [row] = await db
       .select({ projectId: s.containers.projectId })

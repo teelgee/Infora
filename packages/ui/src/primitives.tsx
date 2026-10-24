@@ -2,6 +2,8 @@
 // vocabulary (styles.css is the visual spec); behaviour arrives via props
 // from the surface, never inside the kit.
 import type { ReactNode } from 'react';
+import { currencyMarkTitle, currencyWords } from '@infora/contracts';
+import type { Currency } from '@infora/contracts';
 import { HoverCard } from './hover-card';
 
 // The five-variant closed set from design-tokens.json's component.badge.status
@@ -75,12 +77,28 @@ export function SourceChip(props: {
    * `cardLabel` is its accessible name */
   card?: ReactNode;
   cardLabel?: string;
+  /** T-473 — the cited document's currency as of the read. A document nobody has
+   * confirmed current, or whose re-check is overdue, carries a small mark. */
+  currency?: Currency | null | undefined;
 }) {
   const lib = props.corpus === 'library';
+  const markTitle = currencyMarkTitle(props.currency);
   // a real button (T-468): reachable by keyboard, so the card is too
   const chip = (
     <button type="button" className={`cite ${lib ? 'lib' : 'auth'}`} onClick={props.onClick}>
       {lib ? '▤' : '§'} {props.children}
+      {markTitle !== null && (
+        // a visible glyph with words, not colour alone: the short name is read
+        // out, the full sentence (with dates) is the hover title
+        <span
+          className={`cite-currency ${props.currency!.state}`}
+          role="img"
+          aria-label={markTitle}
+          title={currencyWords(props.currency) ?? markTitle}
+        >
+          {props.currency!.state === 'overdue' ? '↻' : '?'}
+        </span>
+      )}
     </button>
   );
   return props.card === undefined ? (

@@ -2,7 +2,12 @@
 export { createDb, withProjectScope, type Db } from './client.js';
 export { loadDbEnv, type DbEnv } from './env.js';
 export { hashPassword, verifyPassword } from './credentials.js';
-export { seedProjectOntology, DEFAULT_CLASSIFICATION_SCHEME } from './ontology-seed.js';
+export {
+  seedProjectOntology,
+  DEFAULT_CLASSIFICATION_SCHEME,
+  DEFAULT_RECHECK_MONTHS,
+  FALLBACK_RECHECK_MONTHS,
+} from './ontology-seed.js';
 export {
   seedProjectAcceptanceCodes,
   DEFAULT_ACCEPTANCE_SCHEME,

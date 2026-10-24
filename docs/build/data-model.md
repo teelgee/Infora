@@ -471,6 +471,45 @@ the route's (owner organisation, super user). The new terms carry no `source`
 of their own (terms have no such column; a facet has one) and use the codes
 STD, GDN, LEG and CRS.*
 
+**Drawn 2026-10-24 — currency on reference material (T-473).** *Plainly: a
+standard the project relies on carries who last confirmed it is still the
+right one, when, and when it should be checked again. When that date passes,
+the owner's work queue says so. A document nobody has ever confirmed keeps
+being read, with that fact shown on every citation of it.*
+
+`containers` gains `confirmed_current_by_participant_id` (FK `participants`,
+nullable — **a named person**, registered), `confirmed_current_at`
+(timestamptz, nullable) and `recheck_due_at` (timestamptz, nullable).
+Meaningful on reference containers (no work item) only; a deliverable's
+currency is its acceptance and these stay null on it — enforced in the route,
+since a CHECK cannot reach across tables. The record keeps the **latest**
+confirmation. "Due" is `recheck_due_at <= now()` evaluated at read time; there
+is no clock and no job.
+
+`recheck_defaults` — `project_id` (FK `projects`, cascade); `term_id` (FK
+`classification_terms`, **nullable — null is the project-wide fallback**);
+`interval_months` (integer, > 0); unique on (`project_id`, `term_id`).
+Seeded per project — Standard 12 · Guidance 12 · Legislation 6 · Consultee
+response 24 · fallback 12 — and inserted for existing projects by the
+migration; the owner's super user may change them. A separate table rather
+than a column on `classification_terms`, because a term is immutable once
+referenced (retire-and-replace) and an interval is a project's setting, not
+the vocabulary's.
+
+*Built the same day (migration 0079); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is the
+authority on its shape. Four things the build did that the drawing did not say.
+The confirmer's link is `ON DELETE SET NULL`, not a cascade: a cascade would
+have deleted the document when its confirmer left, so removing the person
+erases the name and keeps the document. The fallback row (`term_id` NULL) needed
+a second, partial unique index of its own, because a plain unique index treats
+two nulls as different and would have allowed two fallbacks. `recheck_defaults`
+has no row-level security (ruled in review — the drawing was silent), as `reference_intake` has none — the wall is the
+route's (owner organisation, super user) and the table names no person. A
+`PATCH` edits the intervals the project already has and never invents one for a
+type that has no row.*
+
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
 (ADR-0025, 0028.)*

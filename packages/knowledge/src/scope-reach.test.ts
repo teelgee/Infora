@@ -270,6 +270,7 @@ describe('the reach counts (T-469)', () => {
       excludedByState: { superseded: 1, withdrawn: 1 },
       leftOutByScope: 0,
       notCitable: 0,
+      awaitingRecheck: 0,
     });
   });
 
@@ -297,6 +298,7 @@ describe('the reach counts (T-469)', () => {
       excludedByState: { superseded: 0, withdrawn: 0 },
       leftOutByScope: 0,
       notCitable: 0,
+      awaitingRecheck: 0,
     });
   });
 
@@ -358,5 +360,37 @@ describe('a held but unreadable document (T-472)', () => {
     expect((await reachCounts(deps, slices.b, undefined)).notCitable).toBe(0);
     // zero is omitted from the sentence, never printed
     expect(reachStatement({ ...(await reachCounts(deps, slices.b, undefined)), read: 1 })).not.toContain('not citable');
+  });
+});
+
+describe('documents past their re-check date (T-473)', () => {
+  it('are counted awaiting re-check — still read, named in the sentence, under the wall and the scope; the date passing is the only thing that changes', async () => {
+    const mineBefore = await reachCounts(deps, slices.a, undefined);
+    expect(mineBefore.awaitingRecheck).toBe(0);
+    // confirmed once, and the date for checking it again has passed
+    await db
+      .update(s.containers)
+      .set({ confirmedCurrentAt: new Date('2025-01-01'), recheckDueAt: new Date('2026-01-01') })
+      .where(eq(s.containers.id, geoReport));
+    const mine = await reachCounts(deps, slices.a, undefined);
+    expect(mine.awaitingRecheck).toBe(1);
+    // it still grounds: nothing about the readable count moved
+    expect(mine.visibleLive).toBe(mineBefore.visibleLive);
+    expect(mine.inScope).toBe(mineBefore.inScope);
+    expect(await containersRetrieved(a)).toContain(geoReport);
+    expect(reachStatement({ ...mine, read: 5 })).toContain('1 awaiting re-check.');
+
+    // a scope that leaves it out does not hear about it; one that names it does
+    expect((await reachCounts(deps, slices.a, { containerIds: [structReport] })).awaitingRecheck).toBe(0);
+    expect((await reachCounts(deps, slices.a, { containerIds: [geoReport] })).awaitingRecheck).toBe(1);
+    // a date still ahead is not awaiting anything
+    await db.update(s.containers).set({ recheckDueAt: new Date('2099-01-01') }).where(eq(s.containers.id, geoReport));
+    expect((await reachCounts(deps, slices.a, undefined)).awaitingRecheck).toBe(0);
+    // THE WALL: B cannot see A's document, so is told nothing about it
+    await db.update(s.containers).set({ recheckDueAt: new Date('2026-01-01') }).where(eq(s.containers.id, geoReport));
+    expect((await reachCounts(deps, slices.b, undefined)).awaitingRecheck).toBe(0);
+    // zero is omitted from the sentence
+    expect(reachStatement({ ...(await reachCounts(deps, slices.b, undefined)), read: 1 })).not.toContain('awaiting re-check');
+    await db.update(s.containers).set({ confirmedCurrentAt: null, recheckDueAt: null }).where(eq(s.containers.id, geoReport));
   });
 });

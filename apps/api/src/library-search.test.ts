@@ -20,6 +20,7 @@ let orgC: string;
 let projectId: string;
 let alphaContainerId: string;
 let alphaChunkId: string | null = null;
+let wallContainerId: string | undefined;
 
 async function login(email: string): Promise<string> {
   const res = await app.request('/auth/session', {
@@ -76,12 +77,49 @@ beforeAll(async () => {
       .returning({ id: s.versionChunks.id }),
   );
   alphaChunkId = chunk!.id;
+
+  // The wall test needs a Calder & Hale document IN the library. The seed
+  // holds none (its library is all owner-added reference material, and the
+  // consultant's one container is a draft, not yet issued), so on a freshly
+  // seeded database the test found its row only if the e2e suite had already
+  // issued one — an order dependency that would fail CI, which seeds fresh and
+  // runs these tests before e2e (found in the review of T-473). The test now
+  // issues its own and removes it after.
+  const [calder] = await db.select({ id: s.organisations.id }).from(s.organisations).where(eq(s.organisations.name, 'Calder & Hale')).limit(1);
+  await removeProbe(); // a probe left by an interrupted earlier run
+  const [own] = await db
+    .insert(s.containers)
+    .values({
+      projectId,
+      producingOrganisationId: calder!.id,
+      documentReference: 'WA-CAL-SRCH-901',
+      description: 'T-459 wall probe — a Calder & Hale document in the library',
+      title: 'Wall probe',
+      inLibrary: true,
+      state: 'live',
+    })
+    .returning({ id: s.containers.id });
+  wallContainerId = own!.id;
+  await db.insert(s.versions).values({ containerId: wallContainerId, versionReference: 'P01', content: 'wall probe', isCurrent: true });
 });
 
 afterAll(async () => {
   if (alphaChunkId) await withProjectScope(db, projectId, (tx) => tx.delete(s.versionChunks).where(eq(s.versionChunks.id, alphaChunkId!)));
+  if (wallContainerId) await removeProbe();
   await pool.end();
 });
+
+// versions are append-only by trigger; the one door out is the purge's —
+// DELETE while the transaction-local `infora.purge` switch is on (0049)
+async function removeProbe() {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('infora.purge', 'on', true)`);
+    await tx.execute(
+      sql`delete from versions where container_id in (select id from containers where project_id = ${projectId} and document_reference = 'WA-CAL-SRCH-901')`,
+    );
+    await tx.execute(sql`delete from containers where project_id = ${projectId} and document_reference = 'WA-CAL-SRCH-901'`);
+  });
+}
 
 describe('library search', () => {
   it('finds a document by its code prefix, first', async () => {

@@ -4,6 +4,7 @@
 // list is the API's access-resolved slice: exactly what grounding admits.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router';
+import { currencyWords } from '@infora/contracts';
 import type {
   BulkClassifyBody,
   BulkFailure,
@@ -588,6 +589,7 @@ export function LibraryScreen() {
         state: query.state,
         kind: query.kind,
         discipline: query.discipline,
+        ...(query.currency !== undefined && { currency: query.currency }),
         sort: query.sort,
         direction: query.direction,
         page: query.page,
@@ -662,6 +664,13 @@ export function LibraryScreen() {
               {r.notCitableReason && (
                 <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>{describeTextStatus(r.notCitableReason)}</span>
               )}
+            </div>
+          )}
+          {/* T-473 — a reference document nobody has confirmed current, or whose re-check is overdue */}
+          {currencyWords(r.currency) !== null && (
+            <div style={{ marginTop: 6, fontSize: 12.5 }} data-currency={r.currency!.state}>
+              <Badge tone="warning">{r.currency!.state === 'overdue' ? 'Re-check overdue' : 'Not confirmed current'}</Badge>
+              <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>{currencyWords(r.currency)}</span>
             </div>
           )}
           {/* T-389 — a standing proposal, and the owner's answer to it, on the row the decision is about */}
@@ -758,6 +767,7 @@ export function LibraryScreen() {
       : []),
     ...(query.kind !== 'any' ? [{ key: 'kind', label: query.kind === 'reference' ? 'Reference material' : 'Deliverables' }] : []),
     ...(query.discipline ? [{ key: 'discipline', label: `Discipline ${query.discipline}` }] : []),
+    ...(query.currency === 'needs_confirming' ? [{ key: 'currency', label: 'Needs confirming' }] : []),
   ];
   const disciplines = useMemo(
     () => [...new Set((items ?? []).map((r) => r.discipline).filter((d): d is string => d !== null))].sort(),
@@ -1167,12 +1177,13 @@ export function LibraryScreen() {
           active: activeFilters,
           onRemove: (key) =>
             setQuery(
-              key === 'state' ? { state: 'live' } : key === 'kind' ? { kind: 'any' } : key === 'discipline' ? { discipline: undefined } : {},
+              key === 'state' ? { state: 'live' } : key === 'kind' ? { kind: 'any' } : key === 'discipline' ? { discipline: undefined } : key === 'currency' ? { currency: undefined } : {},
             ),
           menu: (
             <>
               <DropdownMenuItem onClick={() => setQuery({ kind: 'deliverable' })}>Deliverables only</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ kind: 'reference' })}>Reference material only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuery({ currency: 'needs_confirming' })}>Needs confirming</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ state: 'any' })}>Include superseded and withdrawn</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ state: 'superseded' })}>Superseded only</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ state: 'withdrawn' })}>Withdrawn only</DropdownMenuItem>
@@ -1247,6 +1258,8 @@ type LibraryQuery = {
   state: NonNullable<LibrarySearchQuery['state']>;
   kind: NonNullable<LibrarySearchQuery['kind']>;
   discipline?: string | undefined;
+  /** T-473 — reference documents not confirmed current, or overdue for a re-check */
+  currency?: 'needs_confirming' | undefined;
   sort: NonNullable<LibrarySearchQuery['sort']>;
   direction: NonNullable<LibrarySearchQuery['direction']>;
   page: number;
@@ -1267,6 +1280,7 @@ function readQuery(params: URLSearchParams): LibraryQuery {
     state: pick('state', ['live', 'superseded', 'withdrawn', 'rejected', 'any'] as const, 'live'),
     kind: pick('kind', ['deliverable', 'reference', 'any'] as const, 'any'),
     discipline: params.get('discipline') ?? undefined,
+    currency: params.get('currency') === 'needs_confirming' ? 'needs_confirming' : undefined,
     sort: pick('sort', ['relevance', 'reference', 'title', 'issued', 'producer'] as const, 'relevance'),
     direction: pick('direction', ['asc', 'desc'] as const, 'asc'),
     page: Number.isInteger(page) && page >= 1 ? page : 1,
@@ -1281,6 +1295,7 @@ function writeQuery(q: LibraryQuery): URLSearchParams {
   if (q.state !== 'live') out.set('state', q.state);
   if (q.kind !== 'any') out.set('kind', q.kind);
   if (q.discipline) out.set('discipline', q.discipline);
+  if (q.currency) out.set('currency', q.currency);
   if (q.sort !== 'relevance') out.set('sort', q.sort);
   if (q.direction !== 'asc') out.set('direction', q.direction);
   if (q.page > 1) out.set('page', String(q.page));

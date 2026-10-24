@@ -26,7 +26,9 @@ test('hovering an Ask citation shows the recorded passage; clicking lands on it,
   // the source sits at the end of the claim it backs; it is a real button
   const chip = page.locator('button.cite.lib').first();
   await expect(chip).toBeVisible({ timeout: 30_000 });
-  const reference = (await chip.innerText()).replace('▤', '').trim();
+  // T-473 — a source whose document nobody has confirmed current carries a small
+  // mark (? or ↻) after its name; the name is what the card is called
+  const reference = (await chip.innerText()).replace('▤', '').replace(/\s*[?↻]$/, '').trim();
 
   // hover: the card appears within a second, with the document and the passage
   const started = Date.now();

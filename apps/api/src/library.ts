@@ -26,7 +26,7 @@ import type {
   ScopePreviewResponse,
 } from '@infora/contracts';
 import { librarySearchQuery, scopePreviewBody } from '@infora/contracts';
-import { deliverableVisibleSql as deliverableVisible, groundingSources, reachCounts, readChunkPassage, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
+import { deliverableVisibleSql as deliverableVisible, groundingSources, reachCounts, readChunkPassage, readCurrencies, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -106,6 +106,7 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
       discipline: p.discipline,
       statusCode: p.statusCode,
       producerId: p.producerId,
+      needsConfirming: p.currency === 'needs_confirming',
       sort: p.sort,
       direction: p.direction,
       page: p.page,
@@ -157,7 +158,9 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
       )
       .limit(1);
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
-    return c.json({ ...row, documentReference: row.documentReference! } satisfies GetVersionResponse);
+    // T-473 — read now, so the source view says what the citation's chip says
+    const currency = (await readCurrencies(deps.db, [row.containerId])).get(row.containerId) ?? null;
+    return c.json({ ...row, documentReference: row.documentReference!, currency } satisfies GetVersionResponse);
   });
 
   // T-468 — the passage a citation recorded, read by id. Guarded exactly like
@@ -195,9 +198,11 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
       const chunk = await readChunkPassage(deps.db, slice.projectId, versionId, chunkId);
       if (chunk === 'other_version') return c.json({ error: 'not_found' } satisfies ApiError, 404);
       const locator = chunk?.locator ?? null;
+      const currency = (await readCurrencies(deps.db, [row.containerId])).get(row.containerId) ?? null;
       return c.json({
         ...row,
         documentReference: row.documentReference!,
+        currency,
         chunkId,
         passage:
           chunk === null
@@ -352,6 +357,8 @@ async function toLibraryItems(db: Db, rows: LibraryRow[]): Promise<Array<Omit<Li
         .where(inArray(s.referenceIntake.containerId, unreadable))
     : [];
   const notCitableReason = new Map(reasonRows.map((r) => [r.containerId, r.reason]));
+  // T-473 — currency, read now (never stored as a state); null on a deliverable
+  const currencies = await readCurrencies(db, rows.map((r) => r.containerId));
   return rows.map((row) => {
     const meta = (row.metadata ?? {}) as Record<string, unknown>;
     const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
@@ -370,6 +377,7 @@ async function toLibraryItems(db: Db, rows: LibraryRow[]): Promise<Array<Omit<Li
       kind: row.workItemId === null ? 'reference' : 'deliverable',
       notCitable: row.notCitable,
       notCitableReason: row.notCitable ? (notCitableReason.get(row.containerId) ?? null) : null,
+      currency: currencies.get(row.containerId) ?? null,
       contextState: contextStateOf({ inLibrary: true, state: row.state ?? 'live' }, codes.get(row.containerId)),
       producingOrganisationId: row.producingOrganisationId,
       withdrawalProposal:

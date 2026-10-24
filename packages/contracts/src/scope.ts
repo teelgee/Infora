@@ -68,6 +68,12 @@ export type ReachCounts = {
    * recorded before it existed carry no such count; absent reads as none.
    */
   notCitable?: number;
+  /**
+   * T-473 — live, visible documents in scope whose re-check date has passed
+   * (confirmed current once, now due again). They still ground; the sentence
+   * says how many. Optional for the same reason as `notCitable`.
+   */
+  awaitingRecheck?: number;
 };
 
 /** What a finished run writes: the counts, plus what was actually read. */
@@ -113,6 +119,8 @@ export function reachStatement(reach: ReachCounts & { read?: number }): string {
   // T-472 — a held-but-unreadable file is a fact the person is owed, named once
   // and only when there is one ("0 not citable" would be noise)
   if ((reach.notCitable ?? 0) > 0) parts.push(`${reach.notCitable} not citable (scan).`);
+  // T-473 — documents read but due a re-check; named once and only when there are some
+  if ((reach.awaitingRecheck ?? 0) > 0) parts.push(`${reach.awaitingRecheck} awaiting re-check.`);
   return parts.join(' ');
 }
 

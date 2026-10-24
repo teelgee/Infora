@@ -18,6 +18,7 @@ import {
 import { sql } from 'drizzle-orm';
 import { organisations, participants, projects, sessions, users } from './drawer1-parties.js';
 import { runs } from './drawer3-execution.js';
+import { classificationTerms } from './drawer6-ontology.js';
 
 // rejected: the cycle was closed-rejected and never resubmitted — the document
 // stays in the library as a record and never grounds (ADR-0013/0032)
@@ -94,6 +95,23 @@ export const containers = pgTable(
     // two and nothing is stored twice. Set from the file's name at load,
     // editable by the organisation that loaded it. Names a document, not a person.
     title: text('title'),
+    // T-473 (migration 0079, drawn in data-model.md drawer 2) — CURRENCY ON
+    // REFERENCE MATERIAL. *Plainly: who last confirmed this document is still
+    // the one to rely on, when, and when it should be checked again.* The
+    // record keeps the LATEST confirmation only (ADR-0011's addendum, ruling
+    // 4). Meaningful on reference containers (no work item) ONLY: a
+    // deliverable's currency is its acceptance, and these stay null on it —
+    // enforced in the route, since a CHECK cannot reach across tables.
+    // "Overdue" is `recheck_due_at <= now()` evaluated when read; there is no
+    // clock and no job. `confirmed_current_by_participant_id` is a NAMED PERSON,
+    // registered in docs/architecture/personal-data.md; the name is erased
+    // (set null) with the participant and the document stays.
+    confirmedCurrentByParticipantId: uuid('confirmed_current_by_participant_id').references(
+      (): AnyPgColumn => participants.id,
+      { onDelete: 'set null' },
+    ),
+    confirmedCurrentAt: timestamp('confirmed_current_at', { withTimezone: true }),
+    recheckDueAt: timestamp('recheck_due_at', { withTimezone: true }),
     // plan-authored extras (ADR-0008); the per-project schema is deferred with
     // the naming scheme — at-a-glance columns are derived by query, never
     // duplicated here (2026-07-18 ruling)
@@ -854,4 +872,36 @@ export const referenceIntake = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('reference_intake_project_status_idx').on(t.projectId, t.status, t.createdAt)],
+);
+
+// T-473 (migration 0079, drawn in data-model.md drawer 2) — how long a
+// confirmation of currency lasts, by document type. *Plainly: a standard is
+// checked again after a year, legislation after six months, a consultee's
+// response after two years — and the owner's super user may change any of
+// those for the project.* One row per (project, type); the row whose
+// `term_id` is NULL is the project-wide fallback, used for a document that is
+// unclassified or whose type has no row. A separate table rather than a column
+// on `classification_terms`: a term is immutable once referenced
+// (retire-and-replace) and an interval is a project's setting, not the
+// vocabulary's. No row-level security — as `reference_intake`, the wall is the
+// route's (owner organisation, super user); the table names no person.
+export const recheckDefaults = pgTable(
+  'recheck_defaults',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    termId: uuid('term_id').references((): AnyPgColumn => classificationTerms.id),
+    intervalMonths: integer('interval_months').notNull(),
+  },
+  (t) => [
+    uniqueIndex('recheck_defaults_project_term_unique').on(t.projectId, t.termId),
+    // a plain unique index treats nulls as distinct, so the fallback row (term_id
+    // null) needs its own: one fallback per project
+    uniqueIndex('recheck_defaults_project_fallback_unique')
+      .on(t.projectId)
+      .where(sql`${t.termId} IS NULL`),
+    check('recheck_defaults_interval_positive', sql`${t.intervalMonths} > 0`),
+  ],
 );

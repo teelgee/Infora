@@ -7,6 +7,7 @@ export * from './app-builder';
 export * from './assembly';
 export * from './checker';
 export * from './creator';
+export * from './currency';
 export * from './external';
 export * from './finding';
 export * from './lens';

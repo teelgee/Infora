@@ -10,7 +10,7 @@
 // super user, a producing organisation's super user, and — for the wall — a
 // stranger with no place on the project.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type {
   BulkConfirmIntakeResponse,
   GetLibraryAdmissionResponse,
@@ -335,6 +335,37 @@ describe('reference-material intake (T-472)', () => {
     // a Word file is read at confirmation too
     const [cv] = await db.select().from(s.versions).innerJoin(s.containers, eq(s.versions.containerId, s.containers.id)).where(eq(s.containers.documentReference, `T472-bulk-c-${stamp}`));
     expect(cv!.versions.content).toContain('Bulk three');
+  });
+
+  it('confirming into the library is the FIRST confirmation of currency: the confirmer, now, and the type’s interval (T-473)', async () => {
+    const guidance = await uploaded(`T473-first-g-${stamp}.pdf`, pdf('Some guidance.'));
+    const legislation = await uploaded(`T473-first-l-${stamp}.pdf`, pdf('Some law.'));
+    const g = await post(ownerSuper, `/projects/${projectId}/reference-intake/${guidance.id}/confirm`, settled('First G', ['document_type', 'GDN']));
+    const l = await post(ownerSuper, `/projects/${projectId}/reference-intake/${legislation.id}/confirm`, settled('First L', ['document_type', 'LEG']));
+    const containerOf = async (res: Response) => ((await res.json()) as { containerId: string }).containerId;
+    const months = async (id: string, n: number) =>
+      ((await db.execute(sql`select (confirmed_current_at + make_interval(months => ${n}) = recheck_due_at) as ok from containers where id = ${id}`)).rows[0] as { ok: boolean }).ok;
+    const gc = await containerOf(g);
+    const lc = await containerOf(l);
+    const [gRow] = await db.select().from(s.containers).where(eq(s.containers.id, gc));
+    expect(gRow!.confirmedCurrentByParticipantId).toBe(ownerSuperParticipant);
+    expect(gRow!.confirmedCurrentAt).not.toBeNull();
+    expect(await months(gc, 12)).toBe(true); // Guidance
+    expect(await months(lc, 6)).toBe(true); // Legislation
+    // the library says so
+    const items = await library();
+    expect(items.find((i) => i.containerId === gc)!.currency).toMatchObject({ state: 'confirmed', confirmedBy: 't472-owner' });
+  });
+
+  it('the operator’s load records nobody, so a document it admits starts unconfirmed (T-473)', async () => {
+    const { admitReference } = await import('./reference-admission');
+    const { containerId } = await admitReference(
+      { db, router },
+      { projectId, organisationId: ownerOrgId, reference: `T473-cli-${stamp}`, title: 'Loaded by the operator', format: 'pdf', bytes: pdf('Loaded.'), text: 'Loaded by the operator.' },
+    );
+    const [r] = await db.select().from(s.containers).where(eq(s.containers.id, containerId));
+    expect([r!.confirmedCurrentByParticipantId, r!.confirmedCurrentAt, r!.recheckDueAt]).toEqual([null, null, null]);
+    expect((await library()).find((i) => i.containerId === containerId)!.currency).toMatchObject({ state: 'unconfirmed' });
   });
 
   it('a second file with the same reference is refused in words, not merged', async () => {

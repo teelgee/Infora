@@ -134,3 +134,23 @@ describe('the reach sentence names what is held but unreadable (T-472)', () => {
     expect(reachStatement({ ...counts, read: 14 })).toBe('Read 14 documents.');
   });
 });
+
+describe('the reach sentence names what is read but due a re-check (T-473)', () => {
+  const counts = {
+    visibleLive: 14,
+    inScope: 14,
+    excludedByState: { superseded: 2, withdrawn: 1 },
+    leftOutByScope: 0,
+  };
+
+  it('says "N awaiting re-check" when there are some, after the other parts, and nothing when there are none', () => {
+    expect(reachStatement({ ...counts, awaitingRecheck: 2, read: 14 })).toBe(
+      'Read 14 documents. Excluded: 2 superseded, 1 withdrawn. 2 awaiting re-check.',
+    );
+    expect(reachStatement({ ...counts, notCitable: 1, awaitingRecheck: 3, read: 14 })).toBe(
+      'Read 14 documents. Excluded: 2 superseded, 1 withdrawn. 1 not citable (scan). 3 awaiting re-check.',
+    );
+    expect(reachStatement({ ...counts, awaitingRecheck: 0, read: 14 })).not.toContain('re-check');
+    expect(reachStatement({ ...counts, read: 14 })).not.toContain('re-check');
+  });
+});

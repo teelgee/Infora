@@ -220,6 +220,9 @@
           <tr><td class="col">withdrawn_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
           <tr><td class="col">description</td><td class="type">text</td><td class="notes">nullable</td></tr>
           <tr><td class="col">title</td><td class="type">text</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">confirmed_current_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">confirmed_current_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
+          <tr><td class="col">recheck_due_at</td><td class="type">timestamp with time zone</td><td class="notes">nullable</td></tr>
           <tr><td class="col">metadata</td><td class="type">jsonb</td><td class="notes">default</td></tr>
         </tbody></table>
       </article>
@@ -290,6 +293,15 @@
           <tr><td class="col">subject_title</td><td class="type">text</td><td class="notes"></td></tr>
           <tr><td class="col">reached</td><td class="type">jsonb</td><td class="notes">default</td></tr>
           <tr><td class="col">purged_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
+        <h3>recheck_defaults</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">project_id</td><td class="type">uuid</td><td class="notes">→ projects.id</td></tr>
+          <tr><td class="col">term_id</td><td class="type">uuid</td><td class="notes">→ classification_terms.id · nullable</td></tr>
+          <tr><td class="col">interval_months</td><td class="type">integer</td><td class="notes"></td></tr>
         </tbody></table>
       </article>
       <article class="card d2">

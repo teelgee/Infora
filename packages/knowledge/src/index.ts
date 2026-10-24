@@ -22,6 +22,8 @@ export {
   sandboxDocumentAudience,
   versionsAudience,
 } from './label-facts';
+// T-473 — a reference document's currency, decided at the moment of the read
+export { readCurrencies } from './currency';
 // T-468 — one recorded passage, by id (never a search)
 export { readChunkPassage } from './passage';
 export type { RecordedPassage } from './passage';

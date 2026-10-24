@@ -23,6 +23,7 @@ import type {
 } from './shared';
 import { PLAN_STAGES } from './shared';
 import type { ProposedDocument } from './creator';
+import type { Currency } from './currency';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
@@ -526,6 +527,11 @@ export type LibraryItem = {
   // (pdf_no_text …) where the intake row keeps it, else null.
   notCitable: boolean;
   notCitableReason: string | null;
+  // T-473 — whether anybody has confirmed this reference document is still the
+  // one to rely on, and when it is next due. **Null on a deliverable**: its
+  // currency is its acceptance, and the columns stay null on it. Computed at
+  // read time (overdue = the due date has passed), never stored as a state.
+  currency: Currency | null;
 };
 export type GetLibraryResponse = { items: LibraryItem[] };
 
@@ -554,6 +560,9 @@ export const librarySearchQuery = z.object({
   discipline: z.string().trim().max(64).optional(),
   statusCode: z.string().trim().max(16).optional(),
   producerId: z.uuid().optional(),
+  // T-473 — "Needs confirming": reference documents nobody has confirmed current,
+  // or whose re-check date has passed. Implies reference material.
+  currency: z.enum(['needs_confirming']).optional(),
 });
 export type LibrarySearchQuery = z.infer<typeof librarySearchQuery>;
 export type LibrarySearchItem = Omit<LibraryItem, 'state'> & {
@@ -658,6 +667,8 @@ export type GetVersionResponse = {
   // record, never grounding (ADR-0032/0013, T-114)
   containerState: 'live' | 'superseded' | 'withdrawn' | 'rejected';
   isCurrent: boolean;
+  // T-473 — the document's currency now; null on a deliverable
+  currency: Currency | null;
 };
 
 // GET /versions/:versionId/passages/:chunkId — the passage a citation recorded
@@ -688,6 +699,8 @@ export type GetPassageResponse = {
     verbatim: string;
   } | null;
   held: boolean;
+  // T-473 — the document's currency now; null on a deliverable
+  currency: Currency | null;
 };
 
 // ── Auth & session (M1, M6) ────────────────────────────────────────────────
@@ -2435,7 +2448,9 @@ export type WorkQueueKind =
   | 'approve_external_issue'
   | 'decide_withdrawal'
   | 'respond_to_comments'
-  | 'close_findings';
+  | 'close_findings'
+  // T-473 — a reference document whose re-check date has passed (the owner's super user)
+  | 'recheck_reference';
 export type WorkQueueItem = {
   kind: WorkQueueKind;
   /** the sentence: "Confirm Rachel Bowen as lead reviewer of WA-EIA-MST-001" */

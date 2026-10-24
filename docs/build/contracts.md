@@ -1563,6 +1563,49 @@ are not recorded here.
   optional on the wire because runs recorded before it existed carry no such
   count.
 
+- **2026-10-24 (T-473) — `Currency` on `LibraryItem`, `GetVersionResponse`,
+  `GetPassageResponse` and `Citation`; `POST /containers/:containerId/confirm-current`,
+  `GET /containers/:containerId/currency`, `GET`/`PATCH /projects/:projectId/recheck-defaults`;
+  the `recheck_reference` queue kind; `ReachCounts.awaitingRecheck`.** *Plainly:
+  a standard the project relies on says who last confirmed it is still the right
+  one and when it is next due; when that date passes, the owner's queue says so,
+  and every sight of the document — a library row, the source view, a citation of
+  it in an answer — says so in words.* The **reason currency is computed when the
+  document is read, and never stored on a citation (or anywhere as a state)** is
+  that it changes after the run that cited the document: a standard cited in March
+  becomes overdue in October, and the person opening the March answer in October
+  needs to be told today's fact, not the one that was true when the answer was
+  written. A stored flag would also need a job to flip it, and a job that did not
+  run would leave a stale document looking current — the failure this feature
+  exists to prevent. So the one stored fact is the due date; "overdue" is that
+  date compared with the time of the read, in one function
+  (`currencyOf`) every surface shares, which is also why the library row, the
+  source card and the chip cannot disagree. `currency` is `null` on a deliverable
+  rather than absent, because its currency is its acceptance and "no such thing"
+  is different from "not yet confirmed"; on a citation it is simply absent for a
+  deliverable or an authority reference. The **reason the queue carries documents
+  past their date and not documents nobody has ever confirmed** (ADR-0011's
+  addendum, ruling 4) is that the two are different promises: an unconfirmed
+  document is a standing condition of a freshly loaded library — hundreds of
+  them after a bulk load — and a queue holding all of them would bury the thing
+  it exists for, the re-check that fell due. The unconfirmed ones are not lost:
+  they carry the mark on every citation, the library lists them under "Needs
+  confirming", and the reach statement counts the overdue ones. The **reason
+  the intake's confirmation is also the first confirmation of currency** is that
+  a person has just looked at the document and put their name to it entering the
+  library; asking the same person to press a second button the same minute would
+  teach them to press it without looking. The operator's command-line load
+  records nobody and so confirms nothing — its documents start unconfirmed, which
+  is the honest state. The **reason `confirm-current` answers 404 to an
+  organisation that is not the owner but 403 in words to an owner-organisation
+  member who is not a super user** is the intake's rule again: the second is on
+  the project and can see the library, so the door is closed by role; the first
+  may not know the document exists. The **reason the intervals live in their own
+  table** is in the data model's drawing: a term is immutable once referenced and
+  an interval is the project's setting. `ReachCounts.awaitingRecheck` is optional
+  on the wire for the reason `notCitable` is: runs recorded before it existed
+  carry no such count.
+
 - **2026-10-24 (T-471) — `GET /projects/:projectId/working-area`; the run-time
   reach check; `Run.workingSet` / `Plan.workingSet` and the `{ hidden: true }`
   entry.** *Plainly: a person can hand the AI some of their own drafts, taken

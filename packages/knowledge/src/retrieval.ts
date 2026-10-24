@@ -486,6 +486,13 @@ async function reachCountsIn(
         inScopeClause === undefined
           ? sql<number>`count(distinct ${s.containers.id})::int`
           : sql<number>`count(distinct ${s.containers.id}) filter (where ${inScopeClause})::int`,
+      // T-473 — readable, in scope, and past the date its confirmation said it
+      // should be checked again. They still ground; the sentence says how many.
+      // Evaluated at the moment of the count — there is no stored "overdue".
+      awaitingRecheck:
+        inScopeClause === undefined
+          ? sql<number>`count(distinct ${s.containers.id}) filter (where ${s.containers.recheckDueAt} <= now())::int`
+          : sql<number>`count(distinct ${s.containers.id}) filter (where ${s.containers.recheckDueAt} <= now() and ${inScopeClause})::int`,
     })
     .from(s.versionChunks)
     .innerJoin(s.versions, eq(s.versionChunks.versionId, s.versions.id))
@@ -550,6 +557,7 @@ async function reachCountsIn(
     excludedByState: { superseded: countOf('superseded'), withdrawn: countOf('withdrawn') },
     leftOutByScope: visibleLive - inScope,
     notCitable: unreadable?.n ?? 0,
+    awaitingRecheck: live?.awaitingRecheck ?? 0,
   };
 }
 

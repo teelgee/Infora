@@ -34,6 +34,8 @@ export type RegisterSearchParams = {
   discipline?: string | undefined;
   statusCode?: string | undefined;
   producerId?: string | undefined;
+  /** T-473 — reference documents not confirmed current, or past their re-check date */
+  needsConfirming?: boolean | undefined;
   sort: 'relevance' | 'reference' | 'title' | 'issued' | 'producer';
   direction: 'asc' | 'desc';
   page: number;
@@ -87,6 +89,12 @@ export async function searchLibraryRows(
     p.discipline ? sql`${s.containers.metadata}->>'discipline' = ${p.discipline}` : undefined,
     p.statusCode ? sql`${s.containers.metadata}->>'suitability' = ${p.statusCode}` : undefined,
     p.producerId ? eq(s.containers.producingOrganisationId, p.producerId) : undefined,
+    p.needsConfirming === true
+      ? and(
+          isNull(s.workItems.id),
+          sql`(${s.containers.confirmedCurrentAt} is null or ${s.containers.recheckDueAt} <= now())`,
+        )
+      : undefined,
     pattern === null
       ? undefined
       : or(

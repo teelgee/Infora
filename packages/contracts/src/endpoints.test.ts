@@ -79,6 +79,7 @@ describe('passage read (T-468)', () => {
       isCurrent: false,
       passage: { chunkIndex: 0, page: 14, paragraph: 3, span: { start: 1, end: 9 }, verbatim: 'a passage' },
       held: true,
+      currency: null,
     };
     const gone: GetPassageResponse = { ...held, passage: null, held: false };
     expect(held.passage?.verbatim).toBe('a passage');

@@ -259,6 +259,11 @@ type LibraryDoc = {
   // sentences in it rather than a column of codes. Typed, never generated.
   description: string;
   versions: Array<{ ref: string; current: boolean; content: string }>;
+  // T-473 — reference material the owner has classified and confirmed current
+  // (the code of the document type, and how long ago the confirmation was
+  // made; the re-check date is then the confirmation plus the type's interval)
+  classifiedAs?: string;
+  confirmedMonthsAgo?: number;
 };
 
 const library: LibraryDoc[] = [
@@ -374,6 +379,34 @@ const library: LibraryDoc[] = [
     ],
   },
   {
+    // T-473 — a standard the owner's super user confirmed current fourteen
+    // months ago; a Standard is re-checked every twelve, so its re-check fell
+    // due two months ago. It still grounds, its citations carry the mark, and
+    // it sits in the owner's work queue. "alpha" is the fake embedding's one
+    // keyword (packages/db cannot import it; apps/api/src/test-router.ts reads
+    // it), so a question that says "alpha" is answered from this passage.
+    reference: 'WA-STD-BS5930-001',
+    title: 'BS 5930 — Code of practice for ground investigations',
+    description:
+      'The British Standard the ground investigation is carried out to: how the ground is described, sampled and tested, and how an investigation is classed by the risk the ground carries.',
+    classifiedAs: 'STD',
+    confirmedMonthsAgo: 14,
+    versions: [
+      {
+        ref: 'v1',
+        current: true,
+        content:
+          'BS 5930 — Code of practice for ground investigations. An alpha-category ground ' +
+          'investigation is one where the ground carries the highest risk to the works, for ' +
+          'example made ground over a former industrial site. For an alpha-category investigation ' +
+          'the standard requires trial pits or boreholes at a spacing set by the ground model ' +
+          'rather than a fixed grid, groundwater to be monitored over more than one seasonal ' +
+          'visit, and samples to be tested for the contaminants the site history makes likely ' +
+          'before the interpretative report is issued.',
+      },
+    ],
+  },
+  {
     reference: 'WA-HER-DBA-002',
     title: 'Heritage desk-based assessment',
     description:
@@ -406,6 +439,40 @@ for (const doc of library) {
       state: doc.state ?? 'live',
     })
     .returning();
+  if (doc.classifiedAs !== undefined) {
+    const [term] = await db
+      .select({ id: s.classificationTerms.id, facetId: s.classificationTerms.facetId })
+      .from(s.classificationTerms)
+      .innerJoin(s.classificationFacets, eq(s.classificationFacets.id, s.classificationTerms.facetId))
+      .where(
+        and(
+          eq(s.classificationFacets.projectId, project!.id),
+          eq(s.classificationFacets.key, 'document_type'),
+          eq(s.classificationTerms.code, doc.classifiedAs),
+        ),
+      );
+    await db.insert(s.containerClassifications).values({
+      containerId: container!.id,
+      facetId: term!.facetId,
+      termId: term!.id,
+      setByParticipantId: ownerParticipant!.id,
+    });
+    if (doc.confirmedMonthsAgo !== undefined) {
+      // the project's own interval for this type — the seeded default
+      const [interval] = await db
+        .select({ months: s.recheckDefaults.intervalMonths })
+        .from(s.recheckDefaults)
+        .where(and(eq(s.recheckDefaults.projectId, project!.id), eq(s.recheckDefaults.termId, term!.id)));
+      await db
+        .update(s.containers)
+        .set({
+          confirmedCurrentByParticipantId: ownerParticipant!.id,
+          confirmedCurrentAt: sql`now() - make_interval(months => ${doc.confirmedMonthsAgo})`,
+          recheckDueAt: sql`now() - make_interval(months => ${doc.confirmedMonthsAgo}) + make_interval(months => ${interval!.months})`,
+        })
+        .where(eq(s.containers.id, container!.id));
+    }
+  }
   let liveVersionId: string | undefined;
   for (const v of doc.versions) {
     const [version] = await db

@@ -24,6 +24,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { ExtractableFormat } from './extract';
+import { confirmCurrent } from './reference-currency';
 import { generateRenditions, putBlob } from './renditions';
 
 /** The genesis revision of received material. Not a P or a C: it was never issued *here*. */
@@ -54,6 +55,13 @@ export type AdmitReferenceInput = {
     setByParticipantId: string;
     proposedByRunId: string | null;
   }>;
+  /**
+   * T-473 — the person whose confirmation this admission IS, who thereby also
+   * confirms the document current (ADR-0011's addendum, ruling 4: "the intake's
+   * confirmation is the first confirmation"). Absent for the operator's load,
+   * which records nobody: its documents start unconfirmed, with the mark.
+   */
+  confirmedByParticipantId?: string;
 };
 
 /**
@@ -128,6 +136,12 @@ export async function admitReference(
           proposedByRunId: c.proposedByRunId,
         })),
       );
+    }
+    // T-473 — the person's confirmation is the first confirmation of currency,
+    // made in the same transaction so a document is never admitted half-recorded
+    // (after the classification above, which fixes the interval it runs for)
+    if (input.confirmedByParticipantId !== undefined) {
+      await confirmCurrent(tx as unknown as Db, container!.id, input.confirmedByParticipantId);
     }
     // the native rendition is the file itself, so the Documents view opens the
     // real document rather than the extracted text. Inside the transaction, so

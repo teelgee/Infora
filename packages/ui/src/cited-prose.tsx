@@ -47,6 +47,7 @@ function chip(
       key={citation.id}
       corpus={library ? 'library' : 'authority'}
       card={renderCard?.(citation)}
+      currency={citation.currency}
       cardLabel={`Source: ${'versionId' in source ? source.documentReference : source.authorityRef}`}
       onClick={
         onOpenSource !== undefined && 'versionId' in source

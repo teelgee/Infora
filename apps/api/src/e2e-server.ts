@@ -3,8 +3,10 @@
 // without provider keys and with reproducible model output. Never deployed;
 // the production entry is index.ts.
 import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { eq, sql } from 'drizzle-orm';
 import { ingestAllVersions } from '@infora/data';
-import { createDb } from '@infora/db';
+import { createDb, schema as s } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
 import { createWorkerRegistry } from '@infora/capabilities';
 import { loadWorkflows } from '@infora/workflows';
@@ -345,6 +347,27 @@ const app = buildApp({
   },
 });
 
-serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {
+// T-473 — the one door that exists only here. The seeded standard is overdue for
+// a re-check by design (the ticket's done-when), and the specs press "Confirm
+// current" on it — which is exactly what a person does, and cannot be undone
+// through the product (the record keeps the latest confirmation). So a spec that
+// confirms it puts the seed's own state back first, and a second run on the same
+// seed starts where the first did. It writes the two date columns the seed
+// does, to the same values; it is not mounted on the real app and the production
+// entry (index.ts) has no such route.
+const substrate = new Hono();
+substrate.post('/__e2e/reset-seeded-currency', async (c) => {
+  await db
+    .update(s.containers)
+    .set({
+      confirmedCurrentAt: sql`now() - make_interval(months => 14)`,
+      recheckDueAt: sql`now() - make_interval(months => 2)`,
+    })
+    .where(eq(s.containers.documentReference, 'WA-STD-BS5930-001'));
+  return c.json({ ok: true });
+});
+substrate.route('/', app);
+
+serve({ fetch: substrate.fetch, port: Number(process.env['PORT'] ?? 3000) }, (info) => {
   console.log(`@infora/api (e2e substrate, fake providers) listening on :${info.port}`);
 });

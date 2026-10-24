@@ -13,7 +13,7 @@
 // would list it. Nothing here widens reach — a person who could not do the
 // thing by hand is not told it is waiting.
 import { Hono } from 'hono';
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
 import type { GetWorkQueueResponse, RecentDocument, WorkQueueItem } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -120,6 +120,40 @@ async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
     for (const p of proposals) items.push({ kind: 'decide_withdrawal', label: `Decide the proposed withdrawal of ${p.ref ?? 'a document'}`, href: `documents?q=${encodeURIComponent(p.ref ?? '')}`, at: null });
   }
 
+  // T-473 — reference documents whose re-check date has passed, for the owner's
+  // super user, who is the one who can confirm them current — on the document
+  // page. Documents NOBODY has ever confirmed are deliberately not here: they
+  // carry the mark on every citation and the library's "Needs confirming" filter
+  // is their home (ADR-0011's addendum, ruling 4) — the queue carries what is DUE.
+  // `recheck_due_at <= now()` is read here, now; nothing stores "overdue".
+  if (ownerSuper) {
+    const due = await db
+      .select({ containerId: s.containers.id, ref: s.containers.documentReference, title: s.containers.title, dueAt: s.containers.recheckDueAt })
+      .from(s.containers)
+      .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
+      .where(
+        and(
+          eq(s.containers.projectId, slice.projectId),
+          eq(s.containers.scope, 'library'),
+          eq(s.containers.inLibrary, true),
+          eq(s.containers.state, 'live'),
+          isNull(s.workItems.id),
+          isNotNull(s.containers.recheckDueAt),
+          sql`${s.containers.recheckDueAt} <= now()`,
+        ),
+      )
+      .orderBy(asc(s.containers.recheckDueAt));
+    for (const d of due) {
+      const dueAt = d.dueAt!;
+      items.push({
+        kind: 'recheck_reference',
+        label: `Re-check: ${d.title ?? d.ref ?? 'a reference document'} — due ${dueAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`,
+        href: `documents/${d.containerId}`,
+        at: dueAt.toISOString(),
+      });
+    }
+  }
+
   // comments without a response on rounds issued to deliverables I author — on the cycle
   const authored = await db
     .select({ containerId: s.deliverableAuthors.containerId })
@@ -155,7 +189,12 @@ async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
     .groupBy(s.sandboxDocuments.id, s.sandboxDocuments.title);
   for (const f of findings) items.push({ kind: 'close_findings', label: `Close ${f.count} open finding${f.count === 1 ? '' : 's'} on “${f.title}”`, href: `editor/${f.documentId}`, count: f.count, at: f.at ? new Date(f.at).toISOString() : null });
 
-  return items.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+  // newest first — except that the re-checks, in the places they fall, are
+  // ordered by how long they have been due, longest first
+  const sorted = items.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+  const rechecks = sorted.filter((i) => i.kind === 'recheck_reference').sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''));
+  let next = 0;
+  return sorted.map((i) => (i.kind === 'recheck_reference' ? rechecks[next++]! : i));
 }
 
 async function recentDocuments(db: Db, slice: EntitledSlice): Promise<RecentDocument[]> {

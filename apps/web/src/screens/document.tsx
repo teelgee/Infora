@@ -23,8 +23,10 @@
 // outside the share gets "not on a plan you can see", never a page.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
+import { currencyWords } from '@infora/contracts';
 import type {
   ContainerStateChange,
+  GetContainerCurrencyResponse,
   LibraryAdmission,
   ExternalIssue,
   GetPassageResponse,
@@ -80,6 +82,10 @@ export function DocumentScreen() {
   const [stateChanges, setStateChanges] = useState<ContainerStateChange[]>([]);
   // T-472 — who confirmed this reference document into the library, from its intake row
   const [admission, setAdmission] = useState<LibraryAdmission | null>(null);
+  // T-473 — whether the owner's super user has confirmed this reference document
+  // current, and when it is next due; null on a deliverable (no such card)
+  const [currencyRead, setCurrencyRead] = useState<GetContainerCurrencyResponse | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -102,7 +108,7 @@ export function DocumentScreen() {
   const reload = useCallback(async () => {
     if (!containerId) return;
     try {
-      const [plan, cycleRead, docs, history, issues, rosterRead, changes, admitted] = await Promise.all([
+      const [plan, cycleRead, docs, history, issues, rosterRead, changes, admitted, currencyAnswer] = await Promise.all([
         api.plan(projectId),
         api.cycle(containerId).catch(() => null),
         api.sandboxDocuments(projectId).catch(() => ({ items: [] as SandboxDocument[] })),
@@ -112,8 +118,10 @@ export function DocumentScreen() {
         // T-465 — the document's own record of state changes
         api.containerStateChanges(containerId).catch(() => ({ items: [] as ContainerStateChange[] })),
         api.libraryAdmission(containerId).catch(() => ({ admission: null as LibraryAdmission | null })),
+        api.containerCurrency(containerId).catch(() => null),
       ]);
       setAdmission(admitted.admission);
+      setCurrencyRead(currencyAnswer);
       const planRow =
         (plan.items.find((r) => r.containerId === containerId) ?? null) ||
         (await api.qaRow(containerId).catch(() => null));
@@ -191,6 +199,18 @@ export function DocumentScreen() {
           ...(cycle || row.workItem ? [{ id: 'open-review', label: 'Open the review', hint: 'This document', run: () => void navigate(`/projects/${projectId}/review/${containerId}`) }] : []),
         ],
   );
+
+  const confirmCurrent = async () => {
+    if (!containerId) return;
+    setConfirming(true);
+    try {
+      setCurrencyRead(await api.confirmCurrent(containerId));
+    } catch {
+      /* the card stays as it was; the next read says what is true */
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   const indexAgain = async () => {
     if (!admission) return;
@@ -359,6 +379,16 @@ export function DocumentScreen() {
               onChanged={() => void reload()}
             />
           </Card>
+          {currencyRead !== null && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <CurrencyCard
+                read={currencyRead}
+                mayConfirm={isOwner && isSuper}
+                confirming={confirming}
+                onConfirm={() => void confirmCurrent()}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -690,6 +720,52 @@ function ActivityTab(props: {
       <p className="field-hint" style={{ marginTop: 8 }}>
         What the AI read for an answer is the producing organisation’s own run record, on the History screen, not here.
       </p>
+    </Card>
+  );
+}
+
+/** T-473 — is this reference document still the one to rely on, who said so, and when it is next due. */
+export function CurrencyCard(props: {
+  read: GetContainerCurrencyResponse;
+  mayConfirm: boolean;
+  confirming: boolean;
+  onConfirm: () => void;
+}) {
+  const { currency, intervalMonths } = props.read;
+  const words = currencyWords(currency);
+  return (
+    <Card label="Currency">
+      <MetaRow k="State">
+        <span data-currency={currency.state}>
+          {currency.state === 'confirmed' ? (
+            <Badge tone="success">Confirmed current</Badge>
+          ) : currency.state === 'overdue' ? (
+            <Badge tone="warning">Re-check overdue</Badge>
+          ) : (
+            <Badge tone="warning">Not confirmed current</Badge>
+          )}
+        </span>
+      </MetaRow>
+      {words !== null && <MetaRow k="What that means">{words}</MetaRow>}
+      {currency.confirmedAt !== null && (
+        <MetaRow k="Last confirmed">
+          {currency.confirmedBy ?? 'A colleague who has since left'} on {formatDate(currency.confirmedAt)}
+        </MetaRow>
+      )}
+      {currency.recheckDue !== null && <MetaRow k="Re-check due">{formatDate(currency.recheckDue)}</MetaRow>}
+      <MetaRow k="Next confirmation">
+        {`would run for ${intervalMonths} month${intervalMonths === 1 ? '' : 's'}, the project's interval for this kind of document`}
+      </MetaRow>
+      <p style={{ margin: '8px 0 0', fontSize: 12.5, color: 'var(--text-muted)' }}>
+        A document nobody has confirmed is still read by the AI; every citation of it says so.
+      </p>
+      {props.mayConfirm && (
+        <div style={{ marginTop: 10 }}>
+          <Button size="sm" variant="primary" disabled={props.confirming} onClick={props.onConfirm}>
+            Confirm current
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

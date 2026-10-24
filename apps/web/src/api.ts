@@ -55,6 +55,10 @@ import type {
   ConfirmIntakeBody,
   ConfirmIntakeResult,
   GetLibraryAdmissionResponse,
+  GetContainerCurrencyResponse,
+  ConfirmCurrentResponse,
+  GetRecheckDefaultsResponse,
+  PatchRecheckDefaultsBody,
   IndexIntakeResponse,
   ListReferenceIntakeResponse,
   ReferenceIntakeQuery,
@@ -824,6 +828,19 @@ export const api = {
     request<IndexIntakeResponse>(`/projects/${projectId}/reference-intake/${id}/index`, { method: 'POST' }),
   libraryAdmission: (containerId: string) =>
     request<GetLibraryAdmissionResponse>(`/containers/${containerId}/library-admission`),
+  // T-473 — currency on reference material: the document page's card, the
+  // owner's "Confirm current", and the project's re-check intervals
+  containerCurrency: (containerId: string) =>
+    request<GetContainerCurrencyResponse>(`/containers/${containerId}/currency`),
+  confirmCurrent: (containerId: string) =>
+    request<ConfirmCurrentResponse>(`/containers/${containerId}/confirm-current`, { method: 'POST' }),
+  recheckDefaults: (projectId: string) =>
+    request<GetRecheckDefaultsResponse>(`/projects/${projectId}/recheck-defaults`),
+  setRecheckDefaults: (projectId: string, body: PatchRecheckDefaultsBody) =>
+    request<GetRecheckDefaultsResponse>(`/projects/${projectId}/recheck-defaults`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   // T-405 — `description` is OMITTED when the caller passes nothing, which the
   // server reads as "leave it alone"; `null` clears it. Sending `undefined`
   // through `JSON.stringify` drops the key, which is exactly the wanted

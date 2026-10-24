@@ -35,6 +35,10 @@ import { ChatComposer, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
+import { CurrencyCard } from './screens/document';
+import { SourceCardView } from './source-card';
+import { SourceChip } from '@infora/ui';
+import type { Currency } from '@infora/contracts';
 import type { IntakeFacet } from './screens/reference-intake';
 import { NOT_CITABLE_LABEL, describeTextStatus, uploadSentence } from './reference-intake-words';
 import type { IntakeRow } from '@infora/contracts';
@@ -2681,5 +2685,91 @@ describe('the reference-material intake (T-472)', () => {
     expect(NOT_CITABLE_LABEL).toBe('Not citable — no readable text');
     expect(describeTextStatus('pdf_no_text')).toBe('A scan — no text layer');
     expect(describeTextStatus('some_new_reason')).toBe('No readable text');
+  });
+});
+
+describe('currency on reference material (T-473)', () => {
+  const UNCONFIRMED: Currency = { state: 'unconfirmed', confirmedBy: null, confirmedAt: null, recheckDue: null };
+  const OVERDUE: Currency = {
+    state: 'overdue',
+    confirmedBy: 'Rachel Bowen',
+    confirmedAt: '2025-08-24T00:00:00.000Z',
+    recheckDue: '2026-08-24T00:00:00.000Z',
+  };
+  const CONFIRMED: Currency = {
+    state: 'confirmed',
+    confirmedBy: 'Rachel Bowen',
+    confirmedAt: '2026-10-01T00:00:00.000Z',
+    recheckDue: '2027-10-01T00:00:00.000Z',
+  };
+
+  it('a source chip carries a visible, named mark when the document is unconfirmed or overdue — and none when it is confirmed', () => {
+    const chip = (currency: Currency | null) =>
+      renderToStaticMarkup(
+        <SourceChip corpus="library" currency={currency}>
+          WA-STD-BS5930-001
+        </SourceChip>,
+      );
+    const unconfirmed = chip(UNCONFIRMED);
+    expect(unconfirmed).toContain('class="cite-currency unconfirmed"');
+    expect(unconfirmed).toContain('aria-label="Not confirmed current"');
+    expect(unconfirmed).toContain('title="Not confirmed current — nobody has checked this document is still the one to rely on"');
+    // a glyph, not colour alone
+    expect(unconfirmed).toMatch(/cite-currency unconfirmed"[^>]*>\?</);
+    const overdue = chip(OVERDUE);
+    expect(overdue).toContain('class="cite-currency overdue"');
+    expect(overdue).toContain('aria-label="Re-check overdue"');
+    expect(overdue).toContain('Re-check overdue since 24 Aug 2026 — confirmed current by Rachel Bowen on 24 Aug 2025');
+    expect(chip(CONFIRMED)).not.toContain('cite-currency');
+    expect(chip(null)).not.toContain('cite-currency');
+  });
+
+  const passage = (currency: Currency | null) =>
+    renderToStaticMarkup(
+      <SourceCardView
+        loaded={{
+          kind: 'passage',
+          read: {
+            versionId: 'v1',
+            chunkId: 'k1',
+            containerId: 'c1',
+            documentReference: 'WA-STD-BS5930-001',
+            documentTitle: 'BS 5930',
+            versionReference: 'v1',
+            containerState: 'live',
+            isCurrent: true,
+            passage: { chunkIndex: 0, verbatim: 'test the ground' },
+            held: true,
+            currency,
+          },
+        }}
+      />,
+    );
+
+  it('the source card adds a line in words for an unconfirmed document and for an overdue one, and none otherwise', () => {
+    expect(passage(UNCONFIRMED)).toContain('Not confirmed current — nobody has checked this document is still the one to rely on');
+    expect(passage(OVERDUE)).toContain('Re-check overdue since 24 Aug 2026 — confirmed current by Rachel Bowen on 24 Aug 2025');
+    expect(passage(CONFIRMED)).not.toContain('source-card-currency');
+    expect(passage(null)).not.toContain('source-card-currency');
+  });
+
+  const card = (currency: Currency, mayConfirm: boolean) =>
+    renderToStaticMarkup(
+      <CurrencyCard read={{ currency, intervalMonths: 12 }} mayConfirm={mayConfirm} confirming={false} onConfirm={() => undefined} />,
+    );
+
+  it('the document page’s Currency card shows the state, the names and dates, the interval, and a button only for the owner’s super user', () => {
+    const overdue = card(OVERDUE, true);
+    expect(overdue).toContain('Re-check overdue');
+    expect(overdue).toContain('Rachel Bowen');
+    expect(overdue).toContain('would run for 12 months');
+    expect(overdue).toContain('Confirm current');
+    expect(card(OVERDUE, false)).not.toContain('Confirm current');
+    const unconfirmed = card(UNCONFIRMED, true);
+    expect(unconfirmed).toContain('Not confirmed current');
+    expect(unconfirmed).not.toContain('Last confirmed');
+    const confirmed = card(CONFIRMED, false);
+    expect(confirmed).toContain('Confirmed current');
+    expect(confirmed).toContain('Re-check due');
   });
 });

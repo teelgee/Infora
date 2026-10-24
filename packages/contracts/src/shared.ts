@@ -2,6 +2,7 @@
 // carrying the 2026-07-06 rulings: Run.request, suggestions[] per-item,
 // Suggestion.kind/anchor, railOutcomes.detail).
 
+import type { Currency } from './currency';
 import type { RunReach, Scope } from './scope';
 import type { WorkingSetEntry } from './working-set';
 
@@ -71,6 +72,10 @@ export type Citation = {
   // T-468 — the stored passage the citation was written from; absent on older
   // rows and on an authority reference. Read back by id, never re-retrieved.
   chunkId?: Id;
+  // T-473 — the cited document's currency AS OF THE READ (never stored on the
+  // citation: it changes after the run). Present on a library source that is a
+  // reference document; absent on a deliverable and on an authority reference.
+  currency?: Currency;
 };
 
 export type Step = {

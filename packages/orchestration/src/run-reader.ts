@@ -6,6 +6,7 @@ import { asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Citation, Id, Run, RunReach, Step, Suggestion, WorkingSetDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { readCurrencies } from '@infora/knowledge';
 
 /** The document's Suggestions, newest first (T-082's Editor panel read). */
 export async function readDocumentSuggestions(db: Db, sandboxDocumentId: Id): Promise<Suggestion[]> {
@@ -62,12 +63,14 @@ async function readStepCitations(db: Db, stepIds: Id[]): Promise<Citation[]> {
     .select({
       citation: s.citations,
       documentReference: s.containers.documentReference,
+      containerId: s.containers.id,
     })
     .from(s.citations)
     .leftJoin(s.versions, eq(s.citations.versionId, s.versions.id))
     .leftJoin(s.containers, eq(s.versions.containerId, s.containers.id))
     .where(inArray(s.citations.stepId, stepIds));
-  return rows.map((row) => toCitation(row.citation, row.documentReference));
+  const currencies = await currenciesOf(db, rows);
+  return rows.map((row) => toCitation(row.citation, row.documentReference, currencies.get(row.containerId ?? '')));
 }
 
 function toStep(row: typeof s.steps.$inferSelect): Step {
@@ -109,6 +112,7 @@ async function readSuggestions(
       .select({
         citation: s.citations,
         documentReference: s.containers.documentReference,
+        containerId: s.containers.id,
       })
       .from(s.citations)
       .leftJoin(s.versions, eq(s.citations.versionId, s.versions.id))
@@ -116,6 +120,7 @@ async function readSuggestions(
       .where(inArray(s.citations.suggestionId, ids)),
     db.select().from(s.signals).where(inArray(s.signals.suggestionId, ids)),
   ]);
+  const currencies = await currenciesOf(db, citationRows);
 
   return rows.map((row) => {
     const signal = signalRows.find((sig) => sig.suggestionId === row.id);
@@ -130,7 +135,7 @@ async function readSuggestions(
       rationale: row.rationale,
       citations: citationRows
         .filter((c) => c.citation.suggestionId === row.id)
-        .map((c) => toCitation(c.citation, c.documentReference)),
+        .map((c) => toCitation(c.citation, c.documentReference, currencies.get(c.containerId ?? ''))),
       ...(signal !== undefined && {
         signal: { resolution: signal.resolution, resolvedAt: signal.resolvedAt.toISOString() },
       }),
@@ -138,9 +143,20 @@ async function readSuggestions(
   });
 }
 
+// T-473 — the cited documents' currency AS OF THIS READ, never stored on the
+// citation: a standard's re-check falls due after the run that cited it, and the
+// next person to open the answer must see it. Null (absent) for a deliverable.
+async function currenciesOf(db: Db, rows: Array<{ containerId: string | null }>) {
+  return readCurrencies(
+    db,
+    rows.flatMap((row) => (row.containerId === null ? [] : [row.containerId])),
+  );
+}
+
 function toCitation(
   row: typeof s.citations.$inferSelect,
   documentReference: string | null,
+  currency: Citation['currency'] | null | undefined,
 ): Citation {
   return {
     id: row.id,
@@ -150,5 +166,6 @@ function toCitation(
         : { authorityRef: row.authorityRef! },
     ...(row.chunkId !== null && { chunkId: row.chunkId }),
     ...(row.claimSpan !== null && { claimSpan: row.claimSpan as { start: number; end: number } }),
+    ...(currency !== null && currency !== undefined && { currency }),
   };
 }

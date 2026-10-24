@@ -8,6 +8,7 @@
 // (and the agent's claims built on it) be trusted on day one.
 import type { Db } from './client.js';
 import type { classificationFacetSource } from './schema/drawer6-ontology.js';
+import { recheckDefaults } from './schema/drawer2-documents.js';
 import { classificationFacets, classificationTerms } from './schema/drawer6-ontology.js';
 
 type FacetSource = (typeof classificationFacetSource.enumValues)[number];
@@ -20,6 +21,12 @@ interface DefaultFacet {
   // and populated as the vocabulary is extended
   terms: { code: string; label: string }[];
 }
+
+// T-473 — how many months a confirmation of currency lasts, by document type
+// code (migration 0079 inserts the same for projects that already exist), and
+// the project-wide fallback for a document that is unclassified.
+export const DEFAULT_RECHECK_MONTHS: Record<string, number> = { STD: 12, GDN: 12, LEG: 6, CRS: 24 };
+export const FALLBACK_RECHECK_MONTHS = 12;
 
 export const DEFAULT_CLASSIFICATION_SCHEME: DefaultFacet[] = [
   {
@@ -121,14 +128,25 @@ export async function seedProjectOntology(db: Db, projectId: string): Promise<vo
       })
       .returning();
     if (facet.terms.length > 0) {
-      await db.insert(classificationTerms).values(
-        facet.terms.map((term, termIndex) => ({
-          facetId: row!.id,
-          code: term.code,
-          label: term.label,
-          sortOrder: termIndex,
-        })),
-      );
+      const terms = await db
+        .insert(classificationTerms)
+        .values(
+          facet.terms.map((term, termIndex) => ({
+            facetId: row!.id,
+            code: term.code,
+            label: term.label,
+            sortOrder: termIndex,
+          })),
+        )
+        .returning();
+      if (facet.key === 'document_type') {
+        const intervals = terms.flatMap((term) => {
+          const months = DEFAULT_RECHECK_MONTHS[term.code];
+          return months === undefined ? [] : [{ projectId, termId: term.id, intervalMonths: months }];
+        });
+        if (intervals.length > 0) await db.insert(recheckDefaults).values(intervals);
+      }
     }
   }
+  await db.insert(recheckDefaults).values({ projectId, termId: null, intervalMonths: FALLBACK_RECHECK_MONTHS });
 }

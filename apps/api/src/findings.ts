@@ -38,6 +38,7 @@ import type {
   Suggestion,
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
+import { readCurrencies } from '@infora/knowledge';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
 import { readableDocumentIds } from './working-set';
@@ -143,11 +144,14 @@ export async function listFindings(
   const suggestions =
     suggestionIds.length === 0 ? new Map<string, Suggestion>() : await suggestionsOf(db, suggestionIds);
 
-  const found = readable.map((row) =>
-    toFinding(
-      row,
-      row.closedByParticipantId === null ? null : names.get(row.closedByParticipantId) ?? null,
-      row.proposedRevisionId === null ? null : suggestions.get(row.proposedRevisionId) ?? null,
+  const found = await withCurrency(
+    db,
+    readable.map((row) =>
+      toFinding(
+        row,
+        row.closedByParticipantId === null ? null : names.get(row.closedByParticipantId) ?? null,
+        row.proposedRevisionId === null ? null : suggestions.get(row.proposedRevisionId) ?? null,
+      ),
     ),
   );
 
@@ -168,6 +172,44 @@ export async function listFindings(
 }
 
 type FindingRow = typeof s.findings.$inferSelect;
+
+/**
+ * T-473 — a finding's citations carry the cited document's currency AS OF THIS
+ * READ, like every other citation (never stored: it changes after the check).
+ */
+async function withCurrency(db: Db, findings: Finding[]): Promise<Finding[]> {
+  const versionIds = [
+    ...new Set(
+      findings.flatMap((f) =>
+        f.evidence.input === 'corpus'
+          ? f.evidence.citations.flatMap((c) => ('versionId' in c.source ? [c.source.versionId] : []))
+          : [],
+      ),
+    ),
+  ];
+  if (versionIds.length === 0) return findings;
+  const homes = await db
+    .select({ versionId: s.versions.id, containerId: s.versions.containerId })
+    .from(s.versions)
+    .where(inArray(s.versions.id, versionIds));
+  const containerOf = new Map(homes.map((h) => [h.versionId, h.containerId]));
+  const currencies = await readCurrencies(db, [...containerOf.values()]);
+  return findings.map((f) => {
+    if (f.evidence.input !== 'corpus') return f;
+    return {
+      ...f,
+      evidence: {
+        ...f.evidence,
+        citations: f.evidence.citations.map((c) => {
+          const bare = { ...c };
+          delete bare.currency; // never trust a stored copy: it is read fresh, below
+          const now = 'versionId' in c.source ? currencies.get(containerOf.get(c.source.versionId) ?? '') : undefined;
+          return now === null || now === undefined ? bare : { ...bare, currency: now };
+        }),
+      },
+    };
+  });
+}
 
 /**
  * THE WALL PREDICATE (ADR-0048 §6, ADR-0053 §9).

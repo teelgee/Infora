@@ -77,6 +77,8 @@ describe('the four document types for reference material (T-472)', () => {
       .select()
       .from(s.classificationFacets)
       .where(and(eq(s.classificationFacets.projectId, projectId), eq(s.classificationFacets.key, 'document_type')));
+    // (T-473: a project that existed then had no re-check intervals either)
+    await db.delete(s.recheckDefaults).where(eq(s.recheckDefaults.projectId, projectId));
     await db
       .delete(s.classificationTerms)
       .where(and(eq(s.classificationTerms.facetId, facet!.id), inArray(s.classificationTerms.code, NEW_CODES)));

@@ -436,6 +436,8 @@ async function confirmOne(
       // a file whose text could not be read is admitted marked not citable
       text: row.textStatus === 'extracted' ? (row.extractedText ?? '') : null,
       classifications,
+      // T-473 — confirming into the library is also the first confirmation of currency
+      confirmedByParticipantId: slice.participantId,
     });
   } catch (error) {
     // Only an index failure AFTER the container committed lands anything. The

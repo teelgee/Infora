@@ -8,6 +8,7 @@
 // The card is mounted only while open (HoverCard), so the passage is fetched on
 // first open and then kept for the life of the page, per (version, chunk).
 import { useEffect, useMemo, useState } from 'react';
+import { currencyWords } from '@infora/contracts';
 import type { Citation, GetPassageResponse, GetVersionResponse } from '@infora/contracts';
 import { LifecycleBadge, type LifecyclePosition } from '@infora/ui';
 import { api } from './api';
@@ -48,7 +49,7 @@ function loadVersion(versionId: string): Promise<GetVersionResponse> {
   return hit;
 }
 
-type Loaded =
+export type Loaded =
   | { kind: 'loading' }
   | { kind: 'failed' }
   | { kind: 'passage'; read: GetPassageResponse }
@@ -72,6 +73,12 @@ export function SourceCardBody(props: { versionId: string; chunkId?: string | un
     };
   }, [props.versionId, props.chunkId]);
 
+  return <SourceCardView loaded={loaded} />;
+}
+
+/** What the card shows for a read that has landed (or not) — pure, so it can be proved without a browser. */
+export function SourceCardView(props: { loaded: Loaded }) {
+  const { loaded } = props;
   if (loaded.kind === 'loading') return <p className="source-card-note">Reading the passage…</p>;
   if (loaded.kind === 'failed') {
     return <p className="source-card-note">This source could not be read — you may not have access to it.</p>;
@@ -98,6 +105,12 @@ export function SourceCardBody(props: { versionId: string; chunkId?: string | un
       {title !== null && title !== read.documentReference && <div className="source-card-where">{title}</div>}
       {where !== '' && <div className="source-card-where">{where}</div>}
       {passage !== null && <blockquote className="source-card-passage">{passage.verbatim}</blockquote>}
+      {/* T-473 — the document's currency as of now, in words, whatever it was at the run */}
+      {currencyWords(read.currency) !== null && (
+        <p className="source-card-note source-card-currency" data-currency={read.currency!.state}>
+          {currencyWords(read.currency)}
+        </p>
+      )}
       {loaded.kind === 'passage' && !loaded.read.held && (
         <p className="source-card-note">
           This passage was re-indexed after the run and its recorded text is no longer held.

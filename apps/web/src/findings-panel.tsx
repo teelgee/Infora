@@ -335,6 +335,7 @@ function Evidence(props: {
               // an authority reference is an authority chip, not a library one (T-468)
               corpus={'versionId' in source ? 'library' : 'authority'}
               card={cardFor(citation)}
+              currency={citation.currency}
               cardLabel={`Source: ${'versionId' in source ? source.documentReference : source.authorityRef}`}
               onClick={
                 props.onOpenSource !== undefined && 'versionId' in source
