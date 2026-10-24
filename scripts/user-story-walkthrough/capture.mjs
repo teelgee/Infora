@@ -502,7 +502,7 @@ await e.keyboard.press('Escape');
 // freeze from the Editor — the head locks into the org-private series
 await e.goto(`${WEB}/projects/${projectId}/editor/${doc.id}`);
 await e.getByRole('button', { name: 'Freeze' }).click();
-await e.getByText('Checked out — frozen, read-only').waitFor();
+await e.getByText('Checked out — read-only until released').waitFor();
 await shot(e, '11-frozen');
 
 // staff the internal lead reviewer (API only — see the gap card on the page)
@@ -793,11 +793,9 @@ await shot(r, '26-library');
 // FIRST OPEN (T-436), which is what puts a real receipt in the log shot below
 // rather than a fabricated one.
 console.log('issuing outside the project —');
-await r
-  .getByRole('row')
-  .filter({ hasText: 'WA-EIA-MST-001' })
-  .getByRole('button', { name: 'Issue externally…' })
-  .click();
+// T-461: the row's actions moved into its "…" menu
+await r.getByRole('button', { name: 'Actions for WA-EIA-MST-001' }).click();
+await r.getByText('Issue externally…').click();
 const issueModal = r.getByRole('dialog');
 await issueModal.getByText('Anyone holding the link can open it', { exact: false }).waitFor();
 await issueModal.getByLabel('Recipient name').fill('Mrs A Patel');
@@ -877,7 +875,8 @@ await r.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
 console.log('ending a deliverable —');
 await r.goto(`${WEB}/projects/${projectId}/documents`);
 await r.getByText('WA-EIA-MST-001').first().waitFor();
-await r.getByRole('row').filter({ hasText: 'WA-EIA-MST-001' }).getByRole('button', { name: 'Withdraw…' }).click();
+await r.getByRole('button', { name: 'Actions for WA-EIA-MST-001' }).click();
+await r.getByText('Withdraw…', { exact: true }).click();
 await r.getByText('Read by everyone who can see this deliverable', { exact: false }).waitFor();
 await shot(r, '28-withdraw');
 await r.getByRole('textbox').last().fill('The ground model it rests on has been re-issued and no longer supports its conclusions');
@@ -983,12 +982,15 @@ await shot(e, 't1-06-brief');
 
 // T-405 — the sources say WHAT EACH DOCUMENT IS, not only what it is called.
 // They are bound BEFORE anything is drafted; that ordering is the design.
-const sourceBoxes = e
-  .locator('.card')
-  .filter({ hasText: 'Sources this draft may use' })
-  .locator('input[type=checkbox]');
-await sourceBoxes.nth(0).check();
-await sourceBoxes.nth(2).check();
+// T-470: the tick-list is now the one Scope control — open it, search a
+// reference code, tick the document; the panel stays open for the shot.
+const sourcesCard = e.locator('.card').filter({ hasText: 'Sources this draft may use' });
+await sourcesCard.getByRole('button', { name: /Scope:/ }).click();
+for (const code of ['WA-GEO-GIR-004', 'WA-ENV-BAS-003']) {
+  await e.getByRole('combobox', { name: 'Scope' }).fill(code);
+  await e.getByRole('option', { name: new RegExp(code) }).first().click();
+}
+await e.getByRole('combobox', { name: 'Scope' }).fill('');
 await e
   .getByText('Sources this draft may use')
   .evaluate((el) => el.scrollIntoView({ block: 'start' }));
@@ -1105,13 +1107,14 @@ await shot(e, 't2-03-adjusted');
 // rather than the creator's: uploading a file straight into a check is not
 // built (T-399), and the control says so instead of standing there doing
 // nothing
+// T-471: the attach list is now the Working set picker — open, search by title, tick
 await e
   .locator('.card')
   .filter({ hasText: 'Attach a document' })
-  .locator('label')
-  .filter({ hasText: WORKING_TITLE })
-  .locator('input[type=checkbox]')
-  .check();
+  .getByRole('button', { name: /▤/ })
+  .click();
+await e.getByRole('combobox', { name: 'Working set' }).fill(WORKING_TITLE);
+await e.getByRole('listbox', { name: 'Working set' }).getByRole('option', { name: new RegExp(WORKING_TITLE) }).first().click();
 await e.waitForTimeout(200);
 await shot(e, 't2-04-attach');
 
