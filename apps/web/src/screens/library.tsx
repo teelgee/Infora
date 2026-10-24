@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOutletContext, useNavigate, useSearchParams } from 'react-router';
 import { currencyWords } from '@infora/contracts';
 import type {
+  ContainerImpactResponse,
   BulkClassifyBody,
   BulkFailure,
   ClassificationSchemeResponse,
@@ -302,6 +303,76 @@ function DeclineRequestModal(props: {
   );
 }
 
+// T-474 — WHAT RESTS ON THIS, in the owner's own dialog. Library relationships
+// that point at the document, and the owner organisation's OWN drafts and past
+// answers that cite it. The API answers for the owner's organisation alone, so
+// nothing another firm is working on can appear here, and this section shows no
+// number that covers more than the owner's own side (ADR-0049's amendment of
+// 2026-10-24). Several documents at once are read one by one and listed together.
+function ImpactSection(props: { containerIds: string[] }) {
+  const [impact, setImpact] = useState<ContainerImpactResponse | null | 'failed'>(null);
+  const key = props.containerIds.join(',');
+  useEffect(() => {
+    let live = true;
+    void Promise.all(props.containerIds.map((id) => api.containerImpact(id))).then(
+      (all) => {
+        if (!live) return;
+        setImpact({
+          edges: all.flatMap((r) => r.edges),
+          ownWork: all.flatMap((r) => r.ownWork),
+        });
+      },
+      () => live && setImpact('failed'),
+    );
+    return () => {
+      live = false;
+    };
+  }, [key]);
+  if (impact === null) return <p className="field-hint">Checking what relies on this…</p>;
+  if (impact === 'failed') return <p className="field-hint">What relies on this could not be read.</p>;
+  return <ImpactView impact={impact} />;
+}
+
+/** The dialog's section as pure markup — what the owner reads, decided before any request. */
+export function ImpactView(props: { impact: ContainerImpactResponse }) {
+  const { impact } = props;
+  const nothing = impact.edges.length === 0 && impact.ownWork.length === 0;
+  return (
+    <section aria-label="What relies on this" style={{ display: 'grid', gap: 6, fontSize: 13 }}>
+      <strong>What relies on this</strong>
+      {nothing && (
+        <span className="field-hint">
+          No library document points at it, and none of your organisation’s own drafts or past answers cite it.
+        </span>
+      )}
+      {impact.edges.length > 0 && (
+        <div>
+          <span className="field-hint">Library documents that point at it</span>
+          <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+            {impact.edges.map((edge) => (
+              <li key={edge.id}>
+                {edge.otherDocumentReference} ({edge.type.replace('_', ' ')})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {impact.ownWork.length > 0 && (
+        <div>
+          <span className="field-hint">Your organisation’s own work that cites it</span>
+          <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+            {impact.ownWork.map((item) => (
+              <li key={`${item.kind}-${item.id}`}>
+                {item.title} — {new Date(item.at).toLocaleDateString('en-GB')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // T-389 — ENDING A DELIVERABLE, on the screen where deliverables are read.
 // Until now there was no button for this anywhere: `superseded` was set by
 // nothing in the codebase, and withdrawal existed only as T-189's remove-from-
@@ -356,6 +427,7 @@ function EndDeliverableModal(props: {
       >
         <TextArea value={reason} onChange={setReason} rows={3} placeholder="e.g. Superseded by the revised alignment" />
       </Field>
+      {withdrawing && <ImpactSection containerIds={[props.item.containerId]} />}
     </Modal>
   );
 }
@@ -416,6 +488,7 @@ function SupersedeModal(props: {
           }))}
         />
       </Field>
+      {props.mode === 'confirm' && <ImpactSection containerIds={props.items.map((i) => i.containerId)} />}
     </Modal>
   );
 }

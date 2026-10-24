@@ -38,10 +38,11 @@ import type {
   Suggestion,
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
-import { readCurrencies } from '@infora/knowledge';
+import { readCurrencies, readDocumentGrounding } from '@infora/knowledge';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
 import { readableDocumentIds } from './working-set';
+import { staleGroundingCheck } from '@infora/capabilities';
 import type { DraftFinding } from '@infora/capabilities';
 
 /**
@@ -378,7 +379,13 @@ function toFinding(row: FindingRow, closerName: string | null, suggestion: Sugge
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { bulkResolveFindingsBody, resolveFindingBody } from '@infora/contracts';
-import type { ApiError, ListFindingsResponse, ResolveFindingsResponse, RunReach } from '@infora/contracts';
+import type {
+  ApiError,
+  ListFindingsResponse,
+  ResolveFindingsResponse,
+  RunReach,
+  StaleGroundingResponse,
+} from '@infora/contracts';
 import { resolveSuggestion } from '@infora/orchestration';
 import { resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
@@ -386,6 +393,23 @@ import type { AppEnv } from './requester';
 export function findingRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
+
+  // T-474 — the same stale-grounding comparison the checker stores as a finding,
+  // run NOW against the library as it stands. Unstored on purpose: a stored
+  // finding is a run record (findings.run_id is not null) and this is no run, so
+  // the author sees an out-of-date source the moment it happens without anyone
+  // having to run the checker. The route sits behind the document's own scope —
+  // only a person who can open the draft can read what it rests on.
+  app.get('/sandbox-documents/:id/stale-grounding', documentScope, async (c) => {
+    const grounding = await readDocumentGrounding(deps.db, c.req.param('id'));
+    if (grounding === null) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    const result = staleGroundingCheck(grounding);
+    return c.json({
+      computedAt: new Date().toISOString(),
+      claimsChecked: result.claimsChecked,
+      items: result.items,
+    } satisfies StaleGroundingResponse);
+  });
 
   /**
    * One document's marks, as this requester is entitled to see them.

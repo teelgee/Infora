@@ -188,3 +188,8 @@ export type { AcceptedRule, Normalisation, FreshModelOutput } from './rule-match
 // T-472 — the reference-material intake proposal (pure compose + admit)
 export { admitIntakeProposal, composeIntakePrompt, INTAKE_READ_CHARS, INTAKE_SYSTEM } from './reference-intake';
 export type { AdmittedProposal, IntakeFacet } from './reference-intake';
+
+// T-474 — the stale-grounding check, a pure comparison the checker and the
+// editor's live list both run
+export { staleGroundingCheck } from './stale-grounding';
+export type { StaleGroundingInput, StaleGroundingResult } from './stale-grounding';

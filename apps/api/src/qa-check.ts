@@ -532,6 +532,10 @@ export function qaCheckRoutes(deps: {
           }),
           discarded: gathered.discarded,
           contradictionGroups: Math.max(1, groups.length),
+          // T-474 — said only where the family was among the checks
+          ...(computed.body.families.includes('stale_grounding') && {
+            staleClaimsChecked: gathered.staleClaimsChecked,
+          }),
           // T-469 — the one reach sentence, off the record the run wrote; said
           // only where the corpus check was among the checks
           ...(computed.body.families.includes('corpus_accuracy') &&
@@ -565,6 +569,7 @@ function gather(outputs: Record<string, unknown>) {
   let sectionsWithNoPassages = 0;
   let attachedRead = 0;
   let discarded = 0;
+  let staleClaimsChecked = 0;
   const sectionsSeen = new Set<number>();
 
   for (const [key, value] of Object.entries(outputs)) {
@@ -601,6 +606,8 @@ function gather(outputs: Record<string, unknown>) {
     // the whole beat.
     if (key.startsWith('measure')) {
       sectionsRead = Math.max(sectionsRead, numberOf(coverage['sections']));
+      const stale = coverage['staleGrounding'] as Record<string, unknown> | undefined;
+      if (stale !== undefined) staleClaimsChecked += numberOf(stale['claimsChecked']);
     }
   }
 
@@ -631,6 +638,7 @@ function gather(outputs: Record<string, unknown>) {
     sectionsWithNoPassages,
     attachedRead,
     discarded,
+    staleClaimsChecked,
   };
 }
 

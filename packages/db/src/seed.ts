@@ -585,6 +585,110 @@ await db.insert(s.sandboxDocuments).values({
     'visible to Calder & Hale.',
 });
 
+// ── T-474 — what already relies on the ground investigation report ─────────
+//
+// *Plainly: Calder & Hale (Org B) has a chapter whose accepted paragraph rests
+// on WA-GEO-GIR-004 v2, and a private note that rests on it too. Redgate Ecology
+// (Org C) has nothing that does. Superseding the report is therefore a real act
+// for B and a non-event for C — which is the whole of the done-when.*
+//
+// Rows are written through the same tables the product writes them to: a run
+// the consultant made, the suggestion it produced, the person's acceptance (a
+// signal) and the citation naming the version. `chunk_id` is left null on
+// purpose — chunks do not exist until `ingest` runs, and a citation recorded
+// without one is a state the product already handles ("recorded before
+// passages were kept").
+const [calderHaleSandbox] = await db
+  .insert(s.sandboxes)
+  .values({
+    projectId: project!.id,
+    name: `${calderHale!.name} — working area`,
+    scope: 'single_org',
+    owningOrganisationId: calderHale!.id,
+    createdByParticipantId: consultant!.id,
+  })
+  .returning();
+await db.insert(s.sandboxScopeGrants).values({
+  sandboxId: calderHaleSandbox!.id,
+  granteeType: 'organisation',
+  organisationId: calderHale!.id,
+  grantedByParticipantId: consultant!.id,
+});
+const [girVersion] = await db
+  .select({ id: s.versions.id })
+  .from(s.versions)
+  .innerJoin(s.containers, eq(s.containers.id, s.versions.containerId))
+  .where(and(eq(s.containers.documentReference, 'WA-GEO-GIR-004'), eq(s.versions.isCurrent, true)));
+const citingSentence =
+  'Made ground was found to a depth of 2.4 m across the Wrenfield Sidings compound, with elevated PAH concentrations in three of eleven trial pits.';
+// the chapter is written LAST so it is the most recently edited: a notification
+// points at the most recently edited affected document, and the chapter is the
+// one worth landing on
+const citingDrafts = [
+  {
+    title: 'Dewatering approach — private draft',
+    lead: 'Working note, not for issue.\n\n',
+    request: 'Summarise the ground findings for the dewatering note',
+  },
+  {
+    title: 'Chapter 9 — Ground conditions and contamination',
+    lead: 'Ground conditions.\n\n',
+    request: 'Draft the made-ground paragraph for the ground conditions chapter',
+  },
+];
+for (const draft of citingDrafts) {
+  const content = `${draft.lead}${citingSentence}`;
+  const [document] = await db
+    .insert(s.sandboxDocuments)
+    .values({
+      projectId: project!.id,
+      organisationId: calderHale!.id,
+      sandboxId: calderHaleSandbox!.id,
+      title: draft.title,
+      content,
+      createdByParticipantId: consultant!.id,
+    })
+    .returning();
+  const [conversation] = await db
+    .insert(s.conversations)
+    .values({ projectId: project!.id, sandboxDocumentId: document!.id, surface: 'web' })
+    .returning();
+  const [run] = await db
+    .insert(s.runs)
+    .values({
+      conversationId: conversation!.id,
+      agentId: 'infora-assistant',
+      agentProvenance: 'infora',
+      state: 'completed',
+      request: draft.request,
+      response: citingSentence,
+      endedAt: sql`now()`,
+      environmentKey: project!.id,
+      requesterParticipantId: consultant!.id,
+    })
+    .returning();
+  const [suggestion] = await db
+    .insert(s.suggestions)
+    .values({
+      runId: run!.id,
+      sandboxDocumentId: document!.id,
+      kind: 'insert',
+      content: citingSentence,
+      rationale: 'Grounded draft: 1 cited claim from project sources; nothing was withheld.',
+    })
+    .returning();
+  await db.insert(s.citations).values({
+    suggestionId: suggestion!.id,
+    versionId: girVersion!.id,
+    claimSpan: { start: 0, end: citingSentence.length },
+  });
+  await db.insert(s.signals).values({
+    suggestionId: suggestion!.id,
+    resolution: 'accepted',
+    resolvedByParticipantId: consultant!.id,
+  });
+}
+
 // A deliverable Org C PRODUCED and did NOT share. Note the visibility rule it
 // exercises (ADR-0016 as data): producer | project owner | live share — so
 // Trentmoor sees it because it owns the library, and Calder & Hale does not,

@@ -663,6 +663,27 @@ retrieved again. No named person; nothing to register.
 
 *Built the same day (migration 0075); per the state rule the field list above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape.*
 
+**Drawn 2026-10-24 — the stale-grounding family, and the creator's citation
+trail (T-474).** *Plainly: the checker gains a check that needs no AI — "is
+any source this draft relies on now out of date?" — and the document creator,
+which until now left no note of what it cited, starts leaving one, so that
+"what else relied on this?" can be answered for its documents too.*
+
+The `check_family` enum gains `stale_grounding` (one `ALTER TYPE … ADD
+VALUE`; code-executed, no model call — ADR-0053 A7). A finding of that family
+is a run record like any other (`findings.run_id` stays not-null): the
+editor's live view of the same computation is unstored by design. **No new
+column** for the creator's trail: its cite step writes ordinary `citations`
+rows with `step_id`, and the built document's run id goes in
+`sandbox_documents.authoring_metadata` (jsonb). The supersede-impact query
+reads what exists — `citations` through `suggestions` and `signals` to a
+sandbox document's organisation, and through `steps` to a run's requester —
+and is answered **per organisation, never summed** (ADR-0049's amendment of
+this day). The fourth notification event needs no DDL: `event_type` is text
+(drawer 8).
+
+*Built the same day (migration 0080); per the state rule the drawing above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape. Nothing else was added: the creator's trail rides ordinary `citations` rows and `authoring_metadata`.*
+
 ## Drawer 5 — Review
 *One review workflow at two scopes: the org-private internal cycle and the
 wall-crossing project cycle. (ADR-0002–0017, 0032, 0033, 0035.)*

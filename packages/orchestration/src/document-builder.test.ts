@@ -9,6 +9,7 @@ import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, EmbeddingAdapter } from '@infora/model';
 import { compileDraftingBrief } from '@infora/capabilities';
 import { saveRuleSet } from '@infora/data';
+import { readImpact } from '@infora/knowledge';
 import { createDocumentBuilder, builtDocumentContent, UNSECTIONED } from './document-builder';
 
 const { db, pool } = createDb();
@@ -223,6 +224,79 @@ describe('document_builder (T-280)', () => {
     expect(output.manifest[1]!.versionId).toBe(openVersionId);
     expect(output.manifest[1]!.documentReference).toBe('T280-A');
     expect(output.unreachableSources).toEqual([]);
+  });
+
+  // T-474 — the creator's trail. Until now a built document left no note of
+  // what it cited, so it was invisible to "what else relied on this source?".
+  it('leaves a citation trail: rows on its own step, the passage kept, and the run on the document (T-474)', async () => {
+    const chunkUuid = crypto.randomUUID();
+    const [conversation] = await db.insert(s.conversations).values({ projectId, surface: 'web' }).returning();
+    const [run] = await db
+      .insert(s.runs)
+      .values({
+        conversationId: conversation!.id,
+        agentId: 'document_builder',
+        agentProvenance: 'infora',
+        request: 'build a note',
+        environmentKey: projectId,
+        requesterParticipantId: participantId,
+      })
+      .returning();
+    const [step] = await db.insert(s.steps).values({ runId: run!.id, type: 'document_builder' }).returning();
+    const builder = createDocumentBuilder({
+      db,
+      router: answering(
+        ['Purpose', 'This note answers whether the baseline supports the assessment [S1].'].join('\n\n'),
+      ),
+      assemble: gateway({
+        ...passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances'),
+        chunkId: chunkUuid,
+      }),
+    });
+    const output = await builder(
+      requester(),
+      { projectId },
+      {
+        sections: outline,
+        brief: 'does the baseline support the assessment?',
+        ...character,
+        scope: { containerIds: [openContainerId] },
+        destination: { sandboxId, title: 't474 trail note' },
+      },
+      { runId: run!.id, stepId: step!.id },
+    );
+    const [document] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, output.documentId!));
+    expect(document!.authoringMetadata).toEqual({ createdByRunId: run!.id });
+    const trail = await db.select().from(s.citations).where(eq(s.citations.stepId, step!.id));
+    expect(trail).toHaveLength(1);
+    expect(trail[0]!.versionId).toBe(openVersionId);
+    expect(trail[0]!.chunkId).toBe(chunkUuid);
+    // the document is now found by the supersede-impact query, in its organisation's slice only
+    const impact = await readImpact(db, [openVersionId], { organisationId });
+    expect(impact.map((thing) => [thing.kind, thing.title])).toEqual([['draft', 't474 trail note']]);
+    expect(await readImpact(db, [openVersionId], { organisationId: otherOrganisationId })).toEqual([]);
+    // and the run is not ALSO listed as a separate past answer
+    expect(impact.some((thing) => thing.kind === 'run')).toBe(false);
+  });
+
+  // a build outside the executor passes no trail and writes none
+  it('writes no trail where it is handed no run (T-474)', async () => {
+    const before = (await db.select().from(s.citations)).length;
+    const builder = createDocumentBuilder({
+      db,
+      router: answering(['Purpose', 'A grounded sentence about the baseline [S1].'].join('\n\n')),
+      assemble: gateway(passage(openVersionId, 'T280-A', 'the baseline survey recorded three exceedances')),
+    });
+    const output = await builder(requester(), { projectId }, {
+      sections: outline,
+      brief: 'b',
+      ...character,
+      scope: { containerIds: [openContainerId] },
+      destination: { sandboxId, title: 't474 no trail' },
+    });
+    const [document] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, output.documentId!));
+    expect(document!.authoringMetadata).toEqual({});
+    expect((await db.select().from(s.citations)).length).toBe(before);
   });
 
   // T-406 — THE WHOLE PATH, not just the prompt composer: a style guide loaded

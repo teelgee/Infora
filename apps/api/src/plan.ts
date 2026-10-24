@@ -52,6 +52,7 @@ import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
 import { searchPlanContainerIds } from '@infora/knowledge';
 import { listStateChanges, recordStateChange } from './state-changes';
+import { raiseCitedDocumentSuperseded } from './notifications';
 import type { Router } from '@infora/model';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -917,6 +918,8 @@ export function containerRoutes(deps: { db: Db }) {
         .where(eq(s.workItems.containerId, container.id));
       // T-465 — the record keeps the act, so undoing it later keeps both
       await recordStateChange(deps.db, { containerId: container.id, projectId: container.projectId, from: container.state, to: 'withdrawn', reason: body.data.reason, participantId: slice.participantId });
+      // T-474 — a published document withdrawn: the organisations that cited it are told
+      if (container.inLibrary) await raiseCitedDocumentSuperseded(deps, { containerId: container.id, projectId: container.projectId, actingOrganisationId: slice.organisationId });
     }
     const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);
@@ -964,6 +967,8 @@ export function containerRoutes(deps: { db: Db }) {
         .where(eq(s.workItems.containerId, container.id));
       // T-465 — the owner's acceptance is the act that changes state; the reason is the producer's
       await recordStateChange(deps.db, { containerId: container.id, projectId: container.projectId, from: 'live', to: 'withdrawn', reason: container.withdrawnReason, participantId: slice.participantId });
+      // T-474 — the owner's acceptance is the act that takes it out of use
+      await raiseCitedDocumentSuperseded(deps, { containerId: container.id, projectId: container.projectId, actingOrganisationId: slice.organisationId });
     }
     const [row] = await toPlanRows(deps.db, [updated!], slice);
     return c.json(row!);

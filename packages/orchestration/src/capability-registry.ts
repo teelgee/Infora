@@ -310,6 +310,8 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
               title: text(inputs['title'], 'Untitled'),
             },
           },
+          // T-474 — the creator's citation trail needs the run and the step
+          { runId: ctx.run.id as Id, stepId: ctx.stepId as Id },
         );
         const audit: StepAudit = {
           sourceSet: output.manifest.map((entry) => ({ versionId: entry.versionId })),

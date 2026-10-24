@@ -11,6 +11,7 @@ import type {
   ContainerClassificationRead,
   ContainerRelationshipRead,
   DocumentRelationshipType,
+  ImpactItem,
   PlanRow,
 } from '@infora/contracts';
 import { api } from './api';
@@ -23,6 +24,31 @@ const RELATIONSHIP_LABELS: Record<DocumentRelationshipType, string> = {
   derived_from: 'Derived from',
 };
 const RELATIONSHIP_TYPES = Object.keys(RELATIONSHIP_LABELS) as DocumentRelationshipType[];
+
+const CITED_BY_KIND: Record<ImpactItem['kind'], string> = {
+  draft: 'Draft',
+  run: 'Answer',
+  'library-version': 'Revision',
+};
+
+/** T-474 — what the requester may see that rests on the document; nothing is drawn when nothing does. */
+export function CitedByList(props: { items: ImpactItem[] }) {
+  if (props.items.length === 0) return null;
+  return (
+    <>
+      <span className="field-label">Cited by</span>
+      <div style={{ display: 'grid', gap: 6 }} aria-label="Cited by">
+        {props.items.map((item) => (
+          <div key={`${item.kind}-${item.id}`} style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
+            <span style={{ color: 'var(--text-muted)', minWidth: 72 }}>{CITED_BY_KIND[item.kind]}</span>
+            <span style={{ flex: 1 }}>{item.title}</span>
+            <span style={{ color: 'var(--text-muted)' }}>{new Date(item.at).toLocaleDateString('en-GB')}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 function SuggestedBadge() {
   return (
@@ -50,6 +76,9 @@ export function OntologyPanel(props: { containerId: string; projectId: string; e
   const [classifications, setClassifications] = useState<ContainerClassificationRead[]>([]);
   const [relationships, setRelationships] = useState<ContainerRelationshipRead[]>([]);
   const [targets, setTargets] = useState<PlanRow[]>([]);
+  // T-474 — what this requester may see that rests on the document; their own
+  // organisation's work and library revisions they can read, never a total
+  const [citedBy, setCitedBy] = useState<ImpactItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [newTarget, setNewTarget] = useState('');
   const [newType, setNewType] = useState<DocumentRelationshipType>('references');
@@ -71,6 +100,10 @@ export function OntologyPanel(props: { containerId: string; projectId: string; e
     );
     setClassifications(cc.items);
     setRelationships(rel.items);
+    void api.containerCitedBy(containerId).then(
+      (r) => setCitedBy(r.items),
+      () => setCitedBy([]),
+    );
   }, [projectId, containerId]);
 
   useEffect(() => {
@@ -202,6 +235,8 @@ export function OntologyPanel(props: { containerId: string; projectId: string; e
         ))}
         {relationships.length === 0 && <span className="field-hint">No relationships yet.</span>}
       </div>
+
+      <CitedByList items={citedBy} />
 
       {editable && targets.length > 0 && (
         <div style={{ display: 'grid', gap: 8 }}>

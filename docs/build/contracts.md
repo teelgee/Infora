@@ -1563,6 +1563,26 @@ are not recorded here.
   optional on the wire because runs recorded before it existed carry no such
   count.
 
+- **2026-10-24 (T-474) — `GET /containers/:containerId/impact`,
+  `GET /containers/:containerId/cited-by`, `GET /sandbox-documents/:id/stale-grounding`;
+  `ImpactItem`, `StaleGroundingItem`; the `stale_grounding` check family; the
+  `cited-document-superseded` notification event.** *Plainly: before the owner
+  replaces a document it can see whose own work relies on it; afterwards the
+  firms whose work relied on it are told, each about its own work only.* The
+  **reason impact is computed per organisation and never summed** is the wall:
+  a count that covered several firms would let the owner learn that another
+  firm's private draft cites a document, so the query is asked for one
+  organisation's slice and no route returns a total (ADR-0049's amendment of
+  this day). The **reason the notification names one document and no count** is
+  that the record stores a pointer and no payload; a count would be content
+  sitting outside the subject's access path, so the notification points at the
+  organisation's most recently edited affected draft and that draft's own
+  Checks tab lists the rest. The **reason stale grounding is both a stored
+  family and a live computation** is that a stored finding is a run record and
+  needs a run, while an author should see an out-of-date source the moment it
+  happens: one pure function serves both, so they cannot disagree about what is
+  stale, and the live list says it is "computed now, not a saved finding".
+
 - **2026-10-24 (T-473) — `Currency` on `LibraryItem`, `GetVersionResponse`,
   `GetPassageResponse` and `Citation`; `POST /containers/:containerId/confirm-current`,
   `GET /containers/:containerId/currency`, `GET`/`PATCH /projects/:projectId/recheck-defaults`;

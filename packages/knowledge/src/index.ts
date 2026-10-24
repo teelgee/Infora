@@ -33,3 +33,13 @@ export type { RecordedPassage } from './passage';
 // addendum corrects it; the label moved with the correction.
 export { guidingStyleGuide } from './guiding';
 export { informingRules } from './informing';
+// T-474 — what rests on a library document (per organisation, never a total),
+// and one draft's recorded citations against the library's present state
+export {
+  groupByOrganisation,
+  readCitedVersionStates,
+  readDocumentGrounding,
+  readImpact,
+  versionIdsOfContainer,
+} from './impact';
+export type { DocumentGrounding, ImpactedThing } from './impact';

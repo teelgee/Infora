@@ -53,6 +53,7 @@ import { activeMembership, applyStandingRules, liveShare } from './transmittal';
 import type { ContainerRow } from './transmittal';
 import { buildXlsx } from './xlsx';
 import { recordStateChange } from './state-changes';
+import { raiseCitedDocumentSuperseded } from './notifications';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context, detail?: string) => c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
@@ -230,6 +231,8 @@ export function bulkActRoutes(deps: { db: Db }) {
           if (row.inLibrary && row.state === 'live') {
             await tx.update(s.containers).set({ state: 'superseded' }).where(eq(s.containers.id, row.id));
             await recordStateChange(tx, { containerId: row.id, projectId: slice.projectId, from: 'live', to: 'superseded', reason: `superseded by ${replacement.documentReference ?? 'another document'}`, participantId: slice.participantId });
+            // T-474 — each affected organisation is told about its own work only
+            await raiseCitedDocumentSuperseded({ db: tx }, { containerId: row.id, projectId: slice.projectId, actingOrganisationId: slice.organisationId });
           }
         }
         ids.push(edgeId);

@@ -227,6 +227,13 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     requester: { organisationId: Id; participantId: Id },
     environment: { projectId: Id },
     input: DocumentBuilderInput,
+    /**
+     * T-474 — the run and step this build belongs to, so the document can be
+     * found again by "what else relied on this source?". Absent when the
+     * builder is called outside a run (a few tests); a build inside the
+     * executor always passes it.
+     */
+    trail?: { runId: Id; stepId: Id },
   ): Promise<DocumentBuilderOutput> => {
     // the gateway, then narrowed to the ids the caller named — the extractor's
     // shape, and for the same reason: a second path to the store is the one
@@ -251,6 +258,8 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         versionReference: item.descriptor?.versionReference ?? null,
         locator: item.locator,
         content: item.content,
+        // T-474 — the passage, so the creator's trail can name it as a cite step does
+        ...(item.chunkId !== undefined && { chunkId: item.chunkId }),
       }));
     const reached = new Set(passages.map((passage) => passage.versionId));
     // the documents the scope NAMED that nothing came back from: out of reach,
@@ -505,9 +514,36 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
         sandboxId: input.destination.sandboxId,
         title: input.destination.title,
         content,
+        // T-474 — the creator's trail: which run built this document
+        ...(trail !== undefined && { authoringMetadata: { createdByRunId: trail.runId } }),
         createdByParticipantId: requester.participantId,
       })
       .returning();
+    // T-474 — the builder used to leave no note of what it cited, so a document
+    // it built was invisible to "what else relied on this source?". One citation
+    // row per grounded sentence, against the builder's own step, with the
+    // sentence's span in the built text and the passage it came from.
+    if (trail !== undefined) {
+      const rows = sectioned
+        .filter((claim) => survived.has(claim.text))
+        .flatMap((claim) => {
+          const ref = claim.sourceRef as
+            | { versionId?: Id; chunkId?: Id }
+            | undefined;
+          if (ref?.versionId === undefined) return [];
+          const line = normalisedText.get(claim.text) ?? claim.text;
+          const start = content.indexOf(line);
+          return [
+            {
+              stepId: trail.stepId,
+              versionId: ref.versionId,
+              chunkId: ref.chunkId ?? null,
+              claimSpan: start === -1 ? null : { start, end: start + line.length },
+            },
+          ];
+        });
+      if (rows.length > 0) await deps.db.insert(s.citations).values(rows);
+    }
 
     const usage = {
       tokensPrompt: result.usage.tokensPrompt,

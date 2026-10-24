@@ -51,6 +51,7 @@ import {
   raisesFindings,
   readabilityCheck,
   splitIntoSections,
+  staleGroundingCheck,
 } from '@infora/capabilities';
 import type {
   AcceptedRule,
@@ -67,7 +68,7 @@ import type {
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { readAcceptedRules } from '@infora/data';
-import { guidingStyleGuide, informingRules } from '@infora/knowledge';
+import { guidingStyleGuide, informingRules, readDocumentGrounding } from '@infora/knowledge';
 import { costOf } from '@infora/model';
 import type { ModelIdentity, ModelRates, Router } from '@infora/model';
 
@@ -562,6 +563,9 @@ export type QaDocumentCheckOutput = {
     /** T-428 — the accepted structure and measured rules this pass applied */
     structureRules: number;
     measuredRules: number;
+    /** T-474 — how many cited claims the stale-grounding check examined; a clean
+     * result with a count is different from one that looked at nothing */
+    staleGrounding: { claimsChecked: number; stale: number };
   };
 };
 
@@ -582,6 +586,7 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
           completeness: { missingSections: null, placeholders: 0 },
           structureRules: 0,
           measuredRules: 0,
+          staleGrounding: { claimsChecked: 0, stale: 0 },
         },
       };
     }
@@ -606,10 +611,39 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
     const template =
       input.templateId === undefined ? undefined : deps.templates?.get(input.templateId);
     const completeness = completenessCheck(draft.content, draft.sections, template);
+    // T-474 — the stale-grounding family: the draft's recorded citations against
+    // the library as it stands NOW. Code, and it reads no passage text.
+    const wantsStale = families.includes('stale_grounding');
+    const grounding = wantsStale ? await readDocumentGrounding(deps.db, input.sandboxDocumentId) : null;
+    const stale =
+      grounding === null
+        ? { items: [], claimsChecked: 0 }
+        : staleGroundingCheck({
+            content: draft.content,
+            claims: grounding.claims,
+            states: grounding.states,
+          });
+    const staleFindings: DraftFinding[] = stale.items.map((item) => ({
+      checkFamily: 'stale_grounding',
+      anchor: item.anchor,
+      defect: item.defect,
+      severity: item.severity,
+      evidence: {
+        input: 'corpus',
+        citations: [
+          {
+            id: item.citation.id,
+            source: { versionId: item.citation.versionId, documentReference: item.citation.documentReference },
+            ...(item.citation.chunkId !== undefined && { chunkId: item.citation.chunkId }),
+          },
+        ],
+      },
+    }));
     return {
       findings: [
         ...(families.includes('readability') ? [...readability.findings, ...fromMeasured] : []),
         ...(families.includes('completeness') ? [...completeness.findings, ...fromStructure] : []),
+        ...staleFindings,
       ],
       coverage: {
         sections: draft.sections.length,
@@ -617,6 +651,7 @@ export function createQaDocumentCheck(deps: { db: Db; templates?: TemplateRegist
         completeness: completeness.coverage,
         structureRules: structureRules(rules).length,
         measuredRules: measuredRules(rules).length,
+        staleGrounding: { claimsChecked: stale.claimsChecked, stale: stale.items.length },
       },
     };
   };

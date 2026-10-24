@@ -11,6 +11,7 @@ import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
 import type {
   Finding,
+  StaleGroundingResponse,
   MeResponse,
   PlanRow,
   ReviewComment,
@@ -225,6 +226,8 @@ export function EditorScreen() {
   const [findings, setFindings] = useState<Finding[]>([]);
   // T-470 — what the newest check behind them read (null when not this reader's run)
   const [findingsReach, setFindingsReach] = useState<RunReach | null>(null);
+  // T-474 — the stale-grounding comparison, run now and never stored
+  const [stale, setStale] = useState<StaleGroundingResponse | null>(null);
   const [findingBusy, setFindingBusy] = useState(false);
   const [drifted, setDrifted] = useState<string[]>([]);
   const [focusedFinding, setFocusedFinding] = useState<{ id: string; at: number } | null>(null);
@@ -260,14 +263,16 @@ export function EditorScreen() {
 
   const load = useCallback(async () => {
     if (documentId === undefined) return;
-    const [document, list, threads, marks] = await Promise.all([
+    const [document, list, threads, marks, staleNow] = await Promise.all([
       api.sandboxDocument(documentId),
       api.documentSuggestions(documentId),
       api.documentComments(documentId),
       // a failed read is not an empty finding list: rendering "nothing found"
       // off a request that did not answer is a claim we cannot make
       api.findings(documentId).catch(() => null),
+      api.staleGrounding(documentId).catch(() => null),
     ]);
+    setStale(staleNow);
     setDoc(document);
     setContent(document.content);
     setDirty(false);
@@ -1032,6 +1037,14 @@ export function EditorScreen() {
             <FindingsPanel
               onOpenSource={openCitation}
               findings={findings}
+              stale={stale}
+              onLocateStale={(item) => {
+                const area = canvasRef.current;
+                if (area !== null && item.located && area.value.slice(item.anchor.span.start, item.anchor.span.end) === item.anchor.verbatim) {
+                  area.focus({ preventScroll: true });
+                  area.setSelectionRange(item.anchor.span.start, item.anchor.span.end);
+                }
+              }}
               reach={findingsReach}
               busy={findingBusy}
               focused={focusedFinding}

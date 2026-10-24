@@ -36,6 +36,9 @@ import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
 import { CurrencyCard } from './screens/document';
+import { ImpactView } from './screens/library';
+import { CitedByList } from './ontology-panel';
+import { EVENT_LABEL } from './screens/notifications';
 import { SourceCardView } from './source-card';
 import { SourceChip } from '@infora/ui';
 import type { Currency } from '@infora/contracts';
@@ -2771,5 +2774,101 @@ describe('currency on reference material (T-473)', () => {
     const confirmed = card(CONFIRMED, false);
     expect(confirmed).toContain('Confirmed current');
     expect(confirmed).toContain('Re-check due');
+  });
+});
+
+// T-474 — what the owner reads in the dialog, the live list in the Checks tab,
+// "cited by", and the new notification's words. Static markup: the copy and the
+// state it renders in.
+describe('T-474 — supersede impact on screen', () => {
+  it('the owner\'s dialog lists library documents that point at it and the owner\'s own work, and says "your organisation\'s"', () => {
+    const html = renderToStaticMarkup(
+      <ImpactView
+        impact={{
+          edges: [
+            {
+              id: 'e1', projectId: 'p', fromContainerId: 'a', toContainerId: 'b', type: 'responds_to', proposed: false,
+              confirmedByParticipantId: null, createdAt: '2026-10-01T00:00:00Z', confirmedAt: '2026-10-01T00:00:00Z', retiredAt: null,
+              direction: 'incoming', otherContainerId: 'a', otherDocumentReference: 'WA-GEO-RSP-002',
+            },
+          ],
+          ownWork: [{ kind: 'draft', id: 'd1', title: 'Owner note', at: '2026-10-20T10:00:00Z' }],
+        }}
+      />,
+    );
+    expect(html).toContain('What relies on this');
+    expect(html).toContain('WA-GEO-RSP-002 (responds to)');
+    expect(html).toContain('Your organisation’s own work that cites it');
+    expect(html).toContain('Owner note');
+  });
+
+  it('says plainly when nothing of the owner\'s own relies on it — and never offers a total', () => {
+    const html = renderToStaticMarkup(<ImpactView impact={{ edges: [], ownWork: [] }} />);
+    expect(html).toContain('none of your organisation’s own drafts or past answers cite it');
+    expect(html).not.toMatch(/\d+ (drafts|documents|organisations)/);
+  });
+
+  it('"cited by" lists the requester\'s work by kind, and draws nothing when there is none', () => {
+    const html = renderToStaticMarkup(
+      <CitedByList
+        items={[
+          { kind: 'draft', id: 'd', title: 'Chapter 9', at: '2026-10-20T10:00:00Z' },
+          { kind: 'run', id: 'r', title: 'What did the ground investigation find?', at: '2026-10-19T10:00:00Z' },
+        ]}
+      />,
+    );
+    expect(html).toContain('Cited by');
+    expect(html).toContain('Draft');
+    expect(html).toContain('Chapter 9');
+    expect(html).toContain('Answer');
+    expect(renderToStaticMarkup(<CitedByList items={[]} />)).toBe('');
+  });
+
+  it('the notification\'s event is named in words', () => {
+    expect(EVENT_LABEL['cited-document-superseded']).toBe('A document you cited was superseded');
+  });
+
+  it('the Checks tab shows the live list above the stored findings, saying it is not a saved finding', () => {
+    const html = renderToStaticMarkup(
+      <FindingsPanel
+        findings={[]}
+        busy={false}
+        focused={null}
+        drifted={[]}
+        onLocate={() => {}}
+        onResolve={() => {}}
+        onBulk={() => {}}
+        stale={{
+          computedAt: '2026-10-24T10:00:00Z',
+          claimsChecked: 4,
+          items: [
+            {
+              anchor: { span: { start: 0, end: 31 }, paragraph: 0, verbatim: 'Made ground was found to 2.4 m.' },
+              located: true,
+              defect: 'WA-GEO-GIR-004 v2 has been superseded by WA-GEO-GIR-005, and this sentence still rests on it.',
+              severity: 'required',
+              reason: 'superseded',
+              citation: { id: 'c', versionId: 'v', documentReference: 'WA-GEO-GIR-004' },
+            },
+          ],
+        }}
+      />,
+    );
+    expect(html).toContain('computed now, not a saved finding');
+    expect(html).toContain('Made ground was found to 2.4 m.');
+    expect(html).toContain('has been superseded by WA-GEO-GIR-005');
+    expect(html).toContain('1 sentence rests on a source that has changed');
+    // a clean, examined result says what it examined
+    const clean = renderToStaticMarkup(
+      <FindingsPanel findings={[]} busy={false} focused={null} drifted={[]} onLocate={() => {}} onResolve={() => {}} onBulk={() => {}}
+        stale={{ computedAt: 'x', claimsChecked: 4, items: [] }} />,
+    );
+    expect(clean).toContain('None of the 4 cited claims rest on a source that has changed');
+    // nothing cited at all: no live section, the old empty message stands
+    const none = renderToStaticMarkup(
+      <FindingsPanel findings={[]} busy={false} focused={null} drifted={[]} onLocate={() => {}} onResolve={() => {}} onBulk={() => {}}
+        stale={{ computedAt: 'x', claimsChecked: 0, items: [] }} />,
+    );
+    expect(none).not.toContain('Out-of-date sources');
   });
 });

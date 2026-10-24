@@ -190,6 +190,9 @@ import type {
   ListSavedViewsResponse,
   SavedView,
   SavedViewRegister,
+  ContainerCitedByResponse,
+  ContainerImpactResponse,
+  StaleGroundingResponse,
 } from '@infora/contracts';
 
 export class RequestError extends Error {
@@ -717,6 +720,9 @@ export const api = {
   // text and the grouped-by-check panel): a second read would be a second
   // answer to "what did the checker find", and the two would eventually
   // disagree about which marks exist.
+  // T-474 — computed now, never stored
+  staleGrounding: (sandboxDocumentId: string) =>
+    request<StaleGroundingResponse>(`/sandbox-documents/${sandboxDocumentId}/stale-grounding`),
   findings: (sandboxDocumentId: string) =>
     request<ListFindingsResponse>(`/sandbox-documents/${sandboxDocumentId}/findings`),
   resolveFinding: (
@@ -1187,6 +1193,12 @@ export const api = {
     }),
   containerRelationships: (containerId: string) =>
     request<ContainerRelationshipsResponse>(`/containers/${containerId}/relationships`),
+  // T-474 — the owner's dialog: library edges and the owner's own work only
+  containerImpact: (containerId: string) =>
+    request<ContainerImpactResponse>(`/containers/${containerId}/impact`),
+  // T-474 — "cited by": what the requester may see that rests on this document
+  containerCitedBy: (containerId: string) =>
+    request<ContainerCitedByResponse>(`/containers/${containerId}/cited-by`),
   proposeRelationship: (containerId: string, toContainerId: string, type: DocumentRelationshipType) =>
     request<DocumentRelationship>(`/containers/${containerId}/relationships`, {
       method: 'POST',

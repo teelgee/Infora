@@ -38,7 +38,13 @@ export type NotificationEventType =
   | 'mention'
   /** a deliverable of your organisation's was withdrawn or superseded by
    * someone else's act — never by your own promotion (the 2026-08-27 amendment) */
-  | 'record-state-changed-by-another-organisation';
+  | 'record-state-changed-by-another-organisation'
+  /** a library document your organisation's work cited was superseded or
+   * withdrawn (ADR-0049's amendment of 2026-10-24, T-474) — one per
+   * organisation, pointing at one of that organisation's own affected documents.
+   * A re-issue (a new revision of the same document) raises nothing: the old
+   * revision stays readable and the stale-grounding check marks it advisory. */
+  | 'cited-document-superseded';
 
 /**
  * What the notification points at — **separate from the event type on purpose**.

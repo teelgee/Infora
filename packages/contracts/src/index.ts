@@ -10,6 +10,7 @@ export * from './creator';
 export * from './currency';
 export * from './external';
 export * from './finding';
+export * from './impact';
 export * from './lens';
 export * from './notification';
 export * from './reference-intake';

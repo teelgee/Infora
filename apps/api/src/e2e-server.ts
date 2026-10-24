@@ -4,7 +4,7 @@
 // the production entry is index.ts.
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { ingestAllVersions } from '@infora/data';
 import { createDb, schema as s } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
@@ -364,6 +364,33 @@ substrate.post('/__e2e/reset-seeded-currency', async (c) => {
       recheckDueAt: sql`now() - make_interval(months => 2)`,
     })
     .where(eq(s.containers.documentReference, 'WA-STD-BS5930-001'));
+  return c.json({ ok: true });
+});
+// T-474 — superseding the seeded ground-investigation report is a person's act
+// the product can undo (retiring the edge) but a spec cannot be left relying on:
+// every later spec reads that report as live. This puts the seed's own state
+// back — the report live, the supersession retired, the notification gone — so
+// the spec starts where the seed does and leaves the world as it found it.
+// Not mounted on the real app; the production entry (index.ts) has no such route.
+substrate.post('/__e2e/reset-supersede-impact', async (c) => {
+  const [report] = await db
+    .select({ id: s.containers.id })
+    .from(s.containers)
+    .where(eq(s.containers.documentReference, 'WA-GEO-GIR-004'));
+  if (report) {
+    await db
+      .update(s.documentRelationships)
+      .set({ retiredAt: sql`now()` })
+      .where(
+        and(
+          eq(s.documentRelationships.toContainerId, report.id),
+          eq(s.documentRelationships.type, 'supersedes'),
+          isNull(s.documentRelationships.retiredAt),
+        ),
+      );
+    await db.update(s.containers).set({ state: 'live' }).where(eq(s.containers.id, report.id));
+  }
+  await db.delete(s.notifications).where(eq(s.notifications.eventType, 'cited-document-superseded'));
   return c.json({ ok: true });
 });
 substrate.route('/', app);

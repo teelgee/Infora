@@ -32,10 +32,11 @@ import { formatDateTime } from './shared';
 /** What the event is, in the words a person would use. The event type is the
  * vocabulary; this is the sentence — and it never restates the subject, which
  * is rendered beside it and is the only place the subject's name belongs. */
-const EVENT_LABEL: Record<Notification['eventType'], string> = {
+export const EVENT_LABEL: Record<Notification['eventType'], string> = {
   'round-issued': 'Round issued',
   mention: 'You were mentioned',
   'record-state-changed-by-another-organisation': 'Record state changed',
+  'cited-document-superseded': 'A document you cited was superseded',
 };
 
 /** Where following a notification lands. The API resolved WHICH object to open

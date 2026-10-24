@@ -90,7 +90,7 @@ export const QA_CONTRADICTION_CHECK: WorkerDeclaration = {
 export const QA_DOCUMENT_CHECK: WorkerDeclaration = {
   name: 'qa_document_check',
   purpose:
-    'Score a draft’s readability against the project’s target and check it for missing template sections and placeholder text.',
+    'Score a draft’s readability against the project’s target, check it for missing template sections and placeholder text, and check that the sources its accepted suggestions cite are still the live current ones.',
   tier: 'triage',
   inputSchema: {
     sandbox_document_id: 'the draft under check',

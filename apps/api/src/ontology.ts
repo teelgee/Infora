@@ -19,17 +19,26 @@ import type {
   ApiError,
   ClassificationSchemeResponse,
   ContainerClassificationRead,
+  ContainerCitedByResponse,
   ContainerClassificationsResponse,
+  ContainerImpactResponse,
   ContainerRelationshipRead,
   ContainerRelationshipsResponse,
   DocumentRelationship,
+  ImpactItem,
 } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
-import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
+import {
+  deliverableVisibleSql as deliverableVisible,
+  readImpact,
+  versionIdsOfContainer,
+} from '@infora/knowledge';
+import type { ImpactedThing } from '@infora/knowledge';
 import { projectScope, resolveSlice } from './requester';
 import { recordStateChange } from './state-changes';
+import { raiseCitedDocumentSuperseded } from './notifications';
 import type { AppEnv } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -236,9 +245,9 @@ export function ontologyRoutes(deps: { db: Db }) {
   });
 
   // ── A container's relationship edges (read, both directions, wall-filtered) ─
-  app.get('/containers/:containerId/relationships', async (c) => {
-    const scoped = await loadVisible(c, c.req.param('containerId'));
-    if (!scoped) return notFound(c);
+  async function visibleEdges(
+    scoped: { container: ContainerRow; slice: EntitledSlice },
+  ): Promise<ContainerRelationshipRead[]> {
     const id = scoped.container.id;
     const edges = await deps.db
       .select()
@@ -267,7 +276,7 @@ export function ontologyRoutes(deps: { db: Db }) {
           .where(inArray(s.containers.id, [...visible]))
       : [];
     const refById = new Map(otherRefs.map((r) => [r.id, r.ref ?? '']));
-    const items: ContainerRelationshipRead[] = kept.map((e) => {
+    return kept.map((e) => {
       const outgoing = e.fromContainerId === id;
       const other = outgoing ? e.toContainerId : e.fromContainerId;
       return {
@@ -277,7 +286,63 @@ export function ontologyRoutes(deps: { db: Db }) {
         otherDocumentReference: refById.get(other) ?? '',
       };
     });
-    return c.json({ items } satisfies ContainerRelationshipsResponse);
+  }
+
+  app.get('/containers/:containerId/relationships', async (c) => {
+    const scoped = await loadVisible(c, c.req.param('containerId'));
+    if (!scoped) return notFound(c);
+    return c.json({ items: await visibleEdges(scoped) } satisfies ContainerRelationshipsResponse);
+  });
+
+  // ── What rests on this document (T-474) ─────────────────────────────────────
+  //
+  // 🔒 TWO READS, TWO WALLS, NEITHER A TOTAL. The OWNER's dialog sees library
+  // edges and the owner organisation's own work — the impact query is asked for
+  // the owner's organisation alone, so a private draft in another firm changes
+  // nothing it returns (ADR-0049's amendment of 2026-10-24). Anyone else's
+  // "cited by" is their own organisation's work plus library revisions they can
+  // already read. There is no route that answers "how many in all".
+  const toItem = (thing: ImpactedThing): ImpactItem => ({
+    kind: thing.kind,
+    id: thing.id,
+    title: thing.title,
+    at: thing.at.toISOString(),
+    ...(thing.containerId !== undefined && { containerId: thing.containerId }),
+  });
+
+  app.get('/containers/:containerId/impact', async (c) => {
+    const scoped = await loadVisible(c, c.req.param('containerId'));
+    if (!scoped) return notFound(c);
+    // the owner's act on a library document; anyone else is answered as if it were not there
+    if (scoped.slice.membershipRole !== 'owner' || !scoped.container.inLibrary) return notFound(c);
+    const versionIds = await versionIdsOfContainer(deps.db, scoped.container.id);
+    const own = await readImpact(deps.db, versionIds, { organisationId: scoped.slice.organisationId });
+    const edges = (await visibleEdges(scoped)).filter(
+      (edge) => !edge.proposed && edge.direction === 'incoming',
+    );
+    return c.json({ edges, ownWork: own.map(toItem) } satisfies ContainerImpactResponse);
+  });
+
+  app.get('/containers/:containerId/cited-by', async (c) => {
+    const scoped = await loadVisible(c, c.req.param('containerId'));
+    if (!scoped) return notFound(c);
+    if (!scoped.container.inLibrary) return c.json({ items: [] } satisfies ContainerCitedByResponse);
+    const versionIds = await versionIdsOfContainer(deps.db, scoped.container.id);
+    const own = await readImpact(deps.db, versionIds, { organisationId: scoped.slice.organisationId });
+    // library revisions of other organisations that this requester may read
+    const everyone = await readImpact(deps.db, versionIds);
+    const others = everyone.filter(
+      (thing) => thing.kind === 'library-version' && thing.organisationId !== scoped.slice.organisationId,
+    );
+    const readable = await visibleAmong(
+      scoped.slice,
+      others.flatMap((thing) => (thing.containerId === undefined ? [] : [thing.containerId])),
+    );
+    const items = [
+      ...own,
+      ...others.filter((thing) => thing.containerId !== undefined && readable.has(thing.containerId)),
+    ].sort((a, b) => b.at.getTime() - a.at.getTime());
+    return c.json({ items: items.map(toItem) } satisfies ContainerCitedByResponse);
   });
 
   // ── Propose an edge from this container to another (either party, T-386) ───
@@ -348,6 +413,8 @@ export function ontologyRoutes(deps: { db: Db }) {
       // T-465 — the record keeps the change of state, naming the replacement
       const [from] = await deps.db.select({ ref: s.containers.documentReference }).from(s.containers).where(eq(s.containers.id, edge.row.fromContainerId)).limit(1);
       await recordStateChange(deps.db, { containerId: edge.target.id, projectId: edge.target.projectId, from: 'live', to: 'superseded', reason: `superseded by ${from?.ref ?? 'another document'}`, participantId: edge.slice.participantId });
+      // T-474 — every other organisation whose work rested on it is told, about its own work only
+      await raiseCitedDocumentSuperseded(deps, { containerId: edge.target.id, projectId: edge.target.projectId, actingOrganisationId: edge.slice.organisationId });
     }
     return c.json(toRelationship(updated!));
   });

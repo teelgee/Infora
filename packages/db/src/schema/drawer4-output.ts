@@ -105,6 +105,9 @@ export const checkFamily = pgEnum('check_family', [
   'self_contradiction',
   'readability',
   'completeness',
+  // T-474 — a citation on the draft's accepted suggestions whose source is no
+  // longer the live current one. Code-executed (ADR-0053 A7), no model call.
+  'stale_grounding',
 ]);
 
 /** ADR-0048 §7 — three inputs, three honest treatments. It decides the citation

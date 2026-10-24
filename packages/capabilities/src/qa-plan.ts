@@ -173,7 +173,9 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
   const wantsCorpus = input.families.includes('corpus_accuracy');
   const wantsContradiction = input.families.includes('self_contradiction');
   const wantsCode =
-    input.families.includes('readability') || input.families.includes('completeness');
+    input.families.includes('readability') ||
+    input.families.includes('completeness') ||
+    input.families.includes('stale_grounding');
 
   const clauseTokens = wantsStyle ? input.styleClauses.tokens : 0;
   const passageTokens = wantsCorpus
@@ -315,7 +317,7 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
     stage: 'present',
     worker: 'qa_document_check',
     label: wantsCode
-      ? 'Score the draft for readability and check it for gaps and placeholders'
+      ? 'Score the draft for readability, check it for gaps and placeholders, and check its cited sources are still current'
       : 'Total up what was actually read, so the coverage statement is not a guess',
     // CODE, so the cost is a genuine ZERO rather than an unpriced null — there
     // is no model call to price, and the two must not be confused (T-254)
@@ -419,6 +421,10 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
   if (input.families.includes('style')) {
     parts.push(styleCoverage(input, clausePasses));
   }
+  // T-474 — arithmetic, said in the plan like every other family
+  if (input.families.includes('stale_grounding')) {
+    parts.push('every cited source compared with the library as it stands now');
+  }
   if (input.attachedDocuments > 0) {
     parts.push(
       `${input.attachedDocuments} attached document${input.attachedDocuments === 1 ? '' : 's'}, quoted and never cited`,
@@ -496,6 +502,9 @@ export function coverageAfterQaCheck(result: {
   attachedUploads?: readonly string[];
   discarded: number;
   contradictionGroups: number;
+  /** T-474 — cited claims the stale-grounding check examined; absent where the
+   * family was not run, so the sentence stays silent about it */
+  staleClaimsChecked?: number;
   /**
    * T-469 — the run's reach, as it turned out, rendered by the one function
    * every surface uses. Said only where the corpus check ran.
@@ -530,6 +539,11 @@ export function coverageAfterQaCheck(result: {
   // named the file, the result names it too, or the two stop being comparable.
   if (result.attachedUploads !== undefined && result.attachedUploads.length > 0) {
     parts.push(`attached: ${result.attachedUploads.join(', ')} — never grounds, never cited`);
+  }
+  if (result.staleClaimsChecked !== undefined) {
+    parts.push(
+      `${result.staleClaimsChecked} cited claim${result.staleClaimsChecked === 1 ? '' : 's'} checked for out-of-date sources`,
+    );
   }
   if (result.contradictionGroups > 1) {
     parts.push(`sections compared in ${result.contradictionGroups} groups`);

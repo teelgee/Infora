@@ -22,9 +22,10 @@
 //     the kind means a new event over an existing kind (lock-flipped, over a
 //     sandbox document) needs no new code here either.
 //
-// ⚠ **Nothing writes a row yet.** T-330 is the emitter and waits on T-323 (the
-// SES transport). The record and its surface ship first, deliberately — the
-// board's own sequencing note: the acts ship first and the telling follows.
+// **T-474 wrote the first producer** (`raiseNotification`, below): the fourth
+// pilot event, `cited-document-superseded`, raised in-platform when the owner
+// supersedes or withdraws a library document. T-330's email emitter still waits
+// on T-323 (the SES transport); the in-platform record does not.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -42,6 +43,7 @@ import type {
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
+import { groupByOrganisation, readImpact, versionIdsOfContainer } from '@infora/knowledge';
 import { canSeeContainer } from './cycle';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
@@ -350,4 +352,104 @@ export function notificationRoutes(deps: { db: Db }) {
   });
 
   return app;
+}
+
+// ── T-474 — the first producer ──────────────────────────────────────────────
+
+/**
+ * Write one notification row. The row stores a pointer and nothing else (§3):
+ * the words on screen are resolved live from the subject by the readers above.
+ */
+export async function raiseNotification(
+  deps: { db: Db },
+  input: {
+    recipientParticipantId: string;
+    eventType: NotificationEventType;
+    subjectKind: NotificationSubjectKind;
+    subjectId: string;
+  },
+): Promise<void> {
+  await deps.db.insert(s.notifications).values(input);
+}
+
+/**
+ * "A document your organisation cited was superseded" (ADR-0049's amendment of
+ * 2026-10-24) — raised on supersession, withdrawal, or the owner's acceptance
+ * of a proposed withdrawal.
+ *
+ * **One notification per affected organisation**, pointing at ONE of that
+ * organisation's own affected working documents — the most recently edited —
+ * and addressed to that document's author (or, where the author has left the
+ * project, to the organisation's super users there). Each organisation is told
+ * about its own work only: the impact is computed per organisation by
+ * `groupByOrganisation`, which is the one place all slices exist at once, and
+ * nothing here ever carries one organisation's slice to another.
+ *
+ * **The organisation that did the act is told nothing about it** — the
+ * 2026-08-27 exclusion: a person is never notified of their own organisation's
+ * deliberate act. It still sees the impact in the dialog it acts from.
+ *
+ * ⚠ **No count rides the notification.** The store holds a pointer and no
+ * payload (§3), so "and 2 more" would need either a copy of content outside the
+ * subject's access path or a column, and neither was drawn. The notification
+ * names one document; the document's own Checks tab lists the rest.
+ *
+ * Returns the number of organisations told.
+ */
+export async function raiseCitedDocumentSuperseded(
+  deps: { db: Db },
+  act: { containerId: string; projectId: string; actingOrganisationId: string },
+): Promise<number> {
+  const versionIds = await versionIdsOfContainer(deps.db, act.containerId);
+  const slices = groupByOrganisation(await readImpact(deps.db, versionIds));
+  let told = 0;
+  for (const [organisationId, things] of slices) {
+    if (organisationId === act.actingOrganisationId) continue;
+    // a notification points at a working document; an organisation whose only
+    // affected things are past answers has none to point at
+    const draft = things.find((thing) => thing.kind === 'draft');
+    if (draft === undefined) continue;
+    const [document] = await deps.db
+      .select({ projectId: s.sandboxDocuments.projectId })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, draft.id))
+      .limit(1);
+    if (document?.projectId !== act.projectId) continue;
+    let recipient: string | undefined;
+    if (draft.authorParticipantId !== undefined) {
+      const [author] = await deps.db
+        .select({ id: s.participants.id })
+        .from(s.participants)
+        .where(and(eq(s.participants.id, draft.authorParticipantId), isNull(s.participants.removedAt)))
+        .limit(1);
+      recipient = author?.id;
+    }
+    const recipients =
+      recipient !== undefined
+        ? [recipient]
+        : (
+            await deps.db
+              .select({ id: s.participants.id })
+              .from(s.participants)
+              .innerJoin(s.users, eq(s.users.id, s.participants.userId))
+              .where(
+                and(
+                  eq(s.participants.projectId, act.projectId),
+                  eq(s.users.organisationId, organisationId),
+                  eq(s.participants.elevated, true),
+                  isNull(s.participants.removedAt),
+                ),
+              )
+          ).map((row) => row.id);
+    for (const recipientParticipantId of recipients) {
+      await raiseNotification(deps, {
+        recipientParticipantId,
+        eventType: 'cited-document-superseded',
+        subjectKind: 'sandbox-document',
+        subjectId: draft.id,
+      });
+    }
+    if (recipients.length > 0) told += 1;
+  }
+  return told;
 }

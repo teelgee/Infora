@@ -44,7 +44,14 @@
 //     than inline pixel values — several of which (6px, 2px, 3px) were not on
 //     the scale at all.
 import { useState } from 'react';
-import type { CheckFamily, Finding, MechanicalFix, RunReach } from '@infora/contracts';
+import type {
+  CheckFamily,
+  Finding,
+  MechanicalFix,
+  RunReach,
+  StaleGroundingItem,
+  StaleGroundingResponse,
+} from '@infora/contracts';
 import { CHECK_FAMILY_CATALOGUE, reachStatement } from '@infora/contracts';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge, Button, RuleCard, SourceChip, TextArea } from '@infora/ui';
@@ -64,18 +71,58 @@ export type FindingsPanelProps = {
   drifted: string[];
   /** T-470 — what the check run behind these findings read, when this reader made it */
   reach?: RunReach | null;
+  /** T-474 — the stale-grounding comparison run at read time; not a saved finding */
+  stale?: StaleGroundingResponse | null;
+  onLocateStale?: (item: StaleGroundingItem) => void;
 };
 
 const LABELS = new Map(CHECK_FAMILY_CATALOGUE.map((entry) => [entry.family, entry.label]));
 const isMechanical = (finding: Finding): finding is Finding & { fix: MechanicalFix } =>
   finding.fix?.kind === 'mechanical';
 
+/**
+ * T-474 — out-of-date sources, computed when the tab is opened. It says so
+ * ("computed now, not a saved finding") because it is not one: it has no run
+ * behind it, cannot be dismissed, and clears itself when the sentence is
+ * edited or the source is current again. Saved findings are the checker's.
+ */
+function LiveStale(props: { stale: StaleGroundingResponse; onLocate?: (item: StaleGroundingItem) => void }) {
+  const { stale } = props;
+  return (
+    <section className="findings-stale" aria-label="Out-of-date sources">
+      <p className="findings-count">
+        <strong>Out-of-date sources</strong> — computed now, not a saved finding.{' '}
+        {stale.items.length === 0
+          ? `None of the ${stale.claimsChecked} cited ${stale.claimsChecked === 1 ? 'claim rests' : 'claims rest'} on a source that has changed.`
+          : `${stale.items.length} ${stale.items.length === 1 ? 'sentence rests' : 'sentences rest'} on a source that has changed.`}
+      </p>
+      {stale.items.map((item) => (
+        <div key={`${item.citation.id}-${item.anchor.span.start}`} className="finding-card">
+          <Badge tone={item.severity === 'required' ? 'warning' : 'neutral'}>
+            {item.severity === 'required' ? 'Required' : 'Advisory'}
+          </Badge>{' '}
+          <button type="button" className="finding-locate" onClick={() => props.onLocate?.(item)}>
+            {item.located ? `“${item.anchor.verbatim}”` : 'The document'}
+          </button>
+          <p>{item.defect}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function FindingsPanel(props: FindingsPanelProps) {
   const open = props.findings.filter((finding) => finding.status === 'open');
   const closed = props.findings.length - open.length;
+  const live =
+    props.stale !== undefined && props.stale !== null && (props.stale.items.length > 0 || props.stale.claimsChecked > 0) ? (
+      <LiveStale stale={props.stale} {...(props.onLocateStale && { onLocate: props.onLocateStale })} />
+    ) : null;
 
   if (props.findings.length === 0) {
     return (
+      <>
+        {live}
       <p className="findings-empty">
         {/* ⚠ NEVER an unqualified "your document is fine". The coverage
             statement beside a run (T-336) is what says how much was read; this
@@ -83,6 +130,7 @@ export function FindingsPanel(props: FindingsPanelProps) {
         No findings have been recorded against this draft. The QA checker writes them here when it
         runs, with a statement of what it covered beside them.
       </p>
+      </>
     );
   }
 
@@ -90,6 +138,7 @@ export function FindingsPanel(props: FindingsPanelProps) {
 
   return (
     <div className="findings-panel">
+      {live}
       <p className="findings-count">
         {open.length} open {open.length === 1 ? 'finding' : 'findings'}
         {closed > 0 && `, ${closed} resolved`}. Each one points into the draft — click it to go

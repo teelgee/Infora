@@ -1,6 +1,6 @@
 // T-310 — THE CHECK FAMILIES AND THEIR GRAIN (ADR-0053 §2).
 //
-// *In plain terms: the QA checker does not do one thing. It does five, and they
+// *In plain terms: the QA checker does not do one thing. It does six, and they
 // are different enough that they cannot be run the same way — one reads a
 // section against the writing rules, one reads a section against the project
 // record, one reads the whole document at once looking for it contradicting
@@ -27,7 +27,7 @@
 // off, and ADR-0053 §2 makes every one of them switchable.
 
 /**
- * The five, in the order a plan runs them.
+ * The six (T-474 added the sixth), in the order a plan runs them.
  *
  * ⚠ **ADR-0053 §2's prose says "six" and its own table lists five**, which is a
  * counting slip in the record rather than a missing family: the table, and
@@ -44,6 +44,8 @@ export const CHECK_FAMILIES = [
   'self_contradiction',
   'readability',
   'completeness',
+  // T-474 (ADR-0053 A7) — "is anything this draft relies on out of date?"
+  'stale_grounding',
 ] as const;
 export type CheckFamily = (typeof CHECK_FAMILIES)[number];
 
@@ -54,7 +56,10 @@ export type CheckGrain =
   /** the section summaries, once — self-contradiction's whole-document view */
   | 'summaries'
   /** the whole draft, in code */
-  | 'document';
+  | 'document'
+  /** T-474 — one citing sentence: a finding of this family points at the
+   * sentence whose source has since been replaced */
+  | 'sentence';
 
 /** Whether a family spends anything. Fixed per capability at design time. */
 export type CheckExecution = 'model' | 'code';
@@ -114,6 +119,14 @@ export const CHECK_FAMILY_CATALOGUE: readonly CheckFamilyDescriptor[] = [
     description:
       'Looks for sections the template expects and the draft does not have, and for placeholder text left behind. Arithmetic, not AI.',
     grain: 'document',
+    execution: 'code',
+  },
+  {
+    family: 'stale_grounding',
+    label: 'Out-of-date sources',
+    description:
+      'Looks at every source this draft’s accepted suggestions cite, and flags the sentence where that source has since been superseded, withdrawn or replaced by a newer revision. Arithmetic, not AI.',
+    grain: 'sentence',
     execution: 'code',
   },
 ];

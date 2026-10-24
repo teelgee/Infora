@@ -187,11 +187,40 @@ describe('🔒 split rather than drop (ADR-0053 §5)', () => {
   });
 });
 
+describe('T-474 — stale grounding is a code family, planned like any other', () => {
+  it('adds no model call and no cost, and the coverage sentence says it ran', () => {
+    const only = planQaCheck(input({ families: ['stale_grounding'] }));
+    // no section reads, no comparison: just the arithmetic step, which is free
+    expect(only.passes).toEqual([]);
+    expect(only.groups).toEqual([]);
+    const measure = only.plan.steps.find((step) => step.key === 'measure')!;
+    expect(measure.worker).toBe('qa_document_check');
+    expect(measure.estimate).toMatchObject({ calls: 0, cost: 0 });
+    expect(measure.label).toContain('cited sources are still current');
+    expect(only.plan.coverage).toContain('every cited source compared with the library as it stands now');
+    expect(only.plan.cost.total).toBe(0);
+  });
+
+  it('is silent about the family where it was switched off', () => {
+    const without = planQaCheck(input({ families: ['readability'] }));
+    expect(without.plan.coverage).not.toContain('cited source');
+  });
+
+  it('is counted after the run, in the same shape', () => {
+    const sentence = coverageAfterQaCheck({
+      sectionsRead: 4, sectionsPlanned: 4, checksRun: 1, clausesRead: 0, clausesTotal: 0, clausePasses: 1,
+      passagesRead: 0, sectionsWithNoPassages: 0, attachedRead: 0, discarded: 0, contradictionGroups: 1,
+      staleClaimsChecked: 3,
+    });
+    expect(sentence).toContain('3 cited claims checked for out-of-date sources');
+  });
+});
+
 describe('coverage is stated twice, in the same shape', () => {
   it('before the run: sections, checks, the record’s reach and the clause ratio', () => {
     const { plan } = planQaCheck(input());
     expect(plan.coverage).toContain('4 sections');
-    expect(plan.coverage).toContain('5 checks');
+    expect(plan.coverage).toContain('6 checks');
     expect(plan.coverage).toContain('the library searched');
     expect(plan.coverage).toContain('40 documents can be read.');
     expect(plan.coverage).toContain('statement by statement');

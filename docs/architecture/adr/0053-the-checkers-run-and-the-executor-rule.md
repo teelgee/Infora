@@ -237,3 +237,14 @@ moves the tool to the deferred register, where its design question
 screen changes. The same instruction opened an exploration of an **app
 builder** in Tools, which may become the extractor tool's eventual home —
 recorded on the deferred register's builder entry, not here.
+
+## Addendum (2026-10-24 — ruled by Claude under the owner's delegation of 2026-10-23, the best-in-class build)
+
+*In plain terms: the checker gains one more kind of check that needs no AI — "is anything this draft relies on out of date?" — and, as an option that is off unless you switch it on, a second AI pass that tries to prove each judgement finding wrong before you see it. The launcher says plainly which checks are settled arithmetic and which rest on the AI's reading.*
+
+**A7 — `stale_grounding` is a code-executed check family.** It joins the catalogue with `execution: code`, grain: the citing sentence; it reads the draft's recorded citations (T-468's chunk-grain audit) against the library's current state and costs no model call. ADR-0048's amendment of the same day defines the finding; the plan declares the family like any other, and the coverage statement counts it.
+
+**A8 — The strength map.** The launcher shows, per check family and per rule kind (ADR-0054's five: term, pattern, structure and measured are code; judgement rests on a model's reading), whether a finding of that kind is *settled in code* or *the model's reading* — the "No AI" badge generalised into a map a non-engineer can read before choosing. Nothing in the plan changes; the map is a description of §4's execution column.
+
+**A9 — The disproving pass, off by default.** A launcher option: for each **judgement** finding the run raises, one further model call that argues the finding is wrong, with the draft's own text and the rule as evidence; a finding the pass disproves is **withdrawn before the person sees it**, recorded on the run with the pass's reasoning, and the coverage statement counts the withdrawals ("12 raised, 3 withdrawn by the disproving pass"). It is declared in the plan as its own step — the plan stays computed in code — and because it is optional and additional, **its cost is shown next to its toggle before the run.** That is a narrow, stated exception to A3, which removed the price line from the plan screens: A3 stands for the base plan; a person switching on a pass that doubles the judgement calls is owed the figure for that pass, there and nowhere else. Off, nothing is shown and nothing changes.
+
