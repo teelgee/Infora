@@ -28,6 +28,8 @@ import { LensPicker, useLenses } from '../lens-picker';
 import type { LensChoice } from '../lens-picker';
 import { useMe } from '../session';
 import { SourcePanel } from '../source-panel';
+import { useOpenCitation } from '../open-citation';
+import { cardFor } from '../source-card';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 type Message =
@@ -53,7 +55,12 @@ export function AskScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094/T-105)
+  const [sourceOpen, setSourceOpen] = useState<{ versionId: string; chunkId?: string } | null>(null); // fallback only (T-094/T-105)
+  // T-468 — a citation click lands on the passage, on the document page; the
+  // source panel opens only if that cannot be resolved
+  const openCitation = useOpenCitation((versionId, chunkId) =>
+    setSourceOpen(chunkId === undefined ? { versionId } : { versionId, chunkId }),
+  );
   // T-249 — the label-propagation refusal, stated where the action was taken
   const [editorRefusal, setEditorRefusal] = useState<string | null>(null);
   // T-283 — the active Lens. Deliberately NOT persisted on the conversation:
@@ -281,7 +288,7 @@ export function AskScreen() {
                   run={message.run}
                   lens={message.lens}
                   plan={message.plan}
-                  onOpenSource={setSourceOpen}
+                  onOpenSource={openCitation}
                   destination={destination}
                   onOpenInEditor={(overrideReason) => void openInEditor(message.run, overrideReason)}
                 />
@@ -347,7 +354,7 @@ export function AskScreen() {
 
       {/* T-105 — the source panel: the clicked source, rendered beside the chat */}
       {sourceOpen !== null && (
-        <SourcePanel versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
+        <SourcePanel versionId={sourceOpen.versionId} chunkId={sourceOpen.chunkId} onClose={() => setSourceOpen(null)} />
       )}
     </div>
   );
@@ -366,7 +373,7 @@ function AgentMessage(props: {
   lens: LensChoice;
   plan: Plan | null;
   destination: Destination;
-  onOpenSource: (versionId: string) => void;
+  onOpenSource: (versionId: string, chunkId?: string) => void;
   onOpenInEditor: (overrideReason?: string) => void;
 }) {
   const { run } = props;
@@ -381,7 +388,12 @@ function AgentMessage(props: {
       {run.response !== null && (
         <div className="bubble">
           {/* each source rides the claim it backs (T-095) */}
-          <CitedProse content={run.response} citations={run.citations} onOpenSource={props.onOpenSource} />
+          <CitedProse
+            content={run.response}
+            citations={run.citations}
+            onOpenSource={props.onOpenSource}
+            renderCard={cardFor}
+          />
         </div>
       )}
       {run.response === null && (

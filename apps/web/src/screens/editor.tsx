@@ -58,6 +58,8 @@ import { WorkingSet } from '../working-set';
 import { useMe } from '../session';
 import { PromotionWindow } from '../promotion-window';
 import { SourceModal } from '../source-modal';
+import { useOpenCitation } from '../open-citation';
+import { cardFor } from '../source-card';
 import { formatDate, formatDateTime, sandboxLifecycleBadge } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
@@ -236,7 +238,11 @@ export function EditorScreen() {
   const [flashThread, setFlashThread] = useState<string | null>(null);
   const [chatLog, setChatLog] = useState<Array<{ id: number; who: 'user' | 'agent'; text: string; run?: Run }>>([]);
   const [pending, setPending] = useState(false);
-  const [sourceOpen, setSourceOpen] = useState<string | null>(null); // versionId (T-094)
+  const [sourceOpen, setSourceOpen] = useState<{ versionId: string; chunkId?: string } | null>(null); // fallback only (T-094)
+  // T-468 — a citation click lands on the passage, on the document page
+  const openCitation = useOpenCitation((versionId, chunkId) =>
+    setSourceOpen(chunkId === undefined ? { versionId } : { versionId, chunkId }),
+  );
   const [refining, setRefining] = useState<string | null>(null); // suggestion id (T-096)
   const [refineText, setRefineText] = useState('');
   const [previewing, setPreviewing] = useState(false); // canvas: write / preview (T-096)
@@ -593,7 +599,7 @@ export function EditorScreen() {
         />
       )}
       {sourceOpen !== null && (
-        <SourceModal versionId={sourceOpen} onClose={() => setSourceOpen(null)} />
+        <SourceModal versionId={sourceOpen.versionId} chunkId={sourceOpen.chunkId} onClose={() => setSourceOpen(null)} />
       )}
       {editSuggestion && (
         <EditSuggestionModal
@@ -900,7 +906,8 @@ export function EditorScreen() {
                 <CitedProse
                   content={suggestion.content}
                   citations={suggestion.citations}
-                  onOpenSource={setSourceOpen}
+                  onOpenSource={openCitation}
+                  renderCard={cardFor}
                 />
                 {suggestion.rationale.includes('withheld') &&
                   !suggestion.rationale.includes('nothing was withheld') && (
@@ -1010,6 +1017,7 @@ export function EditorScreen() {
             <ReviewResponsePanel round={reviewRound} onResponded={() => void load()} />
           ) : panelTab === 'checks' ? (
             <FindingsPanel
+              onOpenSource={openCitation}
               findings={findings}
               busy={findingBusy}
               focused={focusedFinding}

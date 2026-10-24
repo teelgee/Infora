@@ -3,6 +3,7 @@
 // (the cite leaf computes spans against the same paragraph-joined content).
 // Claims without a citation (labelled open-world in chat) render plain; a
 // citation without a span — none are written today — falls back to trailing.
+import type { ReactNode } from 'react';
 import type { Citation } from '@infora/contracts';
 import { Markdown } from './markdown';
 import { SourceChip } from './primitives';
@@ -12,7 +13,9 @@ type Segment = { text: string; citations: Citation[] };
 export function CitedProse(props: {
   content: string;
   citations: Citation[];
-  onOpenSource?: (versionId: string) => void;
+  onOpenSource?: (versionId: string, chunkId?: string) => void;
+  /** T-468 — the card a library or authority source opens on hover/focus */
+  renderCard?: (citation: Citation) => ReactNode;
 }) {
   const { spanned, trailing } = split(props.citations);
   const segments = segmentBySpans(props.content, spanned);
@@ -22,26 +25,32 @@ export function CitedProse(props: {
       {segments.map((segment, at) => (
         <div key={at} className="cited-claim">
           <Markdown>{segment.text}</Markdown>
-          {segment.citations.map((citation) => chip(citation, props.onOpenSource))}
+          {segment.citations.map((citation) => chip(citation, props.onOpenSource, props.renderCard))}
         </div>
       ))}
       {trailing.length > 0 && (
-        <div style={{ marginTop: 4 }}>{trailing.map((citation) => chip(citation, props.onOpenSource))}</div>
+        <div style={{ marginTop: 4 }}>{trailing.map((citation) => chip(citation, props.onOpenSource, props.renderCard))}</div>
       )}
     </div>
   );
 }
 
-function chip(citation: Citation, onOpenSource?: (versionId: string) => void) {
+function chip(
+  citation: Citation,
+  onOpenSource?: (versionId: string, chunkId?: string) => void,
+  renderCard?: (citation: Citation) => ReactNode,
+) {
   const library = 'versionId' in citation.source;
   const source = citation.source;
   return (
     <SourceChip
       key={citation.id}
       corpus={library ? 'library' : 'authority'}
+      card={renderCard?.(citation)}
+      cardLabel={`Source: ${'versionId' in source ? source.documentReference : source.authorityRef}`}
       onClick={
         onOpenSource !== undefined && 'versionId' in source
-          ? () => onOpenSource(source.versionId)
+          ? () => onOpenSource(source.versionId, citation.chunkId)
           : undefined
       }
     >

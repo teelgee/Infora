@@ -6,7 +6,9 @@
 // text for the UI (contracts §2).
 import type { Id, Step } from '@infora/contracts';
 
-export type SourceRef = { versionId: Id } | { authorityRef: string };
+// T-468 — a claim's ref may carry the passage (chunk) it rested on; admission is
+// still by document (`refKey`), the chunk rides through to the citation record
+export type SourceRef = ({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id };
 export type CheckedClaim = { text: string; sourceRef?: SourceRef };
 export type RailOutcome = Step['railOutcomes'][number];
 

@@ -1515,6 +1515,22 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-24 (T-468) — `GET /versions/:versionId/passages/:chunkId`; `Citation`
+  gains `chunkId`.** *Plainly: the passage a citation was written from, read back
+  so a card can show it.* The **reason this reads one row by id and never
+  searches** is that a card's job is to show what the run read; a search run
+  today would show what a query finds today, which after a re-ingest or a change
+  of embedding model is a different passage dressed as the same citation. The
+  **reason `citations.chunk_id` has no foreign key** is that a re-ingest replaces
+  a version's chunk rows, and the citation must keep saying which passage it
+  recorded even once that passage is gone — the read then answers `held: false`
+  and the card says so in words, instead of the record losing the fact. The
+  **reason the chunk must belong to the version named** is that the version is
+  what the requester was checked against; a chunk id from another document must
+  not ride through a version they can see. `Citation.chunkId` is optional
+  because rows written before this have none and an authority reference never
+  has one.
+
 - **2026-10-23 (T-467) — `GET /projects/:projectId/work-queue`.** *Plainly: what
   is waiting on you on this project, the documents that moved, and your saved
   views, in one answer.* The **reason this is one aggregating read and not seven

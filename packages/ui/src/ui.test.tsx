@@ -17,6 +17,9 @@ import {
   CommandBar,
   DropdownMenu,
   Field,
+  HoverCard,
+  hoverCardReducer,
+  CitedProse,
   IconButton,
   MadeCard,
   Modal,
@@ -37,6 +40,7 @@ import {
   segmentStep,
   SelectInput,
   Skeleton,
+  RuleCard,
   SourceChip,
   SuggestionCard,
   Table,
@@ -949,5 +953,101 @@ describe('T-421 — the segmented control', () => {
     expect(segmentStep('ArrowUp', 1, 2)).toBe(0);
     expect(segmentStep('Enter', 0, 2)).toBe(0); // unknown key moves nowhere
     expect(segmentStep('ArrowRight', 0, 0)).toBe(0); // empty group is inert
+  });
+});
+
+// T-468 — the source card's frame and the rule card
+describe('HoverCard, SourceChip and RuleCard (T-468)', () => {
+  it('the card opens on keyboard focus and on hover, and closes on Escape or leaving', () => {
+    const closed = { open: false };
+    expect(hoverCardReducer(closed, { type: 'focus' })).toEqual({ open: true });
+    expect(hoverCardReducer(closed, { type: 'hover-delay-elapsed' })).toEqual({ open: true });
+    const open = { open: true };
+    expect(hoverCardReducer(open, { type: 'escape' })).toEqual({ open: false });
+    expect(hoverCardReducer(open, { type: 'leave-delay-elapsed' })).toEqual({ open: false });
+    // a leave with nothing open changes nothing
+    expect(hoverCardReducer(closed, { type: 'leave-delay-elapsed' })).toBe(closed);
+    // a click toggles — an authority chip has no page to open, so its click opens the card (review fix)
+    expect(hoverCardReducer(closed, { type: 'click' })).toEqual({ open: true });
+    expect(hoverCardReducer(open, { type: 'click' })).toEqual({ open: false });
+  });
+
+  it('a card is mounted only while open, so its passage is fetched on first open', () => {
+    const html = renderToStaticMarkup(
+      <HoverCard label="Source: WA-1" card={<span>THE-PASSAGE</span>}>
+        <button type="button">chip</button>
+      </HoverCard>,
+    );
+    expect(html).toContain('chip');
+    expect(html).not.toContain('THE-PASSAGE');
+  });
+
+  it('a source chip is a real button, so the keyboard reaches it', () => {
+    const html = renderToStaticMarkup(
+      <SourceChip corpus="library" card={<span>x</span>}>
+        WA-GEO-GIR-004
+      </SourceChip>,
+    );
+    expect(html).toContain('<button type="button" class="cite lib"');
+    expect(renderToStaticMarkup(<SourceChip corpus="authority">EIA Regs</SourceChip>)).toContain('<button type="button" class="cite auth"');
+  });
+
+  it('a cited claim hands its chip the card renderer and the click carries the chunk', () => {
+    const html = renderToStaticMarkup(
+      <CitedProse
+        content="A claim."
+        citations={[
+          { id: 'c1', chunkId: 'k1', claimSpan: { start: 0, end: 8 }, source: { versionId: 'v1', documentReference: 'WA-1' } },
+        ]}
+        onOpenSource={() => undefined}
+        renderCard={() => <span>CARD</span>}
+      />,
+    );
+    expect(html).toContain('WA-1');
+    expect(html).toContain('<button');
+  });
+
+  it('clicking a cited chip passes the chunk the citation recorded', () => {
+    const opened: Array<[string, string | undefined]> = [];
+    const tree = CitedProse({
+      content: 'A claim.',
+      citations: [
+        { id: 'c1', chunkId: 'k1', claimSpan: { start: 0, end: 8 }, source: { versionId: 'v1', documentReference: 'WA-1' } },
+        { id: 'c2', claimSpan: { start: 0, end: 8 }, source: { versionId: 'v2', documentReference: 'WA-2' } },
+      ],
+      onOpenSource: (versionId, chunkId) => opened.push([versionId, chunkId]),
+    });
+    // walk the returned element tree for every SourceChip and press it
+    const chips: Array<{ props: { onClick?: () => void } }> = [];
+    const walk = (node: unknown): void => {
+      if (node === null || typeof node !== 'object') return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      const el = node as { type?: unknown; props?: { children?: unknown; onClick?: () => void } };
+      if (el.type === SourceChip) chips.push(el as { props: { onClick?: () => void } });
+      walk(el.props?.children);
+    };
+    walk(tree);
+    chips.forEach((chip) => chip.props.onClick?.());
+    expect(opened).toEqual([
+      ['v1', 'k1'],
+      ['v2', undefined],
+    ]);
+  });
+
+  it('a rule card says on its face it is a rule and not a citation, and is no chip', () => {
+    const firm = renderToStaticMarkup(
+      <RuleCard clause="§4.2" scope="organisation">
+        Avoid the passive voice.
+      </RuleCard>,
+    );
+    expect(firm).toContain('From your firm’s rulebook — a rule, not a citation');
+    expect(firm).toContain('quoted-rule');
+    expect(firm).not.toContain('class="cite');
+    const project = renderToStaticMarkup(
+      <RuleCard clause={null} scope="project">
+        Use “the scheme”.
+      </RuleCard>,
+    );
+    expect(project).toContain('project style guide');
   });
 });

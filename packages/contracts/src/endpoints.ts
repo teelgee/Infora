@@ -650,6 +650,36 @@ export type GetVersionResponse = {
   isCurrent: boolean;
 };
 
+// GET /versions/:versionId/passages/:chunkId — the passage a citation recorded
+// (T-468, 2026-10-24). A citation row now carries the id of the stored chunk it
+// was written from; this reads THAT row, by id, through the version's own
+// visibility — it never searches, so the card shows what the run read and not
+// what a query would find today. The chunk must belong to the version named
+// (else 404). `passage` is null with `held: false` where a re-ingest has since
+// replaced the chunk rows: the card then says so in words rather than showing a
+// neighbour. `verbatim` is the source text as it really reads at the span, not
+// the chunker's rewritten content. `span` is the character range into the
+// version's content (the document page highlights it); `page` is present only
+// where the source has pages (a docx has none, and none is invented).
+export type GetPassageResponse = {
+  versionId: Id;
+  chunkId: Id;
+  containerId: Id;
+  documentReference: string;
+  documentTitle: string | null;
+  versionReference: string;
+  containerState: 'live' | 'superseded' | 'withdrawn' | 'rejected';
+  isCurrent: boolean;
+  passage: {
+    chunkIndex: number;
+    page?: number;
+    paragraph?: number;
+    span?: { start: number; end: number };
+    verbatim: string;
+  } | null;
+  held: boolean;
+};
+
 // ── Auth & session (M1, M6) ────────────────────────────────────────────────
 //
 // POST   /auth/session — skeleton login for the seeded users (plan.md's recorded

@@ -9,7 +9,9 @@ import { composeLensOverlay } from '@infora/lenses';
 import { costOf } from '@infora/model';
 import type { EgressFacts, ModelIdentity, ModelRates, RouteAttempt, Router } from '@infora/model';
 
-export type SourceRef = { versionId: Id } | { authorityRef: string };
+// T-468 — `chunkId` is the numbered passage the claim's marker named, so the cite
+// step can record WHICH passage backed the claim and not only which document
+export type SourceRef = ({ versionId: Id } | { authorityRef: string }) & { chunkId?: Id };
 export type DraftedClaim = { text: string; sourceRef?: SourceRef };
 
 export type GroundedDraftResult = {
@@ -123,7 +125,12 @@ export async function groundedDraft(
     (item): item is typeof item & { source: NonNullable<typeof item.source> } =>
       item.channel === 'grounded' && item.source !== undefined,
   );
-  const sourceByMarker = new Map(grounded.map((item, at) => [`S${at + 1}`, item.source]));
+  const sourceByMarker = new Map<string, SourceRef>(
+    grounded.map((item, at) => [
+      `S${at + 1}`,
+      item.chunkId === undefined ? item.source : { ...item.source, chunkId: item.chunkId },
+    ]),
+  );
 
   const sourceBlock = grounded
     .map((item, at) => `[S${at + 1}] ${item.content}`)

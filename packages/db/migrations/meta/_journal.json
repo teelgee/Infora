@@ -526,6 +526,13 @@
       "when": 1792780412301,
       "tag": "0074_container-state-changes",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1792829843693,
+      "tag": "0075_citation-chunk",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@
 // vocabulary (styles.css is the visual spec); behaviour arrives via props
 // from the surface, never inside the kit.
 import type { ReactNode } from 'react';
+import { HoverCard } from './hover-card';
 
 // The five-variant closed set from design-tokens.json's component.badge.status
 // (design-rules.md §A/§F.6) — not a token value itself, so it lives here next
@@ -70,12 +71,50 @@ export function SourceChip(props: {
   corpus: 'library' | 'authority';
   children: ReactNode;
   onClick?: () => void;
+  /** T-468 — the card that opens on hover or keyboard focus (a `SourceCard`);
+   * `cardLabel` is its accessible name */
+  card?: ReactNode;
+  cardLabel?: string;
 }) {
   const lib = props.corpus === 'library';
-  return (
-    <span className={`cite ${lib ? 'lib' : 'auth'}`} onClick={props.onClick}>
+  // a real button (T-468): reachable by keyboard, so the card is too
+  const chip = (
+    <button type="button" className={`cite ${lib ? 'lib' : 'auth'}`} onClick={props.onClick}>
       {lib ? '▤' : '§'} {props.children}
-    </span>
+    </button>
+  );
+  return props.card === undefined ? (
+    chip
+  ) : (
+    <HoverCard label={props.cardLabel ?? 'Source'} card={props.card} toggleOnClick={props.onClick === undefined}>
+      {chip}
+    </HoverCard>
+  );
+}
+
+/** T-468 — a quoted rule from the firm's rulebook or the project's style guide
+ * (ADR-0048 §5). Deliberately NOT a source chip and not styled like one: a rule
+ * steers the author, asserts nothing about the scheme and resolves to no
+ * document, so it carries its own label saying it is a rule and not a citation. */
+export function RuleCard(props: {
+  clause: string | null;
+  scope: 'organisation' | 'project';
+  children: ReactNode;
+}) {
+  return (
+    <blockquote className="quoted-rule rule-card finding-evidence">
+      <div className="rule-card-label">
+        {props.scope === 'project'
+          ? 'From the project style guide — a rule, not a citation'
+          : 'From your firm’s rulebook — a rule, not a citation'}
+      </div>
+      {props.clause !== null && (
+        <div>
+          <span className="mono">{props.clause}</span>
+        </div>
+      )}
+      <div>“{props.children}”</div>
+    </blockquote>
   );
 }
 

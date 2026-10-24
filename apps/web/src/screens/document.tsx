@@ -22,10 +22,11 @@
 // read (or the org-private qa-row read for an internal series), and a person
 // outside the share gets "not on a plan you can see", never a page.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router';
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router';
 import type {
   ContainerStateChange,
   ExternalIssue,
+  GetPassageResponse,
   GetVersionResponse,
   MeResponse,
   PlanRow,
@@ -41,6 +42,8 @@ import { describeApiError, errorCode } from '../api-errors';
 import { OntologyPanel } from '../ontology-panel';
 import { useMe } from '../session';
 import { VisibilityPanel } from '../visibility-panel';
+import { SourceModal } from '../source-modal';
+import { loadPassage, PassageText } from '../source-card';
 import { TransmittalRow } from './deliverable-status';
 import { DeliverableDetail } from './plan';
 import { usePaletteActions } from '../command-palette';
@@ -77,8 +80,21 @@ export function DocumentScreen() {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('overview');
+  // T-468 — a citation lands here as ?version=<id>&passage=<chunk>: open that
+  // version (even a superseded one outside the cycle's rounds) at the passage
+  const [searchParams] = useSearchParams();
+  const citedVersionId = searchParams.get('version');
+  const citedChunkId = searchParams.get('passage');
+  const [cited, setCited] = useState<GetPassageResponse | null>(null);
+  const [tab, setTab] = useState<Tab>(citedVersionId ? 'versions' : 'overview');
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setCited(null);
+    if (citedVersionId && citedChunkId) {
+      void loadPassage(citedVersionId, citedChunkId).then(setCited, () => setCited(null));
+    }
+  }, [citedVersionId, citedChunkId]);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -106,6 +122,7 @@ export function DocumentScreen() {
       setLoaded(true);
       const wanted = new Set<string>(cycleRead?.rounds.map((r) => r.versionId) ?? []);
       if (planRow?.currentVersion) wanted.add(planRow.currentVersion.versionId);
+      if (citedVersionId) wanted.add(citedVersionId);
       const entries = await Promise.all(
         [...wanted].map(async (v) => [v, await api.renditions(v).then((r) => r.items, () => [])] as const),
       );
@@ -113,7 +130,7 @@ export function DocumentScreen() {
     } catch (error) {
       setLoadError(error instanceof RequestError ? describeApiError(errorCode(error)) : 'Could not load this document.');
     }
-  }, [containerId, projectId]);
+  }, [containerId, projectId, citedVersionId]);
 
   useEffect(() => {
     void reload();
@@ -140,8 +157,18 @@ export function DocumentScreen() {
         note: cycle?.state === 'accepted' ? 'Issued on acceptance — current' : 'Current',
       });
     }
+    // T-468 — a cited version that is no longer in the rounds or current (a
+    // superseded revision) must still open: the record's citations stay resolvable
+    if (citedVersionId && !out.some((v) => v.versionId === citedVersionId)) {
+      out.push({
+        versionId: citedVersionId,
+        versionReference: cited?.versionReference ?? 'Cited version',
+        createdAt: null,
+        note: 'Cited version',
+      });
+    }
     return out;
-  }, [cycle, row]);
+  }, [cycle, row, citedVersionId, cited]);
 
   // T-466 — this page's actions, in the palette while the page is open. A hook,
   // so it sits above the early returns; the row may still be loading.
@@ -165,6 +192,19 @@ export function DocumentScreen() {
     return (
       <div className="content">
         <p style={{ color: 'var(--text-muted)' }}>{loadError}</p>
+      </div>
+    );
+  }
+  if (row === null && loaded && citedVersionId) {
+    // no plan row this reader can see for the container: never a dead click —
+    // the source view still shows the cited passage and the version's text
+    return (
+      <div className="content">
+        <SourceModal
+          versionId={citedVersionId}
+          chunkId={citedChunkId ?? undefined}
+          onClose={() => void navigate(-1)}
+        />
       </div>
     );
   }
@@ -308,7 +348,11 @@ export function DocumentScreen() {
       )}
 
       {tab === 'versions' && (
-        <VersionsTab versions={versions} renditionsByVersion={renditionsByVersion} />
+        <VersionsTab
+          versions={versions}
+          renditionsByVersion={renditionsByVersion}
+          focus={citedVersionId ? { versionId: citedVersionId, passage: cited } : null}
+        />
       )}
 
       {tab === 'relationships' && (
@@ -381,8 +425,10 @@ function MetaRow(props: { k: string; children: React.ReactNode }) {
 function VersionsTab(props: {
   versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
   renditionsByVersion: Record<string, Rendition[]>;
+  /** T-468 — the cited version and its recorded passage, when arriving from a citation */
+  focus?: { versionId: string; passage: GetPassageResponse | null } | null;
 }) {
-  const [openId, setOpenId] = useState<string | null>(props.versions[0]?.versionId ?? null);
+  const [openId, setOpenId] = useState<string | null>(props.focus?.versionId ?? props.versions[0]?.versionId ?? null);
   const [text, setText] = useState<GetVersionResponse | null>(null);
   const open = props.versions.find((v) => v.versionId === openId) ?? null;
   const renditions = open ? (props.renditionsByVersion[open.versionId] ?? []) : [];
@@ -392,6 +438,8 @@ function VersionsTab(props: {
     setText(null);
     if (open && !pdf) void api.version(open.versionId).then(setText, () => setText(null));
   }, [open, pdf]);
+
+  const passage = open && props.focus?.versionId === open.versionId ? (props.focus.passage?.passage ?? null) : null;
 
   if (props.versions.length === 0) {
     return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No versions yet — nothing has been promoted.</p>;
@@ -429,8 +477,17 @@ function VersionsTab(props: {
       </Card>
       <Card label={open ? `${open.versionReference}` : undefined}>
         {!open ? null : pdf ? (
+          <>
+            {/* an <object> cannot be highlighted inside, so a PDF opens at the
+                cited page and the verbatim passage rides above it */}
+            {passage && (
+              <p className="passage-banner" data-passage-banner>
+                {passage.page !== undefined ? `The cited passage, on page ${passage.page}: ` : 'The cited passage: '}
+                “{passage.verbatim}”
+              </p>
+            )}
           <object
-            data={`/renditions/${pdf.id}/file`}
+            data={`/renditions/${pdf.id}/file${passage?.page !== undefined ? `#page=${passage.page}` : ''}`}
             type="application/pdf"
             style={{ width: '100%', height: '64vh', border: '1px solid var(--border-default)', borderRadius: 6 }}
           >
@@ -438,10 +495,13 @@ function VersionsTab(props: {
               Your browser can’t preview the PDF — <a href={`/renditions/${pdf.id}/file`}>download it</a>.
             </p>
           </object>
+          </>
         ) : native && text === null ? (
           <p style={{ color: 'var(--text-secondary)' }}>
             The native file <span className="mono">.{native.format}</span> is ready — <a href={`/renditions/${native.id}/file`}>download it</a>.
           </p>
+        ) : text && passage ? (
+          <PassageText content={text.content} passage={passage} />
         ) : text ? (
           <Markdown>{text.content}</Markdown>
         ) : (

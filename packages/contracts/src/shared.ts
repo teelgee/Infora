@@ -61,6 +61,9 @@ export type Citation = {
   id: Id;
   source: { versionId: Id; documentReference: string } | { authorityRef: string };
   claimSpan?: { start: number; end: number }; // where in the content it backs
+  // T-468 — the stored passage the citation was written from; absent on older
+  // rows and on an authority reference. Read back by id, never re-retrieved.
+  chunkId?: Id;
 };
 
 export type Step = {

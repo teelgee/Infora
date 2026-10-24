@@ -20,6 +20,8 @@ let conversationId: string; // bound to the work item
 let adHocConversationId: string;
 let sandboxDocumentId: string;
 let versionId: string;
+// T-468 — the passage claim one rested on; no foreign key, so any uuid will do
+const chunkOne = '11111111-2222-4333-8444-555555555555';
 
 beforeAll(async () => {
   const [org] = await db.insert(s.organisations).values({ name: 't045 org' }).returning();
@@ -103,7 +105,7 @@ const leaves = (): ChainLeaves => ({
   draft: async () => ({
     output: {
       claims: [
-        { text: 'Grounded claim one.', sourceRef: { versionId } },
+        { text: 'Grounded claim one.', sourceRef: { versionId, chunkId: chunkOne } },
         { text: 'Grounded claim two.', sourceRef: { versionId } },
         { text: 'An unsupported figure.' }, // withheld by the real verifier
       ],
@@ -145,6 +147,9 @@ describe('cite resolution + Suggestion write (T-045)', () => {
       .where(eq(s.citations.suggestionId, suggestion!.id));
     expect(citations).toHaveLength(2); // the withheld claim earns no citation
     expect(citations.every((c) => c.versionId === versionId && c.authorityRef === null)).toBe(true);
+    // T-468 — the chunk the claim rested on is kept, not dropped at the cite step;
+    // a claim whose source named no chunk records none
+    expect(citations.map((c) => c.chunkId)).toEqual([chunkOne, null]);
     expect(citations.map((c) => c.claimSpan)).toEqual([
       { start: 0, end: 'Grounded claim one.'.length },
       {

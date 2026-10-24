@@ -163,3 +163,24 @@ describe('the steering precedence (T-397, ADR-0029 refined 2026-07-06)', () => {
     }
   });
 });
+
+// T-468 — the numbered passage a claim cites is the chunk the run recorded
+describe('groundedDraft records the passage behind each marker (T-468)', () => {
+  it('a claim carries the chunk of the numbered source its marker named', async () => {
+    const withChunks: AssembledInput = {
+      items: [
+        { channel: 'grounded', corpus: 'library', source: { versionId: 'v-gir' }, chunkId: 'k-1', content: 'PAH exceedances.' },
+        { channel: 'grounded', corpus: 'library', source: { versionId: 'v-gir' }, chunkId: 'k-2', content: 'Gas monitoring.' },
+        { channel: 'grounded', corpus: 'library', source: { versionId: 'v-fra' }, content: 'No chunk recorded.' },
+      ],
+      budget: { tokenLimit: 12000, tokensUsed: 30 },
+    };
+    const router = routerReplying('First. [S1] Second. [S2] Third. [S3]');
+    const out = await groundedDraft(router, { request: 'Draft', retrieved: withChunks });
+    expect(out.claims.map((c) => c.sourceRef)).toEqual([
+      { versionId: 'v-gir', chunkId: 'k-1' },
+      { versionId: 'v-gir', chunkId: 'k-2' },
+      { versionId: 'v-fra' },
+    ]);
+  });
+});

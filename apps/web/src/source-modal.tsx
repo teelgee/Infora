@@ -1,15 +1,18 @@
 // T-094 — a citation chip opens the version it names, in place. Superseded
 // and withdrawn sources render with their state badged: the record's
-// citations stay resolvable even after the library moves on. Hover-rendering
-// of the exact retrieved chunk waits on the chunk-provenance theme (tracker).
+// citations stay resolvable even after the library moves on. Since T-468 the
+// exact recorded passage is shown and marked (the chunk-provenance theme, Q-022).
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import type { GetVersionResponse } from '@infora/contracts';
-import { Badge } from '@infora/ui';
+import type { GetPassageResponse, GetVersionResponse } from '@infora/contracts';
+import { LifecycleBadge } from '@infora/ui';
 import { api } from './api';
+import { passageLocation } from './open-citation';
+import { citedPosition, loadPassage, PassageText, SourceCardBody } from './source-card';
 
-export function SourceModal(props: { versionId: string; onClose: () => void }) {
+export function SourceModal(props: { versionId: string; chunkId?: string | undefined; onClose: () => void }) {
   const [version, setVersion] = useState<GetVersionResponse | null>(null);
+  const [recorded, setRecorded] = useState<GetPassageResponse | null>(null);
   // T-457 — a way through to the document page from a cited version
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -19,6 +22,12 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
     void api.version(props.versionId).then(setVersion);
   }, [props.versionId]);
 
+  // T-468 — the cited passage, marked in the text when the citation recorded one
+  useEffect(() => {
+    setRecorded(null);
+    if (props.chunkId !== undefined) void loadPassage(props.versionId, props.chunkId).then(setRecorded, () => setRecorded(null));
+  }, [props.versionId, props.chunkId]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') props.onClose();
@@ -27,14 +36,7 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [props]);
 
-  const state =
-    version === null
-      ? null
-      : version.containerState === 'withdrawn'
-        ? { tone: 'danger' as const, label: 'Withdrawn' }
-        : version.containerState === 'superseded' || !version.isCurrent
-          ? { tone: 'neutral' as const, label: 'Superseded' }
-          : { tone: 'success' as const, label: 'Live' };
+  const position = version === null ? null : citedPosition(version);
 
   return (
     <div
@@ -76,14 +78,14 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
           <span className="mono" style={{ fontSize: 13 }}>
             {version === null ? 'Loading…' : `${version.documentReference} · ${version.versionReference}`}
           </span>
-          {state !== null && <Badge tone={state.tone}>{state.label}</Badge>}
+          {position !== null && <LifecycleBadge position={position} />}
         {version !== null && projectId !== undefined && (
           <button
             className="linklike"
             style={{ marginLeft: 8, fontSize: 12 }}
             onClick={(e) => {
               e.stopPropagation();
-              void navigate(`/projects/${projectId}/documents/${version.containerId}`);
+              void navigate(passageLocation(projectId, version.containerId, props.versionId, props.chunkId));
             }}
           >
             Open the document page
@@ -107,7 +109,16 @@ export function SourceModal(props: { versionId: string; onClose: () => void }) {
             color: 'var(--text-secondary)',
           }}
         >
-          {version?.content}
+          {props.chunkId !== undefined && (
+            <div style={{ marginBottom: 12, whiteSpace: 'normal' }}>
+              <SourceCardBody versionId={props.versionId} chunkId={props.chunkId} />
+            </div>
+          )}
+          {version !== null && recorded?.passage ? (
+            <PassageText content={version.content} passage={recorded.passage} />
+          ) : (
+            version?.content
+          )}
         </div>
       </div>
     </div>

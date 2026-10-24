@@ -19,6 +19,9 @@ export {
   sandboxDocumentAudience,
   versionsAudience,
 } from './label-facts';
+// T-468 — one recorded passage, by id (never a search)
+export { readChunkPassage } from './passage';
+export type { RecordedPassage } from './passage';
 // T-308 / T-397 — the two steering channels, classified by OWNERSHIP
 // (ADR-0021): the PROJECT's style guide is guiding, the firm's rulebook is
 // informing. ADR-0048 §4 placed the rulebook on guiding and its own dated

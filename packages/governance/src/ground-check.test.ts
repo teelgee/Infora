@@ -86,4 +86,12 @@ describe('groundCheck (T-044)', () => {
       { rail: 'grounding', outcome: 'open_world', detail: 'Cites a phantom.' },
     ]);
   });
+
+  it('a surviving claim keeps the passage it rested on (T-468) — admission is by document, the chunk rides through', () => {
+    const result = groundCheck({
+      claims: [{ text: 'PAHs recorded.', sourceRef: { versionId: 'v-gir', chunkId: 'k-1' } }],
+      sourceSet: [{ versionId: 'v-gir', chunkId: 'k-1' }],
+    });
+    expect(result.surviving).toEqual([{ text: 'PAHs recorded.', sourceRef: { versionId: 'v-gir', chunkId: 'k-1' } }]);
+  });
 });

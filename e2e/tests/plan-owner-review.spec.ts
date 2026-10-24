@@ -37,6 +37,8 @@ test('the owner confirms a proposed reviewer on the deliverable card, and promot
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText(PROJECT).first().click();
   await page.getByRole('link', { name: /Plan/ }).click();
+  // the plan is paged (T-459) and this database accumulates rows: search for the row first
+  await page.locator('input[type=search]').first().fill(`T193-${stamp}`);
   await page.getByRole('row').filter({ hasText: `T193-${stamp}` }).click();
   // T-457 — the row lands on the document page; the card is one click further
   await page.getByRole('button', { name: 'Edit details…' }).click();

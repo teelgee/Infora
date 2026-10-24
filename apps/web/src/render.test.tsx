@@ -873,6 +873,37 @@ describe('T-311 — a quoted rule renders differently from a grounded citation (
     expect(html).not.toContain('quoted-rule');
   });
 
+  // T-468 — an authority reference is an authority chip (§), not a library one,
+  // and it opens a card; a library citation opens a source card
+  it('renders an authority reference as an authority chip, and a library one as a library chip', () => {
+    const html = render({
+      ...base,
+      checkFamily: 'corpus_accuracy',
+      defect: 'x',
+      evidence: {
+        input: 'corpus',
+        citations: [
+          { id: 'c-1', chunkId: 'k-1', source: { versionId: 'v-1', documentReference: 'WA-ENV-WQ-001' } },
+          { id: 'c-2', source: { authorityRef: 'EIA Regs 2017' } },
+        ],
+      },
+    });
+    expect(html).toContain('<button type="button" class="cite lib"');
+    expect(html).toContain('<button type="button" class="cite auth"');
+    expect(html).toContain('EIA Regs 2017');
+  });
+
+  it('a quoted rule carries its label and is not a chip', () => {
+    const html = render({
+      ...base,
+      checkFamily: 'style',
+      defect: 'x',
+      evidence: { input: 'rulebook', clause: '§4.2', quote: 'Avoid the passive voice.', rulebookRef: 'r-1', scope: 'organisation' },
+    });
+    expect(html).toContain('From your firm’s rulebook — a rule, not a citation');
+    expect(html).not.toContain('class="cite');
+  });
+
   it('an attached document is quoted and says on its face that it is not a project source', () => {
     const html = render({
       ...base,

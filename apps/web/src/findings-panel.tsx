@@ -47,7 +47,8 @@ import { useState } from 'react';
 import type { CheckFamily, Finding, MechanicalFix } from '@infora/contracts';
 import { CHECK_FAMILY_CATALOGUE } from '@infora/contracts';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Badge, Button, SourceChip, TextArea } from '@infora/ui';
+import { Badge, Button, RuleCard, SourceChip, TextArea } from '@infora/ui';
+import { cardFor } from './source-card';
 
 export type FindingsPanelProps = {
   findings: Finding[];
@@ -55,6 +56,8 @@ export type FindingsPanelProps = {
   /** the finding the reader just clicked in the text, so the panel can open it */
   focused: { id: string; at: number } | null;
   onLocate: (finding: Finding) => void;
+  /** T-468 — a citation chip lands on its passage on the document page */
+  onOpenSource?: (versionId: string, chunkId?: string) => void;
   onResolve: (finding: Finding, resolution: 'accepted' | 'edited' | 'dismissed', edited?: string) => void;
   onBulk: (action: 'accept' | 'dismiss', findingIds: string[]) => void;
   /** anchors that no longer match the text under them, from the last attempt */
@@ -225,7 +228,7 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
         </button>
       </div>
       <p className="finding-defect">{finding.defect}</p>
-      <Evidence finding={finding} />
+      <Evidence finding={finding} onOpenSource={props.onOpenSource} />
 
       {finding.proposedRevision !== undefined && (
         <div className="finding-fix">
@@ -307,18 +310,33 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
  * face that it is the user's own material. Only a **corpus** finding gets
  * chips, because only a corpus finding is grounded.
  */
-function Evidence(props: { finding: Finding }) {
+function Evidence(props: {
+  finding: Finding;
+  onOpenSource?: ((versionId: string, chunkId?: string) => void) | undefined;
+}) {
   const { evidence } = props.finding;
   if (evidence.input === 'corpus') {
     return (
       <div className="finding-evidence">
-        {evidence.citations.map((citation) => (
-          <SourceChip key={citation.id} corpus="library">
-            {'versionId' in citation.source
-              ? citation.source.documentReference
-              : citation.source.authorityRef}
-          </SourceChip>
-        ))}
+        {evidence.citations.map((citation) => {
+          const source = citation.source;
+          return (
+            <SourceChip
+              key={citation.id}
+              // an authority reference is an authority chip, not a library one (T-468)
+              corpus={'versionId' in source ? 'library' : 'authority'}
+              card={cardFor(citation)}
+              cardLabel={`Source: ${'versionId' in source ? source.documentReference : source.authorityRef}`}
+              onClick={
+                props.onOpenSource !== undefined && 'versionId' in source
+                  ? () => props.onOpenSource!(source.versionId, citation.chunkId)
+                  : undefined
+              }
+            >
+              {'versionId' in source ? source.documentReference : source.authorityRef}
+            </SourceChip>
+          );
+        })}
       </div>
     );
   }
@@ -332,13 +350,9 @@ function Evidence(props: { finding: Finding }) {
   }
   if (evidence.input === 'rulebook') {
     return (
-      <blockquote className="quoted-rule finding-evidence">
-        <span className="mono">{evidence.clause}</span>{' '}
-        <span className="quoted-rule-scope">
-          ({evidence.scope === 'project' ? 'project style guide' : 'your firm’s rulebook'})
-        </span>
-        <div>“{evidence.quote}”</div>
-      </blockquote>
+      <RuleCard clause={evidence.clause} scope={evidence.scope}>
+        {evidence.quote}
+      </RuleCard>
     );
   }
   // the draft measured against itself or its own template: nothing external,

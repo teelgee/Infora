@@ -428,6 +428,7 @@ export function admitSectionFindings(
 function citationOf(passage: CheckPassage): Citation {
   return {
     id: passage.citationId,
+    ...(passage.chunkId !== null && { chunkId: passage.chunkId }),
     source: {
       versionId: passage.versionId,
       documentReference: passage.documentReference ?? passage.versionId,

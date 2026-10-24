@@ -19,12 +19,13 @@ import type {
   GetGroundingScopeResponse,
   GetLibraryResponse,
   GetLibrarySearchResponse,
+  GetPassageResponse,
   GetVersionResponse,
   LibraryItem,
   LibrarySearchItem,
 } from '@infora/contracts';
 import { librarySearchQuery } from '@infora/contracts';
-import { deliverableVisibleSql as deliverableVisible, groundingSources, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
+import { deliverableVisibleSql as deliverableVisible, groundingSources, readChunkPassage, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -156,6 +157,61 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
     if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
     return c.json({ ...row, documentReference: row.documentReference! } satisfies GetVersionResponse);
   });
+
+  // T-468 — the passage a citation recorded, read by id. Guarded exactly like
+  // the version read above; the chunk must belong to the version in the path.
+  // It never searches: see readChunkPassage.
+  app.get(
+    '/versions/:versionId/passages/:chunkId',
+    resourceScope(deps, 'versionId', resourceHomes.version),
+    async (c) => {
+      const slice = c.get('slice');
+      const versionId = c.req.param('versionId');
+      const chunkId = c.req.param('chunkId');
+      const [row] = await deps.db
+        .select({
+          versionId: s.versions.id,
+          containerId: s.versions.containerId,
+          documentReference: s.containers.documentReference,
+          documentTitle: s.containers.title,
+          versionReference: s.versions.versionReference,
+          containerState: s.containers.state,
+          isCurrent: s.versions.isCurrent,
+        })
+        .from(s.versions)
+        .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id))
+        .where(
+          and(eq(s.versions.id, versionId), eq(s.containers.scope, 'library'), deliverableVisible(slice)),
+        )
+        .limit(1);
+      if (!row) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      // a chunk id is a uuid; anything else cannot name a row (and would make
+      // Postgres throw rather than answer)
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(chunkId)) {
+        return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      }
+      const chunk = await readChunkPassage(deps.db, slice.projectId, versionId, chunkId);
+      if (chunk === 'other_version') return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      const locator = chunk?.locator ?? null;
+      return c.json({
+        ...row,
+        documentReference: row.documentReference!,
+        chunkId,
+        passage:
+          chunk === null
+            ? null
+            : {
+                chunkIndex: chunk.chunkIndex,
+                // the unresolved case (no locator) degrades to the chunker's text,
+                // flagged by the absence of page/paragraph/span — never a guess
+                verbatim: locator?.verbatim ?? chunk.content,
+                ...(locator?.page !== undefined && { page: locator.page }),
+                ...(locator !== null && { paragraph: locator.paragraph, span: locator.span }),
+              },
+        held: chunk !== null,
+      } satisfies GetPassageResponse);
+    },
+  );
 
   // T-292 — what the composer's Data sources and Context chips read.
   //

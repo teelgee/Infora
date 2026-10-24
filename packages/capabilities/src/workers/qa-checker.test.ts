@@ -193,6 +193,8 @@ describe('three inputs, three honest treatments (ADR-0048 §7)', () => {
       versionId: 'v-1',
       documentReference: 'WA-ENV-WQ-001',
     });
+    // T-468 — the passage is a field of its own now, not only folded into the id
+    expect(evidence.citations[0]!.chunkId).toBe('c-1');
   });
 
   it('an attached document is quoted and carries no citation to reach for (ADR-0022)', () => {

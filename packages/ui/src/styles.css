@@ -2109,3 +2109,36 @@ a.shelf-row-title:hover { text-decoration: underline; }
 .palette-foot { padding: 8px 16px; border-top: 1px solid var(--border-default); color: var(--text-muted); font-size: 11.5px; }
 .palette-hint { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-default); background: transparent; color: var(--text-secondary); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
 .palette-hint kbd { font-family: var(--primitive-font-family-mono); font-size: 11px; border: 1px solid var(--border-default); border-radius: 4px; padding: 0 4px; color: var(--text-muted); }
+
+/* ---------- T-468 — the source card (HoverCard) and the rule card ---------- */
+button.cite { font-family: inherit; line-height: inherit; }
+.hover-card-trigger { display: inline; }
+.hover-card {
+  background: var(--surface-pane); border-radius: var(--dropdown-menu-radius);
+  box-shadow: var(--level4-overlay); padding: 12px 14px; font-size: 12.5px;
+  color: var(--text-secondary); max-height: 60vh; overflow-y: auto;
+}
+.source-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.source-card-title { color: var(--text-primary); font-weight: 600; }
+.source-card-where { color: var(--text-muted); font-size: 11.5px; margin-bottom: 6px; }
+.source-card-passage {
+  margin: 0; padding: 6px 10px; border-left: 3px solid var(--source-chip-lib-border);
+  background: var(--surface-sunken); white-space: pre-wrap; line-height: 1.55; color: var(--text-primary);
+}
+.source-card-note { margin: 8px 0 0; color: var(--text-muted); font-size: 12px; }
+/* a quoted rule: a double-ruled quotation with a label, unlike any chip */
+.rule-card { padding: 8px 12px; border-left: 3px double var(--text-muted); }
+.rule-card-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--text-muted); font-style: normal; margin-bottom: 4px;
+}
+/* the passage the citation points at, on the document page */
+mark[data-passage] {
+  background: var(--feedback-warning-tint); border-bottom: 2px solid var(--feedback-warning-text);
+  border-radius: var(--primitive-radius-xs); color: inherit;
+}
+mark[data-passage].flash { background: var(--feedback-info-tint); border-bottom-color: var(--feedback-info-text); }
+.passage-banner {
+  margin: 0 0 8px; padding: 8px 12px; background: var(--surface-sunken);
+  border-left: 3px solid var(--feedback-warning-text); font-size: 12.5px; white-space: pre-wrap;
+}

@@ -96,6 +96,7 @@ import type {
   GetLibraryResponse,
   GetPlanResponse,
   GetRunPlanResponse,
+  GetPassageResponse,
   GetVersionResponse,
   GetWorkItemResponse,
   ListOrgUsersResponse,
@@ -325,6 +326,9 @@ export const api = {
       body: JSON.stringify(body),
     }),
   version: (versionId: string) => request<GetVersionResponse>(`/versions/${versionId}`),
+  // T-468 — the passage a citation recorded, read by id (never a search)
+  passage: (versionId: string, chunkId: string) =>
+    request<GetPassageResponse>(`/versions/${versionId}/passages/${chunkId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
   // T-456 — the bin (T-128's recycle view) and its two acts, reachable at last

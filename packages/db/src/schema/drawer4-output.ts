@@ -43,6 +43,11 @@ export const citations = pgTable(
     stepId: uuid('step_id').references(() => steps.id),
     versionId: uuid('version_id').references(() => versions.id),
     authorityRef: text('authority_ref'),
+    // T-468 — the stored passage the citation was written from. NO foreign key,
+    // deliberately: a re-ingest replaces a version's chunk rows and the citation
+    // must keep saying which passage it recorded. Null on rows written before
+    // this, and on an authority reference.
+    chunkId: uuid('chunk_id'),
     claimSpan: jsonb('claim_span'),
   },
   () => [

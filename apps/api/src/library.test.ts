@@ -4,8 +4,8 @@
 // appear — the list shows exactly what grounding admits (contracts §Library).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import type { GetLibraryResponse, GetVersionResponse } from '@infora/contracts';
-import { createDb, hashPassword, loadDbEnv, schema as s } from '@infora/db';
+import type { GetLibraryResponse, GetPassageResponse, GetVersionResponse } from '@infora/contracts';
+import { createDb, hashPassword, loadDbEnv, schema as s, withProjectScope } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 
@@ -223,5 +223,141 @@ describe('T-304 — reference material is told from the produced record', () => 
     const received = ownItems.find((item) => item.containerId === referenceId)!;
     expect(received.state).toBe('live');
     expect(received.currentVersionId).toBeTruthy();
+  });
+});
+
+// T-468 — the passage a citation recorded, read by id. A project of this test's
+// own making, so the outsider is a real user of another project (the seeded
+// Wrenfield consultant) rather than a missing session.
+describe('T-468 — GET /versions/:versionId/passages/:chunkId', () => {
+  const stamp = Date.now();
+  // page one, a form feed, page two — the cited sentence sits on page two
+  const CONTENT = 'Intro paragraph.\fThe scheme delivers a 12% reduction in peak flow.\nTail.';
+  const CITED = 'The scheme delivers a 12% reduction in peak flow.';
+  let ownCookie: string;
+  let ownProjectId: string;
+  let versionId: string;
+  let chunkId: string;
+  let otherVersionChunkId: string;
+
+  beforeAll(async () => {
+    const [org] = await db.insert(s.organisations).values({ name: `t468 org ${stamp}` }).returning();
+    const [project] = await db
+      .insert(s.projects)
+      .values({ name: `t468 project ${stamp}`, ownerOrganisationId: org!.id })
+      .returning();
+    ownProjectId = project!.id;
+    await db.insert(s.memberships).values({ organisationId: org!.id, projectId: project!.id, role: 'owner' });
+    const [user] = await db
+      .insert(s.users)
+      .values({ name: 't468 user', email: `t468-${stamp}@test.local`, organisationId: org!.id })
+      .returning();
+    await db.insert(s.userCredentials).values({ userId: user!.id, passwordHash: hashPassword('pw-t468') });
+    await db.insert(s.participants).values({ userId: user!.id, projectId: project!.id });
+
+    const admit = async (reference: string, content: string) => {
+      const [container] = await db
+        .insert(s.containers)
+        .values({
+          projectId: project!.id,
+          producingOrganisationId: org!.id,
+          documentReference: reference,
+          inLibrary: true,
+          state: 'live',
+        })
+        .returning();
+      const [version] = await db
+        .insert(s.versions)
+        .values({ containerId: container!.id, versionReference: 'C01', content, isCurrent: true })
+        .returning();
+      return version!.id;
+    };
+    versionId = await admit(`T468-${stamp}`, CONTENT);
+    const otherVersionId = await admit(`T468B-${stamp}`, 'Another document entirely.');
+    const embedding = Array.from({ length: 1024 }, () => 0.01);
+    const start = CONTENT.indexOf(CITED);
+    // version_chunks is row-level secured: write inside the project's scope
+    const [[chunk], [other]] = await withProjectScope(db, ownProjectId, async (tx) => [
+      await tx
+      .insert(s.versionChunks)
+      .values({
+        versionId,
+        chunkIndex: 0,
+        // the chunker rewrites whitespace; the card must show the source's own text
+        content: CITED.replace('12% reduction', '12%   reduction'),
+        embedding,
+        embeddingModelId: 'test-t468',
+        embeddingModelVersion: 't1',
+        startOffset: start,
+        endOffset: start + CITED.length,
+      })
+      .returning(),
+      await tx
+      .insert(s.versionChunks)
+      .values({
+        versionId: otherVersionId,
+        chunkIndex: 0,
+        content: 'Another document entirely.',
+        embedding,
+        embeddingModelId: 'test-t468',
+        embeddingModelVersion: 't1',
+        startOffset: 0,
+        endOffset: 5,
+      })
+      .returning(),
+    ]);
+    chunkId = chunk!.id;
+    otherVersionChunkId = other!.id;
+
+    const login = await app.request('/auth/session', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: `t468-${stamp}@test.local`, password: 'pw-t468' }),
+    });
+    ownCookie = login.headers.get('set-cookie')!.split(';')[0]!;
+  });
+
+  afterAll(async () => {
+    await withProjectScope(db, ownProjectId, (tx) =>
+      tx.delete(s.versionChunks).where(eq(s.versionChunks.embeddingModelId, 'test-t468')),
+    );
+  });
+
+  it('returns the recorded passage verbatim, with its page and the document facts', async () => {
+    const res = await app.request(`/versions/${versionId}/passages/${chunkId}`, { headers: { cookie: ownCookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as GetPassageResponse;
+    expect(body).toMatchObject({
+      versionId,
+      chunkId,
+      documentReference: `T468-${stamp}`,
+      versionReference: 'C01',
+      containerState: 'live',
+      isCurrent: true,
+      held: true,
+    });
+    // the source text as it really reads, never the chunker's rewritten content
+    expect(body.passage).toMatchObject({ chunkIndex: 0, page: 2, verbatim: CITED });
+    expect(body.passage!.span).toEqual({ start: CONTENT.indexOf(CITED), end: CONTENT.indexOf(CITED) + CITED.length });
+  });
+
+  it('a chunk that has gone (re-ingested since the run) is held:false with no passage — not a neighbour', async () => {
+    const res = await app.request(`/versions/${versionId}/passages/00000000-0000-4000-8000-000000000000`, {
+      headers: { cookie: ownCookie },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ passage: null, held: false });
+  });
+
+  it('a chunk id belonging to a different version is a 404 — the chunk must be the named version’s', async () => {
+    const res = await app.request(`/versions/${versionId}/passages/${otherVersionChunkId}`, {
+      headers: { cookie: ownCookie },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('a requester outside the version’s project gets 404, the same as for the version itself', async () => {
+    const res = await app.request(`/versions/${versionId}/passages/${chunkId}`, { headers: { cookie } });
+    expect(res.status).toBe(404);
   });
 });

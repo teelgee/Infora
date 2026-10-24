@@ -521,6 +521,29 @@ cannot redirect somebody else's request to another address or another document.
 **The first opening of a link IS recorded** *(T-436, migration 0066, on the
 owner's ruling of 2026-09-02 completing ADR-0055 §5)* — `opened_at`, written
 once on the first successful open and never moved, because the receipt is that
+**Drawn 2026-10-24 — the passage a citation came from (T-468).** *Plainly: a
+citation today says which document and version it came from, but not which
+passage — so hovering a citation cannot show the sentence the AI actually
+read. The run already knows: the step that chose the passage carries the
+passage's id, and the cite step has it in hand and drops it before writing.
+This keeps it.* Each citation row gains the id of the stored chunk it was
+written from, so a source card can read that passage back — never re-search
+for it — and the document page can open scrolled to it.
+
+`citations` gains `chunk_id` (uuid, nullable — null on every row written
+before this, and on an authority reference, which has no chunk). **No foreign
+key, deliberately:** a re-ingest replaces a version's chunk rows, and the
+citation must keep saying which passage it recorded even once that passage is
+no longer held; the passage reader (`readRunContext`'s *unreconstructable*
+case) already says so in words rather than pretending. Written by the cite
+step (`sourceColumns` keeps the chunk id it was dropping) and by the checker's
+finding writer (which until now folded the chunk id into the citation's id
+string). Read at `GET /versions/:versionId/passages/:chunkId`, through the
+version's own visibility: one chunk, by id, the run's own record — nothing is
+retrieved again. No named person; nothing to register.
+
+*Built the same day (migration 0075); per the state rule the field list above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape.*
+
 the document **was read**, not how often it was looked at. It is a fact of the
 **issue record** and not a file about the person: no identity is inferred,
 since whoever holds the link is the recipient. 0065 deliberately left it out

@@ -10,7 +10,7 @@ import type { AssembledInput, Id } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import { checkPropagation } from '@infora/governance';
 import { runSourceAudience, sandboxDocumentAudience } from '@infora/knowledge';
-import type { ChainLeaves, GroundCheckOutput } from './chain';
+import type { ChainLeaves, GroundCheckOutput, SourceRef } from './chain';
 
 export function createCiteLeaf(): ChainLeaves['cite'] {
   return async (ctx, input) => {
@@ -149,12 +149,13 @@ function markSuperseded(
     : `${claim.text.slice(0, terminal.index)}${SUPERSEDED_FLAG}${terminal[1]}`;
 }
 
-type SourceRefValue = { versionId: Id } | { authorityRef: string };
+type SourceRefValue = SourceRef;
 
 function sourceColumns(ref: SourceRefValue) {
+  // T-468 — keep the passage the claim rested on; it was being dropped here
   return 'versionId' in ref
-    ? { versionId: ref.versionId, authorityRef: null }
-    : { versionId: null, authorityRef: ref.authorityRef };
+    ? { versionId: ref.versionId, authorityRef: null, chunkId: ref.chunkId ?? null }
+    : { versionId: null, authorityRef: ref.authorityRef, chunkId: null };
 }
 
 const CLAIM_SEPARATOR = '\n\n';

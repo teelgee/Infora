@@ -1,0 +1,1 @@
+ALTER TABLE "citations" ADD COLUMN "chunk_id" uuid;

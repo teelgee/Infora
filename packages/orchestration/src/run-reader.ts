@@ -139,6 +139,7 @@ function toCitation(
       row.versionId !== null
         ? { versionId: row.versionId, documentReference: documentReference ?? '' }
         : { authorityRef: row.authorityRef! },
+    ...(row.chunkId !== null && { chunkId: row.chunkId }),
     ...(row.claimSpan !== null && { claimSpan: row.claimSpan as { start: number; end: number } }),
   };
 }
