@@ -5,7 +5,7 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { ingestAllVersions } from '@infora/data';
+import { ingestVersion, isVersionIndexed } from '@infora/data';
 import { createDb, schema as s } from '@infora/db';
 import { loadLenses } from '@infora/lenses';
 import { createWorkerRegistry } from '@infora/capabilities';
@@ -323,9 +323,26 @@ const router = fakeRouter((system, prompt) => {
 
 // index the library under the fake embedding model so retrieval has a
 // grounded corpus here; the real voyage index coexists untouched (each
-// pinned model is its own index, ADR-0024)
-const { chunks } = await ingestAllVersions(db, router);
-console.log(`e2e substrate: ${chunks} chunks indexed under the fake embedding model`);
+// pinned model is its own index, ADR-0024).
+//
+// Only what is not yet indexed under the pinned model: on a long-lived local
+// database a full sweep re-embeds every version at every start (~60 s), while
+// an empty database (CI) has nothing indexed and so still gets every version.
+// The same question the bulk load asks to resume (`finishIfUnindexed`).
+const versionRows = await db
+  .select({ id: s.versions.id, projectId: s.containers.projectId })
+  .from(s.versions)
+  .innerJoin(s.containers, eq(s.versions.containerId, s.containers.id));
+let chunks = 0;
+let indexed = 0;
+for (const version of versionRows) {
+  if (await isVersionIndexed(db, router, version.id, version.projectId)) continue;
+  chunks += (await ingestVersion(db, router, version.id)).chunks;
+  indexed += 1;
+}
+console.log(
+  `e2e substrate: ${indexed} of ${versionRows.length} versions newly indexed (${chunks} chunks) under the fake embedding model`,
+);
 
 // the harness logs in per test from one IP, far past the production login
 // default — the substrate raises the throttles rather than shaping the suites
