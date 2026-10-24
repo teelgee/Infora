@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AssembledInput } from '@infora/contracts';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
 import type { ChatAdapter, ChatRequest, EmbeddingAdapter } from '@infora/model';
-import { groundedDraft, parseClaims, STEER_PRECEDENCE } from './grounded-draft';
+import { groundedDraft, parseClaims, STEER_PRECEDENCE, workingSetBlock } from './grounded-draft';
 
 const embeddings: EmbeddingAdapter = {
   modelId: 'unused',
@@ -182,5 +182,58 @@ describe('groundedDraft records the passage behind each marker (T-468)', () => {
       { versionId: 'v-gir', chunkId: 'k-2' },
       { versionId: 'v-fra' },
     ]);
+  });
+});
+
+// ── T-471 — the working set in the prompt ───────────────────────────────────
+describe('groundedDraft with a working set (T-471)', () => {
+  const workingSet = [
+    { label: 'Land quality method statement', excerpt: 'We propose trial pits at 20 m centres.' },
+    { label: 'Ecology baseline note', excerpt: 'Badger setts recorded along the northern boundary.' },
+  ];
+
+  it('shows the documents in the prompt as user-supplied background, numbered A and never S', async () => {
+    let prompt = '';
+    const router = routerReplying('The survey found PAH exceedances. [S1]', (req) => {
+      prompt = req.messages[0]!.content;
+    });
+    await groundedDraft(router, { request: 'What have we missed?', retrieved, workingSet });
+    expect(prompt).toContain('Working set (supplied by the user as background they vouch for');
+    expect(prompt).toContain('[A1] (attached by the user — not a project source) Land quality method statement: We propose trial pits');
+    expect(prompt).toContain('[A2] (attached by the user — not a project source) Ecology baseline note');
+    // sources stay numbered S, and the A block sits after them and before the task
+    expect(prompt.indexOf('[S1]')).toBeLessThan(prompt.indexOf('Working set'));
+    expect(prompt.indexOf('Working set')).toBeLessThan(prompt.indexOf('Task:'));
+    expect(prompt).toContain('Never mark a sentence with an [A#] number');
+  });
+
+  it('a prompt with no working set is unchanged — no block, no mention', async () => {
+    let prompt = '';
+    const router = routerReplying('x [S1]', (req) => {
+      prompt = req.messages[0]!.content;
+    });
+    await groundedDraft(router, { request: 'q', retrieved });
+    expect(prompt).not.toContain('Working set');
+    expect(workingSetBlock([])).toBe('');
+    expect(workingSetBlock(undefined)).toBe('');
+  });
+
+  it('🔒 an [A#] the model writes can never become a citation: it is stripped and the claim has no source', async () => {
+    const router = routerReplying(
+      'Your method statement proposes trial pits at 20 m centres [A1]. The survey found PAH exceedances. [S1]',
+      undefined,
+    );
+    const result = await groundedDraft(router, { request: 'q', retrieved, workingSet });
+    // no claim resolves to a source other than the retrieved ones, and no marker text survives
+    for (const claim of result.claims) expect(claim.text).not.toMatch(/\[A\d+\]/);
+    const withSource = result.claims.filter((claim) => claim.sourceRef !== undefined);
+    expect(withSource).toHaveLength(1);
+    expect(withSource[0]!.sourceRef).toMatchObject({ versionId: 'v-gir' });
+  });
+
+  it('parseClaims strips [A#] anywhere, so the text on either side of one is not lost', () => {
+    const claims = parseClaims('See your draft [A2] for the badgers. Flood Zone 2 is crossed. [S2]', new Map([['S2', { versionId: 'v-fra' }]]));
+    expect(claims.map((claim) => claim.text).join(' ')).not.toMatch(/\[A/);
+    expect(claims.at(-1)?.sourceRef).toEqual({ versionId: 'v-fra' });
   });
 });

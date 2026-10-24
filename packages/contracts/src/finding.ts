@@ -117,6 +117,13 @@ export type AttachedEvidence = {
   /** the `AttachedSource` this arose from, not a version id */
   attachedSourceId: Id;
   excerpt: string;
+  /**
+   * T-471 — set when the READER is not in the working area the attached draft
+   * sits in: the excerpt is then blank and the id is blanked too, and the panel
+   * says the finding quotes a document in a working area they are not in. The
+   * finding itself stays.
+   */
+  hidden?: true;
 };
 
 /**

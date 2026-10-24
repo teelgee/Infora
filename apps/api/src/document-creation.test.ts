@@ -875,3 +875,135 @@ describe('a composed outline saves as a starting outline, for the firm (T-414)',
     expect(await bad({ label: 'x', sections: [] })).toBe(400);
   });
 });
+
+// ── T-471 — THE AUTHOR'S WORKING SET ────────────────────────────────────────
+//
+// *In plain terms: the creator can be handed some of the author's own drafts to
+// read as background. The server checks, draft by draft, that the author is in
+// the working area it sits in — a draft from a working area they are not in
+// refuses the run, in words, before anything is spent — and a draft that is
+// handed over is read as background marked "attached by the user", recorded on
+// the plan, and never becomes a source or a citation.*
+describe('the creator’s working set (T-471)', () => {
+  let ownDocId: string;
+  let narrowDocId: string;
+  let authorParticipantId: string;
+  let seenPrompt = '';
+  let capturing: ReturnType<typeof buildApp>;
+
+  beforeAll(async () => {
+    const [participantRow] = await db
+      .select({ id: s.participants.id })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.users.email, `t309-ada-${stamp}@test.local`));
+    authorParticipantId = participantRow!.id;
+    const [colleague] = await db
+      .select({ id: s.participants.id, organisationId: s.users.organisationId })
+      .from(s.participants)
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(eq(s.users.email, `t309-cal-${stamp}@test.local`));
+    const [own] = await db
+      .insert(s.sandboxDocuments)
+      .values({
+        projectId,
+        organisationId: colleague!.organisationId,
+        sandboxId,
+        title: 'Ada’s own method statement',
+        content: 'The method statement proposes dewatering by sump pumping.',
+        createdByParticipantId: authorParticipantId,
+      })
+      .returning();
+    ownDocId = own!.id;
+    // a named-user working area that admits only the colleague
+    const [narrow] = await db
+      .insert(s.sandboxes)
+      .values({
+        projectId,
+        owningOrganisationId: colleague!.organisationId,
+        scope: 'named_user',
+        name: 't471 narrow',
+        createdByParticipantId: colleague!.id,
+      })
+      .returning();
+    await db.insert(s.sandboxScopeGrants).values({
+      sandboxId: narrow!.id,
+      granteeType: 'participant',
+      participantId: colleague!.id,
+      grantedByParticipantId: colleague!.id,
+    });
+    const [hidden] = await db
+      .insert(s.sandboxDocuments)
+      .values({
+        projectId,
+        organisationId: colleague!.organisationId,
+        sandboxId: narrow!.id,
+        title: 'Cal’s private note',
+        content: 'Not for Ada.',
+        createdByParticipantId: colleague!.id,
+      })
+      .returning();
+    narrowDocId = hidden!.id;
+    capturing = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter((_system, prompt) => {
+        seenPrompt = prompt;
+        return 'The investigation recorded exceedances. [S1] The method statement proposes sump pumping. [A1]';
+      }),
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+    });
+  });
+
+  const runsOf = async () =>
+    (await db.select().from(s.runs).where(eq(s.runs.requesterParticipantId, authorParticipantId))).length;
+
+  it('🔒 refuses — in words, on the plan and on the run — a draft from a working area the author is not in', async () => {
+    const before = await runsOf();
+    for (const route of ['plan', 'runs']) {
+      const res = await post(cookie, `/projects/${projectId}/tools/document-creation/${route}`, request({ attachedDocumentIds: [narrowDocId] }));
+      expect(res.status).toBe(400);
+      const detail = ((await res.json()) as { detail: string }).detail;
+      expect(detail).toContain('not in a working area you are part of');
+      // by the id that was sent — the refusal never says what the draft is called
+      expect(detail).toContain(narrowDocId);
+      expect(detail).not.toContain('Cal’s private note');
+    }
+    expect(await runsOf()).toBe(before);
+  });
+
+  it('reads an own draft as background, records it, and cites none of it', async () => {
+    seenPrompt = '';
+    const res = await capturing.request(`/projects/${projectId}/tools/document-creation/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(request({ attachedDocumentIds: [ownDocId] })),
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as DocumentCreationRunResponse;
+
+    // the drafting call was shown it, marked
+    expect(seenPrompt).toContain('[A1] (attached by the user — not a project source) Ada’s own method statement');
+    expect(seenPrompt).toContain('dewatering by sump pumping');
+
+    // recorded on the plan as id and label — never the text
+    expect(body.run.workingSet).toEqual([{ sandboxDocumentId: ownDocId, label: 'Ada’s own method statement' }]);
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, body.run.id));
+    expect(JSON.stringify(plan!.workingSet)).not.toContain('dewatering');
+
+    // never a source: the manifest names library versions only, and no [A#] reached the document
+    expect(body.manifest.every((entry) => entry.versionId === versionId)).toBe(true);
+    const [made] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, body.documentId!));
+    expect(made!.content).not.toMatch(/\[A\d+\]/);
+    expect(made!.content).not.toContain('sump pumping');
+  });
+
+  it('a draft handed in twice is read once; no working set records none', async () => {
+    const res = await post(cookie, `/projects/${projectId}/tools/document-creation/runs`, request());
+    const none = (await res.json()) as DocumentCreationRunResponse;
+    expect(none.run.workingSet).toBeUndefined();
+    const twice = await post(cookie, `/projects/${projectId}/tools/document-creation/runs`, request({ attachedDocumentIds: [ownDocId, ownDocId] }));
+    expect(((await twice.json()) as DocumentCreationRunResponse).run.workingSet).toHaveLength(1);
+  });
+});

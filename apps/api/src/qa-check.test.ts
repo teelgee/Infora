@@ -650,3 +650,103 @@ describe('T-418 — a caller-opened conversation is the handle a run is watched 
     expect(res.status).toBe(404);
   });
 });
+
+// ── T-471 — THE CHECKER'S ATTACHED DRAFTS ARE CHECKED FOR REACH ─────────────
+//
+// *In plain terms: before this ticket the checker read an attached draft by its
+// id alone. The check on the draft being CHECKED looked at its firm; nothing
+// looked at the drafts handed in alongside it, so an id from a working area the
+// author was not in would have been read into the prompt. Now each attached id
+// is checked against its own working area's grants — on the plan and on the run
+// — and a draft that is out of reach refuses the check, in words, before
+// anything is spent.*
+describe('attached drafts are checked for reach, per draft (T-471)', () => {
+  let ownAttachedId: string;
+  let strangersId: string;
+  let seenPrompts: string[] = [];
+  let capturing: ReturnType<typeof buildApp>;
+
+  beforeAll(async () => {
+    // the author's own working area, which admits the author by a participant grant
+    const [own] = await db
+      .insert(s.sandboxes)
+      .values({ projectId, name: `t471 own ${stamp}`, scope: 'named_user', owningOrganisationId: organisationId, createdByParticipantId: participantId })
+      .returning();
+    await db.insert(s.sandboxScopeGrants).values({ sandboxId: own!.id, granteeType: 'participant', participantId, grantedByParticipantId: participantId });
+    const [ownDoc] = await db
+      .insert(s.sandboxDocuments)
+      .values({ projectId, organisationId, sandboxId: own!.id, title: 'Ground model note', content: 'The ground model assumes made ground to 2 m.', createdByParticipantId: participantId })
+      .returning();
+    ownAttachedId = ownDoc!.id;
+
+    // a colleague in the SAME firm, in a working area of their own that the author is not in
+    const [colleagueUser] = await db
+      .insert(s.users)
+      .values({ name: 't471-colleague', email: `t471-col-${stamp}@test.local`, organisationId })
+      .returning();
+    const [colleague] = await db.insert(s.participants).values({ userId: colleagueUser!.id, projectId }).returning();
+    const [theirs] = await db
+      .insert(s.sandboxes)
+      .values({ projectId, name: `t471 theirs ${stamp}`, scope: 'named_user', owningOrganisationId: organisationId, createdByParticipantId: colleague!.id })
+      .returning();
+    await db.insert(s.sandboxScopeGrants).values({ sandboxId: theirs!.id, granteeType: 'participant', participantId: colleague!.id, grantedByParticipantId: colleague!.id });
+    const [theirDoc] = await db
+      .insert(s.sandboxDocuments)
+      .values({ projectId, organisationId, sandboxId: theirs!.id, title: 'Colleague’s private notes', content: 'Not for the checker.', createdByParticipantId: colleague!.id })
+      .returning();
+    strangersId = theirDoc!.id;
+
+    capturing = buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router: fakeRouter((system, prompt) => {
+        seenPrompts.push(`${system}\n${prompt}`);
+        if (system.includes('checkable factual assertions')) return 'the reduction in loading';
+        return JSON.stringify({ summary: 'ok', findings: [] });
+      }),
+      workflows,
+      workers: createWorkerRegistry(),
+    });
+  });
+
+  const runsNow = async () => (await db.select().from(s.runs).where(eq(s.runs.environmentKey, projectId))).length;
+
+  it('🔒 refuses an attached id from a working area the author is not in — plan and run alike, nothing spent', async () => {
+    const before = await runsNow();
+    for (const route of ['plan', 'runs']) {
+      const res = await post(`/projects/${projectId}/tools/qa-check/${route}`, body({ attachedDocumentIds: [strangersId] }));
+      expect(res.status).toBe(400);
+      const detail = ((await res.json()) as { detail: string }).detail;
+      expect(detail).toContain('not in a working area you are part of');
+      expect(detail).toContain(strangersId);
+      // never what the draft is called
+      expect(detail).not.toContain('Colleague');
+    }
+    // a made-up id and a mix of reachable and unreachable read the same — nothing is dropped quietly
+    for (const ids of [['00000000-0000-4000-8000-000000000000'], [ownAttachedId, strangersId]]) {
+      const res = await post(`/projects/${projectId}/tools/qa-check/runs`, body({ attachedDocumentIds: ids }));
+      expect(res.status).toBe(400);
+    }
+    expect(await runsNow()).toBe(before);
+  });
+
+  it('shows the section check an attached draft only once it has been checked, records it, and cites none of it', async () => {
+    seenPrompts = [];
+    const res = await capturing.request(`/projects/${projectId}/tools/qa-check/runs`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify(body({ attachedDocumentIds: [ownAttachedId], families: ['corpus_accuracy'] })),
+    });
+    expect(res.status).toBe(201);
+    const result = (await res.json()) as QaCheckRunResponse;
+    // the section check was shown the excerpt, marked
+    expect(seenPrompts.join('\n')).toContain('Ground model note: The ground model assumes made ground to 2 m.');
+    // the run says what it was handed, by id and title
+    expect(result.run.workingSet).toEqual([{ sandboxDocumentId: ownAttachedId, label: 'Ground model note' }]);
+    // and the record keeps the id and the label, not the text
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, result.run.id));
+    expect(plan!.workingSet).toEqual([{ sandboxDocumentId: ownAttachedId, label: 'Ground model note' }]);
+    expect(JSON.stringify(plan!.workingSet)).not.toContain('made ground');
+    expect(result.run.citations).toEqual([]);
+  });
+});

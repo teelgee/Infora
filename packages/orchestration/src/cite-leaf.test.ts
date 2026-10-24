@@ -181,6 +181,43 @@ describe('cite resolution + Suggestion write (T-045)', () => {
     expect(citations.every((c) => c.suggestionId === null)).toBe(true);
   });
 
+  // T-471 — a working set is background the person vouches for. It rides the
+  // run, but the cite step resolves only the retrieved sources: a claim that
+  // rested on a pinned document carries no source, is withheld or labelled
+  // uncited by the ground check, and earns no citation. The citations table
+  // cannot even express a sandbox document — a citation is a version or an
+  // authority reference — and this proves the run with a set cites exactly what
+  // the same run without one would.
+  it('🔒 a run handed a working set cites only retrieved sources — never an attached document', async () => {
+    const attached = '00000000-0000-4000-8000-0000000000c3';
+    const withSet = await runChain(db, leaves(), {
+      conversationId: adHocConversationId,
+      request: 'what have we missed?',
+      environmentKey: projectId,
+      requesterParticipantId: participantId,
+      workingSet: [{ sandboxDocumentId: attached, label: 'My draft', excerpt: 'Pinned excerpt.' }],
+    });
+    const without = await runChain(db, leaves(), {
+      conversationId: adHocConversationId,
+      request: 'what have we missed?',
+      environmentKey: projectId,
+      requesterParticipantId: participantId,
+    });
+    const citationsOf = async (runId: string) => {
+      const steps = await db.select().from(s.steps).where(eq(s.steps.runId, runId));
+      const cite = steps.find((row) => row.type === 'cite')!;
+      return db.select().from(s.citations).where(eq(s.citations.stepId, cite.id));
+    };
+    const a = await citationsOf(withSet.run.id);
+    const b = await citationsOf(without.run.id);
+    expect(a.map((c) => [c.versionId, c.authorityRef, c.chunkId])).toEqual(b.map((c) => [c.versionId, c.authorityRef, c.chunkId]));
+    expect(a).toHaveLength(2);
+    expect(JSON.stringify(a)).not.toContain(attached);
+    // and the run record says what it was handed, for the label
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, withSet.run.id));
+    expect(plan!.workingSet).toEqual([{ sandboxDocumentId: attached, label: 'My draft' }]);
+  });
+
   it('nothing surviving writes nothing', async () => {
     const withered = leaves();
     withered.draft = async () => ({ output: { claims: [{ text: 'All unsupported.' }] } });

@@ -12,7 +12,7 @@
 // before any event handler runs. A component whose sentence lives behind a
 // network call has that fetch split out (see `DestinationBlock`), because a
 // sentence that cannot be rendered in a test is a sentence nobody is checking.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type {
@@ -26,12 +26,13 @@ import type {
   RuleProposal,
   RuleSetVersion,
   StyleGuideRecord,
-  SandboxDocument,
   ToolPlan,
   ToolSummary,
+  WorkingAreaDocument,
 } from '@infora/contracts';
 import { api } from './api';
-import { ChatComposer } from '@infora/ui';
+import { ChatComposer, WorkingSetLine } from '@infora/ui';
+import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import {
   ExtractionReportNote,
@@ -55,7 +56,6 @@ import {
   DOCUMENT_PURPOSE_CATALOGUE,
 } from '@infora/contracts';
 import {
-  AttachPicker,
   AttachedCopy,
   CheckFamilyRow,
   CheckPlanCard,
@@ -66,7 +66,6 @@ import {
   RunProgress,
   SectionComposer,
   StyleGuidePicker,
-  matchesQuery,
   StyleSourcesNote,
   ToolCard,
 } from './screens/tools';
@@ -1427,52 +1426,170 @@ describe('T-470 — the library scope under the Accuracy check is the one scope 
   });
 });
 
-describe('T-416 — the attach picker gains the same search', () => {
-  const drafts: SandboxDocument[] = [
-    { id: 'd1', title: 'Land quality method statement' },
-    { id: 'd2', title: 'Ecology baseline note' },
-  ] as SandboxDocument[];
+// ── T-471 — THE WORKING SET ─────────────────────────────────────────────────
+//
+// *In plain terms: one "Working set" button on Ask, the creator, the checker and
+// the editor. The list shows drafts from the working areas you are part of,
+// titled, each with the working area it sits in. The AI reads what you pick as
+// background; the answer says so and cites none of it.*
+describe('T-471 — the working-set picker', () => {
+  const rows: WorkingAreaDocument[] = [
+    { id: 'a1', title: 'Land quality method statement', sandboxId: 's1', sandboxName: 'Calder & Hale — working area', updatedAt: '2026-10-24T10:00:00Z' },
+    { id: 'a2', title: 'Ecology baseline note', sandboxId: 's2', sandboxName: 'Shared drafting', updatedAt: '2026-10-24T09:00:00Z' },
+  ];
 
-  it('searches your own drafts by title, and counts what it found', () => {
+  it('lists each draft by title with the working area it sits in', () => {
     const html = renderToStaticMarkup(
-      <AttachPicker drafts={drafts} selected={[]} onToggle={() => {}} />,
+      <WorkingSetPicker projectId="p1" pinned={[]} onToggle={() => {}} initiallyOpen initialRows={rows} />,
     );
-    expect(html).toContain('Search your drafts by title');
     expect(html).toContain('Land quality method statement');
-    expect(html).toContain('2 documents');
+    expect(html).toContain('Calder &amp; Hale — working area');
+    expect(html).toContain('Shared drafting');
+    expect(html).toContain('Drafts in your working areas');
+    // multi-select, with a way out
+    expect(html).toContain('aria-multiselectable="true"');
+    expect(html).toContain('Done');
   });
 
-  it('says you have none rather than showing an empty list', () => {
+  it('pinning two is two clicks and Done — the chip counts them and each row shows ticked', () => {
+    const pinned = [
+      { id: 'a1', title: 'Land quality method statement' },
+      { id: 'a2', title: 'Ecology baseline note' },
+    ];
     const html = renderToStaticMarkup(
-      <AttachPicker drafts={[]} selected={[]} onToggle={() => {}} />,
+      <WorkingSetPicker projectId="p1" pinned={pinned} onToggle={() => {}} initiallyOpen initialRows={rows} />,
     );
-    expect(html).toContain('no other drafts');
+    expect(html).toContain('Working set · 2');
+    expect(html.match(/aria-selected="true"/g)?.length).toBe(2);
+    expect(html).toContain('2 in your working set');
+    expect(html).toContain('never cited');
   });
 
-  it('🔒 reaches nothing beyond the drafts it was handed', () => {
-    const source = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
-    const start = source.indexOf('export function AttachPicker');
-    const end = source.indexOf('export function CheckFamilyRow');
-    expect(source.slice(start, end)).not.toContain('api.');
+  it('a pinned draft outside the current results is still listed, so it can be unpinned', () => {
+    const groups = workingSetGroups({ rows, pinned: [{ id: 'z9', title: 'Older pinned draft' }] });
+    expect(groups.map((g) => g.id)).toEqual(['working-area', 'pinned-elsewhere']);
+    expect(groups[1]!.options.map((o) => o.label)).toEqual(['Older pinned draft']);
+    // one that IS in the results stays where it is: rows do not jump on a click
+    const same = workingSetGroups({ rows, pinned: [{ id: 'a1', title: 'x' }] });
+    expect(same.map((g) => g.id)).toEqual(['working-area']);
+  });
+
+  it('never offers the draft being worked on', () => {
+    const groups = workingSetGroups({ rows, pinned: [], exclude: ['a1'] });
+    expect(groups[0]!.options.map((o) => o.id)).toEqual(['a2']);
+  });
+
+  it('says how many were pinned from a working area the reader is not in, and no more', () => {
+    const html = renderToStaticMarkup(
+      <WorkingSetPicker projectId="p1" pinned={[]} hiddenCount={2} onToggle={() => {}} initiallyOpen initialRows={rows} />,
+    );
+    expect(html).toContain('2 more from a working area you are not in');
+    expect(html).toContain('Working set · 2');
+  });
+
+  it('shows a refusal in words beside the list', () => {
+    const html = renderToStaticMarkup(
+      <WorkingSetPicker projectId="p1" pinned={[]} error="That document is not in a working area you are part of" onToggle={() => {}} initiallyOpen initialRows={rows} />,
+    );
+    expect(html).toContain('That document is not in a working area you are part of');
+  });
+
+  it('🔒 the editor has no raw-id field any more, and no kind menu', () => {
+    expect(existsSync(new URL('./working-set.tsx', import.meta.url))).toBe(false);
+    const editor = readFileSync(new URL('./screens/editor.tsx', import.meta.url), 'utf8');
+    expect(editor).not.toContain('Sandbox document id');
+    expect(editor).not.toContain('Attach a source');
+    expect(editor).toContain('ConversationWorkingSet');
+    const picker = readFileSync(new URL('./working-set-picker.tsx', import.meta.url), 'utf8');
+    expect(picker).not.toContain('Sandbox document id');
+  });
+
+  it('🔒 nothing is pinned for the person: the only pin call is the picker’s own toggle, and the editor makes none', () => {
+    const editor = readFileSync(new URL('./screens/editor.tsx', import.meta.url), 'utf8');
+    expect(editor).not.toContain('pinAttachedSource');
+    const picker = readFileSync(new URL('./working-set-picker.tsx', import.meta.url), 'utf8');
+    expect(picker.match(/api\.pinAttachedSource\(/g)?.length).toBe(1);
+    expect(picker).toContain('onToggle={async (doc, pin)');
+  });
+
+  it('the checker, the creator, Ask and the editor all use the one picker', () => {
+    const tools = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    expect(tools.match(/<WorkingSetPicker/g)?.length).toBe(2); // creator + checker
+    expect(tools).not.toContain('AttachPicker');
+    const ask = readFileSync(new URL('./screens/ask.tsx', import.meta.url), 'utf8');
+    expect(ask).toContain('<ConversationWorkingSet');
+  });
+
+  it('the creator and the checker send the picked ids in the run body', () => {
+    const tools = readFileSync(new URL('./screens/tools.tsx', import.meta.url), 'utf8');
+    expect(tools.match(/attachedDocumentIds: (workingSet|attached)\.map\(\(doc\) => doc\.id\)/g)?.length).toBe(2);
   });
 });
 
-describe('T-416 — one search behaviour, matched the same way in both pickers', () => {
-  it('matches on any of the fields it is given, case-folded', () => {
-    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'env')).toBe(true);
-    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'BASELINE')).toBe(true);
-    expect(matchesQuery(['WA-ENV-0004', 'Environmental baseline'], 'ecology')).toBe(false);
+describe('T-471 — a finding quoting a draft from a working area the reader is not in', () => {
+  it('says so in place of the excerpt', () => {
+    const panel = readFileSync(new URL('./findings-panel.tsx', import.meta.url), 'utf8');
+    expect(panel).toContain('Quoted from a document in a working area you are not in.');
+    expect(panel.indexOf('evidence.hidden === true')).toBeLessThan(panel.indexOf('From a document you attached'));
+  });
+});
+
+describe('T-471 — the label beside a result, and the hidden count', () => {
+  it('a result handed a working set says so with the count, and cites nothing', () => {
+    const html = renderToStaticMarkup(
+      <WorkingSetLine
+        entries={[
+          { sandboxDocumentId: 'a1', label: 'Land quality method statement' },
+          { sandboxDocumentId: 'a2', label: 'Ecology baseline note' },
+        ]}
+      />,
+    );
+    expect(html).toContain('Drawing on your working area — 2 documents');
+    // the titles are on hover, not on the line; and the line is no citation chip
+    expect(html).not.toContain('Land quality method statement');
+    expect(html).not.toContain('class="cite');
   });
 
-  it('an empty query matches everything — a search box is not a filter you must satisfy', () => {
-    expect(matchesQuery(['anything'], '')).toBe(true);
-    expect(matchesQuery(['anything'], '   ')).toBe(true);
+  it('a reader outside the working area is told how many, never which', () => {
+    const html = renderToStaticMarkup(<WorkingSetLine entries={[{ hidden: true }, { hidden: true }]} />);
+    expect(html).toContain('2 documents from a working area you are not in');
+    expect(html).not.toContain('Drawing on your working area');
   });
 
-  it('a null field is absent rather than a crash', () => {
-    // most of a real corpus predates the description column
-    expect(matchesQuery([null, 'Title'], 'title')).toBe(true);
-    expect(matchesQuery([null], 'x')).toBe(false);
+  it('a run handed nothing carries no line', () => {
+    expect(renderToStaticMarkup(<WorkingSetLine entries={undefined} />)).toBe('');
+    expect(renderToStaticMarkup(<WorkingSetLine entries={[]} />)).toBe('');
+  });
+});
+
+describe('T-471 — Ask’s composer carries the working-set chip', () => {
+  it('Ask renders the picker beside the scope control', () => {
+    const ask = readFileSync(new URL('./screens/ask.tsx', import.meta.url), 'utf8');
+    const scope = ask.indexOf('<ScopeControl');
+    const set = ask.indexOf('<ConversationWorkingSet');
+    expect(scope).toBeGreaterThan(-1);
+    expect(set).toBeGreaterThan(scope);
+    expect(set - scope).toBeLessThan(1200);
+  });
+
+  it('the workingArea call is a plain GET with the search and the page', async () => {
+    const urls: string[] = [];
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ items: [], page: 1, pageSize: 50, hasMore: false, q: null }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+    try {
+      await api.workingArea('p1', ' land ');
+      await api.workingArea('p1', '');
+    } finally {
+      globalThis.fetch = original;
+    }
+    expect(urls[0]).toBe('/projects/p1/working-area?q=land&page=1');
+    expect(urls[1]).toBe('/projects/p1/working-area?page=1');
   });
 });
 

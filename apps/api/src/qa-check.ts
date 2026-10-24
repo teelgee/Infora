@@ -53,6 +53,8 @@ import { reachCounts, TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
+import type { RunWorkingSet } from '@infora/orchestration';
+import { resolveWorkingSetIds, withVisibleWorkingSet } from './working-set';
 import { readRulesForCheck, readStyleClauses } from '@infora/orchestration';
 import type { CapabilityRegistry, ChainLeaves, RunAttachment } from '@infora/orchestration';
 import { extractText } from './extract';
@@ -235,6 +237,8 @@ export function qaCheckRoutes(deps: {
         /** T-469 — the scope as the gateway will see it, and the counts the plan described */
         scope: Scope | undefined;
         reach: ReachCounts;
+        /** T-471 — the attached documents, each checked for reach and excerpted */
+        workingSet: RunWorkingSet[];
       }
     | { ok: false; response: Response }
   > => {
@@ -324,11 +328,21 @@ export function qaCheckRoutes(deps: {
     }
     const reach = await reachCounts(deps, slice, resolved.scope);
 
+    // T-471 — every attached id is checked for the requester, per document,
+    // through its own working area's grants, BEFORE the plan is priced or any
+    // text is read. An id they cannot reach is a 400 in words, not a dropped
+    // entry: the check read the draft's organisation (above) and never the
+    // attached ids, so a guessed id from another working area used to be read
+    // into the prompt by id alone.
+    const attached = await resolveWorkingSetIds(deps.db, slice, parsed.data.attachedDocumentIds);
+    if (!attached.ok) return { ok: false, response: invalid(c, attached.detail) };
+
     return {
       ok: true,
       body: parsed.data,
       scope: resolved.scope,
       reach,
+      workingSet: attached.workingSet,
       sectionCount: sections.length,
       clauseCount: clauses.length,
       ruleCounts: countRules(rules),
@@ -462,6 +476,9 @@ export function qaCheckRoutes(deps: {
         // completed with `read` when the run finishes
         ...(computed.scope !== undefined && { scope: computed.scope }),
         reach: computed.reach,
+        // T-471 — the attached documents: on the plan (id and label) and, as
+        // excerpts, on the context the section check reads them from
+        ...(computed.workingSet.length > 0 && { workingSet: computed.workingSet }),
         // T-399 — the TEXT, in memory only, for the life of this walk. It
         // reaches the section check through the same door the sandbox-pinned
         // excerpts use, one step earlier.
@@ -470,7 +487,8 @@ export function qaCheckRoutes(deps: {
         entitledCapabilities: workers.map((worker) => worker.name),
         mode: 'declared',
       });
-      run = await readRun(deps.db, executed.run.id);
+      const written = await readRun(deps.db, executed.run.id);
+      run = written === null ? null : await withVisibleWorkingSet(deps.db, slice, written);
       outputs = executed.outputs;
     } catch (error) {
       if (error instanceof CapabilityRefused) {

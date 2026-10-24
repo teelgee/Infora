@@ -41,7 +41,7 @@ import type {
 } from '@infora/contracts';
 import { flattenOutline, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
-import { freshModelOutput, normaliseFreshOutput, parseClaims, preferredWordings } from '@infora/capabilities';
+import { freshModelOutput, normaliseFreshOutput, parseClaims, preferredWordings, workingSetBlock } from '@infora/capabilities';
 import type { AcceptedRule } from '@infora/capabilities';
 import { readCurrentRuleSet } from '@infora/data';
 import { schema as s } from '@infora/db';
@@ -87,6 +87,14 @@ export type DocumentBuilderInput = {
    * for retrieving the whole library.
    */
   scope?: Scope;
+  /**
+   * T-471 — the author's working set: documents they pinned from working areas
+   * they are in, already reach-checked and excerpted. Shown to the drafting call
+   * as user-supplied background after the numbered sources; never a source, so
+   * no sentence resting on one can be cited, and an unsourced sentence is
+   * withheld as in any built document.
+   */
+  workingSet?: ReadonlyArray<{ label: string; excerpt: string }>;
   destination: { sandboxId: Id; title: string };
 };
 
@@ -335,7 +343,9 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       messages: [
         {
           role: 'user',
-          content: passages.map((passage, at) => `[S${at + 1}] ${passage.content}`).join('\n\n'),
+          content:
+            passages.map((passage, at) => `[S${at + 1}] ${passage.content}`).join('\n\n') +
+            workingSetBlock(input.workingSet),
         },
       ],
     });

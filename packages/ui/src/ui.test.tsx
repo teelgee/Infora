@@ -589,6 +589,27 @@ describe('CompletionFooter (T-294)', () => {
     expect(renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />)).not.toContain('cf-reach');
   });
 
+  // T-471 — a run handed a working set says so beside its answer, with the count
+  // and no citation; a reader outside those drafts' working area gets only a
+  // count; a run handed nothing carries no line
+  it('says it drew on the working area, and a reader outside it sees only a count', () => {
+    const entries = [
+      { sandboxDocumentId: 'a1', label: 'Land quality method statement' },
+      { sandboxDocumentId: 'a2', label: 'Ecology baseline note' },
+    ];
+    const html = renderToStaticMarkup(<CompletionFooter run={run({ workingSet: entries })} plan={plan()} />);
+    expect(html).toContain('Drawing on your working area — 2 documents');
+    expect(html).not.toContain('Land quality method statement');
+    // the manifest still lists no citation for them
+    expect(html).not.toContain('class="cite');
+    const hidden = renderToStaticMarkup(
+      <CompletionFooter run={run({ workingSet: [{ hidden: true }, { hidden: true }] })} plan={plan()} />,
+    );
+    expect(hidden).toContain('2 documents from a working area you are not in');
+    expect(hidden).not.toContain('Drawing on your working area');
+    expect(renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />)).not.toContain('working area');
+  });
+
   // THE hard requirement: the mode is in words and is never behind Details.
   it('states the orchestration mode in words, outside the Details affordance', () => {
     const html = renderToStaticMarkup(<CompletionFooter run={run()} plan={plan()} />);
@@ -1083,6 +1104,17 @@ describe('MultiPicker (T-470)', () => {
     },
     { id: 'documents', heading: 'Documents', options: [{ id: 'd-1', label: 'WA-GEO-001 Ground investigation' }] },
   ];
+
+  // T-471 — when the caller owns the search (the working-set picker asks the
+  // server), the picker must NOT filter the rows itself
+  it('does not filter locally when the caller owns the search', () => {
+    const html = renderToStaticMarkup(
+      <MultiPicker label="Working set" groups={groups} selected={[]} onToggle={() => {}} onClose={() => {}} onQueryChange={() => {}} />,
+    );
+    expect(html.match(/role="option"/g)).toHaveLength(4);
+    // the local filter still exists for callers that do not own it
+    expect(filterPickerGroups(groups, 'zzz')).toHaveLength(0);
+  });
 
   it('is a multiselectable listbox of options, grouped by heading, ticked ones marked', () => {
     const html = renderToStaticMarkup(

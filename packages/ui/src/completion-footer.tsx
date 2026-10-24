@@ -18,6 +18,7 @@
 import { useState } from 'react';
 import { reachStatement } from '@infora/contracts';
 import type { Citation, Plan, Run, Step } from '@infora/contracts';
+import { WorkingSetLine } from './working-set-line';
 
 const MODE_WORDS = {
   declared: 'Ran a declared workflow',
@@ -85,6 +86,15 @@ export function CompletionFooter(props: {
             <span>
               {props.lensLabel ?? plan.lensId} Lens{plan.lensVersion !== null && ` v${plan.lensVersion}`}
             </span>
+          </>
+        )}
+        {/* T-471 — a run handed a working set says so beside its answer, and
+            never cites it. The list is on hover; a reader outside those
+            drafts' working area is told only how many. */}
+        {run.workingSet !== undefined && run.workingSet.length > 0 && (
+          <>
+            <span className="cf-sep">·</span>
+            <WorkingSetLine entries={run.workingSet} />
           </>
         )}
         {counts.withheld > 0 && (

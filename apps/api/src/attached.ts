@@ -17,6 +17,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { admittingCodes, contextStateOf } from './context-state';
 import { resolveSlice } from './requester';
+import { checkReach, unreachableRefusal } from './working-set';
 import type { AppEnv, UserRow } from './requester';
 
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
@@ -123,14 +124,28 @@ export function attachedSourceRoutes(deps: { db: Db }) {
       ctx.slice,
       rows.filter((r) => r.kind === 'library').map((r) => r.ref),
     );
-    const items: AttachedSource[] = rows.map((r) => ({
-      id: r.id,
-      conversationId: r.conversationId,
-      kind: r.kind,
-      ref: r.ref,
-      label: r.label,
-      document: r.kind === 'library' ? (markers.get(r.ref) ?? null) : null,
-    }));
+    // T-471 — a `sandbox` pin is shown to a reader only if THEY are in the
+    // working area its document sits in. Anyone else on the thread gets an
+    // entry with no ref and no label — a count, never a title (ADR-0022's
+    // addendum, ruling 5). Checked per document, through the sandbox's own grants.
+    const { reachable } = await checkReach(
+      deps.db,
+      ctx.slice,
+      rows.filter((r) => r.kind === 'sandbox').map((r) => r.ref),
+    );
+    const mayShow = new Set(reachable.map((doc) => doc.id as string));
+    const items: AttachedSource[] = rows.map((r) =>
+      r.kind === 'sandbox' && !mayShow.has(r.ref)
+        ? { id: r.id, conversationId: r.conversationId, kind: r.kind, ref: '', label: null, hidden: true, document: null }
+        : {
+            id: r.id,
+            conversationId: r.conversationId,
+            kind: r.kind,
+            ref: r.ref,
+            label: r.label,
+            document: r.kind === 'library' ? (markers.get(r.ref) ?? null) : null,
+          },
+    );
     return c.json({ items } satisfies ListAttachedSourcesResponse);
   });
 
@@ -148,13 +163,30 @@ export function attachedSourceRoutes(deps: { db: Db }) {
       marker = (await libraryMarkers(deps.db, ctx.slice, [parsed.data.ref])).get(parsed.data.ref) ?? null;
       if (!marker) return notFound(c);
     }
+    // T-471 — and a `sandbox` pin names a document in a working area the
+    // requester is part of, checked here through the sandbox's own grants. It
+    // was not checked at all before this ticket: the ref was stored as sent. The
+    // label is the document's own title, taken from the store rather than from
+    // the body, so what a thread shows is what the document is called.
+    let label = parsed.data.label ?? null;
+    if (parsed.data.kind === 'sandbox') {
+      const { reachable } = await checkReach(deps.db, ctx.slice, [parsed.data.ref]);
+      const doc = reachable[0];
+      if (doc === undefined) {
+        return c.json(
+          { error: 'invalid', detail: unreachableRefusal(['That document']) } satisfies ApiError,
+          400,
+        );
+      }
+      label = doc.title;
+    }
     const [row] = await deps.db
       .insert(s.attachedSources)
       .values({
         conversationId: ctx.conv.id,
         kind: parsed.data.kind,
         ref: parsed.data.ref,
-        label: parsed.data.label ?? null,
+        label,
         pinnedByParticipantId: ctx.slice.participantId,
       })
       .returning();

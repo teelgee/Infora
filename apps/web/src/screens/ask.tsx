@@ -23,6 +23,7 @@ import { api, RequestError } from '../api';
 import { ComposerSources } from '../composer-sources';
 import { ContextChip } from '../composer-chips';
 import { ScopeControl, useScopeState } from '../scope-control';
+import { ConversationWorkingSet } from '../working-set-picker';
 import { DestinationSelector, DestinationWarning, useDestinations } from '../destination-selector';
 import type { Destination } from '../destination-selector';
 import { LensPicker, useLenses } from '../lens-picker';
@@ -185,6 +186,14 @@ export function AskScreen() {
     }
   }
 
+  // T-471 — the conversation, opened on demand: the first question opens it, and
+  // so does the first draft pinned to it, so a working set can be chosen before
+  // anything is asked.
+  async function ensureConversation(): Promise<string> {
+    conversationRef.current ??= (await api.createConversation(participant.projectId)).conversationId;
+    return conversationRef.current;
+  }
+
   async function send(request: string) {
     if (pending) return;
     setFailed(false);
@@ -195,7 +204,7 @@ export function AskScreen() {
     setPending(true);
     abortRef.current = new AbortController();
     try {
-      conversationRef.current ??= (await api.createConversation(participant.projectId)).conversationId;
+      const conversationId = await ensureConversation();
       // the Lens is captured HERE, at send time — switching while a run is in
       // flight must not relabel the answer already being produced
       const sentUnder = lens;
@@ -204,7 +213,7 @@ export function AskScreen() {
       // was actually built on.
       const sentScope = scopeState.scope;
       const run = await api.createRun(
-        conversationRef.current,
+        conversationId,
         request,
         undefined,
         abortRef.current.signal,
@@ -338,6 +347,17 @@ export function AskScreen() {
                 <>
                   <LensPicker lenses={lenses} value={lens} onChange={setLens} />
                   <ScopeControl state={scopeState} placement="top" />
+                  {/* T-471 — the working set: drafts from the working areas
+                      the person is in, read as background and never cited.
+                      Beside the scope, because it answers the other half of
+                      "what will this read": the library (scope) and my own
+                      drafts (working set). */}
+                  <ConversationWorkingSet
+                    projectId={participant.projectId}
+                    conversationId={reopenId}
+                    ensureConversationId={ensureConversation}
+                    placement="top"
+                  />
                   <ContextChip scope={groundingScope} />
                   <ComposerSources
                     projectId={participant.projectId}

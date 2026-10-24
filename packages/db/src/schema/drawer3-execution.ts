@@ -286,6 +286,15 @@ export const plans = pgTable(
     // retrieval and never edited. Null means the whole visible library. It only
     // narrows: the gateway intersects it with the requester's entitled set.
     scope: jsonb('scope'),
+    // T-471 — the working set this run was handed: the list of
+    // `{ sandboxDocumentId, label }` the person pinned, each checked for reach
+    // by the server when the run started (an unreachable one refuses the run
+    // rather than being dropped). Written once by `openPlan` with the scope,
+    // before retrieval, never edited. Null means none. Never read by the
+    // assembler as a corpus: the documents are excerpted into the prompt marked
+    // user-supplied, and no citation can point at one (ADR-0022's addendum of
+    // 2026-10-24). No named person: the pinner is on `attached_sources`.
+    workingSet: jsonb('working_set'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     // an edit-and-rerun creates a NEW plan on a NEW run and points the old one
     // here: supersession, never mutation, because a plan is evidence

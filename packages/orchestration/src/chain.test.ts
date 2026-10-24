@@ -456,6 +456,70 @@ describe('the scope and the reach (T-469)', () => {
   });
 });
 
+// T-471 — the working set is a declared part of the plan, written BEFORE retrieval
+// (id and label only), and every leaf sees it on the context with its excerpt.
+describe('the working set (T-471)', () => {
+  const docA = '00000000-0000-4000-8000-0000000000a1';
+  const docB = '00000000-0000-4000-8000-0000000000b2';
+  const set = [
+    { sandboxDocumentId: docA, label: 'Land quality method statement', excerpt: 'Trial pits at 20 m centres.' },
+    { sandboxDocumentId: docB, label: 'Ecology baseline note', excerpt: 'Badger setts on the northern boundary.' },
+  ];
+
+  it('writes id and label on the plan BEFORE the retrieve leaf runs — and never the excerpt', async () => {
+    let onPlanWhenRetrieving: unknown = 'the leaf never ran';
+    const leaves = stubLeaves([]);
+    leaves.retrieve = async (ctx) => {
+      const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, ctx.run.id));
+      onPlanWhenRetrieving = plan!.workingSet;
+      return { output: retrieved };
+    };
+    const { run } = await runChain(db, leaves, { ...input(), workingSet: set });
+    const expected = set.map(({ sandboxDocumentId, label }) => ({ sandboxDocumentId, label }));
+    expect(onPlanWhenRetrieving).toEqual(expected);
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, run.id));
+    expect(plan!.workingSet).toEqual(expected);
+    // the record keeps what was vouched for, not the text it was shown
+    expect(JSON.stringify(plan!.workingSet)).not.toContain('Trial pits');
+  });
+
+  it('hands the set, excerpts and all, to the draft leaf on its context — and not through the assembled input', async () => {
+    let onDraftContext: unknown = 'the leaf never ran';
+    let draftInputKeys: string[] = [];
+    const leaves = stubLeaves([]);
+    leaves.draft = async (ctx, leafInput) => {
+      onDraftContext = ctx.workingSet;
+      draftInputKeys = Object.keys(leafInput);
+      return { output: { claims: [{ text: 'a grounded claim.', sourceRef: { versionId } }] } };
+    };
+    await runChain(db, leaves, { ...input(), workingSet: set });
+    expect(onDraftContext).toEqual(set);
+    // the assembler's channels never carry it: the draft's input is the request,
+    // what was retrieved, the mode and the lens — nothing else
+    expect(draftInputKeys.sort()).toEqual(['lens', 'mode', 'request', 'retrieved']);
+    expect(JSON.stringify(retrieved)).not.toContain('Badger');
+  });
+
+  it('a run handed nothing writes null and leaves the context without a set', async () => {
+    let onContext: unknown = 'the leaf never ran';
+    const leaves = stubLeaves([]);
+    leaves.draft = async (ctx) => {
+      onContext = ctx.workingSet;
+      return { output: { claims: [{ text: 'a grounded claim.', sourceRef: { versionId } }] } };
+    };
+    const { run } = await runChain(db, leaves, input());
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, run.id));
+    expect(plan!.workingSet).toBeNull();
+    expect(onContext).toBeUndefined();
+  });
+
+  it('an empty list is the same as none', async () => {
+    const { run } = await runChain(db, stubLeaves([]), { ...input(), workingSet: [] });
+    const [plan] = await db.select().from(s.plans).where(eq(s.plans.runId, run.id));
+    expect(plan!.workingSet).toBeNull();
+  });
+});
+
 // Review, 2026-08-31 — the fan-out ordering guarantee, pinned at its own level.
 // `{{steps.x.output}}` over an expanded step returns section outputs in section
 // order BY NUMERIC SUFFIX; eleven expansions is the case a string sort fails

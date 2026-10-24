@@ -31,6 +31,7 @@ import type {
   ReachCounts,
   RunReach,
   Scope,
+  WorkingSetDocument,
   StepType,
   WorkerDeclaration,
   WorkflowLabelPropagation,
@@ -112,6 +113,13 @@ export type RunAttachment = {
   excerpt: string;
 };
 
+/**
+ * T-471 — one pinned document as a run uses it: what the plan records
+ * (`sandboxDocumentId`, `label`) plus the excerpt a prompt is shown. The excerpt
+ * is held in memory for the run and never stored — the plan keeps the pair.
+ */
+export type RunWorkingSet = WorkingSetDocument & { excerpt: string };
+
 export type LeafContext = {
   db: Db;
   run: RunRow; // the open run — the retrieval sub-agent opens child runs against it
@@ -130,6 +138,15 @@ export type LeafContext = {
    * ever narrows: the gateway intersects it with the entitled set.
    */
   scope?: Scope;
+  /**
+   * T-471 — the working set this run was handed: documents the person pinned
+   * from working areas they are in, each already checked for reach by the API
+   * and excerpted. They are background the person vouches for, marked
+   * user-supplied wherever a prompt carries them, and they never enter the
+   * assembler's channels and never produce a citation (ADR-0022's addendum of
+   * 2026-10-24). Absent means none.
+   */
+  workingSet?: readonly RunWorkingSet[];
 };
 
 // A leaf returns its output plus what the Step row must record (ADR-0028 §7).
@@ -229,6 +246,13 @@ export type ChainInput = {
    * leaf and capability on the context. Absent: the whole visible library.
    */
   scope?: Scope;
+  /**
+   * T-471 — the working set the person handed this run (already reach-checked
+   * by the API, per document). Written on the plan, label and id only, BEFORE
+   * the first retrieval, and carried to every leaf on the context with its
+   * excerpt. Absent: none.
+   */
+  workingSet?: readonly RunWorkingSet[];
   /**
    * T-469 — the document counts the API took under the requester's own
    * visibility when it accepted the request (it needs them anyway, to refuse a
@@ -396,6 +420,9 @@ export async function runChain(
     lens: input.lens ?? null,
     // T-469 — the declared scope, on the plan BEFORE the first retrieval
     scope: input.scope ?? null,
+    // T-471 — and the working set, label and id only (the excerpt is the run's,
+    // not the record's), beside it
+    workingSet: (input.workingSet ?? []).map(({ sandboxDocumentId, label }) => ({ sandboxDocumentId, label })),
   });
   await markPlanRunning(db, plan.id);
 
@@ -443,6 +470,7 @@ export async function runChain(
           stepId: row.id,
           attachments: input.attachments ?? [],
           ...(input.scope !== undefined && { scope: input.scope }),
+          ...(input.workingSet !== undefined && input.workingSet.length > 0 && { workingSet: input.workingSet }),
         },
         leafInput,
       );

@@ -122,6 +122,7 @@ import type {
   QaCheckRunResponse,
   ListSandboxCommentsResponse,
   ResolveFindingsResponse,
+  GetWorkingAreaResponse,
   ListSandboxDocumentsResponse,
   ListSuggestionsResponse,
   ListWorkItemsResponse,
@@ -341,6 +342,13 @@ export const api = {
     request<GetPassageResponse>(`/versions/${versionId}/passages/${chunkId}`),
   sandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents`),
+  // T-471 — the documents this person may pin: every live document in a working
+  // area they are in, searched by title on the server, 50 at a time
+  workingArea: (projectId: string, q: string, page = 1, signal?: AbortSignal) =>
+    request<GetWorkingAreaResponse>(
+      `/projects/${projectId}/working-area?${new URLSearchParams({ ...(q.trim() !== '' && { q: q.trim() }), page: String(page) })}`,
+      signal === undefined ? undefined : { signal },
+    ),
   // T-456 — the bin (T-128's recycle view) and its two acts, reachable at last
   deletedSandboxDocuments: (projectId: string) =>
     request<ListSandboxDocumentsResponse>(`/projects/${projectId}/sandbox-documents?deleted=1`),

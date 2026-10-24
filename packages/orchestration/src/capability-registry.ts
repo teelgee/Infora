@@ -18,7 +18,7 @@
 // for a worker until now. Where a worker reports no usage the audit stays
 // EMPTY rather than zero — an unpriced step must not read as a free one
 // (T-254).
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Assemble, CheckFamily, DocumentSection, Id } from '@infora/contracts';
 import {
   CHECK_FAMILIES,
@@ -204,37 +204,6 @@ function familiesOf(value: unknown): CheckFamily[] {
   );
 }
 
-/** A bound `id_list`, as strings. */
-function idsOf(value: unknown): Id[] {
-  return Array.isArray(value) ? value.filter((entry): entry is Id => typeof entry === 'string') : [];
-}
-
-/**
- * The excerpts a run pinned from the requester's own sandbox (ADR-0022).
- *
- * ⚠ **Read only where the requester's own organisation owns the document**,
- * which is the sandbox document's existing posture everywhere else in the
- * build. A pin is the user saying *"look at this too"*, not a route to material
- * they could not otherwise open.
- */
-async function excerptsOf(db: Db, documentIds: readonly Id[]) {
-  if (documentIds.length === 0) return [];
-  const rows = await db
-    .select({
-      id: s.sandboxDocuments.id,
-      title: s.sandboxDocuments.title,
-      content: s.sandboxDocuments.content,
-    })
-    .from(s.sandboxDocuments)
-    .where(inArray(s.sandboxDocuments.id, [...documentIds]));
-  return rows.map((row) => ({
-    attachedSourceId: row.id as Id,
-    // the excerpt is what makes the finding intelligible; it is not a citation
-    // and must not render as one
-    excerpt: `${row.title}: ${row.content.slice(0, ATTACHED_EXCERPT_CHARS)}`,
-  }));
-}
-
 /** How much of an attached document one section check is shown. */
 const ATTACHED_EXCERPT_CHARS = 4000;
 
@@ -331,6 +300,11 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
             // written on the plan before retrieval. It replaces the version ids
             // the author used to bind, and goes through the gateway's pre-filter.
             ...(ctx.scope !== undefined && { scope: ctx.scope }),
+            // T-471 — the author's working set, off the context (already
+            // reach-checked at the API); background in the prompt, not a source
+            ...(ctx.workingSet !== undefined && {
+              workingSet: ctx.workingSet.map((doc) => ({ label: doc.label, excerpt: doc.excerpt })),
+            }),
             destination: {
               sandboxId: text(inputs['destination_sandbox_id']) as Id,
               title: text(inputs['title'], 'Untitled'),
@@ -417,7 +391,17 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
       // so a plan's `[A1]` marker keeps meaning the same thing across a
       // re-plan that adds an upload.
       const excerpts = [
-        ...(await excerptsOf(ctx.db, idsOf(inputs['attached_document_ids']))),
+        // T-471 — the pinned documents come off the CONTEXT, where the API put
+        // them after checking each one's reach for this requester. They are no
+        // longer read here by id: this used to select `sandbox_documents` by the
+        // step input alone, so an id from a working area the requester was not in
+        // (guessed, stale, or put there by an edited plan) was read straight
+        // into the prompt. `attached_document_ids` stays a bound parameter for
+        // the record; what the check is shown is only what was checked.
+        ...(ctx.workingSet ?? []).map((doc) => ({
+          attachedSourceId: doc.sandboxDocumentId,
+          excerpt: `${doc.label}: ${doc.excerpt.slice(0, ATTACHED_EXCERPT_CHARS)}`,
+        })),
         ...ctx.attachments.map((attachment) => ({
           attachedSourceId: attachment.attachedSourceId,
           excerpt: `${attachment.name}: ${attachment.excerpt.slice(0, ATTACHED_EXCERPT_CHARS)}`,

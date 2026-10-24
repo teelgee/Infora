@@ -34,6 +34,10 @@ test('the Ask composer has no placeholder chips; the editor offers only what it 
   for (const chip of ['Web search', 'Sandbox search', 'Prompts', 'Style', 'Attach a file', '⚙ Tools']) {
     await expect(page.getByText(chip, { exact: true })).toHaveCount(0);
   }
+  // T-471 — the one chip that DOES something about attaching: the working set,
+  // which hands the AI drafts from the working areas you are in. It replaces
+  // the "no attach chip" this spec used to assert.
+  await expect(page.getByRole('button', { name: /Working set/ })).toBeVisible();
   await page.getByRole('link', { name: 'Editor' }).click();
   await expect(page.locator('.create-card')).toHaveCount(1);
   await expect(page.locator('.create-card.disabled')).toHaveCount(0);

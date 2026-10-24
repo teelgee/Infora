@@ -58,7 +58,17 @@ export function createDraftLeaf(
     try {
       result = await groundedDraft(
         router,
-        { request: input.request, retrieved: input.retrieved, lens: input.lens },
+        {
+          request: input.request,
+          retrieved: input.retrieved,
+          lens: input.lens,
+          // T-471 — the person's working set, as user-supplied background in
+          // the prompt. It reaches the draft by the leaf's context, never through
+          // `retrieved`: the assembler's channels do not carry it.
+          ...(ctx.workingSet !== undefined && {
+            workingSet: ctx.workingSet.map((doc) => ({ label: doc.label, excerpt: doc.excerpt })),
+          }),
+        },
         { ...options, mode: input.mode },
       );
     } catch (error) {

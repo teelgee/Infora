@@ -95,5 +95,6 @@ export type {
   // T-399 — one file uploaded straight into a run, parsed at the boundary and
   // carried in memory. Never persisted; see the type for why.
   RunAttachment,
+  RunWorkingSet,
   SourceRef,
 } from './chain';

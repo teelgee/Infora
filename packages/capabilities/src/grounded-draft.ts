@@ -112,9 +112,36 @@ export function composeSystemPrompt(mode: 'document' | 'chat', lens?: Lens | nul
   return [coreText, '', LENS_PRECEDENCE, '', composeLensOverlay(lens)].join('\n');
 }
 
+/**
+ * T-471 — one document from the person's working set, as the prompt shows it.
+ * The excerpt is what makes the document usable as background; it is marked
+ * user-supplied, numbered `A` (never `S`), and cannot become a citation: the
+ * claim parser only resolves `[S#]` markers against the retrieved sources, and
+ * strips any `[A#]` the model writes.
+ */
+export type WorkingSetExcerpt = { label: string; excerpt: string };
+
+/** The block a prompt carries for a working set. Empty list: no block at all. */
+export function workingSetBlock(workingSet: readonly WorkingSetExcerpt[] | undefined): string {
+  if (workingSet === undefined || workingSet.length === 0) return '';
+  const lines = workingSet.map((doc, at) => `[A${at + 1}] (attached by the user — not a project source) ${doc.label}: ${doc.excerpt}`);
+  return [
+    '\nWorking set (supplied by the user as background they vouch for — NOT a project source):',
+    'Read it to understand what the user is working on. Never mark a sentence with an [A#] number,',
+    'never present it as a source or a citation, and where you draw on it say so in words ("in your working area").',
+    ...lines,
+  ].join('\n');
+}
+
 export async function groundedDraft(
   router: Router,
-  input: { request: string; retrieved: AssembledInput; lens?: Lens | null },
+  input: {
+    request: string;
+    retrieved: AssembledInput;
+    lens?: Lens | null;
+    /** T-471 — the documents the person pinned; user-supplied background, never a source */
+    workingSet?: readonly WorkingSetExcerpt[];
+  },
   options: GroundedDraftOptions = {},
 ): Promise<GroundedDraftResult> {
   // T-308 — a citable item is one with a `source`, and after guiding became
@@ -148,6 +175,7 @@ export async function groundedDraft(
     steer === ''
       ? ''
       : `\nSteering material (never cite):\n${conflicting ? `${STEER_PRECEDENCE}\n` : ''}${steer}`,
+    workingSetBlock(input.workingSet),
     `\nTask: ${input.request}`,
   ].join('\n');
 
@@ -183,6 +211,10 @@ export function parseClaims(
   sourceByMarker: Map<string, SourceRef>,
 ): DraftedClaim[] {
   const claims: DraftedClaim[] = [];
+  // T-471 — an [A#] is a working-set number, never a source: it is stripped, so
+  // a model that writes one cannot make a claim look cited, and the sentence
+  // carries no marker the cite step could resolve. Only [S#] resolves.
+  text = text.replace(/[ \t]*\[A\d+\]/g, '');
   const marked = /([^[]*?)\s*\[(S\d+)\](?:\s*\[S\d+\])*/g; // first marker wins in v1
 
   let consumed = 0;

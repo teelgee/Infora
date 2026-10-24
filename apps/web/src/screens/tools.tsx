@@ -80,8 +80,11 @@ import {
   TextArea,
   TextInput,
   PageIntro,
+  WorkingSetLine,
 } from '@infora/ui';
 import { api } from '../api';
+import { WorkingSetPicker } from '../working-set-picker';
+import type { PinnedDoc } from '../working-set-picker';
 import { ScopeControl, scopeField, useScopeState } from '../scope-control';
 
 export function ToolsScreen() {
@@ -758,6 +761,9 @@ export function DocumentCreatorScreen() {
   const [documentType, setDocumentType] = useState<DocumentType>(DEFAULT_DOCUMENT_TYPE);
   const [styleGuides, setStyleGuides] = useState<StyleGuideRecord[] | null>(null);
   const [styleGuideIds, setStyleGuideIds] = useState<string[]>([]);
+  // T-471 — the author's working set: their own drafts, read as background.
+  // Nothing is added for them; every entry is a click.
+  const [workingSet, setWorkingSet] = useState<PinnedDoc[]>([]);
   // T-407 — the outline the author composes. Starts empty on purpose: a
   // pre-filled outline is a shape arriving ready-made, which is the thing A1
   // retired. A starting outline can be chosen, and then it is a copy.
@@ -897,6 +903,7 @@ export function DocumentCreatorScreen() {
     // T-470 — the part of the library the draft may draw on, from the scope
     // control. Absent is the whole library you can reach (one convention)
     ...scopeField(scopeState.scope),
+    attachedDocumentIds: workingSet.map((doc) => doc.id),
     destinationSandboxId: destination,
     title: title.trim(),
   });
@@ -1145,6 +1152,27 @@ export function DocumentCreatorScreen() {
         )}
       </Card>
 
+      <Card>
+        <span className="card-title">Your own drafts, as background</span>
+        {/* T-471 — the one working-set picker. Drafts from the working areas you
+            are part of, searched by title; read as background you vouch for and
+            never cited. Nothing is added for you. */}
+        <p className="field-hint">
+          Optional. Pick drafts from the working areas you are part of for the AI to read as
+          background. It never cites them, and the result says it drew on your working area.
+        </p>
+        <WorkingSetPicker
+          projectId={projectId ?? ''}
+          pinned={workingSet}
+          onToggle={(doc, pin) =>
+            change(setWorkingSet)(pin ? [...workingSet, doc] : workingSet.filter((other) => other.id !== doc.id))
+          }
+        />
+        {workingSet.length > 0 && (
+          <p className="field-hint">{workingSet.map((doc) => doc.title).join(' · ')}</p>
+        )}
+      </Card>
+
       <div className="card-actions">
         <Button
           variant="primary"
@@ -1177,6 +1205,12 @@ export function DocumentCreatorScreen() {
           <p className="card-lede">
             <strong>Covered:</strong> {result.coverage}
           </p>
+          {/* T-471 — a draft written with a working set says so, and cites none of it */}
+          {result.run.workingSet !== undefined && result.run.workingSet.length > 0 && (
+            <p className="card-lede cf-line">
+              <WorkingSetLine entries={result.run.workingSet} />
+            </p>
+          )}
           {result.label.refusal !== null ? (
             <div className="banner banner--warning">
               Nothing was written. This draft would draw on material {result.label.computed}, and the
@@ -1258,118 +1292,23 @@ export function LibraryScopeCopy() {
 export function AttachedCopy() {
   return (
     <p style={{ color: 'var(--text-muted)' }}>
-      One of your own drafts, or a file you upload here, read as background. Findings from an
-      attached document are <strong>never cited</strong> — they quote an excerpt instead of
-      resolving to a source. If you want citations, scope to the library document above instead.
+      Drafts from the working areas you are part of, or a file you upload here, read as
+      background. Findings from an attached document are <strong>never cited</strong> — they quote
+      an excerpt instead of resolving to a source. If you want citations, scope to the library
+      document above instead.
     </p>
   );
 }
 
-// ── T-416 — THE TWO SEARCHES (ADR-0053 §8) ──────────────────────────────────
+// ── T-416 / T-471 — THE SEARCHES ────────────────────────────────────────────
 //
-// *In plain terms: both places where you pick documents for a check now have a
-// search box, and the results show titles rather than only coded references.*
-//
-// 🔒 **ASSEMBLED, NOT FILTERED — AND A SEARCH IS EXACTLY WHERE THAT RULE GETS
-// BROKEN.** The temptation a search box creates is to ask the server "find me
-// documents matching X" and then hide the ones the requester may not reach on
-// the way out, which discloses that they exist by the shape of what comes back.
-// Neither search here does that, and neither *can*: both are a filter over a
-// list that was **already access-resolved server-side** — the grounding scope
-// (`GET /projects/:id/grounding-scope`, computed from the same `liveLibraryFilter`
-// both arms of the assembly gateway run) and the requester's own sandbox
-// documents. **There is no wider set on this screen to narrow.** An unreachable
-// document is not greyed and not ranked low; it never reached the browser.
-//
-// The components below take their rows as a prop and reach nothing else, which
-// is what makes that assertable in a test rather than merely true today.
-
-/** Does this row answer the query? Reference and title both, case-folded. */
-export function matchesQuery(haystack: ReadonlyArray<string | null>, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (needle === '') return true;
-  return haystack.some((value) => (value ?? '').toLowerCase().includes(needle));
-}
-
-/**
- * T-416 — a search box over a list already on this page.
- *
- * It states its own count rather than only filtering silently: *"3 of 24"* is
- * how a person tells a search that found little from a library that holds
- * little, and the two are very different facts about a project.
- */
-export function ListSearch(props: {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (value: string) => void;
-  shown: number;
-  total: number;
-}) {
-  return (
-    <div className="list-search">
-      <TextInput
-        value={props.value}
-        onChange={props.onChange}
-        placeholder={props.placeholder}
-        aria-label={props.label}
-      />
-      <span className="list-search-count">
-        {props.value.trim() === ''
-          ? `${props.total} document${props.total === 1 ? '' : 's'}`
-          : `${props.shown} of ${props.total} match`}
-      </span>
-    </div>
-  );
-}
-
-/**
- * T-416 — the attach-from-working-area picker, searchable, on the same terms.
- *
- * One search behaviour across both pickers, because they are one gesture done
- * twice: two searches that matched differently would teach a person that one of
- * them was broken.
- */
-export function AttachPicker(props: {
-  drafts: SandboxDocument[];
-  selected: string[];
-  onToggle: (documentId: string) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const shown = props.drafts.filter((draft) => matchesQuery([draft.title], query));
-  return (
-    <>
-      <ListSearch
-        label="Search your working area"
-        placeholder="Search your drafts by title…"
-        value={query}
-        onChange={setQuery}
-        shown={shown.length}
-        total={props.drafts.length}
-      />
-      {props.drafts.length === 0 ? (
-        <p className="field-hint">
-          You have no other drafts in this project’s working areas to attach.
-        </p>
-      ) : shown.length === 0 ? (
-        <p className="field-hint">
-          None of your drafts match that. Clear the search to see all {props.drafts.length}.
-        </p>
-      ) : (
-        shown.map((draft) => (
-          <label key={draft.id} className="attach-row">
-            <input
-              type="checkbox"
-              checked={props.selected.includes(draft.id)}
-              onChange={() => props.onToggle(draft.id)}
-            />
-            <span>{draft.title}</span>
-          </label>
-        ))
-      )}
-    </>
-  );
-}
+// *In plain terms: both places where you pick documents for a check have a
+// search box.* The library scope is the Scope control (T-470). The drafts a
+// check reads as background are the one `WorkingSetPicker` (T-471), which asks
+// the server for drafts in the working areas you are part of and shows what
+// comes back — **assembled, not filtered**: a draft in a working area you are
+// not in is never selected, so it cannot be searched into existence. The old
+// in-page list search (`ListSearch`, `matchesQuery`) went with the tick-list.
 
 /**
  * T-415 — ONE CHECK IN THE LIST: its tick, its name, and its own options
@@ -1617,7 +1556,7 @@ export function QaCheckerScreen() {
   const [preset, setPreset] = useState<'full' | 'quick'>(DEFAULT_CHECK_PRESET);
   const [families, setFamilies] = useState<CheckFamily[]>([...CHECK_FAMILIES]);
   const [depth, setDepth] = useState<CorpusDepth>(DEFAULT_CORPUS_DEPTH);
-  const [attached, setAttached] = useState<string[]>([]);
+  const [attached, setAttached] = useState<PinnedDoc[]>([]);
   // T-399 — files handed straight to this check. They live in the browser until
   // the request carries them, are parsed server-side for the run, and are
   // stored nowhere: leaving the page loses them, which is the design.
@@ -1691,7 +1630,7 @@ export function QaCheckerScreen() {
     // (review fix — an empty scope must not keep the plan blocked once the
     // check it scopes is off the plan)
     ...(families.includes('corpus_accuracy') ? scopeField(scopeState.scope) : {}),
-    attachedDocumentIds: attached,
+    attachedDocumentIds: attached.map((doc) => doc.id),
   });
 
   const seePlan = () => {
@@ -1914,15 +1853,20 @@ export function QaCheckerScreen() {
       <Card>
         <span className="card-title">Attach a document</span>
         <AttachedCopy />
-        <AttachPicker
-          drafts={drafts.filter((draft) => draft.id !== documentId)}
-          selected={attached}
-          onToggle={(id) =>
-            change(setAttached)(
-              attached.includes(id) ? attached.filter((other) => other !== id) : [...attached, id],
-            )
+        {/* T-471 — the SAME picker as Ask, the creator and the editor: drafts
+            from the working areas you are part of, by search, titled with the
+            working area they sit in. The draft being checked is not offered. */}
+        <WorkingSetPicker
+          projectId={projectId ?? ''}
+          pinned={attached}
+          exclude={documentId === '' ? [] : [documentId]}
+          onToggle={(doc, pin) =>
+            change(setAttached)(pin ? [...attached, doc] : attached.filter((other) => other.id !== doc.id))
           }
         />
+        {attached.length > 0 && (
+          <p className="field-hint">{attached.map((doc) => doc.title).join(' · ')}</p>
+        )}
         {/* T-399 — the other half ADR-0053 §3 names: a file handed straight to
             the check, without being filed in the working area first. It is read
             for this run and kept nowhere, which the copy says plainly rather
@@ -1999,6 +1943,13 @@ export function QaCheckerScreen() {
           <p>
             <strong>Covered:</strong> {result.coverage}
           </p>
+          {/* T-471 — a check run with attached drafts says so; what they showed
+              is quoted in a finding, never cited */}
+          {result.run.workingSet !== undefined && result.run.workingSet.length > 0 && (
+            <p className="cf-line">
+              <WorkingSetLine entries={result.run.workingSet} />
+            </p>
+          )}
           <p>
             {result.findings.length === 0
               ? 'No findings in what was read — the sentence above is what that claim rests on.'

@@ -1515,6 +1515,41 @@ are not recorded here.
   typed client exists to prevent; `total`, `page` and `pageSize` appear only
   when `page` or `q` was asked for.
 
+- **2026-10-24 (T-471) — `GET /projects/:projectId/working-area`; the run-time
+  reach check; `Run.workingSet` / `Plan.workingSet` and the `{ hidden: true }`
+  entry.** *Plainly: a person can hand the AI some of their own drafts, taken
+  from any working area they are part of, and the server makes sure of that
+  every time a draft is pinned or used.* The **reason `working-area` is a new
+  read and `GET /projects/:id/sandbox-documents` was not widened** is that the
+  latter is, and is built as, "my organisation's own documents" — the sandbox
+  screen, the bin and the checker's document choice all lean on that — whereas
+  the picker needs every draft in a working area the person holds a grant on,
+  including a shared one owned by another firm. One read cannot mean both without
+  one of its callers quietly gaining or losing documents. The **reason it
+  selects only the sandboxes the grants admit, rather than listing and then
+  hiding** is the assembled-not-filtered rule: `hasMore` and the page count are
+  as much a disclosure as a row, so a draft from a working area the person is
+  not in must never be selected at all. The **reason a run is refused — a 400 in
+  words — when a pinned or attached draft is out of reach, rather than the draft
+  being dropped** is that an answer which quietly ignored a draft the person
+  believes it read is worse than no answer: they would act on it. The refusal
+  names the draft by the title its pinner saw when the pinner is the one asking,
+  and by the id that was sent when the id came in a request body, and as "a
+  document a colleague pinned" otherwise — so a refusal never teaches someone
+  outside a working area what a draft in it is called. The **reason the checker
+  stopped reading attached drafts by id** (`excerptsOf` is gone) is that the
+  check on the draft being checked looked at its firm and nothing looked at the
+  drafts attached beside it; the excerpts now come from the run's context, where
+  the API put them after checking each one, so an edited plan cannot name an
+  unchecked id either. The **reason a hidden entry is `{ hidden: true }` with no
+  id** (and a hidden pin is `hidden: true` with a blank ref and label) is that an
+  id is as good as a title to anyone who can open a document by id elsewhere, and
+  because the rule is per document a reader can be shown some titles and a count
+  of the rest. The **reason the plan records the id and the title but never the
+  excerpt** is that the record should say what the person vouched for, and the
+  text the model was shown is the run's own business — the same line the
+  checker's uploaded files already hold.
+
 - **2026-10-24 (T-470) — `POST /projects/:projectId/scope-preview`; term counts on
   `GET .../grounding-scope`; `reach` on `GET .../findings`.** *Plainly: while a
   person builds a scope, the screen says how many documents it reaches before

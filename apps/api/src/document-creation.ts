@@ -63,6 +63,8 @@ import { reachCounts, TOKEN_LIMIT } from '@infora/knowledge';
 import { bindWorkflow, WorkflowNotRunnable } from '@infora/workflows';
 import type { WorkflowRegistry } from '@infora/workflows';
 import { CapabilityRefused, createConversation, readRun, runChain } from '@infora/orchestration';
+import type { RunWorkingSet } from '@infora/orchestration';
+import { resolveWorkingSetIds, withVisibleWorkingSet } from './working-set';
 import type { CapabilityRegistry, ChainLeaves } from '@infora/orchestration';
 import type { WorkerRegistry } from '@infora/capabilities';
 import { currentRuleSetVersionIds } from '@infora/data';
@@ -145,6 +147,8 @@ export function documentCreationRoutes(deps: {
         scope: Scope | undefined;
         /** T-469 — the counts the plan was described by, taken before the click */
         reach: ReachCounts;
+        /** T-471 — the author's attached documents, each checked for reach and excerpted */
+        workingSet: RunWorkingSet[];
       }
     | { ok: false; response: Response }
   > => {
@@ -185,11 +189,17 @@ export function documentCreationRoutes(deps: {
     }
     const reach = await reachCounts(deps, c.get('slice'), resolved.scope);
 
+    // T-471 — the working set, checked for the author per document before the
+    // plan is priced; an unreachable one is a 400 in words, never dropped
+    const attached = await resolveWorkingSetIds(deps.db, c.get('slice'), parsed.data.attachedDocumentIds);
+    if (!attached.ok) return { ok: false, response: invalid(c, attached.detail) };
+
     return {
       ok: true,
       body: parsed.data,
       scope: resolved.scope,
       reach,
+      workingSet: attached.workingSet,
       plan: planDocumentCreation({
         workflow,
         // T-407 — the outline the AUTHOR composed. There is no template lookup
@@ -508,11 +518,15 @@ export function documentCreationRoutes(deps: {
         // with `read` at the end
         ...(computed.scope !== undefined && { scope: computed.scope }),
         reach: computed.reach,
+        // T-471 — on the plan (id and label), and as background in the drafting
+        // prompt, marked user-supplied; it cannot become a citation
+        ...(computed.workingSet.length > 0 && { workingSet: computed.workingSet }),
         ...(deps.capabilities !== undefined && { capabilities: deps.capabilities }),
         entitledCapabilities: workers.map((worker) => worker.name),
         mode: 'declared',
       });
-      run = await readRun(deps.db, executed.run.id);
+      const written = await readRun(deps.db, executed.run.id);
+      run = written === null ? null : await withVisibleWorkingSet(deps.db, slice, written);
       output = (executed.outputs['build'] as Record<string, unknown>) ?? {};
     } catch (error) {
       if (error instanceof CapabilityRefused) {

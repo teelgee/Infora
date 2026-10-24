@@ -3,7 +3,7 @@
 // Citations resolve their documentReference through the version's container;
 // the Signal, when present, rides its Suggestion.
 import { asc, desc, eq, inArray } from 'drizzle-orm';
-import type { Citation, Id, Run, RunReach, Step, Suggestion } from '@infora/contracts';
+import type { Citation, Id, Run, RunReach, Step, Suggestion, WorkingSetDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 
@@ -22,9 +22,11 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
   const [run] = await db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
   if (!run) return null;
 
-  const [stepRows, suggestionRows] = await Promise.all([
+  const [stepRows, suggestionRows, [plan]] = await Promise.all([
     db.select().from(s.steps).where(eq(s.steps.runId, runId)).orderBy(asc(s.steps.startedAt)),
     db.select().from(s.suggestions).where(eq(s.suggestions.runId, runId)),
+    // T-471 — the working set the run was handed lives on its plan
+    db.select({ workingSet: s.plans.workingSet }).from(s.plans).where(eq(s.plans.runId, runId)).limit(1),
   ]);
 
   return {
@@ -43,6 +45,10 @@ export async function readRun(db: Db, runId: Id): Promise<Run | null> {
     // T-469 — the counts the reach sentence is rendered from; absent on a run
     // that finished before they existed
     ...(run.reach !== null && { reach: run.reach as RunReach }),
+    // T-471 — RAW, with every entry's id and title. This is a store read and
+    // resolves no permissions; the API replaces the entries the reader may not
+    // see with `{ hidden: true }` before any of it leaves the server.
+    ...(plan?.workingSet != null && { workingSet: plan.workingSet as WorkingSetDocument[] }),
     citations: await readStepCitations(db, stepRows.map((row) => row.id)),
   };
 }

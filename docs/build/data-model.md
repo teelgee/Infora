@@ -508,6 +508,26 @@ No named person on either column; nothing to register.
 
 *Built the same day (migration 0076); per the state rule the field list above stands only as the drawing it was, and [drawer3-execution.ts](../../packages/db/src/schema/drawer3-execution.ts) is the authority on its shape.*
 
+**Drawn 2026-10-24 — the working set a run was handed (T-471).** *Plainly: when
+a person pins a few of their own drafts to a conversation and asks a question,
+the run keeps a note of exactly which drafts it was handed — so the record can
+say what the person vouched for, and the answer can say "drawing on your
+working area".* The pins themselves live on the conversation (`attached_sources`,
+T-154) and persist across turns; what a single run actually received is the
+run's own fact.
+
+`plans` gains `working_set` (jsonb, nullable — null means none): the list of
+`{ sandboxDocumentId, label }` the run was handed, written by `openPlan` with
+the scope, before retrieval, never edited. Each id was checked for reach by
+the server when the run started (the document's own sandbox grants, ADR-0022's
+addendum of this day); an unreachable id refuses the run rather than being
+dropped. Never read by the assembler as a corpus: the orchestrator excerpts
+these documents into the prompt marked user-supplied, and the cite step skips
+them. No named person on the column (the pinner is on `attached_sources`,
+already registered).
+
+*Built the same day (migration 0077); per the state rule the field list above stands only as the drawing it was, and [drawer3-execution.ts](../../packages/db/src/schema/drawer3-execution.ts) is the authority on its shape.*
+
 ## Drawer 4 — AI output & feedback
 *What the agent proposes, and the human resolution that is the moat's raw
 material. (ADR-0021, 0026, 0028.)*

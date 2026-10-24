@@ -350,6 +350,14 @@ function Evidence(props: {
     );
   }
   if (evidence.input === 'attached') {
+    // T-471 — the draft sits in a working area this reader is not in
+    if (evidence.hidden === true) {
+      return (
+        <p className="finding-evidence finding-note">
+          Quoted from a document in a working area you are not in.
+        </p>
+      );
+    }
     return (
       <p className="finding-evidence finding-note">
         From a document you attached — not a project source, so it is quoted rather than cited:{' '}

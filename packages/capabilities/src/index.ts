@@ -7,12 +7,14 @@ export {
   SYSTEM_CHAT_CLAUSES,
   SYSTEM_DOCUMENT_CLAUSES,
   STEER_PRECEDENCE,
+  workingSetBlock,
 } from './grounded-draft';
 export type {
   DraftedClaim,
   GroundedDraftOptions,
   GroundedDraftResult,
   SourceRef,
+  WorkingSetExcerpt,
 } from './grounded-draft';
 // T-269 — the typed worker registry and entitlement assembly. The tool set is
 // ASSEMBLED, not filtered: an unentitled worker is absent, and the model is

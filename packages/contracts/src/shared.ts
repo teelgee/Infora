@@ -3,6 +3,7 @@
 // Suggestion.kind/anchor, railOutcomes.detail).
 
 import type { RunReach, Scope } from './scope';
+import type { WorkingSetEntry } from './working-set';
 
 export type Id = string; // uuid
 export type Surface = 'web' | 'word_addin' | 'copilot'; // ADR-0031
@@ -125,6 +126,13 @@ export type Run = {
    * on one that failed before they could be counted.
    */
   reach?: RunReach;
+  /**
+   * T-471 — the working set this run was handed, as THIS reader may see it
+   * (ADR-0022's addendum of 2026-10-24). Absent when the run was handed none.
+   * Each entry is the document, or `{ hidden: true }` for a reader outside that
+   * document's working area. It is never a citation source.
+   */
+  workingSet?: WorkingSetEntry[];
   citations: Citation[]; // the answer's citations when no Suggestion carries them
   // (untargeted chat runs — cite-step citations surfaced; added 2026-07-09,
   // T-088, discharging the step-citation residual for web and M6 alike)
@@ -203,6 +211,8 @@ export type Plan = {
    * only narrows what the requester could already reach.
    */
   scope?: Scope;
+  /** T-471 — the working set the run was handed, as this reader may see it */
+  workingSet?: WorkingSetEntry[];
   steps: PlanStep[];
 };
 

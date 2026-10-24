@@ -106,7 +106,7 @@ describe('attached-source working set on a multiplayer conversation (T-154)', ()
     conversationId = ((await created.json()) as { conversationId: string }).conversationId;
 
     for (const src of [
-      { kind: 'sandbox', ref: 'sandbox-doc-x', label: 'Working note' },
+      { kind: 'sandbox', ref: docId, label: 'Working note' }, // T-471: a real document, in a working area B is in
       { kind: 'web', ref: 'https://example.test/std' },
     ]) {
       const res = await app.request(`/conversations/${conversationId}/attached-sources`, {

@@ -23,6 +23,7 @@ import type {
   PlanStage,
   PlanStepState,
   Scope,
+  WorkingSetDocument,
   StepType,
 } from '@infora/contracts';
 import type { PlannedStep } from './plan-order';
@@ -94,6 +95,12 @@ export type OpenPlanInput = {
    * visible library.
    */
   scope?: Scope | null;
+  /**
+   * T-471 — the documents the person handed this run, label and id. Written
+   * with the scope, before the first retrieval, never edited. An empty or
+   * absent list writes null: the run was handed none.
+   */
+  workingSet?: readonly WorkingSetDocument[] | null;
 };
 
 /**
@@ -136,6 +143,11 @@ export async function openPlan(db: Db, input: OpenPlanInput): Promise<OpenedPlan
       question: input.question,
       // T-469 — null is the honest value for a run that named no scope
       scope: input.scope ?? null,
+      // T-471 — null is the honest value for a run handed no working set
+      workingSet:
+        input.workingSet !== undefined && input.workingSet !== null && input.workingSet.length > 0
+          ? [...input.workingSet]
+          : null,
       // nothing restates the question until the classifier lands (T-266), and
       // echoing the question as its own restatement would be a fabrication
       restatement: null,
@@ -247,6 +259,7 @@ export async function readPlanForRun(db: Db, runId: Id): Promise<Plan | null> {
     createdAt: plan.createdAt.toISOString(),
     supersededByPlanId: plan.supersededByPlanId,
     ...(plan.scope !== null && { scope: plan.scope as Scope }),
+    ...(plan.workingSet !== null && { workingSet: plan.workingSet as WorkingSetDocument[] }),
     steps: steps.map((step) => ({
       id: step.id,
       ordinal: step.ordinal,

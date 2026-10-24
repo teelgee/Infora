@@ -57,6 +57,7 @@ import { resolveSession } from './sessions';
 import { DEFAULT_SESSION_POLICY } from './sessions';
 import type { SessionPolicy } from './sessions';
 import { ensureDefaultSandbox, toSandboxDocument } from './sandbox';
+import { conversationWorkingSet, resolveWorkingSetIds, withVisiblePlanInputs, withVisibleWorkingSet } from './working-set';
 import { refuseIfOff } from './ai-features';
 
 const notFound = { error: 'not_found' } satisfies ApiError;
@@ -367,6 +368,15 @@ export function runRoutes(deps: {
       // same counts ride the run, which adds what it actually read.
       const { reach, refusal } = await reachOrRefusal(deps, slice, resolvedScope.scope);
       if (refusal !== null) return c.json(invalid(refusal), 400);
+
+      // T-471 — THE WORKING SET this conversation hands the run: its live
+      // pins, each checked for reach for THIS requester, here, before anything
+      // is spent. An unreachable one refuses the run in words — never silently
+      // dropped, because an answer that quietly ignored a draft the person
+      // thinks it read is the failure this check exists to stop. Nothing joins
+      // the set but a person's pin: not the document being edited, not an upload.
+      const handed = await conversationWorkingSet(deps.db, slice, c.req.param('conversationId'));
+      if (!handed.ok) return c.json(invalid(handed.detail), 400);
       const leaves = deps.leaves;
 
       let run: RunRow;
@@ -383,6 +393,9 @@ export function runRoutes(deps: {
           // counts are completed with `read` when the run finishes
           ...(resolvedScope.scope !== undefined && { scope: resolvedScope.scope }),
           reach,
+          // T-471 — written on the plan (id and label) and carried to the
+          // draft as user-supplied background; never an assembler channel
+          ...(handed.workingSet.length > 0 && { workingSet: handed.workingSet }),
           workflow: declared,
           ...(stages !== undefined && { stages }),
           // T-396 — the executor, and the set assembled for THIS requester.
@@ -415,7 +428,11 @@ export function runRoutes(deps: {
           ? c.json({ error: 'unauthenticated' } satisfies ApiError, 401)
           : c.json(notFound, 404);
       }
-      return c.json((await readRun(deps.db, run.id)) satisfies Run | null, 201);
+      const written = await readRun(deps.db, run.id);
+      return c.json(
+        (written === null ? null : await withVisibleWorkingSet(deps.db, slice, written)) satisfies Run | null,
+        201,
+      );
     },
   );
 
@@ -572,7 +589,8 @@ export function runRoutes(deps: {
     const runId = c.req.param('runId');
     const [run] = await deps.db.select().from(s.runs).where(eq(s.runs.id, runId)).limit(1);
     if (!run || !(await runVisibleTo(deps.db, run, c.get('slice')))) return c.json(notFound, 404);
-    return c.json(await readRun(deps.db, runId));
+    const read = await readRun(deps.db, runId);
+    return c.json(read === null ? null : await withVisibleWorkingSet(deps.db, c.get('slice'), read));
   });
 
   // T-253 — the assembled context this run saw, at passage grain
@@ -606,7 +624,8 @@ export function runRoutes(deps: {
     if (!plan) return c.json(notFound, 404);
 
     return c.json({
-      plan,
+      // T-471 — the working set as THIS reader may see it
+      plan: await withVisiblePlanInputs(deps.db, slice, await withVisibleWorkingSet(deps.db, slice, plan)),
       // read ≠ re-run, and the difference is decided on the RECORD's requester
       // rather than the caller's claim: a colleague may read this and may not
       // re-run it as themselves, because a re-run is a new Run with a new
@@ -705,6 +724,15 @@ export function runRoutes(deps: {
       }
     }
 
+    // T-471 — the working set is inherited from the plan being re-run and
+    // checked again, for this requester, now: a grant may have closed since.
+    const inheritedSet = await resolveWorkingSetIds(
+      deps.db,
+      slice,
+      (plan.workingSet ?? []).flatMap((entry) => ('hidden' in entry ? [] : [entry.sandboxDocumentId])),
+    );
+    if (!inheritedSet.ok) return c.json(invalid(inheritedSet.detail), 400);
+
     let rerun: RunRow;
     try {
       ({ run: rerun } = await runChain(deps.db, deps.leaves, {
@@ -718,6 +746,7 @@ export function runRoutes(deps: {
         // describe what THIS run could reach
         ...(plan.scope !== undefined && { scope: plan.scope }),
         reach: await reachCounts(deps, slice, plan.scope),
+        ...(inheritedSet.workingSet.length > 0 && { workingSet: inheritedSet.workingSet }),
         stages: body.data.steps.map((step) => ({
           stage: step.stage,
           worker: step.worker ?? null,
@@ -759,8 +788,8 @@ export function runRoutes(deps: {
 
     return c.json(
       {
-        run: (await readRun(deps.db, rerun.id))!,
-        plan: written,
+        run: await withVisibleWorkingSet(deps.db, slice, (await readRun(deps.db, rerun.id))!),
+        plan: await withVisiblePlanInputs(deps.db, slice, await withVisibleWorkingSet(deps.db, slice, written)),
         supersededPlanId: plan.id,
       } satisfies RerunPlanResponse,
       201,
@@ -897,7 +926,8 @@ async function visibleRuns(db: Db, rows: RunRow[], slice: EntitledSlice): Promis
   for (const row of rows) {
     if (!(await runVisibleTo(db, row, slice))) continue;
     const run = await readRun(db, row.id as Id);
-    if (run) runs.push(run);
+    // T-471 — each pinned document is shown only to a reader in ITS working area
+    if (run) runs.push(await withVisibleWorkingSet(db, slice, run));
   }
   return runs;
 }

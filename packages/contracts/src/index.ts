@@ -18,3 +18,4 @@ export * from './shared';
 export * from './endpoints';
 export * from './errors';
 export * from './scope';
+export * from './working-set';

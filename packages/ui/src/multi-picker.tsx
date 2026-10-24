@@ -105,12 +105,25 @@ export function MultiPicker(props: {
   footer?: ReactNode;
   /** shown when nothing matches */
   emptyText?: string;
+  /**
+   * T-471 — when given, the CALLER owns the search: the picker does not filter
+   * the groups itself, and reports each change to the search box so the caller
+   * can fetch. The working-set picker searches a list too long to hold in the
+   * browser (every draft in every working area the person is in), so the server
+   * does the narrowing and pages it. Absent, the picker filters what it was
+   * given, as the scope control does.
+   */
+  onQueryChange?: (query: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listId = useId();
-  const shown = useMemo(() => filterPickerGroups(props.groups, query), [props.groups, query]);
+  const remote = props.onQueryChange !== undefined;
+  const shown = useMemo(
+    () => (remote ? props.groups : filterPickerGroups(props.groups, query)),
+    [remote, props.groups, query],
+  );
   const flat = useMemo(() => shown.flatMap((group) => group.options), [shown]);
   const optionDomId = (id: string) => `${listId}-${id}`;
 
@@ -148,6 +161,7 @@ export function MultiPicker(props: {
         onChange={(event) => {
           setQuery(event.target.value);
           setActive(0);
+          props.onQueryChange?.(event.target.value);
         }}
         onKeyDown={onKeyDown}
       />

@@ -55,7 +55,7 @@ import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { Presence } from '../presence';
-import { WorkingSet } from '../working-set';
+import { ConversationWorkingSet } from '../working-set-picker';
 import { useMe } from '../session';
 import { PromotionWindow } from '../promotion-window';
 import { SourceModal } from '../source-modal';
@@ -340,21 +340,28 @@ export function EditorScreen() {
     setEditSuggestion(null);
   }
 
+  // the editor conversation is a document-bound multiplayer thread (T-160):
+  // its prompts and responses are visible to the document's sandbox scope.
+  // Opened on demand — by the first request, or by the first draft pinned to it
+  // (T-471). Opening the editor on a draft opens nothing and pins nothing.
+  async function ensureConversation(): Promise<string> {
+    if (conversationRef.current === null) {
+      conversationRef.current = (
+        await api.createConversation(participant.projectId, undefined, documentId)
+      ).conversationId;
+      setConvId(conversationRef.current);
+    }
+    return conversationRef.current;
+  }
+
   async function runAgainst(request: string) {
     if (pending || documentId === undefined) return;
     setChatLog((log) => [...log, { id: nextId.current++, who: 'user', text: request }]);
     setPending(true);
     abortRef.current = new AbortController();
     try {
-      // the editor conversation is a document-bound multiplayer thread (T-160):
-      // its prompts and responses are visible to the document's sandbox scope
-      if (conversationRef.current === null) {
-        conversationRef.current = (
-          await api.createConversation(participant.projectId, undefined, documentId)
-        ).conversationId;
-        setConvId(conversationRef.current);
-      }
-      const run = await api.createRun(conversationRef.current, request, documentId, abortRef.current.signal);
+      const conversationId = await ensureConversation();
+      const run = await api.createRun(conversationId, request, documentId, abortRef.current.signal);
       setChatLog((log) => [
         ...log,
         {
@@ -1071,7 +1078,16 @@ export function EditorScreen() {
                   </div>
                 </div>
               )}
-              <WorkingSet conversationId={convId} />
+              {/* T-471 — the one working-set picker: drafts from the working
+                  areas you are in, by search; never the document being edited
+                  (it is not offered, and nothing is pinned for you) */}
+              <ConversationWorkingSet
+                projectId={participant.projectId}
+                conversationId={convId}
+                ensureConversationId={ensureConversation}
+                {...(documentId !== undefined && { exclude: [documentId] })}
+                placement="top"
+              />
               <div style={{ marginTop: 8 }}>
                 <ChatComposer
                   ref={composerRef}

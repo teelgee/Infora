@@ -40,6 +40,7 @@ import type {
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
+import { readableDocumentIds } from './working-set';
 import type { DraftFinding } from '@infora/capabilities';
 
 /**
@@ -142,12 +143,27 @@ export async function listFindings(
   const suggestions =
     suggestionIds.length === 0 ? new Map<string, Suggestion>() : await suggestionsOf(db, suggestionIds);
 
-  return readable.map((row) =>
+  const found = readable.map((row) =>
     toFinding(
       row,
       row.closedByParticipantId === null ? null : names.get(row.closedByParticipantId) ?? null,
       row.proposedRevisionId === null ? null : suggestions.get(row.proposedRevisionId) ?? null,
     ),
+  );
+
+  // T-471 — a finding that quotes an attached draft carries that draft's title
+  // and up to 4,000 characters of it. Show them only to a reader who is in the
+  // working area the draft sits in (ADR-0022's addendum, ruling 5); everyone
+  // else keeps the finding and loses the quote and the id.
+  const attachedIds = found.flatMap((finding) =>
+    finding.evidence.input === 'attached' ? [finding.evidence.attachedSourceId] : [],
+  );
+  if (attachedIds.length === 0) return found;
+  const mayRead = await readableDocumentIds(db, slice, attachedIds);
+  return found.map((finding) =>
+    finding.evidence.input === 'attached' && !mayRead.has(finding.evidence.attachedSourceId)
+      ? { ...finding, evidence: { input: 'attached' as const, attachedSourceId: '' as Id, excerpt: '', hidden: true as const } }
+      : finding,
   );
 }
 

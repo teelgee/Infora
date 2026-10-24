@@ -2368,6 +2368,10 @@ export type AttachedSource = {
   kind: 'sandbox' | 'upload' | 'web' | 'library';
   ref: string;
   label: string | null;
+  // T-471 — set for a `sandbox` pin whose document sits in a working area the
+  // READER is not in: the ref and label are then blank, and the client says
+  // "a document from a working area you are not in". Never set for the pinner.
+  hidden?: boolean;
   // T-391 — THE MARKER, resolved server-side for a `library` pin and null for
   // every other kind. Pinning an out-of-context document is legal and
   // deliberate; what separates that from dangerous use is the reader knowing
@@ -3074,6 +3078,13 @@ export const documentCreationBody = z.object({
    * in and is never counted.
    */
   scope: scopeSchema.optional(),
+  /**
+   * T-471 — the working set: documents the author pinned from working areas
+   * they are in, read as background marked user-supplied. **Never grounds,
+   * never cited.** The server checks each one's reach and refuses the run, in
+   * words, for one the author cannot reach. Nothing is added for the author.
+   */
+  attachedDocumentIds: z.array(id).default([]),
   destinationSandboxId: id,
   title: z.string().min(1),
 });

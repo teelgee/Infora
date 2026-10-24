@@ -11,9 +11,12 @@ import {
   patchSandboxMetadataBody,
   renameSandboxDocumentBody,
   restoreSandboxVersionBody,
+  WORKING_AREA_PAGE_SIZE,
+  workingAreaQuery,
 } from '@infora/contracts';
 import type {
   ApiError,
+  GetWorkingAreaResponse,
   ListSandboxDocumentsResponse,
   ListPresenceResponse,
   ListSandboxHistoryResponse,
@@ -26,6 +29,7 @@ import type { Db } from '@infora/db';
 import { readDocumentSuggestions } from '@infora/orchestration';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import { releaseLapsedEngineLock } from './engine-lock';
+import { listWorkingArea } from './working-set';
 import type { AppEnv } from './requester';
 
 // T-171 — a document always lives in a sandbox (sandbox_id NOT NULL). When none
@@ -207,6 +211,28 @@ export function sandboxRoutes(deps: { db: Db }) {
     return c.json({
       items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0, freezeByDoc.get(r.id) ?? null)),
     } satisfies ListSandboxDocumentsResponse);
+  });
+
+  // T-471 — the documents a person may PIN: every live document in a working
+  // area they are in, whoever owns it. `sandbox-documents` above is "my
+  // organisation's own" and stays so (the sandbox screen is built on that); this
+  // read follows the sandbox's own grants instead (ADR-0036), so a shared
+  // working area's drafts are here and a sandbox the person holds no grant on is
+  // never selected. Searched by title, paged at 50.
+  app.get('/projects/:projectId/working-area', project, async (c) => {
+    const query = workingAreaQuery.safeParse({
+      q: c.req.query('q'),
+      page: c.req.query('page'),
+    });
+    if (!query.success) return c.json({ error: 'invalid', detail: 'q and page' } satisfies ApiError, 400);
+    const { items, hasMore } = await listWorkingArea(deps.db, c.get('slice'), query.data);
+    return c.json({
+      items,
+      page: query.data.page,
+      pageSize: WORKING_AREA_PAGE_SIZE,
+      hasMore,
+      q: query.data.q && query.data.q !== '' ? query.data.q : null,
+    } satisfies GetWorkingAreaResponse);
   });
 
   const documentScope = resourceScope(deps, 'id', resourceHomes.sandboxDocument);
