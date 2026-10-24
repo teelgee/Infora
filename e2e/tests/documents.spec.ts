@@ -3,7 +3,18 @@
 // negative (a firm outside the share gets no page).
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import type { DeliverableShare, GetLibraryResponse, ListRosterResponse, MeResponse } from '@infora/contracts';
+import type {
+  DeliverableShare,
+  GetLibraryResponse,
+  GetLibrarySearchResponse,
+  ListRosterResponse,
+  MeResponse,
+  PlanRow,
+  PromotionResult,
+  ReviewCycle,
+  ReviewerGrant,
+  SandboxDocument,
+} from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
 
 test.describe.configure({ mode: 'serial' });
@@ -132,10 +143,45 @@ test('Redgate opens another firm’s shared deliverable and sees no plan-only ta
   const projectId = me.participants.find((p) => p.projectName === PROJECT)!.projectId;
   const roster = (await rachel.get<ListRosterResponse>(`/projects/${projectId}/participants`)).items;
   const redgateOrgId = roster.find((r) => r.name === 'Nadia Okonjo' && r.removedAt === null)!.organisationId;
-  // a Calder & Hale deliverable on the library (the owner sees every row)
-  const library = (await rachel.get<GetLibraryResponse>(`/projects/${projectId}/library`)).items;
-  const calder = library.find((i) => i.kind === 'deliverable' && i.producerName.includes('Calder'))!;
-  expect(calder).toBeTruthy();
+  // a Calder & Hale deliverable on the library. The seed has none, so the spec
+  // makes its own through the product's routes (plan, appoint, draft, promote,
+  // accept) under a fresh reference each run, so a clean and a long-lived
+  // database behave alike
+  const eleanor = await ApiSession.login(SEEDED.consultant);
+  const stamp = String(Date.now()).slice(-6);
+  const reference = `WA-DOC-ECO-${stamp}`;
+  const planRow = await eleanor.post<PlanRow>(`/projects/${projectId}/plan`, {
+    documentReference: reference,
+    title: `Document page reader e2e ${stamp}`,
+    metadata: { discipline: 'ecology' },
+  });
+  const calderRoster = (await eleanor.get<ListRosterResponse>(`/projects/${projectId}/participants`)).items;
+  const eleanorEntry = calderRoster.find((r) => r.name === 'Eleanor Price')!;
+  const rachelEntry = calderRoster.find((r) => r.name === 'Rachel Bowen')!;
+  await eleanor.post(`/containers/${planRow.containerId}/authors`, { participantId: eleanorEntry.participantId, isLead: true });
+  const grant = await eleanor.post<ReviewerGrant>(`/containers/${planRow.containerId}/reviewers`, {
+    participantId: rachelEntry.participantId,
+    isLead: true,
+  });
+  await rachel.post(`/reviewers/${grant.id}/confirmation`, {});
+  await rachel.post(`/reviewers/${grant.id}/acceptance`, {});
+  const draft = await eleanor.post<SandboxDocument>(`/projects/${projectId}/sandbox-documents`, {
+    title: `Document page reader e2e ${stamp} draft`,
+    containerId: planRow.containerId,
+  });
+  await eleanor.patch(`/sandbox-documents/${draft.id}`, { content: 'The ecology chapter.' });
+  await eleanor.patch(`/sandboxes/${draft.sandboxId}/settings`, { promotionRequiresQa: false });
+  const promoted = await eleanor.post<PromotionResult>(`/sandbox-documents/${draft.id}/promotion`, {});
+  await rachel.post(`/rounds/${promoted.roundId}/acknowledge`, {});
+  const codes = await rachel.get<{ items: Array<{ id: string; isAccepting: boolean }> }>(`/projects/${projectId}/acceptance-codes`);
+  await rachel.post(`/rounds/${promoted.roundId}/deliverable-code`, { acceptanceCodeId: codes.items.find((c) => c.isAccepting)!.id });
+  const closed = await rachel.post<{ cycle: ReviewCycle }>(`/rounds/${promoted.roundId}/issue`, {});
+  expect(closed.cycle.state).toBe('accepted');
+  // searched by its code, not read off the library's first page: on a
+  // long-lived database the register is paged and this row may sit beyond it
+  const found = (await rachel.get<GetLibrarySearchResponse>(`/projects/${projectId}/library/search?q=${reference}`)).items;
+  const calder = found.find((i) => i.containerId === planRow.containerId)!;
+  expect(calder.producerName).toContain('Calder');
   // the owner shares it with Redgate and Redgate acknowledges, through the product's own routes
   const shareRes = await rachel.raw('post', `/containers/${calder.containerId}/shares`, { organisationId: redgateOrgId });
   expect([201, 409]).toContain(shareRes.status());

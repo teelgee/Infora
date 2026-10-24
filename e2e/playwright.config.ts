@@ -4,8 +4,13 @@
 // path.
 import { defineConfig } from '@playwright/test';
 
-export const API_URL = 'http://localhost:3210';
-const WEB_URL = 'http://localhost:5273';
+// Two checkouts running e2e on one machine collide on fixed ports (and a
+// reused server from the other checkout would serve the other code), so the
+// ports may be moved by env; the defaults are unchanged.
+const API_PORT = process.env['E2E_API_PORT'] ?? '3210';
+const WEB_PORT = process.env['E2E_WEB_PORT'] ?? '5273';
+export const API_URL = `http://localhost:${API_PORT}`;
+const WEB_URL = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({
   testDir: './tests',
@@ -28,11 +33,11 @@ export default defineConfig({
     {
       command: 'pnpm --filter @infora/api run start:e2e',
       url: `${API_URL}/me`, // 401 counts as up
-      env: { PORT: '3210' },
+      env: { PORT: API_PORT },
       reuseExistingServer: !process.env['CI'],
     },
     {
-      command: 'pnpm --filter @infora/web exec vite --port 5273 --strictPort',
+      command: `pnpm --filter @infora/web exec vite --port ${WEB_PORT} --strictPort`,
       url: WEB_URL,
       env: { API_PROXY_TARGET: API_URL },
       reuseExistingServer: !process.env['CI'],
