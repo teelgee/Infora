@@ -1,3 +1,5 @@
+import type { RuleKind } from './rule-set';
+
 // T-310 — THE CHECK FAMILIES AND THEIR GRAIN (ADR-0053 §2).
 //
 // *In plain terms: the QA checker does not do one thing. It does six, and they
@@ -230,3 +232,85 @@ export const DEFAULT_CHECK_PRESET = 'full';
  * way to know they took the weak path.
  */
 export type CheckAgainst = 'library' | 'attached';
+
+// ── T-476 (ADR-0053 addendum A8) — THE STRENGTH MAP ─────────────────────────
+//
+// *In plain terms: before you run a check, a small table says which findings
+// are settled by exact rules in code — the same answer every time — and which
+// rest on an AI's reading of your text, which can be wrong. It describes; it
+// changes nothing about what runs.*
+//
+// Keyed to ADR-0054's five rule kinds and to the check families, in the words
+// of ADR-0054 §4's table and `CHECK_FAMILY_CATALOGUE.execution`. It lives here
+// because the launcher renders it, and a surface sees `contracts` and `ui`
+// alone.
+export type Strength = 'code' | 'model';
+
+export const STRENGTH_LABEL: Record<Strength, string> = {
+  code: 'Settled in code',
+  model: 'The model’s reading',
+};
+
+export type StrengthEntry = {
+  /** a rule kind or a check family */
+  key: string;
+  label: string;
+  strength: Strength;
+  sentence: string;
+};
+
+/** ADR-0054 §4's table, one row per kind, in the table's own order. */
+export const RULE_KIND_STRENGTH: readonly (StrengthEntry & { key: RuleKind })[] = [
+  {
+    key: 'term',
+    label: 'Preferred wording',
+    strength: 'code',
+    sentence: 'An exact match against the wordings the rule replaces — the same answer every time.',
+  },
+  {
+    key: 'pattern',
+    label: 'Convention',
+    strength: 'code',
+    sentence: 'A pattern with its exceptions, such as date form or unit spacing — nothing is judged.',
+  },
+  {
+    key: 'structure',
+    label: 'Required structure',
+    strength: 'code',
+    sentence: 'What the document must contain and in what order, checked against its outline.',
+  },
+  {
+    key: 'measured',
+    label: 'A number with a target',
+    strength: 'code',
+    sentence: 'Arithmetic — a sentence length or a reading grade against its target.',
+  },
+  {
+    key: 'judgement',
+    label: 'Judgement',
+    strength: 'model',
+    sentence:
+      'Anything a computer cannot settle, such as “prefer the active voice”. A model reads the text, so it can be wrong.',
+  },
+];
+
+const FAMILY_SENTENCE: Record<CheckFamily, string> = {
+  style:
+    'The model reads each section against the rules that need judgement and any prose from your firm’s manual; the rule kinds above that are settled in code never reach it.',
+  corpus_accuracy:
+    'The model reads each section against passages retrieved from the library, and every finding cites the passage behind it.',
+  self_contradiction:
+    'The model compares what each section asserts, and every finding points at both places.',
+  readability: 'Arithmetic over the text — never a pass or a fail.',
+  completeness: 'A comparison with the template and a search for placeholder text.',
+  stale_grounding: 'A comparison of each cited source with the library as it stands now.',
+};
+
+/** The same map for the check families, from the catalogue's own `execution`. */
+export const FAMILY_STRENGTH: readonly (StrengthEntry & { key: CheckFamily })[] =
+  CHECK_FAMILY_CATALOGUE.map((entry) => ({
+    key: entry.family,
+    label: entry.label,
+    strength: entry.execution === 'code' ? ('code' as const) : ('model' as const),
+    sentence: FAMILY_SENTENCE[entry.family],
+  }));

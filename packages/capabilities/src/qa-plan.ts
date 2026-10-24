@@ -60,6 +60,16 @@ export const CHECK_OVERHEAD_TOKENS = 500;
 export const CHECK_COMPLETION_TOKENS = 400;
 /** one section's summary, in the comparison call */
 export const SUMMARY_TOKENS = 80;
+/**
+ * T-476 (ADR-0053 A9) — the disproving pass. How many judgement findings one
+ * section read is EXPECTED to raise, for the estimate. A fixed number for the
+ * reason the others are: the true count is not known until the model has
+ * answered, and a figure that came from a model would be a model call taken to
+ * avoid a model call. It is an estimate, and the plan says so.
+ */
+export const EXPECTED_JUDGEMENT_FINDINGS_PER_PASS = 1;
+/** what one "show this finding wrong" answer costs to write */
+export const DISPROVE_COMPLETION_TOKENS = 120;
 
 export const tokensIn = (text: string): number => Math.ceil(text.length / CHARS_PER_TOKEN);
 
@@ -108,6 +118,12 @@ export type QaCheckPlanInput = {
    * then identify.
    */
   attachedUploads: readonly string[];
+  /**
+   * T-476 (ADR-0053 A9) — **the optional disproving pass**, off unless asked
+   * for. When on, the plan declares it as a step of its own after the section
+   * reads, so the plan still describes the run exactly.
+   */
+  disprovingPass?: boolean;
   /** the model the check calls would route to, for the estimate */
   checkModelId: string;
   rates?: ModelRates;
@@ -276,6 +292,39 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
       },
     });
   }
+  // ── T-476 — the optional disproving pass, a step of its own ──────────────
+  //
+  // One model call per EXPECTED judgement finding, and the expectation comes
+  // from this plan's own section reads (one per read, a stated estimate). It
+  // is declared here, after the reads it follows, and priced like every other
+  // step — but ADR-0053 A9's narrow exception to A3 is that the launcher shows
+  // THIS step's price beside its switch and nowhere else; the plan screens still
+  // show no price line.
+  if (input.disprovingPass === true && passes.length > 0) {
+    const examined = passes.length * EXPECTED_JUDGEMENT_FINDINGS_PER_PASS;
+    const usage = {
+      tokensPrompt: passes.reduce((sum, key) => {
+        const pass = parsePassKey(key)!;
+        const unit = units.find((candidate) => candidate.index === pass.section)!;
+        return (
+          sum + (unit.tokens + CHECK_OVERHEAD_TOKENS) * EXPECTED_JUDGEMENT_FINDINGS_PER_PASS
+        );
+      }, 0),
+      tokensCompletion: examined * DISPROVE_COMPLETION_TOKENS,
+    };
+    steps.push({
+      key: 'disprove',
+      stage: 'analyse',
+      worker: 'qa_section_check',
+      label:
+        'Ask the model to argue that each finding it raised is wrong, and withdraw any it can disprove',
+      estimate: {
+        calls: examined,
+        ...usage,
+        cost: costOf(input.rates, { id: input.checkModelId, version: input.checkModelId }, usage),
+      },
+    });
+  }
   for (const [nth, key] of groups.entries()) {
     void key;
     const perGroup = Math.ceil(input.sections.length / groups.length);
@@ -328,6 +377,11 @@ export function planQaCheck(input: QaCheckPlanInput): QaCheckPlan {
   const total = priced ? steps.reduce((sum, step) => sum + (step.estimate.cost ?? 0), 0) : null;
 
   const caveats: string[] = [];
+  if (input.disprovingPass === true && passes.length === 0) {
+    caveats.push(
+      'The disproving pass is switched on, but no check that reads by judgement is selected, so there is nothing for it to examine.',
+    );
+  }
   if (groups.length > 1) {
     // 🔒 IT DEGRADES LOUDLY OR NOT AT ALL (ADR-0053 §4). The summaries no
     // longer fit one call, so a contradiction between two sections in different
@@ -421,6 +475,14 @@ export function coverageBefore(input: QaCheckPlanInput, clausePasses = 1): strin
   if (input.families.includes('style')) {
     parts.push(styleCoverage(input, clausePasses));
   }
+  // T-476 — said in the plan like every other property of the run, and only
+  // where the pass is on and a judgement check is among the checks
+  if (
+    input.disprovingPass === true &&
+    (input.families.includes('style') || input.families.includes('corpus_accuracy'))
+  ) {
+    parts.push('each finding the model raises argued against before you see it');
+  }
   // T-474 — arithmetic, said in the plan like every other family
   if (input.families.includes('stale_grounding')) {
     parts.push('every cited source compared with the library as it stands now');
@@ -506,6 +568,12 @@ export function coverageAfterQaCheck(result: {
    * family was not run, so the sentence stays silent about it */
   staleClaimsChecked?: number;
   /**
+   * T-476 (ADR-0053 A9) — the disproving pass, as it turned out: how many
+   * findings the model raised that the pass looked at, and how many it
+   * withdrew. Absent where the pass was off, so the sentence stays silent.
+   */
+  disproving?: { raised: number; withdrawn: number };
+  /**
    * T-469 — the run's reach, as it turned out, rendered by the one function
    * every surface uses. Said only where the corpus check ran.
    */
@@ -552,6 +620,11 @@ export function coverageAfterQaCheck(result: {
   if (result.sectionsWithNoPassages > 0) {
     parts.push(
       `${result.sectionsWithNoPassages} section${result.sectionsWithNoPassages === 1 ? '' : 's'} the library said nothing about`,
+    );
+  }
+  if (result.disproving !== undefined) {
+    parts.push(
+      `${result.disproving.raised} raised, ${result.disproving.withdrawn} withdrawn by the disproving pass`,
     );
   }
   if (result.discarded > 0) {

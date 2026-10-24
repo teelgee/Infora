@@ -13,6 +13,7 @@ import { gapMarkers } from '@infora/contracts';
 import type {
   Finding,
   GapMarker,
+  Locator,
   PassageProvenance,
   StaleGroundingResponse,
   MeResponse,
@@ -504,6 +505,16 @@ export function EditorScreen() {
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     setFlashThread(finding.id);
     window.setTimeout(() => setFlashThread((cur) => (cur === finding.id ? null : cur)), 1400);
+  }
+
+  // T-476 — the SECOND place of a two-place finding (a contradiction): the same
+  // selection the first place gets, at the other end
+  function locateOtherPlace(_finding: Finding, anchor: Locator) {
+    const area = canvasRef.current;
+    if (area !== null && area.value.slice(anchor.span.start, anchor.span.end) === anchor.verbatim) {
+      area.focus({ preventScroll: true });
+      area.setSelectionRange(anchor.span.start, anchor.span.end);
+    }
   }
 
   async function afterTriage(promise: Promise<{ driftedAnchors: string[] }>) {
@@ -1082,6 +1093,7 @@ export function EditorScreen() {
               focused={focusedFinding}
               drifted={drifted}
               onLocate={locateFinding}
+              onLocateOther={locateOtherPlace}
               onResolve={(finding, resolution, edited) =>
                 void afterTriage(
                   api.resolveFinding(doc.id, finding.id, resolution, edited),

@@ -216,7 +216,52 @@ export type DraftEvidence = {
   basis: string;
   /** the other end of a self-contradiction, in this same draft */
   otherAnchor?: Locator;
+  /**
+   * T-476 — **the accepted writing rule this finding applied**, where it came
+   * from one. A typed-rule finding and a self-contradiction finding used to be
+   * the same shape in the store (a `basis` sentence and nothing else), so no
+   * rule could say "a finding of mine must name its rule". Present on every
+   * finding raised from an accepted rule; absent on the arithmetic families
+   * (readability, completeness), which are measured against a stated target,
+   * and on a contradiction, which names its second place instead.
+   */
+  ruleId?: string;
 };
+
+/**
+ * T-476 — **A JUDGEMENT FINDING NAMES ITS RULE OR ITS SECOND PASSAGE, AND THE
+ * STORE REFUSES ONE THAT DOES NEITHER.**
+ *
+ * *In plain terms: when the AI says "this is wrong", it must say which rule it
+ * applied, or which other passage it is contradicting. A finding that points at
+ * the reader's own sentence and nothing else is an opinion, and the system does
+ * not keep opinions.*
+ *
+ * Only the families a model's reading raises with `draft` evidence need to
+ * answer — `style` (a rule) and `self_contradiction` (a second place). The
+ * arithmetic families say what they were measured against in `basis`, and every
+ * other input carries its own proof (a cited passage, an attached excerpt, a
+ * quoted clause). The finding's own anchor is on every finding and so counts for
+ * nothing here; that is why the test is on the rule and the second anchor.
+ *
+ * One function, three callers: the admitter drops such a finding first, the
+ * writer refuses it as the backstop, and the migration's CHECK states the same
+ * predicate in SQL for the store.
+ */
+export const JUDGEMENT_FAMILIES_NEEDING_RULE_OR_PASSAGE: readonly CheckFamily[] = [
+  'style',
+  'self_contradiction',
+];
+
+export function namesRuleOrPassage(finding: {
+  checkFamily: CheckFamily;
+  evidence: FindingEvidence;
+}): boolean {
+  if (finding.evidence.input !== 'draft') return true;
+  if (!JUDGEMENT_FAMILIES_NEEDING_RULE_OR_PASSAGE.includes(finding.checkFamily)) return true;
+  const { ruleId, otherAnchor } = finding.evidence;
+  return (typeof ruleId === 'string' && ruleId !== '') || otherAnchor !== undefined;
+}
 
 export type FindingEvidence =
   | CorpusEvidence

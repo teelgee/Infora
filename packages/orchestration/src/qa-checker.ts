@@ -43,6 +43,9 @@ import {
   checkableText,
   completenessCheck,
   composeContradictionPrompt,
+  composeDisprovePrompt,
+  disproveBasisOf,
+  parseDisproveVerdict,
   measuredRules,
   structureRules,
   composeSectionCheckPrompt,
@@ -62,6 +65,7 @@ import type {
   DraftFinding,
   DraftSection,
   ReadabilityScore,
+  SectionDiscards,
   SectionSummary,
   StyleClause,
   TemplateRegistry,
@@ -218,6 +222,21 @@ export type QaSectionCheckInput = {
    * (`scopeVersionIds`'s post-filter is gone).
    */
   scope?: Scope;
+  /**
+   * T-476 (ADR-0053 addendum A9) — **the optional disproving pass**, off unless
+   * the launcher switched it on. When on, every finding this read raised by a
+   * model's reading is put to one further call that argues it is wrong; a
+   * finding the pass disproves is withdrawn before it is returned.
+   */
+  disprove?: boolean;
+};
+
+/** A finding the disproving pass argued wrong, kept on the run's step with the reasoning. */
+export type WithdrawnFinding = {
+  checkFamily: CheckFamily;
+  defect: string;
+  quote: string;
+  reasoning: string;
 };
 
 export type QaSectionCheckOutput = {
@@ -234,8 +253,12 @@ export type QaSectionCheckOutput = {
     passagesRead: number;
     excerptsRead: number;
     assertionsSearched: number | null;
-    discarded: { unanchored: number; unknownRule: number; unknownSource: number };
+    discarded: SectionDiscards;
+    /** T-476 — present only when the disproving pass ran */
+    disproving?: { raised: number; withdrawn: number };
   };
+  /** T-476 — what the disproving pass withdrew, and why; absent when it was off */
+  withdrawn?: WithdrawnFinding[];
   audit?: CheckAudit;
 };
 
@@ -367,7 +390,7 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
           passagesRead: 0,
           excerptsRead: 0,
           assertionsSearched,
-          discarded: { unanchored: 0, unknownRule: 0, unknownSource: 0 },
+          discarded: { unanchored: 0, unknownRule: 0, unknownSource: 0, noRuleOrPassage: 0, withdrawn: 0 },
         },
       };
     }
@@ -382,9 +405,50 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
     });
     const admitted = admitSectionFindings(draft.content, material, result.text);
 
+    // T-476 (ADR-0053 A9) — the optional disproving pass. It only ever REMOVES:
+    // each finding that rests on the model's reading is put to one further call
+    // that argues it is wrong, and the code pass's findings are never touched.
+    let kept = admitted.findings;
+    let disproving: { raised: number; withdrawn: number } | undefined;
+    let withdrawn: WithdrawnFinding[] | undefined;
+    const audits: CheckAudit[] = [auditOf(deps.rates, result)];
+    if (input.disprove === true) {
+      withdrawn = [];
+      kept = [];
+      let raised = 0;
+      for (const finding of admitted.findings) {
+        if (finding.modelRaised !== true) {
+          kept.push(finding);
+          continue;
+        }
+        raised += 1;
+        const answer = await deps.router.chat('verify', {
+          system: composeDisprovePrompt({
+            sectionText: section.text,
+            finding,
+            basis: disproveBasisOf(finding, material),
+          }),
+          messages: [{ role: 'user', content: 'Test the finding above.' }],
+        });
+        audits.push(auditOf(deps.rates, answer));
+        const verdict = parseDisproveVerdict(answer.text);
+        if (verdict.withdrawn) {
+          withdrawn.push({
+            checkFamily: finding.checkFamily,
+            defect: finding.defect,
+            quote: finding.anchor.verbatim,
+            reasoning: verdict.reasoning,
+          });
+        } else {
+          kept.push(finding);
+        }
+      }
+      disproving = { raised, withdrawn: withdrawn.length };
+    }
+
     return {
       section: input.section,
-      findings: [...deterministic, ...admitted.findings],
+      findings: [...deterministic, ...kept],
       summary: admitted.summary,
       coverage: {
         clausesRead: admitted.coverage.clausesRead,
@@ -398,9 +462,14 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
         passagesRead: admitted.coverage.passagesRead,
         excerptsRead: admitted.coverage.excerptsRead,
         assertionsSearched,
-        discarded: admitted.coverage.discarded,
+        discarded: {
+          ...admitted.coverage.discarded,
+          withdrawn: withdrawn?.length ?? 0,
+        },
+        ...(disproving !== undefined && { disproving }),
       },
-      audit: auditOf(deps.rates, result),
+      ...(withdrawn !== undefined && { withdrawn }),
+      audit: sumAudits(audits),
     };
   };
 }
@@ -673,6 +742,26 @@ function auditOf(
       tokensPrompt: result.usage.tokensPrompt,
       tokensCompletion: result.usage.tokensCompletion,
       cost: costOf(rates, result.model, result.usage),
+    },
+  };
+}
+
+/**
+ * One step, several calls (the section read, and the disproving calls that
+ * followed it): the Step row carries one model and one usage, so the usage is
+ * summed. A cost is `null` if any call was unpriced — an unpriced call must not
+ * read as a free one (T-254).
+ */
+function sumAudits(audits: readonly CheckAudit[]): CheckAudit {
+  const first = audits[0]!;
+  return {
+    model: first.model,
+    usage: {
+      tokensPrompt: audits.reduce((sum, a) => sum + a.usage.tokensPrompt, 0),
+      tokensCompletion: audits.reduce((sum, a) => sum + a.usage.tokensCompletion, 0),
+      cost: audits.some((a) => a.usage.cost === null)
+        ? null
+        : audits.reduce((sum, a) => sum + (a.usage.cost ?? 0), 0),
     },
   };
 }

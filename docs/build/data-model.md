@@ -695,6 +695,23 @@ this day). The fourth notification event needs no DDL: `event_type` is text
 
 *Built the same day (migration 0080); per the state rule the drawing above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape. Nothing else was added: the creator's trail rides ordinary `citations` rows and `authoring_metadata`.*
 
+**Drawn 2026-10-24 — a judgement finding names its rule, and the store refuses
+one with neither rule nor passage (T-476).** *Plainly: a finding that says
+"this is wrong" must point at the passage it is about or the rule it applied.
+The database itself now refuses one that does neither.* `DraftEvidence`
+(contracts) gains `ruleId`, so a typed-rule finding and a self-contradiction
+finding stop looking identical in the store. A CHECK on `findings`,
+`findings_judgement_names_rule_or_passage`: a draft-input finding must carry
+`evidence->>'ruleId'`, or an anchor, or an `otherAnchor` (the second place of
+a two-place finding). Existing rows: the migration sets `ruleId` from the
+finding's own `rule` column where it names one; a row that still carries
+neither is not deleted — the constraint is added `NOT VALID` and validated
+against new rows only, and the record says so. The disproving pass (ADR-0053
+A9) stores nothing new: a withdrawn finding is never written; its reasoning
+rides the run step's output.
+
+*Built the same day (migration 0082); per the state rule the drawing above stands only as the drawing it was, and [drawer4-output.ts](../../packages/db/src/schema/drawer4-output.ts) is the authority on its shape. Two departures from the drawing, both for the same reason. The CHECK is not `NOT VALID`: Postgres still checks a `NOT VALID` constraint against the new version of any row that is updated, so closing an old finding would have been refused. And the anchor is not one of the arms: every finding has one (the column is not null), so counting it would have made the rule vacuous — the arms are the rule id, the second place of a contradiction, or the migration's own stamp `ruleRecorded: false`. The migration first sets `ruleId` on old draft findings by finding the rule whose sentence their `basis` quotes (the findings table has no `rule` column to read it from; all 2,420 such rows in the development database matched), then stamps any that still name no rule, then adds the constraint validated. Only the `style` and `self_contradiction` families are asked; the arithmetic families state what they were measured against. A withdrawn finding is never written; its reasoning rides the Step row's existing rail outcomes (`rail: 'disproving_pass'`, outcome `withheld`), because a step's output is not persisted.*
+
 ## Drawer 5 — Review
 *One review workflow at two scopes: the org-private internal cycle and the
 wall-crossing project cycle. (ADR-0002–0017, 0032, 0033, 0035.)*

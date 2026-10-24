@@ -34,8 +34,11 @@
 # against is now the run's SCOPE -- term and container ids, written once on the
 # plan before retrieval and passed to the gateway's pre-filter. Absent means the
 # whole visible library; an empty scope is refused at the door.
+# v4 (T-476, ADR-0053 A9): the optional DISPROVING PASS. One new parameter,
+# `disproving_pass`, carried into each section read; off (the empty string) by
+# default, in which case the run is exactly the v3 run.
 id: qa-check
-version: 3
+version: 4
 label: Check a document
 description: >-
   Read a draft against the writing rules that bind it and the project record it
@@ -139,6 +142,20 @@ parameters:
       which is what "stored, not displayed" means once it is written down.
     default: ''
 
+  - name: disproving_pass
+    type: string
+    required: false
+    description: >-
+      T-476 (ADR-0053 addendum A9) -- `true` when the person switched on the
+      disproving pass, empty otherwise. When on, each section read puts every
+      finding that rests on a model's reading to one further call that argues
+      it is wrong, and withdraws the ones it disproves BEFORE they are returned;
+      the withdrawals and the pass's reasoning ride that step's output. A
+      string because the fixed parameter-type set has no boolean (the same
+      idiom `families` uses), and a choice of the person's rather than of any
+      model's, so it is bound in code like every width in this plan.
+    default: ''
+
 output_schema:
   findings: every anchored finding, with the input it arose from and its evidence
   summaries: what each section asserts, produced as a by-product of the section reads
@@ -156,6 +173,7 @@ steps:
       depth: '{{parameters.depth}}'
       attached_document_ids: '{{parameters.attached_document_ids}}'
       attached_uploads: '{{parameters.attached_uploads}}'
+      disprove: '{{parameters.disproving_pass}}'
     depends_on: []
 
   # The comparison runs AFTER the section reads and takes their summaries, which

@@ -104,9 +104,14 @@ export {
   admitContradictionFindings,
   admitSectionFindings,
   composeContradictionPrompt,
+  composeDisprovePrompt,
   composeSectionCheckPrompt,
+  disproveBasisOf,
+  parseDisproveVerdict,
 } from './workers/qa-checker';
 export type {
+  DisproveInput,
+  SectionDiscards,
   CheckExcerpt,
   CheckPassage,
   JudgementRule,

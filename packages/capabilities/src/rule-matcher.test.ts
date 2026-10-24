@@ -195,6 +195,8 @@ describe('T-428 — a finding’s evidence follows the rule’s ORIGIN and only 
     expect(evidence).not.toHaveProperty('clause');
     expect(evidence).not.toHaveProperty('rulebookRef');
     expect(evidence).toMatchObject({ basis: expect.stringContaining('typed onto this project') });
+    // T-476 — and it names the rule it applied, so the store can tell it from a contradiction
+    expect(evidence).toMatchObject({ ruleId: rule.id });
   });
 
   it('an INFORA-PROPOSED rule says whose rule it is, and quotes no guide', () => {

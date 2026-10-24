@@ -427,6 +427,10 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
           // gateway's pre-filter (the `scope_version_ids` parameter is gone)
           ...(ctx.scope !== undefined && { scope: ctx.scope }),
           ...(excerpts.length > 0 && { excerpts }),
+          // T-476 (ADR-0053 A9) — the optional disproving pass, bound by the
+          // planner's own choice and carried as the string every bound
+          // parameter is
+          ...(text(inputs['disprove']) === 'true' && { disprove: true }),
         },
       );
       // every step records the access-resolved source set it saw (ADR-0028 §7).
@@ -443,6 +447,20 @@ export function createCapabilityRegistry(deps: CapabilityDeps): CapabilityRegist
         output,
         audit: {
           sourceSet,
+          // T-476 (ADR-0053 A9) — a finding the disproving pass withdrew is
+          // recorded on THIS Step row, durably, in the one place the record
+          // already keeps "something was held back, and why": a withheld rail
+          // outcome whose `detail` carries the finding and the pass's reasoning.
+          // Nothing new is stored, and the withdrawn finding is never written to
+          // the findings store.
+          ...(output.withdrawn !== undefined &&
+            output.withdrawn.length > 0 && {
+              railOutcomes: output.withdrawn.map((entry) => ({
+                rail: 'disproving_pass',
+                outcome: 'withheld' as const,
+                detail: `Withdrawn: “${entry.defect}” (on “${entry.quote}”) — ${entry.reasoning}`,
+              })),
+            }),
           // absent, never zero, where no call was made (T-254)
           ...(output.audit !== undefined && {
             model: output.audit.model,

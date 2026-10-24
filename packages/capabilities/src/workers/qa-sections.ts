@@ -206,6 +206,14 @@ export type DraftFinding = {
    * in bulk — never the model (ADR-0053 §6).
    */
   replacement?: string;
+  /**
+   * T-476 — **this finding rests on a model's reading** (a judgement rule, a
+   * prose clause, a retrieved passage, a contradiction), as opposed to one
+   * settled in code. Set only by the admitters that read a model's answer; it is
+   * what the optional disproving pass (ADR-0053 A9) is offered to, and it is
+   * never stored.
+   */
+  modelRaised?: true;
 };
 
 export type ReadabilityScore = { section: number; heading: string | null; grade: number };

@@ -1441,6 +1441,26 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 .findings-resolved { margin-top: 12px; }
 .finding-note { margin: 4px 0 0; }
 
+/* T-476 — the strength map and the disproving pass's option, on the system's
+   own table and text tokens: a description, so no hue is added. */
+.strength-map { margin-top: 12px; }
+.strength-map summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.strength-map-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: var(--ui-default-size); }
+.strength-map-table th, .strength-map-table td {
+  text-align: left; vertical-align: top; padding: 4px 8px; border-top: 1px solid var(--border-subtle);
+}
+.strength-map-table th { color: var(--text-secondary); font-weight: 600; border-top: 0; }
+.disproving-option { display: flex; flex-direction: column; gap: 4px; }
+
+/* T-476 — the filter row, and the two places of a contradiction side by side.
+   On the 4px scale; no new hue (§A) — a narrowed list is a word and a count. */
+.findings-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.findings-narrowed { margin: 4px 0 8px; color: var(--text-muted); }
+.finding-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.finding-pair-side { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.finding-pair-side figcaption { font-size: 12.5px; color: var(--text-secondary); }
+.finding-pair-side blockquote { margin: 0; }
+
 .finding-group { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-default); }
 .finding-group-head { display: flex; align-items: center; gap: 8px; }
 .finding-group-actions { margin-left: auto; }

@@ -715,7 +715,7 @@ classification rides its plan row, and the plan is the owner's instrument.
 - ~~**T-473 — Currency and re-check.**~~ ✅ **Built 2026-10-24** (migration **0079**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-474 — Supersede impact.**~~ ✅ **Built 2026-10-24** (migration **0080**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 - ~~**T-475 — Visible gaps and passage authorship.**~~ ✅ **Built 2026-10-24** (migration **0081**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
-- **T-476 — Findings polish, and three rules from the checkers.** *Plainly:* severity and kind filters with counts; a findings table view; both sides of a two-place finding side by side; "no passage and no rule, no judgement finding" enforced in the finding writer; a strength map on the launcher keyed to ADR-0054's five kinds; an optional disproving pass per judgement finding, off by default, declared in the plan with its cost and its removals counted in coverage (ADR-0053 addendum). **Done when:** forty findings narrow to the required ones in one click; a finding with no rule and no passage cannot exist in the store; the plan shows the pass's cost. **Deps:** T-468.
+- ~~**T-476 — Findings polish, and three rules from the checkers.**~~ ✅ **Built 2026-10-24** (migration **0082**) — moved record in [plan-history.md](plan-history.md#best-in-class--ticketed-2026-10-23-owner-ruled-ahead-of-the-pilot-deployment)
 
 **Slice Working together — the plan, the sandbox and the review as shared work** *(the change list's 18–20)*
 

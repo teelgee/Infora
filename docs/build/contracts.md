@@ -1563,6 +1563,32 @@ are not recorded here.
   optional on the wire because runs recorded before it existed carry no such
   count.
 
+- **2026-10-24 (T-476) — `DraftEvidence.ruleId`, `namesRuleOrPassage`,
+  `qaCheckBody.disprovingPass`, `RULE_KIND_STRENGTH` / `FAMILY_STRENGTH`.**
+  *Plainly: a finding the AI raised by reading must say which writing rule it
+  applied or which second place it points at, the checker has an optional
+  second look, and the launcher says which findings are settled in code.* The
+  **reason a judgement finding must name its rule** is that a typed-rule
+  finding and a self-contradiction finding were the same shape in the store — a
+  `basis` sentence and nothing else — so no rule could say "a finding of mine
+  must name what it rests on"; `ruleId` makes them different, and one function
+  (`namesRuleOrPassage`) states the test for the admitter, the writer and the
+  database's CHECK alike. The finding's own anchor is not the test: every
+  finding has one, so counting it would have made the rule vacuous. The
+  **reason the disproving pass is a plan step but runs inside each section
+  read** is that a step of its own would need a new step type in the audit
+  store's fixed vocabulary, which the drawing deliberately did not add; the
+  plan therefore declares the step (so what is previewed is what is bought) and
+  each section read performs it for the findings that read raised, recording
+  what it withdrew on that Step row's rail outcomes — the one existing place the
+  record keeps "something was held back, and why". The **reason its cost is
+  shown beside its toggle and nowhere else** is ADR-0053 A9's narrow exception
+  to A3: a person switching on a pass that adds model calls is owed the figure
+  for that pass, where they choose it; the plan screens still show no price. The
+  figure is read off the plan's own `disprove` step, from the same planner the
+  run uses, so it cannot differ from what runs. `disprovingPass` defaults to
+  false in the schema, so an older caller is unchanged.
+
 - **2026-10-24 (T-475) — `gapMarkers`, `gapLineFor`, `paragraphsOf`,
   `provenanceStatement` and `PassageProvenance`; `GET /sandbox-documents/:id/provenance`;
   `GET`/`PATCH /projects/:projectId/export-authorship-appendix`;

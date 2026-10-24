@@ -102,6 +102,21 @@ const router = fakeRouter((system, prompt) => {
   // any model call happens. So the accept-all-above-the-rewrites layout
   // (ADR-0053 §6) is still photographable, and the half of it that is supposed
   // to cost nothing now genuinely costs nothing.
+  // T-476 (ADR-0053 A9) — the disproving pass, which asks the model to argue a
+  // finding it raised is WRONG. The fake concedes every finding but one: the
+  // firm-rulebook hedging note, whose defect the prompt carries, is "disproved"
+  // — so a run with the pass on shows a withdrawal in its coverage sentence
+  // while the rest of the findings stand. Read off the prompt, as the branches
+  // around it are.
+  if (system.includes('You are testing a finding')) {
+    return /hedged/i.test(system)
+      ? JSON.stringify({
+          holds: false,
+          reasoning:
+            'The ground investigation does not yet support stating the conclusion without the hedge.',
+        })
+      : JSON.stringify({ holds: true, reasoning: 'The text does what the finding says it does.' });
+  }
   if (system.includes('checkable factual assertions')) {
     return 'the reduction in contaminant loading';
   }

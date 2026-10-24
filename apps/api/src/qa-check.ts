@@ -61,7 +61,7 @@ import { extractText } from './extract';
 import type { ExtractableFormat } from './extract';
 import { currentRuleSetVersionIds } from '@infora/data';
 import type { AcceptedRule } from '@infora/capabilities';
-import { writeFindings } from './findings';
+import { writeFindingsReport } from './findings';
 import { projectScope, resourceHomes } from './requester';
 import type { AppEnv } from './requester';
 import { refuseIfOff } from './ai-features';
@@ -366,6 +366,9 @@ export function qaCheckRoutes(deps: {
         // only handle the plan and the record will ever have for it
         attachedUploads: uploads.attachments.map((attachment) => attachment.name),
         checkModelId: deps.checkModelId ?? 'unpriced',
+        // T-476 (ADR-0053 A9) — declared in the plan, so what is previewed is
+        // what runs
+        disprovingPass: parsed.data.disprovingPass,
         ...(deps.modelRates !== undefined && { rates: deps.modelRates }),
         tokenLimit: TOKEN_LIMIT,
       }),
@@ -413,6 +416,8 @@ export function qaCheckRoutes(deps: {
         attached_uploads:
           computed.fingerprints.length > 0 ? JSON.stringify(computed.fingerprints) : '',
         template_id: computed.body.templateId ?? '',
+        // T-476 — the person's choice, bound in code like every other width
+        disproving_pass: computed.body.disprovingPass ? 'true' : '',
         readability_target: 14,
         // 🔒 T-427 (ADR-0054 decision 7) — WHICH VERSION OF THE WRITING RULES
         // this run ran against, stamped ONCE on the run and never on a finding.
@@ -503,7 +508,11 @@ export function qaCheckRoutes(deps: {
     // ADR-0048 §3 — the findings are written, and a proposed fix becomes a
     // Suggestion at the store, where `classifyFix` decides whether it may ever
     // ride an accept-all. The checker acquires no write path of its own.
-    const findings = await writeFindings(deps.db, {
+    //
+    // T-476 — and the writer is the BACKSTOP for "no passage and no rule, no
+    // judgement finding": the admitter has already dropped such a finding, and
+    // anything that still reaches here is refused and counted, never stored.
+    const { written: findings, refused } = await writeFindingsReport(deps.db, {
       runId: run!.id as Id,
       sandboxDocumentId: computed.body.sandboxDocumentId,
       findings: gathered.findings,
@@ -530,7 +539,11 @@ export function qaCheckRoutes(deps: {
           ...(computed.attachments.length > 0 && {
             attachedUploads: computed.attachments.map((attachment) => attachment.name),
           }),
-          discarded: gathered.discarded,
+          discarded: gathered.discarded + refused,
+          // T-476 — said only where the pass was on, in the plan's own words
+          ...(computed.body.disprovingPass && {
+            disproving: { raised: gathered.disprovedRaised, withdrawn: gathered.withdrawn },
+          }),
           contradictionGroups: Math.max(1, groups.length),
           // T-474 — said only where the family was among the checks
           ...(computed.body.families.includes('stale_grounding') && {
@@ -570,6 +583,8 @@ function gather(outputs: Record<string, unknown>) {
   let attachedRead = 0;
   let discarded = 0;
   let staleClaimsChecked = 0;
+  let disprovedRaised = 0;
+  let withdrawn = 0;
   const sectionsSeen = new Set<number>();
 
   for (const [key, value] of Object.entries(outputs)) {
@@ -596,8 +611,16 @@ function gather(outputs: Record<string, unknown>) {
       const drops = coverage['discarded'] as Record<string, unknown> | undefined;
       if (drops !== undefined) {
         discarded +=
-          numberOf(drops['unanchored']) + numberOf(drops['unknownRule']) + numberOf(drops['unknownSource']);
+          numberOf(drops['unanchored']) +
+          numberOf(drops['unknownRule']) +
+          numberOf(drops['unknownSource']) +
+          // T-476 — a finding that named neither a rule nor a passage
+          numberOf(drops['noRuleOrPassage']);
+        withdrawn += numberOf(drops['withdrawn']);
       }
+      // T-476 (A9) — the disproving pass's own count, off the same step
+      const disproving = coverage['disproving'] as Record<string, unknown> | undefined;
+      if (disproving !== undefined) disprovedRaised += numberOf(disproving['raised']);
     }
     if (key.startsWith('compare')) discarded += numberOf(coverage['discarded']);
     // `measure` fans out, so its key is `measure#0` — matching on the exact id
@@ -639,6 +662,8 @@ function gather(outputs: Record<string, unknown>) {
     attachedRead,
     discarded,
     staleClaimsChecked,
+    disprovedRaised,
+    withdrawn,
   };
 }
 

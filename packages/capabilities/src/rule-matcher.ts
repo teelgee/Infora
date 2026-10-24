@@ -137,7 +137,9 @@ export function evidenceFor(rule: AcceptedRule): FindingEvidence {
       : rule.origin === 'infora_proposed'
         ? `a rule Infora proposed and this project accepted: “${rule.statement}”`
         : `a rule extracted from this project’s writing standard, whose original wording could not be resolved: “${rule.statement}”`;
-  return { input: 'draft', basis };
+  // T-476 — the finding names the rule it applied, so a typed-rule finding and
+  // a self-contradiction finding are different things in the store
+  return { input: 'draft', basis, ruleId: rule.id };
 }
 
 /** Whether a rule can raise a finding at all (decision 4). */

@@ -27,6 +27,7 @@
 // capabilities and not one, because ADR-0027 fixes code-or-model **per
 // capability at design time** — a single capability spanning arithmetic and a
 // model call would have no honest declaration to make.
+import { namesRuleOrPassage } from '@infora/contracts';
 import type {
   CheckFamily,
   Citation,
@@ -48,9 +49,11 @@ export const QA_SECTION_CHECK: WorkerDeclaration = {
     families: 'which of the per-section check families to run (style, corpus_accuracy)',
     depth: 'how hard the corpus check looks — quick or full',
     clause_pass: 'which slice of the style clauses this pass carries, where they did not fit in one',
+    disprove: 'T-476 — true when the optional disproving pass is on: each model-read finding is argued against before it is returned',
   },
   outputSchema: {
     findings: 'anchored findings, each with the input it arose from and its evidence',
+    withdrawn: 'T-476 — findings the disproving pass withdrew, with its reasoning; present only when the pass ran',
     summary: 'what this section asserts, for the self-contradiction call to compare',
     coverage: 'what this pass actually read — clauses, passages, and what it could not anchor',
   },
@@ -275,6 +278,24 @@ export function composeSectionCheckPrompt(material: SectionCheckMaterial): strin
   return lines.join('\n');
 }
 
+/**
+ * Why a section check's suggested findings were not kept.
+ *
+ * `noRuleOrPassage` (T-476) is a finding that named neither a rule nor a
+ * passage; `withdrawn` (T-476, ADR-0053 A9) is one the optional disproving pass
+ * argued wrong. The first three are counted into the coverage sentence's
+ * "discarded for not pointing at real text or a real source"; the last is said
+ * in its own words, because a withdrawn finding was real text and a real source
+ * that the model, asked to argue the other side, talked itself out of.
+ */
+export type SectionDiscards = {
+  unanchored: number;
+  unknownRule: number;
+  unknownSource: number;
+  noRuleOrPassage: number;
+  withdrawn: number;
+};
+
 /** What a section check returns, before anything is stored. */
 export type SectionCheckResult = {
   findings: DraftFinding[];
@@ -285,7 +306,7 @@ export type SectionCheckResult = {
     passagesRead: number;
     excerptsRead: number;
     /** findings the model produced that the admission rules refused, and why */
-    discarded: { unanchored: number; unknownRule: number; unknownSource: number };
+    discarded: SectionDiscards;
   };
 };
 
@@ -304,8 +325,26 @@ export function admitSectionFindings(
   raw: string,
 ): SectionCheckResult {
   const parsed = parseObject(raw);
-  const discarded = { unanchored: 0, unknownRule: 0, unknownSource: 0 };
+  const discarded: SectionDiscards = {
+    unanchored: 0,
+    unknownRule: 0,
+    unknownSource: 0,
+    noRuleOrPassage: 0,
+    withdrawn: 0,
+  };
   const findings: DraftFinding[] = [];
+  // T-476 — THE FIRST GATE. A finding that names neither a rule nor a passage is
+  // dropped here and counted, so the writer's refusal is the backstop and never
+  // the only gate. Everything this function raises is a model's reading, which
+  // is also what the optional disproving pass is offered to.
+  const raise = (finding: DraftFinding) => {
+    const raised: DraftFinding = { ...finding, modelRaised: true };
+    if (!namesRuleOrPassage(raised)) {
+      discarded.noRuleOrPassage += 1;
+      return;
+    }
+    findings.push(raised);
+  };
 
   const rows = Array.isArray(parsed?.['findings']) ? (parsed['findings'] as unknown[]) : [];
   for (const row of rows) {
@@ -333,7 +372,7 @@ export function admitSectionFindings(
       const marker = text(entry['rule']);
       const rule = (material.judgementRules ?? [])[markerIndex(marker, 'J')];
       if (rule !== undefined) {
-        findings.push({
+        raise({
           checkFamily: 'style',
           anchor,
           defect,
@@ -351,7 +390,7 @@ export function admitSectionFindings(
         discarded.unknownRule += 1;
         continue;
       }
-      findings.push({
+      raise({
         checkFamily: 'style',
         anchor,
         defect,
@@ -376,7 +415,7 @@ export function admitSectionFindings(
     const attached = material.excerpts[markerIndex(marker, 'A')];
     const passage = material.passages[markerIndex(marker, 'S')];
     if (attached !== undefined) {
-      findings.push({
+      raise({
         checkFamily: 'corpus_accuracy',
         anchor,
         defect,
@@ -396,7 +435,7 @@ export function admitSectionFindings(
       discarded.unknownSource += 1;
       continue;
     }
-    findings.push({
+    raise({
       checkFamily: 'corpus_accuracy',
       anchor,
       defect,
@@ -500,7 +539,7 @@ export function admitContradictionFindings(
       discarded += 1;
       continue;
     }
-    findings.push({
+    const contradiction: DraftFinding = {
       checkFamily: 'self_contradiction',
       anchor,
       defect,
@@ -513,7 +552,13 @@ export function admitContradictionFindings(
             : `“${there.heading}”, section ${there.index} of this draft`,
         otherAnchor,
       },
-    });
+      modelRaised: true,
+    };
+    if (!namesRuleOrPassage(contradiction)) {
+      discarded += 1;
+      continue;
+    }
+    findings.push(contradiction);
   }
   return { findings, discarded };
 }
@@ -522,6 +567,79 @@ export function admitContradictionFindings(
 function headOf(section: DraftSection): string {
   for (const line of section.text.split('\n')) if (line.trim() !== '') return line.trim();
   return '';
+}
+
+// ── THE DISPROVING PASS (T-476, ADR-0053 addendum A9) ───────────────────────
+//
+// *In plain terms: an optional second look. For each finding the AI raised by
+// reading, it is asked a different question — "show me why this is wrong" —
+// with the same text and the same rule or passage in front of it. If it can
+// make the case, the finding is withdrawn before anyone sees it; the reason it
+// gave is kept on the run, and the result says how many were withdrawn.*
+//
+// 🔒 **IT ONLY EVER REMOVES.** The pass cannot add, reword or re-anchor a
+// finding, and an answer that is not exactly the expected shape leaves the
+// finding standing — an unreadable answer is not an argument. Only the
+// findings that rest on a model's reading are put to it; a finding settled in
+// code is exact, and arguing with arithmetic would be theatre.
+
+export type DisproveInput = {
+  /** the section the finding sits in, exactly as the section check read it */
+  sectionText: string;
+  finding: Pick<DraftFinding, 'checkFamily' | 'defect' | 'anchor'>;
+  /** the rule, clause or passage the finding rests on, in words */
+  basis: string;
+};
+
+export function composeDisprovePrompt(input: DisproveInput): string {
+  return [
+    'You are testing a finding that an earlier reader raised against a draft. Your job is to argue that the finding is WRONG, using only the text below.',
+    'If, after trying honestly, you cannot make the case, say that the finding holds. Do not soften a finding that holds, and do not invent a reason.',
+    '',
+    'Return ONE JSON object and nothing else:',
+    '{"holds": true|false, "reasoning": "<one or two sentences: why it is wrong, or why you could not show it wrong>"}',
+    '',
+    `THE FINDING (${input.finding.checkFamily}): ${input.finding.defect}`,
+    `THE TEXT IT POINTS AT: “${input.finding.anchor.verbatim}”`,
+    '',
+    'WHAT THE FINDING RESTS ON.',
+    input.basis,
+    '',
+    'THE SECTION IT SITS IN.',
+    '',
+    checkableText(input.sectionText),
+  ].join('\n');
+}
+
+/**
+ * What the pass said: withdrawn only on an unambiguous `holds: false` with a
+ * reason written down. Anything else — no JSON, no reason, `holds: true` — and
+ * the finding stands.
+ */
+export function parseDisproveVerdict(raw: string): { withdrawn: boolean; reasoning: string } {
+  const parsed = parseObject(raw);
+  const reasoning = text(parsed?.['reasoning']);
+  if (parsed?.['holds'] === false && reasoning !== '') return { withdrawn: true, reasoning };
+  return { withdrawn: false, reasoning };
+}
+
+/**
+ * The words for what a finding rests on, read off the material the section
+ * check was given — the same rule or passage the first reader had, nothing more.
+ */
+export function disproveBasisOf(finding: DraftFinding, material: SectionCheckMaterial): string {
+  const { evidence } = finding;
+  if (evidence.input === 'rulebook') return `The rule (${evidence.clause}): ${evidence.quote}`;
+  if (evidence.input === 'attached') return `An attached document says: ${evidence.excerpt}`;
+  if (evidence.input === 'corpus') {
+    const ids = new Set(evidence.citations.map((citation) => citation.id));
+    const read = material.passages.filter((passage) => ids.has(passage.citationId));
+    return read.length === 0
+      ? 'A passage of the project record (not available to re-read).'
+      : read.map((passage) => `The record says: ${passage.text}`).join('\n');
+  }
+  const rule = (material.judgementRules ?? []).find((candidate) => candidate.id === evidence.ruleId);
+  return rule === undefined ? evidence.basis : `The rule: ${rule.statement}`;
 }
 
 // ── the small honest parsers ────────────────────────────────────────────────

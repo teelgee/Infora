@@ -27,7 +27,7 @@
 // ADR-0053 §13 and deliberately not ruled — and building the carry-over here
 // would be answering it in code.
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import { classifyFix } from '@infora/contracts';
+import { classifyFix, namesRuleOrPassage } from '@infora/contracts';
 import type {
   Finding,
   FindingEvidence,
@@ -65,10 +65,38 @@ export async function writeFindings(
   db: Db,
   input: { runId: Id; sandboxDocumentId: Id; findings: readonly DraftFinding[] },
 ): Promise<Finding[]> {
-  if (input.findings.length === 0) return [];
+  return (await writeFindingsReport(db, input)).written;
+}
+
+/** The reason the writer gives for a finding it will not keep (T-476). */
+export const REFUSED_NO_RULE_OR_PASSAGE = 'no passage and no rule';
+
+/**
+ * `writeFindings`, and the count of what it refused.
+ *
+ * 🔒 **T-476 — NO PASSAGE AND NO RULE, NO JUDGEMENT FINDING.** The admitter in
+ * `@infora/capabilities` drops such a finding first; this is the backstop, so
+ * the rule does not depend on every future producer remembering it. A finding
+ * the writer refuses is never stored and never half-stored — it is counted, and
+ * the run's coverage sentence adds the count to what it says was discarded. The
+ * database's own CHECK (`findings_judgement_names_rule_or_passage`) is the third
+ * wall, for a writer that is not this one.
+ */
+export async function writeFindingsReport(
+  db: Db,
+  input: { runId: Id; sandboxDocumentId: Id; findings: readonly DraftFinding[] },
+): Promise<{ written: Finding[]; refused: number; reason: typeof REFUSED_NO_RULE_OR_PASSAGE }> {
+  if (input.findings.length === 0) {
+    return { written: [], refused: 0, reason: REFUSED_NO_RULE_OR_PASSAGE };
+  }
 
   const written: Finding[] = [];
+  let refused = 0;
   for (const draft of input.findings) {
+    if (!namesRuleOrPassage(draft)) {
+      refused += 1;
+      continue;
+    }
     let proposedRevisionId: Id | null = null;
     let fix: Fix | null = null;
     if (draft.replacement !== undefined && draft.replacement !== '') {
@@ -108,7 +136,7 @@ export async function writeFindings(
     if (row === undefined) continue;
     written.push(toFinding(row, null, null));
   }
-  return written;
+  return { written, refused, reason: REFUSED_NO_RULE_OR_PASSAGE };
 }
 
 /**

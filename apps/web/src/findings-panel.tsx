@@ -47,7 +47,9 @@ import { useState } from 'react';
 import type {
   CheckFamily,
   Finding,
+  FindingSeverity,
   GapMarker,
+  Locator,
   MechanicalFix,
   RunReach,
   StaleGroundingItem,
@@ -55,7 +57,8 @@ import type {
 } from '@infora/contracts';
 import { CHECK_FAMILY_CATALOGUE, reachStatement } from '@infora/contracts';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Badge, Button, RuleCard, SourceChip, TextArea } from '@infora/ui';
+import { Badge, Button, Register, RuleCard, SegmentedControl, SourceChip, TextArea } from '@infora/ui';
+import type { RegisterSort } from '@infora/ui';
 import { cardFor } from './source-card';
 
 export type FindingsPanelProps = {
@@ -78,7 +81,161 @@ export type FindingsPanelProps = {
   /** T-475 — the gap markers standing in the text, counted live from the text itself */
   gaps?: GapMarker[];
   onLocateGap?: (gap: GapMarker) => void;
+  /** T-476 — jump to the SECOND place of a two-place finding (a contradiction) */
+  onLocateOther?: (finding: Finding, anchor: Locator) => void;
+  /** T-476 — where the panel starts; the grouped view is the default */
+  initialView?: FindingsView;
+  initialSeverity?: SeverityFilter;
+  initialFamily?: FamilyFilter;
 };
+
+// ── T-476 — FILTERS, COUNTS, AND THE TABLE VIEW ─────────────────────────────
+//
+// *In plain terms: on a long document the panel can hold forty findings. A row
+// of switches at the top narrows them — "Required" alone, or one check alone —
+// and each switch says how many it would leave. A second view lays the same
+// findings out as a sortable table. Both views are the same findings; only the
+// layout differs, and the grouped view is still where you land.*
+//
+// 🔒 **THE COUNTS ARE LIVE AND HONEST ABOUT EACH OTHER.** The severity counts
+// are taken within the chosen check, and the check counts within the chosen
+// severity, so a switch always says what clicking it would leave on screen —
+// never a total that would shrink to something else the moment it was pressed.
+export type FindingsView = 'grouped' | 'table';
+export type SeverityFilter = 'all' | FindingSeverity;
+export type FamilyFilter = 'all' | CheckFamily;
+
+/** The findings that pass both filters. Pure, so a test can pin it. */
+export function narrowFindings(
+  findings: readonly Finding[],
+  severity: SeverityFilter,
+  family: FamilyFilter,
+): Finding[] {
+  return findings.filter(
+    (finding) =>
+      (severity === 'all' || finding.severity === severity) &&
+      (family === 'all' || finding.checkFamily === family),
+  );
+}
+
+/** What each switch would leave on screen, given the other filter. */
+export function countFindings(
+  findings: readonly Finding[],
+  severity: SeverityFilter,
+  family: FamilyFilter,
+) {
+  const withinFamily = narrowFindings(findings, 'all', family);
+  const withinSeverity = narrowFindings(findings, severity, 'all');
+  const byFamily = new Map<CheckFamily, number>();
+  for (const finding of withinSeverity) {
+    byFamily.set(finding.checkFamily, (byFamily.get(finding.checkFamily) ?? 0) + 1);
+  }
+  return {
+    all: withinFamily.length,
+    required: withinFamily.filter((finding) => finding.severity === 'required').length,
+    advisory: withinFamily.filter((finding) => finding.severity === 'advisory').length,
+    byFamily,
+    allFamilies: withinSeverity.length,
+  };
+}
+
+/** What a finding rests on, in a few words, for the table's "Rule or source" column. */
+export function ruleOrSource(finding: Finding): string {
+  const { evidence } = finding;
+  if (evidence.input === 'rulebook') return `Clause ${evidence.clause}`;
+  if (evidence.input === 'corpus') {
+    const source = evidence.citations[0]?.source;
+    return source === undefined
+      ? 'The project record'
+      : 'versionId' in source
+        ? source.documentReference
+        : source.authorityRef;
+  }
+  if (evidence.input === 'attached') return 'An attached document';
+  return evidence.basis;
+}
+
+const SEVERITY_RANK: Record<FindingSeverity, number> = { required: 0, advisory: 1 };
+
+function sortedRows(rows: readonly { finding: Finding; ref: string }[], sort: RegisterSort | null) {
+  if (sort === null) return [...rows];
+  const sign = sort.direction === 'asc' ? 1 : -1;
+  const key = (row: { finding: Finding; ref: string }): string | number => {
+    switch (sort.key) {
+      case 'severity':
+        return SEVERITY_RANK[row.finding.severity];
+      case 'family':
+        return LABELS.get(row.finding.checkFamily) ?? row.finding.checkFamily;
+      case 'rule':
+        return ruleOrSource(row.finding);
+      case 'anchor':
+        return row.finding.anchor.span.start;
+      case 'state':
+        return row.finding.status === 'open' ? 0 : 1;
+      default:
+        return Number.parseInt(row.ref.slice(1), 10);
+    }
+  };
+  return [...rows].sort((a, b) => {
+    const left = key(a);
+    const right = key(b);
+    return (left < right ? -1 : left > right ? 1 : 0) * sign;
+  });
+}
+
+function FindingsTable(props: FindingsPanelProps & { findings: Finding[]; refs: Map<string, string> }) {
+  const [sort, setSort] = useState<RegisterSort | null>(null);
+  const rows = sortedRows(
+    props.findings.map((finding) => ({ finding, ref: props.refs.get(finding.id) ?? 'F?' })),
+    sort,
+  );
+  return (
+    <Register<{ finding: Finding; ref: string }>
+      label="Findings"
+      rows={rows}
+      rowKey={(row) => row.finding.id}
+      rowLabel={(row) => row.ref}
+      onRowClick={(row) => props.onLocate(row.finding)}
+      sort={{ value: sort, onChange: setSort }}
+      empty="No findings match."
+      columns={[
+        { key: 'ref', label: 'Ref', sortable: true, render: (row) => row.ref },
+        {
+          key: 'severity',
+          label: 'Severity',
+          sortable: true,
+          render: (row) => (
+            <Badge tone={row.finding.severity === 'required' ? 'warning' : 'neutral'}>
+              {row.finding.severity === 'required' ? 'Required' : 'Advisory'}
+            </Badge>
+          ),
+        },
+        {
+          key: 'family',
+          label: 'Check',
+          sortable: true,
+          render: (row) => LABELS.get(row.finding.checkFamily) ?? row.finding.checkFamily,
+        },
+        { key: 'rule', label: 'Rule or source', sortable: true, render: (row) => ruleOrSource(row.finding) },
+        {
+          key: 'anchor',
+          label: 'Where',
+          sortable: true,
+          render: (row) => {
+            const quote = row.finding.anchor.verbatim;
+            return `“${quote.length > 48 ? `${quote.slice(0, 48)}…` : quote}”`;
+          },
+        },
+        {
+          key: 'state',
+          label: 'State',
+          sortable: true,
+          render: (row) => (row.finding.status === 'open' ? 'Open' : 'Resolved'),
+        },
+      ]}
+    />
+  );
+}
 
 /**
  * T-475 — the gap markers in the draft, read from the text as it stands. Like
@@ -147,6 +304,11 @@ function LiveStale(props: { stale: StaleGroundingResponse; onLocate?: (item: Sta
 }
 
 export function FindingsPanel(props: FindingsPanelProps) {
+  // T-476 — hooks first, before the empty-state return below
+  const [view, setView] = useState<FindingsView>(props.initialView ?? 'grouped');
+  const [severity, setSeverity] = useState<SeverityFilter>(props.initialSeverity ?? 'all');
+  const [family, setFamily] = useState<FamilyFilter>(props.initialFamily ?? 'all');
+
   const open = props.findings.filter((finding) => finding.status === 'open');
   const closed = props.findings.length - open.length;
   const live =
@@ -175,7 +337,16 @@ export function FindingsPanel(props: FindingsPanelProps) {
     );
   }
 
-  const families = [...new Set(open.map((finding) => finding.checkFamily))];
+  // the table lists every finding, resolved ones included (its State column says
+  // which); the grouped view is the work list and shows what is still open
+  const pool = view === 'table' ? props.findings : open;
+  const counts = countFindings(pool, severity, family);
+  const shown = narrowFindings(pool, severity, family);
+  const families = [...new Set(shown.filter((f) => f.status === 'open').map((finding) => finding.checkFamily))];
+  // a stable reference per finding, in the order the run raised them
+  const refs = new Map(props.findings.map((finding, index) => [finding.id, `F${index + 1}`]));
+  const familiesPresent = [...new Set(pool.map((finding) => finding.checkFamily))];
+  const narrowed = severity !== 'all' || family !== 'all';
 
   return (
     <div className="findings-panel">
@@ -193,6 +364,42 @@ export function FindingsPanel(props: FindingsPanelProps) {
       {props.reach !== undefined && props.reach !== null && (
         <p className="findings-reach">{reachStatement(props.reach)}</p>
       )}
+      {/* T-476 — the filter row. Every switch says how many it would leave. */}
+      <div className="findings-filters">
+        <SegmentedControl<SeverityFilter>
+          label="Show findings by severity"
+          value={severity}
+          onChange={setSeverity}
+          options={[
+            { value: 'all', label: `All ${counts.all}` },
+            { value: 'required', label: `Required ${counts.required}` },
+            { value: 'advisory', label: `Advisory ${counts.advisory}` },
+          ]}
+        />
+        {familiesPresent.length > 1 && (
+          <SegmentedControl<FamilyFilter>
+            label="Show findings by check"
+            value={family}
+            onChange={setFamily}
+            options={[
+              { value: 'all', label: `All checks ${counts.allFamilies}` },
+              ...familiesPresent.map((entry) => ({
+                value: entry,
+                label: `${LABELS.get(entry) ?? entry} ${counts.byFamily.get(entry) ?? 0}`,
+              })),
+            ]}
+          />
+        )}
+        <SegmentedControl<FindingsView>
+          label="How to lay the findings out"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'grouped', label: 'Grouped' },
+            { value: 'table', label: 'Table' },
+          ]}
+        />
+      </div>
       {props.drifted.length > 0 && (
         <div className="banner banner--warning">
           {props.drifted.length} {props.drifted.length === 1 ? 'mark has' : 'marks have'} moved
@@ -201,15 +408,37 @@ export function FindingsPanel(props: FindingsPanelProps) {
           yourself rather than taking the suggestion blind.
         </div>
       )}
-      {families.map((family) => (
-        <CheckGroup
-          key={family}
-          {...props}
-          family={family}
-          findings={open.filter((finding) => finding.checkFamily === family)}
-        />
-      ))}
-      {closed > 0 && (
+      {narrowed && (
+        <p className="findings-narrowed">
+          Showing {shown.length} of {pool.length}.{' '}
+          <button
+            type="button"
+            className="finding-locate"
+            onClick={() => {
+              setSeverity('all');
+              setFamily('all');
+            }}
+          >
+            Show all
+          </button>
+        </p>
+      )}
+      {shown.length === 0 && narrowed && (
+        <p className="findings-empty">No findings match these filters.</p>
+      )}
+      {view === 'table' ? (
+        shown.length > 0 && <FindingsTable {...props} findings={shown} refs={refs} />
+      ) : (
+        families.map((entry) => (
+          <CheckGroup
+            key={entry}
+            {...props}
+            family={entry}
+            findings={shown.filter((finding) => finding.checkFamily === entry && finding.status === 'open')}
+          />
+        ))
+      )}
+      {closed > 0 && view === 'grouped' && (
         <p className="findings-resolved">
           {closed} {closed === 1 ? 'finding has' : 'findings have'} been resolved. Resolved is
           resolved either way — the promotion gate counts what is still open, not how it was
@@ -328,7 +557,16 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
         </button>
       </div>
       <p className="finding-defect">{finding.defect}</p>
-      <Evidence finding={finding} onOpenSource={props.onOpenSource} />
+      <Evidence
+        finding={finding}
+        onOpenSource={props.onOpenSource}
+        onLocate={() => props.onLocate(finding)}
+        onLocateOther={
+          props.onLocateOther === undefined
+            ? undefined
+            : (anchor) => props.onLocateOther!(finding, anchor)
+        }
+      />
 
       {finding.proposedRevision !== undefined && (
         <div className="finding-fix">
@@ -413,6 +651,8 @@ function FindingCard(props: FindingsPanelProps & { finding: Finding }) {
 function Evidence(props: {
   finding: Finding;
   onOpenSource?: ((versionId: string, chunkId?: string) => void) | undefined;
+  onLocate?: (() => void) | undefined;
+  onLocateOther?: ((anchor: Locator) => void) | undefined;
 }) {
   const { evidence } = props.finding;
   if (evidence.input === 'corpus') {
@@ -462,6 +702,34 @@ function Evidence(props: {
       <RuleCard clause={evidence.clause} scope={evidence.scope}>
         {evidence.quote}
       </RuleCard>
+    );
+  }
+  // T-476 — a TWO-PLACE finding (a contradiction): both passages quoted side by
+  // side, each with its own jump, because half a contradiction is not one and
+  // the reader should not have to find the other end by memory
+  if (evidence.otherAnchor !== undefined) {
+    const other = evidence.otherAnchor;
+    return (
+      <div className="finding-evidence finding-pair" role="group" aria-label="The two places">
+        <figure className="finding-pair-side">
+          <figcaption>This place</figcaption>
+          <blockquote className="suggested-wording">{props.finding.anchor.verbatim}</blockquote>
+          <button type="button" className="finding-locate" onClick={props.onLocate}>
+            Go to this place
+          </button>
+        </figure>
+        <figure className="finding-pair-side">
+          <figcaption>The other place — {evidence.basis}</figcaption>
+          <blockquote className="suggested-wording">{other.verbatim}</blockquote>
+          <button
+            type="button"
+            className="finding-locate"
+            onClick={() => props.onLocateOther?.(other)}
+          >
+            Go to the other place
+          </button>
+        </figure>
+      </div>
     );
   }
   // the draft measured against itself or its own template: nothing external,

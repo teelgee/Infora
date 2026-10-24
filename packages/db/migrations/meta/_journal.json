@@ -575,6 +575,13 @@
       "when": 1792844413810,
       "tag": "0081_authorship-gaps",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1792847117982,
+      "tag": "0082_judgement-names-rule",
+      "breakpoints": true
     }
   ]
 }

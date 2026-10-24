@@ -3320,6 +3320,17 @@ export const qaCheckBody = z.object({
   /** completeness checks against this; absent runs the placeholder half only */
   templateId: z.string().optional(),
   /**
+   * T-476 (ADR-0053 addendum A9) — **the disproving pass**, off by default.
+   *
+   * *In plain terms: an extra step in which the AI is asked to show each of its
+   * own judgement findings wrong. A finding it manages to disprove is withdrawn
+   * before you see it, and the result says how many.*
+   *
+   * It costs one further model call per finding, so it is a choice the person
+   * makes and sees the price of beside the switch — never a default.
+   */
+  disprovingPass: z.boolean().default(false),
+  /**
    * T-418 — a conversation the caller opened **before** the run, so it can
    * watch the run's own Step rows tick off while the request is still in
    * flight.

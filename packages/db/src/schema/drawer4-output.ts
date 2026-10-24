@@ -192,6 +192,30 @@ export const findings = pgTable(
       'findings_fix_with_revision',
       sql`(proposed_revision_id IS NULL) = (fix IS NULL)`,
     ),
+    // T-476 (ADR-0053 addendum A8/A9; drawn in data-model.md, drawer 4, on
+    // 2026-10-24) — A JUDGEMENT FINDING NAMES ITS RULE OR ITS SECOND PASSAGE.
+    // *In plain terms: a finding the AI raised by reading, with `draft`
+    // evidence, must say which rule it applied or which other passage it
+    // contradicts; the store refuses one that does neither.* The finding's own
+    // anchor is on every row and so cannot be the test. The arithmetic families
+    // (readability, completeness, stale grounding) are measured against a stated
+    // target and are not asked. `namesRuleOrPassage` in `contracts` is the same
+    // predicate in code.
+    //
+    // OLD ROWS (see migration 0082): the migration sets `ruleId` on an old
+    // finding where the rule it quoted can be found, and stamps the rest
+    // `ruleRecorded: false` — an honest "this was written before the rule was
+    // kept", which the last arm accepts. NOT `NOT VALID`, which the drawing
+    // proposed: Postgres still checks a `NOT VALID` constraint against the new
+    // version of any row that is updated, so closing an old finding would have
+    // been refused. (Every arm is coalesced: a NULL anywhere in the OR would make
+    // the whole CHECK pass, which is how the first draft of this let everything in.)
+    // No code path writes `ruleRecorded`; `DraftEvidence` has no
+    // such field, so the writer cannot use the arm.
+    check(
+      'findings_judgement_names_rule_or_passage',
+      sql`input <> 'draft' OR check_family NOT IN ('style', 'self_contradiction') OR coalesce(evidence->>'ruleId', '') <> '' OR evidence->'otherAnchor' IS NOT NULL OR coalesce(evidence->>'ruleRecorded', '') = 'false'`,
+    ),
     // a resolution with nobody's name on it is not an audit record — the
     // `users.removed_by_user_id` pattern, one drawer along
     check(

@@ -54,7 +54,7 @@ import {
 } from './screens/style-guide';
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
-import { FindingsPanel } from './findings-panel';
+import { FindingsPanel, countFindings, narrowFindings, ruleOrSource } from './findings-panel';
 import { AuthorshipCard, AuthorshipRail, provenanceFits } from './authorship-rail';
 import { AuthorshipAppendixToggle } from './screens/schema';
 import { Markdown } from '@infora/ui';
@@ -76,6 +76,10 @@ import {
   CheckFamilyRow,
   CheckPlanCard,
   ChosenNote,
+  DisprovingPassOption,
+  StrengthMap,
+  disprovingCostStatement,
+  disprovingEstimateOf,
   AgentPane,
   LibraryScopeCopy,
   ProposedDocumentCard,
@@ -2958,5 +2962,209 @@ describe('T-475 — gap markers and passage authorship on screen', () => {
     expect(
       renderToStaticMarkup(<AuthorshipAppendixToggle enabled={null} canEdit saved={false} onChange={() => {}} />),
     ).toContain('disabled');
+  });
+});
+
+
+// ── T-476 — findings polish, the strength map, and the disproving pass ──────
+//
+// *In plain terms: forty findings narrow to the required ones in one click, the
+// same findings can be read as a table, a contradiction shows both of its places
+// side by side, the launcher says which findings are settled in code, and the
+// second-look option shows its price beside its switch and nowhere else.*
+//
+// The panel keeps its filters in React state, so a one-click test cannot press a
+// button in static markup; the filtering itself is the pure `narrowFindings`
+// and `countFindings`, tested directly, and the panel is rendered in each state
+// it can start in. The click itself is the end-to-end spec.
+describe('T-476 — filters, counts, the table, and the two places side by side', () => {
+  const anchorAt = (at: number, verbatim: string) => ({
+    span: { start: at, end: at + verbatim.length },
+    paragraph: 0,
+    verbatim,
+  });
+  const make = (n: number, over: Partial<Finding> = {}): Finding => ({
+    id: `f-${n}`,
+    runId: 'r-1',
+    checkFamily: 'style',
+    sandboxDocumentId: 'sd-1',
+    anchor: anchorAt(n * 20, `sentence number ${n}`),
+    defect: `defect ${n}`,
+    severity: n % 6 === 0 ? 'required' : 'advisory',
+    evidence: { input: 'draft', basis: 'a rule typed onto the standard', ruleId: 'rule-1' },
+    status: 'open',
+    closedBy: null,
+    closedAt: null,
+    createdAt: '2026-10-24T00:00:00.000Z',
+    ...over,
+  });
+  // forty findings: 6 required (every sixth) and 34 advisory, in two checks
+  const forty = Array.from({ length: 40 }, (_, at) =>
+    make(at + 1, at % 2 === 0 ? {} : { checkFamily: 'completeness' }),
+  );
+  const panel = (findings: Finding[], over: Partial<React.ComponentProps<typeof FindingsPanel>> = {}) =>
+    renderToStaticMarkup(
+      <FindingsPanel
+        findings={findings}
+        busy={false}
+        focused={null}
+        drifted={[]}
+        onLocate={() => {}}
+        onResolve={() => {}}
+        onBulk={() => {}}
+        {...over}
+      />,
+    );
+
+  it('forty findings narrow to the required ones in one click, and the counts say so first', () => {
+    const counts = countFindings(forty, 'all', 'all');
+    expect(counts).toMatchObject({ all: 40, required: 6, advisory: 34 });
+    const required = narrowFindings(forty, 'required', 'all');
+    expect(required).toHaveLength(6);
+    expect(required.every((finding) => finding.severity === 'required')).toBe(true);
+    // the switches carry the counts
+    const html = panel(forty);
+    expect(html).toContain('All 40');
+    expect(html).toContain('Required 6');
+    expect(html).toContain('Advisory 34');
+    // and starting on Required shows only those six
+    const narrowed = panel(forty, { initialSeverity: 'required' });
+    expect(narrowed).toContain('Showing 6 of 40');
+    expect(narrowed).toContain('defect 6');
+    expect(narrowed).not.toContain('defect 5<');
+  });
+
+  it('the counts are live about each other: a switch says what pressing it would leave', () => {
+    // within one check, the severity counts shrink to that check
+    const style = countFindings(forty, 'all', 'style');
+    expect(style.all).toBe(20);
+    expect(style.required + style.advisory).toBe(20);
+    // within one severity, the check counts shrink to that severity
+    const requiredOnly = countFindings(forty, 'required', 'all');
+    expect(requiredOnly.allFamilies).toBe(6);
+    expect(([...requiredOnly.byFamily.values()] as number[]).reduce((a, b) => a + b, 0)).toBe(6);
+  });
+
+  it('keeps the grouped view as the default, and offers the table as a second view', () => {
+    const html = panel(forty.slice(0, 4));
+    expect(html).toContain('finding-group');
+    expect(html).toContain('Grouped');
+    expect(html).toContain('Table');
+    expect(html).not.toContain('<table');
+  });
+
+  it('the table view lists reference, severity, check, rule, where and state, and carries the same filters', () => {
+    const html = panel(forty.slice(0, 6), { initialView: 'table', initialSeverity: 'required' });
+    expect(html).toContain('<table');
+    for (const heading of ['Ref', 'Severity', 'Check', 'Rule or source', 'Where', 'State']) {
+      expect(html).toContain(heading);
+    }
+    // the sixth finding is the only required one among these six
+    expect(html).toContain('F6');
+    expect(html).not.toContain('F5<');
+    expect(html).toContain('Open');
+  });
+
+  it('the table names what each finding rests on', () => {
+    expect(ruleOrSource(make(1))).toContain('a rule typed onto the standard');
+    expect(
+      ruleOrSource(make(1, { evidence: { input: 'rulebook', clause: '§2.1', quote: 'q', rulebookRef: 'g', scope: 'project' } })),
+    ).toBe('Clause §2.1');
+  });
+
+  it('shows BOTH places of a contradiction side by side, each with its own jump', () => {
+    const two = make(1, {
+      checkFamily: 'self_contradiction',
+      anchor: anchorAt(10, 'a 12% reduction'),
+      evidence: {
+        input: 'draft',
+        basis: '“Conclusions”, section 3 of this draft',
+        otherAnchor: anchorAt(400, 'a 9% reduction'),
+      },
+    });
+    const html = panel([two]);
+    expect(html).toContain('finding-pair');
+    expect(html).toContain('a 12% reduction');
+    expect(html).toContain('a 9% reduction');
+    expect(html).toContain('Go to this place');
+    expect(html).toContain('Go to the other place');
+    // a one-place finding does not
+    expect(panel([make(2)])).not.toContain('finding-pair');
+  });
+});
+
+describe('T-476 — the strength map, and the disproving pass beside its price', () => {
+  it('the launcher marks each rule kind and each check "Settled in code" or "The model’s reading"', () => {
+    const html = renderToStaticMarkup(<StrengthMap />);
+    for (const label of ['Preferred wording', 'Convention', 'Required structure', 'A number with a target', 'Judgement']) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain('Settled in code');
+    expect(html).toContain('The model’s reading');
+    // every check family is on the map
+    for (const entry of CHECK_FAMILY_CATALOGUE) expect(html).toContain(entry.label);
+  });
+
+  const estimate = { calls: 6, tokens: 4200, cost: 0.0213 };
+
+  it('off: the option shows no price and nothing to wait for', () => {
+    const html = renderToStaticMarkup(
+      <DisprovingPassOption on={false} onToggle={() => {}} estimate={estimate} loading={false} />,
+    );
+    expect(html).toContain('Second look at the model');
+    expect(html).not.toContain('more model call');
+    expect(html).not.toContain('0.0213');
+  });
+
+  it('on: the cost is shown beside the switch — calls, tokens and, where priced, the price', () => {
+    const html = renderToStaticMarkup(
+      <DisprovingPassOption on onToggle={() => {}} estimate={estimate} loading={false} />,
+    );
+    expect(html).toContain('about 6 more model calls');
+    expect(html).toContain('4,200 tokens');
+    expect(html).toContain('0.0213');
+    // unpriced is said, never shown as a free pass
+    expect(disprovingCostStatement({ calls: 1, tokens: 900, cost: null })).toContain('No price is set');
+    expect(disprovingCostStatement({ calls: 1, tokens: 900, cost: null })).toContain('about 1 more model call ');
+  });
+
+  it('reads the figure off the plan’s own disprove step, and off nothing else', () => {
+    const step = (key: string, calls: number, cost: number | null) => ({
+      key,
+      stage: 'analyse' as const,
+      worker: 'qa_section_check',
+      label: key,
+      estimate: { calls, tokensPrompt: 1000, tokensCompletion: 200, cost },
+    });
+    expect(disprovingEstimateOf([step('check#0', 1, 0.5)])).toBeNull();
+    expect(disprovingEstimateOf([step('check#0', 1, 0.5), step('disprove', 3, 0.1)])).toEqual({
+      calls: 3,
+      tokens: 1200,
+      cost: 0.1,
+    });
+  });
+
+  it('🔒 the plan screens still show NO price line, even for a plan that carries the disprove step (A3 stands)', () => {
+    const html = renderToStaticMarkup(
+      <CheckPlanCard
+        plan={{
+          workflowId: 'qa-check',
+          workflowVersion: 4,
+          steps: [
+            { key: 'check#0', stage: 'analyse', worker: 'qa_section_check', label: 'Read the whole draft', estimate: { calls: 1, tokensPrompt: 10, tokensCompletion: 5, cost: 0.4321 } },
+            { key: 'disprove', stage: 'analyse', worker: 'qa_section_check', label: 'Ask the model to argue that each finding it raised is wrong, and withdraw any it can disprove', estimate: { calls: 2, tokensPrompt: 10, tokensCompletion: 5, cost: 0.1234 } },
+          ],
+          coverage: '1 section · 1 check · each finding the model raises argued against before you see it',
+          cost: { total: 0.5555, priced: true },
+          refusal: null,
+          shape: 'One pass over the whole draft.',
+        }}
+        busy={false}
+        onRun={() => {}}
+      />,
+    );
+    expect(html).toContain('Ask the model to argue');
+    for (const figure of ['0.4321', '0.1234', '0.5555']) expect(html).not.toContain(figure);
+    expect(html.toLowerCase()).not.toContain('cost');
   });
 });

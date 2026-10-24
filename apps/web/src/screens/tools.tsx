@@ -34,6 +34,7 @@ import type {
   DocumentSubSection,
   DocumentType,
   StartingOutline,
+  PlannedToolStep,
   QaCheckRunResponse,
   Sandbox,
   SandboxDocument,
@@ -55,6 +56,9 @@ import {
   DOCUMENT_LANGUAGE_CATALOGUE,
   DOCUMENT_PURPOSE_CATALOGUE,
   DOCUMENT_TYPE_CATALOGUE,
+  FAMILY_STRENGTH,
+  RULE_KIND_STRENGTH,
+  STRENGTH_LABEL,
 } from '@infora/contracts';
 import {
   ArrowDown,
@@ -1349,6 +1353,119 @@ export function CheckFamilyRow(props: {
   );
 }
 
+
+// ── T-476 (ADR-0053 addendum A8) — THE STRENGTH MAP ─────────────────────────
+//
+// *In plain terms: a small table before you run anything. For each kind of
+// writing rule and each check it says either "Settled in code" — the same answer
+// every time — or "The model's reading", which an AI can get wrong. It describes
+// and nothing else: it changes nothing about what runs.*
+export function StrengthMap() {
+  const row = (entry: { key: string; label: string; strength: 'code' | 'model'; sentence: string }) => (
+    <tr key={entry.key}>
+      <td>{entry.label}</td>
+      <td>
+        <Badge tone={entry.strength === 'code' ? 'neutral' : 'warning'}>
+          {STRENGTH_LABEL[entry.strength]}
+        </Badge>
+      </td>
+      <td>{entry.sentence}</td>
+    </tr>
+  );
+  return (
+    <details className="strength-map" open>
+      <summary>How far each kind of finding can be trusted</summary>
+      <p className="field-hint">
+        A finding settled in code is exact and repeatable. A finding that is the model’s reading is
+        a careful opinion about your text — worth checking, and the one an optional second look
+        (below) can argue against.
+      </p>
+      <table className="strength-map-table" aria-label="Writing rule kinds and how each is checked">
+        <thead>
+          <tr>
+            <th scope="col">Kind of writing rule</th>
+            <th scope="col">How it is checked</th>
+            <th scope="col">What that means</th>
+          </tr>
+        </thead>
+        <tbody>{RULE_KIND_STRENGTH.map(row)}</tbody>
+      </table>
+      <table className="strength-map-table" aria-label="Checks and how each is checked">
+        <thead>
+          <tr>
+            <th scope="col">Check</th>
+            <th scope="col">How it is checked</th>
+            <th scope="col">What that means</th>
+          </tr>
+        </thead>
+        <tbody>{FAMILY_STRENGTH.map(row)}</tbody>
+      </table>
+    </details>
+  );
+}
+
+// ── T-476 (ADR-0053 addendum A9) — THE DISPROVING PASS, AND ITS PRICE ───────
+//
+// *In plain terms: an optional extra step in which the AI is asked to argue
+// against each judgement finding it raised. Findings it can disprove are
+// withdrawn before you see them. It adds model calls, so the extra cost is shown
+// right beside its switch — and, by the owner's earlier ruling, nowhere else:
+// the plan itself still shows no price.*
+export type DisprovingEstimate = { calls: number; tokens: number; cost: number | null };
+
+/** The figure for the pass, read off the plan's own `disprove` step. Pure. */
+export function disprovingEstimateOf(steps: readonly PlannedToolStep[]): DisprovingEstimate | null {
+  const step = steps.find((candidate) => candidate.key === 'disprove');
+  if (step === undefined) return null;
+  return {
+    calls: step.estimate.calls,
+    tokens: step.estimate.tokensPrompt + step.estimate.tokensCompletion,
+    cost: step.estimate.cost,
+  };
+}
+
+export function disprovingCostStatement(estimate: DisprovingEstimate): string {
+  const calls = `about ${estimate.calls} more model ${estimate.calls === 1 ? 'call' : 'calls'}`;
+  const tokens = `${estimate.tokens.toLocaleString('en-GB')} tokens`;
+  return estimate.cost === null
+    ? `Adds ${calls} (${tokens}). No price is set for this model.`
+    : `Adds ${calls} (${tokens}), roughly ${estimate.cost.toFixed(4)} in your deployment’s currency.`;
+}
+
+/**
+ * The switch, and — beside it, and only here — what it would cost.
+ * `estimate` is null while it is being worked out or cannot be.
+ */
+export function DisprovingPassOption(props: {
+  on: boolean;
+  onToggle: () => void;
+  estimate: DisprovingEstimate | null;
+  loading: boolean;
+}) {
+  return (
+    <div className="disproving-option">
+      <label className="check-family-head">
+        <input type="checkbox" checked={props.on} onChange={props.onToggle} />
+        <span className="check-family-name">Second look at the model’s findings</span>
+      </label>
+      <p className="check-family-desc">
+        Off by default. When on, the model is asked to argue that each finding it raised from a
+        judgement is wrong, and withdraws the ones it can disprove before you see them. The result
+        says how many were withdrawn.
+      </p>
+      {props.on && (
+        <p className="field-hint" role="status" data-disproving-cost>
+          {props.estimate !== null
+            ? disprovingCostStatement(props.estimate)
+            : props.loading
+              ? 'Working out what this adds…'
+              : 'Choose a draft and a check that reads by judgement to see what this adds.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * T-415 — what ticking **House style** will actually apply.
  *
@@ -1497,7 +1614,11 @@ export function RunProgress(props: {
   /** true where the last poll did not answer */
   lost: boolean;
 }) {
-  const total = props.plan.steps.length;
+  // The disproving pass is a plan step but not a run step of its own — each
+  // section read performs it — so it is left out of the scale here, or the box
+  // would end one step short and label the comparison as the pass (T-476 review).
+  const steps = props.plan.steps.filter((step) => step.key !== 'disprove');
+  const total = steps.length;
   const done = Math.min(props.completed ?? 0, total);
   return (
     <Card>
@@ -1508,7 +1629,7 @@ export function RunProgress(props: {
           : `${done} of ${total} step${total === 1 ? '' : 's'} finished.`}
       </p>
       <ol className="plan-workflow">
-        {props.plan.steps.map((step, index) => {
+        {steps.map((step, index) => {
           const finished = index < done;
           const current = index === done && !props.lost;
           return (
@@ -1556,6 +1677,10 @@ export function QaCheckerScreen() {
   const [preset, setPreset] = useState<'full' | 'quick'>(DEFAULT_CHECK_PRESET);
   const [families, setFamilies] = useState<CheckFamily[]>([...CHECK_FAMILIES]);
   const [depth, setDepth] = useState<CorpusDepth>(DEFAULT_CORPUS_DEPTH);
+  // T-476 (ADR-0053 A9) — the optional disproving pass, off unless asked for
+  const [disproving, setDisproving] = useState(false);
+  const [disprovingEstimate, setDisprovingEstimate] = useState<DisprovingEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
   const [attached, setAttached] = useState<PinnedDoc[]>([]);
   // T-399 — files handed straight to this check. They live in the browser until
   // the request carries them, are parsed server-side for the run, and are
@@ -1631,7 +1756,40 @@ export function QaCheckerScreen() {
     // check it scopes is off the plan)
     ...(families.includes('corpus_accuracy') ? scopeField(scopeState.scope) : {}),
     attachedDocumentIds: attached.map((doc) => doc.id),
+    // the toggle lives under the two model-read checks; with both unticked it
+    // is hidden, and a hidden switch must not stay on (T-476 review)
+    disprovingPass: disproving && (families.includes('style') || families.includes('corpus_accuracy')),
   });
+
+  /**
+   * T-476 — the pass's price, worked out by the SAME planner the plan and the run
+   * use (one planner, so what is previewed is what runs). It is read off the
+   * plan's `disprove` step and shown beside the switch alone — A9's narrow
+   * exception to A3. Nothing is fetched while the pass is off.
+   */
+  useEffect(() => {
+    if (!disproving || projectId === undefined || !ready) {
+      setDisprovingEstimate(null);
+      return;
+    }
+    let live = true;
+    setEstimating(true);
+    void api
+      .qaCheckPlan(projectId, body(), uploads)
+      .then((res) => {
+        if (live) setDisprovingEstimate(disprovingEstimateOf(res.plan.steps));
+      })
+      .catch(() => {
+        if (live) setDisprovingEstimate(null);
+      })
+      .finally(() => {
+        if (live) setEstimating(false);
+      });
+    return () => {
+      live = false;
+    };
+    // body() is a function of exactly the state below
+  }, [disproving, projectId, documentId, families, depth, attached, uploads, scopeState.scope]);
 
   const seePlan = () => {
     if (projectId === undefined) return;
@@ -1844,7 +2002,26 @@ export function QaCheckerScreen() {
             </CheckFamilyRow>
           ))}
         </div>
+        {/* T-476 (ADR-0053 A8) — which findings are settled in code and which
+            are a model's reading. A description; it changes nothing. */}
+        <StrengthMap />
       </Card>
+
+      {/* T-476 (ADR-0053 A9) — the optional disproving pass. Its price is shown
+          HERE, beside its switch, and nowhere else: a narrow, stated exception
+          to A3, which keeps the price line off the plan screens. Shown only
+          where a check that reads by judgement is ticked — there is nothing for
+          it to argue against otherwise. */}
+      {(families.includes('style') || families.includes('corpus_accuracy')) && (
+        <Card>
+          <DisprovingPassOption
+            on={disproving}
+            onToggle={() => change(setDisproving)(!disproving)}
+            estimate={disprovingEstimate}
+            loading={estimating}
+          />
+        </Card>
+      )}
 
       {/* T-416 — the library scope moved UNDER the Accuracy check (see the
           option above), because it is a property of that check and of no
