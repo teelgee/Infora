@@ -184,20 +184,66 @@ export async function listFindings(
     ),
   );
 
-  // T-471 — a finding that quotes an attached draft carries that draft's title
-  // and up to 4,000 characters of it. Show them only to a reader who is in the
-  // working area the draft sits in (ADR-0022's addendum, ruling 5); everyone
-  // else keeps the finding and loses the quote and the id.
+  // T-471/T-484 — a finding that quotes an attached draft carries up to 4,000
+  // characters of it. Show them only to a reader who is in the working area the
+  // draft sits in (ADR-0022's addendum, ruling 5). Everyone else keeps the
+  // finding and the draft's TITLE, marked not open to them (the owner's ruling
+  // of 2026-10-24), and loses the quote and the id.
   const attachedIds = found.flatMap((finding) =>
-    finding.evidence.input === 'attached' ? [finding.evidence.attachedSourceId] : [],
+    finding.evidence.input === 'attached' && 'attachedSourceId' in finding.evidence
+      ? [finding.evidence.attachedSourceId]
+      : [],
   );
   if (attachedIds.length === 0) return found;
   const mayRead = await readableDocumentIds(db, slice, attachedIds);
-  return found.map((finding) =>
-    finding.evidence.input === 'attached' && !mayRead.has(finding.evidence.attachedSourceId)
-      ? { ...finding, evidence: { input: 'attached' as const, attachedSourceId: '' as Id, excerpt: '', hidden: true as const } }
-      : finding,
-  );
+  const closedIds = [...new Set(attachedIds.filter((id) => !mayRead.has(id)))];
+  if (closedIds.length === 0) return found;
+  const titles = await attachedTitles(db, found, closedIds);
+  return found.map((finding) => {
+    const evidence = finding.evidence;
+    if (evidence.input !== 'attached' || !('attachedSourceId' in evidence) || mayRead.has(evidence.attachedSourceId)) {
+      return finding;
+    }
+    return {
+      ...finding,
+      evidence: {
+        input: 'attached' as const,
+        label: titles.get(`${finding.runId}:${evidence.attachedSourceId}`) ?? titles.get(evidence.attachedSourceId) ?? '',
+        openToYou: false as const,
+        excerpt: '' as const,
+      },
+    };
+  });
+}
+
+/**
+ * The titles of attached drafts a reader may not open. The title recorded in
+ * the run's own plan when the draft was pinned wins (it survives a rename or a
+ * purge); the draft's own row is the fallback. A handle that names neither
+ * (an uploaded file's per-run id) has no title here.
+ */
+async function attachedTitles(db: Db, found: readonly Finding[], ids: readonly string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const runIds = [...new Set(found.filter((f) => f.evidence.input === 'attached').map((f) => f.runId))];
+  const plans = await db
+    .select({ runId: s.plans.runId, workingSet: s.plans.workingSet })
+    .from(s.plans)
+    .where(inArray(s.plans.runId, runIds));
+  for (const plan of plans) {
+    for (const entry of (plan.workingSet ?? []) as Array<{ sandboxDocumentId: string; label: string }>) {
+      out.set(`${plan.runId}:${entry.sandboxDocumentId}`, entry.label);
+    }
+  }
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const real = ids.filter((id) => uuid.test(id));
+  if (real.length > 0) {
+    const rows = await db
+      .select({ id: s.sandboxDocuments.id, title: s.sandboxDocuments.title })
+      .from(s.sandboxDocuments)
+      .where(inArray(s.sandboxDocuments.id, real));
+    for (const row of rows) out.set(row.id, row.title);
+  }
+  return out;
 }
 
 type FindingRow = typeof s.findings.$inferSelect;

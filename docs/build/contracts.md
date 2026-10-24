@@ -1886,3 +1886,25 @@ are not recorded here.
   predicate. The **reason the state-changes read also admits a reader** is that
   the Activity tab would otherwise be empty for the one person who most needs to
   see that a standard was withdrawn; it uses the same check, through one function.
+
+- **2026-10-24 (T-484) — `AttachedEvidence` is an open shape (with the id and
+  the excerpt) or a closed one (`label`, `openToYou: false`, no id, a blank
+  excerpt); `hidden?: true` is gone.** *Plainly: a checker finding that quotes a
+  colleague's attached draft now tells a reader outside that working area which
+  draft it was, by title, and still never shows the quoted words.* The **reason
+  the evidence changed shape** is the owner's ruling of 2026-10-24 (ADR-0022,
+  closing Q-057): a draft's title is public, its content and its door are not,
+  and a finding is the same kind of surface as the conversation beside it, so it
+  follows the same rule rather than staying the one place that still said
+  nothing. The **reason it copies the working set's union** (`WorkingSetEntry`)
+  instead of keeping an optional flag is that the compiler then refuses code that
+  reads the id of a closed entry, which is the mistake the flag allowed. The
+  **reason the title comes from the run's own plan first** is that the plan keeps
+  the title the draft had when it was pinned and survives the draft being
+  renamed or deleted; the draft's row is the fallback, and a blank label (an
+  uploaded file's per-run handle has neither) makes the panel say the older
+  sentence. The **reason the replacement box needed no new parameter** is that
+  `GET /projects/:projectId/library/search` already answers "live documents
+  matching this text, any page"; the box asks for the number it wants plus the
+  documents being retired and drops those from the answer, so excluding them is
+  the caller's concern, not a new query term.

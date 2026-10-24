@@ -682,11 +682,18 @@ function Evidence(props: {
     );
   }
   if (evidence.input === 'attached') {
-    // T-471 — the draft sits in a working area this reader is not in
-    if (evidence.hidden === true) {
+    // T-471/T-484 — the draft sits in a working area this reader is not in:
+    // its title is public (the owner's ruling of 2026-10-24), its words are not
+    if ('openToYou' in evidence) {
       return (
         <p className="finding-evidence finding-note">
-          Quoted from a document in a working area you are not in.
+          {evidence.label === '' ? (
+            'Quoted from a document in a working area you are not in.'
+          ) : (
+            <>
+              Quoted from “{evidence.label}” — a document in a working area you are not in.
+            </>
+          )}
         </p>
       );
     }

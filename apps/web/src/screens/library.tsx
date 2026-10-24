@@ -438,9 +438,15 @@ function EndDeliverableModal(props: {
 // has to name it. Confirming the edge is what sets the target's record state
 // (ADR-0045 as amended §1), which is why this modal picks a replacement rather
 // than offering a bare "mark superseded".
+//
+// T-484 — the replacement box asks the SERVER, on open and as the person types,
+// for live documents the person may see; it used to list only the register page
+// on screen (fifty at most, and none after a search). The documents being
+// retired are asked for on top and dropped from the answer.
+const REPLACEMENT_OPTIONS = 20;
 function SupersedeModal(props: {
+  projectId: string;
   items: LibraryItem[];
-  candidates: LibraryItem[];
   /** the owner proposes AND confirms; the producer only proposes */
   mode: 'confirm' | 'propose';
   onClose: () => void;
@@ -448,6 +454,56 @@ function SupersedeModal(props: {
 }) {
   const [replacement, setReplacement] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
+  const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const retiring = props.items.map((i) => i.containerId).join(',');
+  useEffect(() => {
+    // stale answers are ignored: only the latest request may set the options
+    let current = true;
+    setLoading(true);
+    const q = query.trim();
+    const timer = window.setTimeout(
+      () => {
+        const retired = new Set(retiring.split(','));
+        api
+          .librarySearch(props.projectId, {
+            ...(q !== '' && { q }),
+            state: 'live',
+            kind: 'any',
+            pageSize: Math.min(200, REPLACEMENT_OPTIONS + retired.size),
+          })
+          .then(
+            (res) => {
+              if (!current) return;
+              setFailed(false);
+              setOptions(
+                res.items
+                  .filter((d) => !retired.has(d.containerId))
+                  .slice(0, REPLACEMENT_OPTIONS)
+                  .map((d) => ({
+                    value: d.containerId,
+                    label: `${d.documentReference}${d.title ? ` — ${d.title}` : ''}`,
+                  })),
+              );
+              setLoading(false);
+            },
+            () => {
+              if (!current) return;
+              setFailed(true);
+              setOptions([]);
+              setLoading(false);
+            },
+          );
+      },
+      query === '' ? 0 : 200,
+    );
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
+  }, [props.projectId, query, retiring]);
   return (
     <Modal
       open
@@ -481,11 +537,11 @@ function SupersedeModal(props: {
         <Combobox
           value={replacement}
           onChange={setReplacement}
-          placeholder="Search deliverables"
-          options={props.candidates.map((c) => ({
-            value: c.containerId,
-            label: `${c.documentReference}${c.title ? ` — ${c.title}` : ''}`,
-          }))}
+          placeholder="Type a code or title to search"
+          options={options}
+          onQueryChange={setQuery}
+          loading={loading}
+          emptyText={failed ? 'Search failed — try again' : undefined}
         />
       </Field>
       {props.mode === 'confirm' && <ImpactSection containerIds={props.items.map((i) => i.containerId)} />}
@@ -1103,9 +1159,9 @@ export function LibraryScreen() {
       )}
       {supersedingItems && (
         <SupersedeModal
+          projectId={projectId}
           items={supersedingItems}
           mode={isOwner ? 'confirm' : 'propose'}
-          candidates={liveItems.filter((d) => !supersedingItems.some((i) => i.containerId === d.containerId))}
           onClose={() => setSupersedingItems(null)}
           onSubmit={(replacement) => supersede(supersedingItems, replacement)}
         />

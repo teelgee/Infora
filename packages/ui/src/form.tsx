@@ -2,7 +2,7 @@
 // select, and a searchable Combobox (the bind picker). All emit the class
 // vocabulary in styles.css; none carry business logic. These replace the
 // phantom `.input` class the surfaces referenced and the `window.prompt` flows.
-import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 
 export function Field(props: {
@@ -195,6 +195,39 @@ export function SelectInput(props: {
   );
 }
 
+/**
+ * The options a Combobox lists for the text typed. In server mode the caller's
+ * options ARE the answer to that text, so they pass through untouched;
+ * otherwise the text filters them by label and sub-label.
+ */
+export function comboboxVisible<O extends { label: string; sub?: string }>(
+  options: ReadonlyArray<O>,
+  query: string,
+  serverMode: boolean,
+): ReadonlyArray<O> {
+  if (serverMode) return options;
+  const q = query.trim().toLowerCase();
+  if (!q) return options;
+  return options.filter((o) => o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q));
+}
+
+/**
+ * The option shown as chosen. It is looked up in the current options; in server
+ * mode, where a refetched list may no longer hold the chosen document, the
+ * remembered choice stands in so the box keeps showing its label.
+ */
+export function comboboxSelected<O extends { value: string; label: string }>(
+  options: ReadonlyArray<O>,
+  value: string | null,
+  chosen: { value: string; label: string } | null,
+  serverMode: boolean,
+): { value: string; label: string } | undefined {
+  return (
+    options.find((o) => o.value === value) ??
+    (serverMode && chosen !== null && chosen.value === value ? chosen : undefined)
+  );
+}
+
 // A searchable single-select — the bind picker (choose a TIDP row from the
 // accessible set) and any other "pick one from many" that a plain <select>
 // makes unwieldy. Fully keyboard-operable (design-rules §D): ↑/↓ move the active
@@ -205,30 +238,47 @@ export function Combobox(props: {
   options: ReadonlyArray<{ value: string; label: string; sub?: string }>;
   placeholder?: string;
   emptyText?: string;
+  /**
+   * T-484 — SERVER MODE. When given, the caller owns the search: it is told of
+   * every change to the typed text, and `options` are taken as already being
+   * the answer (this box does not filter them again). The chosen option is
+   * remembered here, so its label survives the list being fetched afresh.
+   * When absent the box filters `options` itself, exactly as it always has.
+   */
+  onQueryChange?: (query: string) => void;
+  /** server mode: words in place of "No matches" while an answer is awaited */
+  loadingText?: string;
+  loading?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return props.options;
-    return props.options.filter(
-      (o) => o.label.toLowerCase().includes(q) || (o.sub ?? '').toLowerCase().includes(q),
-    );
-  }, [query, props.options]);
-  const selected = props.options.find((o) => o.value === props.value);
+  const [chosen, setChosen] = useState<{ value: string; label: string } | null>(null);
+  // two boxes on one screen must not share element ids
+  const uid = useId();
+  const listId = `${uid}-list`;
+  const optionId = (value: string) => `${uid}-opt-${value}`;
+  const serverMode = props.onQueryChange !== undefined;
+  const filtered = useMemo(
+    () => comboboxVisible(props.options, query, serverMode),
+    [query, props.options, serverMode],
+  );
+  const selected = comboboxSelected(props.options, props.value, chosen, serverMode);
 
   const choose = (value: string) => {
+    const picked = props.options.find((o) => o.value === value);
+    if (picked !== undefined) setChosen({ value: picked.value, label: picked.label });
     props.onChange(value);
     setOpen(false);
     setQuery('');
+    props.onQueryChange?.('');
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
-      setActive((i) => Math.min(i + 1, filtered.length - 1));
+      setActive((i) => Math.max(0, Math.min(i + 1, filtered.length - 1)));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
@@ -251,8 +301,8 @@ export function Combobox(props: {
           className="combobox-input"
           role="combobox"
           aria-expanded={open}
-          aria-controls="combobox-list"
-          aria-activedescendant={open && filtered[active] ? `cbo-${filtered[active]!.value}` : undefined}
+          aria-controls={listId}
+          aria-activedescendant={open && filtered[active] ? optionId(filtered[active]!.value) : undefined}
           value={open ? query : (selected?.label ?? '')}
           placeholder={props.placeholder}
           onFocus={() => setOpen(true)}
@@ -262,15 +312,16 @@ export function Combobox(props: {
             setQuery(e.target.value);
             setOpen(true);
             setActive(0);
+            props.onQueryChange?.(e.target.value);
           }}
         />
       </div>
       {open && (
-        <div className="combobox-list" id="combobox-list" role="listbox">
+        <div className="combobox-list" id={listId} role="listbox">
           {filtered.map((o, i) => (
             <button
               key={o.value}
-              id={`cbo-${o.value}`}
+              id={optionId(o.value)}
               type="button"
               role="option"
               aria-selected={i === active}
@@ -284,7 +335,9 @@ export function Combobox(props: {
             </button>
           ))}
           {filtered.length === 0 && (
-            <div className="combobox-empty">{props.emptyText ?? 'No matches'}</div>
+            <div className="combobox-empty">
+              {props.loading === true ? (props.loadingText ?? 'Searching…') : (props.emptyText ?? 'No matches')}
+            </div>
           )}
         </div>
       )}

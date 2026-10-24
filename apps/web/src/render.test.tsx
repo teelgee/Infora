@@ -1554,7 +1554,8 @@ describe('T-471 — a finding quoting a draft from a working area the reader is 
   it('says so in place of the excerpt', () => {
     const panel = readFileSync(new URL('./findings-panel.tsx', import.meta.url), 'utf8');
     expect(panel).toContain('Quoted from a document in a working area you are not in.');
-    expect(panel.indexOf('evidence.hidden === true')).toBeLessThan(panel.indexOf('From a document you attached'));
+    expect(panel).toContain('Quoted from “{evidence.label}” — a document in a working area you are not in.');
+    expect(panel.indexOf("'openToYou' in evidence")).toBeLessThan(panel.indexOf('From a document you attached'));
   });
 });
 

@@ -267,4 +267,28 @@ describe('ten thousand rows stay interactive', () => {
     expect(plan.body.items).toHaveLength(50);
     expect(plan.ms).toBeLessThan(500);
   }, 60_000);
+
+  // T-484 — the owner's replacement box asks this very read (state=live, no
+  // page) and must reach any live document by typing its code, however far down
+  // the register it sits. The existing test above proves only that a search
+  // answers; this one names a document and finds it.
+  it('state=live search reaches a document far beyond the first 50 by its code, and with no text lists the first page', async () => {
+    const far = containerIds[9876]!;
+    const byCode = await app.request(
+      `/projects/${syntheticProjectId}/library/search?q=SYN-009876&state=live&kind=any&pageSize=21`,
+      { headers: { cookie: owner } },
+    );
+    expect(byCode.status).toBe(200);
+    const found = (await byCode.json()) as { items: Array<{ containerId: string }>; total: number };
+    expect(found.items.map((i) => i.containerId)).toContain(far);
+
+    // typing nothing: the first page of every live document, so the box is never empty
+    const none = await app.request(
+      `/projects/${syntheticProjectId}/library/search?state=live&kind=any&pageSize=21`,
+      { headers: { cookie: owner } },
+    );
+    const first = (await none.json()) as { items: unknown[]; total: number };
+    expect(first.items).toHaveLength(21);
+    expect(first.total).toBe(N);
+  }, 60_000);
 });

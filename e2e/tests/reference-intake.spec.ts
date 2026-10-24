@@ -11,8 +11,20 @@ import type { Page } from '@playwright/test';
 import type { ClassificationSchemeResponse, ContainerClassificationsResponse } from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
 import { textPdf } from './support/pdf';
+import { sweepReferenceIntake } from './support/sweep-reference-intake';
 
 test.describe.configure({ mode: 'serial' });
+
+// T-484 — this spec adds "T472-…" reference documents, and on a long-lived
+// local database they would pile up ahead of the seeded documents. It sweeps any
+// left by an earlier or crashed run before it starts and removes its own at the
+// end, through the product's own doors (reject, withdraw, library removal).
+test.beforeAll(async () => {
+  await sweepReferenceIntake();
+});
+test.afterAll(async () => {
+  await sweepReferenceIntake();
+});
 
 const PROJECT = 'Wrenfield–Ashcombe 400kV Connection';
 

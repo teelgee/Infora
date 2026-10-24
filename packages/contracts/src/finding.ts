@@ -112,19 +112,24 @@ export type CorpusEvidence = {
  * makes the finding intelligible; it is not a citation and must not render as
  * one.
  */
-export type AttachedEvidence = {
-  input: 'attached';
-  /** the `AttachedSource` this arose from, not a version id */
-  attachedSourceId: Id;
-  excerpt: string;
+export type AttachedEvidence =
+  | {
+      input: 'attached';
+      /** the `AttachedSource` this arose from, not a version id */
+      attachedSourceId: Id;
+      excerpt: string;
+      /** the draft's title, when the server could name it */
+      label?: string;
+    }
   /**
-   * T-471 — set when the READER is not in the working area the attached draft
-   * sits in: the excerpt is then blank and the id is blanked too, and the panel
-   * says the finding quotes a document in a working area they are not in. The
-   * finding itself stays.
+   * T-484 (the owner's ruling of 2026-10-24, ADR-0022) — the READER is not in
+   * the working area the attached draft sits in. The draft's TITLE is public
+   * and is shown, marked not open to this reader; its id and its words stay
+   * behind the working area's door, so the excerpt is blank and no id is sent.
+   * The finding itself stays. `label` is blank only when the draft's title
+   * cannot be found at all, and the panel then says the old sentence.
    */
-  hidden?: true;
-};
+  | { input: 'attached'; label: string; openToYou: false; excerpt: '' };
 
 /**
  * The rulebook: **quotable but never cited** (ADR-0048 §5), and the shape that

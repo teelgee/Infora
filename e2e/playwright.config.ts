@@ -9,6 +9,7 @@ const WEB_URL = 'http://localhost:5273';
 
 export default defineConfig({
   testDir: './tests',
+  globalSetup: './global-setup.ts',
   // T-369 — the suites share ONE seeded world, including mutable project-wide
   // configuration: slice-a2 replaces the project's coding scheme while
   // slice-a2-ui is driving the New-deliverable modal against it, and

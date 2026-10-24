@@ -14,6 +14,8 @@ import {
   Chip,
   CollapseToggle,
   Combobox,
+  comboboxVisible,
+  comboboxSelected,
   CommandBar,
   DropdownMenu,
   Field,
@@ -429,6 +431,57 @@ describe('modal + form controls (T-163)', () => {
     expect(html).toContain('combobox-input');
     expect(html).toContain('role="combobox"');
     expect(html).not.toContain('role="listbox"'); // the list is closed until focus
+  });
+
+  it('T-484 — two Comboboxes on one screen get different list ids', () => {
+    const html = renderToStaticMarkup(
+      <>
+        <Combobox value={null} onChange={() => {}} options={[]} />
+        <Combobox value={null} onChange={() => {}} options={[]} onQueryChange={() => {}} />
+      </>,
+    );
+    const controls = [...html.matchAll(/aria-controls="([^"]+)"/g)].map((m) => m[1]);
+    expect(controls).toHaveLength(2);
+    expect(controls[0]).not.toBe(controls[1]);
+    expect(html).not.toContain('combobox-list"'); // the old shared id is gone
+  });
+
+  it('T-484 — a chosen option keeps its label when the server mode list changes', () => {
+    // the selected label shows from `options` when present
+    const html = renderToStaticMarkup(
+      <Combobox
+        value="c1"
+        onChange={() => {}}
+        options={[{ value: 'c1', label: 'WA-BB-GEO-004 — Geotech report' }]}
+        onQueryChange={() => {}}
+      />,
+    );
+    expect(html).toContain('value="WA-BB-GEO-004 — Geotech report"');
+  });
+
+  it('T-484 — a chosen option that dropped out of the refetched options is still shown, in server mode only', () => {
+    const chosen = { value: 'c1', label: 'WA-001 — Alpha' };
+    const refetched = [{ value: 'c2', label: 'WA-002 — Beta' }];
+    expect(comboboxSelected(refetched, 'c1', chosen, true)).toEqual(chosen);
+    expect(comboboxSelected(refetched, 'c1', chosen, false)).toBeUndefined();
+    expect(comboboxSelected(refetched, 'c2', chosen, true)).toEqual(refetched[0]);
+    expect(comboboxSelected(refetched, null, chosen, true)).toBeUndefined();
+    // and through the component: the input shows the label of an option in the list
+    const html = renderToStaticMarkup(
+      <Combobox value="c2" onChange={() => {}} options={refetched} onQueryChange={() => {}} />,
+    );
+    expect(html).toContain('value="WA-002 — Beta"');
+  });
+
+  it('T-484 — comboboxVisible filters in local mode and passes the answer through in server mode', () => {
+    const options = [
+      { value: 'a', label: 'WA-001 — Alpha' },
+      { value: 'b', label: 'WA-002 — Beta' },
+    ];
+    expect(comboboxVisible(options, 'beta', false).map((o) => o.value)).toEqual(['b']);
+    // server mode: the typed text does not filter what the server already answered
+    expect(comboboxVisible(options, 'beta', true).map((o) => o.value)).toEqual(['a', 'b']);
+    expect(comboboxVisible(options, '', false)).toHaveLength(2);
   });
 });
 

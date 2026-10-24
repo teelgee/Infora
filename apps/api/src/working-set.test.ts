@@ -510,7 +510,7 @@ describe('findings and the plan read apply the same per-reader rule (T-471 revie
     const res = await get(who, `/sandbox-documents/${docs['open']}/findings`);
     expect(res.status).toBe(200);
     const text = await res.text();
-    return { text, items: (JSON.parse(text) as { items: Array<{ defect: string; evidence: { excerpt?: string; hidden?: boolean; attachedSourceId?: string } }> }).items };
+    return { text, items: (JSON.parse(text) as { items: Array<{ defect: string; evidence: { excerpt?: string; label?: string; openToYou?: boolean; attachedSourceId?: string } }> }).items };
   };
 
   it('the owner of both working areas reads both excerpts', async () => {
@@ -518,21 +518,27 @@ describe('findings and the plan read apply the same per-reader rule (T-471 revie
     expect(items.map((i) => i.evidence.excerpt).sort()).toEqual(['B narrow draft: secret body of narrow', 'B team draft: secret body of team']);
   });
 
-  it('a team member reads the team excerpt only; the other finding stays, with the quote and id blanked', async () => {
+  it('a team member reads the team excerpt only; the other finding stays, with its title, no quote and no id', async () => {
     const { items, text } = await findingsFor('bo');
     expect(items).toHaveLength(2);
     const narrow = items.find((i) => i.defect.includes('narrow'))!;
-    expect(narrow.evidence).toMatchObject({ hidden: true, excerpt: '', attachedSourceId: '' });
-    expect(items.find((i) => i.defect.includes('team'))!.evidence.excerpt).toContain('secret body of team');
+    expect(narrow.evidence).toEqual({ input: 'attached', label: expect.any(String), openToYou: false, excerpt: '' });
+    expect(narrow.evidence.label).not.toBe('');
+    expect(narrow.evidence).not.toHaveProperty('attachedSourceId');
+    const team = items.find((i) => i.defect.includes('team'))!;
+    expect(team.evidence.excerpt).toContain('secret body of team');
+    expect(team.evidence.attachedSourceId).toBe(docs['team']);
     expect(text).not.toContain('secret body of narrow');
     expect(text).not.toContain(docs['narrow']!);
   });
 
-  it('a member in neither reads the findings but not an excerpt, a title or an id', async () => {
+  it('a member in neither reads the findings and the two titles, marked not open — but no excerpt and no id', async () => {
     const { items, text } = await findingsFor('bea');
     expect(items).toHaveLength(2);
-    for (const item of items) expect(item.evidence).toMatchObject({ hidden: true, excerpt: '' });
-    for (const secret of ['secret body', 'B narrow draft', 'B team draft', docs['narrow']!, docs['team']!]) {
+    for (const item of items) expect(item.evidence).toMatchObject({ openToYou: false, excerpt: '' });
+    expect(items.map((i) => i.evidence.label).sort()).toEqual(['B narrow draft', 'B team draft']);
+    for (const item of items) expect(item.evidence).not.toHaveProperty('attachedSourceId');
+    for (const secret of ['secret body', docs['narrow']!, docs['team']!]) {
       expect(text).not.toContain(secret);
     }
   });

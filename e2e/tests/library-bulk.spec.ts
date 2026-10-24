@@ -19,10 +19,6 @@ async function loginAs(page: Page, email: string) {
 test('two ticked rows are one transmittal dialog, and the selection exports to Excel', async ({ page }) => {
   await loginAs(page, SEEDED.owner);
   await page.getByRole('link', { name: /Project library/ }).click();
-  // the register is paged, and every run of the intake spec adds "T472-…"
-  // reference rows that sort ahead of the seeded "WA-…" codes; the selection
-  // acts on the visible page, so sort by code descending to keep both on it
-  await page.goto(`${page.url().split('?')[0]}?sort=reference&direction=desc`);
   const table = page.getByRole('table', { name: 'Project library' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   // two of the owner organisation's own live documents

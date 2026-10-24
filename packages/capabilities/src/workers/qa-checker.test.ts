@@ -214,7 +214,7 @@ describe('three inputs, three honest treatments (ADR-0048 §7)', () => {
     const evidence = result.findings[0]!.evidence;
     expect(evidence.input).toBe('attached');
     if (evidence.input !== 'attached') throw new Error('unreachable');
-    expect(evidence.attachedSourceId).toBe('as-1');
+    expect('attachedSourceId' in evidence && evidence.attachedSourceId).toBe('as-1');
     expect('citations' in evidence).toBe(false);
   });
 

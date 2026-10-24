@@ -30,7 +30,7 @@ export { DropdownMenu, DropdownMenuItem } from './dropdown-menu';
 export { Modal, Drawer } from './dialog';
 // T-421 — SegmentedControl: a pick-one-of-two-or-three drawn as one control
 // rather than a row of buttons (design-rules §B)
-export { Field, TextInput, TextArea, SegmentedControl, segmentStep, SelectInput, Combobox } from './form';
+export { Field, TextInput, TextArea, SegmentedControl, segmentStep, SelectInput, Combobox, comboboxVisible, comboboxSelected } from './form';
 // T-470 — the keyboard-first multi-select behind the scope control
 export { MultiPicker, filterPickerGroups, multiPickerStep } from './multi-picker';
 export type { PickerGroup, PickerOption, PickerStep } from './multi-picker';

@@ -77,11 +77,12 @@ test('the owner supersedes the report; the dialog talks only about the owner\'s 
   await page.getByRole('link', { name: /Project library/ }).click();
   const table = page.getByRole('table', { name: 'Project library' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
-  // the register is paged and grows with every run, and the dialog offers
-  // replacements only from the visible page: sort by code descending so the
-  // report and its replacement both sit on page one
-  await page.goto(`${page.url().split('?')[0]}?sort=reference&direction=desc`);
-  await expect(table.getByRole('row').nth(1)).toBeVisible();
+  // the register is paged: a person finds a row on a long one by typing its code
+  await page.getByRole('searchbox', { name: 'Search Project library' }).fill(REPORT);
+  // let the search settle (it is a server call) before ticking the row
+  await expect(page).toHaveURL(/q=WA-GEO-GIR-004/);
+  await expect(page.getByText('Filtered', { exact: true })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await table.getByRole('checkbox', { name: `Select ${REPORT}` }).check();
   await page.getByRole('region', { name: 'Selected rows' }).getByRole('button', { name: 'Supersede…' }).click();
 
@@ -94,7 +95,10 @@ test('the owner supersedes the report; the dialog talks only about the owner\'s 
   await expect(dialog).not.toContainText(PRIVATE_DRAFT);
   await expect(dialog).not.toContainText('Calder');
 
-  await dialog.getByPlaceholder('Search deliverables').fill(REPLACEMENT);
+  // T-484 — the replacement is found by TYPING its code: the box asks the
+  // server, so it does not depend on what the register on screen is showing
+  // (here a search for the report, not for its replacement)
+  await dialog.getByPlaceholder('Type a code or title to search').fill(REPLACEMENT);
   await dialog.getByRole('option', { name: new RegExp(REPLACEMENT) }).click();
   await dialog.getByRole('button', { name: 'Supersede', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
