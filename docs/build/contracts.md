@@ -1948,3 +1948,52 @@ are not recorded here.
   gets, so the act cannot be used to probe who is on a project. The **reason the
   note rides the comment's `mentions` field** and not a new column is that the
   existing mention rule applies without a second path.
+
+- **2026-10-24 (T-481) — `PlanRow.milestones`, `PUT /containers/:containerId/milestones`,
+  `GET /projects/:projectId/plan/coverage`, the `stage` and `overdue` filters on
+  `GET /projects/:projectId/plan`, the `overdue_milestone` queue kind, `all: true` on
+  `POST /projects/:projectId/plan/export`, and the Milestones column in the plan's
+  spreadsheet shapes.** *Plainly: a planned document can carry dates by which it
+  should reach a status code; the firm producing it sets them, the client reads
+  them, and a count of where every planned document stands sits above the
+  schedule.* The **reason milestones ride the plan read rather than a read of their
+  own** is that the plan row is the one record a person already has open: a
+  separate read would be one more request per row on a register that pages fifty at
+  a time, and the screen would have to join two answers to draw one cell. They are
+  fetched in one batched query for the page's rows, like the authors and the
+  reviewers beside them. `met` and `overdue` are **worked out in that read against
+  today and never stored** (the T-473 pattern): a stored "overdue" would need a job to
+  flip it, and the day after a missed job the schedule would call a late document
+  fine. The write takes the **whole set** and replaces it in one transaction
+  because that is what a screen holds when someone edits a list, and because the
+  import's validation can then be the same function; a milestone that did not
+  change keeps its setter. The **reason the coverage view is its own read and its
+  internal stages fold on another organisation's rows** is that the stages come
+  from tables the plan read does not touch (bindings, the freeze series, cycles),
+  and two of them, *frozen* and *internal review accepted*, are the producing
+  organisation's private machinery (ADR-0032): counting them for the owner would
+  tell the owner something the plan read never has. The view therefore counts
+  those two for the reader's own organisation's rows and reports every other
+  organisation's row at *draft bound*. One fact is new to the owner on purpose:
+  whether a draft has been bound to a row at all (the "no draft bound yet" flag,
+  which is the point of the view); the plan read did not show it, because binding
+  never moves the work item's status. It is a fact about progress, never the
+  draft or its content. A milestone is read only by the owner and the row's
+  producer, so the exports leave the Milestones cell empty for a third
+  organisation a row is shared with, and a row that is not live refuses a change
+  (409 `row_not_live`). An **accepted** row has met every milestone whatever its
+  status-code field says, because the field is typed by hand and acceptance is the
+  end the codes lead to. The **reason the two flags are filters on the plan read** and not something
+  the screen does to a page it already holds is that a page is fifty rows: the
+  register's "Overdue" has to be the strip's number, so both come from the same
+  computation. The **reason the work-queue kind lists one item per milestone and
+  lands on the schedule searched to the row, with its panel open** (`row=` on the
+  address) is that the act (move the date, or reach the code) is done on that
+  row's panel, one click from there. The
+  **reason `Milestones` is one column of `S3 2026-11-30; A1 2027-01-15` and not
+  one column per code** is that a project's code list is its own and a plan
+  can name any of them: a fixed set of columns would not round-trip a project
+  whose list differs, and a single cell reads as the sentence a person writes. The
+  import stays create-only and refuses the whole file, in words naming the row, for
+  a malformed cell or a code outside the project's list, as it refuses any other
+  bad cell.

@@ -153,7 +153,8 @@ describe('bulk acts (T-461)', () => {
     expect(res.status).toBe(200);
     const sheets = parseXlsxSheets(Buffer.from(await res.arrayBuffer()))!;
     expect(sheets[0]!.name).toBe('Deliverables');
-    expect(sheets[0]!.rows[0]).toEqual(['Title', 'Project', 'Originator', 'Discipline', 'Status code']);
+    // T-481 — the Milestones column rides last (a row with none writes an empty cell, which a reader trims)
+    expect(sheets[0]!.rows[0]).toEqual(['Title', 'Project', 'Originator', 'Discipline', 'Status code', 'Milestones']);
     expect(sheets[0]!.rows).toHaveLength(5);
     // rows come in reference order; the code columns are read back out of each reference
     expect(sheets[0]!.rows.find((r) => r[0] === 'Ground investigation')).toEqual(['Ground investigation', 'WA', 'TM', 'GEO', 'S0']);

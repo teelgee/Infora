@@ -107,6 +107,9 @@ export function templateFields(scheme: { fields: NamingSchemeField[] }): NamingS
   ];
 }
 
+/** T-481 — the header of the milestones column the plan's spreadsheet shapes carry (template, export, import). */
+export const MILESTONES_HEADER = 'Milestones';
+
 export function namingRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -126,7 +129,8 @@ export function namingRoutes(deps: { db: Db }) {
     const bytes = buildXlsx([
       {
         name: 'Deliverables',
-        rows: [fields.map((f) => f.label)],
+        // T-481 — the one column outside the scheme, last: `S3 2026-11-30; A1 2027-01-15`
+        rows: [[...fields.map((f) => f.label), MILESTONES_HEADER]],
         validations: fields.flatMap((f, column) =>
           f.allowedValues && f.allowedValues.length > 0 ? [{ column, values: f.allowedValues }] : [],
         ),

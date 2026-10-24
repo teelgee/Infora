@@ -250,7 +250,8 @@ describe('the fillable plan template (T-358, S2)', () => {
     const rows = parseXlsx(bytes)!;
     // this project saved the 4-field test scheme above: Title + its non-serial
     // code fields, and never the serial (numbering is generated at import, S3)
-    expect(rows[0]).toEqual(['Title', 'Project', 'Originator', 'Discipline']);
+    // T-481 — and the one column outside the scheme, last
+    expect(rows[0]).toEqual(['Title', 'Project', 'Originator', 'Discipline', 'Milestones']);
   });
 
   it('is a participant read, not a super-user act — but never crosses the wall', async () => {

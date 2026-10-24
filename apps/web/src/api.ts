@@ -1,6 +1,8 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  GetPlanCoverageResponse,
+  MilestoneInput,
   GetWorkQueueResponse,
   ListContainerStateChangesResponse,
   AiFeatureKey,
@@ -454,6 +456,13 @@ export const api = {
   // T-459 — the register's paged and searched reads
   planPage: (projectId: string, query: Partial<PlanQuery>) =>
     request<GetPlanResponse>(`/projects/${projectId}/plan?${queryString(query)}`),
+  // T-481 — the coverage view, and a row's milestones (set as a whole)
+  planCoverage: (projectId: string) => request<GetPlanCoverageResponse>(`/projects/${projectId}/plan/coverage`),
+  setMilestones: (containerId: string, milestones: MilestoneInput[]) =>
+    request<PlanRow>(`/containers/${containerId}/milestones`, {
+      method: 'PUT',
+      body: JSON.stringify({ milestones }),
+    }),
   librarySearch: (projectId: string, query: Partial<LibrarySearchQuery>) =>
     request<GetLibrarySearchResponse>(`/projects/${projectId}/library/search?${queryString(query)}`),
   // T-360 — the org-standard plan columns (locked; null = default set)
@@ -1252,6 +1261,8 @@ export const api = {
     request<BulkClassifyResponse>(`/projects/${projectId}/bulk/classifications`, { method: 'POST', body: JSON.stringify(body) }),
   exportPlanRows: (projectId: string, containerIds: string[]) =>
     downloadPost(`/projects/${projectId}/plan/export`, { containerIds }),
+  // T-481 — the whole plan, in the shape it imports in
+  exportWholePlan: (projectId: string) => downloadPost(`/projects/${projectId}/plan/export`, { all: true }),
   // T-463 — the AI transparency table and the per-project feature switch
   aiTransparency: (projectId: string) => request<AiTransparencyResponse>(`/projects/${projectId}/ai-transparency`),
   workspaceAiTransparency: () => request<AiTransparencyResponse>('/ai-transparency'),

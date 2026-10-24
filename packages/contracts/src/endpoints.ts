@@ -24,6 +24,8 @@ import type {
 import { PLAN_STAGES } from './shared';
 import type { ProposedDocument } from './creator';
 import type { Currency } from './currency';
+import { coverageStage } from './milestones';
+import type { PlanMilestone } from './milestones';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
@@ -645,6 +647,13 @@ export const planQuery = z.object({
   state: z.enum(['live', 'superseded', 'withdrawn', 'rejected', 'any']).default('any'),
   kind: z.enum(['deliverable', 'reference', 'any']).default('any'),
   producerId: z.uuid().optional(),
+  // T-481 — the coverage view's two flags, applied on the server so a page is a
+  // page of the filtered list. `stage` is the stage THIS READER sees (another
+  // organisation's frozen draft reads `bound`); `overdue` keeps rows carrying a
+  // milestone that has passed without being met. Either narrows to live
+  // deliverable rows — the rows the coverage view counts.
+  stage: coverageStage.optional(),
+  overdue: z.literal('true').optional(),
 });
 export type PlanQuery = z.infer<typeof planQuery>;
 
@@ -1108,6 +1117,13 @@ export type PlanRow = {
   // when none stands. A proposal is NOT in force: `state` is still `live` and
   // the deliverable still grounds until the owner confirms.
   withdrawalProposal: { participantId: Id; name: string; reason: string } | null;
+  /**
+   * T-481 — the dates this row should reach a status code by, set by the
+   * producing organisation and read by everyone who reads the row. `met` and
+   * `overdue` are computed when the plan is read, never stored. Empty on
+   * reference material, which carries none.
+   */
+  milestones: PlanMilestone[];
   authors: AppointmentGrant[];
   reviewers: ReviewerGrant[];
   // live owner-granted shares (ADR-0016 as data, T-119); [] for non-owner readers.
@@ -2519,7 +2535,10 @@ export type WorkQueueKind =
   | 'respond_to_comments'
   | 'close_findings'
   // T-473 — a reference document whose re-check date has passed (the owner's super user)
-  | 'recheck_reference';
+  | 'recheck_reference'
+  // T-481 — a plan row's milestone date has passed without the row reaching its
+  // status code (the owner side reading the schedule; the producer's plan editors for their own rows)
+  | 'overdue_milestone';
 export type WorkQueueItem = {
   kind: WorkQueueKind;
   /** the sentence: "Confirm Rachel Bowen as lead reviewer of WA-EIA-MST-001" */
@@ -2681,7 +2700,12 @@ export type BulkClassifyResponse = { set: number; kept: number };
 // fields (read back out of each reference) + its metadata fields, so the file
 // re-imports through POST /plan/import; sheet 2 is the record (reference,
 // revision, state, producer, issued) that the import ignores by design.
-export const planExportBody = z.object({ containerIds: bulkContainerIds });
+// T-481 — `all: true` is the WHOLE PLAN: every live deliverable row this person's
+// plan read shows, in the same workbook (no second writer). Exactly one of the
+// two is given. Both carry the Milestones column.
+export const planExportBody = z
+  .object({ containerIds: bulkContainerIds.optional(), all: z.literal(true).optional() })
+  .refine((b) => (b.containerIds === undefined) !== (b.all === undefined), 'give containerIds or all');
 export type PlanExportBody = z.infer<typeof planExportBody>;
 
 // ── The project ontology (Drawer 6, ADR-0045, T-241) ────────────────────────

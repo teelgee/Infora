@@ -249,6 +249,17 @@ await db.insert(s.workItems).values({
   assigneeParticipantId: consultant!.id,
 });
 
+// T-481 — a milestone that is already late, so the owner's home has something to
+// say on first sight: the scoping statement should have reached S3 (suitable for
+// review & comment) a week ago and has not (it has no status code at all). The
+// date is relative to the day the seed runs, so it is overdue whenever it is read.
+await db.insert(s.planMilestones).values({
+  containerId: plannedContainer!.id,
+  statusCode: 'S3',
+  targetDate: sql`(now() at time zone 'utc')::date - 7`,
+  setByParticipantId: consultant!.id,
+});
+
 // ── Drawer 2: the project library ───────────────────────────────────────────
 type LibraryDoc = {
   title: string; // T-462 — reference material's own title

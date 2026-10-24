@@ -16,7 +16,7 @@
 // visibility predicate — ADR-0022/0024's one-query rule — so a row the wall
 // excludes is never scored. The lexical arm is the reference, the title and the
 // description. Nothing here widens reach: every clause intersects the wall's.
-import { and, asc, cosineDistance, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, cosineDistance, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -216,6 +216,8 @@ export async function searchPlanContainerIds(
     state: 'live' | 'superseded' | 'withdrawn' | 'rejected' | 'any';
     kind: 'deliverable' | 'reference' | 'any';
     producerId?: string | undefined;
+    /** T-481 — narrow to these containers (the coverage view's flags); the caller has already resolved reach */
+    onlyIds?: string[] | undefined;
     page: number;
     pageSize: number;
   },
@@ -230,6 +232,7 @@ export async function searchPlanContainerIds(
     p.state === 'any' ? undefined : eq(s.containers.state, p.state),
     p.kind === 'deliverable' ? isNotNull(s.workItems.id) : p.kind === 'reference' ? isNull(s.workItems.id) : undefined,
     p.producerId ? eq(s.containers.producingOrganisationId, p.producerId) : undefined,
+    p.onlyIds ? inArray(s.containers.id, p.onlyIds) : undefined,
     or(
       ilike(s.containers.documentReference, pattern!),
       ilike(s.workItems.title, pattern!),

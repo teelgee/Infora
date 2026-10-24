@@ -21,6 +21,7 @@ import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { mayIssueExternally } from './external-issue';
+import { overdueMilestonesFor } from './milestones';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -154,6 +155,22 @@ async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
     }
   }
 
+  // T-481 — a milestone date has passed and the row has not reached its status
+  // code (ADR-0008 addendum, ruling 5). For the owner organisation's people, who
+  // read the consolidated schedule; for the producing organisation's plan editors,
+  // on their own rows. One item per milestone, longest overdue first, each landing
+  // on the schedule narrowed to that row — where the row's panel is. `date <
+  // today` is read here, now; nothing stores "overdue".
+  const late = await overdueMilestonesFor(db, slice);
+  for (const m of late) {
+    items.push({
+      kind: 'overdue_milestone',
+      label: `Overdue: ${m.reference ?? m.title} should have reached ${m.statusCode} by ${new Date(`${m.targetDate}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`,
+      href: `plan?q=${encodeURIComponent(m.reference ?? m.title)}&row=${m.containerId}`,
+      at: `${m.targetDate}T00:00:00.000Z`,
+    });
+  }
+
   // comments without a response on rounds issued to deliverables I author — on the cycle
   const authored = await db
     .select({ containerId: s.deliverableAuthors.containerId })
@@ -189,12 +206,17 @@ async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
     .groupBy(s.sandboxDocuments.id, s.sandboxDocuments.title);
   for (const f of findings) items.push({ kind: 'close_findings', label: `Close ${f.count} open finding${f.count === 1 ? '' : 's'} on “${f.title}”`, href: `editor/${f.documentId}`, count: f.count, at: f.at ? new Date(f.at).toISOString() : null });
 
-  // newest first — except that the re-checks, in the places they fall, are
-  // ordered by how long they have been due, longest first
+  // newest first — except that the re-checks and the overdue milestones, in the
+  // places they fall, are ordered by how long they have been due, longest first
   const sorted = items.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
-  const rechecks = sorted.filter((i) => i.kind === 'recheck_reference').sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''));
-  let next = 0;
-  return sorted.map((i) => (i.kind === 'recheck_reference' ? rechecks[next++]! : i));
+  const longestFirst = (kind: WorkQueueItem['kind']) => {
+    const ordered = sorted.filter((i) => i.kind === kind).sort((a, b) => (a.at ?? '').localeCompare(b.at ?? ''));
+    let next = 0;
+    return (i: WorkQueueItem) => (i.kind === kind ? ordered[next++]! : i);
+  };
+  const byRecheck = longestFirst('recheck_reference');
+  const byMilestone = longestFirst('overdue_milestone');
+  return sorted.map((i) => byMilestone(byRecheck(i)));
 }
 
 async function recentDocuments(db: Db, slice: EntitledSlice): Promise<RecentDocument[]> {

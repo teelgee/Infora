@@ -3,6 +3,7 @@
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -903,5 +904,37 @@ export const recheckDefaults = pgTable(
       .on(t.projectId)
       .where(sql`${t.termId} IS NULL`),
     check('recheck_defaults_interval_positive', sql`${t.intervalMonths} > 0`),
+  ],
+);
+
+// T-481 (migration 0083, drawn in data-model.md drawer 2, ADR-0008 addendum of
+// 2026-10-24) — milestones on the plan row. *Plainly: a planned document can
+// carry dates by which it should reach a status code — "S3 by 30 November".
+// The producing firm sets them; the client reads them. Met and overdue are
+// worked out when read, never stored.* One per (row, status code). Mutable,
+// not append-only: a milestone is plan metadata, amendable at any time; moving
+// a date updates the row and its setter, removing one deletes it. The code is
+// checked against the project's status-code list and the row's kind (library
+// scope, with a work item) in the route — a CHECK cannot read either. The
+// setter is a named person (personal-data.md): SET NULL with the participant,
+// so removing the person erases the name and keeps the milestone. No row-level
+// security — the wall is the route's, as `recheck_defaults`.
+export const planMilestones = pgTable(
+  'plan_milestones',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    containerId: uuid('container_id')
+      .notNull()
+      .references(() => containers.id, { onDelete: 'cascade' }),
+    statusCode: text('status_code').notNull(),
+    targetDate: date('target_date').notNull(),
+    setByParticipantId: uuid('set_by_participant_id').references(() => participants.id, {
+      onDelete: 'set null',
+    }),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('plan_milestones_container_code_unique').on(t.containerId, t.statusCode),
+    index('plan_milestones_target_date_idx').on(t.targetDate),
   ],
 );

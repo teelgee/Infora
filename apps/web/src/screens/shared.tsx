@@ -21,6 +21,10 @@ export function greeting(): string {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 }
+/** A plan day (`2026-11-30`) as a date — read in UTC so a day is the same day wherever it is read (T-481). */
+export function formatDay(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
 export function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     day: '2-digit',

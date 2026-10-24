@@ -12,6 +12,7 @@ export * from './external';
 export * from './finding';
 export * from './impact';
 export * from './lens';
+export * from './milestones';
 export * from './notification';
 export * from './reference-intake';
 export * from './rule-set';

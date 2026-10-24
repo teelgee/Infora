@@ -582,6 +582,13 @@
       "when": 1792847117982,
       "tag": "0082_judgement-names-rule",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1792879613471,
+      "tag": "0083_plan-milestones",
+      "breakpoints": true
     }
   ]
 }

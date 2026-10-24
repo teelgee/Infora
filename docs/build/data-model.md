@@ -521,6 +521,39 @@ route's (owner organisation, super user) and the table names no person. A
 `PATCH` edits the intervals the project already has and never invents one for a
 type that has no row.*
 
+**Drawn 2026-10-24 — milestones on the plan row (T-481).** *Plainly: a
+planned document can carry dates by which it should reach a status code — "S3
+by 30 November, A1 by 15 January". The producing firm sets them; the client
+reads them. Whether a date is met or overdue is worked out when the schedule is
+read, never stored.*
+
+`plan_milestones` — `id` (uuid PK); `container_id` (FK `containers`, cascade —
+a milestone has no meaning without its row, and a row is only ever erased by
+the purge, which takes what hangs off it); `status_code` (text, not null — one
+of the project's status-code list, checked in the route because the list is the
+project's schema, which a CHECK cannot read); `target_date` (date, not null — a
+day, not an instant: a schedule is kept in days); `set_by_participant_id` (FK
+`participants`, nullable, `ON DELETE SET NULL` — **a named person**,
+registered; the T-473 precedent, so removing the person erases the name and
+keeps the milestone); `set_at` (timestamptz, not null, default now); unique on
+(`container_id`, `status_code`); an index on `target_date` for the overdue
+read. **Mutable, not append-only**: a milestone is plan metadata, amendable at
+any time (ADR-0008 as refined by ADR-0017); moving a date updates the row and
+its setter, removing it deletes the row. Only library-scope containers with a
+work item carry one (reference material and the sandbox-scope freeze series
+never do) — enforced in the route, since a CHECK cannot reach across tables.
+No row-level security, as `reference_intake` and `recheck_defaults` have none:
+the wall is the route's (the plan read's visibility, and the producer's plan
+editors for writes). `GRANT SELECT, INSERT, UPDATE, DELETE … TO "infora_app"`.
+
+*Built the same day (migration 0083); per the state rule the field list above
+stands only as the drawing it was, and
+[drawer2-documents.ts](../../packages/db/src/schema/drawer2-documents.ts) is the
+authority on its shape. Nothing the drawing did not say: the table, its unique
+index on (`container_id`, `status_code`), the `target_date` index, the
+`ON DELETE SET NULL` setter and the grant are as drawn; the purge needed no
+change, because deleting a container takes its milestones through the cascade.*
+
 ## Drawer 3 — Work & execution
 *Work items, conversations, and the audited record of every run.
 (ADR-0025, 0028.)*

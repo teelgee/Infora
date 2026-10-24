@@ -273,6 +273,17 @@
         </tbody></table>
       </article>
       <article class="card d2">
+        <h3>plan_milestones</h3>
+        <table><tbody>
+          <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>
+          <tr><td class="col">container_id</td><td class="type">uuid</td><td class="notes">→ containers.id</td></tr>
+          <tr><td class="col">status_code</td><td class="type">text</td><td class="notes"></td></tr>
+          <tr><td class="col">target_date</td><td class="type">date</td><td class="notes"></td></tr>
+          <tr><td class="col">set_by_participant_id</td><td class="type">uuid</td><td class="notes">→ participants.id · nullable</td></tr>
+          <tr><td class="col">set_at</td><td class="type">timestamp with time zone</td><td class="notes">default</td></tr>
+        </tbody></table>
+      </article>
+      <article class="card d2">
         <h3>project_naming_schemes</h3>
         <table><tbody>
           <tr><td class="col">id</td><td class="type">uuid</td><td class="notes">PK · default</td></tr>

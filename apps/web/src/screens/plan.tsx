@@ -19,8 +19,9 @@ import type {
   PlanRow,
   RosterEntry,
 } from '@infora/contracts';
-import { isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
-import { Columns3, FileCog, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
+import { COVERAGE_STAGES, COVERAGE_STAGE_LABEL, coverageStage, coverageSummary, isCodeField, isColumnableField, optionLabel } from '@infora/contracts';
+import type { CoverageStage, GetPlanCoverageResponse, MilestoneInput, PlanMilestone } from '@infora/contracts';
+import { Columns3, FileCog, FileDown, FileText, FileUp, Plus, SlidersHorizontal } from 'lucide-react';
 import { Badge, Button, Combobox, Drawer, DropdownMenuItem, Field, Modal, PageIntro, Register, SelectInput, Table, TextArea, TextInput, useToast } from '@infora/ui';
 import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/ui';
 import { SavedViewsMenu } from '../saved-views-menu';
@@ -30,7 +31,7 @@ import { OntologyPanel } from '../ontology-panel';
 import { VisibilityPanel } from '../visibility-panel';
 import type { Viewer } from '../visibility-panel';
 import { useMe } from '../session';
-import { contextStateBadge, formatDate, lifecycleBadgeOf } from './shared';
+import { contextStateBadge, formatDate, formatDay, lifecycleBadgeOf } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -191,6 +192,93 @@ const IDENTITY_KEYS = new Set(['discipline']);
 // deliverable attribute (set via the New-deliverable Details form) — neither is a
 // free-text authoring field (T-191). Only genuine free-form annotations here.
 const AUTHORING_FIELDS = [{ key: 'classification', label: 'Classification' }];
+
+// T-481 — a row's milestones: the dates by which it should reach a status code.
+// Set by the producing organisation's plan editors, read by everyone who reads the
+// row (ADR-0008's addendum). The controls are drawn only where the API would
+// accept the write; met and overdue come from the server, worked out when read.
+function MilestonesSection(props: {
+  row: PlanRow;
+  scheme: NamingScheme | null;
+  editable: boolean;
+  onChanged: (updated: PlanRow) => void;
+}) {
+  const { row } = props;
+  const field = props.scheme?.fields.find((f) => f.key === 'suitability');
+  const codes = field?.allowedValues ?? [];
+  const [code, setCode] = useState('');
+  const [date, setDate] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const label = (c: string) => `${c}${field?.allowedValueLabels?.[c] ? ` — ${field.allowedValueLabels[c]}` : ''}`;
+  if (row.workItem === null) return null; // reference material carries none
+  const asInput = (ms: PlanMilestone[]): MilestoneInput[] => ms.map((m) => ({ statusCode: m.statusCode, targetDate: m.targetDate }));
+  const save = (next: MilestoneInput[]) => {
+    setBusy(true);
+    setProblem(null);
+    return api
+      .setMilestones(row.containerId, next)
+      .then((updated) => props.onChanged(updated))
+      .catch(() => setProblem('The milestones could not be saved — try again.'))
+      .finally(() => setBusy(false));
+  };
+  const free = codes.filter((c) => !row.milestones.some((m) => m.statusCode === c));
+  if (!props.editable && row.milestones.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gap: 6, borderTop: '1px solid var(--border-default)', paddingTop: 12 }} role="group" aria-label="Milestones">
+      <span className="field-label">Milestones</span>
+      {row.milestones.length === 0 && <span className="field-hint">No milestones set yet.</span>}
+      {row.milestones.map((m) => (
+        <div key={m.statusCode} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 140 }}>{label(m.statusCode)}</span>
+          {props.editable ? (
+            <input
+              type="date"
+              className="field-input"
+              style={{ width: 150 }}
+              aria-label={`Target date for ${m.statusCode}`}
+              value={m.targetDate}
+              disabled={busy}
+              onChange={(e) => {
+                if (e.target.value) void save(asInput(row.milestones).map((x) => (x.statusCode === m.statusCode ? { ...x, targetDate: e.target.value } : x)));
+              }}
+            />
+          ) : (
+            <span>{formatDay(m.targetDate)}</span>
+          )}
+          {m.overdue ? <Badge tone="danger">Overdue</Badge> : m.met ? <Badge tone="success">Met</Badge> : null}
+          {props.editable && (
+            <Button size="sm" variant="quiet" disabled={busy} aria-label={`Remove the ${m.statusCode} milestone`} onClick={() => void save(asInput(row.milestones).filter((x) => x.statusCode !== m.statusCode))}>
+              Remove
+            </Button>
+          )}
+        </div>
+      ))}
+      {props.editable && free.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 200, flex: 1 }}>
+            <SelectInput value={code} onChange={setCode} placeholder="Status code" ariaLabel="Milestone status code" options={free.map((c) => ({ value: c, label: label(c) }))} />
+          </div>
+          <input type="date" className="field-input" style={{ width: 150 }} aria-label="Milestone target date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Button
+            size="sm"
+            disabled={busy || code === '' || date === ''}
+            onClick={() => {
+              void save([...asInput(row.milestones), { statusCode: code, targetDate: date }]).then(() => {
+                setCode('');
+                setDate('');
+              });
+            }}
+          >
+            Add milestone
+          </Button>
+        </div>
+      )}
+      {problem && <span className="field-hint" role="alert">{problem}</span>}
+      {props.editable && <span className="field-hint">The date this document should reach that status code. The client reads these on its schedule.</span>}
+    </div>
+  );
+}
 
 function DetailRow(props: { label: string; children: React.ReactNode }) {
   return (
@@ -481,6 +569,14 @@ export function DeliverableDetail(props: {
             : 'A proposed reviewer takes effect once the owner confirms it (owner, or in Review).'}
         </span>
       )}
+
+      {/* T-481 — milestones: set by the producer's plan editors, read by all */}
+      <MilestonesSection
+        row={row}
+        scheme={scheme}
+        editable={canEditDelegated && row.producingOrganisationId === props.viewer.organisationId && row.state === 'live'}
+        onChanged={apply}
+      />
 
       {/* T-458 — the description and the authoring metadata, edited where the
           row's other quick edits are (the plan's metadata modal is retired) */}
@@ -779,10 +875,20 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
   const [result, setResult] = useState<{ items: PlanRow[]; total: number; page: number; pageSize: number } | null>(null);
   const rows = result?.items ?? null;
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // T-481 — the coverage view: the plan read, counted by stage
+  const [coverage, setCoverage] = useState<GetPlanCoverageResponse | null>(null);
   const [scheme, setScheme] = useState<NamingScheme | null>(null);
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [creating, setCreating] = useState(false);
   const [detailRow, setDetailRow] = useState<PlanRow | null>(null);
+  // T-481 — a link can open a row's side panel (the work queue's overdue
+  // milestone lands here): `row=<containerId>` on a plan address
+  const rowParam = view === 'plan' ? params.get('row') : null;
+  useEffect(() => {
+    if (!rowParam || !rows) return;
+    const found = rows.find((r) => r.containerId === rowParam);
+    if (found) setDetailRow(found);
+  }, [rowParam, rows]);
   // T-359 — the batch import off the T-358 template (create-only, whole-file verdict)
   const importInput = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
@@ -836,6 +942,8 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         state: query.state,
         kind: query.kind,
         producerId: query.producerId,
+        stage: query.stage,
+        overdue: query.overdue ? 'true' : undefined,
         page: query.page,
         pageSize: PLAN_PAGE_SIZE,
       })
@@ -844,7 +952,10 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         setResult({ items: res.items, total: res.total ?? res.items.length, page: res.page ?? 1, pageSize: res.pageSize ?? PLAN_PAGE_SIZE });
         setPlanColumns(res.planColumns);
       });
-  }, [projectId, query]);
+    // the strip counts the whole plan, not the page — it reloads with the register
+    // so a milestone saved in the side panel moves the numbers at once
+    if (view === 'plan') void api.planCoverage(projectId).then((c) => seq === requestSeq.current && setCoverage(c), () => undefined);
+  }, [projectId, query, view]);
   useEffect(load, [load]);
   const setQuery = (next: Partial<PlanScreenQuery>, resetPage = true) => {
     setParams(writePlanQuery({ ...query, ...next, ...(resetPage && !('page' in next) && { page: 1 }) }));
@@ -879,6 +990,8 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
     ...(query.state !== 'any' ? [{ key: 'state', label: query.state[0]!.toUpperCase() + query.state.slice(1) }] : []),
     ...(query.kind !== 'any' ? [{ key: 'kind', label: query.kind === 'reference' ? 'Reference material' : 'Deliverables' }] : []),
     ...(query.producerId ? [{ key: 'producer', label: `Produced by ${producers.find((p) => p.value === query.producerId)?.label ?? '…'}` }] : []),
+    ...(query.stage ? [{ key: 'stage', label: COVERAGE_STAGE_LABEL[query.stage] }] : []),
+    ...(query.overdue ? [{ key: 'overdue', label: 'Overdue milestones' }] : []),
   ];
   const extraFields = useMemo(
     () =>
@@ -949,6 +1062,27 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         return <Badge tone={st.tone}>{st.label}</Badge>;
       },
     },
+    ...(view === 'plan'
+      ? [
+          {
+            key: 'milestone',
+            label: 'Next milestone',
+            hideable: true,
+            render: (r: PlanRow) => {
+              // the soonest one not yet met; the server orders them by date
+              const next = r.milestones.find((m) => !m.met);
+              if (!next) return <span style={{ color: 'var(--text-faint)' }}>—</span>;
+              return (
+                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span className="mono">{next.statusCode}</span>
+                  <span>{formatDay(next.targetDate)}</span>
+                  {next.overdue && <Badge tone="danger">Overdue</Badge>}
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
     { key: 'revision', label: 'Revision', hideable: true, render: (r) => <span className="mono">{r.currentVersion?.versionReference ?? '—'}</span> },
     {
       key: 'verdict',
@@ -1029,7 +1163,14 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
             ownerOrganisationName: participant.ownerOrganisationName,
           }}
           onChanged={() => load()}
-          onClose={() => setDetailRow(null)}
+          onClose={() => {
+            setDetailRow(null);
+            if (rowParam) {
+              const next = new URLSearchParams(params);
+              next.delete('row');
+              setParams(next, { replace: true });
+            }
+          }}
         />
       )}
 
@@ -1119,6 +1260,17 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         </Modal>
       )}
 
+      {view === 'plan' && coverage && coverage.total > 0 && (
+        <CoverageStrip
+          coverage={coverage}
+          isOwner={isOwner}
+          stage={query.stage}
+          overdue={query.overdue}
+          onStage={(stage) => setQuery({ stage })}
+          onOverdue={(overdue) => setQuery({ overdue })}
+        />
+      )}
+
       <Register<PlanRow>
         label={view === 'review' ? 'Review list' : 'Deliverables plan'}
         columns={columns}
@@ -1146,7 +1298,19 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
         filters={{
           active: activeFilters,
           onRemove: (key) =>
-            setQuery(key === 'state' ? { state: 'any' } : key === 'kind' ? { kind: 'any' } : key === 'producer' ? { producerId: undefined } : {}),
+            setQuery(
+              key === 'state'
+                ? { state: 'any' }
+                : key === 'kind'
+                  ? { kind: 'any' }
+                  : key === 'producer'
+                    ? { producerId: undefined }
+                    : key === 'stage'
+                      ? { stage: undefined }
+                      : key === 'overdue'
+                        ? { overdue: false }
+                        : {},
+            ),
           menu: (
             <>
               <DropdownMenuItem onClick={() => setQuery({ state: 'live' })}>Live only</DropdownMenuItem>
@@ -1154,6 +1318,8 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
               <DropdownMenuItem onClick={() => setQuery({ state: 'withdrawn' })}>Withdrawn only</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ kind: 'deliverable' })}>Deliverables only</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setQuery({ kind: 'reference' })}>Reference material only</DropdownMenuItem>
+              {view === 'plan' && <DropdownMenuItem onClick={() => setQuery({ overdue: true })}>Overdue milestones</DropdownMenuItem>}
+              {view === 'plan' && <DropdownMenuItem onClick={() => setQuery({ stage: 'planned' })}>No draft bound yet</DropdownMenuItem>}
               {isOwner &&
                 producers.map((p) => (
                   <DropdownMenuItem key={p.value} onClick={() => setQuery({ producerId: p.value })}>
@@ -1184,6 +1350,11 @@ export function PlanScreen(props: { view?: 'plan' | 'review' } = {}) {
             <Button variant="quiet" size="sm" onClick={() => navigate(`/projects/${projectId}/plan/scheme`)}>
               <SlidersHorizontal size={14} strokeWidth={2} /> Coding scheme
             </Button>
+            {view === 'plan' && (
+              <Button variant="quiet" size="sm" onClick={() => void api.exportWholePlan(projectId).catch(() => setImportProblem('Could not export — try again.'))}>
+                <FileDown size={14} strokeWidth={2} /> Export plan
+              </Button>
+            )}
             {isSuper && (
               <Button variant="quiet" size="sm" onClick={() => setEditingColumns(true)} aria-label="Organisation-standard columns">
                 <Columns3 size={14} strokeWidth={2} /> Standard columns
@@ -1261,6 +1432,9 @@ type PlanScreenQuery = {
   state: NonNullable<PlanQuery['state']>;
   kind: NonNullable<PlanQuery['kind']>;
   producerId?: string | undefined;
+  // T-481 — the coverage view's flags
+  stage?: CoverageStage | undefined;
+  overdue?: boolean | undefined;
   page: number;
   cols: string[];
   view?: string | undefined;
@@ -1279,6 +1453,8 @@ function readPlanQuery(params: URLSearchParams): PlanScreenQuery {
     state: pick('state', ['live', 'superseded', 'withdrawn', 'rejected', 'any'] as const, 'any'),
     kind: pick('kind', ['deliverable', 'reference', 'any'] as const, 'any'),
     producerId: params.get('producer') ?? undefined,
+    stage: coverageStage.safeParse(params.get('stage')).data,
+    overdue: params.get('overdue') === 'true' ? true : undefined,
     page: Number.isFinite(page) && page >= 1 ? page : 1,
     cols: (params.get('cols') ?? '').split(',').filter((c) => c !== ''),
     view: params.get('view') ?? undefined,
@@ -1292,13 +1468,15 @@ function writePlanQuery(q: PlanScreenQuery): URLSearchParams {
   if (q.state !== 'any') out.set('state', q.state);
   if (q.kind !== 'any') out.set('kind', q.kind);
   if (q.producerId) out.set('producer', q.producerId);
+  if (q.stage) out.set('stage', q.stage);
+  if (q.overdue) out.set('overdue', 'true');
   if (q.page > 1) out.set('page', String(q.page));
   if (q.cols.length > 0) out.set('cols', q.cols.join(','));
   if (q.view) out.set('view', q.view);
   return out;
 }
 function savedPlanShape(q: PlanScreenQuery): Record<string, unknown> {
-  return { q: q.q ?? null, sort: q.sort, direction: q.direction, state: q.state, kind: q.kind, producerId: q.producerId ?? null, cols: q.cols };
+  return { q: q.q ?? null, sort: q.sort, direction: q.direction, state: q.state, kind: q.kind, producerId: q.producerId ?? null, stage: q.stage ?? null, overdue: q.overdue ?? false, cols: q.cols };
 }
 function fromSavedPlan(filter: Record<string, unknown>): Partial<PlanScreenQuery> {
   const str = (k: string) => (typeof filter[k] === 'string' ? (filter[k] as string) : undefined);
@@ -1310,7 +1488,64 @@ function fromSavedPlan(filter: Record<string, unknown>): Partial<PlanScreenQuery
     state: (str('state') as PlanScreenQuery['state'] | undefined) ?? 'any',
     kind: (str('kind') as PlanScreenQuery['kind'] | undefined) ?? 'any',
     producerId: str('producerId'),
+    stage: coverageStage.safeParse(filter['stage']).data,
+    overdue: filter['overdue'] === true ? true : undefined,
     cols,
     view: str('view'),
   };
+}
+
+/**
+ * T-481 — the coverage view: the plan read, counted by stage, with the two flags
+ * as filters. *In plain terms: one line saying where everything stands, the
+ * stages as counts, and "Overdue" and "No draft bound yet" to show just those
+ * rows.* It counts only what the reader may already see: a producing firm's
+ * internal checks are private, so on another firm's row a draft frozen for
+ * internal review reads as "draft bound" (ADR-0008's addendum, ruling 4).
+ */
+function CoverageStrip(props: {
+  coverage: GetPlanCoverageResponse;
+  isOwner: boolean;
+  stage: CoverageStage | undefined;
+  overdue: boolean | undefined;
+  onStage: (stage: CoverageStage | undefined) => void;
+  onOverdue: (overdue: boolean) => void;
+}) {
+  const { coverage } = props;
+  // the stages a reader can have rows in: the early and late ones always; the
+  // in-between ones only where there are rows (an owner has none of its own freezes)
+  const shown = COVERAGE_STAGES.filter((st) => ['planned', 'bound', 'in_review', 'accepted'].includes(st) || coverage.counts[st] > 0);
+  return (
+    <section aria-label="Coverage" style={{ display: 'grid', gap: 8, margin: '0 0 14px' }}>
+      <p className="page-sub" style={{ margin: 0 }} data-testid="coverage-summary">
+        {coverageSummary(coverage)}
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {shown.map((st) => (
+          <Button
+            key={st}
+            size="sm"
+            variant={props.stage === st ? 'primary' : 'quiet'}
+            aria-pressed={props.stage === st}
+            onClick={() => props.onStage(props.stage === st ? undefined : st)}
+            title={
+              st === 'bound' && props.isOwner
+                ? 'Includes drafts a firm has frozen for its own internal review — those checks are private to the firm.'
+                : undefined
+            }
+          >
+            {COVERAGE_STAGE_LABEL[st]} · {coverage.counts[st]}
+          </Button>
+        ))}
+        <Button
+          size="sm"
+          variant={props.overdue ? 'primary' : 'quiet'}
+          aria-pressed={props.overdue === true}
+          onClick={() => props.onOverdue(!props.overdue)}
+        >
+          Overdue · {coverage.overdueRows}
+        </Button>
+      </div>
+    </section>
+  );
 }

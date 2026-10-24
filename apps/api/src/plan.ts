@@ -16,11 +16,14 @@ import {
   isCodeField,
   nameLeadReviewerBody,
   isColumnableField,
+  parseMilestoneCell,
   patchContainerBody,
   resolveWithdrawalProposalBody,
   setDocumentOwnerBody,
+  setMilestonesBody,
   setPlanTitleBody,
   shareDeliverableBody,
+  utcDay,
   updatePlanColumnsBody,
   withdrawContainerBody,
 } from '@infora/contracts';
@@ -29,11 +32,13 @@ import type {
   ApiError,
   AppointmentGrant,
   DeliverableShare,
+  GetPlanCoverageResponse,
   GetPlanResponse,
   LeadReviewerReplacement,
   PlanImportError,
   PlanImportFailure,
   PlanImportResult,
+  MilestoneInput,
   PlanRow,
   ReviewerGrant,
   UpdatePlanColumnsResponse,
@@ -49,6 +54,15 @@ import type { AppEnv } from './requester';
 import { refuseElevated } from './elevated';
 import { admittingCodes, contextStateOf } from './context-state';
 import { composeReference, loadSchemeOrDefault, templateFields } from './naming';
+import {
+  acceptedAmong,
+  computeCoverage,
+  insertMilestones,
+  loadMilestones,
+  replaceMilestones,
+  statusCodeList,
+  toPlanMilestones,
+} from './milestones';
 import { parseXlsx } from './xlsx';
 import { syncPlanLockedFolders } from './plan-locked';
 import { searchPlanContainerIds } from '@infora/knowledge';
@@ -251,6 +265,13 @@ async function toPlanRows(
   // with the library read so the two cannot say different things.
   const codes = await admittingCodes(db, ids);
 
+  // T-481 — the rows' milestones, one batched read beside the others; met and
+  // overdue are worked out here against today, never read from storage
+  const milestonesByContainer = await loadMilestones(db, ids);
+  const statusCodes = milestonesByContainer.size > 0 ? await statusCodeList(db, containers[0]!.projectId) : [];
+  const today = utcDay(new Date());
+  const acceptedRows = await acceptedAmong(db, ids, new Map(workItems.map((w) => [w.containerId!, w.status])));
+
   const authorRows = await db
     .select({ grant: s.deliverableAuthors, name: s.users.name })
     .from(s.deliverableAuthors)
@@ -379,6 +400,13 @@ async function toPlanRows(
               reason: container.withdrawnReason!,
             }
           : null,
+      milestones: toPlanMilestones(
+        milestonesByContainer.get(container.id) ?? [],
+        (container.metadata ?? {}) as Record<string, unknown>,
+        statusCodes,
+        today,
+        acceptedRows.has(container.id),
+      ),
       authors: authorRows.filter((r) => r.grant.containerId === container.id).map(toAuthor),
       reviewers: reviewerRows.filter((r) => r.grant.containerId === container.id).map(toReviewer),
       sharedWith: shareRows
@@ -404,7 +432,20 @@ export function planRoutes(deps: { db: Db; router: Router }) {
     const producerScope = slice.membershipRole === 'owner' ? null : slice.organisationId;
     let rows: ContainerRow[];
     let total: number | undefined;
-    if (pq.q !== undefined && pq.q.length > 0) {
+    // T-481 — the coverage view's flags narrow on the server, by the SAME
+    // computation the strip counts with, so a page is a page of the flagged list
+    // and the strip's number is the register's number
+    let onlyIds: string[] | null = null;
+    if (pq.stage !== undefined || pq.overdue !== undefined) {
+      const coverage = await computeCoverage(deps.db, slice);
+      onlyIds = coverage.rows
+        .filter((r) => (pq.stage === undefined || r.stage === pq.stage) && (pq.overdue === undefined || r.overdueMilestones > 0))
+        .map((r) => r.containerId);
+    }
+    if (onlyIds !== null && onlyIds.length === 0) {
+      rows = [];
+      total = paged ? 0 : undefined;
+    } else if (pq.q !== undefined && pq.q.length > 0) {
       // T-462 — a searched plan reads through the register's own two arms
       // (packages/knowledge/register-search.ts): code and title first, then
       // what the document says, under the pinned embedding model. Short
@@ -421,6 +462,7 @@ export function planRoutes(deps: { db: Db; router: Router }) {
         state: pq.state,
         kind: pq.kind,
         producerId: pq.producerId,
+        onlyIds: onlyIds ?? undefined,
         page,
         pageSize: pq.pageSize,
       });
@@ -435,6 +477,7 @@ export function planRoutes(deps: { db: Db; router: Router }) {
       if (pq.kind === 'deliverable') where.push(isNotNull(s.workItems.id));
       if (pq.kind === 'reference') where.push(isNull(s.workItems.id));
       if (pq.producerId) where.push(eq(s.containers.producingOrganisationId, pq.producerId));
+      if (onlyIds !== null) where.push(inArray(s.containers.id, onlyIds));
       const dir = pq.direction === 'desc' ? desc : asc;
       const order =
         pq.sort === 'title'
@@ -567,11 +610,20 @@ export function planRoutes(deps: { db: Db; router: Router }) {
     }
 
     const header = grid[0]!;
+    const statusCodes = await statusCodeList(deps.db, slice.projectId);
+    // T-481 — the one column outside the scheme: `S3 2026-11-30; A1 2027-01-15`
+    let milestonesColumn = -1;
     const columns: ({ kind: 'field'; field: (typeof fields)[number] } | { kind: 'ignored' })[] = [];
     const ignoredColumns: string[] = [];
     const mappedKeys = new Set<string>();
-    for (const cell of header) {
+    for (const [headerIndex, cell] of header.entries()) {
       const name = norm(cell);
+      if (name === 'milestones') {
+        if (milestonesColumn >= 0) return invalid(c, 'duplicate_columns');
+        milestonesColumn = headerIndex;
+        columns.push({ kind: 'ignored' });
+        continue;
+      }
       const field = name ? byHeader.get(name) : undefined;
       if (field) {
         // two columns mapping to one field is ambiguous, not a last-wins race
@@ -593,7 +645,13 @@ export function planRoutes(deps: { db: Db; router: Router }) {
     // validate every data row before creating anything — the batch is one act
     const codeFields = scheme.fields.filter((f) => isCodeField(f) && !f.isSerial && f.type !== 'serial');
     const failures: PlanImportFailure[] = [];
-    const parsedRows: { excelRow: number; title: string; values: Record<string, string>; metadata: Record<string, string> }[] = [];
+    const parsedRows: {
+      excelRow: number;
+      title: string;
+      values: Record<string, string>;
+      metadata: Record<string, string>;
+      milestones: MilestoneInput[];
+    }[] = [];
     grid.slice(1).forEach((cells, i) => {
       const excelRow = i + 2; // 1-based, after the header — the row Excel shows
       if (cells.every((v) => v === '' || v === undefined)) return; // blank rows are not rows
@@ -632,7 +690,15 @@ export function planRoutes(deps: { db: Db; router: Router }) {
           failures.push({ row: excelRow, problem: `${f.label}: "${v}" is not one of the scheme's codes` });
         }
       }
-      parsedRows.push({ excelRow, title, values, metadata });
+      // a malformed cell or a code outside the project's list refuses the file,
+      // in words, like any other bad cell (ADR-0008 addendum, ruling 6)
+      let milestones: MilestoneInput[] = [];
+      if (milestonesColumn >= 0) {
+        const parsedCell = parseMilestoneCell(cells[milestonesColumn] ?? '', statusCodes);
+        if (parsedCell.ok) milestones = parsedCell.milestones;
+        else failures.push({ row: excelRow, problem: `Milestones: ${parsedCell.problem}` });
+      }
+      parsedRows.push({ excelRow, title, values, metadata, milestones });
     });
     if (failures.length > 0) {
       return c.json({ error: 'invalid', detail: 'rows', failures } satisfies PlanImportError, 400);
@@ -692,6 +758,7 @@ export function planRoutes(deps: { db: Db; router: Router }) {
             status: 'planned',
             containerId: container!.id,
           });
+          await insertMilestones(tx, container!.id, row.milestones, slice.participantId);
           containers.push(container!);
         }
         return containers;
@@ -711,6 +778,14 @@ export function planRoutes(deps: { db: Db; router: Router }) {
     await syncPlanLockedFolders(deps.db, slice.projectId, slice.organisationId, slice.participantId);
     const items = await toPlanRows(deps.db, created, slice);
     return c.json({ created: created.length, items, ignoredColumns } satisfies PlanImportResult, 201);
+  });
+
+  // T-481 — the coverage view: the plan read, counted by stage (ADR-0008 addendum,
+  // ruling 4). Any participant who reads the plan reads it, over exactly the rows
+  // the plan read shows them; the producer's internal QA stages fold into
+  // "draft bound" on every row that is not the reader's own organisation's.
+  app.get('/projects/:projectId/plan/coverage', project, async (c) => {
+    return c.json((await computeCoverage(deps.db, c.get('slice'))) satisfies GetPlanCoverageResponse);
   });
 
   return app;
@@ -801,6 +876,40 @@ export function containerRoutes(deps: { db: Db }) {
       .where(eq(s.containers.id, container.id))
       .returning();
     const [row] = await toPlanRows(deps.db, [updated!], slice);
+    return c.json(row!);
+  });
+
+  // T-481 — a row's milestones, set as a whole (ADR-0008 addendum, rulings 1-2).
+  // Set by the producing organisation's plan editors — the same people who edit
+  // the row's metadata — and read by the owner, who does not set them: the owner
+  // and every other organisation are told what the metadata edit tells them
+  // (absence), and a producer member who cannot edit is told 403. Only a
+  // deliverable carries them: a freeze series is not a plan row (404), and
+  // reference material has no work item to plan (400).
+  app.put('/containers/:containerId/milestones', async (c) => {
+    const scopedCtx = await scoped(c, c.req.param('containerId'));
+    if (!scopedCtx) return notFound(c);
+    const { container, slice } = scopedCtx;
+    if (container.scope !== 'library') return notFound(c);
+    if (container.producingOrganisationId !== slice.organisationId) return notFound(c);
+    if (!(await canEditRowMetadata(deps.db, slice, container))) {
+      return forbidden(c, 'row_edit_not_permitted');
+    }
+    // a withdrawn, superseded or rejected row is a record, not planned work
+    if (container.state !== 'live') return conflict(c, 'row_not_live');
+    const body = setMilestonesBody.safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalid(c, 'milestones_malformed');
+    const [item] = await deps.db.select({ id: s.workItems.id }).from(s.workItems).where(eq(s.workItems.containerId, container.id)).limit(1);
+    if (!item) return invalid(c, 'milestones_need_a_deliverable');
+    const codes = await statusCodeList(deps.db, container.projectId);
+    const seen = new Set<string>();
+    for (const m of body.data.milestones) {
+      if (!codes.includes(m.statusCode)) return invalid(c, `unknown_status_code: ${m.statusCode}`);
+      if (seen.has(m.statusCode)) return invalid(c, `duplicate_status_code: ${m.statusCode}`);
+      seen.add(m.statusCode);
+    }
+    await replaceMilestones(deps.db, container.id, body.data.milestones, slice.participantId);
+    const [row] = await toPlanRows(deps.db, [container], slice);
     return c.json(row!);
   });
 

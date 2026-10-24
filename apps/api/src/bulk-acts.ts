@@ -21,12 +21,13 @@
 // absence a single-row route gives, never a leak of what the row is.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   bulkClassifyBody,
   bulkIssueExternallyBody,
   bulkSupersedeBody,
   bulkTransmitBody,
+  formatMilestoneCell,
   isCodeField,
   planExportBody,
 } from '@infora/contracts';
@@ -45,7 +46,8 @@ import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
 import { mayIssueExternally, recordExternalIssue } from './external-issue';
-import { loadSchemeOrDefault, templateFields } from './naming';
+import { loadMilestones } from './milestones';
+import { MILESTONES_HEADER, loadSchemeOrDefault, templateFields } from './naming';
 import { mayConfirmEdge, mayProposeEdge, producesIt } from './ontology';
 import { projectScope } from './requester';
 import type { AppEnv } from './requester';
@@ -307,6 +309,23 @@ export function bulkActRoutes(deps: { db: Db }) {
     if (!body.success) return invalid(c);
     const scheme = await loadSchemeOrDefault(deps.db, slice.projectId);
     const fields = templateFields(scheme);
+    // T-481 — the WHOLE PLAN is the same workbook over every live deliverable row
+    // this person's plan read shows (the owner: every organisation's; anyone
+    // else: their own) — one writer, two ways of choosing the rows
+    const chosen = body.data.all
+      ? and(
+          eq(s.containers.projectId, slice.projectId),
+          eq(s.containers.scope, 'library'),
+          eq(s.containers.state, 'live'),
+          isNotNull(s.workItems.id),
+          slice.membershipRole === 'owner' ? undefined : eq(s.containers.producingOrganisationId, slice.organisationId),
+        )
+      : and(
+          inArray(s.containers.id, [...new Set(body.data.containerIds)]),
+          eq(s.containers.projectId, slice.projectId),
+          eq(s.containers.scope, 'library'),
+          deliverableVisible(slice),
+        );
     const rows = await deps.db
       .select({
         container: s.containers,
@@ -319,24 +338,25 @@ export function bulkActRoutes(deps: { db: Db }) {
       .leftJoin(s.workItems, eq(s.workItems.containerId, s.containers.id))
       .leftJoin(s.versions, and(eq(s.versions.containerId, s.containers.id), eq(s.versions.isCurrent, true)))
       .innerJoin(s.organisations, eq(s.organisations.id, s.containers.producingOrganisationId))
-      .where(
-        and(
-          inArray(s.containers.id, [...new Set(body.data.containerIds)]),
-          eq(s.containers.projectId, slice.projectId),
-          eq(s.containers.scope, 'library'),
-          deliverableVisible(slice),
-        ),
-      )
+      .where(chosen)
       .orderBy(asc(s.containers.documentReference));
+    const milestones = await loadMilestones(deps.db, rows.map((r) => r.container.id));
     const sheet = rows.map((r) => {
       const codes = decomposeReference(scheme, r.container.documentReference);
       const metadata = (r.container.metadata ?? {}) as Record<string, unknown>;
-      return fields.map((f) => {
-        if (f.key === 'title') return r.title ?? '';
-        if (isCodeField(f)) return codes[f.key] ?? '';
-        const v = metadata[f.key];
-        return v === undefined || v === null ? '' : String(v);
-      });
+      return [
+        ...fields.map((f) => {
+          if (f.key === 'title') return r.title ?? '';
+          if (isCodeField(f)) return codes[f.key] ?? '';
+          const v = metadata[f.key];
+          return v === undefined || v === null ? '' : String(v);
+        }),
+        // milestones are the producer's schedule, read by the owner (ADR-0008 addendum,
+        // ruling 2): a third organisation a row is shared with gets the document, not the dates
+        slice.membershipRole === 'owner' || r.container.producingOrganisationId === slice.organisationId
+          ? formatMilestoneCell(milestones.get(r.container.id) ?? [])
+          : '',
+      ];
     });
     const record = rows.map((r) => [
       r.container.documentReference ?? '',
@@ -349,7 +369,7 @@ export function bulkActRoutes(deps: { db: Db }) {
     const bytes = buildXlsx([
       {
         name: 'Deliverables',
-        rows: [fields.map((f) => f.label), ...sheet],
+        rows: [[...fields.map((f) => f.label), MILESTONES_HEADER], ...sheet],
         validations: fields.flatMap((f, column) =>
           f.allowedValues && f.allowedValues.length > 0 ? [{ column, values: f.allowedValues }] : [],
         ),
