@@ -17,6 +17,7 @@ import {
   createReviewCommentBody,
   createReviewResponseBody,
   closeRejectedBody,
+  gapMarkers,
   issueRoundBody,
   patchReviewCommentBody,
   promoteDocumentBody,
@@ -49,7 +50,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import type { EntitledSlice } from '@infora/governance';
 import { importOnVersionLanding } from './app-table-source';
-import { generateRenditions } from './renditions';
+import { authorshipAppendix, generateRenditions } from './renditions';
 import { releaseLapsedEngineLock } from './engine-lock';
 import { refuseElevated } from './elevated';
 import { addWorkingDays, DEFAULT_REVIEW_PERIOD_DAYS } from './review-period';
@@ -443,7 +444,9 @@ export async function snapshotState(db: Db, roundId: string) {
 type PromotionRefusal =
   | { status: 400; detail: string }
   | { status: 403; detail: string }
-  | { status: 409; detail: string };
+  // `openItems` rides an `open_items` refusal so the window can name what is open
+  // even when the gap is in the frozen version and not in the head (T-475)
+  | { status: 409; detail: string; openItems?: OpenItems };
 
 /** Everything the promotion is about to do, decided before anything is written. */
 type PromotionPlan = {
@@ -579,7 +582,7 @@ async function resolvePromotion(
   // silently waived the block would make §7 read "blocked unless you happen to
   // be senior", which is not what was ruled. Whether they MAY force it is the
   // route's business (it records the refusal), so this only reports the block.
-  const openItems = await countOpenItems(db, doc.id);
+  let openItems = await countOpenItems(db, doc.id);
   if (hasOpenItems(openItems) && !override) return refuse(409, 'open_items');
 
   // ADR-0032's two legal sources: the live head, or the QA-accepted frozen
@@ -646,6 +649,18 @@ async function resolvePromotion(
             .limit(1);
           qaAcceptedBy = acceptor ?? null;
         }
+      }
+    }
+  }
+  // T-475 — the gate counts the gaps in what will actually be PROMOTED. The head
+  // was counted above; a QA-accepted frozen version is a snapshot that can still
+  // carry a gap the head has since lost, and issuing it would send the gap out.
+  if (source === 'qa_accepted_frozen') {
+    const frozen = gapMarkers(sourceContent);
+    if (frozen.length > openItems.openGaps) {
+      openItems = { ...openItems, openGaps: frozen.length, gaps: frozen };
+      if (!override) {
+        return { ok: false as const, refusal: { status: 409, detail: 'open_items', openItems } };
       }
     }
   }
@@ -1064,7 +1079,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
         // one blocker the window has to be able to QUANTIFY: "you cannot
         // promote" is unactionable, "four open threads" is a place to go. On a
         // refusal for any other reason it is still the honest count.
-        openItems: await countOpenItems(deps.db, doc.id),
+        openItems: ("openItems" in resolved.refusal ? resolved.refusal.openItems : undefined) ?? (await countOpenItems(deps.db, doc.id)),
         canOverrideOpenItems: slice.elevated,
       } satisfies PromotionPreflight);
     }
@@ -1265,6 +1280,7 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           overriddenByParticipantId: slice.participantId,
           openThreads: openItems.threads,
           openFindings: openItems.findings.open,
+          openGaps: openItems.openGaps,
         });
       }
       return {
@@ -1277,7 +1293,17 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
       } satisfies PromotionResult;
     });
     // the record's renditions, generated beside the version (T-121, ADR-0034)
-    await generateRenditions(deps.db, { id: result.versionId, content: sourceContent }, doc);
+    // T-475 — the authorship appendix, where the project has asked for one
+    await generateRenditions(
+      deps.db,
+      { id: result.versionId, content: sourceContent },
+      doc,
+      await authorshipAppendix(deps.db, {
+        projectId: doc.projectId,
+        sandboxDocumentId: doc.id,
+        content: sourceContent,
+      }),
+    );
     await ingestVersion(deps.db, deps.router, result.versionId);
     // T-451 — a new revision of a library record has landed, so an app table
     // pointed at the record re-derives (ADR-0059 decision 1), as the producing
@@ -1658,7 +1684,16 @@ export function cycleRoutes(deps: { db: Db; router: Router }) {
           .where(eq(s.sandboxDocuments.containerId, container.id))
           .limit(1);
         if (boundDoc) {
-          await generateRenditions(deps.db, { id: issued.id, content: issued.content }, boundDoc);
+          await generateRenditions(
+            deps.db,
+            { id: issued.id, content: issued.content },
+            boundDoc,
+            await authorshipAppendix(deps.db, {
+              projectId: boundDoc.projectId,
+              sandboxDocumentId: boundDoc.id,
+              content: issued.content,
+            }),
+          );
         }
         // chunk + embed the contractual revision acceptance just issued — the
         // one version this act brings into existence (T-302). A sandbox-scope

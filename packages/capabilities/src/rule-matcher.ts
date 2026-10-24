@@ -42,7 +42,7 @@ import type {
   RuleScope,
 } from '@infora/contracts';
 import type { DraftFinding, DraftSection } from './workers/qa-sections';
-import { anchorInto } from './workers/qa-sections';
+import { anchorInto, checkableText } from './workers/qa-sections';
 import { usablePattern } from './rule-extraction';
 import type { DraftedClaim } from './grounded-draft';
 
@@ -281,7 +281,7 @@ export function applyRulesToSection(
   const findings: DraftFinding[] = [];
   for (const rule of deterministicRules(rules)) {
     const masked = maskTerms(
-      maskContexts(section.text, section, rule.exceptedContexts),
+      maskContexts(checkableText(section.text), section, rule.exceptedContexts),
       rule.exceptedTerms,
     );
     const spans = scopedLines(masked, section, rule.scope);
@@ -440,8 +440,8 @@ export function applyMeasuredRules(
     for (const section of sections) {
       const measured =
         rule.payload.measure === 'reading-grade'
-          ? grade(section.text)
-          : longestSentenceWords(section.text);
+          ? grade(checkableText(section.text))
+          : longestSentenceWords(checkableText(section.text));
       if (measured <= target) continue;
       const anchor = anchorInto(content, section, section.text.split('\n')[0] ?? '');
       if (anchor === null) continue;

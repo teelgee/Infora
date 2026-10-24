@@ -27,6 +27,7 @@ import type { Currency } from './currency';
 import type { LensSummary } from './lens';
 import type { Locator } from './assembly';
 import type { Finding, OpenFindingCount } from './finding';
+import type { GapMarker } from './gap';
 import type { ExtractionReport, ProposedRule, RuleProposal, RuleSetVersion } from './rule-set';
 import {
   EXCEPTED_CONTEXTS,
@@ -1602,7 +1603,14 @@ export type PromotionPreflight = {
    * It is present whether or not it blocks, so the window can show a clean
    * deliverable's zeroes rather than making silence do the work.
    */
-  openItems: { threads: number; findings: OpenFindingCount };
+  openItems: {
+    threads: number;
+    findings: OpenFindingCount;
+    /** T-475 (ADR-0049 §7, amended) — gap markers still in the text, counted
+     * as a third list; `gaps` names each so the window can show it */
+    openGaps: number;
+    gaps: GapMarker[];
+  };
   /** whether THIS requester could force it (`Participant.elevated`, §8) — so
    * the window offers the override only to someone who holds it, instead of
    * showing everyone a control most of them will be refused on */
@@ -1992,6 +2000,17 @@ export type ReviewPeriodSettings = { projectId: Id; defaultDays: number };
 export type GetReviewPeriodResponse = ReviewPeriodSettings;
 export const setReviewPeriodBody = z.object({ defaultDays: z.number().int().min(1).max(365) });
 export type SetReviewPeriodBody = z.infer<typeof setReviewPeriodBody>;
+
+// T-475 (ADR-0048's amendment of 2026-10-24) — the authorship appendix option.
+// When on, a promotion's exported documents end with a "Machine-drafted
+// passages" section: each paragraph the agent drafted, the run, and who accepted
+// it. A project setting like the review period beside it — read by every
+// participant (so the screen can say what exports will carry), set by the
+// owner's super user. Off by default; nothing changes until it is turned on.
+export type ExportAuthorshipAppendixSettings = { projectId: Id; enabled: boolean };
+export type GetExportAuthorshipAppendixResponse = ExportAuthorshipAppendixSettings;
+export const setExportAuthorshipAppendixBody = z.object({ enabled: z.boolean() });
+export type SetExportAuthorshipAppendixBody = z.infer<typeof setExportAuthorshipAppendixBody>;
 
 // A field composes the coded reference when inCode is set, or — for schemes that
 // predate the flag (T-188) — when it is a plain code-ish field (no role, a

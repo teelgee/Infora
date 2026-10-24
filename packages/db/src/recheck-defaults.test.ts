@@ -20,7 +20,19 @@ const migrationInserts = (): string => {
   const file = readFileSync(join(import.meta.dirname, '..', 'migrations', '0079_recheck-currency.sql'), 'utf8');
   const at = file.indexOf('INSERT INTO "recheck_defaults"');
   expect(at).toBeGreaterThan(-1);
-  return file.slice(at).replaceAll('--> statement-breakpoint', '');
+  // scoped to THIS test's project: the file's own steps run over every project,
+  // and a sibling test file creating a project at the same moment would have its
+  // fallback row inserted under it mid-seed (a race that failed
+  // reference-intake.test.ts's "a new project gets them from the seed")
+  // each replacement must match, or the scoping silently vanishes and the race returns
+  const swap = (text: string, from: string, to: string): string => {
+    expect(text).toContain(from);
+    return text.replace(from, to);
+  };
+  let scoped = file.slice(at).replaceAll('--> statement-breakpoint', '');
+  scoped = swap(scoped, `WHERE f."key" = 'document_type'`, `WHERE f."key" = 'document_type' AND f."project_id" = '${projectId}'`);
+  scoped = swap(scoped, 'FROM "projects" p', `FROM "projects" p WHERE p."id" = '${projectId}'`);
+  return scoped;
 };
 
 const intervals = async (): Promise<Record<string, number>> => {

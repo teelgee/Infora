@@ -14,6 +14,7 @@ import {
   isColumnableField,
   proposeNamingAdditionBody,
   resolveNamingProposalBody,
+  setExportAuthorshipAppendixBody,
   setReviewPeriodBody,
   upsertNamingSchemeBody,
 } from '@infora/contracts';
@@ -21,6 +22,7 @@ import type {
   ApiError,
   GenerateReferenceResponse,
   GetNamingSchemeResponse,
+  GetExportAuthorshipAppendixResponse,
   GetReviewPeriodResponse,
   ListNamingProposalsResponse,
   NamingProposal,
@@ -219,6 +221,38 @@ export function namingRoutes(deps: { db: Db }) {
       projectId: slice.projectId,
       defaultDays: parsed.data.defaultDays,
     } satisfies GetReviewPeriodResponse);
+  });
+
+  // T-475 — the authorship appendix option, beside the review period for the
+  // same reason: a typed column with its own pair of endpoints, because the
+  // project has no options bag and should not grow one for a single flag. Every
+  // participant reads it; the owner's super user (the scheme's own tier) sets it.
+  app.get('/projects/:projectId/export-authorship-appendix', project, async (c) => {
+    const slice = c.get('slice');
+    const [row] = await deps.db
+      .select({ enabled: s.projects.exportAuthorshipAppendix })
+      .from(s.projects)
+      .where(eq(s.projects.id, slice.projectId))
+      .limit(1);
+    return c.json({
+      projectId: slice.projectId,
+      enabled: row?.enabled ?? false,
+    } satisfies GetExportAuthorshipAppendixResponse);
+  });
+
+  app.patch('/projects/:projectId/export-authorship-appendix', project, async (c) => {
+    const slice = c.get('slice');
+    if (!canEditScheme(slice)) return notFound(c);
+    const parsed = setExportAuthorshipAppendixBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    await deps.db
+      .update(s.projects)
+      .set({ exportAuthorshipAppendix: parsed.data.enabled })
+      .where(eq(s.projects.id, slice.projectId));
+    return c.json({
+      projectId: slice.projectId,
+      enabled: parsed.data.enabled,
+    } satisfies GetExportAuthorshipAppendixResponse);
   });
 
   // a producer self-generates a compliant reference; the serial is allocated

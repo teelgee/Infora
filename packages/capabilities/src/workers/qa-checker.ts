@@ -35,7 +35,7 @@ import type {
   WorkerDeclaration,
 } from '@infora/contracts';
 import type { DraftFinding, DraftSection } from './qa-sections';
-import { anchorInto } from './qa-sections';
+import { anchorInto, checkableText } from './qa-sections';
 
 export const QA_SECTION_CHECK: WorkerDeclaration = {
   name: 'qa_section_check',
@@ -271,7 +271,7 @@ export function composeSectionCheckPrompt(material: SectionCheckMaterial): strin
     lines.push('');
   }
 
-  lines.push('THE SECTION UNDER CHECK.', '', material.section.text);
+  lines.push('THE SECTION UNDER CHECK.', '', checkableText(material.section.text));
   return lines.join('\n');
 }
 

@@ -3,6 +3,7 @@
 // Suggestion write and that citations attach to grounded sources only.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { gapMarkers } from '@infora/contracts';
 import type { AssembledInput } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { runChain } from './chain';
@@ -137,7 +138,9 @@ describe('cite resolution + Suggestion write (T-045)', () => {
       sandboxDocumentId,
       kind: 'insert',
       anchor: null,
-      content: 'Grounded claim one.\n\nGrounded claim two.',
+      // T-475 — the withheld claim stands as a gap line, after the claims it followed
+      content:
+        'Grounded claim one.\n\nGrounded claim two.\n\n[Gap: the record does not support "An unsupported figure."]',
     });
     expect(suggestion!.rationale).toContain('1 unsupported claim was withheld');
 
@@ -218,7 +221,9 @@ describe('cite resolution + Suggestion write (T-045)', () => {
     expect(plan!.workingSet).toEqual([{ sandboxDocumentId: attached, label: 'My draft' }]);
   });
 
-  it('nothing surviving writes nothing', async () => {
+  // T-475 — "no claim survives → no suggestion" became "a suggestion of gaps is
+  // still a suggestion": the person sees where the record fell short
+  it('nothing surviving writes a suggestion of gaps only, with no citations', async () => {
     const withered = leaves();
     withered.draft = async () => ({ output: { claims: [{ text: 'All unsupported.' }] } });
     const { suggestionIds, run } = await runChain(db, withered, {
@@ -228,9 +233,43 @@ describe('cite resolution + Suggestion write (T-045)', () => {
       requesterParticipantId: participantId,
       sandboxDocumentId,
     });
-    expect(suggestionIds).toEqual([]);
+    expect(suggestionIds).toHaveLength(1);
     const rows = await db.select().from(s.suggestions).where(eq(s.suggestions.runId, run.id));
-    expect(rows).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(gapMarkers(rows[0]!.content).map((g) => g.text)).toEqual([
+      'the record does not support "All unsupported."',
+    ]);
+    expect(await db.select().from(s.citations).where(eq(s.citations.suggestionId, rows[0]!.id))).toEqual([]);
+  });
+
+  it('puts each gap where its withheld claim stood in the draft (T-475)', async () => {
+    const mixed = leaves();
+    mixed.draft = async () => ({
+      output: {
+        claims: [
+          { text: 'Opening, grounded.', sourceRef: { versionId } },
+          { text: 'Middle, unsupported.' },
+          { text: 'Closing, grounded.', sourceRef: { versionId } },
+        ],
+      },
+    });
+    const { suggestionIds } = await runChain(db, mixed, {
+      conversationId,
+      request: 'q',
+      environmentKey: projectId,
+      requesterParticipantId: participantId,
+      sandboxDocumentId,
+    });
+    const [row] = await db.select().from(s.suggestions).where(eq(s.suggestions.id, suggestionIds[0]!));
+    expect(row!.content.split('\n\n')).toEqual([
+      'Opening, grounded.',
+      '[Gap: the record does not support "Middle, unsupported."]',
+      'Closing, grounded.',
+    ]);
+    // the citations' spans still point at the cited sentences, not the gap
+    const cites = await db.select().from(s.citations).where(eq(s.citations.suggestionId, row!.id));
+    const spans = cites.map((c) => row!.content.slice((c.claimSpan as { start: number }).start, (c.claimSpan as { end: number }).end));
+    expect(spans.sort()).toEqual(['Closing, grounded.', 'Opening, grounded.']);
   });
 });
 

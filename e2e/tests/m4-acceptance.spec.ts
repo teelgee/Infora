@@ -17,6 +17,8 @@ import { ApiSession, SEEDED } from './support/api';
 
 // the fake providers' deterministic draft: one grounded claim survives
 const SURVIVING = 'The investigation recorded contamination exceedances.';
+// T-475 — the claim the ground-check withheld stands in the draft as a gap marker
+const DRAFT = `${SURVIVING}\n\n[Gap: the record does not support "An unsupported figure of 40%."]`;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -67,7 +69,7 @@ test('accept: one Signal, content lands in the sandbox document', async () => {
     `/suggestions/${run.suggestions[0]!.id}/resolution`,
     { resolution: 'accepted' },
   );
-  expect(resolved.sandboxDocument?.content).toBe(SURVIVING);
+  expect(resolved.sandboxDocument?.content).toBe(DRAFT);
 
   // exactly one Signal: it now rides the suggestion, and a second resolution conflicts
   const { items } = await suggestionsOf();
@@ -89,7 +91,7 @@ test('edit: one Signal, the edited content lands — and the re-draft left run 1
     { resolution: 'edited', editedContent: 'The refined, human-edited paragraph.' },
   );
   expect(resolved.sandboxDocument?.content).toBe(
-    `${SURVIVING}\n\nThe refined, human-edited paragraph.`,
+    `${DRAFT}\n\nThe refined, human-edited paragraph.`,
   );
 
   // the first run's record is untouched by the second (append-only)

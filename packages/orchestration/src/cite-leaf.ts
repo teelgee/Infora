@@ -6,16 +6,24 @@
 // ruled 2026-07-06) with its citations; an untargeted chat run attaches the
 // citations to the cite step instead, so the answer is citable either way.
 import { eq } from 'drizzle-orm';
+import { gapLineFor } from '@infora/contracts';
 import type { AssembledInput, Id } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import { checkPropagation } from '@infora/governance';
 import { runSourceAudience, sandboxDocumentAudience } from '@infora/knowledge';
-import type { ChainLeaves, GroundCheckOutput, SourceRef } from './chain';
+import type { ChainLeaves, SourceRef } from './chain';
 
 export function createCiteLeaf(): ChainLeaves['cite'] {
   return async (ctx, input) => {
     const { surviving, withheld } = input.checked;
-    if (surviving.length === 0) return { output: { suggestionIds: [], answer: null } };
+    // T-475 — a document-targeted draft keeps a visible gap where the
+    // ground-check withheld a claim ("a suggestion of gaps is still a
+    // suggestion"). Chat never withholds (it labels instead), so a chat answer
+    // has no gaps to carry.
+    const gaps = input.sandboxDocumentId === null ? [] : withheld;
+    if (surviving.length === 0 && gaps.length === 0) {
+      return { output: { suggestionIds: [], answer: null } };
+    }
 
     // the draft text and each claim's span within it — resolved
     // deterministically because content is the surviving claims joined; the
@@ -34,10 +42,30 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
       ...claim,
       text: markSuperseded(claim, input.retrieved),
     }));
-    const content = flagged.map((claim) => claim.text).join(CLAIM_SEPARATOR);
-    const spans = claimSpans(flagged);
-    const cited = flagged
-      .map((claim, at) => ({ sourceRef: claim.sourceRef, claimSpan: spans[at] }))
+    // each gap line stands where its withheld claim stood (`withheldAfter`); a
+    // stub that did not record the order gets its gaps after the cited claims
+    const pieces: Array<{ text: string; claim: (typeof flagged)[number] | null }> = [];
+    const after = input.checked.withheldAfter;
+    let nextGap = 0;
+    const emitGapsAt = (survivingBefore: number) => {
+      while (nextGap < gaps.length && (after?.[nextGap] ?? Number.MAX_SAFE_INTEGER) <= survivingBefore) {
+        pieces.push({ text: gapLineFor(gaps[nextGap]!.text), claim: null });
+        nextGap += 1;
+      }
+    };
+    flagged.forEach((claim, at) => {
+      emitGapsAt(at);
+      pieces.push({ text: claim.text, claim });
+    });
+    emitGapsAt(Number.MAX_SAFE_INTEGER);
+    while (nextGap < gaps.length) {
+      pieces.push({ text: gapLineFor(gaps[nextGap]!.text), claim: null });
+      nextGap += 1;
+    }
+    const content = pieces.map((piece) => piece.text).join(CLAIM_SEPARATOR);
+    const spans = claimSpans(pieces);
+    const cited = pieces
+      .map((piece, at) => ({ sourceRef: piece.claim?.sourceRef, claimSpan: spans[at] }))
       .filter((claim): claim is { sourceRef: SourceRefValue; claimSpan: { start: number; end: number } } =>
         claim.sourceRef !== undefined,
       );
@@ -103,13 +131,15 @@ export function createCiteLeaf(): ChainLeaves['cite'] {
           rationale: rationaleFor(surviving.length, withheld.length),
         })
         .returning();
-      await tx.insert(s.citations).values(
-        cited.map((claim) => ({
-          suggestionId: suggestion!.id,
-          ...sourceColumns(claim.sourceRef),
-          claimSpan: claim.claimSpan,
-        })),
-      );
+      if (cited.length > 0) {
+        await tx.insert(s.citations).values(
+          cited.map((claim) => ({
+            suggestionId: suggestion!.id,
+            ...sourceColumns(claim.sourceRef),
+            claimSpan: claim.claimSpan,
+          })),
+        );
+      }
       return suggestion!.id as Id;
     });
 
@@ -160,7 +190,7 @@ function sourceColumns(ref: SourceRefValue) {
 
 const CLAIM_SEPARATOR = '\n\n';
 
-function claimSpans(claims: GroundCheckOutput['surviving']): Array<{ start: number; end: number }> {
+function claimSpans(claims: Array<{ text: string }>): Array<{ start: number; end: number }> {
   const spans: Array<{ start: number; end: number }> = [];
   let at = 0;
   for (const claim of claims) {
@@ -174,6 +204,6 @@ function rationaleFor(survivingCount: number, withheldCount: number): string {
   const withheldNote =
     withheldCount === 0
       ? 'nothing was withheld'
-      : `${withheldCount} unsupported claim${withheldCount === 1 ? ' was' : 's were'} withheld`;
+      : `${withheldCount} unsupported claim${withheldCount === 1 ? ' was' : 's were'} withheld and marked as a gap`;
   return `Grounded draft: ${survivingCount} cited claim${survivingCount === 1 ? '' : 's'} from project sources; ${withheldNote}.`;
 }

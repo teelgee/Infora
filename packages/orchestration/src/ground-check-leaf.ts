@@ -15,8 +15,17 @@ export function createGroundCheckLeaf(): ChainLeaves['groundCheck'] {
       // into a document stays grounded-only (ruled 2026-07-09, T-089)
       unsourced: input.mode === 'chat' ? 'label' : 'withhold',
     });
+    // T-475 — where each withheld claim stood in the draft, so the gap marker
+    // lands at the sentence that needed it
+    const withheldSet = new Set(result.withheld);
+    const withheldAfter: number[] = [];
+    let surviving = 0;
+    for (const claim of input.draft.claims) {
+      if (withheldSet.has(claim)) withheldAfter.push(surviving);
+      else surviving += 1;
+    }
     return {
-      output: { surviving: result.surviving, withheld: result.withheld },
+      output: { surviving: result.surviving, withheld: result.withheld, withheldAfter },
       audit: { railOutcomes: result.railOutcomes },
     };
   };

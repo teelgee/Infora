@@ -21,12 +21,24 @@
 // zero on a document with no findings, and it still passes, which is the other
 // half of what the seam bought.
 import { and, eq, isNull } from 'drizzle-orm';
-import type { OpenFindingCount } from '@infora/contracts';
+import { gapMarkers } from '@infora/contracts';
+import type { GapMarker, OpenFindingCount } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { countOpenFindings } from './findings';
 
-export type OpenItems = { threads: number; findings: OpenFindingCount };
+/**
+ * T-475 (ADR-0049 §7, amended) — a third list: the gap markers still standing in
+ * the text. Counted from the text itself, so there is no gap table; `gaps`
+ * carries each one so the Checks tab and the promotion window can show it and
+ * jump to it, and `openGaps` is the number that gates.
+ */
+export type OpenItems = {
+  threads: number;
+  findings: OpenFindingCount;
+  openGaps: number;
+  gaps: GapMarker[];
+};
 
 export const NO_FINDINGS: OpenFindingCount = {
   open: 0,
@@ -52,7 +64,18 @@ export async function countOpenItems(db: Db, sandboxDocumentId: string): Promise
         eq(s.sandboxComments.status, 'open'),
       ),
     );
-  return { threads: threads.length, findings: await countOpenFindings(db, sandboxDocumentId) };
+  const [row] = await db
+    .select({ content: s.sandboxDocuments.content })
+    .from(s.sandboxDocuments)
+    .where(eq(s.sandboxDocuments.id, sandboxDocumentId))
+    .limit(1);
+  const gaps = gapMarkers(row?.content ?? '');
+  return {
+    threads: threads.length,
+    findings: await countOpenFindings(db, sandboxDocumentId),
+    openGaps: gaps.length,
+    gaps,
+  };
 }
 
 /**
@@ -71,7 +94,7 @@ export async function countOpenItems(db: Db, sandboxDocumentId: string): Promise
  */
 export { countOpenFindings };
 
-/** Does this document have loose ends? Both lists, one answer — §7's whole
+/** Does this document have loose ends? All three lists, one answer — §7's whole
  * point is that the surface never distinguishes them. */
 export const hasOpenItems = (items: OpenItems): boolean =>
-  items.threads > 0 || items.findings.open > 0;
+  items.threads > 0 || items.findings.open > 0 || items.openGaps > 0;

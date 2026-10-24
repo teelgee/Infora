@@ -40,6 +40,7 @@ import {
   applyMeasuredRules,
   applyRulesToSection,
   applyStructureRules,
+  checkableText,
   completenessCheck,
   composeContradictionPrompt,
   measuredRules,
@@ -292,7 +293,7 @@ export function createQaSectionCheck(deps: QaCheckerDeps) {
     if (wantsCorpus) {
       const searches =
         input.depth === 'quick'
-          ? [section.text]
+          ? [checkableText(section.text)]
           : await checkableAssertions(deps, section);
       if (input.depth === 'full') assertionsSearched = searches.length;
       // T-469 — the scope goes INTO the gateway's pre-filter and is intersected
@@ -421,7 +422,7 @@ async function checkableAssertions(deps: QaCheckerDeps, section: DraftSection): 
       `One per line, at most ${MAX_ASSERTIONS_PER_SECTION}, each restated as a short searchable phrase.`,
       'No numbering, no commentary, nothing else.',
     ].join('\n'),
-    messages: [{ role: 'user', content: section.text }],
+    messages: [{ role: 'user', content: checkableText(section.text) }],
   });
   const lines = result.text
     .split('\n')
@@ -430,7 +431,7 @@ async function checkableAssertions(deps: QaCheckerDeps, section: DraftSection): 
     .slice(0, MAX_ASSERTIONS_PER_SECTION);
   // an empty answer falls back to the section itself rather than to no search
   // at all: `full` must never cover LESS than `quick` would have
-  return lines.length === 0 ? [section.text] : lines;
+  return lines.length === 0 ? [checkableText(section.text)] : lines;
 }
 
 /** Every search, through the one gateway, de-duplicated by chunk. */

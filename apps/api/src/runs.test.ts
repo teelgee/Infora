@@ -186,7 +186,10 @@ describe('the full chain over HTTP (T-046)', () => {
 
     expect(run.state).toBe('completed');
     expect(run.request).toBe('Draft the contamination summary');
-    expect(run.response).toBe('The investigation recorded contamination exceedances.'); // part of the record (2026-07-08)
+    // part of the record (2026-07-08); T-475 — the withheld claim stands as a gap line
+    expect(run.response).toBe(
+      'The investigation recorded contamination exceedances.\n\n[Gap: the record does not support "An unsupported figure of 40%."]',
+    );
     expect(run.steps.map((st) => st.type)).toEqual([
       'retrieve',
       'delegate',
@@ -218,7 +221,8 @@ describe('the full chain over HTTP (T-046)', () => {
       workItemId,
       sandboxDocumentId,
       kind: 'insert',
-      content: 'The investigation recorded contamination exceedances.',
+      content:
+        'The investigation recorded contamination exceedances.\n\n[Gap: the record does not support "An unsupported figure of 40%."]',
     });
     expect(suggestion.citations).toHaveLength(1);
     expect(suggestion.citations[0]!.source).toEqual({ versionId, documentReference });

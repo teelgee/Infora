@@ -3,6 +3,7 @@
 // FOR, and the label is the evidence that propagation happened.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { gapMarkers } from '@infora/contracts';
 import type { Assemble, AssembledInput } from '@infora/contracts';
 import { createDb, schema as s } from '@infora/db';
 import { Router, SELF_HOSTED_UK } from '@infora/model';
@@ -483,7 +484,40 @@ describe('document_builder (T-280)', () => {
       .select({ content: s.sandboxDocuments.content })
       .from(s.sandboxDocuments)
       .where(eq(s.sandboxDocuments.id, output.documentId!));
-    expect(row!.content).not.toContain('An invented one');
+    // T-475 — not written as prose: it stands as a gap marker line, in its section
+    const gaps = gapMarkers(row!.content);
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]!.text).toContain('An invented one');
+    expect(row!.content).toContain('A sourced sentence.');
+    expect(row!.content.split('\n').filter((line) => line.includes('An invented one'))).toEqual([
+      expect.stringMatching(/^\[Gap: /),
+    ]);
+  });
+
+  // T-475 — a section whose every sentence was withheld is no longer silently
+  // dropped: it keeps its heading and a gap line saying the record fell short
+  it('marks a wholly withheld section with a gap rather than omitting it (T-475)', async () => {
+    const builder = createDocumentBuilder({
+      db,
+      router: answering('Purpose\n\nA sourced sentence [S1].\n\nThe evidence\n\nA figure the record never gave.'),
+      assemble: gateway(passage(openVersionId, 'T280-A', 'text')),
+    });
+    const output = await builder(requester(), { projectId }, {
+      sections: outline,
+      brief: 'b',
+      ...character,
+      scope: { containerIds: [openContainerId] },
+      destination: { sandboxId, title: 't475 gap section' },
+    });
+    const [row] = await db
+      .select({ content: s.sandboxDocuments.content })
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, output.documentId!));
+    const blocks = row!.content.split('\n\n');
+    const at = blocks.indexOf('## The evidence');
+    expect(at).toBeGreaterThan(-1);
+    expect(blocks[at + 1]).toBe('[Gap: the record does not support "A figure the record never gave."]');
+    expect(output.sectionsWritten).toBe(1); // the gap is not prose; the count is unchanged
   });
 
   // T-407 — this test used to assert that asking for a template this deployment

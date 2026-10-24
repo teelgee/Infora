@@ -24,6 +24,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { schema as s, withProjectScope } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
+import { blankGapLines } from '@infora/contracts';
 import { chunkText } from './chunker';
 
 const INDEX_DIMENSIONS = 1024; // version_chunks.embedding — vector(1024)
@@ -192,7 +193,7 @@ async function ingestRows(
   let modelVersion = modelId;
 
   for (const version of versions) {
-    const chunks = chunkText(version.content, options.maxChars);
+    const chunks = chunkText(blankGapLines(version.content), options.maxChars);
     if (chunks.length === 0) continue;
 
     const result = await router.embed(

@@ -156,6 +156,8 @@ import type {
   SandboxDocument,
   GetNamingSchemeResponse,
   GetReviewPeriodResponse,
+  GetExportAuthorshipAppendixResponse,
+  DocumentProvenanceResponse,
   UpsertNamingSchemeBody,
   GenerateReferenceResponse,
   ListNamingProposalsResponse,
@@ -721,6 +723,9 @@ export const api = {
   // answer to "what did the checker find", and the two would eventually
   // disagree about which marks exist.
   // T-474 — computed now, never stored
+  // T-475 — who wrote each paragraph, worked out now from the record
+  provenance: (sandboxDocumentId: string) =>
+    request<DocumentProvenanceResponse>(`/sandbox-documents/${sandboxDocumentId}/provenance`),
   staleGrounding: (sandboxDocumentId: string) =>
     request<StaleGroundingResponse>(`/sandbox-documents/${sandboxDocumentId}/stale-grounding`),
   findings: (sandboxDocumentId: string) =>
@@ -995,6 +1000,14 @@ export const api = {
     request<GetReviewPeriodResponse>(`/projects/${projectId}/review-period`, {
       method: 'PATCH',
       body: JSON.stringify({ defaultDays }),
+    }),
+  // T-475 — whether exported documents end with the authorship appendix
+  exportAuthorshipAppendix: (projectId: string) =>
+    request<GetExportAuthorshipAppendixResponse>(`/projects/${projectId}/export-authorship-appendix`),
+  setExportAuthorshipAppendix: (projectId: string, enabled: boolean) =>
+    request<GetExportAuthorshipAppendixResponse>(`/projects/${projectId}/export-authorship-appendix`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
     }),
   generateReference: (projectId: string, values: Record<string, string>) =>
     request<GenerateReferenceResponse>(`/projects/${projectId}/naming-scheme/references`, {

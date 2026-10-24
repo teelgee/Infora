@@ -690,6 +690,9 @@ export const promotionOverrides = pgTable(
      * the record unable to say which kind of loose end was left. */
     openThreads: integer('open_threads').notNull(),
     openFindings: integer('open_findings').notNull(),
+    /** T-475 (ADR-0049 §7, amended) — gap markers still in the text at the time.
+     * Counted from the text itself (no gap table); zero on records made before. */
+    openGaps: integer('open_gaps').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('promotion_overrides_container_idx').on(t.containerId, t.createdAt)],

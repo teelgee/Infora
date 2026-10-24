@@ -152,6 +152,17 @@ gaining the register: it sees *that* an attestation exists, never what it
 protects — trust-plus-audit, because a client inspecting a supplier's internal
 wall would be theatre.
 
+**Drawn 2026-10-24 — the authorship appendix option (T-475).** *Plainly: a
+project may choose that every exported document ends with a list of the
+passages the AI drafted and who accepted each.* `projects` gains
+`export_authorship_appendix` (boolean, not null, default false) — a typed
+column with its own PATCH, like the review period and the external-issue
+settings, because the project has no options bag and should not grow one for
+a single flag. Off by default; nothing changes until the owner's super user
+turns it on.
+
+*Built the same day (migration 0081); per the state rule the drawing above stands only as the drawing it was, and [drawer1-parties.ts](../../packages/db/src/schema/drawer1-parties.ts) is the authority on its shape. Its own pair of endpoints, `GET`/`PATCH /projects/:projectId/export-authorship-appendix`, sit beside the review period's; the owner's super user may set it, every participant may read it.*
+
 ## Drawer 2 — Documents
 *The controlled record, the retrieval index, and the working area.
 (ADR-0002, 0011, 0032, 0034, 0036, 0038, 0040, 0041.)*
@@ -777,6 +788,17 @@ Comments freeze at issue (trigger), responses must link the addressing change
 or state no-change with a reason (ADR-0004), and **acceptance codes are
 copied per project and retired, never redefined** — a code ever referenced is
 immutable (ADR-0003).
+
+**Drawn 2026-10-24 — open gaps on the override record (T-475).** *Plainly: a
+draft with a marked gap in it cannot be promoted until the gap is cleared,
+just as an open comment or finding blocks it; and when an owner overrides that
+block, the record says how many gaps were open at the time.*
+`promotion_overrides` gains `open_gaps` (integer, not null, default 0) beside
+`open_threads` and `open_findings` (ADR-0049 §7, amended this day). A gap is
+counted from the text itself — a single-line marker parsed by one shared
+function — so there is no gap table: the text is the record.
+
+*Built the same day (migration 0081); per the state rule the drawing above stands only as the drawing it was, and [drawer5-review.ts](../../packages/db/src/schema/drawer5-review.ts) is the authority on its shape. Records made before it read 0 gaps — the column's default, which is also the honest answer: no gap marker existed to be open.*
 
 ## Drawer 6 — The project ontology
 *The classification vocabulary and the typed edges between containers —

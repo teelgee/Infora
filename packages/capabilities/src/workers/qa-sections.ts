@@ -26,7 +26,7 @@ import type {
   FindingSeverity,
   Locator,
 } from '@infora/contracts';
-import { DEFAULT_READABILITY_TARGET } from '@infora/contracts';
+import { DEFAULT_READABILITY_TARGET, parseGapLine } from '@infora/contracts';
 import type { DocumentTemplate } from './templates';
 
 /**
@@ -48,6 +48,20 @@ export type DraftSection = {
   /** the section's text INCLUDING its heading line, exactly as stored */
   text: string;
 };
+
+/**
+ * T-475 — a text with every gap-marker line blanked out, keeping the length (and
+ * so every offset). A gap is the draft saying "the record does not give this";
+ * it is never a sentence to be checked as a claim, a heading, placeholder text
+ * or reading-ease prose. Every model-facing and every counting read of a
+ * section goes through this.
+ */
+export function checkableText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => (parseGapLine(line.replace(/\r$/, '')) === null ? line : ' '.repeat(line.length)))
+    .join('\n');
+}
 
 /** Longest a line can be and still be read as a heading rather than a sentence. */
 const HEADING_MAX = 120;
@@ -93,6 +107,7 @@ export function splitIntoSections(content: string): DraftSection[] {
     const line = lines[index]!;
     const trimmed = line.trim();
     if (trimmed === '') return false;
+    if (parseGapLine(trimmed) !== null) return false; // T-475 — a gap is never a heading
     if (ATX.test(trimmed)) return true;
     if (trimmed.length > HEADING_MAX) return false;
     if (SENTENCE_END.test(trimmed)) return false;
@@ -219,7 +234,7 @@ export function readabilityCheck(
   const scores = sections.map((section) => ({
     section: section.index,
     heading: section.heading,
-    grade: fleschKincaidGrade(section.text),
+    grade: fleschKincaidGrade(checkableText(section.text)),
   }));
   if (scores.length === 0) return { scores, findings: [] };
 
@@ -322,7 +337,7 @@ export function completenessCheck(
   for (const section of sections) {
     for (const pattern of PLACEHOLDERS) {
       pattern.lastIndex = 0;
-      for (const match of section.text.matchAll(pattern)) {
+      for (const match of checkableText(section.text).matchAll(pattern)) {
         const found = match[0];
         // a bracketed citation-looking marker is placeholder-shaped and so is a
         // real cross-reference; the anchor and the words let the reviewer judge,

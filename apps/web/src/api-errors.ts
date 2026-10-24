@@ -43,7 +43,7 @@ const MESSAGES: Record<string, string> = {
   // not. The window states the COUNTS beside it, which is what makes this
   // actionable rather than merely refusing.
   open_items:
-    'This draft has open items — resolve the open comment threads and findings before promoting.',
+    'This draft has open items — resolve the open comment threads, findings and gaps before promoting.',
   promotion_state_changed:
     'What would promote has changed since this window opened — close it and reopen to see the current state.',
   // T-374 — the receipt narrows to a single accountable receiver (ADR-0051

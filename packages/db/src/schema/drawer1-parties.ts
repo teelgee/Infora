@@ -188,6 +188,12 @@ export const projects = pgTable('projects', {
   externalIssuePermission: externalIssuePermission('external_issue_permission')
     .notNull()
     .default('owner_super_user'),
+  // T-475 — the authorship appendix option. When on, the promotion's exported
+  // documents end with a list of the passages the AI drafted and who accepted
+  // each. A typed column with its own PATCH, like the settings above: the
+  // project has no options bag and should not grow one for a single flag.
+  // Off by default; nothing changes until the owner's super user turns it on.
+  exportAuthorshipAppendix: boolean('export_authorship_appendix').notNull().default(false),
 });
 
 // A Participant is an interval, never a deleted row: removal closes

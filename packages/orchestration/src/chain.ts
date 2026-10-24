@@ -71,6 +71,14 @@ export type ChainMode = 'document' | 'chat';
 export type GroundCheckOutput = {
   surviving: Array<{ text: string; sourceRef?: SourceRef }>; // no ref = labelled open-world
   withheld: DraftClaim[];
+  /**
+   * T-475 — where each withheld claim stood: how many surviving claims came
+   * BEFORE it in the draft, parallel to `withheld`. It lets the cite step put a
+   * gap marker at the sentence that needed it rather than at the end. Optional
+   * so a leaf that does not know the order (a test stub) still works — the gaps
+   * then follow the cited claims.
+   */
+  withheldAfter?: number[];
 };
 export type CiteOutput = {
   suggestionIds: Id[];

@@ -117,6 +117,7 @@ export type {
 } from './workers/qa-checker';
 export {
   anchorInto,
+  checkableText,
   completenessCheck,
   fleschKincaidGrade,
   readabilityCheck,

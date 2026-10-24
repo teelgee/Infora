@@ -39,7 +39,7 @@ import type {
   OutlineEntry,
   Scope,
 } from '@infora/contracts';
-import { flattenOutline, outlineEntryName } from '@infora/contracts';
+import { flattenOutline, gapLineFor, outlineEntryName } from '@infora/contracts';
 import { composeDraftingPrompt } from '@infora/capabilities';
 import { freshModelOutput, normaliseFreshOutput, parseClaims, preferredWordings, workingSetBlock } from '@infora/capabilities';
 import type { AcceptedRule } from '@infora/capabilities';
@@ -482,6 +482,17 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
       sectioned
         .filter((claim) => claim.section === sectionKey(at) && survived.has(claim.text))
         .map((claim) => normalisedText.get(claim.text) ?? claim.text);
+    // T-475 — a claim the ground-check withheld is not silently absent: it
+    // stands in the built document as a gap marker line, in the section and at
+    // the place its sentence would have been. Never counted as written prose.
+    const linesWithGaps = (at: number) =>
+      sectioned
+        .filter((claim) => claim.section === sectionKey(at))
+        .map((claim) =>
+          survived.has(claim.text)
+            ? (normalisedText.get(claim.text) ?? claim.text)
+            : gapLineFor(claim.text),
+        );
     const written = new Set<string>();
     outline.forEach((_entry, at) => {
       if (linesOf(at).length > 0) written.add(sectionKey(at));
@@ -489,12 +500,12 @@ export function createDocumentBuilder(deps: DocumentBuilderDeps) {
     const hosts = new Set(
       outline
         .map((entry, at) => ({ entry, at }))
-        .filter(({ entry, at }) => entry.depth === 1 && written.has(sectionKey(at)))
+        .filter(({ entry, at }) => entry.depth === 1 && linesWithGaps(at).length > 0)
         .map(({ entry }) => entry.sectionIndex),
     );
     const content = outline
       .map((entry, at) => {
-        const lines = linesOf(at);
+        const lines = linesWithGaps(at);
         const hash = entry.depth === 0 ? '##' : '###';
         if (lines.length === 0) {
           return entry.depth === 0 && hosts.has(entry.sectionIndex)

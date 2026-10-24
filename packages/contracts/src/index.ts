@@ -22,3 +22,4 @@ export * from './endpoints';
 export * from './errors';
 export * from './scope';
 export * from './working-set';
+export * from './gap';

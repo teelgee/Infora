@@ -47,6 +47,7 @@ import { useState } from 'react';
 import type {
   CheckFamily,
   Finding,
+  GapMarker,
   MechanicalFix,
   RunReach,
   StaleGroundingItem,
@@ -74,7 +75,41 @@ export type FindingsPanelProps = {
   /** T-474 — the stale-grounding comparison run at read time; not a saved finding */
   stale?: StaleGroundingResponse | null;
   onLocateStale?: (item: StaleGroundingItem) => void;
+  /** T-475 — the gap markers standing in the text, counted live from the text itself */
+  gaps?: GapMarker[];
+  onLocateGap?: (gap: GapMarker) => void;
 };
+
+/**
+ * T-475 — the gap markers in the draft, read from the text as it stands. Like
+ * the stale list it is computed now and stored nowhere: a gap is a line of text,
+ * and it clears when the line is rewritten or deleted. It counts toward the
+ * promotion gate exactly as an open thread or finding does, and says so.
+ */
+function GapList(props: { gaps: GapMarker[]; onLocate?: (gap: GapMarker) => void }) {
+  return (
+    <section className="findings-gaps" aria-label="Gaps">
+      <p className="findings-count">
+        <strong>
+          {props.gaps.length} {props.gaps.length === 1 ? 'gap' : 'gaps'}
+        </strong>{' '}
+        — places where the record did not support a sentence. Write what the record can support,
+        or delete the line; promotion is held while one stands.
+      </p>
+      {props.gaps.map((gap) => (
+        <button
+          key={gap.start}
+          type="button"
+          className="gap-row"
+          onClick={() => props.onLocate?.(gap)}
+        >
+          <span className="gap-row-label">⚠ Gap</span>
+          {gap.text}
+        </button>
+      ))}
+    </section>
+  );
+}
 
 const LABELS = new Map(CHECK_FAMILY_CATALOGUE.map((entry) => [entry.family, entry.label]));
 const isMechanical = (finding: Finding): finding is Finding & { fix: MechanicalFix } =>
@@ -119,9 +154,15 @@ export function FindingsPanel(props: FindingsPanelProps) {
       <LiveStale stale={props.stale} {...(props.onLocateStale && { onLocate: props.onLocateStale })} />
     ) : null;
 
+  const gapList =
+    props.gaps !== undefined && props.gaps.length > 0 ? (
+      <GapList gaps={props.gaps} {...(props.onLocateGap && { onLocate: props.onLocateGap })} />
+    ) : null;
+
   if (props.findings.length === 0) {
     return (
       <>
+        {gapList}
         {live}
       <p className="findings-empty">
         {/* ⚠ NEVER an unqualified "your document is fine". The coverage
@@ -138,6 +179,7 @@ export function FindingsPanel(props: FindingsPanelProps) {
 
   return (
     <div className="findings-panel">
+      {gapList}
       {live}
       <p className="findings-count">
         {open.length} open {open.length === 1 ? 'finding' : 'findings'}

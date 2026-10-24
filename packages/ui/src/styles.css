@@ -2186,3 +2186,61 @@ mark[data-passage].flash { background: var(--feedback-info-tint); border-bottom-
 .working-set-card-list { margin: 0; padding-left: 18px; color: var(--text-primary); }
 .working-set-card-hidden { margin-top: 6px; color: var(--text-muted); }
 .working-set-hidden { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* ---------- T-475 — the gap marker, and who wrote each passage ------------
+   *In plain terms: where the record could not support a sentence, the draft
+   says so in a dashed box with a warning sign and the word "Gap"; and hovering
+   a paragraph's small mark in the margin says who wrote it.*
+
+   Never colour alone: the box is dashed, the sign is a glyph and the word is
+   written. */
+.gap-marker,
+.md p.gap-marker {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 10px; padding: 6px 10px;
+  border: 1.5px dashed var(--feedback-warning-text); border-radius: var(--primitive-radius-sm);
+  background: var(--feedback-warning-tint); color: var(--feedback-warning-text);
+  font-family: var(--primitive-font-family-sans); font-size: 13px; line-height: 1.5;
+}
+.gap-marker-glyph { font-size: 14px; }
+.gap-marker-label { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.04em; }
+.gap-marker-text { color: var(--text-primary); }
+
+/* in the editor's mirror the text is transparent and the box is painted behind
+   the real line without changing its width, so the textarea above never shifts */
+.canvas-mirror mark.mark--gap {
+  position: relative; color: transparent;
+  background: var(--feedback-warning-tint);
+  outline: 1.5px dashed var(--feedback-warning-text); outline-offset: 1px;
+  border-radius: var(--primitive-radius-xs);
+}
+.canvas-mirror mark.mark--gap::before {
+  content: '⚠'; position: absolute; left: -1.7em; top: 0;
+  color: var(--feedback-warning-text); font-size: 0.95em;
+}
+
+/* the margin of authorship: one small mark per paragraph, a hover card each */
+.authorship-rail {
+  position: absolute; top: 0; left: -34px; width: 24px; bottom: 0; z-index: 2; pointer-events: none;
+}
+.authorship-mark {
+  position: absolute; left: 0; width: 24px; display: flex; justify-content: center;
+  pointer-events: auto;
+}
+.authorship-mark button {
+  border: none; background: none; cursor: help; padding: 2px; border-radius: var(--primitive-radius-xs);
+  color: var(--text-muted); line-height: 0;
+}
+.authorship-mark button:hover, .authorship-mark button:focus-visible { color: var(--action-primary-bg); }
+.authorship-mark[data-origin='agent'] button { color: var(--feedback-info-text); }
+.authorship-card { font-family: var(--primitive-font-family-sans); font-size: 12.5px; padding: 10px 12px; color: var(--text-primary); }
+.authorship-card .authorship-kicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 4px; }
+.authorship-card .authorship-note { margin-top: 6px; color: var(--text-muted); }
+
+.gap-row {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  border: 1.5px dashed var(--feedback-warning-text); border-radius: var(--primitive-radius-sm);
+  background: var(--feedback-warning-tint); color: var(--text-primary);
+  font-family: var(--primitive-font-family-sans); font-size: 12.5px; padding: 8px 10px; margin: 0 0 8px;
+}
+.gap-row .gap-row-label { font-weight: 700; color: var(--feedback-warning-text); margin-right: 6px; }

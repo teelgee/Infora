@@ -9,8 +9,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
+import { gapMarkers } from '@infora/contracts';
 import type {
   Finding,
+  GapMarker,
+  PassageProvenance,
   StaleGroundingResponse,
   MeResponse,
   PlanRow,
@@ -46,12 +49,12 @@ import {
   SectionLabel,
   Table,
   TextArea,
-  WithheldNotice,
 } from '@infora/ui';
 import type { ChatComposerHandle } from '@infora/ui';
 import { api } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
 import { FindingsPanel } from '../findings-panel';
+import { AuthorshipRail } from '../authorship-rail';
 import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
@@ -228,6 +231,8 @@ export function EditorScreen() {
   const [findingsReach, setFindingsReach] = useState<RunReach | null>(null);
   // T-474 — the stale-grounding comparison, run now and never stored
   const [stale, setStale] = useState<StaleGroundingResponse | null>(null);
+  // T-475 — who wrote each paragraph, as last fetched (null until it answers)
+  const [provenance, setProvenance] = useState<PassageProvenance[] | null>(null);
   const [findingBusy, setFindingBusy] = useState(false);
   const [drifted, setDrifted] = useState<string[]>([]);
   const [focusedFinding, setFocusedFinding] = useState<{ id: string; at: number } | null>(null);
@@ -263,7 +268,7 @@ export function EditorScreen() {
 
   const load = useCallback(async () => {
     if (documentId === undefined) return;
-    const [document, list, threads, marks, staleNow] = await Promise.all([
+    const [document, list, threads, marks, staleNow, authorship] = await Promise.all([
       api.sandboxDocument(documentId),
       api.documentSuggestions(documentId),
       api.documentComments(documentId),
@@ -271,8 +276,10 @@ export function EditorScreen() {
       // off a request that did not answer is a claim we cannot make
       api.findings(documentId).catch(() => null),
       api.staleGrounding(documentId).catch(() => null),
+      api.provenance(documentId).catch(() => null),
     ]);
     setStale(staleNow);
+    setProvenance(authorship?.passages ?? null);
     setDoc(document);
     setContent(document.content);
     setDirty(false);
@@ -325,6 +332,8 @@ export function EditorScreen() {
     setDoc(updated);
     setContent(updated.content);
     setDirty(false);
+    // T-475 — the paragraphs moved; ask who wrote the text as it now stands
+    void api.provenance(documentId).then((r) => setProvenance(r.passages), () => setProvenance(null));
   }
 
   // T-053: accept/edit/reject — one Signal per Suggestion; accept/edit lands
@@ -573,7 +582,7 @@ export function EditorScreen() {
     from: number;
     to: number;
     threadId: string;
-    kind: 'thread' | 'finding';
+    kind: 'thread' | 'finding' | 'gap';
     severity?: 'required' | 'advisory';
   }> = [];
   for (const c of comments) {
@@ -598,8 +607,23 @@ export function EditorScreen() {
       severity: finding.severity,
     });
   }
+  // T-475 — a gap marker is painted where it stands (a dashed box with the
+  // warning sign), read from the text itself by the one shared function. It
+  // yields to a comment or finding mark already over the same words.
+  const gaps: GapMarker[] = gapMarkers(content);
+  for (const gap of gaps) {
+    if (anchorRanges.some((r) => gap.start < r.to && gap.end > r.from)) continue;
+    anchorRanges.push({ from: gap.start, to: gap.end, threadId: `gap-${gap.start}`, kind: 'gap' });
+  }
   anchorRanges.sort((a, b) => a.from - b.from);
   const openFindings = findings.filter((finding) => finding.status === 'open').length;
+  const locateGap = (gap: GapMarker) => {
+    const area = canvasRef.current;
+    if (area === null) return;
+    if (previewing) setPreviewing(false);
+    area.focus({ preventScroll: false });
+    area.setSelectionRange(gap.start, gap.end);
+  };
 
   return (
     <>
@@ -831,6 +855,7 @@ export function EditorScreen() {
                           data-severity={range.severity}
                           className={[
                             range.kind === 'finding' ? 'mark--finding' : null,
+                            range.kind === 'gap' ? 'mark--gap' : null,
                             flashThread === range.threadId ? 'flash' : null,
                           ]
                             .filter((name) => name !== null)
@@ -868,6 +893,10 @@ export function EditorScreen() {
                     if (hit === undefined) return;
                     // two views of one set: clicking a mark opens the entry it
                     // belongs to, in whichever panel owns it
+                    if (hit.kind === 'gap') {
+                      setPanelTab('checks');
+                      return;
+                    }
                     if (hit.kind === 'finding') {
                       setPanelTab('checks');
                       setFocusedFinding({ id: hit.threadId, at: Date.now() });
@@ -892,6 +921,8 @@ export function EditorScreen() {
                     background: 'transparent',
                   }}
                 />
+                {/* T-475 — who wrote each paragraph, in the margin */}
+                <AuthorshipRail content={content} passages={dirty ? null : provenance} />
                 {/* the comment bubble floats at the end of the selection */}
                 {selection !== null && (
                   <div className="canvas-mirror caret">
@@ -927,10 +958,9 @@ export function EditorScreen() {
                   onOpenSource={openCitation}
                   renderCard={cardFor}
                 />
-                {suggestion.rationale.includes('withheld') &&
-                  !suggestion.rationale.includes('nothing was withheld') && (
-                    <WithheldNotice>{suggestion.rationale}</WithheldNotice>
-                  )}
+                {/* T-475 — the withheld-claims notice that stood here is gone:
+                    the gap line inside the proposal IS the notice, at the
+                    sentence that needed it */}
                 <div className="proposed-actions">
                   <Button size="sm" variant="primary" onClick={() => void resolve(suggestion, 'accepted')}>
                     <Check size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
@@ -1022,7 +1052,7 @@ export function EditorScreen() {
               onClick={() => setPanelTab('checks')}
             >
               Checks
-              {openFindings > 0 && ` (${openFindings})`}
+              {openFindings + gaps.length > 0 && ` (${openFindings + gaps.length})`}
             </a>
             {pendingSuggestions.length > 0 && (
               <a style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
@@ -1037,6 +1067,8 @@ export function EditorScreen() {
             <FindingsPanel
               onOpenSource={openCitation}
               findings={findings}
+              gaps={gaps}
+              onLocateGap={locateGap}
               stale={stale}
               onLocateStale={(item) => {
                 const area = canvasRef.current;

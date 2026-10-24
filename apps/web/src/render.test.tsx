@@ -55,6 +55,11 @@ import {
 import type { FirmShelf } from './screens/knowledge';
 import { DestinationBlock } from './destination-selector';
 import { FindingsPanel } from './findings-panel';
+import { AuthorshipCard, AuthorshipRail, provenanceFits } from './authorship-rail';
+import { AuthorshipAppendixToggle } from './screens/schema';
+import { Markdown } from '@infora/ui';
+import { gapMarkers } from '@infora/contracts';
+import type { PassageProvenance } from '@infora/contracts';
 import { NOTHING_TO_READ, ScopeControl, WHOLE_LIBRARY, scopeField, scopeGroups, scopeLabel, scopeOf } from './scope-control';
 import type { ScopeState } from './scope-control';
 import { ExternalDocumentView } from './screens/external-document';
@@ -2870,5 +2875,88 @@ describe('T-474 — supersede impact on screen', () => {
         stale={{ computedAt: 'x', claimsChecked: 0, items: [] }} />,
     );
     expect(none).not.toContain('Out-of-date sources');
+  });
+});
+
+// T-475 — a gap is drawn as a gap in the read view and the Checks tab, and who
+// wrote a paragraph is a card in the margin
+describe('T-475 — gap markers and passage authorship on screen', () => {
+  const agent: PassageProvenance = {
+    start: 0, end: 12, origin: 'agent', runId: 'abcdef12-0000-4000-8000-000000000000',
+    draftedAt: '2026-10-20T10:00:00Z', acceptedByName: 'Eleanor Price', acceptedAt: '2026-10-21T09:00:00Z',
+    edited: false, savedByName: null, savedAt: null,
+  };
+  const hand: PassageProvenance = {
+    start: 14, end: 30, origin: 'hand', runId: null, draftedAt: null, acceptedByName: null,
+    acceptedAt: null, edited: false, savedByName: 'Owen Vance', savedAt: '2026-10-22T08:00:00Z',
+  };
+  const text = 'Agent claim.\n\nHand-written bit';
+
+  it('the read view draws a gap line as a gap, with the word, not as prose', () => {
+    const html = renderToStaticMarkup(
+      <Markdown>{'Before.\n\n[Gap: the record does not give the made-ground thickness]\n\nAfter.'}</Markdown>,
+    );
+    expect(html).toContain('class="gap-marker"');
+    expect(html).toContain('>Gap<');
+    expect(html).toContain('the record does not give the made-ground thickness');
+    expect(html).not.toContain('[Gap:');
+    // a look-alike inside a sentence is just text
+    expect(renderToStaticMarkup(<Markdown>{'See [Gap: inline] here.'}</Markdown>)).not.toContain('gap-marker');
+  });
+
+  it('the Checks tab counts and lists the gaps, each as a jump-to', () => {
+    const gaps = gapMarkers('One.\n\n[Gap: first thing]\n\n[Gap: second thing]');
+    const html = renderToStaticMarkup(
+      <FindingsPanel findings={[]} busy={false} focused={null} drifted={[]} onLocate={() => {}}
+        onResolve={() => {}} onBulk={() => {}} gaps={gaps} onLocateGap={() => {}} />,
+    );
+    expect(html).toContain('2 gaps');
+    expect(html).toContain('first thing');
+    expect(html).toContain('second thing');
+    expect(html).toContain('promotion is held while one stands');
+    // none: nothing is said
+    expect(
+      renderToStaticMarkup(
+        <FindingsPanel findings={[]} busy={false} focused={null} drifted={[]} onLocate={() => {}}
+          onResolve={() => {}} onBulk={() => {}} gaps={[]} />,
+      ),
+    ).not.toContain('findings-gaps');
+  });
+
+  it('the hover card names author and acceptor, or the hand that last saved', () => {
+    expect(renderToStaticMarkup(<AuthorshipCard passage={agent} />)).toContain(
+      'Drafted by the agent in run abcdef12 on 2026-10-20, accepted by Eleanor Price on 2026-10-21',
+    );
+    const handHtml = renderToStaticMarkup(<AuthorshipCard passage={hand} />);
+    expect(handHtml).toContain('Written by hand — by Owen Vance on 2026-10-22');
+    expect(handHtml).toContain('reads here as hand-written');
+  });
+
+  it('the rail draws one mark per paragraph, and steps aside when the text has moved on', () => {
+    expect(provenanceFits(text, [agent, hand])).toBe(true);
+    const html = renderToStaticMarkup(<AuthorshipRail content={text} passages={[agent, hand]} />);
+    expect(html).toContain('Who wrote paragraph 1: Drafted by the agent');
+    expect(html).toContain('Who wrote paragraph 2: Written by hand');
+    // edited since the answer was fetched: no marks rather than wrong ones
+    expect(provenanceFits(`${text} and more\n\nA third`, [agent, hand])).toBe(false);
+    expect(renderToStaticMarkup(<AuthorshipRail content={`${text}\n\nThird`} passages={[agent, hand]} />)).toBe('');
+    expect(renderToStaticMarkup(<AuthorshipRail content={text} passages={null} />)).toBe('');
+  });
+
+  it('the settings toggle is off until told, and read-only for anyone but the owner\'s super user', () => {
+    const off = renderToStaticMarkup(
+      <AuthorshipAppendixToggle enabled={false} canEdit saved={false} onChange={() => {}} />,
+    );
+    expect(off).toContain('End exported documents with a list of machine-drafted passages');
+    expect(off).not.toContain('checked');
+    expect(off).not.toContain('disabled');
+    const on = renderToStaticMarkup(
+      <AuthorshipAppendixToggle enabled canEdit={false} saved={false} onChange={() => {}} />,
+    );
+    expect(on).toContain('checked');
+    expect(on).toContain('disabled');
+    expect(
+      renderToStaticMarkup(<AuthorshipAppendixToggle enabled={null} canEdit saved={false} onChange={() => {}} />),
+    ).toContain('disabled');
   });
 });

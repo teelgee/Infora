@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   anchorInto,
+  checkableText,
   completenessCheck,
   fleschKincaidGrade,
   readabilityCheck,
@@ -229,5 +230,33 @@ describe('the grade is arithmetic, and the same arithmetic every time', () => {
     expect(
       fleschKincaidGrade('Notwithstanding hydrogeological characterisation methodologies.'),
     ).toBeGreaterThan(fleschKincaidGrade('The site is old. We dug holes.'));
+  });
+});
+
+// T-475 — a gap marker is the draft saying the record fell short, never a
+// claim, a heading or placeholder text to be checked
+describe('a gap marker is never checked as a claim (T-475)', () => {
+  const draft = '## Ground conditions\n\nThe site is flat.\n\n[Gap: the record does not give the made-ground thickness]\n\nThe water table is deep.';
+
+  it('is not read as a heading, so it opens no section', () => {
+    const sections = splitIntoSections(draft);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.text).toContain('[Gap:');
+  });
+
+  it('is blanked out of what is checked, keeping every offset', () => {
+    const masked = checkableText(draft);
+    expect(masked).toHaveLength(draft.length);
+    expect(masked).not.toContain('Gap');
+    expect(masked).toContain('The site is flat.');
+  });
+
+  it('raises no placeholder finding and does not move the reading grade', () => {
+    const sections = splitIntoSections(draft);
+    expect(completenessCheck(draft, sections).findings).toEqual([]);
+    const plain = draft.replace(/\[Gap:[^\n]*\n\n/, '');
+    expect(readabilityCheck(draft, sections).scores[0]!.grade).toBe(
+      readabilityCheck(plain, splitIntoSections(plain)).scores[0]!.grade,
+    );
   });
 });

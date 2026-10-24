@@ -381,12 +381,14 @@ import type { Context } from 'hono';
 import { bulkResolveFindingsBody, resolveFindingBody } from '@infora/contracts';
 import type {
   ApiError,
+  DocumentProvenanceResponse,
   ListFindingsResponse,
   ResolveFindingsResponse,
   RunReach,
   StaleGroundingResponse,
 } from '@infora/contracts';
 import { resolveSuggestion } from '@infora/orchestration';
+import { readProvenance } from './provenance';
 import { resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 
@@ -409,6 +411,17 @@ export function findingRoutes(deps: { db: Db }) {
       claimsChecked: result.claimsChecked,
       items: result.items,
     } satisfies StaleGroundingResponse);
+  });
+
+  // T-475 — who wrote each paragraph of the current text, worked out now from
+  // the accepted suggestions and the saved history (see provenance.ts for the
+  // limit: it matches paragraph text exactly). Behind the document's own scope.
+  app.get('/sandbox-documents/:id/provenance', documentScope, async (c) => {
+    const documentId = c.req.param('id');
+    return c.json({
+      documentId: documentId as Id,
+      passages: await readProvenance(deps.db, documentId),
+    } satisfies DocumentProvenanceResponse);
   });
 
   /**

@@ -52,6 +52,12 @@ import { formatDate, initialsOf } from './screens/shared';
 type StagedRemoval = { grantId: string };
 type StagedAddition = { participantId: string; name: string; organisationName: string; isLead: boolean };
 
+/** "a", "a and b", "a, b and c" — nulls dropped */
+function joinList(parts: Array<string | null>): string {
+  const kept = parts.filter((part): part is string => part !== null);
+  return kept.length <= 2 ? kept.join(' and ') : `${kept.slice(0, -1).join(', ')} and ${kept[kept.length - 1]}`;
+}
+
 export function PromotionWindow(props: {
   document: SandboxDocument;
   projectId: string;
@@ -360,18 +366,31 @@ export function PromotionWindow(props: {
                 What is still open
               </div>
               <p style={{ fontSize: 12, lineHeight: 1.55, margin: '0 0 8px', color: 'var(--text-secondary)' }}>
-                {[
+                {joinList([
                   preflight.openItems.threads > 0
                     ? `${preflight.openItems.threads} open comment thread${preflight.openItems.threads === 1 ? '' : 's'}`
                     : null,
                   preflight.openItems.findings.open > 0
                     ? `${preflight.openItems.findings.open} open finding${preflight.openItems.findings.open === 1 ? '' : 's'}`
                     : null,
-                ]
-                  .filter(Boolean)
-                  .join(' and ')}
+                  // T-475 (ADR-0049 §7, amended) — the third list: gap markers
+                  // the draft still carries, where the record did not support a sentence
+                  preflight.openItems.openGaps > 0
+                    ? `${preflight.openItems.openGaps} open gap${preflight.openItems.openGaps === 1 ? '' : 's'}`
+                    : null,
+                ])}
                 . Nothing reaches the controlled library with loose ends.
               </p>
+              {preflight.openItems.gaps.length > 0 && (
+                <ul aria-label="Open gaps" style={{ margin: '0 0 8px', padding: 0, listStyle: 'none' }}>
+                  {preflight.openItems.gaps.map((gap) => (
+                    <li key={gap.start} className="gap-row" style={{ cursor: 'default' }}>
+                      <span className="gap-row-label">⚠ Gap</span>
+                      {gap.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {preflight.canOverrideOpenItems ? (
                 <>
                   <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12 }}>

@@ -1563,6 +1563,28 @@ are not recorded here.
   optional on the wire because runs recorded before it existed carry no such
   count.
 
+- **2026-10-24 (T-475) — `gapMarkers`, `gapLineFor`, `paragraphsOf`,
+  `provenanceStatement` and `PassageProvenance`; `GET /sandbox-documents/:id/provenance`;
+  `GET`/`PATCH /projects/:projectId/export-authorship-appendix`;
+  `PromotionPreflight.openItems` gains `openGaps` and `gaps`.** *Plainly: where
+  the record could not support a sentence the draft now says so in the text, the
+  gate counts it, and a paragraph can say who wrote it.* The **reason a gap is a
+  parsed line and not a node** is that the structured text is a plain string —
+  there is no node model to add a type to — and a line is what the editor, the
+  read views, the exports, the checker and the gate can all recognise with one
+  function (`gapMarkers`), so a person who types one gets exactly the treatment
+  the agent's gets, and clearing one is ordinary editing. The **reason
+  provenance is computed when asked and never stored** is that the record keeps
+  no link from a span of the document to the suggestion it came from, and a
+  stored per-paragraph label would be wrong the moment a person edited around
+  it: matching a paragraph's exact text against the accepted suggestions says
+  only what can be proved, and a paragraph reworded after acceptance honestly
+  reads as written by hand. The **reason the appendix is a typed column on the
+  project with its own PATCH** is that the project has no options bag and should
+  not grow one for a single flag; it sits beside the review period, readable by
+  every participant so the screen can say what exports will carry, and set by
+  the owner's super user.
+
 - **2026-10-24 (T-474) — `GET /containers/:containerId/impact`,
   `GET /containers/:containerId/cited-by`, `GET /sandbox-documents/:id/stale-grounding`;
   `ImpactItem`, `StaleGroundingItem`; the `stale_grounding` check family; the

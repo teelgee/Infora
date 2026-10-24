@@ -48,7 +48,7 @@ export { CompletionFooter, formatStepCost } from './completion-footer';
 // administrative agent (ADR-0027's S10 amendment). No caller yet: nothing
 // adopts the direct-execution lane until this substrate exists.
 export { AgentReceipt } from './agent-receipt';
-export { Markdown } from './markdown';
+export { GapMarkerLine, Markdown } from './markdown';
 export { CitedProse } from './cited-prose';
 // T-460 — the register: one table grammar for every list of documents
 export { Register } from './register';

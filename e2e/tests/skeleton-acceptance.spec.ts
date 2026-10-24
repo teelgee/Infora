@@ -21,6 +21,10 @@ import { ApiSession, SEEDED } from './support/api';
 // one unsupported claim is withheld by ground-check
 const SURVIVING = 'The investigation recorded contamination exceedances.';
 const WITHHELD_FRAGMENT = 'An unsupported figure of 40%';
+// T-475 — the withheld claim is no longer silently dropped: it stands in the
+// draft as a gap marker line, after the sentence it followed
+const GAP_LINE = `[Gap: the record does not support "${WITHHELD_FRAGMENT}."]`;
+const DRAFT = `${SURVIVING}\n\n${GAP_LINE}`;
 
 const PROJECT = 'Wrenfield–Ashcombe 400kV Connection';
 const WORK_ITEM = 'EIA Scoping Method Statement — Land Quality';
@@ -108,9 +112,10 @@ test('2 — the orchestrated production: the coded chain, audited append-only', 
 
   // the ungrounded claim was withheld; the survivor is cited to a live source
   expect(run.response).toContain(SURVIVING);
-  expect(run.response).not.toContain(WITHHELD_FRAGMENT);
+  // the withheld claim appears only as a gap marker, never as a sentence of the draft
+  expect(run.response).toContain(GAP_LINE);
   const suggestion = run.suggestions[0]!;
-  expect(suggestion.content).toBe(SURVIVING);
+  expect(suggestion.content).toBe(DRAFT);
   expect(suggestion.citations.length).toBeGreaterThan(0);
   const library = await consultant.get<GetLibraryResponse>(`/projects/${projectId}/library`);
   const liveVersionIds = new Set(library.items.map((item) => item.currentVersionId));
@@ -137,10 +142,11 @@ test('3 — the cited draft in the editor; accept lands it and writes the one Si
   const reference = (run.suggestions[0]!.citations[0]!.source as { documentReference: string })
     .documentReference;
   await expect(proposed.getByText(reference)).toBeVisible();
-  await expect(proposed.getByText(/withheld/)).toBeVisible();
+  // T-475 — the gap IS the notice: drawn as a gap, at the sentence that needed it
+  await expect(proposed.locator('.gap-marker')).toContainText(WITHHELD_FRAGMENT);
 
   await page.getByRole('button', { name: /Accept/ }).click();
-  await expect(page.locator('.doc-body textarea')).toHaveValue(SURVIVING);
+  await expect(page.locator('.doc-body textarea')).toHaveValue(DRAFT);
 
   // exactly one Signal rides the Suggestion; the content landed
   const { items } = await consultant.get<ListSuggestionsResponse>(
@@ -148,7 +154,7 @@ test('3 — the cited draft in the editor; accept lands it and writes the one Si
   );
   expect(items.find((sg) => sg.id === run.suggestions[0]!.id)?.signal?.resolution).toBe('accepted');
   const doc = await consultant.get<SandboxDocument>(`/sandbox-documents/${documentId}`);
-  expect(doc.content).toBe(SURVIVING);
+  expect(doc.content).toBe(DRAFT);
 });
 
 test('4 — a manual edit lands with no ceremony: no Suggestion, no Signal', async ({ page }) => {

@@ -174,6 +174,35 @@ describe('ingestVersion (T-302) — a version id, not a full-table walk', () => 
     expect(await chunksFor(siblingVersionId)).toHaveLength(0);
   });
 
+  // T-475 — a gap line quotes a sentence the record REJECTED; after an owner's
+  // override it can be issued, and it must still never be searchable
+  it('never indexes a gap-marker line, so a rejected sentence cannot surface in search (T-475)', async () => {
+    const [project] = await db.select().from(s.projects).where(eq(s.projects.id, projectId));
+    const [container] = await db
+      .insert(s.containers)
+      .values({ projectId, producingOrganisationId: project!.ownerOrganisationId, documentReference: `T475-${Date.now()}`, inLibrary: true })
+      .returning();
+    const [issued] = await db
+      .insert(s.versions)
+      .values({
+        containerId: container!.id,
+        versionReference: 'P01',
+        content:
+          'Made ground was found to 2.4 m.\n\n[Gap: the record does not support "Invented thickness of 99 m"]\n\nThe water table was deep.',
+      })
+      .returning();
+    await ingestVersion(db, router(), issued!.id);
+    const rows = await chunksFor(issued!.id);
+    expect(rows.length).toBeGreaterThan(0);
+    const all = rows.map((r) => r.content).join(' ');
+    expect(all).toContain('Made ground was found to 2.4 m.');
+    expect(all).toContain('The water table was deep.');
+    for (const row of rows) {
+      expect(row.content).not.toContain('Invented');
+      expect(row.content).not.toContain('Gap');
+    }
+  });
+
   it('refuses a version id that is not there rather than indexing nothing quietly', async () => {
     await expect(ingestVersion(db, router(), crypto.randomUUID())).rejects.toThrow(
       /does not exist/,

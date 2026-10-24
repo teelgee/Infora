@@ -494,6 +494,29 @@ function SchemaImportPanel(props: {
   );
 }
 
+/** T-475 — the one checkbox of the "Exported documents" section. Disabled until
+ * the project's current setting has been read (so it never shows a default it
+ * was not told), and for anyone who is not the owner's super user. */
+export function AuthorshipAppendixToggle(props: {
+  enabled: boolean | null;
+  canEdit: boolean;
+  saved: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, marginBottom: 4 }}>
+      <input
+        type="checkbox"
+        checked={props.enabled === true}
+        disabled={!props.canEdit || props.enabled === null}
+        onChange={(e) => props.onChange(e.currentTarget.checked)}
+      />
+      <span>End exported documents with a list of machine-drafted passages</span>
+      {props.saved && <Badge tone="success">Saved</Badge>}
+    </label>
+  );
+}
+
 export function SchemaScreen() {
   const { participant } = useOutletContext<ShellContext>();
   const projectId = participant.projectId;
@@ -513,6 +536,10 @@ export function SchemaScreen() {
   const [reviewPeriodDays, setReviewPeriodDays] = useState('');
   const [savedPeriod, setSavedPeriod] = useState<number | null>(null);
   const [periodSaved, setPeriodSaved] = useState(false);
+  // T-475 — whether exported documents end with the authorship appendix; null
+  // until the read answers, so the box never shows a default it has not been told
+  const [appendixOn, setAppendixOn] = useState<boolean | null>(null);
+  const [appendixSaved, setAppendixSaved] = useState(false);
   // T-390 — the acceptance-code scheme, its own section like the review period
   const [codes, setCodes] = useState<AcceptanceCodeRow[] | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -552,6 +579,10 @@ export function SchemaScreen() {
       setSavedPeriod(r.defaultDays);
       setReviewPeriodDays(String(r.defaultDays));
     });
+    void api.exportAuthorshipAppendix(projectId).then(
+      (r) => setAppendixOn(r.enabled),
+      () => setAppendixOn(null),
+    );
     void api.acceptanceCodes(projectId).then(
       (r) => setCodes(r.items),
       // the same three-state discipline the scheme read learned in T-378: a
@@ -608,6 +639,13 @@ export function SchemaScreen() {
     setReviewPeriodDays(String(saved.defaultDays));
     setPeriodSaved(true);
     setTimeout(() => setPeriodSaved(false), 1500);
+  }
+
+  async function saveAppendix(enabled: boolean) {
+    const next = await api.setExportAuthorshipAppendix(projectId, enabled);
+    setAppendixOn(next.enabled);
+    setAppendixSaved(true);
+    setTimeout(() => setAppendixSaved(false), 1500);
   }
 
   async function saveExternalSettings(patch: {
@@ -889,6 +927,25 @@ export function SchemaScreen() {
           </>
         )}
       </div>
+
+      {/* T-475 — the authorship appendix: whether a document leaves the project
+          with a list of the passages the AI drafted and who accepted each. Its
+          own section beside the review period, for the same reason: a project
+          setting, on the owner super user's tier, and nothing to do with a
+          deliverable's coded reference. Off unless somebody turns it on. */}
+      <SectionLabel>Exported documents</SectionLabel>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 8px', maxWidth: 640, lineHeight: 1.5 }}>
+        When this is on, each document issued from the project ends with a section,{' '}
+        <strong>Machine-drafted passages</strong>, listing every paragraph the AI drafted, the run
+        that drafted it and who accepted it. The names of the people who accepted are printed in the
+        file. Off by default; nothing changes until it is turned on.
+      </p>
+      <AuthorshipAppendixToggle
+        enabled={appendixOn}
+        canEdit={canEdit}
+        saved={appendixSaved}
+        onChange={(next) => void saveAppendix(next)}
+      />
 
       {/* T-431 (ADR-0055 §6) — the standing note that goes out with every
           document this project sends outside itself. Its own section beside the

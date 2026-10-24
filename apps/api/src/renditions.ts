@@ -13,7 +13,9 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
+import { parseGapLine, provenanceStatement } from '@infora/contracts';
 import type { ApiError, ListRenditionsResponse, Rendition } from '@infora/contracts';
+import { readProvenance } from './provenance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { resolveSlice } from './requester';
@@ -68,10 +70,21 @@ export function getBlob(contentRef: string): Buffer | null {
 // ── A minimal, valid single-stream PDF (no dependencies) ───────────────────
 // The review-and-record rendition (ADR-0004): real enough for any viewer;
 // typography is the infra session's converter's job, not the record's.
-export function textToPdf(title: string, text: string): Buffer {
+export function textToPdf(title: string, text: string, appendix: string[] | null = null): Buffer {
   const escape = (line: string) => line.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
   const wrapped: string[] = [];
-  for (const raw of `${title}\n\n${text}`.split('\n')) {
+  // T-475 — a gap marker is drawn as a visibly marked line (the built-in font
+  // has no warning glyph, so the mark is in capitals and asterisks), and the
+  // authorship appendix, where the project asks for one, is a final section
+  const markedText = text
+    .split('\n')
+    .map((line) => {
+      const gap = parseGapLine(line);
+      return gap === null ? line : `*** GAP: ${gap} ***`;
+    })
+    .join('\n');
+  const appendixText = appendix === null ? '' : `\n\n${appendix.join('\n')}`;
+  for (const raw of `${title}\n\n${markedText}${appendixText}`.split('\n')) {
     let line = raw;
     while (line.length > 92) {
       const cut = line.lastIndexOf(' ', 92);
@@ -194,11 +207,24 @@ function zip(entries: Array<{ name: string; data: Buffer }>): Buffer {
 const xmlEscape = (t: string) =>
   t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export function textToDocx(text: string): Buffer {
-  const paragraphs = text
-    .split('\n')
-    .map((line) => `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(line)}</w:t></w:r></w:p>`)
-    .join('');
+export function textToDocx(text: string, appendix: string[] | null = null): Buffer {
+  const plain = (line: string) =>
+    `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(line)}</w:t></w:r></w:p>`;
+  // T-475 — a gap marker is its own paragraph: boxed with a dashed border, bold
+  // and highlighted, with a warning sign and the word GAP in the text, so it is
+  // visible in a printout as well as on screen and never reads as prose
+  const gapParagraph = (gap: string) =>
+    `<w:p><w:pPr><w:pBdr><w:top w:val="dashed" w:sz="6" w:space="1" w:color="C0392B"/><w:left w:val="dashed" w:sz="6" w:space="4" w:color="C0392B"/><w:bottom w:val="dashed" w:sz="6" w:space="1" w:color="C0392B"/><w:right w:val="dashed" w:sz="6" w:space="4" w:color="C0392B"/></w:pBdr></w:pPr><w:r><w:rPr><w:b/><w:highlight w:val="yellow"/></w:rPr><w:t xml:space="preserve">${xmlEscape(`⚠ GAP: ${gap}`)}</w:t></w:r></w:p>`;
+  const heading = (line: string) =>
+    `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${xmlEscape(line)}</w:t></w:r></w:p>`;
+  const paragraphs = [
+    ...text.split('\n').map((line) => {
+      const gap = parseGapLine(line);
+      return gap === null ? plain(line) : gapParagraph(gap);
+    }),
+    // the authorship appendix, where the project asks for one: first line is its heading
+    ...(appendix === null ? [] : [plain(''), heading(appendix[0] ?? ''), ...appendix.slice(1).map(plain)]),
+  ].join('');
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}</w:body></w:document>`;
   const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -217,6 +243,8 @@ export async function generateRenditions(
   db: Db,
   version: { id: string; content: string },
   doc: { title: string; origin: 'authored' | 'uploaded'; format: string; fileRef: string | null },
+  /** T-475 — the authorship appendix's lines, or null where the project does not ask for one */
+  appendix: string[] | null = null,
 ): Promise<void> {
   if (doc.origin === 'uploaded') {
     // the native rendition IS the uploaded file; office→PDF conversion is
@@ -235,12 +263,52 @@ export async function generateRenditions(
     }
     return;
   }
-  const pdfRef = putBlob(textToPdf(doc.title, version.content), 'pdf');
-  const docxRef = putBlob(textToDocx(version.content), 'docx');
+  const pdfRef = putBlob(textToPdf(doc.title, version.content, appendix), 'pdf');
+  const docxRef = putBlob(textToDocx(version.content, appendix), 'docx');
   await db.insert(s.renditions).values([
     { versionId: version.id, kind: 'pdf', format: 'pdf', contentRef: pdfRef },
     { versionId: version.id, kind: 'native', format: 'docx', contentRef: docxRef },
   ]);
+}
+
+/**
+ * T-475 — the "Machine-drafted passages" appendix, or null when the project has
+ * not switched it on (the default; nothing about the export then changes).
+ *
+ * One line per paragraph whose provenance is the agent: an excerpt, the run (in
+ * full) and who accepted it and when — from the same computation the editor's
+ * hover card reads, at the moment of issue, over the text being issued. The
+ * acceptor's name is printed into the file; that travel is in
+ * docs/architecture/personal-data.md.
+ */
+export async function authorshipAppendix(
+  db: Db,
+  args: { projectId: string; sandboxDocumentId: string; content: string },
+): Promise<string[] | null> {
+  const [project] = await db
+    .select({ on: s.projects.exportAuthorshipAppendix })
+    .from(s.projects)
+    .where(eq(s.projects.id, args.projectId))
+    .limit(1);
+  if (project?.on !== true) return null;
+  const passages = (await readProvenance(db, args.sandboxDocumentId, args.content)).filter(
+    (p) => p.origin === 'agent',
+  );
+  const lines = ['Machine-drafted passages'];
+  if (passages.length === 0) {
+    lines.push('No passage in this document was drafted by the agent.');
+    return lines;
+  }
+  lines.push(
+    `${passages.length} passage${passages.length === 1 ? ' was' : 's were'} drafted by the agent and accepted by a person. Each is listed with its run and who accepted it.`,
+  );
+  for (const [at, passage] of passages.entries()) {
+    const excerpt = args.content.slice(passage.start, passage.end).replace(/\s+/g, ' ');
+    lines.push(
+      `${at + 1}. "${excerpt.length > 90 ? `${excerpt.slice(0, 87).trimEnd()}...` : excerpt}" - ${provenanceStatement(passage, { fullRunId: true })}.`,
+    );
+  }
+  return lines;
 }
 
 // exported for T-431's token-scoped read: the external recipient fetches the
