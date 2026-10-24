@@ -31,6 +31,7 @@ import {
   Archive,
   Check,
   FileText,
+  History as HistoryGlyph,
   MessageSquare,
   PenLine,
   RefreshCw,
@@ -60,6 +61,7 @@ import { describeApiError, errorCode } from '../api-errors';
 import { CommentsPanel } from '../comments-panel';
 import { ComposerSources } from '../composer-sources';
 import { Presence } from '../presence';
+import { HistoryPanel } from '../sandbox-doors';
 import { ConversationWorkingSet } from '../working-set-picker';
 import { useMe } from '../session';
 import { PromotionWindow } from '../promotion-window';
@@ -214,6 +216,8 @@ export function EditorScreen() {
   const [note, setNoteState] = useState<{ text: string; tone: 'success' | 'error' } | null>(null);
   // T-373 — the promotion window, opened rather than the act fired bare
   const [promoting, setPromoting] = useState(false);
+  // T-477 — the History panel, the same component the sandbox row's menu opens
+  const [historyOpen, setHistoryOpen] = useState(false);
   const setNote = useCallback((text: string, tone: 'success' | 'error' = 'success') => setNoteState({ text, tone }), []);
   useEffect(() => {
     if (note?.tone !== 'success') return;
@@ -651,6 +655,14 @@ export function EditorScreen() {
           }}
         />
       )}
+      {historyOpen && (
+        <HistoryPanel
+          doc={doc}
+          onClose={() => setHistoryOpen(false)}
+          onRestored={() => load()}
+          setNote={setNote}
+        />
+      )}
       {sourceOpen !== null && (
         <SourceModal versionId={sourceOpen.versionId} chunkId={sourceOpen.chunkId} onClose={() => setSourceOpen(null)} />
       )}
@@ -686,6 +698,11 @@ export function EditorScreen() {
         </span>
         <div className="right">
           {documentId !== undefined && <Presence documentId={documentId} />}
+          {/* T-477 — every working version, who saved it, which were frozen; Restore asks first */}
+          <Button size="sm" variant="quiet" onClick={() => setHistoryOpen(true)} title="Every working version of this draft">
+            <HistoryGlyph size={13} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 4 }} />
+            History
+          </Button>
           {/* T-455 — the lifecycle badge, the same words as the sandbox row */}
           <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
           {doc.headLocked && (

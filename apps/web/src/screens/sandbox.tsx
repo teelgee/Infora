@@ -17,6 +17,7 @@ import type {
   RosterEntry,
   Sandbox,
   SandboxDocument,
+  SandboxDocumentActivity,
   SandboxFolder,
   SandboxScopeGrantView,
 } from '@infora/contracts';
@@ -67,14 +68,15 @@ import {
   PageIntro,
   useToast,
 } from '@infora/ui';
-import { api } from '../api';
+import { api, RequestError } from '../api';
 import { useAiFeaturesOff } from '../ai-features';
 import { describeApiError, errorCode } from '../api-errors';
 import { MetadataModal } from '../metadata-modal';
 import { PromotionWindow } from '../promotion-window';
 import { useMe } from '../session';
 import { formatDate, sandboxLifecycleBadge } from './shared';
-import { BinModal, DeleteModal, HistoryModal } from '../sandbox-doors';
+import { BinModal, DeleteModal, HistoryPanel } from '../sandbox-doors';
+import { PresenceAvatars } from '../presence';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
 
@@ -969,6 +971,120 @@ function AccessModal(props: {
   );
 }
 
+// ── T-477: what a row says about the people around it ───────────────────────
+// Who else has the document open now, and a dot when a teammate has saved since
+// you last opened it. Both come from the screen's one batched read.
+function DocSignals(props: { activity: SandboxDocumentActivity | undefined }) {
+  const a = props.activity;
+  if (!a || (a.present.length === 0 && !a.changedSinceYouLooked)) return null;
+  return (
+    <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <PresenceAvatars people={a.present} />
+      {a.changedSinceYouLooked && (
+        <span className="changed-dot" role="img" aria-label="Changed since you last opened it" title="Changed since you last opened it" />
+      )}
+    </span>
+  );
+}
+
+// ── T-477: inline rename ────────────────────────────────────────────────────
+// The title turns into an input where it stands. Enter saves, Escape cancels,
+// leaving the box saves. The screen does the optimistic write and the rollback;
+// this only reports what the person decided, once.
+function InlineRename(props: {
+  initial: string;
+  onSave: (title: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(props.initial);
+  const settled = useRef(false);
+  const settle = (save: boolean) => {
+    if (settled.current) return;
+    settled.current = true;
+    const next = value.trim();
+    if (save && next !== '' && next !== props.initial) props.onSave(next);
+    else props.onCancel();
+  };
+  return (
+    <input
+      className="field-input tree-name-input"
+      aria-label="Document name"
+      value={value}
+      autoFocus
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          settle(true);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          settle(false);
+        }
+      }}
+      onBlur={() => settle(true)}
+    />
+  );
+}
+
+// ── T-477: the upload progress list ─────────────────────────────────────────
+type UploadLine = {
+  key: number;
+  name: string;
+  state: 'waiting' | 'uploading' | 'done' | 'failed';
+  reason?: string;
+  docId?: string;
+};
+const uploadStateWords: Record<UploadLine['state'], string> = {
+  waiting: 'Waiting',
+  uploading: 'Uploading…',
+  done: 'Uploaded',
+  failed: 'Not uploaded',
+};
+function UploadList(props: {
+  lines: UploadLine[];
+  where: string;
+  busy: boolean;
+  onOpen: (docId: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <SectionLabel>Uploading to {props.where}</SectionLabel>
+        {!props.busy && (
+          <span style={{ marginLeft: 'auto' }}>
+            <Button size="sm" variant="quiet" onClick={props.onClear}>
+              Clear list
+            </Button>
+          </span>
+        )}
+      </div>
+      <ul className="upload-list" aria-label="Uploads">
+        {props.lines.map((l) => (
+          <li key={l.key}>
+            <span className="upload-name" title={l.name}>
+              {l.state === 'done' && l.docId ? (
+                <button type="button" className="linklike" onClick={() => props.onOpen(l.docId!)}>
+                  {l.name}
+                </button>
+              ) : (
+                l.name
+              )}
+            </span>
+            <Badge tone={l.state === 'done' ? 'success' : l.state === 'failed' ? 'danger' : 'neutral'}>
+              {uploadStateWords[l.state]}
+            </Badge>
+            {l.state === 'failed' && l.reason && <span style={{ color: 'var(--text-secondary)' }}>{l.reason}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ── The per-document action cluster, shared by the tree and the flat view ────
 function DocActions(props: {
   doc: SandboxDocument;
@@ -1015,6 +1131,7 @@ function DocActions(props: {
       <DropdownMenu
         align="end"
         fixed
+        closeOnSelect
         trigger={(toggle) => (
           <Button size="sm" variant="quiet" onClick={toggle} aria-label={`More actions for ${title}`} title="More actions">
             <MoreHorizontal size={15} strokeWidth={2} />
@@ -1044,7 +1161,7 @@ function DocActions(props: {
             one wears the container's plan-owned reference (ADR-0038) */}
         {!doc.containerId && (
           <DropdownMenuItem onClick={() => props.onRename(doc)}>
-            <Pencil size={13} strokeWidth={2} /> Rename…
+            <Pencil size={13} strokeWidth={2} /> Rename
           </DropdownMenuItem>
         )}
         {/* T-454 — edit an uploaded Office file in the browser (ADR-0043);
@@ -1119,7 +1236,8 @@ export function SandboxScreen() {
   const [metaDoc, setMetaDoc] = useState<SandboxDocument | null>(null);
   // T-373 — the document whose promotion window is open (ADR-0008 addendum)
   const [promoteDoc, setPromoteDoc] = useState<SandboxDocument | null>(null);
-  const [renameDoc, setRenameDoc] = useState<SandboxDocument | null>(null);
+  // T-477 — the document whose title is being edited in place
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [replaceDoc, setReplaceDoc] = useState<SandboxDocument | null>(null);
   // T-456 — the doors: a document's history, the delete confirmation, the bin
   const [historyDoc, setHistoryDoc] = useState<SandboxDocument | null>(null);
@@ -1140,48 +1258,101 @@ export function SandboxScreen() {
     [projectId],
   );
 
-  // Upload the native Office file as canonical (T-122). It lands in the org's
-  // default sandbox, so we drop to the flat overview (setSelected(null)) where
-  // it — and its Rename / Replace-file actions — is always visible.
+  // Upload the native Office file as canonical (T-122). T-477: it lands where the
+  // person was — the sandbox and folder they have selected — and a list shows each
+  // file's progress. With no sandbox selected (the all-documents overview) it
+  // goes to the organisation's default sandbox, as before.
   const uploadInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadLines, setUploadLines] = useState<UploadLine[]>([]);
+  const [uploadWhere, setUploadWhere] = useState('');
+  const uploadKey = useRef(0);
   // T-305 — one verdict PER FILE, and the batch runs to the end. v1.md requires
   // an unsupported document to fail loudly and per-document, and the failure it
   // is guarding against is a selection of five hundred where the fortieth is a
   // scan: stopping at it loses the other 460, and reporting "upload failed"
   // without naming the file leaves nobody able to find the forty. So each file
-  // is reported by name, with what was wrong with it.
+  // is reported by name, with what was wrong with it — one line each, one at a time.
   const onUploadFiles = useCallback(
-    async (files: FileList | null) => {
+    async (files: FileList | null, where: { sandboxId: string | null; folderId: string | null; label: string }) => {
       if (!files || files.length === 0) return;
       setUploading(true);
-      const done: string[] = [];
-      const refused: string[] = [];
-      for (const file of Array.from(files)) {
+      setUploadWhere(where.label);
+      const batch = Array.from(files).map((file) => ({ file, key: ++uploadKey.current }));
+      setUploadLines(batch.map(({ file, key }) => ({ key, name: file.name, state: 'waiting' as const })));
+      const mark = (key: number, patch: Partial<UploadLine>) =>
+        setUploadLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+      for (const { file, key } of batch) {
+        mark(key, { state: 'uploading' });
         try {
-          await api.uploadSandboxFile(projectId, file);
-          done.push(file.name);
+          const doc = await api.uploadSandboxFile(projectId, file, {
+            ...(where.sandboxId && { sandboxId: where.sandboxId }),
+            folderId: where.folderId,
+          });
+          mark(key, { state: 'done', docId: doc.id });
         } catch (error) {
-          refused.push(`${file.name} — ${describeApiError(errorCode(error))}`);
+          mark(key, { state: 'failed', reason: describeApiError(errorCode(error)) });
+          continue;
         }
-      }
-      if (done.length > 0) {
-        setSelected(null);
-        await loadDocs();
+        // a failed refresh must never turn an uploaded file into a failed one
+        await loadDocs().catch(() => {});
       }
       setUploading(false);
-      if (refused.length === 0) {
-        setNote(`Uploaded ${done.join(', ')} — the native file is kept as the canonical document.`);
-        return;
-      }
-      const loaded = done.length > 0 ? `Uploaded ${done.join(', ')}. ` : '';
-      setNote(
-        `${loaded}${refused.length} file${refused.length === 1 ? '' : 's'} not loaded: ${refused.join('; ')}`,
-        'error',
-      );
     },
-    [projectId, loadDocs, setNote],
+    [projectId, loadDocs],
   );
+
+  // T-477 — inline rename. Optimistic (T-465): the row shows the new name at once,
+  // rolls back with a toast if the server refuses, and the toast offers Undo.
+  const renameInline = useCallback(
+    async (doc: SandboxDocument, title: string) => {
+      const before = doc.title;
+      setRenamingId(null);
+      setDocs((ds) => ds.map((d) => (d.id === doc.id ? { ...d, title } : d)));
+      try {
+        await api.renameSandboxDocument(doc.id, title);
+        await loadDocs();
+        toast({
+          text: `Renamed to “${title}”.`,
+          tone: 'success',
+          undo: async () => {
+            await api.renameSandboxDocument(doc.id, before);
+            await loadDocs();
+          },
+        });
+      } catch (error) {
+        setDocs((ds) => ds.map((d) => (d.id === doc.id ? { ...d, title: before } : d)));
+        toast({
+          text:
+            error instanceof RequestError && error.status === 409
+              ? 'Rename refused — a bound draft shows its plan row’s title; retitle it on the Plan page.'
+              : `Could not rename “${before}” — it keeps its name.`,
+          tone: 'error',
+        });
+      }
+    },
+    [loadDocs, toast],
+  );
+
+  // T-477 — presence on the rows and the "changed since you looked" dot: ONE read
+  // for the whole screen, polled every 20 s while it is open, so a teammate's
+  // save shows well inside a minute. A failed poll leaves the last answer.
+  const [activity, setActivity] = useState<Map<string, SandboxDocumentActivity>>(new Map());
+  useEffect(() => {
+    let alive = true;
+    const poll = () =>
+      void api
+        .sandboxActivity(projectId)
+        .then((r) => alive && setActivity(new Map(r.items.map((a) => [a.sandboxDocumentId, a]))))
+        .catch(() => {});
+    poll();
+    const timer = window.setInterval(poll, 20000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [projectId]);
+
   useEffect(() => {
     void loadSandboxes();
     void loadDocs();
@@ -1506,7 +1677,7 @@ export function SandboxScreen() {
     return (
       <tr
         key={`d-${doc.id}`}
-        draggable
+        draggable={renamingId !== doc.id}
         onDragStart={() => setDrag({ type: 'doc', id: doc.id })}
         onDragEnd={() => {
           setDrag(null);
@@ -1518,14 +1689,19 @@ export function SandboxScreen() {
             <span className="ficon">
               <FileText size={14} strokeWidth={2} />
             </span>
-            <button
-              type="button"
-              className="tree-name"
-              onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
-              title="Open in the Editor"
-            >
-              {displayTitle}
-            </button>
+            {renamingId === doc.id ? (
+              <InlineRename initial={doc.title} onSave={(title) => void renameInline(doc, title)} onCancel={() => setRenamingId(null)} />
+            ) : (
+              <button
+                type="button"
+                className="tree-name"
+                onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
+                title="Open in the Editor"
+              >
+                {displayTitle}
+              </button>
+            )}
+            <DocSignals activity={activity.get(doc.id)} />
             <span style={{ marginLeft: 8 }}>
               {/* T-455 — the lifecycle badge: Working v0.x, or Frozen v0.x once checked out */}
               <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
@@ -1558,7 +1734,7 @@ export function SandboxScreen() {
             onBind={setBindDoc}
             onPromote={setPromoteDoc}
             onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
-            onRename={setRenameDoc}
+            onRename={(d) => setRenamingId(d.id)}
             onReplace={setReplaceDoc}
             onHistory={setHistoryDoc}
             onDelete={setDeleteDoc}
@@ -1705,7 +1881,7 @@ export function SandboxScreen() {
         />
       )}
       {/* T-456 — the doors */}
-      {historyDoc && <HistoryModal doc={historyDoc} onClose={() => setHistoryDoc(null)} reload={loadDocs} setNote={setNote} />}
+      {historyDoc && <HistoryPanel doc={historyDoc} onClose={() => setHistoryDoc(null)} onRestored={() => loadDocs()} setNote={setNote} />}
       {deleteDoc && <DeleteModal doc={deleteDoc} onClose={() => setDeleteDoc(null)} reload={loadDocs} setNote={setNote} />}
       {binOpen && (
         <BinModal
@@ -1714,38 +1890,6 @@ export function SandboxScreen() {
           onClose={() => setBinOpen(false)}
           reload={loadDocs}
           setNote={setNote}
-        />
-      )}
-      {renameDoc && (
-        <TextModal
-          title={`Rename “${renameDoc.title}”`}
-          label="Name"
-          cta="Rename"
-          initialValue={renameDoc.title}
-          onClose={() => setRenameDoc(null)}
-          onSubmit={async (title) => {
-            // T-465 — optimistic: the row shows its new name at once and rolls back on refusal
-            const before = renameDoc.title;
-            setDocs((ds) => ds.map((d) => (d.id === renameDoc.id ? { ...d, title } : d)));
-            setRenameDoc(null);
-            try {
-              await api.renameSandboxDocument(renameDoc.id, title);
-              await loadDocs();
-              toast({
-                text: `Renamed to “${title}”.`,
-                tone: 'success',
-                undo: async () => {
-                  await api.renameSandboxDocument(renameDoc.id, before);
-                  await loadDocs();
-                },
-              });
-            } catch {
-              setDocs((ds) => ds.map((d) => (d.id === renameDoc.id ? { ...d, title: before } : d)));
-              // the only refusal here is a bound document — its name is the
-              // container's plan-owned reference (ADR-0038)
-              setNote('Rename refused — a bound draft shows its plan row’s title; retitle it on the Plan page (ADR-0038).', 'error');
-            }
-          }}
         />
       )}
       {replaceDoc && (
@@ -1899,7 +2043,13 @@ export function SandboxScreen() {
             multiple
             hidden
             onChange={(e) => {
-              void onUploadFiles(e.target.files);
+              void onUploadFiles(e.target.files, {
+                sandboxId: selected,
+                folderId: selected ? currentFolderId : null,
+                label: selectedSandbox
+                  ? [selectedSandbox.name, ...crumbs.map((f) => f.name)].join(' / ')
+                  : `${me.organisationName} — working area`,
+              });
               e.target.value = ''; // let the same file be picked again
             }}
           />
@@ -1928,6 +2078,16 @@ export function SandboxScreen() {
             <X size={14} strokeWidth={2} />
           </button>
         </div>
+      )}
+
+      {uploadLines.length > 0 && (
+        <UploadList
+          lines={uploadLines}
+          where={uploadWhere}
+          busy={uploading}
+          onOpen={(docId) => navigate(`/projects/${projectId}/editor/${docId}`)}
+          onClear={() => setUploadLines([])}
+        />
       )}
 
       <SectionLabel>Sandboxes</SectionLabel>
@@ -2109,15 +2269,22 @@ export function SandboxScreen() {
                       <span className="ficon">
                         <FileText size={14} strokeWidth={2} />
                       </span>
-                      <button
-                        type="button"
-                        className="tree-name"
-                        onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
-                        title="Open in the Editor"
-                      >
-                        {/* T-366 — a bound doc reads its row's title through */}
-                        {row?.workItem?.title ?? doc.title}
-                      </button>
+                      {renamingId === doc.id ? (
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <InlineRename initial={doc.title} onSave={(title) => void renameInline(doc, title)} onCancel={() => setRenamingId(null)} />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="tree-name"
+                          onClick={() => navigate(`/projects/${projectId}/editor/${doc.id}`)}
+                          title="Open in the Editor"
+                        >
+                          {/* T-366 — a bound doc reads its row's title through */}
+                          {row?.workItem?.title ?? doc.title}
+                        </button>
+                      )}
+                      <DocSignals activity={activity.get(doc.id)} />
                       <span style={{ marginLeft: 8 }}>
                         <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
                       </span>
@@ -2167,7 +2334,7 @@ export function SandboxScreen() {
                         onBind={setBindDoc}
                         onPromote={setPromoteDoc}
                         onMove={(d) => setMoveItem({ type: 'doc', id: d.id, name: displayTitleOf(d) })}
-                        onRename={setRenameDoc}
+                        onRename={(d) => setRenamingId(d.id)}
                         onReplace={setReplaceDoc}
                         onHistory={setHistoryDoc}
                         onDelete={setDeleteDoc}

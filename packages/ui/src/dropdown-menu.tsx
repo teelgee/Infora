@@ -21,6 +21,11 @@ export function DropdownMenu(props: {
   placement?: 'bottom' | 'top'; // vertical anchor; default 'bottom' (e.g. a composer near the
   // viewport bottom, like ComposerSources's picker, wants 'top' so it opens upward)
   fixed?: boolean; // portal + fixed positioning, for use inside a clipping container
+  // T-477 — close the menu when an item is chosen. A menu whose items open a modal is
+  // closed by the modal's first click; one whose item acts in place (an inline rename)
+  // would otherwise be left hanging open over the row it just changed. It closes on
+  // ANY click inside the panel, so use it only where every item is a one-shot choice.
+  closeOnSelect?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +67,12 @@ export function DropdownMenu(props: {
     .join(' ');
 
   const panel = (
-    <div ref={panelRef} className={classes} style={props.fixed ? (fixedStyle ?? { position: 'fixed', opacity: 0 }) : undefined}>
+    <div
+      ref={panelRef}
+      className={classes}
+      style={props.fixed ? (fixedStyle ?? { position: 'fixed', opacity: 0 }) : undefined}
+      onClick={props.closeOnSelect ? () => setOpen(false) : undefined}
+    >
       {props.children}
     </div>
   );

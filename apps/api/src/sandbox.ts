@@ -4,7 +4,7 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   createSandboxDocumentBody,
   patchSandboxDocumentBody,
@@ -16,7 +16,11 @@ import {
 } from '@infora/contracts';
 import type {
   ApiError,
+  GetSandboxActivityResponse,
   GetWorkingAreaResponse,
+  PresenceEntry,
+  SandboxDocumentActivity,
+  SandboxDocumentVersion,
   ListSandboxDocumentsResponse,
   ListPresenceResponse,
   ListSandboxHistoryResponse,
@@ -98,6 +102,48 @@ export async function ensureDefaultSandbox(
   return sandbox!.id;
 }
 
+// T-477 — the ONE admission check for a named sandbox (ADR-0036): it exists on
+// this project and the requester is let in over its LIVE scope grants. Null is
+// deny, indistinguishable from nonexistence — the create below and the upload
+// both answer 404 on it, so a person cannot probe for a sandbox they are not in.
+export async function admittedSandbox(
+  db: Db,
+  slice: Parameters<typeof canAccessSandbox>[0],
+  sandboxId: string,
+): Promise<typeof s.sandboxes.$inferSelect | null> {
+  const [sandbox] = await db.select().from(s.sandboxes).where(eq(s.sandboxes.id, sandboxId)).limit(1);
+  if (!sandbox) return null;
+  const grants = await db
+    .select()
+    .from(s.sandboxScopeGrants)
+    .where(and(eq(s.sandboxScopeGrants.sandboxId, sandbox.id), isNull(s.sandboxScopeGrants.removedAt)));
+  if (sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) return null;
+  return sandbox;
+}
+
+/** True when the folder exists and belongs to that sandbox. */
+export async function folderInSandbox(db: Db, folderId: string, sandboxId: string): Promise<boolean> {
+  const [folder] = await db
+    .select({ sandboxId: s.sandboxFolders.sandboxId })
+    .from(s.sandboxFolders)
+    .where(eq(s.sandboxFolders.id, folderId))
+    .limit(1);
+  return folder?.sandboxId === sandboxId;
+}
+
+function presenceEntry(participantId: string, name: string): PresenceEntry {
+  return {
+    participantId,
+    name,
+    initials: name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]!.toUpperCase())
+      .join(''),
+  };
+}
+
 export function sandboxRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
   const project = projectScope(deps);
@@ -130,28 +176,16 @@ export function sandboxRoutes(deps: { db: Db }) {
     // sandbox (sandbox_id is NOT NULL — every document lives in a sandbox, T-171)
     let sandboxId: string;
     if (body.data.sandboxId) {
-      const [sandbox] = await deps.db
-        .select()
-        .from(s.sandboxes)
-        .where(eq(s.sandboxes.id, body.data.sandboxId))
-        .limit(1);
-      const grants = sandbox
-        ? await deps.db
-            .select()
-            .from(s.sandboxScopeGrants)
-            .where(
-              and(
-                eq(s.sandboxScopeGrants.sandboxId, sandbox.id),
-                isNull(s.sandboxScopeGrants.removedAt),
-              ),
-            )
-        : [];
-      if (!sandbox || sandbox.projectId !== slice.projectId || !canAccessSandbox(slice, grants)) {
-        return c.json({ error: 'not_found' } satisfies ApiError, 404);
-      }
+      const sandbox = await admittedSandbox(deps.db, slice, body.data.sandboxId);
+      if (!sandbox) return c.json({ error: 'not_found' } satisfies ApiError, 404);
       sandboxId = sandbox.id;
     } else {
       sandboxId = await ensureDefaultSandbox(deps.db, slice.projectId, slice.organisationId, slice.participantId);
+    }
+    // T-477 (review) — a folder must belong to the resolved sandbox; a missing or
+    // foreign one is the plain 404 (it used to reach the foreign key as a 500)
+    if (body.data.folderId && !(await folderInSandbox(deps.db, body.data.folderId, sandboxId))) {
+      return c.json({ error: 'not_found' } satisfies ApiError, 404);
     }
     const [row] = await deps.db
       .insert(s.sandboxDocuments)
@@ -211,6 +245,85 @@ export function sandboxRoutes(deps: { db: Db }) {
     return c.json({
       items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0, freezeByDoc.get(r.id) ?? null)),
     } satisfies ListSandboxDocumentsResponse);
+  });
+
+  // T-477 — what the sandbox screen draws on each row, in ONE read: who else has
+  // the document open now, and whether a teammate has saved since the requester
+  // last had it open. Over exactly the set the list above returns (the
+  // requester organisation's own live documents), so it can confirm nothing the
+  // list does not. Derived on every read; nothing is stored for the dot.
+  //
+  // The dot's rule: the document's latest working version was saved by someone
+  // else AND the requester either has never had the document open (no presence
+  // row) or last had it open before that version was saved. Opening the editor
+  // heartbeats, which moves the requester's last-seen past the version and
+  // clears the dot. A document only the requester has ever saved never has one.
+  app.get('/projects/:projectId/sandbox-documents/activity', project, async (c) => {
+    const slice = c.get('slice');
+    const docs = await deps.db
+      .select({ id: s.sandboxDocuments.id })
+      .from(s.sandboxDocuments)
+      .where(
+        and(
+          eq(s.sandboxDocuments.projectId, slice.projectId),
+          eq(s.sandboxDocuments.organisationId, slice.organisationId),
+          isNull(s.sandboxDocuments.deletedAt),
+        ),
+      );
+    const ids = docs.map((d) => d.id);
+    if (ids.length === 0) return c.json({ items: [] } satisfies GetSandboxActivityResponse);
+    const latest = await deps.db
+      .selectDistinctOn([s.sandboxDocumentVersions.sandboxDocumentId], {
+        sandboxDocumentId: s.sandboxDocumentVersions.sandboxDocumentId,
+        by: s.sandboxDocumentVersions.createdByParticipantId,
+        at: s.sandboxDocumentVersions.createdAt,
+      })
+      .from(s.sandboxDocumentVersions)
+      .where(inArray(s.sandboxDocumentVersions.sandboxDocumentId, ids))
+      .orderBy(s.sandboxDocumentVersions.sandboxDocumentId, desc(s.sandboxDocumentVersions.createdAt));
+    const presence = await deps.db
+      .select({
+        sandboxDocumentId: s.documentPresence.sandboxDocumentId,
+        participantId: s.documentPresence.participantId,
+        lastSeenAt: s.documentPresence.lastSeenAt,
+        name: s.users.name,
+        recent: sql<boolean>`${s.documentPresence.lastSeenAt} > now() - interval '30 seconds'`,
+      })
+      .from(s.documentPresence)
+      .innerJoin(s.participants, eq(s.documentPresence.participantId, s.participants.id))
+      .innerJoin(s.users, eq(s.participants.userId, s.users.id))
+      .where(
+        and(
+          inArray(s.documentPresence.sandboxDocumentId, ids),
+          or(
+            eq(s.documentPresence.participantId, slice.participantId),
+            sql`${s.documentPresence.lastSeenAt} > now() - interval '30 seconds'`,
+          ),
+        ),
+      );
+    const latestByDoc = new Map(latest.map((r) => [r.sandboxDocumentId, r]));
+    const mineByDoc = new Map<string, Date>();
+    const othersByDoc = new Map<string, PresenceEntry[]>();
+    for (const r of presence) {
+      if (r.participantId === slice.participantId) {
+        mineByDoc.set(r.sandboxDocumentId, r.lastSeenAt);
+      } else if (r.recent) {
+        const list = othersByDoc.get(r.sandboxDocumentId) ?? [];
+        list.push(presenceEntry(r.participantId, r.name));
+        othersByDoc.set(r.sandboxDocumentId, list);
+      }
+    }
+    const items = ids.map((docId): SandboxDocumentActivity => {
+      const last = latestByDoc.get(docId);
+      const seen = mineByDoc.get(docId);
+      return {
+        sandboxDocumentId: docId,
+        present: othersByDoc.get(docId) ?? [],
+        changedSinceYouLooked:
+          last !== undefined && last.by !== slice.participantId && (seen === undefined || last.at > seen),
+      };
+    });
+    return c.json({ items } satisfies GetSandboxActivityResponse);
   });
 
   // T-471 — the documents a person may PIN: every live document in a working
@@ -331,16 +444,7 @@ export function sandboxRoutes(deps: { db: Db }) {
           sql`${s.documentPresence.lastSeenAt} > now() - interval '30 seconds'`,
         ),
       );
-    const items = rows.map((r) => ({
-      participantId: r.participantId,
-      name: r.name,
-      initials: r.name
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((p) => p[0]!.toUpperCase())
-        .join(''),
-    }));
+    const items = rows.map((r) => presenceEntry(r.participantId, r.name));
     return c.json({ items } satisfies ListPresenceResponse);
   });
 
@@ -391,12 +495,71 @@ export function sandboxRoutes(deps: { db: Db }) {
       .orderBy(desc(s.sandboxDocumentVersions.createdAt));
     // rows are newest-first; the working series counts from the oldest, so v0.1 is
     // the first snapshot and the newest is v0.{total} (ADR-0041)
+    // T-477 — which working versions were frozen. No stored link exists between
+    // an ambient version and the freeze-series version it became (a freeze
+    // copies the head and writes nothing to the ambient history), so it is
+    // derived: a freeze copies the head, and the head is the content of the
+    // latest working version at that moment — so a frozen version belongs to the
+    // latest working version saved at or before it with identical content.
+    // Compared by checksum, so no document body travels. A freeze whose head
+    // matches no working version (a document created with text and never saved)
+    // marks nothing rather than guessing.
+    const frozenBy = new Map<string, NonNullable<SandboxDocumentVersion['frozen']>>();
+    const [freezeContainer] = await deps.db
+      .select({ id: s.containers.id })
+      .from(s.containers)
+      .where(and(eq(s.containers.sandboxDocumentId, c.req.param('id')), eq(s.containers.scope, 'sandbox')))
+      .limit(1);
+    //
+    // `issuedForReview` reads the reference: only a freeze that opens an internal
+    // round writes a P reference into the freeze series (cycle.ts, the freeze
+    // route); a plain check-out writes the working v0.x. If another path ever
+    // writes a P reference, this reading must change with it.
+    // Cost: one md5 per working version created at or before the latest freeze
+    // (later ones cannot belong to any freeze) plus one per frozen version.
+    if (freezeContainer && rows.length > 0) {
+      const frozenVersions = await deps.db
+        .select({
+          versionReference: s.versions.versionReference,
+          createdAt: s.versions.createdAt,
+          sum: sql<string>`md5(${s.versions.content})`,
+        })
+        .from(s.versions)
+        .where(eq(s.versions.containerId, freezeContainer.id))
+        .orderBy(asc(s.versions.createdAt));
+      const latestFreeze = frozenVersions.at(-1)?.createdAt;
+      const sums = latestFreeze
+        ? await deps.db
+            .select({ id: s.sandboxDocumentVersions.id, sum: sql<string>`md5(${s.sandboxDocumentVersions.content})` })
+            .from(s.sandboxDocumentVersions)
+            .where(
+              and(
+                eq(s.sandboxDocumentVersions.sandboxDocumentId, c.req.param('id')),
+                sql`${s.sandboxDocumentVersions.createdAt} <= ${latestFreeze}`,
+              ),
+            )
+        : [];
+      const sumById = new Map(sums.map((r) => [r.id, r.sum]));
+      for (const f of frozenVersions) {
+        // rows are newest first, so the first match is the latest at or before the freeze
+        const owner = rows.find((r) => r.createdAt <= f.createdAt && sumById.get(r.id) === f.sum);
+        if (!owner) continue;
+        const marks = frozenBy.get(owner.id) ?? [];
+        marks.push({
+          frozenAs: f.versionReference,
+          issuedForReview: f.versionReference.startsWith('P'),
+          frozenAt: f.createdAt.toISOString(),
+        });
+        frozenBy.set(owner.id, marks);
+      }
+    }
     const items = rows.map((r, i) => ({
       id: r.id,
       sandboxDocumentId: r.sandboxDocumentId,
       versionReference: `v0.${rows.length - i}`,
       createdBy: { participantId: r.participantId, name: r.name },
       createdAt: r.createdAt.toISOString(),
+      ...(frozenBy.has(r.id) && { frozen: frozenBy.get(r.id)! }),
     }));
     return c.json({ items } satisfies ListSandboxHistoryResponse);
   });

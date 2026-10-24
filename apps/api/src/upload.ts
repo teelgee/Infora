@@ -27,6 +27,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { eq, sql } from 'drizzle-orm';
+import { sandboxUploadFields } from '@infora/contracts';
 import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
@@ -35,7 +36,7 @@ import { docxToText } from './extract';
 import { extractOnUpload, landFileRevision, uploadFormats } from './file-revision';
 import { releaseLapsedEngineLock } from './engine-lock';
 import { importOnVersionLanding } from './app-table-source';
-import { ensureDefaultSandbox } from './sandbox';
+import { admittedSandbox, ensureDefaultSandbox, folderInSandbox } from './sandbox';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import type { AppEnv } from './requester';
 import { toSandboxDocument } from './sandbox';
@@ -59,24 +60,41 @@ export function uploadRoutes(deps: { db: Db }) {
     const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
     const format = formats[extension as keyof typeof formats];
     if (!format) return invalid(c, 'unsupported_format');
+    // T-477 — an upload lands where the person was: the sandbox and folder they
+    // had selected. Named, it takes the SAME admission as creating a document in
+    // that sandbox (`admittedSandbox`), and a folder must belong to it; either
+    // refusal is the plain 404 of absence, so a stranger learns nothing. Neither
+    // named: the organisation's default sandbox, as before. Checked before the
+    // bytes are read, so a refused upload costs nothing.
+    const fields = sandboxUploadFields.safeParse({
+      sandboxId: typeof body?.sandboxId === 'string' && body.sandboxId !== '' ? body.sandboxId : undefined,
+      folderId: typeof body?.folderId === 'string' && body.folderId !== '' ? body.folderId : undefined,
+    });
+    if (!fields.success) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    let sandboxId: string;
+    if (fields.data.sandboxId) {
+      const sandbox = await admittedSandbox(deps.db, slice, fields.data.sandboxId);
+      if (!sandbox) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+      sandboxId = sandbox.id;
+    } else {
+      sandboxId = await ensureDefaultSandbox(deps.db, slice.projectId, slice.organisationId, slice.participantId);
+    }
+    if (fields.data.folderId && !(await folderInSandbox(deps.db, fields.data.folderId, sandboxId))) {
+      return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    }
     const bytes = Buffer.from(await file.arrayBuffer());
     // refused before anything is written: a document that cannot ground is not
     // quietly parked in the sandbox as an opaque blob (T-305)
     const extracted = extractOnUpload(format, bytes);
     if (!extracted.ok) return invalid(c, extracted.detail);
     const fileRef = putBlob(bytes, format);
-    const sandboxId = await ensureDefaultSandbox(
-      deps.db,
-      slice.projectId,
-      slice.organisationId,
-      slice.participantId,
-    );
     const [doc] = await deps.db
       .insert(s.sandboxDocuments)
       .values({
         projectId: slice.projectId,
         organisationId: slice.organisationId,
         sandboxId,
+        folderId: fields.data.folderId ?? null,
         title: file.name.replace(/\.[^.]+$/, ''),
         origin: 'uploaded',
         kind: 'text',

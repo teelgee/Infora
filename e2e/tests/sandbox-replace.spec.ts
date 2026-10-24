@@ -69,11 +69,11 @@ test('upload → rename → replace (revision increments) → frozen replace ref
 
   // ── rename (an unbound document) ────────────────────────────────────────────
   const renamed = `T222 drainage strategy ${stamp}`;
+  // T-477 — the title turns into an input in the row; Enter saves
   await rowMenuAction(page, row, 'Rename');
-  const renameDialog = page.getByRole('dialog');
-  await renameDialog.getByRole('textbox').fill(renamed);
-  await renameDialog.getByRole('button', { name: 'Rename' }).click();
-  await expect(renameDialog).toBeHidden();
+  const renameBox = page.getByRole('textbox', { name: 'Document name' });
+  await renameBox.fill(renamed);
+  await renameBox.press('Enter');
   row = page.getByRole('row').filter({ hasText: renamed });
   await expect(row).toBeVisible();
 
@@ -131,7 +131,10 @@ test('the Upload file toolbar button lands a native docx, with Replace available
   await page
     .locator('input[type="file"][accept*=".docx"]')
     .setInputFiles({ name: `${name}.docx`, mimeType: DOCX_MIME, buffer: fakeDocx('ui') });
-  await expect(page.getByText(/Uploaded /)).toBeVisible();
+  // T-477 — the progress list says each file's state, one line per file
+  await expect(
+    page.getByRole('list', { name: 'Uploads' }).locator('li').filter({ hasText: name }).getByText('Uploaded', { exact: true }),
+  ).toBeVisible();
 
   const row = page.getByRole('row').filter({ hasText: name });
   await expect(row).toBeVisible();

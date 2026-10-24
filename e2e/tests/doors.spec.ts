@@ -48,7 +48,11 @@ test('history lists the working versions; delete moves a draft to the bin and re
   await expect(versions.getByText('v0.2')).toBeVisible();
   await expect(versions.getByText('v0.1')).toBeVisible();
   // restore v0.1 — it lands as v0.3, and the history is not rewritten
-  await versions.locator('li').filter({ hasText: 'v0.1' }).getByRole('button', { name: 'Restore' }).click();
+  // T-477 — Restore asks first, in words, then does it
+  const v1 = versions.locator('li').filter({ hasText: 'v0.1' });
+  await v1.getByRole('button', { name: 'Restore' }).click();
+  await expect(v1.getByText('Restore v0.1? It becomes v0.3; nothing in the history is rewritten.')).toBeVisible();
+  await v1.getByRole('button', { name: 'Restore v0.1' }).click();
   await expect(history).toBeHidden();
   await expect(page.getByText(/Restored v0\.1 as v0\.3/)).toBeVisible();
   await expect(row.getByText('Working v0.3')).toBeVisible();

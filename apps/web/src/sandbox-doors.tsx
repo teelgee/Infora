@@ -1,6 +1,6 @@
 // T-456 — doors for what the sandbox API already did with no screen: a
 // document's working-version history with restore (T-128, ADR-0032's ambient
-// history), delete to the bin and restore from it (T-128), and, for an
+// history; T-477 made it a panel, asks before restoring and names frozen versions), delete to the bin and restore from it (T-128), and, for an
 // organisation's admin, erasure with its record (T-340, ADR-0050 §§5–6).
 //
 // *In plain terms: every working version of a draft is listed, with who saved
@@ -15,21 +15,40 @@
 // at all, because a control that will be refused is clutter (principle 4).
 import { useEffect, useState } from 'react';
 import type { PurgeRecord, SandboxDocument, SandboxDocumentVersion } from '@infora/contracts';
-import { Badge, Button, Field, Modal, SectionLabel, Skeleton, TextInput } from '@infora/ui';
+import { Badge, Button, Drawer, Field, Modal, SectionLabel, Skeleton, TextInput } from '@infora/ui';
 import { api, RequestError } from './api';
 import { formatDateTime } from './screens/shared';
 
 type Note = (text: string, tone?: 'success' | 'error') => void;
 
-/** The working versions of one document, newest first, each restorable. */
-export function HistoryModal(props: {
+/** The words for a version's freeze marks (T-477): "Frozen", or which P revision it was issued as. */
+export function frozenWords(v: SandboxDocumentVersion): string | null {
+  if (!v.frozen || v.frozen.length === 0) return null;
+  return v.frozen
+    .map((f) => (f.issuedForReview ? `Frozen — issued as ${f.frozenAs} for internal QA` : 'Frozen'))
+    .join('; ');
+}
+
+/**
+ * The working versions of one document, newest first: who saved each and when,
+ * which were frozen, and Restore — which asks first (T-477). One component for
+ * both doors: the sandbox row's menu and the editor's top bar.
+ *
+ * *In plain terms: a side panel listing every saved version of a draft. Pressing
+ * Restore on an old one asks "Restore v0.2? It becomes v0.5; nothing in the
+ * history is rewritten." — and only then adds the old text as the newest
+ * version. The older versions are left exactly as they were.*
+ */
+export function HistoryPanel(props: {
   doc: SandboxDocument;
   onClose: () => void;
-  reload: () => Promise<unknown>;
+  /** called after a restore lands, with the document as it now stands */
+  onRestored: (doc: SandboxDocument) => Promise<unknown> | void;
   setNote: Note;
 }) {
   const [items, setItems] = useState<SandboxDocumentVersion[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState<string | null>(null);
   useEffect(() => {
     void api
       .sandboxDocumentHistory(props.doc.id)
@@ -44,7 +63,7 @@ export function HistoryModal(props: {
       .then((d) => {
         props.setNote(`Restored ${v.versionReference} as ${d.workingRevision ?? 'the next working version'} — nothing in the history was rewritten.`);
         props.onClose();
-        return props.reload();
+        return props.onRestored(d);
       })
       .catch((e: unknown) =>
         props.setNote(
@@ -58,40 +77,69 @@ export function HistoryModal(props: {
   };
 
   return (
-    <Modal open onClose={props.onClose} title={`History — ${props.doc.title}`} size="md">
+    <Drawer open onClose={props.onClose} title={`History — ${props.doc.title}`}>
       <p className="page-sub" style={{ marginTop: 0 }}>
         Every working version, newest first. Restoring one writes it as the next version; the history itself never changes.
       </p>
+      {props.doc.headLocked && (
+        <p className="page-sub">This document is checked out, so it cannot be restored until it is released.</p>
+      )}
       {items === null ? (
         <Skeleton />
       ) : items.length === 0 ? (
         <p className="page-sub">No saved versions yet.</p>
       ) : (
         <ul className="shelf-rows" aria-label="Working versions">
-          {items.map((v, i) => (
-            <li key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="mono" style={{ minWidth: 48 }}>
-                {v.versionReference}
-              </span>
-              <span style={{ flex: 1 }}>
-                {v.createdBy.name} · {formatDateTime(v.createdAt)}
-                {i === 0 && (
-                  <>
-                    {' '}
-                    <Badge tone="neutral">current</Badge>
-                  </>
+          {items.map((v, i) => {
+            const frozen = frozenWords(v);
+            return (
+              <li key={v.id} style={{ display: 'grid', gap: 4 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span className="mono" style={{ minWidth: 48 }}>
+                    {v.versionReference}
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    {v.createdBy.name} · {formatDateTime(v.createdAt)}
+                    {i === 0 && (
+                      <>
+                        {' '}
+                        <Badge tone="neutral">current</Badge>
+                      </>
+                    )}
+                    {frozen !== null && (
+                      <>
+                        {' '}
+                        <Badge tone="info">{frozen}</Badge>
+                      </>
+                    )}
+                  </span>
+                  {i > 0 && !props.doc.headLocked && asking !== v.id && (
+                    <Button size="sm" variant="quiet" disabled={busy} onClick={() => setAsking(v.id)}>
+                      Restore
+                    </Button>
+                  )}
+                </span>
+                {asking === v.id && (
+                  <div className="history-confirm" role="group" aria-label={`Confirm restoring ${v.versionReference}`}>
+                    <span>
+                      Restore {v.versionReference}? It becomes v0.{items.length + 1}; nothing in the history is rewritten.
+                    </span>
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <Button size="sm" variant="quiet" disabled={busy} onClick={() => setAsking(null)}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" variant="primary" disabled={busy} onClick={() => restore(v)}>
+                        Restore {v.versionReference}
+                      </Button>
+                    </span>
+                  </div>
                 )}
-              </span>
-              {i > 0 && !props.doc.headLocked && (
-                <Button size="sm" variant="quiet" disabled={busy} onClick={() => restore(v)}>
-                  Restore
-                </Button>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
-    </Modal>
+    </Drawer>
   );
 }
 

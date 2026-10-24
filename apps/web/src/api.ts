@@ -176,6 +176,7 @@ import type {
   Acknowledgement,
   ListContainerTransmittalsResponse,
   ListPendingTransmittalsResponse,
+  GetSandboxActivityResponse,
   ListPresenceResponse,
   DeliverableShare,
   ParticipantGrant,
@@ -813,9 +814,12 @@ export const api = {
   },
   // T-122 upload path, wired to the surface: the native file is canonical
   // (origin 'uploaded'); it lands in the organisation's default sandbox.
-  uploadSandboxFile: (projectId: string, file: File) => {
+  // T-477 — `where` is the sandbox and folder the person was standing in; absent, the default sandbox
+  uploadSandboxFile: (projectId: string, file: File, where?: { sandboxId?: string; folderId?: string | null }) => {
     const form = new FormData();
     form.append('file', file);
+    if (where?.sandboxId) form.append('sandboxId', where.sandboxId);
+    if (where?.folderId) form.append('folderId', where.folderId);
     return requestForm<SandboxDocument>(`/projects/${projectId}/sandbox-uploads`, form);
   },
   // T-472 — reference-material intake. One file per request: the screen's
@@ -1102,6 +1106,9 @@ export const api = {
       body: JSON.stringify({ containerId }),
     }),
   // T-175 — document presence (ADR-0039 real-time, first cut)
+  // T-477 — presence and the "changed since you looked" dot for every row, in one read
+  sandboxActivity: (projectId: string) =>
+    request<GetSandboxActivityResponse>(`/projects/${projectId}/sandbox-documents/activity`),
   documentPresence: (documentId: string) =>
     request<ListPresenceResponse>(`/sandbox-documents/${documentId}/presence`),
   heartbeatPresence: (documentId: string) =>

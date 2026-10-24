@@ -1849,6 +1849,23 @@ nav a.sub.empty:hover { color: var(--text-muted); }
 .presence-avatar:first-child { margin-left: 0; }
 .presence-more { background: var(--text-muted); color: var(--surface-pane); }
 
+/* T-477 — "changed since you last opened it": a small dot on a document's row.
+   Drawn in the info feedback colour; its words are the title and the aria-label,
+   so colour is never the only carrier. */
+.changed-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--feedback-info-text); vertical-align: middle;
+}
+/* T-477 — inline rename: the title becomes an input in the row it stands in */
+.tree-name-input { width: 280px; max-width: 100%; }
+/* T-477 — the upload progress list */
+.upload-list { margin: 0 0 12px; padding: 8px 12px; list-style: none; display: grid; gap: 4px;
+  border: 1px solid var(--border-default); border-radius: var(--primitive-radius-md); background: var(--surface-sunken); }
+.upload-list li { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.upload-list .upload-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* T-477 — a history row asking "restore?" in words */
+.history-confirm { display: grid; gap: 6px; padding: 8px 0 0; }
+
 /* T-370 — the "what the agent did" receipt (ADR-0027's S10 amendment). One
    list, one row per act, undo per act. An undone act stays on the list and is
    struck: the record of what the agent did is not edited by undoing it. */

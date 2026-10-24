@@ -365,6 +365,11 @@ export const createSandboxDocumentBody = z.object({
 });
 export type CreateSandboxDocumentBody = z.infer<typeof createSandboxDocumentBody>;
 
+// T-477 — the optional form fields on a file upload: where the person was
+// standing. Same admission as the create above; absent means the default sandbox.
+export const sandboxUploadFields = z.object({ sandboxId: id.optional(), folderId: id.optional() });
+export type SandboxUploadFields = z.infer<typeof sandboxUploadFields>;
+
 // T-249 — carrying an answer into the editor, server-side (finding F2).
 // The client used to create a document and then PATCH the answer into it, so
 // the server never knew the content came from a run and could not check what
@@ -1797,6 +1802,12 @@ export type SandboxDocumentVersion = {
   versionReference: string;
   createdBy: { participantId: Id; name: string };
   createdAt: string;
+  // T-477 — set when a freeze took this working version (a check-out, or the
+  // freeze that opened an internal round; oldest first when frozen more than
+  // once without a save between). `frozenAs` is the reference the freeze
+  // series gave it: the working v0.x for a plain check-out, a P revision when it
+  // was issued for internal QA. Absent for every version that was never frozen.
+  frozen?: Array<{ frozenAs: string; issuedForReview: boolean; frozenAt: string }>;
 }; // content fetched by restore/preview, not listed
 export type ListSandboxHistoryResponse = { items: SandboxDocumentVersion[] };
 
@@ -2450,6 +2461,18 @@ export type PinAttachedSourceBody = z.infer<typeof pinAttachedSourceBody>;
 // seen within the window, self excluded.
 export type PresenceEntry = { participantId: Id; name: string; initials: string };
 export type ListPresenceResponse = { items: PresenceEntry[] };
+
+// T-477 — what the sandbox screen draws on a document's row, in ONE read for the
+// whole screen rather than a presence call per row: who else has the document
+// open now (same shape and window as the per-document read), and whether a
+// teammate has saved a version since the requester last had it open. Derived on
+// every read from the version history and the presence rows; nothing is stored.
+export type SandboxDocumentActivity = {
+  sandboxDocumentId: Id;
+  present: PresenceEntry[];
+  changedSinceYouLooked: boolean;
+};
+export type GetSandboxActivityResponse = { items: SandboxDocumentActivity[] };
 
 // Deliverables shared to the requester's organisation whose current version it
 // has not yet acknowledged (ADR-0035 §4) — the receiving org's inbox, since the

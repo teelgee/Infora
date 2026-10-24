@@ -1908,3 +1908,28 @@ are not recorded here.
   matching this text, any page"; the box asks for the number it wants plus the
   documents being retired and drops those from the answer, so excluding them is
   the caller's concern, not a new query term.
+
+- **2026-10-24 (T-477) — `GET /projects/:projectId/sandbox-documents/activity`
+  (`SandboxDocumentActivity`); an optional `frozen` list on the history item;
+  `sandboxId` and `folderId` on the upload.** *Plainly: the sandbox screen can
+  show, on every row, who else has the draft open and whether a colleague has
+  changed it since you last looked; the History panel can say which version was
+  frozen; and an upload goes into the folder you were looking at.* The **reason
+  presence is one read for the whole screen** is that the per-document presence
+  read would have meant a request per row every few seconds, which is hundreds of
+  calls for a long list; one read over the same documents the list returns also
+  means it can confirm nothing the list does not. The **reason the dot is
+  derived rather than stored** is that "changed since you last looked" is a
+  comparison between two facts the system already keeps (the latest working
+  version's author and time, and your last-seen on the document), so a stored
+  flag would be a second copy to keep in step, and opening the editor already
+  clears it by moving your last-seen. The **reason `frozen` is derived and
+  optional** is that a freeze writes only to the private freeze series and
+  nothing to the working history, so there is no link to read; the latest
+  working version at or before the freeze with identical text is the version the
+  freeze copied, and where none matches the history says nothing instead of
+  guessing. The **reason the upload's two fields are optional form fields with
+  the create's own admission check** (`admittedSandbox`, shared) is that an
+  upload to a named sandbox must never be easier to do than a create there, and
+  the refusal must be the same 404 so a sandbox the person is not in cannot be
+  probed for.

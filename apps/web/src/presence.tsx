@@ -28,6 +28,14 @@ export function Presence(props: { documentId: string }) {
     };
   }, [props.documentId]);
 
+  return <PresenceAvatars people={people} />;
+}
+
+// T-477 — the pure half: the avatar stack, drawn the same in the editor's top bar
+// and on a sandbox row. It takes the people it is to draw and does no reading,
+// so the screen that already holds one batched read can reuse it per row.
+export function PresenceAvatars(props: { people: PresenceEntry[] }) {
+  const { people } = props;
   if (people.length === 0) return null;
   return (
     <span className="presence-stack" title={`${people.map((p) => p.name).join(', ')} — also here`}>

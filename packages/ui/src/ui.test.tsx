@@ -294,6 +294,19 @@ describe('new components (design-rules.md §B)', () => {
     expect(html).not.toContain('dropdown-menu');
     expect(html).not.toContain('item');
   });
+
+  // T-477 — the harness renders static markup and has no DOM to click, so this can
+  // only pin that the opt-in is accepted and the menu starts closed; the close on
+  // choosing an item is proved in the browser by e2e/tests/sandbox-collab.spec.ts.
+  it('dropdown menu with closeOnSelect is closed until toggled', () => {
+    const html = renderToStaticMarkup(
+      <DropdownMenu closeOnSelect trigger={(toggle) => <button onClick={toggle}>Open</button>}>
+        <span>item</span>
+      </DropdownMenu>,
+    );
+    expect(html).toContain('Open');
+    expect(html).not.toContain('dropdown-menu');
+  });
 });
 
 describe('shell additions (slice-ui-redesign, design-rules.md §C)', () => {
