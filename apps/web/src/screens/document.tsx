@@ -24,7 +24,8 @@
 // question the rest of the product asks — may they READ this document? — through
 // the reader read (the library's own visibility rule, any record state): a
 // consultant opens a standard, Redgate another firm's shared report, each
-// seeing four tabs (Overview, Versions, Relationships, Activity) and none of
+// seeing four tabs (Overview, Versions, Relationships, Activity; plus Compare
+// when they may read two versions, T-480) and none of
 // the plan's management facts. A person outside the share gets "This document
 // is not one you can open", never a page.
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -58,13 +59,15 @@ import { TransmittalRow } from './deliverable-status';
 import { DeliverableDetail } from './plan';
 import { usePaletteActions } from '../command-palette';
 import { ReviewRecordTable } from './review-record';
+import { ComparePanel } from './compare';
 import { contextStateBadge, formatDate, formatDateTime, lifecycleBadgeOf } from './shared';
 
 type ShellContext = { participant: MeResponse['participants'][number] };
-type Tab = 'overview' | 'versions' | 'relationships' | 'record' | 'transmittals' | 'activity';
-const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
+type Tab = 'overview' | 'versions' | 'compare' | 'relationships' | 'record' | 'transmittals' | 'activity';
+export const TABS: ReadonlyArray<{ value: Tab; label: string }> = [
   { value: 'overview', label: 'Overview' },
   { value: 'versions', label: 'Versions' },
+  { value: 'compare', label: 'Compare' },
   { value: 'relationships', label: 'Relationships' },
   { value: 'record', label: 'Review record' },
   { value: 'transmittals', label: 'Transmittals' },
@@ -100,7 +103,7 @@ export function DocumentScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // T-468 — a citation lands here as ?version=<id>&passage=<chunk>: open that
   // version (even a superseded one outside the cycle's rounds) at the passage
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const citedVersionId = searchParams.get('version');
   const citedChunkId = searchParams.get('passage');
   // T-479 — a response's link lands here as ?version=<id>&quote=<revised passage>
@@ -109,7 +112,38 @@ export function DocumentScreen() {
   const citedQuote =
     citedVersionId && quoteParam ? { text: quoteParam, ...(pageParam > 0 ? { page: pageParam } : {}) } : null;
   const [cited, setCited] = useState<GetPassageResponse | null>(null);
-  const [tab, setTab] = useState<Tab>(citedVersionId ? 'versions' : 'overview');
+  // T-480 — the cited version counts toward Compare only once its read has
+  // succeeded, so a made-up ?version= id does not unlock the tab
+  const [citedRead, setCitedRead] = useState<{ versionId: string; versionReference: string } | null>(null);
+  // T-480 — a link to a comparison carries ?tab=compare&from=<version>&to=<version>
+  const [tabState, setTabState] = useState<Tab>(
+    searchParams.get('tab') === 'compare' ? 'compare' : citedVersionId ? 'versions' : 'overview',
+  );
+  const compareFrom = searchParams.get('from');
+  const compareTo = searchParams.get('to');
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        if (next === 'compare') out.set('tab', 'compare');
+        else for (const k of ['tab', 'from', 'to']) out.delete(k);
+        return out;
+      },
+      { replace: true },
+    );
+  };
+  const pickCompare = (from: string, to: string) =>
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        out.set('tab', 'compare');
+        out.set('from', from);
+        out.set('to', to);
+        return out;
+      },
+      { replace: true },
+    );
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
@@ -118,6 +152,16 @@ export function DocumentScreen() {
       void loadPassage(citedVersionId, citedChunkId).then(setCited, () => setCited(null));
     }
   }, [citedVersionId, citedChunkId]);
+
+  useEffect(() => {
+    setCitedRead(null);
+    if (citedVersionId) {
+      void api.version(citedVersionId).then(
+        (v) => setCitedRead({ versionId: v.versionId, versionReference: v.versionReference }),
+        () => setCitedRead(null),
+      );
+    }
+  }, [citedVersionId]);
 
   const reload = useCallback(async () => {
     if (!containerId) return;
@@ -241,6 +285,19 @@ export function DocumentScreen() {
     return out;
   }, [cycle, row, reader, citedVersionId, cited]);
 
+  // T-480 — the versions Compare may use: the cited one only once it has been read
+  const compareVersions = useMemo(
+    () =>
+      versions
+        .filter((v) => v.versionId !== citedVersionId || v.note !== 'Cited version' || citedRead?.versionId === v.versionId)
+        .map((v) =>
+          v.note === 'Cited version' && citedRead?.versionId === v.versionId
+            ? { ...v, versionReference: citedRead.versionReference }
+            : v,
+        ),
+    [versions, citedVersionId, citedRead],
+  );
+
   // T-466 — this page's actions, in the palette while the page is open. A hook,
   // so it sits above the early returns; the row may still be loading.
   const paletteMayEdit =
@@ -280,6 +337,9 @@ export function DocumentScreen() {
     await reload();
   };
 
+  // a link to a comparison on a document with one readable version opens the Overview
+  const tab: Tab = tabState === 'compare' && compareVersions.length < 2 ? 'overview' : tabState;
+
   if (!containerId) return null;
   if (loadError) {
     return (
@@ -309,7 +369,11 @@ export function DocumentScreen() {
         projectId={projectId}
         tab={tab}
         setTab={setTab}
+        compareFrom={compareFrom}
+        compareTo={compareTo}
+        onComparePick={pickCompare}
         versions={versions}
+        compareVersions={compareVersions}
         renditionsByVersion={renditionsByVersion}
         citedVersionId={citedVersionId}
         cited={cited}
@@ -401,7 +465,7 @@ export function DocumentScreen() {
       </div>
 
       <div style={{ margin: '12px 0 16px' }}>
-        <SegmentedControl value={tab} onChange={setTab} options={TABS} label="Document page sections" />
+        <SegmentedControl value={tab} onChange={setTab} options={tabsFor(TABS, compareVersions.length)} label="Document page sections" />
       </div>
 
       {tab === 'overview' && (
@@ -476,6 +540,16 @@ export function DocumentScreen() {
         />
       )}
 
+      {tab === 'compare' && (
+        <ComparePanel
+          versions={compareVersions}
+          renditionsByVersion={renditionsByVersion}
+          from={compareFrom}
+          to={compareTo}
+          onPick={pickCompare}
+        />
+      )}
+
       {tab === 'relationships' && (
         <Card label="Classification and relationships">
           <OntologyPanel containerId={containerId} projectId={projectId} editable={canEdit || isRowLeadAuthor} />
@@ -516,7 +590,14 @@ export function DocumentScreen() {
 // actions. The review record, the transmittals and the plan's people
 // (authors, reviewers, who may see it) belong to the producer and the owner and
 // are never fetched here.
-const READER_TABS = TABS.filter((t) => ['overview', 'versions', 'relationships', 'activity'].includes(t.value));
+const READER_TABS = TABS.filter((t) => ['overview', 'versions', 'compare', 'relationships', 'activity'].includes(t.value));
+
+/**
+ * T-480 — Compare is offered wherever the person may read at least two versions
+ * (the versions their Versions tab lists), and absent otherwise.
+ */
+export const tabsFor = (tabs: typeof TABS, versionCount: number) =>
+  versionCount >= 2 ? tabs : tabs.filter((t) => t.value !== 'compare');
 
 /** The reader row in the shape the lifecycle helper reads, so its logic is not copied. */
 function readerLifecycle(reader: ReaderDocument) {
@@ -535,6 +616,12 @@ export function ReaderPage(props: {
   projectId: string;
   tab: Tab;
   setTab: (tab: Tab) => void;
+  /** T-480 — the comparison's pair, from the link; optional so a page without a link needs none */
+  compareFrom?: string | null;
+  compareTo?: string | null;
+  onComparePick?: (from: string, to: string) => void;
+  /** T-480 — the versions Compare may use (the cited one only once read); defaults to `versions` */
+  compareVersions?: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
   versions: Array<{ versionId: string; versionReference: string; createdAt: string | null; note: string }>;
   renditionsByVersion: Record<string, Rendition[]>;
   citedVersionId: string | null;
@@ -548,7 +635,8 @@ export function ReaderPage(props: {
   const lifecycle = readerLifecycle(reader);
   const contextBadge = contextStateBadge(reader.contextState);
   const title = reader.title ?? (reader.kind === 'reference' ? 'Reference material' : reader.documentReference);
-  const tab: Tab = READER_TABS.some((t) => t.value === props.tab) ? props.tab : 'overview';
+  const readerTabs = tabsFor(READER_TABS, (props.compareVersions ?? props.versions).length);
+  const tab: Tab = readerTabs.some((t) => t.value === props.tab) ? props.tab : 'overview';
   const events: Array<{ at: string; what: string; who: string }> = props.stateChanges.map((ch) => ({
     at: ch.changedAt,
     who: ch.changedBy.name,
@@ -574,7 +662,7 @@ export function ReaderPage(props: {
       </p>
 
       <div style={{ margin: '12px 0 16px' }}>
-        <SegmentedControl value={tab} onChange={props.setTab} options={READER_TABS} label="Document page sections" />
+        <SegmentedControl value={tab} onChange={props.setTab} options={readerTabs} label="Document page sections" />
       </div>
 
       {tab === 'overview' && (
@@ -607,6 +695,16 @@ export function ReaderPage(props: {
           versions={props.versions}
           renditionsByVersion={props.renditionsByVersion}
           focus={props.citedVersionId ? { versionId: props.citedVersionId, passage: props.cited, quote: props.citedQuote ?? null } : null}
+        />
+      )}
+
+      {tab === 'compare' && (
+        <ComparePanel
+          versions={props.compareVersions ?? props.versions}
+          renditionsByVersion={props.renditionsByVersion}
+          from={props.compareFrom ?? null}
+          to={props.compareTo ?? null}
+          onPick={props.onComparePick ?? (() => undefined)}
         />
       )}
 

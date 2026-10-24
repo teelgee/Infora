@@ -2285,3 +2285,33 @@ mark[data-passage].flash { background: var(--feedback-info-tint); border-bottom-
   font-family: var(--primitive-font-family-sans); font-size: 12.5px; padding: 8px 10px; margin: 0 0 8px;
 }
 .gap-row .gap-row-label { font-weight: 700; color: var(--feedback-warning-text); margin-right: 6px; }
+
+/* T-480 — the Compare tab: two versions side by side. Tracked-change styles,
+   never colour alone: insertions are underlined, deletions struck through. */
+.compare-pane .compare-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px;
+  padding: 8px 0; border-bottom: 1px solid var(--border-subtle, var(--border-default));
+  font-size: 13.5px; line-height: 1.65;
+}
+.compare-pane .compare-row:last-child { border-bottom: none; }
+.compare-pane .compare-cell { min-width: 0; overflow-wrap: anywhere; }
+.compare-pane .compare-fold { padding: 8px 0; text-align: center; }
+.compare-pane ins {
+  background: var(--tracked-change-insertion-background); color: var(--tracked-change-insert-text);
+  text-decoration: underline; text-decoration-color: var(--tracked-change-insert-border); text-underline-offset: 2px;
+}
+.compare-pane del {
+  background: var(--tracked-change-deletion-background); color: var(--tracked-change-deletion-color);
+  text-decoration: line-through;
+}
+.compare-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+/* phone width: the two panes stack, older above newer, each labelled */
+@media (max-width: 640px) {
+  .compare-two { grid-template-columns: minmax(0, 1fr); }
+  .compare-pane .compare-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .compare-pane .compare-cell:empty { display: none; }
+  .compare-pane .compare-cell::before {
+    content: attr(data-label); display: block; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted);
+  }
+}

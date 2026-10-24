@@ -12,6 +12,11 @@
 //   side sees one line per reviewer ("Nadia Okonjo — 15 comments · done"). The
 //   authoring side sees the withheld notice and no line at all, not zeros.
 //
+//   THE AUTHORING SIDE'S SWEEP (T-480). Once the round is issued back, the same
+//   reviewer filter narrows what J walks and E acts on; it survives saving an
+//   answer, and with "Open" chosen too the next J is that reviewer's next
+//   unanswered comment.
+//
 //   THE LINK LANDS ON THE CHANGE. A response that says what changed becomes a
 //   link; once the next version exists it opens that version with the changed
 //   words stated above it (and, for a version with only text, marked in the
@@ -205,8 +210,36 @@ test('the authoring side answers, and the response link lands on the change', as
   await tray.getByRole('button', { name: 'Record the response' }).click();
   await expect(list.locator(`li[data-thread-id="${expectedOrder[0]}"]`)).toHaveAttribute('data-state', 'answered');
 
-  // the other twenty-nine say no change was made
-  for (const id of expectedOrder.slice(1)) {
+  // T-480 — the authoring side narrows its sweep to one reviewer. The filtered
+  // list is what J walks and E acts on, it stays while the answer is saved, and
+  // with "Open" chosen too the next J lands on that reviewer's next unanswered comment.
+  await page.getByRole('group', { name: 'Filter by reviewer' }).getByRole('button', { name: /Nadia Okonjo/ }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(15);
+  await expect(page.getByText('15 of 30 comments shown')).toBeVisible();
+  await page.mouse.click(5, 300); // empty space: the focus is not in a field
+  await page.keyboard.press('j');
+  // the highlight was on Rachel's comment, which the filter hides: the walk starts at Nadia's first
+  await expect(list.locator('li[aria-current="true"]')).toHaveAttribute('data-thread-id', expectedNadia[0]!);
+  await page.keyboard.press('e');
+  const nadiaTray = page.locator(`[data-comment-id="${expectedNadia[0]}"]`);
+  await nadiaTray.getByPlaceholder('The response — how the comment is addressed…').fill('Considered.');
+  await nadiaTray.getByPlaceholder('Why no change was made…').fill('Out of scope for this section.');
+  await nadiaTray.getByRole('button', { name: 'Record the response' }).click();
+  await expect(list.locator(`li[data-thread-id="${expectedNadia[0]}"]`)).toHaveAttribute('data-state', 'no_change');
+  // saving did not clear the filter
+  await expect(list.getByRole('listitem')).toHaveCount(15);
+  await expect(page.getByText('15 of 30 comments shown')).toBeVisible();
+  // only that reviewer's unanswered comments, and the walk goes to the next of them
+  await page.getByRole('group', { name: 'Filter by state' }).getByRole('button', { name: /^Open \(14\)/ }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(14);
+  await page.mouse.click(5, 300);
+  await page.keyboard.press('j');
+  await expect(list.locator('li[aria-current="true"]')).toHaveAttribute('data-thread-id', expectedNadia[1]!);
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(30);
+
+  // the other twenty-eight say no change was made
+  for (const id of expectedOrder.slice(1).filter((x) => x !== expectedNadia[0])) {
     await eleanor.post(`/review-comments/${id}/response`, { body: 'Considered.', noChangeReason: 'Out of scope for this section.' });
   }
   await page.reload();

@@ -37,7 +37,8 @@ import { ChatComposer, WorkingSetCard, WorkingSetLine } from '@infora/ui';
 import { WorkingSetPicker, workingSetGroups } from './working-set-picker';
 import { FirmShelfPane, ProjectShelfPane } from './screens/knowledge';
 import { IntakeTable, bulkConfirmBody, startingEdit } from './screens/reference-intake';
-import { CurrencyCard, ReaderPage } from './screens/document';
+import { CurrencyCard, ReaderPage, TABS as DOCUMENT_TABS, tabsFor } from './screens/document';
+import { CompareView, PDF_SENTENCE, resolvePair, type CompareSide } from './screens/compare';
 import type { ReaderDocument } from '@infora/contracts';
 import { ImpactView } from './screens/library';
 import { CitedByList } from './ontology-panel';
@@ -3215,7 +3216,11 @@ describe('T-483 — the document page for a reader who is not on the plan row', 
     currency: null,
     withdrawnReason: null,
   };
-  const page = (reader: ReaderDocument, currencyRead: Parameters<typeof ReaderPage>[0]['currencyRead']) =>
+  const page = (
+    reader: ReaderDocument,
+    currencyRead: Parameters<typeof ReaderPage>[0]['currencyRead'],
+    versions: Parameters<typeof ReaderPage>[0]['versions'] = [],
+  ) =>
     renderToStaticMarkup(
       <MemoryRouter>
         <ReaderPage
@@ -3224,7 +3229,7 @@ describe('T-483 — the document page for a reader who is not on the plan row', 
           projectId="p1"
           tab="overview"
           setTab={() => undefined}
-          versions={[]}
+          versions={versions}
           renditionsByVersion={{}}
           citedVersionId={null}
           cited={null}
@@ -3253,6 +3258,85 @@ describe('T-483 — the document page for a reader who is not on the plan row', 
     };
     expect(page(standard, currency)).toContain('Currency');
     expect(page({ ...standard, kind: 'deliverable' }, null)).not.toContain('Currency');
+  });
+});
+
+// T-480 — the Compare tab appears only where two versions may be read
+describe('the Compare tab (T-480)', () => {
+  const two = [
+    { versionId: 'v2', versionReference: 'R02', createdAt: '2026-02-01T00:00:00.000Z', note: 'Current' },
+    { versionId: 'v1', versionReference: 'R01', createdAt: null, note: 'Cited version' },
+  ];
+
+  it('is on the plan-row page when two versions are readable, absent with one, and sits after Versions', () => {
+    expect(tabsFor(DOCUMENT_TABS, 2).map((t) => t.label)).toEqual([
+      'Overview', 'Versions', 'Compare', 'Relationships', 'Review record', 'Transmittals', 'Activity',
+    ]);
+    expect(tabsFor(DOCUMENT_TABS, 1).map((t) => t.label)).toEqual([
+      'Overview', 'Versions', 'Relationships', 'Review record', 'Transmittals', 'Activity',
+    ]);
+    expect(tabsFor(DOCUMENT_TABS, 0).some((t) => t.label === 'Compare')).toBe(false);
+  });
+
+  const reader = {
+    containerId: 'c1', documentReference: 'WA-STD-1', currentVersionId: 'v2', title: 'A standard', revision: 'R02',
+    suitability: null, discipline: null, producerName: 'Trentmoor', issuedAt: '2026-02-01T00:00:00.000Z', state: 'live',
+    kind: 'reference', contextState: { grounds: true, reason: null }, producingOrganisationId: 'o1',
+    withdrawalProposal: null, notCitable: false, notCitableReason: null, currency: null, withdrawnReason: null,
+  } as ReaderDocument;
+  const readerPage = (versions: typeof two) =>
+    renderToStaticMarkup(
+      <MemoryRouter>
+        <ReaderPage reader={reader} containerId="c1" projectId="p1" tab="overview" setTab={() => undefined}
+          versions={versions} renditionsByVersion={{}} citedVersionId={null} cited={null} currencyRead={null} stateChanges={[]} />
+      </MemoryRouter>,
+    );
+  it('is on the reader page with two readable versions and absent with one', () => {
+    expect(readerPage(two)).toContain('Compare');
+    expect(readerPage(two.slice(0, 1))).not.toContain('Compare');
+    expect(readerPage([])).not.toContain('Compare');
+  });
+
+  it('offers the previous and the current version unless the link names others', () => {
+    expect(resolvePair(two, null, null)).toEqual({ from: 'v1', to: 'v2' });
+    expect(resolvePair(two, 'v2', 'v1')).toEqual({ from: 'v2', to: 'v1' });
+    expect(resolvePair(two, 'nope', 'nope')).toEqual({ from: 'v1', to: 'v2' });
+    expect(resolvePair(two.slice(0, 1), null, null)).toBeNull();
+  });
+
+  const side = (over: Partial<CompareSide>): CompareSide => ({
+    versionId: 'x', reference: 'P01', text: null, pdfId: null, nativeId: null, nativeFormat: null, ...over,
+  });
+  const view = (l: CompareSide, r: CompareSide) =>
+    renderToStaticMarkup(<CompareView left={l} right={r} />);
+
+  it('shows two authored versions with the count and the tracked-change marks', () => {
+    const html = view(
+      side({ reference: 'P01', text: 'The baseline was set from trial pits' }),
+      side({ reference: 'P02', text: 'The baseline was set from trial pits and boreholes' }),
+    );
+    expect(html).toContain('1 change — 1 insertion');
+    expect(html).toContain('<ins data-change="1">and boreholes</ins>');
+    expect(html).not.toContain('<del');
+    expect(html).not.toContain(PDF_SENTENCE);
+  });
+
+  it('shows two PDFs side by side with the version above each and no count', () => {
+    const html = view(side({ reference: 'U01', pdfId: 'r1' }), side({ reference: 'U02', pdfId: 'r2' }));
+    expect(html).toContain(PDF_SENTENCE);
+    expect(html.match(/data-compare-pdf/g)).toHaveLength(2);
+    expect(html).toContain('/renditions/r1/file');
+    expect(html).toContain('/renditions/r2/file');
+    expect(html.indexOf('U01')).toBeLessThan(html.indexOf('/renditions/r1/file'));
+    expect(html).not.toContain('data-compare-count');
+  });
+
+  it('shows a mixed pair in their own viewers with the same sentence and no diff', () => {
+    const html = view(side({ reference: 'U01', pdfId: 'r1' }), side({ reference: 'P02', text: 'Authored words.' }));
+    expect(html).toContain(PDF_SENTENCE);
+    expect(html).toContain('Authored words.');
+    expect(html.match(/data-compare-pdf/g)).toHaveLength(1);
+    expect(html).not.toContain('data-compare-count');
   });
 });
 
