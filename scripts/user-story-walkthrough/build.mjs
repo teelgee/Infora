@@ -64,6 +64,24 @@ const acts = [
         adrs: ['ADR-0003', 'ADR-0041', 'ADR-0011'],
       },
       {
+        img: '00c-work-queue',
+        lane: OWNER,
+        screen: 'Project home',
+        title: 'The home page is a work queue',
+        prose:
+          'Rachel opens the project and the first thing on the page is what is waiting on her, each item one click from where it is done: a lead review to accept, a standard that is due for a re-check, and a milestone that has gone overdue. The overdue item says which deliverable, which status code it should have reached and by when. Nothing here is a report to read; every line is a job, and finishing the job takes it off the list.',
+        adrs: [],
+      },
+      {
+        img: '00d-milestones',
+        lane: OWNER,
+        screen: 'Project schedule',
+        title: 'Milestones on the schedule, and a line that says where everything stands',
+        prose:
+          'The same overdue milestone on the schedule. Each planned deliverable can carry milestones, a target date against a status code, set by the team producing it and read by the owner. The register shows the next one on the row, with an Overdue mark when it has slipped. Above the table one sentence counts where every planned document stands and how many milestones are late, and its chips narrow the register to just those rows.',
+        adrs: ['ADR-0008'],
+      },
+      {
         img: '01-workspace',
         lane: CONSULTANT,
         screen: 'Workspace',
@@ -782,6 +800,271 @@ const toolSections = [
           'The rewrite has been accepted and the draft now reads “Calder & Hale has prepared a conceptual site model…”, which is the paragraph in the text behind the panel. What remains is the readability finding — a grade against the project’s reading-age target and the draft’s own median, offered as a measurement and never as a pass or a fail — and above it a control that dismisses the whole group at once. Bulk dismissal takes anything and records no reason, deliberately: declining forty advisory findings from one rule is one professional judgement, and demanding forty typed reasons would buy a record nobody would ever read.',
         adrs: ['ADR-0053', 'ADR-0048'],
       },
+      {
+        img: 't2-13-strength-map',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'How far each kind of finding can be trusted',
+        prose:
+          'Before running anything, the launcher says how each kind of finding is made. A finding settled in code, such as an exact wording, a number against a target or a missing section, is exact and repeatable. A finding that is the model’s reading is a careful opinion about the text, worth checking. The two tables, one per kind of writing rule and one per check, mean a reader never has to guess which sort of finding they are looking at.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-14-second-look',
+        lane: CONSULTANT,
+        screen: 'Tools · QA checker',
+        title: 'An optional second look, with its price beside its switch',
+        prose:
+          'Off by default. Switched on, the model is asked to argue that each finding it raised from a judgement is wrong, and it withdraws the ones it can disprove before the author sees them. The extra cost, one more model call and its size, is shown beside the switch and nowhere else, and the result afterwards says how many findings were withdrawn.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-15-filters',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'Narrow the findings to the ones that must be dealt with',
+        prose:
+          'A long document produces many findings. The Checks tab now counts them by severity and by the check that raised them, and one click on Required leaves only the findings that must be dealt with, with a line saying how many of the total are showing and a way back to all of them.',
+        adrs: ['ADR-0053'],
+      },
+      {
+        img: 't2-16-table',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The same findings as a table',
+        prose:
+          'For a long document, a table is faster to scan than a grouped list: reference, severity, the check, the rule or source behind it, where it is, and its state. Switching layout keeps the filters, and the grouped view is one click back.',
+        adrs: ['ADR-0053'],
+      },
+    ],
+  },
+  {
+    key: 'ask',
+    title: 'Ask the project',
+    lede:
+      'Ask is the conversation grounded in the project library: every claim is cited to a recorded passage or withheld. The three best-in-class batches added three things to it, photographed here: an answer that states how far it looked, a way to say where to look, and a way to bring your own drafts in as background.',
+    beats: [
+      {
+        img: 'b1-ask-answer',
+        lane: OWNER,
+        screen: 'Ask · an answer',
+        title: 'An answer that says how far it looked, and what each source is',
+        prose:
+          'Rachel asks about BS 5930. The answer carries a citation, and hovering it opens the recorded passage itself with the document, revision and state. A small mark beside the citation says the standard is overdue for a re-check, and the card repeats it with who last confirmed it. Under the answer one line states the reach: how many documents were read and what was left out and why, here two withdrawn and one awaiting re-check. A reader can see what the answer did not look at.',
+        adrs: ['ADR-0022'],
+      },
+      {
+        img: 'b1-ask-scope',
+        lane: CONSULTANT,
+        screen: 'Ask · scope',
+        title: 'Say where to look: the Scope control',
+        prose:
+          'Eleanor opens the Scope control and types a few letters. It offers the project’s own vocabulary and individual documents, and says at once how many documents in that scope can be read and how many were left out. Picking Geotechnical narrows the answer to the documents classified that way. An empty scope is refused before anything is sent.',
+        adrs: ['ADR-0029'],
+      },
+      {
+        img: 'b1-ask-working-set',
+        lane: CONSULTANT,
+        screen: 'Ask · working set',
+        title: 'Bring your own drafts in as background',
+        prose:
+          'The Working set picker lists drafts from the working areas Eleanor is part of. Ticking one lets the answer read it as background she vouches for. It is never cited, so it can never be mistaken for the record. The same picker is used in the creator and the editor.',
+        adrs: ['ADR-0022'],
+      },
+    ],
+  },
+  {
+    key: 'library',
+    title: 'The library and the document page',
+    lede:
+      'How reference material gets into the project, how its currency is tracked, and what happens to the people relying on a document when the owner replaces it. All of it is the owner’s side except the notice that reaches the producers.',
+    beats: [
+      {
+        img: 'b2-add-reference',
+        lane: OWNER,
+        screen: 'Project library',
+        title: 'Add reference material',
+        prose:
+          'Rachel adds three PDFs to the library in one go. The page says how many uploaded, and that they are waiting in the intake queue. Nothing the AI can read changes until she confirms them.',
+        adrs: [],
+      },
+      {
+        img: 'b2-intake',
+        lane: OWNER,
+        screen: 'Library · intake',
+        title: 'Intake: proposals to confirm, not facts to trust',
+        prose:
+          'Each uploaded file waits here with a proposed title, discipline and document type, each marked as confident or likely. Rachel corrects what is wrong and confirms one row or a ticked set. Only confirmed rows enter the library, and the record names who confirmed them.',
+        adrs: [],
+      },
+      {
+        img: 'b2-currency',
+        lane: OWNER,
+        screen: 'Document page · Overview',
+        title: 'Currency: is this still the one to rely on?',
+        prose:
+          'The document page for a standard whose re-check is overdue. The Currency card says when it was last confirmed and by whom, when the next check is due, and how long the next confirmation would run. Confirm current is one click. Until then the document is still read by the AI, and every citation of it says so.',
+        adrs: [],
+      },
+      {
+        img: 'b2-cited-by',
+        lane: CONSULTANT,
+        screen: 'Document page · Relationships',
+        title: 'Cited by: what relies on this document',
+        prose:
+          'Eleanor opens the ground investigation report and sees which of her own organisation’s drafts rest on it. The list is each organisation’s own and never a total across the wall, so no one learns what another firm has been drafting.',
+        adrs: [],
+      },
+      {
+        img: 'b2-supersede-impact',
+        lane: OWNER,
+        screen: 'Library · supersede',
+        title: 'Before replacing a document, see what relies on it',
+        prose:
+          'Rachel is about to retire the ground investigation report in favour of another. The dialog first shows what relies on it on her own side: here, a library document that points at it. The consultants’ drafts are not in this dialog. They are told separately.',
+        adrs: [],
+      },
+      {
+        img: 'b2-notification',
+        lane: CONSULTANT,
+        screen: 'Notifications',
+        title: 'The people who cited it are told',
+        prose:
+          'On the consultants’ side a notification arrives, naming the draft that cited the superseded document. It is a plain event with the one place to go and fix it.',
+        adrs: [],
+      },
+      {
+        img: 'b2-superseded-check',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The sentence that rests on it is flagged in the draft',
+        prose:
+          'The notification opens the draft, and the Checks tab names the sentence that still rests on the superseded report and the document that replaced it. It is computed when the tab opens, not a saved finding, so it can never be stale.',
+        adrs: ['ADR-0048'],
+      },
+    ],
+  },
+  {
+    key: 'draft',
+    title: 'The working draft',
+    lede:
+      'Four things around a draft that was written with the AI: it shows the places the record would not support, it says who wrote each paragraph, it can be sent for a colleague’s review in one step, and its colleagues and history are visible.',
+    beats: [
+      {
+        img: 'b3-gap-proposed',
+        lane: CONSULTANT,
+        screen: 'Editor · a proposed draft',
+        title: 'A gap is shown, not papered over',
+        prose:
+          'Eleanor asks for a draft. One sentence is supported by the record and arrives with its citation. The other is not, and instead of inventing a figure the draft carries a marked gap saying what the record does not support. Nothing is written until she accepts.',
+        adrs: ['ADR-0048'],
+      },
+      {
+        img: 'b3-gap-marked',
+        lane: CONSULTANT,
+        screen: 'Editor · Checks',
+        title: 'The gap stays in the text and on the list',
+        prose:
+          'Accepted, the gap sits in the draft as its own marked line, and the Checks tab counts it with a way to jump to it. It is there until a person writes what the record can support, or deletes the line.',
+        adrs: ['ADR-0048', 'ADR-0049'],
+      },
+      {
+        img: 'b3-promotion-refused',
+        lane: CONSULTANT,
+        screen: 'Editor · promote',
+        title: 'Promotion waits for the gap',
+        prose:
+          'Promotion to review is refused while a gap is open, and the dialog names it. Open gaps join open comment threads and findings as reasons the draft cannot leave the author’s hands with loose ends.',
+        adrs: ['ADR-0049'],
+      },
+      {
+        img: 'b3-authorship',
+        lane: CONSULTANT,
+        screen: 'Editor · authorship',
+        title: 'Who wrote this paragraph',
+        prose:
+          'The small mark beside a paragraph opens a card: drafted by the agent in a named run, accepted by Eleanor on a date. Passage by passage, the draft records what was machine-written and who vouched for it.',
+        adrs: ['ADR-0048'],
+      },
+      {
+        img: 'b4-internal-review',
+        lane: CONSULTANT,
+        screen: 'Editor · internal review',
+        title: 'Request internal review in one step',
+        prose:
+          'One dialog does what used to take several: it freezes the draft as the next P revision, names the colleague who will check it, and carries a note that appears in the draft’s comments. The dialog says plainly that editing is locked until the round is issued back.',
+        adrs: [],
+      },
+      {
+        img: 'b4-presence',
+        lane: CONSULTANT,
+        screen: 'Sandbox',
+        title: 'A teammate in the draft, and a draft that changed',
+        prose:
+          'On the sandbox list a face shows a colleague currently in the document, and a dot says it has changed since Eleanor last opened it. Opening the draft clears the dot.',
+        adrs: [],
+      },
+      {
+        img: 'b4-history',
+        lane: CONSULTANT,
+        screen: 'Sandbox · history',
+        title: 'Every working version, and a way back',
+        prose:
+          'The History panel lists every working version, newest first, with who saved it. Restoring one writes it as the next version after asking first; the history itself is never rewritten.',
+        adrs: [],
+      },
+    ],
+  },
+  {
+    key: 'around',
+    title: 'Moving around',
+    lede:
+      'Two small things that run across every screen: finding anything from the keyboard, and taking back a mistake.',
+    beats: [
+      {
+        img: 'b5-palette',
+        lane: OWNER,
+        screen: 'Command palette',
+        title: 'Find any document from anywhere',
+        prose:
+          'Command and K opens a palette. Typing a few characters of a code lists matching documents with where each lives, and Enter opens the one at the top. The same palette jumps to any section and offers the actions available on the page you are on.',
+        adrs: [],
+      },
+      {
+        img: 'b5-undo',
+        lane: CONSULTANT,
+        screen: 'Plan · Undo',
+        title: 'Undo, for as long as it is reversible',
+        prose:
+          'Eleanor removes a planned deliverable by mistake. The toast says what happened and carries an Undo button for as long as the act can be reversed. Both the removal and the restoring are on the document’s Activity tab.',
+        adrs: [],
+      },
+    ],
+  },
+  {
+    key: 'threads',
+    title: 'Review threads and comparing versions',
+    lede:
+      'Two screens for a review cycle that has more than a handful of comments: the reviewing side’s list of threads, and a side-by-side of what changed between two versions.',
+    beats: [
+      {
+        img: 'b6-threads',
+        lane: OWNER,
+        screen: 'Review cycle · Threads',
+        title: 'Every comment as a thread, and where each reviewer is',
+        prose:
+          'While round 1 is open, Rachel sees every comment as a thread with its state, filterable by reviewer and by state, with the keys to walk the list. Above it a progress line per reviewer says how many comments they have made and whether they are still reading. The authoring side sees none of this until the round is issued.',
+        adrs: [],
+      },
+      {
+        img: 'b6-compare',
+        lane: CONSULTANT,
+        screen: 'Document page · Compare',
+        title: 'What changed between two versions',
+        prose:
+          'The Compare tab puts two versions side by side, older on the left, with insertions and deletions marked and a count of the changes above. Here the three additions the author said they would make in response to comments are exactly the three changes the page finds.',
+        adrs: [],
+      },
     ],
   },
 ];
@@ -1097,6 +1380,14 @@ function build(srcFor) {
     because it exists only to be checked, and the single act of putting its edited sentence back after the drift beat —
     which is a reset rather than a step of the tool. Everything a screenshot on this page shows being done was done on
     that screen.</p>
+    <p><strong>The best-in-class sections (T-485).</strong> Twenty-seven pictures were added for what the best-in-class
+    batches built, after the journey, each on a fixture of its own. Two are in Act I because they photograph the seeded
+    world, which the journey then changes. The setup of each was driven through the API: the plan row, its authors and
+    reviewers, a draft and its text, the review comments and the responses, and the two substrate doors that put the
+    seeded standard back to overdue and the seeded report back to live. Everything a picture shows being done was done on
+    that screen. Not photographed: the Collabora editing pane (it needs a running editing engine), the replacement box
+    in the supersede dialog beyond what its beat shows, and the reference upload of a scanned PDF, which the end-to-end
+    suite covers.</p>
     <p><strong>What the tools’ capture walked into, recorded rather than staged around.</strong> Three things, all
     photographed as found. The estimated cost on both tools reads <em>not priced</em>, because this substrate’s model
     carries no rate and an unpriced step says so rather than showing a plausible £0.00. The creator’s bound-deliverable

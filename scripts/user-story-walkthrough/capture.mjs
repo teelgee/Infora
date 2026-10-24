@@ -51,8 +51,9 @@ const repoRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..'
 const requireFromE2e = createRequire(path.join(repoRoot, 'e2e', 'package.json'));
 const { chromium, request } = requireFromE2e('@playwright/test');
 
-const API = 'http://localhost:3210';
-const WEB = 'http://localhost:5273';
+// the ports honour the same E2E_API_PORT / E2E_WEB_PORT as e2e/playwright.config.ts
+const API = `http://localhost:${process.env['E2E_API_PORT'] ?? '3210'}`;
+const WEB = `http://localhost:${process.env['E2E_WEB_PORT'] ?? '5273'}`;
 const OUT = path.join(fileURLToPath(new URL('.', import.meta.url)), 'shots');
 // 🔒 EMPTIED FIRST, and this is not tidiness (found by T-404's recapture).
 // `shots/` is gitignored, so it accumulates across runs — and when a beat is
@@ -348,6 +349,24 @@ await shot(r, '00b-acceptance-codes');
 // the blast-radius beat is captured LATER, after acceptance: photographed here
 // the count would read zero, and a screenshot of "this will exclude 0
 // deliverables" argues the opposite of the thing it is there to show.
+
+// T-467 / T-473 / T-481 — the owner's home as a work queue: what is waiting on her, with
+// an overdue milestone among it
+await r.goto(`${WEB}/projects/${projectId}`);
+const queue = r.getByRole('list', { name: 'Waiting on you' });
+await queue
+  .getByRole('button', { name: /Overdue: WA-EIA-MST-001 should have reached S3 by/ })
+  .waitFor();
+await shot(r, '00c-work-queue');
+
+// T-481 — the same milestone on the schedule: the coverage line above the register,
+// and the Next milestone column carrying the date, the code and the Overdue mark on the row
+await r.goto(`${WEB}/projects/${projectId}/plan`);
+const strip = r.getByRole('region', { name: 'Coverage' });
+await strip.getByTestId('coverage-summary').waitFor();
+await r.getByRole('table', { name: 'Deliverables plan' }).getByRole('row').nth(1).waitFor();
+await r.waitForTimeout(300);
+await shot(r, '00d-milestones');
 
 console.log('consultant lane —');
 await signIn(e, ELEANOR);
@@ -1274,6 +1293,393 @@ await shot(e, 't2-12-dismiss');
 await remaining.click();
 await e.waitForTimeout(500);
 console.log('the tools — done');
+
+// ── best in class (T-485) ───────────────────────────────────────────────────
+//
+// The three best-in-class batches (T-455–T-484) built screens that had no
+// photograph. They run LAST, like the tools, and for the same reason: each
+// works a fixture of its own (a plan row, a draft, a library reference) so that
+// nothing here puts a stray document into the journey's acts. Two of them
+// (supersede, currency) call the e2e substrate's own reset doors, which exist
+// for exactly this and are not mounted on the real app.
+// The owner's work queue and the schedule's milestone beats are in Act I
+// instead, because they photograph the SEEDED world and the journey changes it.
+const stamp3 = String(Date.now()).slice(-6);
+const roster3 = (await eleanorApi.get(`/projects/${projectId}/participants`)).items;
+const idOf3 = (name) => roster3.find((p) => p.name === name).participantId;
+console.log('Ask —');
+{
+  const reset = await fetch(`${API}/__e2e/reset-seeded-currency`, { method: 'POST' });
+  if (!reset.ok) throw new Error('reset-seeded-currency failed');
+  await r.goto(`${WEB}/projects/${projectId}/ask`);
+  const box = r.getByPlaceholder('Ask about the project');
+  await box.fill('What does BS 5930 require for an alpha-category ground investigation?');
+  await box.press('Enter');
+  const chip = r.locator('button.cite.lib', { hasText: 'WA-STD-BS5930-001' }).first();
+  await chip.waitFor({ timeout: 30_000 });
+  await r.locator('.cf-reach').first().waitFor();
+  await chip.hover();
+  await r.getByRole('dialog', { name: 'Source: WA-STD-BS5930-001' }).waitFor();
+  await shot(r, 'b1-ask-answer');
+
+  // the scope control narrows by the project's own vocabulary, so one source
+  // carries the discipline term the beat then picks
+  {
+    const scheme = await eleanorApi.get(`/projects/${projectId}/classification-scheme`);
+    const discipline = scheme.facets.find((f) => f.key === 'discipline');
+    const geo = discipline.terms.find((t) => t.label === 'Geotechnical');
+    const { sources } = await eleanorApi.get(`/projects/${projectId}/grounding-scope`);
+    let done = false;
+    for (const src of sources) {
+      for (const api of [eleanorApi, rachelApi]) {
+        const res = await api.ctx.put(`/containers/${src.containerId}/classifications`, { data: { facetId: discipline.id, termId: geo.id } });
+        if (res.status() === 204) done = true;
+        if (done) break;
+      }
+      if (done) break;
+    }
+    if (!done) throw new Error('no source could be classified Geotechnical');
+  }
+  await e.goto(`${WEB}/projects/${projectId}/ask`);
+  await e.getByRole('button', { name: /Scope:/ }).click();
+  await e.getByRole('combobox', { name: 'Scope' }).fill('geo');
+  await e.getByRole('option').first().waitFor();
+  await e.getByRole('option').first().click();
+  await e.getByRole('status').filter({ hasText: 'can be read' }).waitFor();
+  await shot(e, 'b1-ask-scope');
+  await e.keyboard.press('Escape');
+
+  await e.getByRole('button', { name: /Working set/ }).click();
+  await e.keyboard.type('Land');
+  await e.getByRole('option').first().waitFor();
+  await e.getByRole('option').first().click();
+  await shot(e, 'b1-ask-working-set');
+}
+
+console.log('the library —');
+const textPdf = (lines) => {
+  const esc2 = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const stream = `BT /F1 12 Tf 72 720 Td ${lines.map((l) => `(${esc2(l)}) Tj 0 -16 Td`).join(' ')} ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let body = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((object, at) => {
+    offsets.push(Buffer.byteLength(body));
+    body += `${at + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(body);
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, 'latin1');
+};
+{
+  const stamp = Date.now();
+  const pdf = (name, text) => ({ name, mimeType: 'application/pdf', buffer: textPdf([text]) });
+  await r.goto(`${WEB}/projects/${projectId}/documents`);
+  await r.getByRole('button', { name: /Add reference material/ }).waitFor();
+  await r.getByLabel('Reference material files').setInputFiles([
+    pdf(`Construction-noise-standard-${stamp}.pdf`, 'Construction noise limits for the scheme are set out below.'),
+    pdf(`Ecology-guidance-${stamp}.pdf`, 'Guidance on protected species surveys.'),
+    pdf(`Air-quality-${stamp}.pdf`, 'Dust and air quality monitoring requirements.'),
+  ]);
+  await r.getByRole('status', { name: 'Reference material upload' }).filter({ hasText: '3 of 3 uploaded' }).waitFor();
+  await shot(r, 'b2-add-reference');
+
+  await r.getByRole('button', { name: /^Intake/ }).click();
+  const intake = r.getByRole('table', { name: 'Reference material intake' });
+  await intake.getByLabel(new RegExp(`^Title for Construction-noise-standard-${stamp}`)).waitFor();
+  await shot(r, 'b2-intake');
+
+  // the document page of the seeded standard: its currency card
+  const lib = await rachelApi.get(`/projects/${projectId}/library`);
+  const std = lib.items.find((i) => i.documentReference === 'WA-STD-BS5930-001');
+  await r.goto(`${WEB}/projects/${projectId}/documents/${std.containerId}`);
+  const currency = r.locator('.card', { hasText: 'Currency' }).filter({ hasText: 'Confirm current' });
+  await currency.waitFor();
+  await currency.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot(r, 'b2-currency');
+}
+
+console.log('supersede —');
+{
+  const reset = await fetch(`${API}/__e2e/reset-supersede-impact`, { method: 'POST' });
+  if (!reset.ok) throw new Error('reset-supersede-impact failed');
+  const lib = await eleanorApi.get(`/projects/${projectId}/library`);
+  const report = lib.items.find((i) => i.documentReference === 'WA-GEO-GIR-004');
+  await e.goto(`${WEB}/projects/${projectId}/documents/${report.containerId}`);
+  await e.getByRole('radiogroup', { name: 'Document page sections' }).getByRole('radio', { name: 'Relationships' }).click();
+  await e.getByLabel('Cited by').waitFor();
+  await e.getByLabel('Cited by').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot(e, 'b2-cited-by');
+
+  // the owner's own library document that points at the report, so the dialog has something to say
+  {
+    const baseline = lib.items.find((i) => i.documentReference === 'WA-ENV-BAS-003');
+    try {
+      const edge = await rachelApi.post(`/containers/${baseline.containerId}/relationships`, { toContainerId: report.containerId, type: 'references' });
+      await rachelApi.post(`/relationships/${edge.id}/confirmation`, {});
+    } catch {
+      console.log('  (relationship already there)');
+    }
+  }
+  await r.goto(`${WEB}/projects/${projectId}/documents`);
+  const table = r.getByRole('table', { name: 'Project library' });
+  await table.getByRole('row').nth(1).waitFor();
+  await r.getByRole('searchbox', { name: 'Search Project library' }).fill('WA-GEO-GIR-004');
+  await r.getByText('Filtered', { exact: true }).waitFor();
+  await r.waitForLoadState('networkidle');
+  await table.getByRole('checkbox', { name: 'Select WA-GEO-GIR-004' }).check();
+  await r.getByRole('region', { name: 'Selected rows' }).getByRole('button', { name: 'Supersede…' }).click();
+  const dialog = r.getByRole('dialog');
+  await dialog.getByRole('region', { name: 'What relies on this' }).waitFor();
+  await dialog.getByPlaceholder('Type a code or title to search').fill('WA-WAT-FRA-001');
+  await dialog.getByRole('option', { name: /WA-WAT-FRA-001/ }).click();
+  await shot(r, 'b2-supersede-impact');
+  await dialog.getByRole('button', { name: 'Supersede', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+
+  await e.goto(`${WEB}/projects/${projectId}/notifications`);
+  const note = e.getByRole('row', { name: /A document you cited was superseded/ });
+  await note.waitFor();
+  await shot(e, 'b2-notification');
+  await note.click();
+  await e.locator('.panel-tabs').getByText('Checks', { exact: false }).first().click();
+  const live = e.getByRole('region', { name: 'Out-of-date sources' });
+  await live.waitFor();
+  await shot(e, 'b2-superseded-check');
+}
+
+console.log('the working draft —');
+{
+  const row = await eleanorApi.post(`/projects/${projectId}/plan`, {
+    documentReference: `WA-GAP-ECO-${stamp3}`,
+    title: `Land quality summary ${stamp3}`,
+    metadata: { discipline: 'ecology' },
+  });
+  await eleanorApi.post(`/containers/${row.containerId}/authors`, { participantId: idOf3('Eleanor Price'), isLead: true });
+  const grant = await eleanorApi.post(`/containers/${row.containerId}/reviewers`, { participantId: idOf3('Rachel Bowen'), isLead: true });
+  await rachelApi.post(`/reviewers/${grant.id}/confirmation`, {});
+  await rachelApi.post(`/reviewers/${grant.id}/acceptance`, {});
+  const gdoc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, {
+    title: `Land quality summary ${stamp3} draft`,
+    containerId: row.containerId,
+  });
+  await eleanorApi.patch(`/sandboxes/${gdoc.sandboxId}/settings`, { promotionRequiresQa: false });
+  await e.goto(`${WEB}/projects/${projectId}/editor/${gdoc.id}`);
+  const ask = e.getByPlaceholder('Ask for a draft into this document');
+  await ask.fill('Draft the land quality summary');
+  await ask.press('Enter');
+  const proposed = e.locator('.proposed').first();
+  await proposed.locator('.gap-marker').waitFor();
+  await shot(e, 'b3-gap-proposed');
+  await proposed.getByRole('button', { name: /Accept/ }).click();
+  await e.locator('.canvas-mirror mark.mark--gap').waitFor();
+  await e.getByText('Checks (1)', { exact: true }).click();
+  await e.getByRole('region', { name: 'Gaps' }).waitFor();
+  await shot(e, 'b3-gap-marked');
+
+  await e.getByRole('button', { name: /Promote/ }).first().click();
+  const dlg = e.getByRole('dialog');
+  await dlg.getByRole('list', { name: 'Open gaps' }).waitFor();
+  await shot(e, 'b3-promotion-refused');
+  await dlg.getByRole('button', { name: /Cancel|Close/ }).first().click();
+  await dlg.waitFor({ state: 'hidden' });
+
+  const mark = e.getByRole('button', { name: /Who wrote paragraph 1:/ });
+  await mark.hover();
+  await e.getByRole('dialog', { name: 'Who wrote paragraph 1' }).waitFor();
+  await shot(e, 'b3-authorship');
+  await e.keyboard.press('Escape');
+}
+
+console.log('internal review, presence, history —');
+{
+  const title = `Ground conditions chapter ${stamp3}`;
+  const doc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, { title });
+  await eleanorApi.patch(`/sandbox-documents/${doc.id}`, { content: 'Ground conditions chapter, ready for a colleague to check.' });
+  await e.goto(`${WEB}/projects/${projectId}/editor/${doc.id}`);
+  await e.locator('.doc-body textarea').waitFor();
+  await e.getByRole('button', { name: 'Request internal review…' }).click();
+  const dlg = e.getByRole('dialog');
+  await dlg.getByText(/freezes the draft as the next P revision/).waitFor();
+  await dlg.getByRole('combobox').click();
+  await dlg.getByRole('option', { name: /Owen Vance/ }).click();
+  await dlg.getByPlaceholder('What should they look at?').fill('Please check the ground-water section.');
+  await shot(e, 'b4-internal-review');
+  await dlg.getByRole('button', { name: /Cancel|Close/ }).first().click();
+  await dlg.waitFor({ state: 'hidden' });
+
+  // presence and the changed dot: a colleague opens the same draft, then edits it
+  const findRow = async (page) => {
+    await page.goto(`${WEB}/projects/${projectId}/sandbox`);
+    await page.getByRole('searchbox', { name: /Search/ }).fill(title);
+    const row = page.getByRole('row').filter({ hasText: title });
+    await row.waitFor();
+    return row;
+  };
+  const eRow = await findRow(e);
+  const oRow = await findRow(o);
+  await oRow.getByRole('button', { name: title, exact: true }).click();
+  await o.getByRole('button', { name: 'History' }).waitFor();
+  await owenApi.patch(`/sandbox-documents/${doc.id}`, { content: 'Owen’s change to the ground conditions chapter.' });
+  await eRow.getByRole('img', { name: 'Changed since you last opened it' }).waitFor({ timeout: 90_000 });
+  await eRow.locator('.presence-avatar[title="Owen Vance"]').waitFor({ timeout: 90_000 });
+  await shot(e, 'b4-presence');
+
+  await eRow.getByRole('button', { name: /More actions/ }).click();
+  await e.locator('.dropdown-menu').getByText('History', { exact: false }).click();
+  const panel = e.getByRole('dialog');
+  await panel.getByRole('list', { name: 'Working versions' }).waitFor();
+  await e.waitForTimeout(300);
+  await shot(e, 'b4-history');
+  await e.keyboard.press('Escape');
+}
+
+console.log('the checker, further —');
+{
+  const title = `Findings polish ${stamp3}`;
+  const content = `${title}
+
+1. Baseline sources
+The GIR records PAH exceedances at three trial pits south of the Wrenfield substation and a perched water table within the made ground.
+
+2. Conceptual site model
+A conceptual site model has been prepared for each land parcel crossed by the route. The Scheme crosses nine parcels.
+
+3. Assessment methodology
+Where the preliminary risk assessment identifies a potentially unacceptable risk, a remediation options appraisal will be scoped for the affected parcel.`;
+  const doc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, { title });
+  await eleanorApi.patch(`/sandbox-documents/${doc.id}`, { content });
+  await e.goto(`${WEB}/projects/${projectId}/tools/qa-check?documentId=${doc.id}`);
+  await e.getByRole('heading', { name: 'QA checker' }).waitFor();
+  const rules = e.getByRole('table', { name: 'Writing rule kinds and how each is checked' });
+  await rules.waitFor();
+  await e.locator('.strength-map').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await e.waitForTimeout(200);
+  await shot(e, 't2-13-strength-map');
+
+  const toggle = e.getByRole('checkbox', { name: /Second look at the model/ });
+  await toggle.check();
+  await e.locator('[data-disproving-cost]').waitFor();
+  await toggle.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await e.waitForTimeout(200);
+  await shot(e, 't2-14-second-look');
+  await toggle.uncheck();
+
+  await e.getByRole('button', { name: 'See the plan' }).click();
+  await e.getByRole('button', { name: 'Run the check' }).click();
+  await e.getByText('Covered:').waitFor({ timeout: 60_000 });
+  await e.getByRole('link', { name: 'Open the draft to work through them' }).click();
+  await e.getByText(/^Checks/).first().click();
+  const severity = e.getByRole('radiogroup', { name: 'Show findings by severity' });
+  await severity.waitFor();
+  await severity.getByRole('radio', { name: /^Required \d+$/ }).click();
+  await e.getByText(/^Showing \d+ of \d+\./).waitFor();
+  await shot(e, 't2-15-filters');
+  await e.getByRole('radiogroup', { name: 'How to lay the findings out' }).getByRole('radio', { name: 'Table' }).click();
+  await e.getByRole('button', { name: 'Show all' }).click();
+  await e.getByRole('table', { name: 'Findings' }).waitFor();
+  await e.waitForTimeout(300);
+  await shot(e, 't2-16-table');
+}
+
+console.log('moving around —');
+{
+  await r.goto(`${WEB}/projects/${projectId}`);
+  await r.getByRole('button', { name: /⌘K/ }).waitFor();
+  await r.keyboard.press('Meta+k');
+  const palette = r.getByRole('dialog', { name: 'Command palette' });
+  await palette.getByRole('textbox').fill('WA-GEO-GIR');
+  await palette.getByRole('option').first().waitFor();
+  await shot(r, 'b5-palette');
+  await r.keyboard.press('Escape');
+
+  const ref = `UNDO-${stamp3}`;
+  await eleanorApi.post(`/projects/${projectId}/plan`, { documentReference: ref, title: `Surface water outfall note ${stamp3}` });
+  await e.goto(`${WEB}/projects/${projectId}/plan`);
+  await e.getByRole('searchbox', { name: 'Search Deliverables plan' }).fill(ref);
+  await e.getByRole('button', { name: `Details for ${ref}` }).click();
+  const panel = e.getByRole('dialog');
+  await panel.getByRole('button', { name: 'Remove from plan…' }).click();
+  await panel.getByRole('textbox').last().fill('Descoped by mistake');
+  await panel.getByRole('button', { name: 'Remove from plan', exact: true }).click();
+  const toast = e.getByRole('status').filter({ hasText: 'removed from the plan' });
+  await toast.waitFor();
+  await shot(e, 'b5-undo');
+  await toast.getByRole('button', { name: 'Undo' }).click();
+  await e.getByRole('status').filter({ hasText: 'Undone.' }).waitFor();
+}
+
+console.log('threads and compare —');
+{
+  const nadiaApi = await login('nadia.okonjo@redgate.example');
+  const ref = `WA-THR-ECO-${stamp3}`;
+  const row = await eleanorApi.post(`/projects/${projectId}/plan`, { documentReference: ref, title: `Contamination baseline ${stamp3}` });
+  const cid = row.containerId;
+  const roster = (await eleanorApi.get(`/projects/${projectId}/participants`)).items;
+  const idOf = (name) => roster.find((p) => p.name === name).participantId;
+  await eleanorApi.post(`/containers/${cid}/authors`, { participantId: idOf('Eleanor Price'), isLead: true });
+  const lead = await eleanorApi.post(`/containers/${cid}/reviewers`, { participantId: idOf('Rachel Bowen'), isLead: true });
+  await rachelApi.post(`/reviewers/${lead.id}/confirmation`, {});
+  await rachelApi.post(`/reviewers/${lead.id}/acceptance`, {});
+  await rachelApi.post(`/containers/${cid}/shares`, { organisationId: roster.find((p) => p.name === 'Nadia Okonjo').organisationId });
+  await rachelApi.post(`/containers/${cid}/reviewers`, { participantId: idOf('Nadia Okonjo') });
+
+  const P01 = [
+    'Section one covers the baseline conditions across the corridor',
+    'Section two reports the groundwater levels at each monitoring point',
+    'Section three sets out the dewatering method for the compound',
+  ].join('\n\n');
+  const ADD = ['including the 2024 boreholes', 'recorded over three seasons', 'agreed with the regulator'];
+  const P02 = [
+    'Section one covers the baseline conditions including the 2024 boreholes across the corridor',
+    'Section two reports the groundwater levels recorded over three seasons at each monitoring point',
+    'Section three sets out the dewatering method agreed with the regulator for the compound',
+  ].join('\n\n');
+  const doc = await eleanorApi.post(`/projects/${projectId}/sandbox-documents`, { title: `Contamination baseline ${stamp3} draft`, containerId: cid });
+  await eleanorApi.patch(`/sandbox-documents/${doc.id}`, { content: P01 });
+  await eleanorApi.patch(`/sandboxes/${doc.sandboxId}/settings`, { promotionRequiresQa: false });
+  const p01 = await eleanorApi.post(`/sandbox-documents/${doc.id}/promotion`, {});
+  await rachelApi.post(`/rounds/${p01.roundId}/acknowledge`, {});
+
+  const topics = ['baseline', 'groundwater', 'dewatering', 'monitoring', 'access', 'programme'];
+  const ids = [];
+  for (const [i, topic] of topics.entries()) {
+    const author = i % 2 === 0 ? rachelApi : nadiaApi;
+    const c = await author.post(`/rounds/${p01.roundId}/comments`, { body: `Please say more about the ${topic}.` });
+    ids.push(c.id);
+  }
+  // the reviewing side, round open: the threads, and a progress line per reviewer
+  await r.goto(`${WEB}/projects/${projectId}/review/${cid}/cycle`);
+  await r.getByRole('list', { name: 'Threads' }).waitFor();
+  await r.locator('[data-progress-line]').first().waitFor();
+  await shot(r, 'b6-threads');
+
+  const codes = (await rachelApi.get(`/projects/${projectId}/acceptance-codes`)).items;
+  await rachelApi.post(`/rounds/${p01.roundId}/deliverable-code`, { acceptanceCodeId: codes.find((c) => c.code === 'S3').id });
+  await rachelApi.post(`/rounds/${p01.roundId}/issue`, {});
+  for (const [i, id] of ids.slice(0, 3).entries()) {
+    await eleanorApi.post(`/review-comments/${id}/response`, { body: 'Added.', nextVersionAnchor: { quote: ADD[i] } });
+  }
+  for (const id of ids.slice(3)) {
+    await eleanorApi.post(`/review-comments/${id}/response`, { body: 'Considered.', noChangeReason: 'Out of scope for this section.' });
+  }
+  await eleanorApi.patch(`/sandbox-documents/${doc.id}`, { content: P02 });
+  await eleanorApi.post(`/sandbox-documents/${doc.id}/promotion`, {});
+  await e.goto(`${WEB}/projects/${projectId}/documents/${cid}`);
+  await e.getByRole('radio', { name: 'Compare', exact: true }).click();
+  await e.locator('[data-compare-count]').waitFor();
+  await e.locator('[data-compare] ins').first().waitFor();
+  await shot(e, 'b6-compare');
+  await nadiaApi.ctx.dispose();
+}
 
 await browser.close();
 await eleanorApi.ctx.dispose();
