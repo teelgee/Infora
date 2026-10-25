@@ -217,6 +217,7 @@ export function Register<Row>(props: RegisterProps<Row>) {
                 return (
                   <th
                     key={c.key}
+                    className={c.sortable && props.sort ? 'register-sortable' : undefined}
                     style={{ ...(c.width !== undefined && { width: c.width }), ...(c.align === 'right' && { textAlign: 'right' }) }}
                     aria-sort={active === 'asc' ? 'ascending' : active === 'desc' ? 'descending' : undefined}
                   >

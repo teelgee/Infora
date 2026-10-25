@@ -26,13 +26,14 @@ import type {
   LibrarySearchItem,
   ScopePreviewResponse,
 } from '@infora/contracts';
-import { librarySearchQuery, scopePreviewBody } from '@infora/contracts';
+import { GROUNDING_SOURCES_LIMIT, groundingScopeQuery, librarySearchQuery, scopePreviewBody } from '@infora/contracts';
 import { deliverableVisibleSql as deliverableVisible, groundingSources, reachCounts, readChunkPassage, readCurrencies, searchLibraryRows, TOKEN_LIMIT } from '@infora/knowledge';
 import type { Router } from '@infora/model';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { EntitledSlice } from '@infora/governance';
 import { admittingCodes, contextStateOf } from './context-state';
+import { narrowGroundingSources } from './grounding-search';
 import { projectScope, resourceHomes, resourceScope } from './requester';
 import { resolveScope, scopeProblem } from './scope';
 import type { AppEnv } from './requester';
@@ -253,22 +254,36 @@ export function libraryRoutes(deps: { db: Db; router: Router }) {
   // The token budget rides the same response because both chips are one read:
   // a second call for one constant would be a second round trip for the
   // composer to render.
+  //
+  // T-486 — the Documents group of the Scope control is searched HERE and shows
+  // the first 50 matches (`?q=` narrows; the response says how many matched and
+  // how many the whole scope holds). The list is still `groundingSources`, the
+  // gateway's own filter, whole; the search and the cap are a pure step after it
+  // (`narrowGroundingSources`), so there is one visibility rule and no second.
   app.get('/projects/:projectId/grounding-scope', project, async (c) => {
     const slice = c.get('slice');
-    const sources = await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
-    // T-470 — how many of THESE documents carry each term: counted over the
-    // list just built, so the picker's numbers are visible documents only and
-    // the wall is not applied a second, different way.
+    const query = groundingScopeQuery.safeParse({ q: c.req.query('q') });
+    if (!query.success) {
+      return c.json({ error: 'invalid', detail: 'q must be at most 200 characters' } satisfies ApiError, 400);
+    }
+    const everything = await groundingSources(deps.db, slice, deps.router.embeddingModel.id);
+    const narrowed = narrowGroundingSources(everything, query.data.q ?? '', GROUNDING_SOURCES_LIMIT);
+    // T-470 — how many of the scope's documents carry each term: counted over
+    // the WHOLE list just built (T-486: not the page, and not changed by `q`),
+    // so the picker's numbers are visible documents only, never exceed what the
+    // scope holds, and the wall is not applied a second, different way.
     const termCounts: Record<string, number> = {};
-    if (sources.length > 0) {
+    if (everything.length > 0) {
       const placed = await deps.db
         .select({ containerId: s.containerClassifications.containerId, termId: s.containerClassifications.termId })
         .from(s.containerClassifications)
-        .where(inArray(s.containerClassifications.containerId, sources.map((source) => source.containerId)));
+        .where(inArray(s.containerClassifications.containerId, everything.map((source) => source.containerId)));
       for (const row of placed) termCounts[row.termId] = (termCounts[row.termId] ?? 0) + 1;
     }
     return c.json({
-      sources,
+      sources: narrowed.sources,
+      total: everything.length,
+      matched: narrowed.matched,
       assemblyTokenBudget: TOKEN_LIMIT,
       termCounts,
     } satisfies GetGroundingScopeResponse);

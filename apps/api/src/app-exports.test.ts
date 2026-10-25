@@ -132,6 +132,9 @@ async function returnsApp(): Promise<{ app: AppRecord; table: AppTableRecord }> 
   return { app: created, table };
 }
 
+/** The workbook text without its ISO clock times ("2026-10-25T12:25:33.189Z"). */
+const withoutClockTimes = (text: string) => text.replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, '');
+
 async function exportSheets(cookie: string, appId: string) {
   const res = await post(cookie, `/apps/${appId}/exports`, { format: 'xlsx', appTableIds: [] });
   expect(res.status).toBe(200);
@@ -149,7 +152,11 @@ describe('an export contains only what the exporting person may see', () => {
     expect(data.rows[1]![0]).toBe(`t444 builder ${stamp}`);
     const text = JSON.stringify(sheets);
     expect(text).not.toContain(`t444 peer ${stamp}`);
-    expect(text).not.toContain('3.1');
+    // the peer's figure, looked for in the WHOLE workbook — a leak into any sheet
+    // must fail — after taking out the ISO clock times: the provenance sheet prints
+    // "Data as of <ISO clock>", and at a moment like …:33.189Z that holds "3.1" —
+    // it failed this once in four full parallel runs (T-486)
+    expect(withoutClockTimes(text)).not.toContain('3.1');
   });
 
   it('the peer consultancy’s export holds its own, and not the other consultancy’s', async () => {
@@ -158,7 +165,9 @@ describe('an export contains only what the exporting person may see', () => {
     const data = sheets.find((sheet) => sheet.name.startsWith('Monthly returns'))!;
     expect(data.rows).toHaveLength(2);
     expect(data.rows[1]![0]).toBe(`t444 peer ${stamp}`);
-    expect(JSON.stringify(sheets)).not.toContain('12.4');
+    // the whole workbook again, minus the clock times, for the reason given in the
+    // test above ("…:12.4xxZ" holds "12.4")
+    expect(withoutClockTimes(JSON.stringify(sheets))).not.toContain('12.4');
   });
 
   it('the project owner’s export holds all of them', async () => {

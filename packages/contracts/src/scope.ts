@@ -78,7 +78,22 @@ export type ReachCounts = {
 
 /** What a finished run writes: the counts, plus what was actually read. */
 export type RunReach = ReachCounts & {
-  /** distinct documents in the run's steps' source sets — the passage-grain audit */
+  /**
+   * How many documents the run read. What that counts depends on the kind of run
+   * (T-486, ADR-0029's note of 2026-10-25):
+   *
+   * - **Ask and the document creator** — the distinct documents in the run's
+   *   steps' source sets, the passage-grain audit. They read only what they
+   *   retrieve and use, so this is what they really read.
+   * - **A check that searched the library** (the checker's Accuracy check) — the
+   *   in-scope count (`inScope`): every document the declared scope admitted,
+   *   which is the set the search ran over. Its source sets name only the
+   *   documents behind the findings, so the audit would call a clean check
+   *   "Read no documents" although it looked at all of them.
+   * - **A check that did not search the library** (style, arithmetic or reading
+   *   checks only) — no reach is recorded at all, so nothing is said about
+   *   reading the library.
+   */
   read: number;
 };
 

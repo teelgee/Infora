@@ -1997,3 +1997,64 @@ are not recorded here.
   import stays create-only and refuses the whole file, in words naming the row, for
   a malformed cell or a code outside the project's list, as it refuses any other
   bad cell.
+
+- **2026-10-25 (T-486) — `RunReach.read` means three things, by the kind of run.**
+  *Plainly: a check of a draft against the whole library that finds nothing wrong
+  now says how many documents it searched, instead of "Read no documents".* The
+  **reason the number has to differ by kind of run** is that "read" was defined
+  as the distinct documents in the steps' source sets, and the section check
+  records in its source set only the documents behind its findings: it counted
+  what was found against, not what was searched, so a clean check read as one
+  that never looked — the one sentence the reach statement exists to make
+  trustworthy. Ask and the creator really do read only what they retrieve and
+  use, so for them the passage-grain audit stays the right count. The **reason
+  the run is told by a typed input** (`readBasis`) and not by its workflow's name
+  is that the orchestrator guessing from a string would break the first time a
+  workflow is renamed or a second one searches the library. The **reason a check
+  that did not search the library records no reach at all** is that any number
+  would be about a search that did not happen (ADR-0029's note of 2026-10-25),
+  and it lets the findings panel — which takes the newest run that has a reach —
+  show the sentence of the newest check that did look, with no change of its own.
+
+- **2026-10-25 (T-486) — `GET /projects/:projectId/grounding-scope` takes `q`
+  and returns at most `GROUNDING_SOURCES_LIMIT` (50) sources, with `total` and
+  `matched`.** *Plainly: the Scope control's list of documents is searched by the
+  server and shows the first fifty matches, instead of being handed the whole
+  library.* The **reason the list is capped** is that T-470 handed a picker the
+  whole grounding scope, which a real project measures in thousands; the
+  **reason it is searched on the server** and not filtered in the browser is that
+  a capped list the browser filters could not find the fifty-first document. The
+  **reason `total` is a field of its own** is that "is the library empty?" was
+  read as "is the list empty?", which a page cannot answer once the list is a
+  page; and the **reason `termCounts` stays counted over the whole scope** and
+  does not move with `q` is that a number beside a term must never exceed what the
+  scope holds. The **reason the order changed** to best match first, then
+  reference, is that "the first fifty" means nothing over the old arbitrary
+  order. The visibility rule is not repeated: the search and the cap are applied
+  to what `groundingSources` already returns.
+
+- **2026-10-25 (T-486) — `SandboxDocument.internalRound` and `internalRoundOf`.**
+  *Plainly: while a draft is in internal QA its row in the sandbox list says "In
+  internal QA P01", the same words as beside its name in the editor.* The
+  **reason the field is on the list read** is that the row could only say
+  "Frozen v0.x" because only the editor loaded the round; one batched query for
+  the organisation's own documents carries it, so the list costs one more read
+  in total and not one per row. The **reason the rule is one function** in `contracts`
+  (`internalRoundOf`, over the freeze container's review cycle) is that T-455 made
+  the badge's words one vocabulary, and two copies of the rule would be two
+  vocabularies the first time either changed. The field is a state and a P
+  reference and names no person; it is absent, not null, when there is no open
+  or accepted round, so a screen that ignores it falls back to Working or Frozen.
+
+- **2026-10-25 (T-486) — `UPLOAD_MAX_BYTES` (64 MiB), `isOverUploadCeiling`,
+  `uploadTooLargeLine`, `uploadTooLargeDetail`.** *Plainly: adding reference
+  material refuses a file over 64 MB in words, on the screen before it is sent
+  and on the server if one arrives anyway.* The **reason it is one constant in
+  `contracts`** is that three places enforce it — the intake screen, the intake
+  route and the PDF reader — and the web may depend only on `contracts` and `ui`;
+  three copies of a number drift, and the reader's private copy was the only one
+  that existed. The **reason the server judges the declared length first, with an
+  allowance for the multipart framing,** is that the body is otherwise buffered
+  before anyone looks at it; the **reason it also judges the parsed file** is
+  that a client can declare a short length or none. The refusal before the body
+  is read cannot name the file (no name exists yet), so its words say "the file".

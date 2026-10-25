@@ -43,7 +43,7 @@ import type { RegisterColumn, RegisterFilterChip, RegisterSort } from '@infora/u
 import { lifecycleBadge } from '@infora/ui';
 import { api, RequestError } from '../api';
 import { describeApiError, errorCode } from '../api-errors';
-import { NOT_CITABLE_LABEL, describeTextStatus, uploadSentence } from '../reference-intake-words';
+import { NOT_CITABLE_LABEL, describeTextStatus, sendReferenceFiles, uploadProblemLines, uploadSentence } from '../reference-intake-words';
 import type { UploadProgress } from '../reference-intake-words';
 import { SavedViewsMenu } from '../saved-views-menu';
 import { useMe } from '../session';
@@ -686,20 +686,17 @@ export function LibraryScreen() {
   useEffect(loadIntakeCount, [loadIntakeCount]);
   async function addReference(files: File[]) {
     if (files.length === 0) return;
-    const state: UploadProgress = { total: files.length, uploaded: 0, scanned: 0, failed: [], finished: false };
-    setUpload({ ...state });
-    for (const file of files) {
-      try {
-        const { item } = await api.uploadReferenceFile(projectId, file);
-        state.uploaded += 1;
-        if (!item.readable) state.scanned += 1;
-      } catch (error) {
-        state.failed.push(`${file.name}: ${describeApiError(errorCode(error))}`);
-      }
-      setUpload({ ...state, failed: [...state.failed] });
-    }
-    state.finished = true;
-    setUpload({ ...state, failed: [...state.failed] });
+    // T-486 (f) — a file over the ceiling is not sent (its line says so, with its
+    // name), and the others carry on; a 413 from the server reads the same way
+    await sendReferenceFiles(
+      files,
+      async (file) => (await api.uploadReferenceFile(projectId, file)).item,
+      (error) =>
+        error instanceof RequestError && error.status === 413
+          ? { tooLarge: true, words: '' }
+          : { tooLarge: false, words: describeApiError(errorCode(error)) },
+      setUpload,
+    );
     loadIntakeCount();
   }
 
@@ -1144,7 +1141,7 @@ export function LibraryScreen() {
       {upload && (
         <div role="status" aria-label="Reference material upload" style={{ color: 'var(--text-muted)' }}>
           <p style={{ margin: 0 }}>{uploadSentence(upload)}</p>
-          {upload.failed.slice(0, 3).map((f) => (
+          {uploadProblemLines(upload).slice(0, 3).map((f) => (
             <p key={f} style={{ margin: 0, fontSize: 12.5 }}>{f}</p>
           ))}
         </div>

@@ -16,13 +16,17 @@
 //   • the keyboard-first multi-select is `MultiPicker` in `@infora/ui` — it
 //     holds no data. This file fetches (the vocabulary, the documents the
 //     answer could draw on, the person's saved scopes) and so lives here;
+//   • the Documents group is searched ON THE SERVER (T-486): it shows the first
+//     50 matches and says "type to narrow" when more matched, because a library
+//     of thousands is not something a browser should be handed whole. The
+//     vocabulary and the saved scopes are short and are still filtered here;
 //   • what the choice REACHES is never computed in the browser. The wall is
 //     applied in SQL, so the preview is a server call (`POST /scope-preview`)
 //     that runs no search and spends nothing;
 //   • a scope only NARROWS. Nothing here widens what a person may read — the
 //     server intersects whatever is sent with what they could already open.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ClassificationSchemeResponse, ReachCounts, SavedView, Scope } from '@infora/contracts';
+import type { ClassificationSchemeResponse, GroundingSource, ReachCounts, SavedView, Scope } from '@infora/contracts';
 import { reachStatement } from '@infora/contracts';
 import { MultiPicker } from '@infora/ui';
 import type { PickerGroup } from '@infora/ui';
@@ -76,17 +80,29 @@ const TERM = 'term:';
 const DOC = 'doc:';
 const SAVED = 'saved:';
 
-/** The three groups, in the ruled order: Vocabulary, Documents, Saved scopes. */
+/** What the Documents group says when more documents matched than it lists. */
+export const documentsNote = (shown: number, matched: number) =>
+  `Showing ${shown} of ${matched} — type to narrow`;
+
+/**
+ * The three groups, in the ruled order: Vocabulary, Documents, Saved scopes.
+ * `documents` is the server's answer for what is typed in the picker (the first
+ * 50 matches); without it the Documents group is the unsearched first 50 the
+ * grounding read already carries.
+ */
 export function scopeGroups(input: {
   scheme: ClassificationSchemeResponse | null;
   grounding: GroundingScope;
   saved: SavedView[];
+  documents?: { sources: GroundingSource[]; matched: number } | null;
 }): PickerGroup[] {
   const counts = input.grounding?.termCounts ?? {};
+  const documents = input.documents ?? input.grounding;
   return [
     {
       id: 'vocabulary',
       heading: 'Vocabulary',
+      local: true,
       options: (input.scheme?.facets ?? []).flatMap((facet) =>
         facet.terms
           // a retired term is no longer offered — it names nothing new can carry
@@ -102,17 +118,25 @@ export function scopeGroups(input: {
     {
       id: 'documents',
       heading: 'Documents',
-      options: (input.grounding?.sources ?? []).map((source) => ({
+      // searched by the server, so the picker shows it exactly as handed over
+      options: (documents?.sources ?? []).map((source) => ({
         id: `${DOC}${source.containerId}`,
         label: source.documentReference,
         ...(source.title !== null && { hint: source.title }),
-        // what the document IS, typed by whoever filed it (T-405): searched, not shown
+        // what the document IS, typed by whoever filed it (T-405): shown for the
+        // search that matched it, not as a column
         ...(source.description !== null && { keywords: source.description }),
       })),
+      ...(documents !== null &&
+        documents !== undefined &&
+        documents.matched > documents.sources.length && {
+          note: documentsNote(documents.sources.length, documents.matched),
+        }),
     },
     {
       id: 'saved',
       heading: 'Saved scopes',
+      local: true,
       options: input.saved.map((view) => ({
         id: `${SAVED}${view.id}`,
         label: view.name,
@@ -222,6 +246,36 @@ export function ScopeControl(props: {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const chipRef = useRef<HTMLButtonElement | null>(null);
 
+  // T-486 — the Documents group is searched on the server. What is typed in the
+  // picker is asked again after a short pause, and an answer to a word the
+  // person has since changed is aborted, never shown. With nothing typed the
+  // list is the first 50 the grounding read already carries.
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState<{ sources: GroundingSource[]; matched: number } | null>(null);
+  const projectId = state.projectId;
+  useEffect(() => {
+    if (!open || query.trim() === '') {
+      setFound(null);
+      return;
+    }
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      void api
+        .groundingScope(projectId, query, abort.signal)
+        .then((answer) => setFound({ sources: answer.sources, matched: answer.matched }))
+        // a failed or superseded search leaves the list as it was: a claim we
+        // could not check ("nothing matches") must not be made
+        .catch(() => undefined);
+    }, 180);
+    return () => {
+      window.clearTimeout(timer);
+      abort.abort();
+    };
+  }, [open, projectId, query]);
+  useEffect(() => {
+    if (!open) setQuery('');
+  }, [open]);
+
   const close = () => {
     setOpen(false);
     // the keyboard returns to where it was: the chip that opened this
@@ -232,8 +286,8 @@ export function ScopeControl(props: {
   useOutsideClose(open, [rootRef, panelRef], () => setOpen(false));
 
   const groups = useMemo(
-    () => scopeGroups({ scheme: state.scheme, grounding: state.grounding, saved: state.saved }),
-    [state.scheme, state.grounding, state.saved],
+    () => scopeGroups({ scheme: state.scheme, grounding: state.grounding, saved: state.saved, documents: found }),
+    [state.scheme, state.grounding, state.saved, found],
   );
   const termLabels = useMemo(
     () =>
@@ -269,7 +323,8 @@ export function ScopeControl(props: {
 
   // the empty-library case keeps the old chip's honesty: it says so, in a
   // warning tone, and offers nothing to open
-  if (state.grounding !== null && state.grounding.sources.length === 0) {
+  // (T-486: read from the total the server counts, not from the 50 it lists)
+  if (state.grounding !== null && state.grounding.total === 0) {
     return (
       <button
         type="button"
@@ -314,6 +369,7 @@ export function ScopeControl(props: {
             selected={selected}
             onToggle={onToggle}
             onClose={close}
+            onQueryChange={setQuery}
             status={status}
             emptyText={state.scheme === null || state.grounding === null ? 'Loading the vocabulary and the library…' : undefined}
             footer={

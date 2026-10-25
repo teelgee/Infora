@@ -4,9 +4,10 @@
 // to the requester's organisation by construction — there is no parameter.
 // Manual editing (PATCH) stays with T-082.
 import { Hono } from 'hono';
-import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   createSandboxDocumentBody,
+  internalRoundOf,
   patchSandboxDocumentBody,
   patchSandboxMetadataBody,
   renameSandboxDocumentBody,
@@ -24,6 +25,7 @@ import type {
   ListSandboxDocumentsResponse,
   ListPresenceResponse,
   ListSandboxHistoryResponse,
+  InternalRound,
   ListSuggestionsResponse,
   SandboxDocument,
 } from '@infora/contracts';
@@ -60,6 +62,29 @@ export function sandboxDefaultName(organisationName: string): string {
   return `${organisationName} — working area`;
 }
 
+// T-486 (h) — WHICH single-organisation area is "the default" is a rule, not
+// whatever the database happens to read first. The pick used to be a bare
+// `LIMIT 1` with no ORDER BY, and `sandboxes` has no index on these columns, so
+// Postgres answered in heap order — the order the rows physically sit in the
+// table — and that is not creation order: an UPDATE writes a row's new version
+// at a new place, and space freed by earlier updates is reused by later inserts,
+// so a row made last can sit first. (Seen on the e2e database: Calder & Hale's
+// seeded working area, the OLDEST, sat at slot 38 while two areas made minutes
+// later sat at slots 4 and 5, so the old query answered with an area an e2e spec
+// had made.) Both happen constantly under a full parallel test run.
+// An organisation with more than one single-organisation area on a project
+// (it may make as many as it likes) therefore got a different "default" from
+// one request to the next: an upload or a new draft with no area named could be
+// filed into any of them, and a folder of one area could be accepted as the
+// default's. The rule now: the organisation's OLDEST single-organisation area
+// on the project among those that still hold a LIVE grant for the organisation
+// (an area whose organisation grant was revoked admits nobody, so filing into
+// it would hide the person's own new document from them). None qualifies: make
+// one, as before. Ties on the clock break on the id, so the answer is total.
+//
+// Not fixed here, deliberately: two simultaneous FIRST requests can each make a
+// default. With the ordering that is harmless — the older of the two wins from
+// then on — and stopping it would need a unique index (a migration).
 export async function ensureDefaultSandbox(
   db: Db,
   projectId: string,
@@ -74,8 +99,22 @@ export async function ensureDefaultSandbox(
         eq(s.sandboxes.projectId, projectId),
         eq(s.sandboxes.owningOrganisationId, organisationId),
         eq(s.sandboxes.scope, 'single_org'),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(s.sandboxScopeGrants)
+            .where(
+              and(
+                eq(s.sandboxScopeGrants.sandboxId, s.sandboxes.id),
+                eq(s.sandboxScopeGrants.granteeType, 'organisation'),
+                eq(s.sandboxScopeGrants.organisationId, organisationId),
+                isNull(s.sandboxScopeGrants.removedAt),
+              ),
+            ),
+        ),
       ),
     )
+    .orderBy(asc(s.sandboxes.createdAt), asc(s.sandboxes.id))
     .limit(1);
   if (existing) return existing.id;
   const [organisation] = await db
@@ -242,8 +281,45 @@ export function sandboxRoutes(deps: { db: Db }) {
           )
       : [];
     const freezeByDoc = new Map(freezeRows.map((r) => [r.sandboxDocumentId!, r.id]));
+    // T-486 — the latest internal QA round per document, for the row's badge
+    // (so it reads "In internal QA P01" like the editor's, not "Frozen v0.x"):
+    // ONE batched read over every freeze container above — each one's latest
+    // cycle and that cycle's latest round (DISTINCT ON the container, newest
+    // cycle then highest round number first) — and the same `internalRoundOf`
+    // rule the editor applies to the cycle it loads. No new access question: these
+    // are the requester organisation's own documents' own freeze series.
+    const roundRows = freezeRows.length
+      ? await deps.db
+          .selectDistinctOn([s.reviewCycles.containerId], {
+            containerId: s.reviewCycles.containerId,
+            cycleState: s.reviewCycles.state,
+            roundState: s.rounds.state,
+            versionReference: s.versions.versionReference,
+          })
+          .from(s.reviewCycles)
+          .innerJoin(s.rounds, eq(s.rounds.cycleId, s.reviewCycles.id))
+          .innerJoin(s.versions, eq(s.rounds.versionId, s.versions.id))
+          .where(inArray(s.reviewCycles.containerId, freezeRows.map((r) => r.id)))
+          .orderBy(asc(s.reviewCycles.containerId), desc(s.reviewCycles.launchedAt), desc(s.rounds.number))
+      : [];
+    const roundByFreeze = new Map<string, InternalRound>();
+    for (const r of roundRows) {
+      const round = internalRoundOf({
+        state: r.cycleState,
+        rounds: [{ state: r.roundState, versionReference: r.versionReference }],
+      });
+      if (round !== null) roundByFreeze.set(r.containerId, round);
+    }
     return c.json({
-      items: rows.map((r) => toSandboxDocument(r, countByDoc.get(r.id) ?? 0, freezeByDoc.get(r.id) ?? null)),
+      items: rows.map((r) => {
+        const freezeId = freezeByDoc.get(r.id) ?? null;
+        return toSandboxDocument(
+          r,
+          countByDoc.get(r.id) ?? 0,
+          freezeId,
+          freezeId === null ? undefined : roundByFreeze.get(freezeId),
+        );
+      }),
     } satisfies ListSandboxDocumentsResponse);
   });
 
@@ -504,6 +580,20 @@ export function sandboxRoutes(deps: { db: Db }) {
     // Compared by checksum, so no document body travels. A freeze whose head
     // matches no working version (a document created with text and never saved)
     // marks nothing rather than guessing.
+    //
+    // T-486 (d) — for an UPLOADED or PDF document the text is not enough: every
+    // working version of an uploaded .docx has the text '', so the text matched
+    // them all and the choice was by time alone. But both sides also carry the
+    // FILE: a working version keeps the `file_ref` it was (migration 0070), and
+    // the frozen copy's native rendition points at the file the head held when it
+    // was taken. Where they agree that match is exact and wins; time stays only as
+    // the tie-break among working versions holding the same file (a restore writes
+    // a new version holding an older file again — the latest one is the head), and
+    // as the fallback where there is no file to read (an authored document, a
+    // version from before migration 0070, a rendition not yet made). The case time
+    // alone got wrong: a freeze reads the document and then opens its transaction,
+    // and a file that lands in that gap is saved before the freeze's own clock
+    // without being what the freeze copied.
     const frozenBy = new Map<string, NonNullable<SandboxDocumentVersion['frozen']>>();
     const [freezeContainer] = await deps.db
       .select({ id: s.containers.id })
@@ -520,6 +610,7 @@ export function sandboxRoutes(deps: { db: Db }) {
     if (freezeContainer && rows.length > 0) {
       const frozenVersions = await deps.db
         .select({
+          id: s.versions.id,
           versionReference: s.versions.versionReference,
           createdAt: s.versions.createdAt,
           sum: sql<string>`md5(${s.versions.content})`,
@@ -530,7 +621,11 @@ export function sandboxRoutes(deps: { db: Db }) {
       const latestFreeze = frozenVersions.at(-1)?.createdAt;
       const sums = latestFreeze
         ? await deps.db
-            .select({ id: s.sandboxDocumentVersions.id, sum: sql<string>`md5(${s.sandboxDocumentVersions.content})` })
+            .select({
+              id: s.sandboxDocumentVersions.id,
+              sum: sql<string>`md5(${s.sandboxDocumentVersions.content})`,
+              fileRef: s.sandboxDocumentVersions.fileRef,
+            })
             .from(s.sandboxDocumentVersions)
             .where(
               and(
@@ -540,9 +635,23 @@ export function sandboxRoutes(deps: { db: Db }) {
             )
         : [];
       const sumById = new Map(sums.map((r) => [r.id, r.sum]));
+      const fileById = new Map(sums.map((r) => [r.id, r.fileRef]));
+      // the file each frozen copy held, where its native rendition has been made —
+      // one batched read for the whole series
+      const heldFile = new Map(
+        (frozenVersions.length > 0
+          ? await deps.db
+              .select({ versionId: s.renditions.versionId, ref: s.renditions.contentRef })
+              .from(s.renditions)
+              .where(and(inArray(s.renditions.versionId, frozenVersions.map((f) => f.id)), eq(s.renditions.kind, 'native')))
+          : []
+        ).map((r) => [r.versionId, r.ref]),
+      );
       for (const f of frozenVersions) {
         // rows are newest first, so the first match is the latest at or before the freeze
-        const owner = rows.find((r) => r.createdAt <= f.createdAt && sumById.get(r.id) === f.sum);
+        const file = heldFile.get(f.id);
+        const byFile = file === undefined ? undefined : rows.find((r) => r.createdAt <= f.createdAt && fileById.get(r.id) === file);
+        const owner = byFile ?? rows.find((r) => r.createdAt <= f.createdAt && sumById.get(r.id) === f.sum);
         if (!owner) continue;
         const marks = frozenBy.get(owner.id) ?? [];
         marks.push({
@@ -664,6 +773,7 @@ export function toSandboxDocument(
   row: typeof s.sandboxDocuments.$inferSelect,
   ambientCount?: number,
   freezeContainerId?: string | null,
+  internalRound?: InternalRound,
 ): SandboxDocument {
   return {
     id: row.id,
@@ -683,6 +793,8 @@ export function toSandboxDocument(
     // T-355: the internal QA cycle's container, resolved on list/read — the
     // freeze endpoint was the only place this id ever surfaced before
     ...(freezeContainerId !== undefined && { freezeContainerId }),
+    // T-486: the latest internal round's state, on the list read only
+    ...(internalRound !== undefined && { internalRound }),
     updatedAt: row.updatedAt.toISOString(),
   };
 }

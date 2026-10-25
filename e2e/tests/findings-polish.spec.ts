@@ -13,7 +13,7 @@
 // Repeatable on one seed: the draft is created here, by this file, with a title
 // of its own, and everything is looked up by the ids it made.
 import { expect, test } from '@playwright/test';
-import type { SandboxDocument } from '@infora/contracts';
+import type { Finding, ListFindingsResponse, SandboxDocument } from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
 
 test.describe.configure({ mode: 'serial' });
@@ -113,12 +113,61 @@ test('forty-odd findings narrow to the required ones in one click, and read as a
   await expect(table.getByRole('columnheader')).toContainText(['Ref', 'Severity', 'Check', 'Rule or source', 'Where', 'State']);
   expect(await table.locator('tbody tr').count()).toBe(requiredCount);
   await expect(table.locator('tbody')).not.toContainText('Advisory');
-  // and it sorts
-  await table.getByRole('columnheader', { name: /Where/ }).click();
 
   // everything again, in one click
   await page.getByRole('button', { name: 'Show all' }).click();
   expect(await table.locator('tbody tr').count()).toBe(allCount);
+
+  // ── and it sorts: the click on "Where" produces the order the register sorts by.
+  // (T-486 c — this click used to assert nothing.) "Where" sorts by the finding's
+  // position in the draft (the start of its anchored span), which the cell does
+  // not print, so the expected order is worked out from the same findings read
+  // over the API: the cells as they stand, stably sorted by that position — the
+  // register's own comparator, applied to the register's own starting order.
+  const findings = (await eleanor.get<ListFindingsResponse>(`/sandbox-documents/${documentId}/findings`)).items;
+  const cellFor = (finding: Finding) => {
+    const quote = finding.anchor.verbatim;
+    return `“${quote.length > 48 ? `${quote.slice(0, 48)}…` : quote}”`;
+  };
+  const whereHeader = table.getByRole('columnheader', { name: /Where/ });
+  const headers = await table.getByRole('columnheader').allTextContents();
+  const whereColumn = headers.findIndex((text) => /Where/.test(text));
+  expect(whereColumn).toBeGreaterThanOrEqual(0);
+  const whereCells = async () =>
+    (await table.locator('tbody tr').evaluateAll((rows, column) =>
+      rows.map((row) => row.querySelectorAll('td')[column as number]?.textContent?.trim() ?? ''), whereColumn));
+  const startOf = new Map<string, number>();
+  for (const finding of findings) {
+    const label = cellFor(finding);
+    // two different places printing the same words would make the cell ambiguous
+    // and the comparison below meaningless — say so rather than pass quietly
+    if (startOf.has(label) && startOf.get(label) !== finding.anchor.span.start) {
+      throw new Error(`two findings print the same “Where” text (${label}) at different places`);
+    }
+    startOf.set(label, finding.anchor.span.start);
+  }
+  const startingOrder = await whereCells();
+  expect(startingOrder).toHaveLength(allCount);
+  for (const label of startingOrder) expect(startOf.has(label), `no finding prints ${label}`).toBe(true);
+  // the precondition: the column holds at least two different places, or an
+  // order assertion over it would prove nothing
+  expect(new Set(startingOrder.map((label) => startOf.get(label))).size).toBeGreaterThanOrEqual(2);
+  const sortedLike = (sign: 1 | -1) =>
+    [...startingOrder].sort((a, b) => (startOf.get(a)! - startOf.get(b)!) * sign);
+
+  // a person clicks the heading cell, wherever in it — so the click here is on the
+  // cell itself (its middle), not on the small button inside it. Before T-486 the
+  // button was only as big as the word, a click on the cell's middle landed beside
+  // it, and nothing sorted; now the button fills the cell.
+  await whereHeader.click();
+  await expect(whereHeader).toHaveAttribute('aria-sort', 'ascending');
+  expect(await whereCells()).toEqual(sortedLike(1));
+  // a second click reverses it
+  await whereHeader.click();
+  await expect(whereHeader).toHaveAttribute('aria-sort', 'descending');
+  expect(await whereCells()).toEqual(sortedLike(-1));
+  // and the two orders are not the same list — the clicks did something
+  expect(sortedLike(1)).not.toEqual(sortedLike(-1));
 });
 
 test('the second look: its price beside its switch and nowhere else, and its withdrawals counted', async ({ page }) => {

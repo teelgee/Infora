@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useOutletContext, useParams } from 'react-router';
-import { gapMarkers } from '@infora/contracts';
+import { gapMarkers, internalRoundOf } from '@infora/contracts';
 import type {
   Finding,
   GapMarker,
@@ -718,7 +718,7 @@ export function EditorScreen() {
           {/* T-455 / T-478 - the lifecycle badge sits beside the name, and reads
               the internal round once it is open ("In internal QA P01") */}
           <span style={{ marginLeft: 8 }}>
-            <Badge tone={sandboxLifecycleBadge(doc, internalCycle).tone}>{sandboxLifecycleBadge(doc, internalCycle).label}</Badge>
+            <Badge tone={sandboxLifecycleBadge(doc, internalRoundOf(internalCycle)).tone}>{sandboxLifecycleBadge(doc, internalRoundOf(internalCycle)).label}</Badge>
           </span>
         </span>
         <div className="right">

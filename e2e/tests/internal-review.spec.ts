@@ -67,4 +67,13 @@ test('one dialog takes a working draft to an open internal round', async ({ page
   // the note waits in the draft's comments
   await page.locator('.panel-tabs').getByText('Comments').click();
   await expect(page.getByText('Review request: Please check the ground-water section.')).toBeVisible();
+
+  // T-486 — the sandbox screen's row for the same draft reads the same words as
+  // the editor's badge ("In internal QA P01"), not "Frozen v0.x"
+  await page.goto(`/projects/${projectId}/sandbox`);
+  await page.getByRole('searchbox', { name: /Search/ }).fill(documentTitle);
+  const row = page.getByRole('row').filter({ hasText: documentTitle });
+  await expect(row).toBeVisible();
+  await expect(row.getByText('In internal QA P01')).toBeVisible();
+  await expect(row.getByText(/Frozen/)).toHaveCount(0);
 });

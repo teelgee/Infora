@@ -33,6 +33,7 @@ import {
   MultiPicker,
   filterPickerGroups,
   multiPickerStep,
+  visiblePickerGroups,
   formatStepCost,
   ProgressRail,
   ProjectSwitcher,
@@ -1179,6 +1180,43 @@ describe('MultiPicker (T-470)', () => {
     expect(html.match(/role="option"/g)).toHaveLength(4);
     // the local filter still exists for callers that do not own it
     expect(filterPickerGroups(groups, 'zzz')).toHaveLength(0);
+  });
+
+  // T-486 — the Scope control holds the vocabulary and saved scopes whole and
+  // asks the server for the documents: only the groups marked `local` are
+  // filtered by the picker while the caller owns the search
+  it('where the caller owns the search, filters only the groups marked local, and shows the rest as handed over', () => {
+    const mixed = [
+      { ...groups[0]!, local: true },
+      { ...groups[1]!, note: 'Showing 1 of 312 — type to narrow' },
+    ];
+    // typing "report": the local vocabulary narrows to its one match; the
+    // document group (the server's answer, whatever it was) is untouched
+    const shown = visiblePickerGroups(mixed, 'report', true);
+    expect(shown.map((g) => g.id)).toEqual(['vocabulary', 'documents']);
+    expect(shown[0]!.options.map((o) => o.label)).toEqual(['Report']);
+    expect(shown[1]!.options.map((o) => o.label)).toEqual(['WA-GEO-001 Ground investigation']);
+    // a local group with no match is dropped, headings and all; the caller's stays
+    expect(visiblePickerGroups(mixed, 'zzz', true).map((g) => g.id)).toEqual(['documents']);
+    // nothing typed: everything
+    expect(visiblePickerGroups(mixed, '', true).map((g) => g.id)).toEqual(['vocabulary', 'documents']);
+    // and with no caller search every group is filtered, as before
+    expect(visiblePickerGroups(mixed, 'zzz', false)).toEqual([]);
+  });
+
+  it('shows a group’s note under its rows, and it is not a row', () => {
+    const html = renderToStaticMarkup(
+      <MultiPicker
+        label="Scope"
+        groups={[{ ...groups[1]!, note: 'Showing 1 of 312 — type to narrow' }]}
+        selected={[]}
+        onToggle={() => {}}
+        onClose={() => {}}
+        onQueryChange={() => {}}
+      />,
+    );
+    expect(html).toContain('Showing 1 of 312 — type to narrow');
+    expect(html.match(/role="option"/g)).toHaveLength(1);
   });
 
   it('is a multiselectable listbox of options, grouped by heading, ticked ones marked', () => {

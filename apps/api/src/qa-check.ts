@@ -480,7 +480,16 @@ export function qaCheckRoutes(deps: {
         // T-469 — the scope on the plan before retrieval; the counts are
         // completed with `read` when the run finishes
         ...(computed.scope !== undefined && { scope: computed.scope }),
-        reach: computed.reach,
+        // T-486 — only a check that SEARCHED the library has a reach to record,
+        // and for it `read` is what was searched (the in-scope count): its source
+        // sets name only the documents behind findings, so the audit would call a
+        // clean check "Read no documents". A check of style, arithmetic or
+        // reading alone searched nothing, so it records no reach and says
+        // nothing about reading the library (ADR-0029's note of 2026-10-25).
+        ...(computed.body.families.includes('corpus_accuracy') && {
+          reach: computed.reach,
+          readBasis: 'searched' as const,
+        }),
         // T-471 — the attached documents: on the plan (id and label) and, as
         // excerpts, on the context the section check reads them from
         ...(computed.workingSet.length > 0 && { workingSet: computed.workingSet }),

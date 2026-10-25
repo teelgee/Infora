@@ -563,6 +563,10 @@ export function findingRoutes(deps: { db: Db }) {
     // T-470 — what the newest check run behind these findings reached, for the
     // panel's header. Only a run THIS requester made: its counts were taken
     // under the maker's own visibility, so another person's are not theirs to see.
+    // T-486 — and only a run that SEARCHED THE LIBRARY: a check of style or
+    // arithmetic alone records no reach (qa-check.ts), so `isNotNull` below skips
+    // it and the header never says "Read no documents" about a check that never
+    // looked. The newest run that did search is the one whose sentence shows.
     const runIds = [...new Set(items.map((item) => item.runId))];
     let reach: RunReach | null = null;
     if (runIds.length > 0) {

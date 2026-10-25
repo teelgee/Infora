@@ -18,6 +18,7 @@ import {
   type Classification,
   type DeploymentTier,
   type EgressFacts,
+  SecurityPolicyError,
   type Route,
   type TierPolicy,
 } from './tiers.js';
@@ -132,16 +133,7 @@ export class Router {
    */
   async chat(task: ChatTask, request: ChatRequest): Promise<ChatResult> {
     const classification = request.classification ?? this.security.defaultClassification;
-    // THE ORDER IS THE GUARANTEE (ADR-0028 §9, ADR-0037 §3). The tier filters
-    // first and fails closed; only then does the task rank what survived. The
-    // two steps are separate functions in separate files precisely so an edit
-    // cannot quietly invert them — `routesForTask` is handed a set that is
-    // already conforming and has nothing with which to widen it.
-    const conforming = conformingRoutes(this.security.policy, classification, this.chatRoutes);
-    const chain = routesForTask(conforming, task).slice(
-      0,
-      this.fallback.attempts ?? conforming.length,
-    );
+    const chain = this.chainFor(task, classification);
 
     const attempts: RouteAttempt[] = [];
     const failures: Array<{ endpoint: string; reason: string }> = [];
@@ -171,6 +163,45 @@ export class Router {
     // why, and the run carries on per T-268 — the chain refuses to widen, it
     // does not refuse to report.
     throw Object.assign(new RouteChainExhausted(failures), { attempts });
+  }
+
+  /**
+   * The routes a chat call for this task would walk, in order. THE ORDER IS THE
+   * GUARANTEE (ADR-0028 §9, ADR-0037 §3). The tier filters first and fails
+   * closed; only then does the task rank what survived. The two steps are
+   * separate functions in separate files precisely so an edit cannot quietly
+   * invert them — `routesForTask` is handed a set that is already conforming and
+   * has nothing with which to widen it. `chat` and `modelIdFor` both take their
+   * list from here, so what a plan says it will use and what a call really uses
+   * cannot be two answers.
+   */
+  private chainFor(task: ChatTask, classification: Classification): ChatRoute[] {
+    const conforming = conformingRoutes(this.security.policy, classification, this.chatRoutes);
+    return routesForTask(conforming, task).slice(0, this.fallback.attempts ?? conforming.length);
+  }
+
+  /**
+   * T-486 — which model a chat call for this task would be sent to FIRST, said
+   * without calling anything. A plan prices its steps before the click, and it
+   * has to price them at the model the call will really go to: the checker's
+   * `verify` calls go to the `verify` route's model, whatever model the
+   * deployment's drafting happens to use. (The checker's full-depth `triage` call
+   * is a different route and is not priced by this; see the note in app.ts.)
+   *
+   * It is the first stop of the same walk `chat` takes (the tier filter, then
+   * the task's ranking, default classification unless one is given), so a
+   * fallback after an outage is not priced — the estimate is of the call as
+   * planned. `null` when no route conforms to the deployment's tier: nothing
+   * would be dispatched at all, so there is nothing honest to price (a priced
+   * guess would be the T-254 lie one level up).
+   */
+  modelIdFor(task: ChatTask, classification: Classification = this.security.defaultClassification): string | null {
+    try {
+      return this.chainFor(task, classification)[0]?.adapter.modelId ?? null;
+    } catch (error) {
+      if (error instanceof SecurityPolicyError) return null;
+      throw error;
+    }
   }
 
   async embed(

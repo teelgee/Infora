@@ -21,11 +21,11 @@ import type {
   SandboxDocument,
 } from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
+import { uniqueCodeSuffix } from './support/unique-code';
 
 test.describe.configure({ mode: 'serial' });
 
-const stamp = Date.now();
-const REFERENCE = `WA-ENV-ECO-9${String(stamp).slice(-3)}`;
+const REFERENCE = `WA-ENV-ECO-${uniqueCodeSuffix()}`;
 
 let eleanor: ApiSession; // consultant lead author + org admin (Calder & Hale)
 let rachel: ApiSession; // owner-side lead reviewer (Trentmoor)

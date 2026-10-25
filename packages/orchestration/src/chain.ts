@@ -270,6 +270,19 @@ export type ChainInput = {
    */
   reach?: ReachCounts;
   /**
+   * T-486 — what the `read` in this run's reach means. `'audit'` (the default)
+   * is the passage-grain audit: the distinct documents in the steps' source
+   * sets, which is what Ask and the document creator really read, since each
+   * reads only what it retrieves and uses. `'searched'` is for a run that
+   * searched the whole library inside the scope (the checker's Accuracy check):
+   * its source sets name only the documents behind the findings, so a clean
+   * check would read as "Read no documents" although the library was searched;
+   * for it `read` is the in-scope count, the set the search ran over. It is a
+   * typed statement by the caller, not something the chain guesses from a
+   * workflow id; it only applies where a reach is written at all.
+   */
+  readBasis?: 'audit' | 'searched';
+  /**
    * T-252 — re-resolve the requester's entitlement BEFORE each step runs
    * (finding F4, half two).
    *
@@ -502,10 +515,17 @@ export async function runChain(
   // passage-grain audit). Computed from the rows the run itself wrote, so the
   // sentence's numbers can be checked against the audit.
   let retrievedCoverage: ReachCounts | undefined;
-  const reachRecord = async (): Promise<RunReach | null> => {
+  // T-486 — `searchedAll` is true only where the run finished with nothing
+  // failed: a search that did not complete everywhere cannot claim to have read
+  // the whole scope, so a failed or partly failed run falls back to the audit.
+  const reachRecord = async (searchedAll = false): Promise<RunReach | null> => {
     const counts = input.reach ?? retrievedCoverage;
     if (counts === undefined) return null;
-    return { ...counts, read: await documentsRead(db, run.id) };
+    const read =
+      searchedAll && input.readBasis === 'searched'
+        ? counts.inScope
+        : await documentsRead(db, run.id);
+    return { ...counts, read };
   };
 
   const fail = async (reason: string): Promise<never> => {
@@ -781,7 +801,7 @@ export async function runChain(
     await finishPlan(db, plan.id, 'complete');
     const finished = await finishRun(db, run.id, 'completed', {
       response: cited.answer,
-      reach: await reachRecord(),
+      reach: await reachRecord(true),
     });
     return { run: finished, suggestionIds: cited.suggestionIds, outputs: Object.fromEntries(outputs) };
   }

@@ -16,6 +16,8 @@ import type {
 } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
+import { textToDocx, textToPdf } from './renditions';
+import { ensureDefaultSandbox } from './sandbox';
 import { fakeRouter } from './test-router';
 
 const { db, pool } = createDb();
@@ -24,6 +26,7 @@ const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() })
 const stamp = Date.now();
 const password = 'pw-t477';
 let projectId: string;
+let orgAId: string;
 let annCookie: string; // org A, super-user
 let benCookie: string; // org A, ordinary member — the teammate
 let danCookie: string; // org D — admitted nowhere in org A's sandboxes
@@ -74,6 +77,7 @@ beforeAll(async () => {
   const [d] = await db.insert(s.organisations).values({ name: 't477 D' }).returning();
   const [project] = await db.insert(s.projects).values({ name: 't477 project', ownerOrganisationId: a!.id }).returning();
   projectId = project!.id;
+  orgAId = a!.id;
   await db.insert(s.memberships).values([
     { organisationId: a!.id, projectId, role: 'owner' },
     { organisationId: d!.id, projectId, role: 'member' },
@@ -246,6 +250,7 @@ describe('creating a document in a named folder (T-477 review)', () => {
 });
 
 describe('an upload lands where the person was (T-477)', () => {
+  let defaultSandboxId: string;
   let sandboxId: string;
   let otherSandboxId: string;
   let folderId: string;
@@ -260,6 +265,11 @@ describe('an upload lands where the person was (T-477)', () => {
   };
 
   beforeAll(async () => {
+    // T-486 (h) — the organisation's default area is made FIRST, here, so this
+    // describe no longer leans on an earlier describe having made it: the default
+    // is the OLDEST area (the rule is pinned in sandbox-default.test.ts), and the
+    // last assertions below name it by id instead of "not one of the other two".
+    defaultSandboxId = await ensureDefaultSandbox(db, projectId, orgAId, annParticipant);
     const mk = async (name: string) =>
       ((await (
         await app.request(`/projects/${projectId}/sandboxes`, {
@@ -301,6 +311,7 @@ describe('an upload lands where the person was (T-477)', () => {
     const res = await upload(annCookie, {});
     expect(res.status).toBe(201);
     const doc = (await res.json()) as SandboxDocument;
+    expect(doc.sandboxId).toBe(defaultSandboxId);
     expect([sandboxId, otherSandboxId]).not.toContain(doc.sandboxId);
     expect(doc.folderId).toBeNull();
   });
@@ -318,5 +329,138 @@ describe('an upload lands where the person was (T-477)', () => {
     expect((await upload(annCookie, { sandboxId: 'not-an-id' })).status).toBe(404);
     // a folder with no sandbox named is checked against the default sandbox
     expect((await upload(annCookie, { folderId })).status).toBe(404);
+  });
+});
+
+// T-486 (d) — a freeze of an UPLOADED or PDF document names the working version
+// it holds. T-477 matched a frozen version to a working one by checksum of the
+// text and by time; for an uploaded .docx the text is '' on every version, so
+// the match was by time alone, and that was untested.
+//
+// What each side stores, read from the code before these were written:
+//   - a working version (sandbox_document_versions) of an uploaded document
+//     keeps the FILE it was (`file_ref`, migration 0070) and its text — '' for a
+//     .docx, the extracted text with page breaks for a PDF;
+//   - the frozen copy (versions) keeps the text, and its NATIVE rendition (made
+//     right after the freeze commits) points at the very file the head held;
+//   - a restore writes a new working version holding the older one's file again.
+// So the file reference is on both sides and is the exact match; time is only
+// the tie-break among working versions that hold the same file.
+describe('a freeze of an uploaded or PDF document names the version it holds (T-486 d)', () => {
+  const sendFile = async (path: string, cookie: string, name: string, bytes: Buffer) => {
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(bytes)], name));
+    return app.request(path, { method: 'POST', headers: { cookie }, body: form });
+  };
+  const uploadDoc = async (name: string, bytes: Buffer): Promise<SandboxDocument> => {
+    const res = await sendFile(`/projects/${projectId}/sandbox-uploads`, annCookie, name, bytes);
+    expect(res.status).toBe(201);
+    return (await res.json()) as SandboxDocument;
+  };
+  const replaceFile = async (id: string, name: string, bytes: Buffer) => {
+    const res = await sendFile(`/sandbox-documents/${id}/file`, annCookie, name, bytes);
+    expect(res.status).toBe(200);
+  };
+  const freezeIt = async (id: string) => {
+    const res = await app.request(`/sandbox-documents/${id}/freeze`, { method: 'POST', headers: { cookie: annCookie } });
+    expect(res.status).toBe(201);
+  };
+  const releaseIt = async (id: string) => {
+    const res = await app.request(`/sandbox-documents/${id}/release`, { method: 'POST', headers: { cookie: annCookie } });
+    expect(res.status).toBe(200);
+  };
+  /** version reference → what the history marks on it (absent: nothing) */
+  const marks = async (id: string) =>
+    Object.fromEntries((await history(annCookie, id)).map((i) => [i.versionReference, i.frozen?.map((f) => f.frozenAs)]));
+
+  it('a .docx replaced once, frozen, then replaced again: the mark is on the second version — not the first, not the third', async () => {
+    const doc = await uploadDoc('T486 d docx.docx', textToDocx('First draft.'));
+    await replaceFile(doc.id, 'second.docx', textToDocx('Second draft.'));
+    await freezeIt(doc.id);
+    await releaseIt(doc.id);
+    await replaceFile(doc.id, 'third.docx', textToDocx('Third draft.'));
+    // every working version of an uploaded .docx has the text '' — the text cannot tell them apart
+    const texts = await db.select().from(s.sandboxDocumentVersions).where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id));
+    expect(new Set(texts.map((v) => v.content))).toEqual(new Set(['']));
+    expect(await marks(doc.id)).toEqual({ 'v0.3': undefined, 'v0.2': ['v0.2'], 'v0.1': undefined });
+  });
+
+  it('a PDF replaced once, frozen, then replaced again: the same', async () => {
+    const doc = await uploadDoc('T486 d pdf.pdf', textToPdf('Survey', 'First survey text.'));
+    await replaceFile(doc.id, 'second.pdf', textToPdf('Survey', 'Second survey text.'));
+    await freezeIt(doc.id);
+    await releaseIt(doc.id);
+    await replaceFile(doc.id, 'third.pdf', textToPdf('Survey', 'Third survey text.'));
+    expect(await marks(doc.id)).toEqual({ 'v0.3': undefined, 'v0.2': ['v0.2'], 'v0.1': undefined });
+    // a PDF replaced by one with the SAME text still marks the latest version at or before the freeze
+    const same = await uploadDoc('T486 d same.pdf', textToPdf('Survey', 'Unchanged text.'));
+    await replaceFile(same.id, 'again.pdf', textToPdf('Survey', 'Unchanged text.'));
+    await freezeIt(same.id);
+    expect(await marks(same.id)).toEqual({ 'v0.2': ['v0.2'], 'v0.1': undefined });
+  });
+
+  it('a freeze whose head is an OLDER file restored marks the restoring version, not the original it copies', async () => {
+    const doc = await uploadDoc('T486 d restored.docx', textToDocx('Original file.'));
+    await replaceFile(doc.id, 'later.docx', textToDocx('Later file.'));
+    const items = await history(annCookie, doc.id);
+    const original = items.find((i) => i.versionReference === 'v0.1')!;
+    const restored = await app.request(`/sandbox-documents/${doc.id}/restore`, {
+      method: 'POST',
+      headers: asJson(annCookie),
+      body: JSON.stringify({ historyVersionId: original.id }),
+    });
+    expect(restored.status).toBe(200);
+    // v0.3 holds v0.1's file again
+    const refs = await db
+      .select({ fileRef: s.sandboxDocumentVersions.fileRef, createdAt: s.sandboxDocumentVersions.createdAt })
+      .from(s.sandboxDocumentVersions)
+      .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id))
+      .orderBy(asc(s.sandboxDocumentVersions.createdAt));
+    expect(refs[2]!.fileRef).toBe(refs[0]!.fileRef);
+    expect(refs[1]!.fileRef).not.toBe(refs[0]!.fileRef);
+    await freezeIt(doc.id);
+    expect(await marks(doc.id)).toEqual({ 'v0.3': ['v0.3'], 'v0.2': undefined, 'v0.1': undefined });
+  });
+
+  // The case time alone gets wrong. A freeze reads the document, then opens its
+  // transaction; a file that lands in that gap is saved BEFORE the freeze's own
+  // clock, but is not what the freeze copied. The frozen copy's native
+  // rendition names the file it did copy, and that file is on the working
+  // version it came from — so that is the version marked, whatever the clock says.
+  // (Built in the tables here: the gap is milliseconds wide, so it is not
+  // reachable on demand through the API.)
+  async function freezeCopyOf(docId: string, fileRef: string | null) {
+    const [doc] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, docId));
+    const [container] = await db
+      .insert(s.containers)
+      .values({ projectId, scope: 'sandbox', producingOrganisationId: orgAId, sandboxDocumentId: docId, inLibrary: false })
+      .returning();
+    const [version] = await db
+      .insert(s.versions)
+      .values({ containerId: container!.id, versionReference: 'v0.1', content: doc!.content, isCurrent: true })
+      .returning();
+    if (fileRef !== null) {
+      await db.insert(s.renditions).values({ versionId: version!.id, kind: 'native', format: 'docx', contentRef: fileRef });
+    }
+  }
+
+  it('a file that landed before the freeze’s clock but is not what the freeze copied: the mark follows the FILE', async () => {
+    const doc = await uploadDoc('T486 d gap.docx', textToDocx('Copied by the freeze.'));
+    await replaceFile(doc.id, 'landed.docx', textToDocx('Landed in the gap.'));
+    const working = await db
+      .select({ fileRef: s.sandboxDocumentVersions.fileRef })
+      .from(s.sandboxDocumentVersions)
+      .where(eq(s.sandboxDocumentVersions.sandboxDocumentId, doc.id))
+      .orderBy(asc(s.sandboxDocumentVersions.createdAt));
+    // the freeze holds v0.1's file, and its clock is after v0.2 was saved
+    await freezeCopyOf(doc.id, working[0]!.fileRef);
+    expect(await marks(doc.id)).toEqual({ 'v0.2': undefined, 'v0.1': ['v0.1'] });
+  });
+
+  it('with no rendition to read yet, the match falls back to the latest working version at or before the freeze', async () => {
+    const doc = await uploadDoc('T486 d fallback.docx', textToDocx('First.'));
+    await replaceFile(doc.id, 'second.docx', textToDocx('Second.'));
+    await freezeCopyOf(doc.id, null);
+    expect(await marks(doc.id)).toEqual({ 'v0.2': ['v0.1'], 'v0.1': undefined });
   });
 });

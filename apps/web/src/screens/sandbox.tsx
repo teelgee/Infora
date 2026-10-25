@@ -1712,8 +1712,9 @@ export function SandboxScreen() {
             )}
             <DocSignals activity={activity.get(doc.id)} />
             <span style={{ marginLeft: 8 }}>
-              {/* T-455 — the lifecycle badge: Working v0.x, or Frozen v0.x once checked out */}
-              <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
+              {/* T-455 — the lifecycle badge: Working v0.x, or Frozen v0.x once checked out;
+                  T-486 — "In internal QA P01" while an internal round is open, as the editor's reads */}
+              <Badge tone={sandboxLifecycleBadge(doc, doc.internalRound).tone}>{sandboxLifecycleBadge(doc, doc.internalRound).label}</Badge>
             </span>
             <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
               {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}
@@ -2306,7 +2307,7 @@ export function SandboxScreen() {
                       )}
                       <DocSignals activity={activity.get(doc.id)} />
                       <span style={{ marginLeft: 8 }}>
-                        <Badge tone={sandboxLifecycleBadge(doc).tone}>{sandboxLifecycleBadge(doc).label}</Badge>
+                        <Badge tone={sandboxLifecycleBadge(doc, doc.internalRound).tone}>{sandboxLifecycleBadge(doc, doc.internalRound).label}</Badge>
                       </span>
                       <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 11 }}>
                         {formatLabel[doc.format]} · {formatDate(doc.updatedAt)}

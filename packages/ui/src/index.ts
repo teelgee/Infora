@@ -32,7 +32,7 @@ export { Modal, Drawer } from './dialog';
 // rather than a row of buttons (design-rules §B)
 export { Field, TextInput, TextArea, SegmentedControl, segmentStep, SelectInput, Combobox, comboboxVisible, comboboxSelected } from './form';
 // T-470 — the keyboard-first multi-select behind the scope control
-export { MultiPicker, filterPickerGroups, multiPickerStep } from './multi-picker';
+export { MultiPicker, filterPickerGroups, multiPickerStep, visiblePickerGroups } from './multi-picker';
 export type { PickerGroup, PickerOption, PickerStep } from './multi-picker';
 export { Table } from './table';
 export { Skeleton } from './skeleton';

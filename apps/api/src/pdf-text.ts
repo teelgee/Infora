@@ -25,6 +25,7 @@
 // caller can put in front of a person. Half a document indexed silently is the
 // failure mode the ruling exists to prevent.
 import { inflateSync, inflateRawSync } from 'node:zlib';
+import { UPLOAD_MAX_BYTES } from '@infora/contracts';
 
 /** The page separator inside `versions.content`; page = the count before a span, + 1. */
 export const PAGE_BREAK = '\f';
@@ -45,8 +46,10 @@ export type PdfExtraction =
 
 // Bounds, so a malformed or hostile file fails rather than runs away. An
 // uploaded document larger than this is refused as unreadable, which is the
-// honest answer: nothing here has read it.
-const MAX_BYTES = 64 * 1024 * 1024;
+// honest answer: nothing here has read it. The byte ceiling is the one number
+// the intake screen and the intake route also use (T-486 f), so the three cannot
+// drift apart.
+const MAX_BYTES = UPLOAD_MAX_BYTES;
 const MAX_OBJECTS = 200_000;
 const MAX_TEXT = 32 * 1024 * 1024;
 const MAX_DEPTH = 8;

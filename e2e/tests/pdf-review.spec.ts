@@ -15,11 +15,12 @@ import type {
   SandboxDocument,
 } from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
+import { uniqueCodeSuffix } from './support/unique-code';
 
 test.describe.configure({ mode: 'serial' });
 
 const stamp = Date.now();
-const REFERENCE = `WA-ENV-PDF-9${String(stamp).slice(-3)}`;
+const REFERENCE = `WA-ENV-PDF-${uniqueCodeSuffix()}`;
 const CONTENT =
   'The survey methodology draws on the winter ecology walkover and the ' +
   'phase one habitat classification.\n\n' +

@@ -308,6 +308,17 @@ export type GetWorkItemResponse = WorkItem & { runs: Run[] };
 //       second writer is refused 409 with the holder named in words
 //       (X-WOPI-LockFailureReason, and `hint` in the body).
 
+/**
+ * T-486 — the state of a draft's latest internal QA round, as the lifecycle
+ * badge names it: `open` ("In internal QA P01") or `accepted` ("QA accepted
+ * P01"). There is one derivation of it, `internalRoundOf`, over the freeze
+ * container's review cycle; the editor (which loads the whole cycle) and the
+ * sandbox list (which carries this per document) both go through it, so the
+ * badge on a row and the badge beside the document's name cannot say different
+ * things.
+ */
+export type InternalRound = { state: 'open' | 'accepted'; versionReference: string };
+
 export type SandboxDocument = {
   id: Id;
   projectId: Id;
@@ -337,6 +348,16 @@ export type SandboxDocument = {
   // (ADR-0032; T-355) — the internal QA cycle's id, previously returned only
   // by POST /freeze and unreachable from any read. Present on list/read.
   freezeContainerId?: Id | null;
+  /**
+   * T-486 — the latest internal QA round's state and its P reference, so the
+   * sandbox row's badge reads what the editor's does ("In internal QA P01") and
+   * not "Frozen v0.x" while a round is open. Present on the LIST read only, and
+   * absent (not null) when the draft has no open or accepted internal round —
+   * the badge then says Working or Frozen as before. Worked out for the whole
+   * list from the same freeze container and review cycle `GET
+   * /containers/:id/cycle` reads, through `internalRoundOf`; it names no person.
+   */
+  internalRound?: InternalRound;
   updatedAt: string;
 };
 
@@ -1760,6 +1781,33 @@ export type ReviewCycle = {
 };
 export type GetCycleResponse = ReviewCycle | null;
 
+/**
+ * T-486 — the ONE rule for "what internal QA round does this draft have, if
+ * any": an accepted cycle is `accepted` at its latest round's P reference; an
+ * active cycle whose latest round is open is `open` at that reference; anything
+ * else (no cycle, a round issued and waiting, a cycle closed as rejected) is
+ * neither, and the badge falls back to Working or Frozen. It takes only the
+ * facts the rule needs, so the editor can hand it the whole cycle and the
+ * list's read can hand it the one round it fetched per draft.
+ */
+export function internalRoundOf(
+  cycle:
+    | {
+        state: ReviewCycle['state'];
+        rounds: ReadonlyArray<Pick<Round, 'state' | 'versionReference'>>;
+      }
+    | null
+    | undefined,
+): InternalRound | null {
+  const latest = cycle?.rounds.at(-1);
+  if (!cycle || !latest) return null;
+  if (cycle.state === 'accepted') return { state: 'accepted', versionReference: latest.versionReference };
+  if (cycle.state === 'active' && latest.state === 'open') {
+    return { state: 'open', versionReference: latest.versionReference };
+  }
+  return null;
+}
+
 // Closing a cycle as rejected is a permanent, audited stop (ADR-0032) — it
 // requires an explicit free-text reason (T-194).
 export const closeRejectedBody = z.object({ reason: z.string().min(1) });
@@ -2945,15 +2993,41 @@ export type GroundingSource = {
    */
   description: string | null;
 };
+/**
+ * T-486 — the most documents `GET /projects/:id/grounding-scope` lists at once.
+ * The Scope control's Documents group used to be handed the whole grounding
+ * scope; it is now searched on the server and shows this many matches, and
+ * says "type to narrow" when more matched than are shown.
+ */
+export const GROUNDING_SOURCES_LIMIT = 50;
+/** T-486 — the optional search of the same read: a reference, title or the filer's description. */
+export const groundingScopeQuery = z.object({ q: z.string().trim().max(200).optional() });
+export type GroundingScopeQuery = z.infer<typeof groundingScopeQuery>;
 export type GetGroundingScopeResponse = {
+  /**
+   * T-486 — at most `GROUNDING_SOURCES_LIMIT` documents: the ones matching the
+   * request's `q` (all of them, with none), best match first — a reference or
+   * title that starts with what was typed before one that merely contains it,
+   * then by reference. The whole grounding scope is no longer sent.
+   */
   sources: GroundingSource[];
+  /**
+   * T-486 — how many documents the WHOLE grounding scope holds, whatever `q`
+   * said. The empty-library warning reads this (`0` is the real answer), and
+   * `termCounts` below is counted over the same set.
+   */
+  total: number;
+  /** T-486 — how many documents matched `q` (`total` with no query); `sources` is the first of them */
+  matched: number;
   /** the per-turn assembly token budget every run is built inside (ADR-0029 §5) */
   assemblyTokenBudget: number;
   /**
-   * T-470 — how many of `sources` carry each classification term, keyed by
-   * term id. Counted over exactly the documents in `sources`, so it is the
-   * number of VISIBLE, readable documents and nothing the wall hides. A term
-   * no listed document carries is absent (read it as zero).
+   * T-470 — how many documents carry each classification term, keyed by term
+   * id. Counted over the WHOLE grounding scope (T-486: not just the listed
+   * `sources`, and not changed by `q`), so a number beside a term can never
+   * exceed what the scope holds and is the number of VISIBLE, readable
+   * documents and nothing the wall hides. A term no document carries is absent
+   * (read it as zero).
    */
   termCounts: Record<Id, number>;
 };

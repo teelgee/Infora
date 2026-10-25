@@ -18,11 +18,11 @@ import type {
   SandboxFolder,
 } from '@infora/contracts';
 import { ApiSession, SEEDED } from './support/api';
+import { uniqueCodeSuffix } from './support/unique-code';
 
 test.describe.configure({ mode: 'serial' });
 
-const stamp = Date.now();
-const suffix = String(stamp).slice(-3);
+const suffix = uniqueCodeSuffix();
 
 let eleanor: ApiSession; // consultant lead author (Calder & Hale)
 let rachel: ApiSession; // owner (Trentmoor)

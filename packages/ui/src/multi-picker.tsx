@@ -28,7 +28,25 @@ export type PickerOption = {
   /** extra words the search matches but the row does not show */
   keywords?: string;
 };
-export type PickerGroup = { id: string; heading: string; options: PickerOption[] };
+export type PickerGroup = {
+  id: string;
+  heading: string;
+  options: PickerOption[];
+  /**
+   * T-486 — in caller-searched mode (`onQueryChange` given) the picker shows
+   * every group as it was handed over; a group marked `local` is still filtered
+   * by the picker itself. It is for the groups the caller holds whole (the
+   * vocabulary, the saved scopes) when they sit beside one it searches on a
+   * server (the documents).
+   */
+  local?: boolean;
+  /**
+   * T-486 — a line under the group's rows that is not a row: what the group is
+   * not showing ("Showing 50 of 312 — type to narrow"). It is never ticked and
+   * never highlighted.
+   */
+  note?: string;
+};
 
 /**
  * The search. A row matches when every word typed is found in its label, hint
@@ -53,6 +71,24 @@ export function filterPickerGroups(groups: PickerGroup[], query: string): Picker
       };
     })
     .filter((group) => group.options.length > 0);
+}
+
+/**
+ * T-486 — the groups the picker shows for what is typed. Where the picker
+ * searches (no `onQueryChange`) that is every group, filtered. Where the caller
+ * owns the search it is every group exactly as handed over, EXCEPT the groups
+ * marked `local`, which the picker still filters itself — the vocabulary and the
+ * saved scopes beside a document list that a server searches.
+ */
+export function visiblePickerGroups(groups: PickerGroup[], query: string, callerSearches: boolean): PickerGroup[] {
+  if (!callerSearches) return filterPickerGroups(groups, query);
+  const local = new Map(
+    filterPickerGroups(
+      groups.filter((group) => group.local === true),
+      query,
+    ).map((group) => [group.id, group] as const),
+  );
+  return groups.flatMap((group) => (group.local === true ? (local.has(group.id) ? [local.get(group.id)!] : []) : [group]));
 }
 
 export type PickerStep = {
@@ -120,10 +156,7 @@ export function MultiPicker(props: {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listId = useId();
   const remote = props.onQueryChange !== undefined;
-  const shown = useMemo(
-    () => (remote ? props.groups : filterPickerGroups(props.groups, query)),
-    [remote, props.groups, query],
-  );
+  const shown = useMemo(() => visiblePickerGroups(props.groups, query, remote), [remote, props.groups, query]);
   const flat = useMemo(() => shown.flatMap((group) => group.options), [shown]);
   const optionDomId = (id: string) => `${listId}-${id}`;
 
@@ -201,6 +234,7 @@ export function MultiPicker(props: {
                 </div>
               );
             })}
+            {group.note !== undefined && <div className="multi-picker-note">{group.note}</div>}
           </div>
         ))}
         {flat.length === 0 && (

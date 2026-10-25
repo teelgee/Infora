@@ -15,6 +15,28 @@ import type { Id } from './shared';
 
 const id = z.uuid();
 
+// T-486 (f) — the ceiling on a file Infora takes in on a person's behalf: 64 MB.
+// ONE number, so the three places that enforce it cannot drift: the intake screen
+// (which does not send a larger file), the intake route (which refuses one with a
+// 413 in words) and the PDF reader (which will not read one). It was first a
+// private constant of the PDF reader, and the intake had no cap of its own beyond
+// the server's (T-472 deviation g).
+export const UPLOAD_MAX_BYTES = 64 * 1024 * 1024;
+/** the ceiling as a person reads it */
+export const UPLOAD_MAX_LABEL = `${UPLOAD_MAX_BYTES / (1024 * 1024)} MB`;
+/** true when a file is over the ceiling (a file of exactly the ceiling is not) */
+export const isOverUploadCeiling = (sizeBytes: number): boolean => sizeBytes > UPLOAD_MAX_BYTES;
+/** the screen's progress line for a file it did not send */
+export const uploadTooLargeLine = (fileName: string): string =>
+  `${fileName}: not uploaded — larger than ${UPLOAD_MAX_LABEL}`;
+/**
+ * The server's 413 `detail`. It names the file when it has read far enough to
+ * know it; a refusal on the declared length alone comes before the body is read,
+ * so before any name exists, and says "the file".
+ */
+export const uploadTooLargeDetail = (fileName?: string): string =>
+  `${fileName ? `“${fileName}”` : 'The file'} is larger than ${UPLOAD_MAX_LABEL}, the most reference intake takes`;
+
 export const INTAKE_CONFIDENCES = ['confident', 'likely', 'unsure'] as const;
 export type IntakeConfidence = (typeof INTAKE_CONFIDENCES)[number];
 

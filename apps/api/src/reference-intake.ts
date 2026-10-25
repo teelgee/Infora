@@ -35,7 +35,10 @@ import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   bulkConfirmIntakeBody,
   confirmIntakeBody,
+  isOverUploadCeiling,
   referenceIntakeQuery,
+  UPLOAD_MAX_BYTES,
+  uploadTooLargeDetail,
 } from '@infora/contracts';
 import type {
   ApiError,
@@ -74,6 +77,18 @@ const forbidden = (c: Context) =>
 const invalid = (c: Context, detail?: string) =>
   c.json({ error: 'invalid', ...(detail && { detail }) } satisfies ApiError, 400);
 
+// T-486 (f) — a file over the ceiling is refused in words (413) before anything
+// is read, extracted or stored. The WOPI host's save is the house precedent for
+// a worded 413 (`wopi.ts`).
+const tooLarge = (c: Context, fileName?: string) =>
+  c.json({ error: 'invalid', detail: uploadTooLargeDetail(fileName) } satisfies ApiError, 413);
+/**
+ * What a multipart body adds to the file's own bytes (boundary lines, the part's
+ * headers). The declared length is the whole body, so it is judged against the
+ * ceiling plus this; the exact test is the parsed file's own size, below.
+ */
+const MULTIPART_ALLOWANCE = 64 * 1024;
+
 /** the owner's super user — the work queue's own `ownerSuper` */
 const ownerSuper = (slice: EntitledSlice) => slice.membershipRole === 'owner' && canEditPlan(slice);
 
@@ -91,9 +106,17 @@ export function referenceIntakeRoutes(deps: { db: Db; router: Router; modelRates
   app.post('/projects/:projectId/reference-intake', project, async (c) => {
     const slice = c.get('slice');
     if (!ownerSuper(slice)) return forbidden(c);
+    // T-486 (f) — the declared length first: a body that says it is over the
+    // ceiling is turned away BEFORE it is buffered (the file is not named — no
+    // name exists until the body is read). A body that does not declare a length,
+    // or declares a short one, is caught by the parsed file's own size below.
+    const declared = Number(c.req.header('content-length') ?? '0');
+    if (declared > UPLOAD_MAX_BYTES + MULTIPART_ALLOWANCE) return tooLarge(c);
     const body = await c.req.parseBody().catch(() => null);
     const file = body?.['file'];
     if (!(file instanceof File)) return invalid(c, 'file_required');
+    // the backstop, and the exact rule: refused before it is read, extracted or stored
+    if (isOverUploadCeiling(file.size)) return tooLarge(c, file.name);
     const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
     const format = uploadFormats[extension as keyof typeof uploadFormats];
     if (!format) return invalid(c, 'unsupported_format');

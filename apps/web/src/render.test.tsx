@@ -47,7 +47,13 @@ import { SourceCardView } from './source-card';
 import { SourceChip } from '@infora/ui';
 import type { Currency } from '@infora/contracts';
 import type { IntakeFacet } from './screens/reference-intake';
-import { NOT_CITABLE_LABEL, describeTextStatus, uploadSentence } from './reference-intake-words';
+import {
+  NOT_CITABLE_LABEL,
+  describeTextStatus,
+  sendReferenceFiles,
+  uploadProblemLines,
+  uploadSentence,
+} from './reference-intake-words';
 import type { IntakeRow } from '@infora/contracts';
 import {
   ExtractionReportNote,
@@ -62,9 +68,9 @@ import { FindingsPanel, countFindings, narrowFindings, ruleOrSource } from './fi
 import { AuthorshipCard, AuthorshipRail, provenanceFits } from './authorship-rail';
 import { AuthorshipAppendixToggle } from './screens/schema';
 import { Markdown } from '@infora/ui';
-import { gapMarkers } from '@infora/contracts';
+import { gapMarkers, internalRoundOf } from '@infora/contracts';
 import type { PassageProvenance } from '@infora/contracts';
-import { NOTHING_TO_READ, ScopeControl, WHOLE_LIBRARY, scopeField, scopeGroups, scopeLabel, scopeOf } from './scope-control';
+import { NOTHING_TO_READ, ScopeControl, WHOLE_LIBRARY, documentsNote, scopeField, scopeGroups, scopeLabel, scopeOf } from './scope-control';
 import type { ScopeState } from './scope-control';
 import { ExternalDocumentView } from './screens/external-document';
 import { ScreenBlock, chartSeries, screenFor, trendLine } from './screens/app-screen';
@@ -128,7 +134,7 @@ const scopeState = (over: Partial<ScopeState> = {}): ScopeState => ({
   projectId: 'p1',
   value: WHOLE_LIBRARY,
   setValue: () => {},
-  grounding: { sources: SOURCES, assemblyTokenBudget: 12000, termCounts: { t1: 4 } },
+  grounding: { sources: SOURCES, total: 2, matched: 2, assemblyTokenBudget: 12000, termCounts: { t1: 4 } },
   scheme: SCHEME,
   saved: [],
   reloadSaved: () => {},
@@ -146,13 +152,26 @@ describe('T-470 — the scope control keeps the old chip’s honesty about an em
     // screen says it rested on nothing
     const html = renderToStaticMarkup(
       <ScopeControl
-        state={scopeState({ grounding: { sources: [], assemblyTokenBudget: 12000, termCounts: {} } })}
+        state={scopeState({ grounding: { sources: [], total: 0, matched: 0, assemblyTokenBudget: 12000, termCounts: {} } })}
       />,
     );
     expect(html).toContain('No sources in scope');
     expect(html).toContain('chip-warning');
     expect(html).toContain('disabled');
     expect(html).not.toContain('aria-haspopup');
+  });
+
+  // T-486 — the Documents group lists at most 50, so "is the library empty?" can
+  // no longer be read off the list: it is read from the total the server counts
+  it('reads the empty-library warning from the total, not from how many documents are listed', () => {
+    // a library of 312 whose first page is (for whatever reason) not in hand: it is NOT empty
+    const html = renderToStaticMarkup(
+      <ScopeControl
+        state={scopeState({ grounding: { sources: [], total: 312, matched: 0, assemblyTokenBudget: 12000, termCounts: {} } })}
+      />,
+    );
+    expect(html).not.toContain('No sources in scope');
+    expect(html).toContain('aria-haspopup="listbox"');
   });
 
   it('a scope that could not be READ is not zero sources, and says nothing of the kind', () => {
@@ -223,6 +242,32 @@ describe('T-470 — the open list: vocabulary, documents, saved scopes, in that 
     const order = ['Vocabulary', 'Documents', 'Saved scopes'].map((heading) => html.indexOf(heading));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  // T-486 — the Documents group is the server's first 50 matches
+  it('says "type to narrow" when more documents matched than the group lists, and not otherwise', () => {
+    const many = open({
+      grounding: { sources: SOURCES, total: 312, matched: 312, assemblyTokenBudget: 12000, termCounts: { t1: 4 } },
+    });
+    expect(many).toContain('Showing 2 of 312 — type to narrow');
+    expect(open()).not.toContain('type to narrow');
+    expect(documentsNote(50, 312)).toBe('Showing 50 of 312 — type to narrow');
+  });
+
+  it('shows the server’s answer for what was typed, and a ticked document that is not among the matches stays counted', () => {
+    const groups = scopeGroups({
+      scheme: SCHEME,
+      grounding: scopeState().grounding,
+      saved: [],
+      documents: { sources: [SOURCES[1]!], matched: 1 },
+    });
+    expect(groups.find((g) => g.id === 'documents')!.options.map((o) => o.label)).toEqual(['WA-ENV-004']);
+    expect(groups.find((g) => g.id === 'documents')!.note).toBeUndefined();
+    // the vocabulary and the documents are told apart for the picker's own filter
+    expect(groups.find((g) => g.id === 'vocabulary')!.local).toBe(true);
+    expect(groups.find((g) => g.id === 'documents')!.local).toBeUndefined();
+    // c1 is ticked but not listed: the chip still counts it
+    expect(scopeLabel({ termIds: [], containerIds: ['c1'], saved: null }, new Map())).toBe('Scope: 1 document');
   });
 
   it('a document’s description is searched, not shown', () => {
@@ -2702,13 +2747,72 @@ describe('the reference-material intake (T-472)', () => {
   });
 
   it('the library’s count line is fed by what each request answered', () => {
-    expect(uploadSentence({ total: 50, uploaded: 7, scanned: 0, failed: ['x.docx: …', 'y.docx: …'], finished: false })).toBe(
+    const none = { scanned: 0, failed: [], tooLarge: [], finished: false };
+    expect(uploadSentence({ ...none, total: 50, uploaded: 7, failed: ['x.docx: …', 'y.docx: …'] })).toBe(
       '7 of 50 uploaded · 2 could not be read',
     );
-    expect(uploadSentence({ total: 3, uploaded: 3, scanned: 1, failed: [], finished: true })).toBe(
+    expect(uploadSentence({ ...none, total: 3, uploaded: 3, scanned: 1, finished: true })).toBe(
       '3 of 3 uploaded · 1 with no readable text — waiting for you in the intake queue.',
     );
-    expect(uploadSentence({ total: 4, uploaded: 0, scanned: 0, failed: [], finished: false })).toBe('0 of 4 uploaded');
+    expect(uploadSentence({ ...none, total: 4, uploaded: 0 })).toBe('0 of 4 uploaded');
+  });
+
+  // T-486 (f) — the ceiling, on the screen: a file over 64 MB is not sent, its
+  // line names it and says why, and the others carry on. The upload rule is a
+  // pure function (`sendReferenceFiles`), so it is run here with a recording
+  // sender rather than a browser.
+  it('a file over 64 MB is not sent, is named with the reason, and the other files still upload', async () => {
+    const mb = 1024 * 1024;
+    const files = [
+      { name: 'small.pdf', size: 2 * mb },
+      { name: 'Huge survey.pdf', size: 64 * mb + 1 },
+      { name: 'exactly-the-limit.pdf', size: 64 * mb },
+      { name: 'scan.pdf', size: mb },
+    ];
+    const sent: string[] = [];
+    const seen: string[] = [];
+    const result = await sendReferenceFiles(
+      files,
+      async (file) => {
+        sent.push(file.name);
+        return { readable: file.name !== 'scan.pdf' };
+      },
+      () => ({ tooLarge: false, words: 'x' }),
+      (p) => seen.push(uploadSentence(p)),
+    );
+    // the oversize file never reached the sender; a file of exactly the ceiling did
+    expect(sent).toEqual(['small.pdf', 'exactly-the-limit.pdf', 'scan.pdf']);
+    expect(result).toMatchObject({ total: 4, uploaded: 3, scanned: 1, tooLarge: ['Huge survey.pdf'], failed: [], finished: true });
+    expect(uploadProblemLines(result)).toEqual(['Huge survey.pdf: not uploaded — larger than 64 MB']);
+    expect(uploadSentence(result)).toBe(
+      '3 of 4 uploaded · 1 larger than 64 MB — not uploaded · 1 with no readable text — waiting for you in the intake queue.',
+    );
+    // progress was reported as it went, ending finished
+    expect(seen.at(-1)).toBe(uploadSentence(result));
+    expect(seen.length).toBeGreaterThan(4);
+  });
+
+  it('a 413 from the server reads the same way as the screen’s own check; any other refusal keeps its words', async () => {
+    const files = [
+      { name: 'looks-small.pdf', size: 1 },
+      { name: 'corrupt.pdf', size: 1 },
+      { name: 'fine.pdf', size: 1 },
+    ];
+    const result = await sendReferenceFiles(
+      files,
+      async (file) => {
+        if (file.name === 'looks-small.pdf') throw new Error('413');
+        if (file.name === 'corrupt.pdf') throw new Error('400');
+        return { readable: true };
+      },
+      (error) => (error instanceof Error && error.message === '413' ? { tooLarge: true, words: '' } : { tooLarge: false, words: 'That file could not be read.' }),
+      () => undefined,
+    );
+    expect(result.uploaded).toBe(1);
+    expect(uploadProblemLines(result)).toEqual([
+      'looks-small.pdf: not uploaded — larger than 64 MB',
+      'corrupt.pdf: That file could not be read.',
+    ]);
   });
 
   it('a held-but-unreadable file is labelled in words, never by a code', () => {
@@ -3373,8 +3477,29 @@ describe('the sandbox lifecycle badge sees the internal round (T-478)', () => {
   });
   it('says In internal QA P01 while the round is open, and QA accepted after', () => {
     const doc = { headLocked: true, workingRevision: 'v0.2' };
-    expect(sandboxLifecycleBadge(doc, cycle('active', [round('open')])).label).toBe('In internal QA P01');
-    expect(sandboxLifecycleBadge(doc, cycle('accepted', [round('issued')])).label).toBe('QA accepted P01');
-    expect(sandboxLifecycleBadge(doc, cycle('active', [round('issued')])).label).toBe('Frozen v0.2');
+    // the editor loads the whole cycle and goes through the one rule
+    expect(sandboxLifecycleBadge(doc, internalRoundOf(cycle('active', [round('open')]))).label).toBe('In internal QA P01');
+    expect(sandboxLifecycleBadge(doc, internalRoundOf(cycle('accepted', [round('issued')]))).label).toBe('QA accepted P01');
+    expect(sandboxLifecycleBadge(doc, internalRoundOf(cycle('active', [round('issued')]))).label).toBe('Frozen v0.2');
+    expect(sandboxLifecycleBadge(doc, internalRoundOf(undefined)).label).toBe('Frozen v0.2');
+  });
+
+  // T-486 — the SANDBOX ROW reads the same words as the editor. The row's
+  // document carries the round the server worked out (`internalRound`), and
+  // both screens call the one function with it.
+  it('the sandbox row says In internal QA P01 and QA accepted P01, exactly as the editor does', () => {
+    const frozen = { headLocked: true, workingRevision: 'v0.2' };
+    const rowOpen = { ...frozen, internalRound: { state: 'open', versionReference: 'P01' } as const };
+    const rowAccepted = { ...frozen, internalRound: { state: 'accepted', versionReference: 'P01' } as const };
+    expect(sandboxLifecycleBadge(rowOpen, rowOpen.internalRound).label).toBe('In internal QA P01');
+    expect(sandboxLifecycleBadge(rowAccepted, rowAccepted.internalRound).label).toBe('QA accepted P01');
+    // a row with no round keeps its old words
+    expect(sandboxLifecycleBadge(frozen, undefined).label).toBe('Frozen v0.2');
+    expect(sandboxLifecycleBadge({ headLocked: false, workingRevision: 'v0.3' }, undefined).label).toBe('Working v0.3');
+    // and the two screens cannot disagree: the same facts through the editor's
+    // path (a cycle) and the row's path (the server's round) give one label
+    const viaCycle = sandboxLifecycleBadge(frozen, internalRoundOf(cycle('active', [round('open')])));
+    const viaRow = sandboxLifecycleBadge(frozen, rowOpen.internalRound);
+    expect(viaRow).toEqual(viaCycle);
   });
 });

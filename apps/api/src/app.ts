@@ -308,6 +308,18 @@ export function buildApp(deps: AppDeps) {
       ...(deps.draftModelId !== undefined && { draftModelId: deps.draftModelId }),
     }),
   );
+  // T-486 — the checker's plan prices its steps at the model its calls will
+  // really be routed to. The checker's `verify` calls (a section read, the
+  // comparison, the optional second look) go through the `verify` route, so the
+  // router is asked which model that is — it is NOT the deployment's drafting
+  // model, which is what this used to be priced at. None conforms (or the
+  // deployment declares no rate for the model): the estimate stays unpriced.
+  // A known small inaccuracy that predates this and is left as it was: at full
+  // depth each section read also makes one short `triage` call (to list the
+  // passage's checkable assertions). The step counts it (`calls: 2`) but adds no
+  // tokens for it, so the estimate leaves out its cost; it is not priced at the
+  // `triage` model.
+  const checkModelId = deps.router.modelIdFor('verify');
   // T-336 — the QA checker as a tool. The SAME leaves and the SAME capability
   // registry the creator and the Ask path use: two bindings would be two
   // answers to "what does a step of this deployment run".
@@ -321,7 +333,7 @@ export function buildApp(deps: AppDeps) {
       ...(deps.workflows !== undefined && { workflows: deps.workflows }),
       ...(deps.workers !== undefined && { workers: deps.workers }),
       ...(deps.modelRates !== undefined && { modelRates: deps.modelRates }),
-      ...(deps.draftModelId !== undefined && { checkModelId: deps.draftModelId }),
+      ...(checkModelId !== null && { checkModelId }),
     }),
   );
   app.route('/', uploadRoutes(deps));

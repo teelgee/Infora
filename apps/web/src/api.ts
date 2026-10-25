@@ -339,8 +339,15 @@ export const api = {
   // T-292 — what the composer's Data sources and Context chips read. NOT the
   // library list: membership is necessary and no longer sufficient, and the
   // server computes this off the same pre-filter retrieval grounds on.
-  groundingScope: (projectId: string) =>
-    request<GetGroundingScopeResponse>(`/projects/${projectId}/grounding-scope`),
+  //
+  // T-486 — the Documents group is searched on the server and shows the first 50
+  // matches: `q` narrows it, and the answer says how many matched and how many
+  // the whole scope holds.
+  groundingScope: (projectId: string, q?: string, signal?: AbortSignal) =>
+    request<GetGroundingScopeResponse>(
+      `/projects/${projectId}/grounding-scope${q !== undefined && q.trim() !== '' ? `?q=${encodeURIComponent(q.trim())}` : ''}`,
+      signal !== undefined ? { signal } : undefined,
+    ),
   // T-470 — what a scope would reach, counted by the server under the wall; runs
   // no search and spends nothing
   scopePreview: (projectId: string, scope: Scope | undefined, signal?: AbortSignal) =>

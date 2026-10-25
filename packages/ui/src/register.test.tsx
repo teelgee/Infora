@@ -1,6 +1,7 @@
 // T-460 — the register's grammar renders the class vocabulary the design
 // rules style, and its controlled state round-trips: search, filter chips,
 // the filtered note, the column chooser, selection with its bar, sort, pages.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Register } from './register';
@@ -95,6 +96,42 @@ describe('Register', () => {
     expect(html).toContain('51–100 of 120');
     expect(html).toContain('Previous');
     expect(html).toContain('Next');
+  });
+
+  // T-486 — a column heading sorts wherever a person clicks it. The button is
+  // the whole cell (not just the word), which only the cell's class and the
+  // stylesheet together can say; static markup shows the class on the cell, and
+  // the stylesheet is read to see that the class makes the button fill it.
+  it('makes a sortable heading one button that fills its cell', () => {
+    const html = renderToStaticMarkup(
+      <Register
+        label="Library"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        sort={{ value: null, onChange: () => {} }}
+        empty="Nothing"
+      />,
+    );
+    // the sortable column's cell carries the class and holds the sort button
+    expect(html).toMatch(/<th class="register-sortable"[^>]*><button type="button" class="register-sort">Reference/);
+    // a column that cannot be sorted is a plain cell: no class, no button
+    expect(html).toMatch(/<th[^>]*>Title<\/th>/);
+    expect(html).not.toMatch(/<th class="register-sortable"[^>]*>Title/);
+    // without a sort control no heading is a button at all
+    const unsorted = renderToStaticMarkup(<Register label="Library" columns={columns} rows={rows} rowKey={(r) => r.id} empty="Nothing" />);
+    expect(unsorted).not.toContain('register-sortable');
+    expect(unsorted).not.toContain('register-sort"');
+
+    const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
+    const cell = /\n\.register-table thead th\.register-sortable \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const button = /\n\.register-sortable \.register-sort \{([^}]*)\}/.exec(css)?.[1] ?? '';
+    // the cell gives up its padding and the button takes the table's own
+    expect(cell).toContain('padding: 0');
+    expect(button).toContain('display: block');
+    expect(button).toContain('width: 100%');
+    expect(button).toContain('padding: var(--table-cell-padding)');
+    expect(button).toContain('text-align: inherit');
   });
 
   it('shows skeleton rows while loading and the empty sentence when there is nothing', () => {

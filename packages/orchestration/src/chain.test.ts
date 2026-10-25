@@ -454,6 +454,46 @@ describe('the scope and the reach (T-469)', () => {
     const { run } = await runChain(db, leaves, input());
     expect(run.reach).toEqual({ ...REACH, read: 1 });
   });
+
+  // T-486 — a run that SEARCHED the library says so with a typed input; the
+  // chain does not guess from the workflow's name
+  it('a run that says its read is what it searched records the in-scope count, not the audit', async () => {
+    // the stub retrieval names ONE document, the scope admitted THREE
+    const { run } = await runChain(db, stubLeaves([]), { ...input(), reach: REACH, readBasis: 'searched' });
+    expect(run.state).toBe('completed');
+    expect(run.reach).toEqual({ ...REACH, read: 3 });
+  });
+
+  it('naming the audit, or naming nothing, is the passage-grain audit as before', async () => {
+    const audit = await runChain(db, stubLeaves([]), { ...input(), reach: REACH, readBasis: 'audit' });
+    expect(audit.run.reach).toEqual({ ...REACH, read: 1 });
+    const unnamed = await runChain(db, stubLeaves([]), { ...input(), reach: REACH });
+    expect(unnamed.run.reach).toEqual({ ...REACH, read: 1 });
+  });
+
+  it('a search that did not finish everywhere does not claim to have read the whole scope', async () => {
+    const leaves = stubLeaves([]);
+    let attempt = 0;
+    leaves.retrieve = async () => {
+      attempt += 1;
+      if (attempt === 2) throw new Error('the index was unreachable');
+      return { output: retrieved };
+    };
+    const { run } = await runChain(db, leaves, {
+      ...input(),
+      reach: REACH,
+      readBasis: 'searched',
+      stages: [
+        { stage: 'search_corpus' },
+        { stage: 'analyse' },
+        { stage: 'verify' },
+        { stage: 'present' },
+        { stage: 'search_corpus' },
+      ],
+    });
+    expect(run.state).toBe('completed_with_failures');
+    expect(run.reach).toEqual({ ...REACH, read: 1 });
+  });
 });
 
 // T-471 — the working set is a declared part of the plan, written BEFORE retrieval

@@ -317,6 +317,43 @@ describe('task-class routing (T-284, ADR-0028 §9 refinement)', () => {
     expect(() => new Router([], conformingEmbeddings())).toThrow(/no chat route/);
   });
 
+  // T-486 — a plan prices a step before the click, at the model the call will go
+  // to. The router can say which, without calling anything, and it says it by
+  // taking the SAME two steps `chat` takes — so the two cannot be different answers.
+  it('says which model a task would go to first, without a call, and the call agrees', async () => {
+    const small = routeAt('small-triage', ['triage']);
+    const big = routeAt('big-frontier', ['frontier']);
+    const router = new Router([small, big], conformingEmbeddings());
+    expect(router.modelIdFor('verify')).toBe('big-frontier'); // checking is frontier work
+    expect(router.modelIdFor('triage')).toBe('small-triage');
+    for (const task of ['verify', 'triage', 'draft', 'extract'] as const) {
+      const called = await router.chat(task, { messages: [{ role: 'user', content: 'x' }] });
+      expect(router.modelIdFor(task)).toBe(called.model.id);
+    }
+    // nothing was sent to answer it
+    const stub = anthropicStub();
+    const quiet = new Router([{ adapter: new AnthropicChatAdapter(stub, 'quiet', { attributes: SELF_HOSTED_UK }) }], conformingEmbeddings());
+    expect(quiet.modelIdFor('verify')).toBe('quiet');
+    expect(stub.lastParams()).toBeUndefined();
+  });
+
+  it('answers from the conforming set only, and says nothing when no route conforms', () => {
+    const usPublic: RouteAttributes = {
+      region: 'us',
+      retention: 'transient',
+      jurisdiction: 'foreign-reachable',
+      eligibility: 'enterprise-zdr',
+    };
+    const router = new Router(
+      [routeAt('non-conforming-frontier', ['frontier'], usPublic), routeAt('uk-general')],
+      conformingEmbeddings(),
+    );
+    expect(router.modelIdFor('verify')).toBe('uk-general');
+    // none conforms: nothing would be dispatched, so there is nothing to price — null, not a guess
+    const none = new Router([routeAt('undeclared', ['frontier'], UNATTRIBUTED)], conformingEmbeddings());
+    expect(none.modelIdFor('verify')).toBeNull();
+  });
+
   // the Wave 5 table, as code: every class it names has a tier, and the tier
   // vocabulary is contracts' WorkerModelTier rather than a second name for it
   it('tiers every task class the design reference names', () => {

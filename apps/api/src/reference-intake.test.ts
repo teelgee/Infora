@@ -9,8 +9,12 @@
 // party that may use any of this), an owner-organisation member who is not a
 // super user, a producing organisation's super user, and — for the wall — a
 // stranger with no place on the project.
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
+import { UPLOAD_MAX_BYTES } from '@infora/contracts';
 import type {
   BulkConfirmIntakeResponse,
   GetLibraryAdmissionResponse,
@@ -527,4 +531,107 @@ describe('reference-material intake (T-472)', () => {
     expect(await isVersionIndexed(db, router, version!.id, projectId)).toBe(true);
     expect((await queue('confirmed')).items.find((i) => i.id === item.id)?.needsIndexing).toBe(false);
   });
+});
+
+// T-486 (f) — a file over the ceiling is refused in words, before anything is
+// read, extracted or stored. The ceiling is the contracts' one number (the PDF
+// reader and the screen use it too).
+//
+// How the two refusals are proved, honestly:
+//   - the PARSED-size path (the exact rule, and the backstop) is run with REAL
+//     bytes — a body of exactly 64 MB + 1 byte — because that is what a browser
+//     would send, and it takes a second or two;
+//   - the DECLARED-length path is run with a body that cannot be read at all: a
+//     stream that throws if anything pulls on it. A 413 therefore proves the
+//     route turned the request away on its header, before buffering a byte.
+//   - exactly at the ceiling is run with real bytes too: it is NOT refused by the
+//     size rule (what happens to it next is the extractor's business — these
+//     bytes are not a PDF, so it lands as "could not be read").
+// Blobs go to a directory of this describe's own, so "no blob" is a count of an
+// empty directory rather than a guess about a shared one.
+describe('the upload ceiling (T-486 f)', () => {
+  let blobDir: string;
+  let previousBlobDir: string | undefined;
+  const intakeCount = async () =>
+    Number((await db.select({ n: sql<number>`count(*)` }).from(s.referenceIntake).where(eq(s.referenceIntake.projectId, projectId)))[0]!.n);
+
+  beforeAll(() => {
+    previousBlobDir = process.env['INFORA_BLOB_DIR'];
+    blobDir = mkdtempSync(join(tmpdir(), 't486-blobs-'));
+    process.env['INFORA_BLOB_DIR'] = blobDir;
+  });
+  afterAll(() => {
+    if (previousBlobDir === undefined) delete process.env['INFORA_BLOB_DIR'];
+    else process.env['INFORA_BLOB_DIR'] = previousBlobDir;
+    rmSync(blobDir, { recursive: true, force: true });
+  });
+
+  it('a file one byte over the ceiling is a 413 that names the file and the ceiling — and nothing is written', async () => {
+    const rowsBefore = await intakeCount();
+    const name = `T486-too-big-${stamp}.pdf`;
+    const res = await upload(ownerSuper, name, Buffer.alloc(UPLOAD_MAX_BYTES + 1));
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error: string; detail: string };
+    expect(body.error).toBe('invalid');
+    expect(body.detail).toContain(name);
+    expect(body.detail).toContain('64 MB');
+    // no intake row, no blob, no run recorded for a proposal
+    expect(await intakeCount()).toBe(rowsBefore);
+    expect(readdirSync(blobDir)).toEqual([]);
+  }, 60_000);
+
+  it('a body that DECLARES more than the ceiling is turned away on its header, before it is read', async () => {
+    const rowsBefore = await intakeCount();
+    const asked = new Error('the body was read');
+    const unreadable = new ReadableStream<Uint8Array>({
+      pull() {
+        throw asked;
+      },
+    });
+    const res = await app.request(`/projects/${projectId}/reference-intake`, {
+      method: 'POST',
+      headers: {
+        cookie: ownerSuper,
+        'content-type': 'multipart/form-data; boundary=t486',
+        'content-length': String(UPLOAD_MAX_BYTES + 1024 * 1024),
+      },
+      body: unreadable,
+      duplex: 'half',
+    } as RequestInit);
+    expect(res.status).toBe(413);
+    // no file name exists before the body is read, so the words say "the file"
+    expect(((await res.json()) as { detail: string }).detail).toBe(
+      'The file is larger than 64 MB, the most reference intake takes',
+    );
+    expect(await intakeCount()).toBe(rowsBefore);
+    expect(readdirSync(blobDir)).toEqual([]);
+  });
+
+  it('the size rule still sits behind the owner’s super user: anyone else is refused as before, whatever they send', async () => {
+    const res = await app.request(`/projects/${projectId}/reference-intake`, {
+      method: 'POST',
+      headers: {
+        cookie: ownerMember,
+        'content-type': 'multipart/form-data; boundary=t486',
+        'content-length': String(UPLOAD_MAX_BYTES * 2),
+      },
+      body: new ReadableStream<Uint8Array>({ pull: (controller) => controller.close() }),
+      duplex: 'half',
+    } as RequestInit);
+    expect(res.status).toBe(403);
+  });
+
+  it('a file of exactly the ceiling is NOT refused by the size rule', async () => {
+    const rowsBefore = await intakeCount();
+    const res = await upload(ownerSuper, `T486-at-the-limit-${stamp}.pdf`, Buffer.alloc(UPLOAD_MAX_BYTES));
+    expect(res.status).toBe(201);
+    const item = ((await res.json()) as UploadReferenceIntakeResponse).item;
+    // the bytes are not a PDF, so the extractor says so — the size rule let it through
+    expect(item).toMatchObject({ textStatus: 'pdf_unreadable', readable: false });
+    expect(await intakeCount()).toBe(rowsBefore + 1);
+    expect(readdirSync(blobDir)).toHaveLength(1);
+    // tidy: rejecting deletes the row and the 64 MB file
+    expect((await post(ownerSuper, `/projects/${projectId}/reference-intake/${item.id}/reject`)).status).toBe(200);
+    expect(readdirSync(blobDir)).toEqual([]);
+  }, 60_000);
 });
