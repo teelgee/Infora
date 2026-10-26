@@ -15,10 +15,9 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
-import { isCurrentAppRow, runAppBody } from '@infora/contracts';
+import { isCountedAppRow, runAppBody } from '@infora/contracts';
 import type {
   ApiError,
-  AppColumn,
   AppDefinition,
   AppRunRecord,
   ListAppRunsResponse,
@@ -28,7 +27,7 @@ import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { buildFacts, reachApp } from './apps';
-import { listRows, reachTable } from './app-rows';
+import { listRows, publishedColumnsOfTable, reachTable } from './app-rows';
 import { figuresFor, writeInsightSentence } from './app-insight';
 import type { CoveredTable } from './app-insight';
 import type { AppEnv } from './requester';
@@ -122,11 +121,15 @@ export function appRunRoutes(deps: { db: Db; router: Router }) {
       const context = await reachTable(deps.db, user, table.id);
       if (!context) continue;
       // T-487 — the run adds up CURRENT rows only: the same predicate the
-      // dashboard uses, so a corrected return is covered once, as its correction
-      const rows = (await listRows(deps.db, context)).filter(isCurrentAppRow);
+      // dashboard uses, so a corrected return is covered once, as its correction.
+      // T-489 — and COUNTED ones: a return the client rejected is not added up
+      // (`isCountedAppRow`, ADR-0056's fifth addendum, ruling 4); one still
+      // awaiting a decision is, and the figures say how many.
+      const rows = (await listRows(deps.db, context)).filter(isCountedAppRow);
       covered.push({
         name: table.name,
-        columns: table.columns as AppColumn[],
+        // T-489 — the PUBLISHED copy's columns: a run acts against it
+        columns: publishedColumnsOfTable(context),
         hasAcceptance: table.hasAcceptance,
         rows,
       });

@@ -40,7 +40,7 @@ import {
 } from './rule-set';
 import { CHECK_FAMILIES } from './checker';
 import { DOCUMENT_LANGUAGES, DOCUMENT_PURPOSES, DOCUMENT_TYPES } from './creator';
-import { appDefinitionSchema } from './app-builder';
+import { APP_COLUMN_TYPES, appDefinitionSchema } from './app-builder';
 import type { AppBuildTurn, BuilderQuestion, GetAppResponse } from './app-builder';
 import type { ApiError } from './errors';
 import { scopeSchema } from './scope';
@@ -2586,7 +2586,10 @@ export type WorkQueueKind =
   | 'recheck_reference'
   // T-481 — a plan row's milestone date has passed without the row reaching its
   // status code (the owner side reading the schedule; the producer's plan editors for their own rows)
-  | 'overdue_milestone';
+  | 'overdue_milestone'
+  // T-489 — a row the requester's organisation entered was rejected, and the
+  // organisation may correct it (ADR-0056's fifth addendum, ruling 3)
+  | 'correct_app_row';
 export type WorkQueueItem = {
   kind: WorkQueueKind;
   /** the sentence: "Confirm Rachel Bowen as lead reviewer of WA-EIA-MST-001" */
@@ -2595,6 +2598,9 @@ export type WorkQueueItem = {
   href: string;
   /** a count where the item stands for several (comments, findings) */
   count?: number;
+  /** T-489 — a second line under the sentence: for a rejected app row, the
+   * client's reason, which the requester's organisation already reads on the row */
+  detail?: string;
   at: string | null;
 };
 export type RecentDocument = {
@@ -3679,6 +3685,32 @@ export type DeclareAppTableBody = z.infer<typeof declareAppTableBody>;
  */
 export const setAppTableAcceptanceBody = z.object({ hasAcceptance: z.boolean() });
 export type SetAppTableAcceptanceBody = z.infer<typeof setAppTableAcceptanceBody>;
+
+/**
+ * POST /app-tables/:appTableId/columns — T-489 (ADR-0056's fifth addendum,
+ * ruling 1). A builder adds a column to a table that already exists, on the
+ * WORKING copy.
+ *
+ * *In plain terms: the only change to a table's shape that can be made once
+ * people have entered rows. There is no `required` field on purpose — the rows
+ * already entered carry no value for the new column, so it is always optional —
+ * and there is no way here to remove a column or change its type, because rows
+ * have already been entered under it.* `key` may be left out: it is worked out
+ * from the label. The people using the app see the column from the next
+ * publish.
+ */
+export const addAppColumnBody = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_]+$/, 'a column key is lower-case letters, digits and underscores')
+    .optional(),
+  label: z.string().trim().min(1).max(200),
+  type: z.enum(APP_COLUMN_TYPES),
+  choices: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+});
+export type AddAppColumnBody = z.infer<typeof addAppColumnBody>;
 
 /** POST /app-tables/:appTableId/shares — the project owner shares one table
  * with one named organisation (ADR-0056 §6): deliberate, audited, revocable,

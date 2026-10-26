@@ -48,7 +48,7 @@ import type {
   SourceDocumentOption,
   SourceRegion,
 } from '@infora/contracts';
-import { APP_SCHEDULES, INSIGHT_TABLE_COLUMNS } from '@infora/contracts';
+import { APP_COLUMN_TYPES, APP_SCHEDULES, INSIGHT_TABLE_COLUMNS, isPublishedColumn, publishedColumnsOf } from '@infora/contracts';
 import {
   Badge,
   Button,
@@ -60,7 +60,7 @@ import {
   TextInput,
 } from '@infora/ui';
 import { api, RequestError } from '../api';
-import { GeneratedScreen } from './app-screen';
+import { GeneratedScreen, chartGroupingWords, screenFor } from './app-screen';
 import { formatDateTime } from './shared';
 import { suggestMapping } from './heading-match';
 
@@ -354,6 +354,7 @@ function AppStatePanel(props: {
         appId={props.appId}
         projectId={props.projectId}
         tables={data.tables}
+        publishedAt={data.app.publishedAt}
         open={openFor('contractual-data')}
         onDone={props.onChanged}
       />
@@ -478,6 +479,8 @@ function PanelTables(props: {
   appId: string;
   projectId: string;
   tables: AppTableRecord[];
+  /** when the app was last published — a column added after it is marked new */
+  publishedAt: string | null;
   open: BuilderQuestion[];
   onDone: () => void;
 }) {
@@ -540,7 +543,23 @@ function PanelTables(props: {
               <strong>{table.name}</strong>
               <span className="page-sub">{TABLE_KIND_WORDS[table.kind]}</span>
             </div>
-            <p className="page-sub">{table.columns.map((column) => column.label).join(', ')}</p>
+            <p className="page-sub">
+              {table.columns.map((column, index) => (
+                <span key={column.key}>
+                  {index > 0 && ', '}
+                  {column.label}
+                  {/* T-489 — a column added since the last publish is a builder's
+                      alone until the app is next opened */}
+                  {!isPublishedColumn(column, props.publishedAt) && (
+                    <>
+                      {' '}
+                      <Badge tone="info">new — appears when you publish</Badge>
+                    </>
+                  )}
+                </span>
+              ))}
+            </p>
+            {table.kind !== 'insight' && <AddColumn table={table} onDone={props.onDone} />}
             {table.kind === 'insight' ? (
               <p className="page-sub">No acceptance step — a run writes it.</p>
             ) : openIds.has(table.id) ? (
@@ -565,7 +584,13 @@ function PanelTables(props: {
               <span className="page-sub">Working data — rows never change hands</span>
             )}
             {table.kind !== 'insight' && (
-              <TableSource appId={props.appId} projectId={props.projectId} table={table} />
+              // T-489 — a spreadsheet maps onto the PUBLISHED columns only: one added since
+              // the last publish is offered from the next publish
+              <TableSource
+                appId={props.appId}
+                projectId={props.projectId}
+                table={{ ...table, columns: publishedColumnsOf(table.columns, props.publishedAt) }}
+              />
             )}
           </div>
         ))
@@ -628,6 +653,93 @@ function PanelTables(props: {
       )}
       {notice !== null && <p className="page-sub">{notice}</p>}
     </Card>
+  );
+}
+
+// ── T-489 — add a column to a table that already exists ─────────────────────
+
+/**
+ * **Add a column** (ADR-0056's fifth addendum, ruling 1).
+ *
+ * *In plain terms: a table that already has rows can still gain a column — a
+ * label, a type, and for a choice its choices. It is always optional, because the
+ * rows already entered have no value for it, and the people using the app see it
+ * from the next publish. A column cannot be removed or changed to another type
+ * here, because rows have been entered under it.* The server's refusal (a key
+ * already used, a choice with no choices) is shown in its own words.
+ */
+function AddColumn(props: { table: AppTableRecord; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState('');
+  const [type, setType] = useState<AppColumnType>('text');
+  const [choices, setChoices] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="quiet" onClick={() => setOpen(true)} aria-label={`Add a column to ${props.table.name}`}>
+        Add a column
+      </Button>
+    );
+  }
+
+  const add = async () => {
+    setPending(true);
+    setNotice(null);
+    try {
+      await api.addAppColumn(props.table.id, {
+        label: label.trim(),
+        type,
+        ...(type === 'choice' && {
+          choices: choices
+            .split(',')
+            .map((choice) => choice.trim())
+            .filter(Boolean),
+        }),
+      });
+      setLabel('');
+      setChoices('');
+      setType('text');
+      setOpen(false);
+      props.onDone();
+    } catch (error) {
+      setNotice(refusal(error, 'That column could not be added.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="builder-item">
+      <Field
+        label={`New column on “${props.table.name}”`}
+        hint="Optional — rows already entered have no value for it. The people using the app see it from the next publish."
+      >
+        <TextInput value={label} onChange={setLabel} placeholder="Diesel used (litres)" />
+      </Field>
+      <Field label="Type">
+        <SelectInput
+          value={type}
+          onChange={(value) => setType(value as AppColumnType)}
+          options={APP_COLUMN_TYPES.map((value) => ({ value, label: value }))}
+        />
+      </Field>
+      {type === 'choice' && (
+        <Field label="Choices" hint="Separated by commas.">
+          <TextInput value={choices} onChange={setChoices} placeholder="Yes, No, Not applicable" />
+        </Field>
+      )}
+      <div className="shelf-head" style={{ gap: 8 }}>
+        <Button size="sm" onClick={() => void add()} disabled={pending || label.trim() === ''}>
+          Add the column
+        </Button>
+        <Button size="sm" variant="quiet" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+      {notice !== null && <p className="page-sub">{notice}</p>}
+    </div>
   );
 }
 
@@ -1088,6 +1200,11 @@ function ScreenItem(props: {
   const [showPreview, setShowPreview] = useState(false);
   useEffect(() => setLabel(screen.label), [screen.label]);
   const narrowedTo = screen.openToOrganisationIds;
+  const drawn = props.table === null ? null : screenFor(screen.source, props.table);
+  const charts = (drawn?.blocks ?? []).filter(
+    (block): block is Extract<typeof block, { kind: 'barChart' | 'lineChart' | 'pieChart' }> =>
+      block.kind === 'barChart' || block.kind === 'lineChart' || block.kind === 'pieChart',
+  );
 
   return (
     <div className={`builder-item${props.isOpen ? ' is-open' : ''}`} data-screen-id={screen.id}>
@@ -1144,6 +1261,18 @@ function ScreenItem(props: {
         </div>
       </div>
 
+      {/* T-489 — what each chart groups by, in words ("by organisation" for a
+          chart grouped by the entering organisation) */}
+      {charts.length > 0 && props.table !== null && (
+        <p className="page-sub">
+          Charts:{' '}
+          {charts.map((chart, index) => (
+            <span key={index}>
+              {index > 0 && '; '}“{chart.label}” — {chartGroupingWords(chart, props.table!)}
+            </span>
+          ))}
+        </p>
+      )}
       {props.table !== null && (
         <ScreenWriter appId={props.appId} screen={screen} table={props.table} onWritten={props.onWritten} />
       )}

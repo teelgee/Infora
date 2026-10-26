@@ -30,7 +30,7 @@
 // disagreement between the copies is a button offered to somebody the API then
 // refuses.
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import type {
   AppExportRecord,
   AppRecord,
@@ -197,7 +197,12 @@ export function AppScreen() {
   // T-441 — which table's rows are open. One at a time: the mockup's two seats
   // are each ONE table's worth of rows, and a page stacking every table would
   // be a different screen from the one the owner approved.
-  const [openTableId, setOpenTableId] = useState<string | null>(null);
+  // T-489 — a work-queue item lands here with the table already open and the
+  // rejected row's correction started (`?table=…&correct=…`): one click from the
+  // form, as the home page promises
+  const [search] = useSearchParams();
+  const [openTableId, setOpenTableId] = useState<string | null>(() => search.get('table'));
+  const correctRowId = search.get('correct');
 
   const load = useCallback(() => {
     if (appId === undefined) return;
@@ -398,6 +403,8 @@ export function AppScreen() {
         <AppTableRows
           table={tables.find((t) => t.id === openTableId)!}
           appState={app.state}
+          publishedAt={app.publishedAt}
+          {...(correctRowId !== null && openTableId === search.get('table') && { startCorrecting: correctRowId })}
           onChanged={load}
         />
       )}

@@ -42,7 +42,7 @@ import type {
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
 import { reachApp } from './apps';
-import { listRows, reachTable } from './app-rows';
+import { listRows, publishedColumnsOfTable, reachTable } from './app-rows';
 import type { TableContext } from './app-rows';
 import { putBlob, mimeTypes, textToDocx } from './renditions';
 import { buildXlsx } from './xlsx';
@@ -171,7 +171,9 @@ export function appExportRoutes(deps: { db: Db }) {
       if (!context || context.app.row.id !== loaded.row.id) return notFound(c);
       const visible = (await listRows(deps.db, context)).find((r) => r.id === row.id);
       if (!visible) return notFound(c);
-      const columns = context.table.columns as AppColumn[];
+      // T-489 — the PUBLISHED copy's columns: one added since the last publish is
+      // not in the file, for anybody (ADR-0056's fifth addendum, ruling 1)
+      const columns = publishedColumnsOfTable(context);
       const body = [
         loaded.row.name,
         context.table.name,
@@ -220,7 +222,9 @@ export function appExportRoutes(deps: { db: Db }) {
       const context: TableContext | null = await reachTable(deps.db, user, appTableId);
       if (!context) continue;
       const rows = await listRows(deps.db, context);
-      const columns = context.table.columns as AppColumn[];
+      // T-489 — the PUBLISHED copy's columns: one added since the last publish is
+      // not in the file, for anybody (ADR-0056's fifth addendum, ruling 1)
+      const columns = publishedColumnsOfTable(context);
       sheets.push(sheetFor(context.table.name, takenSheetNames, columns, rows, context.table.hasAcceptance));
       tablesCovered.push(appTableId);
       tableNames.push(context.table.name);

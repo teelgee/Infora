@@ -85,7 +85,7 @@ const router = fakeRouter((system, prompt) => {
   // about the real rows the runner could read, and a suite can assert that the
   // numbers in it are the ones the platform calculated.
   if (system.includes('about figures that have already been calculated')) {
-    const rows = /Table “(.+?)” — (\d+) current row\(s\) readable\./.exec(prompt);
+    const rows = /Table “(.+?)” — (\d+) counted row\(s\) readable\./.exec(prompt);
     const total = /total ([\d.]+),/.exec(prompt);
     if (rows === null) return 'There are no rows here to report on yet.';
     return total === null

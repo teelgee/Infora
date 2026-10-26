@@ -18,9 +18,14 @@
 //   - asked for “a place for the analysis”, it declares an INSIGHT table with
 //     NO `columns` field — the agent is told Infora fixes those columns, obeys,
 //     and the answer used to be thrown away whole for it (walk defect 2);
-//   - asked for something “by contractor”, it answers with a sentence of prose
-//     and then the structured answer BARE, with no fence around it (walk
-//     defect 3, shot 19).
+//   - asked for a chart “by month”, it answers with a sentence of prose and
+//     then the structured answer BARE, with no fence around it (walk defect 3,
+//     shot 19).
+//
+// **T-489 teaches it two more things:** asked for a chart “by contractor” (or
+// “by firm”) it writes a chart grouped by the entering organisation
+// (`groupBy: 'organisation'`, ADR-0056's fifth addendum), and asked to “add a
+// column called …” it adds an optional column to the returns table.
 //
 // Never deployed: imported by `e2e-server.ts` and by tests only.
 import { CONVERSATION_SYSTEM } from './app-builder-agent';
@@ -164,9 +169,28 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
     says.push(`I added a pie chart to “${dashboard.label}”.`);
   }
 
-  // ── "by contractor": prose, then the answer bare, unfenced (walk defect 3) ──
+  // ── "by contractor" / "by firm": a chart grouped by the entering organisation
+  if (/by (contractor|firm)/.test(said) && dashboard !== undefined) {
+    acts.push({
+      kind: 'writeScreen',
+      screen: dashboard.id,
+      label: dashboard.label,
+      table: dashboard.table ?? 'Monthly returns',
+      layout: {
+        ...DASHBOARD_LAYOUT,
+        blocks: [
+          ...DASHBOARD_LAYOUT.blocks.slice(0, 4),
+          { kind: 'barChart', label: 'Energy used by contractor', groupBy: 'organisation', valueColumn: 'energy_kwh' },
+          DASHBOARD_LAYOUT.blocks[4],
+        ],
+      },
+    });
+    says.push(`I added a chart of energy used by contractor to “${dashboard.label}”.`);
+  }
+
+  // ── "by month": prose, then the answer bare, unfenced (walk defect 3) ──────
   let proseFirst: string | null = null;
-  if (/by contractor/.test(said) && dashboard !== undefined) {
+  if (/by month/.test(said) && dashboard !== undefined) {
     acts.push({
       kind: 'writeScreen',
       screen: dashboard.id,
@@ -183,6 +207,18 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
     });
     says.push(`I added an energy chart to “${dashboard.label}”.`);
     proseFirst = 'Good idea — I have put that chart on the dashboard for you.';
+  }
+
+  // ── "add a column called …": one optional column on the returns table (T-489)
+  const adding = /\badd a column called ([a-z0-9 ]+?)(?: \((number|text|date)\))?(?:\.|$)/i.exec(saidMatch[1]!);
+  const returnsTable = state.tables.find((table) => table.name === 'Monthly returns');
+  if (adding !== null && returnsTable !== undefined) {
+    acts.push({
+      kind: 'addColumn',
+      table: returnsTable.name,
+      column: { label: adding[1]!.trim(), type: adding[2]?.toLowerCase() ?? 'text' },
+    });
+    says.push(`I added the column “${adding[1]!.trim()}” to “${returnsTable.name}”. It is optional, and the app’s people will see it from the next publish.`);
   }
 
   // ── a removal is proposed first, and performed only once agreed ───────────

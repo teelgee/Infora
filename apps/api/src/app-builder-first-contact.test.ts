@@ -488,7 +488,7 @@ describe('words then a bare answer, end to end (walk defect 3, shot 19)', () => 
     const first = await say(built.id, 'Build me a monthly returns app.');
     const dashboard = first.app.app.definition!.interfaces.find((i) => i.label === 'Client dashboard')!;
 
-    const res = await say(built.id, 'Please add a chart by contractor to the dashboard.');
+    const res = await say(built.id, 'Please add an energy chart by month to the dashboard.');
     const agent = res.turns[1]!;
     // the act was PERFORMED — the dashboard now carries the new chart
     const after = res.app.app.definition!.interfaces.find((i) => i.id === dashboard.id)!;

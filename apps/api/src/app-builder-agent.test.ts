@@ -332,6 +332,7 @@ describe('the agent’s tool set', () => {
     expect([...BUILDER_AGENT_ACT_KINDS]).toEqual([
       'describeApp',
       'declareTable',
+      'addColumn',
       'writeScreen',
       'removeScreen',
       'setSchedule',
@@ -341,6 +342,9 @@ describe('the agent’s tool set', () => {
       'answerContractualData',
       'answerWhoMayOpen',
     ]);
+    // T-489 — and no act that removes a column or changes its type: rows have
+    // already been entered under it (ADR-0056, fifth addendum, ruling 1)
+    expect([...BUILDER_AGENT_ACT_KINDS].join(' ')).not.toMatch(/remove[A-Za-z]*Column|retype|dropColumn/i);
     // the schema the model's answer is parsed with has exactly those kinds
     const schemaKinds = builderAgentActSchema.options.map((option) => option.shape.kind.value);
     expect(schemaKinds).toEqual([...BUILDER_AGENT_ACT_KINDS]);

@@ -2141,3 +2141,49 @@ are not recorded here.
   client may name that client — the deployer sees it, and changes it, before it
   becomes the new app's. Migration **0085**; see the personal-data register's
   playbook row.
+
+- **2026-10-26 (T-489) — a chart block gains `groupBy: 'organisation'`.** *Plainly:
+  "electricity by contractor" can now be drawn: a chart may group by the firm that
+  entered each row instead of by a column the table declared.* The **reason it is
+  one new field and not a new kind of block** is that the walk's request was
+  exactly that — the grammar's block kinds are unchanged and still pinned — and
+  the **reason the field is a closed choice of one word, not text**, is that the
+  grammar's whole safety is that no field can hold an address, a key or code
+  (ADR-0056 §11); a one-word enum cannot. A chart groups by a column *or* by
+  organisation, never both and never neither, and the parser still refuses a
+  screen whole. The firm's name was already on every row a viewer receives, so
+  nothing new is fetched and the wall is untouched.
+
+- **2026-10-26 (T-489) — `AppColumn.addedAt`, `isPublishedColumn`,
+  `publishedColumnsOf`, and the `POST /app-tables/:id/columns` route.** *Plainly: a
+  builder can add a column to a table that already has rows; the app's people see
+  it from the next publish.* The **reason the time lives on the column and the
+  decision lives in one helper in `contracts`** is that four places must agree on
+  what the published copy has — the opened table, the form's validation, the
+  export and the analysis run — and the building screen must mark it; five copies
+  of "is this column published?" is how they drift. The time is stamped by the
+  database clock (the same clock that stamps `published_at`), so "added after the
+  last publish" is never a comparison between two machines. The column is always
+  optional, and there is **deliberately no way to remove one or change its type**:
+  rows have been entered under it (ADR-0056, fifth addendum). No migration: the
+  columns are already a JSON list. The agent gains the same act as `addColumn`.
+
+- **2026-10-26 (T-489) — `isCountedAppRow`, `notYetAcceptedCount` and
+  `notYetAcceptedLine`.** *Plainly: a rejected return no longer adds up, and the
+  screen says how many figures are still waiting for the client.* The **reason the
+  counting rule is a second predicate beside `isCurrentAppRow` and not a change to
+  it** is that "current" is also what the row table uses to decide which rows to
+  list by default, and the owner's ruling is that a rejected row is still *listed*
+  (with its state and reason) while no longer *added up*. One predicate for
+  "counted", used by the total, count and chart blocks and by the analysis run, so
+  the dashboard and the written analysis can never disagree about a rejected row.
+
+- **2026-10-26 (T-489) — `WorkQueueKind` gains `correct_app_row`, and
+  `WorkQueueItem.detail`.** *Plainly: a rejected return appears in its contractor's
+  "waiting on you" list, with the client's reason under it.* The **reason it is a
+  new kind of work-queue item and not a notification** is the 2026-09-06 decision
+  not to add an app notification, kept by the fifth addendum (ADR-0049 is not
+  amended): the queue is a read of what is true now, so the item leaves by itself
+  when the return is corrected or withdrawn, with nothing to mark read. The
+  **reason `detail` is a general optional line and not a field of this kind alone**
+  is that the next item that needs a second line should not need a contract change.

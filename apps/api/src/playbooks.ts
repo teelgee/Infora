@@ -38,7 +38,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { deployPlaybookBody, parseAppScreen, saveAppAsPlaybookBody } from '@infora/contracts';
+import { deployPlaybookBody, parseAppScreen, publishedColumnsOf, saveAppAsPlaybookBody } from '@infora/contracts';
 import type {
   ApiError,
   AppColumn,
@@ -279,7 +279,18 @@ export function playbookRoutes(deps: { db: Db }) {
     const source = (loaded.row.publishedDefinition ?? loaded.row.definition) as AppDefinition;
     const declarations: PlaybookTableDeclaration[] = tables.map((table) => ({
       name: table.name,
-      columns: table.columns as AppColumn[],
+      // T-489 — a template carries the columns as a table is declared, not the
+      // time one was added to a table somebody else's app already had
+      // — and when the template comes from the PUBLISHED copy, only the columns
+      // that copy has, so a template never mixes the two copies
+      columns: (loaded.row.publishedDefinition === null
+        ? (table.columns as AppColumn[])
+        : publishedColumnsOf(table.columns as AppColumn[], loaded.row.publishedAt?.toISOString() ?? null)
+      ).map((column) => {
+        const carried = { ...column };
+        delete carried.addedAt;
+        return carried;
+      }),
       kind: table.kind,
       hasAcceptance: table.hasAcceptance,
     }));
@@ -476,7 +487,7 @@ export function playbookRoutes(deps: { db: Db }) {
     return c.json(
       {
         app: await recordOf(deps.db, fresh!, slice, user.mayBuildApps),
-        tables: await tableRecords(deps.db, appId, slice, fresh!.projectOwnerOrganisationId),
+        tables: await tableRecords(deps.db, appId, slice, fresh!.projectOwnerOrganisationId, true),
         // T-448 — the deployer may build what it just deployed, so it is told
         // what the gate still needs (who may open each screen, asked again here)
         publishGate: await publishGateFor(deps.db, fresh!.row),

@@ -12,7 +12,12 @@ import {
   builderAgentAnswerSchema,
   calendarKey,
   calendarMonth,
+  isCountedAppRow,
   isCurrentAppRow,
+  isPublishedColumn,
+  notYetAcceptedCount,
+  notYetAcceptedLine,
+  publishedColumnsOf,
   rowStateLabel,
   publishGateOf,
   type BuilderQuestion,
@@ -143,6 +148,63 @@ describe('is this row current? (T-487, the recheck’s new finding)', () => {
   });
 });
 
+// ── T-489 — what a figure counts, and which columns the published copy has ─────
+
+describe('is this row counted? (T-489, ADR-0056 fifth addendum ruling 4)', () => {
+  const row = {
+    retiredAt: null as string | null,
+    state: 'accepted' as 'accepted' | 'rejected' | 'superseded' | 'submitted' | 'draft' | null,
+    supersededByRowId: null as string | null,
+  };
+
+  it('counts a row that stands — accepted, still awaiting a decision, or on a table with no acceptance step', () => {
+    for (const state of ['draft', 'submitted', 'accepted', null] as const) {
+      expect(isCountedAppRow({ ...row, state })).toBe(true);
+    }
+  });
+
+  it('never counts a rejected row, a replaced one, or a withdrawn one', () => {
+    expect(isCountedAppRow({ ...row, state: 'rejected' })).toBe(false);
+    expect(isCountedAppRow({ ...row, state: 'superseded' })).toBe(false);
+    expect(isCountedAppRow({ ...row, state: 'rejected', supersededByRowId: 'row-2' })).toBe(false);
+    expect(isCountedAppRow({ ...row, retiredAt: '2026-10-01T00:00:00.000Z' })).toBe(false);
+  });
+
+  it('counts how many counted rows still await the client — and says so in one plain line', () => {
+    const rows = [
+      { ...row, state: 'accepted' as const },
+      { ...row, state: 'submitted' as const },
+      { ...row, state: 'draft' as const },
+      { ...row, state: 'rejected' as const },
+      { ...row, state: 'submitted' as const, retiredAt: '2026-10-01T00:00:00.000Z' },
+    ];
+    // the rejected one and the withdrawn one are not in the total, so not in its count either
+    expect(notYetAcceptedCount(rows)).toBe(2);
+    expect(notYetAcceptedLine(3)).toBe('Includes 3 not yet accepted.');
+    expect(notYetAcceptedLine(1)).toBe('Includes 1 not yet accepted.');
+    expect(notYetAcceptedLine(0)).toBeNull();
+  });
+});
+
+describe('is this column part of the published copy? (T-489, ruling 1)', () => {
+  const declared = { key: 'month', label: 'Month' };
+  const added = { key: 'diesel', label: 'Diesel', addedAt: '2026-10-26T10:00:00.000Z' };
+
+  it('a column declared with the table is always published', () => {
+    expect(isPublishedColumn(declared, null)).toBe(true);
+    expect(isPublishedColumn(declared, '2026-10-01T00:00:00.000Z')).toBe(true);
+  });
+
+  it('an added column appears only once the app has been published after it was added', () => {
+    expect(isPublishedColumn(added, null)).toBe(false);
+    expect(isPublishedColumn(added, '2026-10-26T09:59:59.999Z')).toBe(false);
+    expect(isPublishedColumn(added, '2026-10-26T10:00:00.000Z')).toBe(true);
+    expect(isPublishedColumn(added, '2026-10-27T00:00:00.000Z')).toBe(true);
+    expect(publishedColumnsOf([declared, added], '2026-10-26T09:00:00.000Z')).toEqual([declared]);
+    expect(publishedColumnsOf([declared, added], '2026-10-26T11:00:00.000Z')).toEqual([declared, added]);
+  });
+});
+
 // ── T-488 — the month reader and the row-state words now live in the contract, so
 // the charts, the analysis run and the spreadsheet export all use the same ones ──
 
@@ -174,5 +236,24 @@ describe('what a row’s state is called (T-488)', () => {
     expect(label({ retiredAt: '2026-10-01T00:00:00.000Z', state: 'accepted' })).toBe('Retired');
     expect(label({ state: null, supersededByRowId: 'next' })).toBe('Replaced');
     expect(label({ state: 'rejected', supersededByRowId: 'next' })).toBe('Rejected · replaced');
+  });
+});
+
+describe('the agent’s addColumn act (T-489, ruling 1)', () => {
+  it('takes a label and a type, and no way to say it is required', () => {
+    const ok = builderAgentAnswerSchema.safeParse(
+      answer({ kind: 'addColumn', table: 'Monthly returns', column: { label: 'Diesel used', type: 'number' } }),
+    );
+    expect(ok.success).toBe(true);
+    // an added column is always optional: a `required` field is refused whole
+    expect(
+      builderAgentAnswerSchema.safeParse(
+        answer({ kind: 'addColumn', table: 'T', column: { label: 'Diesel', type: 'number', required: true } }),
+      ).success,
+    ).toBe(false);
+    // and there is no act that removes a column or changes its type
+    expect(
+      builderAgentAnswerSchema.safeParse(answer({ kind: 'removeColumn', table: 'T', column: 'diesel' })).success,
+    ).toBe(false);
   });
 });

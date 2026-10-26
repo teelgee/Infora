@@ -1,6 +1,7 @@
 // The thin typed client (contracts principle 1): every call is a contracts
 // shape; nothing is resolved locally. Identity rides the httpOnly cookie.
 import type {
+  AddAppColumnBody,
   GetPlanCoverageResponse,
   MilestoneInput,
   GetWorkQueueResponse,
@@ -1336,6 +1337,13 @@ export const api = {
     request<AppTableRecord>(`/app-tables/${appTableId}`, {
       method: 'PATCH',
       body: JSON.stringify({ hasAcceptance }),
+    }),
+  // T-489 — a column added to a table that already exists, on the working copy;
+  // the app's people see it from the next publish.
+  addAppColumn: (appTableId: string, body: AddAppColumnBody) =>
+    request<AppTableRecord>(`/app-tables/${appTableId}/columns`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
   // T-451/T-452 — the file source (ADR-0059): a builder's panel acts. The
   // rows an import writes name the file version's uploader, which the server

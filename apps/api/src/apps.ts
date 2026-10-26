@@ -29,10 +29,12 @@ import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  addAppColumnBody,
   createAppBody,
   declareAppTableBody,
   grantAppScopeBody,
   patchAppDefinitionBody,
+  publishedColumnsOf,
   reassignAppBody,
   setAppBuilderBody,
   sayToBuilderBody,
@@ -70,6 +72,7 @@ import type { Db } from '@infora/db';
 import type { Router } from '@infora/model';
 import { readConversation, runBuilderTurn, writeAppScreen } from './app-builder-agent';
 import {
+  addColumnAct,
   declareTableAct,
   publishGateFor,
   setTableAcceptanceAct,
@@ -354,17 +357,39 @@ export async function liveShareOrganisationIds(db: Db, appTableId: string): Prom
   return rows.map((r) => r.organisationId);
 }
 
+/**
+ * The app's declared tables, for one requester.
+ *
+ * T-489 — **a column a builder added since the last publish is hidden from
+ * everyone who is not a builder** (`viewerMayBuild`): they see the PUBLISHED
+ * copy, and a builder's save must not change a form somebody is filling in. The
+ * builder sees every column, an added one carrying its `addedAt` so the building
+ * screen can mark it. The decision is `publishedColumnsOf`, the contracts' one
+ * helper.
+ */
 export async function tableRecords(
   db: Db,
   appId: string,
   slice: EntitledSlice,
   projectOwnerOrganisationId: string,
+  viewerMayBuild: boolean,
 ): Promise<AppTableRecord[]> {
   const rows = await db
     .select()
     .from(s.appTables)
     .where(eq(s.appTables.appId, appId))
     .orderBy(asc(s.appTables.name));
+  // read the publish time only when it can matter: a viewer who is not a
+  // builder, and a table that has an added column
+  let publishedAt: string | null = null;
+  if (!viewerMayBuild && rows.some((row) => (row.columns as AppColumn[]).some((c) => c.addedAt !== undefined))) {
+    const [app] = await db
+      .select({ publishedAt: s.apps.publishedAt })
+      .from(s.apps)
+      .where(eq(s.apps.id, appId))
+      .limit(1);
+    publishedAt = app?.publishedAt?.toISOString() ?? null;
+  }
   const shares = await sharesFor(
     db,
     rows.map((r) => r.id),
@@ -375,7 +400,9 @@ export async function tableRecords(
     id: row.id,
     appId: row.appId,
     name: row.name,
-    columns: row.columns as AppTableRecord['columns'],
+    columns: viewerMayBuild
+      ? (row.columns as AppTableRecord['columns'])
+      : publishedColumnsOf(row.columns as AppTableRecord['columns'], publishedAt),
     kind: row.kind,
     hasAcceptance: row.hasAcceptance,
     retiredAt: row.retiredAt?.toISOString() ?? null,
@@ -502,7 +529,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     const record = await recordOf(deps.db, loaded, slice, c.get('user').mayBuildApps);
     return c.json({
       app: record,
-      tables: await tableRecords(deps.db, loaded.row.id, slice, loaded.projectOwnerOrganisationId),
+      tables: await tableRecords(deps.db, loaded.row.id, slice, loaded.projectOwnerOrganisationId, record.mayBuild),
       // T-448 — the gate's own answer, to the people who may build the app and
       // nobody else (the questions name the working copy's screens)
       publishGate: record.mayBuild ? await publishGateFor(deps.db, loaded.row) : null,
@@ -687,7 +714,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       turns: [person, agent],
       app: {
         app: record,
-        tables: await tableRecords(deps.db, fresh!.row.id, slice, fresh!.projectOwnerOrganisationId),
+        tables: await tableRecords(deps.db, fresh!.row.id, slice, fresh!.projectOwnerOrganisationId, true),
         publishGate: await publishGateFor(deps.db, fresh!.row),
       },
     } satisfies SayToBuilderResponse);
@@ -773,6 +800,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       loaded.row.id,
       slice,
       loaded.projectOwnerOrganisationId,
+      true,
     ).then((all) => all.filter((t) => t.id === created.id));
     return c.json(record, 201);
   });
@@ -833,8 +861,49 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       table.appId,
       slice,
       loaded.projectOwnerOrganisationId,
+      true,
     ).then((all) => all.filter((t) => t.id === appTableId));
     return c.json(record);
+  });
+
+  // T-489 — a builder adds a column to a table that already exists, on the
+  // WORKING copy (ADR-0056's fifth addendum, ruling 1). The people using the
+  // app see it from the next publish. One act, shared with the builder's agent.
+  // Builders only: anyone else gets the same 404 as for a table that is not there.
+  app.post('/app-tables/:appTableId/columns', async (c) => {
+    const user = c.get('user');
+    const appTableId = c.req.param('appTableId');
+    if (!isUuid(appTableId)) return notFound(c);
+    const [table] = await deps.db
+      .select()
+      .from(s.appTables)
+      .where(eq(s.appTables.id, appTableId))
+      .limit(1);
+    if (!table) return notFound(c);
+    const reached = await reachApp(deps.db, user, table.appId);
+    if (!reached) return notFound(c);
+    const { app: loaded, slice } = reached;
+    if (!canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice))) return notFound(c);
+    const parsed = addAppColumnBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c);
+    const added = await addColumnAct(deps.db, {
+      appId: table.appId,
+      participantId: slice.participantId,
+      appTableId,
+      column: parsed.data,
+    });
+    // a builder is told why, in words — the table is theirs to know about
+    if (!added.ok) {
+      return c.json({ error: 'conflict', detail: added.reason } satisfies ApiError, 409);
+    }
+    const [record] = await tableRecords(
+      deps.db,
+      table.appId,
+      slice,
+      loaded.projectOwnerOrganisationId,
+      true,
+    ).then((all) => all.filter((t) => t.id === appTableId));
+    return c.json(record, 201);
   });
 
   // ── The owner's share of a table (ADR-0056 §6) ────────────────────────────
@@ -885,6 +954,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       table.appId,
       slice,
       loaded.projectOwnerOrganisationId,
+      canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice)),
     ).then((all) => all.filter((t) => t.id === appTableId));
     return c.json(record, 201);
   });
@@ -919,6 +989,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
       table.appId,
       slice,
       loaded.projectOwnerOrganisationId,
+      canBuildApp(slice, user.mayBuildApps, buildFacts(loaded, slice)),
     ).then((all) => all.filter((t) => t.id === appTableId));
     return c.json(record);
   });

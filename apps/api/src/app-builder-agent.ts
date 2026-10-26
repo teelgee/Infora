@@ -62,6 +62,7 @@ import type { Router } from '@infora/model';
 // own routes. Nothing that publishes, grants, shares, reassigns or closes is
 // imported here, and the agent's test reads this file to keep it that way.
 import {
+  addColumnAct,
   declareTableAct,
   liveTables,
   setTableAcceptanceAct,
@@ -91,9 +92,12 @@ const SCREEN_SYSTEM = [
   '  {"kind":"barChart","label":"…","categoryColumn":"…","valueColumn":"…"} — a bar per category, each bar the sum of the value column',
   '  {"kind":"lineChart","label":"…","categoryColumn":"…","valueColumn":"…","showTrend":true|false} — the same points joined in order, with the straight-line trend through them when showTrend is true',
   '  {"kind":"pieChart","label":"…","categoryColumn":"…","valueColumn":"…"} — the same totals as shares of the whole',
+  '  Any chart may instead be grouped by the ORGANISATION that entered each row: leave out "categoryColumn" and write "groupBy":"organisation" in its place — {"kind":"barChart","label":"…","groupBy":"organisation","valueColumn":"…"}. A chart is grouped by a column OR by organisation, never both and never neither.',
   'Rules:',
   '- Every columnKey, categoryColumn and valueColumn is one of the column keys you are given. Invent none.',
   '- A chart groups by the categoryColumn and adds up the valueColumn, so the valueColumn is always a number column. A pie chart needs a handful of categories, not thirty.',
+  '- A chart whose label says it is "by contractor", "by firm", "by company" or "by organisation" MUST use "groupBy":"organisation" — the firm that entered a row is not a column, and a chart cannot name it any other way.',
+  '- Rows the client rejected, and rows a later row replaced, are never added up by a total, count or chart; rows still waiting for the client\'s decision are, and the screen says how many. Make no claim about either in a label.',
   '- Between one and twenty parts. A form screen usually opens with a heading, then the form, then the rows already entered. A dashboard screen usually opens with a heading, then totals and a count, then a chart or two, then the rows.',
   '- showOrganisation belongs on a screen whose reader sees more than one organisation’s rows; it is noise on a screen whose reader sees only their own.',
   '- showState belongs on a table whose rows are submitted and then accepted or rejected.',
@@ -260,6 +264,7 @@ export const CONVERSATION_SYSTEM = [
   'The acts you may perform, and NOTHING else (anything else makes your whole answer void and nothing happens):',
   '  {"kind":"describeApp","name":"…","description":"…"} — either field may be left out',
   '  {"kind":"declareTable","name":"…","tableKind":"data"|"insight","columns":[{"key":"lower_case_key","label":"…","type":"text"|"number"|"date"|"boolean"|"choice","required":true|false}]} — an insight table is where a run writes what it found; Infora fixes its columns, so for an insight table leave "columns" out',
+  '  {"kind":"addColumn","table":"<table name or id>","column":{"label":"…","type":"text"|"number"|"date"|"boolean"|"choice","choices":["…"]}} — adds ONE column to a table that already exists. The column is always optional, because rows may already have been entered; the people using the app see it from the next publish, not before. A choice column needs "choices". There is no act that removes a column or changes its type — rows have been entered under it — so a table that needs a different shape is a new table',
   '  {"kind":"writeScreen","label":"…","table":"<table name or id>","layout":{"version":1,"blocks":[…]},"screen":"<id of an existing screen, only when rewriting one>"}',
   '  {"kind":"removeScreen","screen":"<id>"} — ONLY after you proposed it and the person agreed in a later message',
   '  {"kind":"setSchedule","schedule":"manual"|"daily"|"weekly"|"monthly"}',
@@ -270,9 +275,11 @@ export const CONVERSATION_SYSTEM = [
   '  {"kind":"answerWhoMayOpen","screen":"<screen id>","organisationIds":[…]} — ONLY to record the person’s answer to a question you asked in an earlier turn; an empty list means everyone the app is open to',
   'A screen layout is a list of these parts, over the columns of its one table:',
   SCREEN_PARTS,
+  'A chart may instead be grouped by the ORGANISATION that entered each row: leave out "categoryColumn" and write "groupBy":"organisation" in its place (a chart groups by a column OR by organisation, never both and never neither). A chart the person calls "by contractor", "by firm" or "by organisation" MUST use it — the firm that entered a row is not a column.',
   '"asks" lists the required questions you are putting to the person THIS turn: {"kind":"contractual-data","table":"<table>"} or {"kind":"who-may-open","screen":"<screen id or label>"}. Put them in "asks" and do NOT restate them in "say": Infora shows the person its own list of every required question still open, in its own words, under what you say, so repeating one would show it twice.',
   '"proposals" lists things you suggest the PERSON does, or that you will do once they agree: {"kind":"removeScreen"|"removeConnection"|"openTo"|"shareTable"|"publish"|"reassign"|"close","subject":"<what it is about, or null>","summary":"…"}.',
   'Rules:',
+  '- Rows the client rejected, and rows a later row replaced, are never added up by a total, count or chart; rows still waiting for the client\'s decision are, and the screen says how many. Do not promise otherwise.',
   '- Draft freely: declare tables, write screens, set the schedule and the prompt as soon as you can tell what is wanted. The working copy is seen only by the people building the app, and they will correct you.',
   '- NEVER decide whether a table holds contractual data, and NEVER decide who may open a screen. Those are the two questions you must ASK, every time, however obvious the answer looks — and record the answer only after the person has given it.',
   '- A table holds contractual data when a payment hangs on it, it discharges a condition, or the project owner will rely on it as its record; such a table gets an acceptance step.',
@@ -881,6 +888,28 @@ export async function perform(
         act.tableKind === 'insight'
           ? `Declared “${created.name}”, where each run writes what it found.`
           : `Declared the table “${created.name}” (${(act.columns ?? []).map((c) => c.label).join(', ')}).`,
+      );
+      return;
+    }
+    case 'addColumn': {
+      const table = resolveTable(tables, act.table);
+      if (table === null) {
+        state.notes.push(`I could not find the table “${act.table}”, so I did not add the column “${act.column.label}”.`);
+        return;
+      }
+      // the same function the building screen's route calls: one set of rules
+      const added = await addColumnAct(db, {
+        appId: ctx.appId,
+        participantId: ctx.participantId,
+        appTableId: table.id,
+        column: act.column,
+      });
+      if (!added.ok) {
+        state.notes.push(`I could not add the column “${act.column.label}”: ${added.reason}.`);
+        return;
+      }
+      done(
+        `Added the optional column “${added.column.label}” to “${table.name}”. The people using the app will see it from the next publish.`,
       );
       return;
     }

@@ -580,6 +580,22 @@ describe('attaching is the builder’s act, gated by what they can read (decisio
     );
   });
 
+  it('T-489: maps the PUBLISHED columns only — a column added since the last publish cannot be fed by a spreadsheet until the publish', async () => {
+    const { appId, tableId } = await newTable(false);
+    const documentId = await upload(colleagueCookie, costReport([['Oct', 1, 'late']]), 'added.xlsx');
+    expect((await post(builderCookie, `/app-tables/${tableId}/columns`, { key: 'notes', label: 'Notes', type: 'text' })).status).toBe(201);
+    const mapping = [...MAPPING, { header: 'Notes', columnKey: 'notes' }];
+    const body = { sandboxDocumentId: documentId, sheet: 'Costs', headerRow: ['Month', 'Cost (£)', 'Notes'], mapping };
+    // before the publish: refused, in words, as a column the table does not have
+    const refused = await post(builderCookie, `/app-tables/${tableId}/source`, body);
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { detail: string }).detail).toContain('the table has no column “notes”');
+    // after the publish the column is part of the published copy and can be fed
+    expect((await post(builderCookie, `/apps/${appId}/publish`)).status).toBe(200);
+    expect((await post(builderCookie, `/app-tables/${tableId}/source`, body)).status).toBeLessThan(300);
+    expect((await rows(ownerCookie, tableId)).some((row) => row.values['notes'] === 'late')).toBe(true);
+  });
+
   it('the database refuses a source naming both a sandbox document and a library record', async () => {
     const { tableId } = await newTable(false);
     const documentId = await upload(colleagueCookie, costReport([['Oct', 1, '']]), 'both.xlsx');

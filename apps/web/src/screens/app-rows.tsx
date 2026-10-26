@@ -23,10 +23,11 @@
 // review record's precedent, that every comment gets a response, applied to a
 // figure. A rejection with no reason becomes a phone call, which is the record
 // failing.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppColumn, AppRowRecord, AppState, AppTableRecord } from '@infora/contracts';
 import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, Table, TextInput } from '@infora/ui';
+import { isPublishedColumn } from '@infora/contracts';
 import { api } from '../api';
 import { formatDateTime, inputTypeFor } from './shared';
 
@@ -66,10 +67,19 @@ function toValues(columns: AppColumn[], draft: Draft): Record<string, unknown> {
 export function AppTableRows(props: {
   table: AppTableRecord;
   appState: AppState;
+  /** T-489 — when the app was last published: a column added after it is a
+   * builder's alone (marked "new", and not offered an input — nothing is
+   * entered into a column the app's people cannot yet see) */
+  publishedAt?: string | null;
+  /** T-489 — a rejected row whose correction should be started as soon as the
+   * rows have loaded: where the home page's "correct it" lands */
+  startCorrecting?: string;
   onChanged: () => void;
 }) {
   const { table } = props;
   const columns = table.columns;
+  const publishedAt = props.publishedAt ?? null;
+  const published = (column: AppColumn) => isPublishedColumn(column, publishedAt);
   const [rows, setRows] = useState<AppRowRecord[] | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(columns));
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -84,6 +94,21 @@ export function AppTableRows(props: {
     );
   }, [table.id]);
   useEffect(load, [load]);
+
+  // T-489 — start the requested correction once, when the row has loaded and the
+  // server says it may be corrected (the same flag the Correct button is drawn from)
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || props.startCorrecting === undefined || rows === null) return;
+    const row = rows.find((candidate) => candidate.id === props.startCorrecting);
+    if (row === undefined) return;
+    started.current = true;
+    if (!row.mayCorrect) return;
+    setCorrecting(row.id);
+    setDraft(
+      Object.fromEntries(columns.map((column) => [column.key, String(row.values[column.key] ?? '')])),
+    );
+  }, [rows, props.startCorrecting, columns]);
 
   const act = async (run: () => Promise<unknown>, failure: string) => {
     setNotice(null);
@@ -130,7 +155,7 @@ export function AppTableRows(props: {
             {correcting !== null && (
               <Badge tone="info">Correcting an earlier row — this will supersede it</Badge>
             )}
-            {columns.map((column) => (
+            {columns.filter(published).map((column) => (
               <Field
                 key={column.key}
                 label={column.label}
@@ -168,7 +193,14 @@ export function AppTableRows(props: {
                 <tr>
                   <th>Organisation</th>
                   {columns.map((column) => (
-                    <th key={column.key}>{column.label}</th>
+                    <th key={column.key}>
+                      {column.label}
+                      {!published(column) && (
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 400 }}>
+                          new — appears when you publish
+                        </div>
+                      )}
+                    </th>
                   ))}
                   <th>State</th>
                   <th />

@@ -28,9 +28,15 @@
 // API then refuses.
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { decideAppRowBody, editAppRowBody, enterAppRowBody } from '@infora/contracts';
+import {
+  decideAppRowBody,
+  editAppRowBody,
+  enterAppRowBody,
+  publishedColumnsOf,
+  rowMonth,
+} from '@infora/contracts';
 import type {
   ApiError,
   AppColumn,
@@ -39,12 +45,13 @@ import type {
   AppRowState,
   AppTableRecord,
   ListAppRowsResponse,
+  WorkQueueItem,
 } from '@infora/contracts';
-import { canReadAppRow, withinAppScope } from '@infora/governance';
+import { canBuildApp, canReadAppRow, withinAppScope } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { loadApp, tableRecords, liveShareOrganisationIds } from './apps';
+import { buildFacts, loadApp, tableRecords, liveShareOrganisationIds } from './apps';
 import type { LoadedApp } from './apps';
 import { resolveSlice } from './requester';
 import type { AppEnv, UserRow } from './requester';
@@ -106,7 +113,32 @@ export type TableContext = {
   /** organisations holding a live membership on the project — the §7 fact
    * (review, 2026-09-07): a departed firm's unaccepted rows go dark */
   liveMemberOrganisationIds: string[];
+  /** T-489 — may this requester BUILD the app? A builder reads the working copy
+   * of a table (every column, an added one included); everyone else reads the
+   * published copy. Answered by the one governance check, never re-derived. */
+  mayBuild: boolean;
+  /** T-489 — when the app was last published (null if never), the line an added
+   * column is measured against (`isPublishedColumn`) */
+  publishedAt: string | null;
 };
+
+/** T-489 — the columns of the PUBLISHED copy of this table: what a value may be
+ * entered into, what an export and a run cover. A column a builder added since
+ * the last publish is not among them, for anybody — a builder included, whose
+ * working copy shows it but whose rows are entered against the opened app. */
+export function publishedColumnsOfTable(context: TableContext): AppColumn[] {
+  return publishedColumnsOf(context.table.columns as AppColumn[], context.publishedAt);
+}
+
+/** T-489 — the keys a requester must not be handed values for: the columns
+ * added since the last publish, for anyone who is not a builder. */
+function hiddenColumnKeys(context: TableContext): Set<string> {
+  if (context.mayBuild) return new Set();
+  const published = new Set(publishedColumnsOfTable(context).map((column) => column.key));
+  return new Set(
+    (context.table.columns as AppColumn[]).map((column) => column.key).filter((key) => !published.has(key)),
+  );
+}
 
 /** Exported for T-444: an export reads through the SAME resolution the rows
  * screen does. A second way to reach a table would be a second place the read
@@ -148,6 +180,8 @@ export async function reachTable(
     withinScope,
     sharedWithOrganisationIds: await liveShareOrganisationIds(db, appTableId),
     liveMemberOrganisationIds: memberships.map((m) => m.organisationId),
+    mayBuild: canBuildApp(slice, user.mayBuildApps, buildFacts(app, slice)),
+    publishedAt: app.row.publishedAt?.toISOString() ?? null,
   };
 }
 
@@ -214,6 +248,12 @@ async function namesFor(db: Db, rows: StoredRow[]) {
  * door after the decision. */
 const EDITABLE: Array<AppRowState | null> = [null, 'draft'];
 
+function withoutHiddenColumns(values: Record<string, unknown>, context: TableContext): Record<string, unknown> {
+  const hidden = hiddenColumnKeys(context);
+  if (hidden.size === 0) return values;
+  return Object.fromEntries(Object.entries(values).filter(([key]) => !hidden.has(key)));
+}
+
 function dtoOf(
   row: StoredRow,
   context: TableContext,
@@ -227,7 +267,7 @@ function dtoOf(
   return {
     id: row.id,
     appTableId: row.appTableId,
-    values: row.values as Record<string, unknown>,
+    values: withoutHiddenColumns(row.values as Record<string, unknown>, context),
     organisationId: row.organisationId,
     organisationName: names.organisation.get(row.organisationId) ?? 'Unknown',
     enteredByName: names.person.get(row.enteredByParticipantId) ?? 'Unknown',
@@ -301,6 +341,90 @@ export async function listRows(db: Db, context: TableContext): Promise<AppRowRec
   return readable.map((row) => dtoOf(row, context, names, supersededBy));
 }
 
+/**
+ * T-489 — **the sentence a work-queue item says about a rejected row**
+ * (ADR-0056's fifth addendum, ruling 3).
+ *
+ * *In plain terms: "Your October 2026 return was rejected — correct it" when the
+ * table says which month a row is about; otherwise it names the table.* The month
+ * is read from the row's own values with the SAME reader the dashboard orders its
+ * charts by (`calendarMonth`): the first `date` column, or `text` column, whose
+ * value reads as a date or a month.
+ */
+export function rejectedRowSentence(
+  tableName: string,
+  columns: AppColumn[],
+  values: Record<string, unknown>,
+): string {
+  const month = rowMonth(columns, values);
+  if (month !== null) return `Your ${month.label} return was rejected — correct it`;
+  return `A row you entered in “${tableName}” was rejected — correct it`;
+}
+
+/**
+ * T-489 — **the rejected rows this requester's organisation may now correct**:
+ * one item each, for the "waiting on you" work queue (T-467).
+ *
+ * *In plain terms: when the client rejects a return, the contractor finds it on
+ * their home page with the client's reason, one click from the form. It leaves
+ * the list once the return is corrected or withdrawn.*
+ *
+ * No new rule is made here. ONE query finds the candidate rows — the requester's
+ * own organisation's rejected rows, not withdrawn, with no correction after
+ * them, in a live published app and a live table with an acceptance step. Only
+ * when there is a candidate is a table reached, and then through `reachTable`
+ * (the app's open check, scope, closure) and `listRows`, whose `mayCorrect` is
+ * the very flag the opened table's Correct button is drawn from. A person who
+ * could not correct the row by hand is therefore not told it is waiting. The
+ * reason shown is the one the requester's organisation already reads on the row.
+ */
+export async function rejectedRowsToCorrect(
+  db: Db,
+  user: UserRow,
+  slice: EntitledSlice,
+): Promise<Array<Omit<WorkQueueItem, 'kind'> & { kind: 'correct_app_row' }>> {
+  const candidates = await db
+    .select({ rowId: s.appRows.id, tableId: s.appRows.appTableId, appId: s.appTables.appId })
+    .from(s.appRows)
+    .innerJoin(s.appTables, eq(s.appTables.id, s.appRows.appTableId))
+    .innerJoin(s.apps, eq(s.apps.id, s.appTables.appId))
+    .where(
+      and(
+        eq(s.apps.projectId, slice.projectId),
+        isNull(s.apps.closedAt),
+        isNotNull(s.apps.publishedDefinition),
+        isNull(s.appTables.retiredAt),
+        eq(s.appTables.hasAcceptance, true),
+        eq(s.appRows.organisationId, slice.organisationId),
+        eq(s.appRows.state, 'rejected'),
+        isNull(s.appRows.retiredAt),
+        sql`not exists (select 1 from app_rows later where later.supersedes_row_id = ${s.appRows.id})`,
+      ),
+    );
+  if (candidates.length === 0) return [];
+  const byTable = new Map<string, Set<string>>();
+  for (const candidate of candidates) {
+    byTable.set(candidate.tableId, (byTable.get(candidate.tableId) ?? new Set()).add(candidate.rowId));
+  }
+  const items: Awaited<ReturnType<typeof rejectedRowsToCorrect>> = [];
+  for (const [tableId, rowIds] of byTable) {
+    const context = await reachTable(db, user, tableId);
+    if (!context) continue;
+    const columns = publishedColumnsOfTable(context);
+    for (const row of await listRows(db, context)) {
+      if (!rowIds.has(row.id) || row.state !== 'rejected' || !row.mayCorrect) continue;
+      items.push({
+        kind: 'correct_app_row',
+        label: rejectedRowSentence(context.table.name, columns, row.values),
+        ...(row.rejectionReason !== null && { detail: row.rejectionReason }),
+        href: `apps/${context.table.appId}?table=${tableId}&correct=${row.id}`,
+        at: row.decidedAt,
+      });
+    }
+  }
+  return items;
+}
+
 async function oneRow(db: Db, rowId: string, context: TableContext): Promise<AppRowResponse> {
   const [row] = await db.select().from(s.appRows).where(eq(s.appRows.id, rowId)).limit(1);
   const all = await db.select().from(s.appRows).where(eq(s.appRows.appTableId, context.table.id));
@@ -321,6 +445,7 @@ export function appRowRoutes(deps: { db: Db }) {
         context.table.appId,
         context.slice,
         context.app.projectOwnerOrganisationId,
+        context.mayBuild,
       )
     ).filter((t) => t.id === context.table.id);
     return c.json({
@@ -340,7 +465,7 @@ export function appRowRoutes(deps: { db: Db }) {
     }
     const parsed = enterAppRowBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    const problem = checkValues(context.table.columns as AppColumn[], parsed.data.values);
+    const problem = checkValues(publishedColumnsOfTable(context), parsed.data.values);
     if (problem !== null) return invalid(c, problem);
     const state = context.table.hasAcceptance
       ? parsed.data.submit
@@ -373,7 +498,7 @@ export function appRowRoutes(deps: { db: Db }) {
     if (!dtoOf(row, context, names, new Map()).mayEdit) return notFound(c);
     const parsed = editAppRowBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    const problem = checkValues(context.table.columns as AppColumn[], parsed.data.values);
+    const problem = checkValues(publishedColumnsOfTable(context), parsed.data.values);
     if (problem !== null) return invalid(c, problem);
     const [archived] = await deps.db
       .insert(s.appRows)
@@ -464,7 +589,7 @@ export function appRowRoutes(deps: { db: Db }) {
     if (!dtoOf(row, context, names, supersededBy).mayCorrect) return notFound(c);
     const parsed = enterAppRowBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
-    const problem = checkValues(context.table.columns as AppColumn[], parsed.data.values);
+    const problem = checkValues(publishedColumnsOfTable(context), parsed.data.values);
     if (problem !== null) return invalid(c, problem);
     const [created] = await deps.db
       .insert(s.appRows)

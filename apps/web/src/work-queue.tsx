@@ -55,7 +55,7 @@ export function WorkQueuePanel(props: { projectId: string; queue: GetWorkQueueRe
         <ul className="shelf-rows" aria-label={`Waiting on you${props.projectName ? ` — ${props.projectName}` : ''}`}>
           {q.items.map((item, i) => (
             <li key={`${item.kind}-${i}`}>
-              <QueueRow item={item} onOpen={() => go(item.href)} />
+              <QueueItemLine item={item} onOpen={() => go(item.href)} />
             </li>
           ))}
         </ul>
@@ -64,12 +64,16 @@ export function WorkQueuePanel(props: { projectId: string; queue: GetWorkQueueRe
   );
 }
 
-function QueueRow(props: { item: WorkQueueItem; onOpen: () => void }) {
+export function QueueItemLine(props: { item: WorkQueueItem; onOpen: () => void }) {
   return (
-    <button type="button" className="linklike shelf-row-title" style={{ fontWeight: 500, textAlign: 'left' }} onClick={props.onOpen}>
-      {props.item.label}
-      {props.item.at && <span className="shelf-row-note" style={{ marginLeft: 8, fontWeight: 400 }}>{formatDate(props.item.at)}</span>}
-    </button>
+    <>
+      <button type="button" className="linklike shelf-row-title" style={{ fontWeight: 500, textAlign: 'left' }} onClick={props.onOpen}>
+        {props.item.label}
+        {props.item.at && <span className="shelf-row-note" style={{ marginLeft: 8, fontWeight: 400 }}>{formatDate(props.item.at)}</span>}
+      </button>
+      {/* T-489 — a rejected return carries the client's reason, under the sentence */}
+      {props.item.detail !== undefined && <div className="shelf-row-note">“{props.item.detail}”</div>}
+    </>
   );
 }
 

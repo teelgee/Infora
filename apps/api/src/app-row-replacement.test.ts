@@ -34,7 +34,7 @@ const app = buildApp({
   sessionSecret: 'test-secret',
   router: fakeRouter((system, prompt) =>
     system.includes('about figures that have already been calculated')
-      ? `INSIGHT: ${/Table “.+?” — (\d+) current row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
+      ? `INSIGHT: ${/Table “.+?” — (\d+) counted row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
       : 'unused',
   ),
 });
@@ -241,7 +241,7 @@ describe('a run adds up the current rows: the correction, and not the rejected o
     return items.find((row) => row.id === run.insightRowId)!;
   };
 
-  it('covers the original while the correction is a draft the client cannot read, then the correction alone once it is submitted', async () => {
+  it('covers nothing while the only row is a rejected original and the correction is a draft the client cannot read, then the correction alone once it is submitted', async () => {
     const { app: created, table } = await returnsApp(`t487 run ${stamp}`);
     const original = await rejectedReturn(table.id, 4.6);
     const draft = (await (
@@ -251,12 +251,12 @@ describe('a run adds up the current rows: the correction, and not the rejected o
       })
     ).json()) as AppRowResponse;
 
-    // the client's run reads what the client may read: the rejected original,
-    // which still counts (the ruling that stops that is T-489's, not this
-    // ticket's), and nothing of the draft
+    // the client's run reads what the client may read: the rejected original —
+    // which, since T-489 (ADR-0056's fifth addendum, ruling 4), is NOT counted —
+    // and nothing of the draft
     const before = await runAs(ownerCookie, created.id);
-    expect(before.rowsCovered).toBe(1);
-    expect((await insightOf(ownerCookie, before)).values['insight']).toBe('INSIGHT: 1 rows, total 4.6');
+    expect(before.rowsCovered).toBe(0);
+    expect((await insightOf(ownerCookie, before)).values['insight']).toBe('INSIGHT: 0 rows, total none');
 
     // the contractor's own run reads its own rows: the draft correction, once
     const mine = await runAs(contractorCookie, created.id);

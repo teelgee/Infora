@@ -50,7 +50,47 @@ export type AppColumn = {
   required: boolean;
   /** the permitted values when `type` is `choice`; ignored otherwise */
   choices?: string[];
+  /**
+   * T-489 — set only on a column a builder ADDED to a table that already
+   * existed (ISO time, stamped by the database clock). The app's people see
+   * such a column from the next publish and not before: see `isPublishedColumn`.
+   * A column declared with the table carries none and is always published.
+   */
+  addedAt?: string;
 };
+
+/**
+ * T-489 — **is this column part of the PUBLISHED copy?** The one answer, used by
+ * the API (the opened table, the form's validation, the export, the analysis
+ * run) and by the building screen's mark, so they cannot disagree.
+ *
+ * *In plain terms: a column a builder adds to a table that people are already
+ * using stays hidden from them until the app is next opened ("published"). A
+ * column that was part of the table from the start has no "added" time and is
+ * always shown.* A builder's save must not change a form somebody is filling in
+ * (ADR-0056's first addendum, ruling 2), and an added column is the one change
+ * to a table's shape that can be made after rows exist.
+ *
+ * `publishedAt` is when the app was last published, null if never: an added
+ * column is then unpublished, whatever its time.
+ */
+export function isPublishedColumn(
+  column: { key: string; addedAt?: string | undefined },
+  publishedAt: string | null,
+): boolean {
+  if (column.addedAt === undefined) return true;
+  if (publishedAt === null) return false;
+  return Date.parse(column.addedAt) <= Date.parse(publishedAt);
+}
+
+/** The columns of the published copy — a table's own columns less any added
+ * since the app was last published. */
+export function publishedColumnsOf<T extends { key: string; addedAt?: string | undefined }>(
+  columns: readonly T[],
+  publishedAt: string | null,
+): T[] {
+  return columns.filter((column) => isPublishedColumn(column, publishedAt));
+}
 
 /** What a declared table is for (ADR-0056 §3, §10) — mirrors `app_table_kind`. */
 export const APP_TABLE_KINDS = ['data', 'insight', 'reference'] as const;
@@ -401,6 +441,43 @@ export function isCurrentAppRow(
   return row.retiredAt === null && row.state !== 'superseded' && row.supersededByRowId === null;
 }
 
+/**
+ * T-489 — **is this row COUNTED?** The one answer for every total, count and
+ * chart on a dashboard and for the analysis run (ADR-0056's fifth addendum,
+ * ruling 4).
+ *
+ * *In plain terms: a figure is added up only if it still stands. A return the
+ * client rejected does not stand, and neither does one a correction replaced or
+ * its organisation withdrew. A return still waiting for the client's decision
+ * does count — it is the best figure there is so far — and the screen says how
+ * many such figures are in the total (`notYetAcceptedLine`).*
+ *
+ * Counted means CURRENT (`isCurrentAppRow`) and not rejected. This is about what
+ * is ADDED UP, never about what may be SEEN: a rejected row is still listed with
+ * its state and its reason.
+ */
+export function isCountedAppRow(
+  row: Pick<AppRowRecord, 'retiredAt' | 'state' | 'supersededByRowId'>,
+): boolean {
+  return isCurrentAppRow(row) && row.state !== 'rejected';
+}
+
+/** How many of these rows are in a total while still awaiting the client's
+ * decision (`draft` or `submitted`) — counted rows only. */
+export function notYetAcceptedCount(
+  rows: ReadonlyArray<Pick<AppRowRecord, 'retiredAt' | 'state' | 'supersededByRowId'>>,
+): number {
+  return rows.filter(
+    (row) => isCountedAppRow(row) && (row.state === 'draft' || row.state === 'submitted'),
+  ).length;
+}
+
+/** The plain line under a total, count or chart that includes figures still
+ * awaiting a decision ("Includes 3 not yet accepted."), or null when none are. */
+export function notYetAcceptedLine(count: number): string | null {
+  return count > 0 ? `Includes ${count} not yet accepted.` : null;
+}
+
 // T-488 — moved here from the web screen so the spreadsheet export says the same
 // words for a row's state as the dashboard does.
 const ROW_STATE_LABEL: Record<string, string> = {
@@ -483,6 +560,29 @@ export function calendarMonth(raw: string): { sort: number; label: string } | nu
   const month = sort % 100;
   const name = MONTHS[month - 1]![1]!;
   return { sort, label: `${name.charAt(0).toUpperCase()}${name.slice(1)} ${Math.floor(sort / 100)}` };
+}
+
+/**
+ * T-489 — **which month a row is about**, read from the table's own `date` and
+ * `text` columns in their declared order, with the one month reader
+ * (`calendarMonth`). The first column whose value reads as a date or month wins.
+ *
+ * *In plain terms: the words "October 2026" in the dashboard's Accept button and
+ * in the home page's "Your October 2026 return was rejected" come from this one
+ * function, so the two always agree.* Null when no such column reads.
+ */
+export function rowMonth(
+  columns: ReadonlyArray<Pick<AppColumn, 'key' | 'type'>>,
+  values: Record<string, unknown>,
+): { sort: number; label: string } | null {
+  for (const column of columns) {
+    if (column.type !== 'date' && column.type !== 'text') continue;
+    const value = values[column.key];
+    if (typeof value !== 'string') continue;
+    const month = calendarMonth(value);
+    if (month !== null) return month;
+  }
+  return null;
 }
 
 export type ListAppRowsResponse = {
@@ -708,6 +808,22 @@ export const APP_SCREEN_BLOCK_KINDS = [
 export type AppScreenBlockKind = (typeof APP_SCREEN_BLOCK_KINDS)[number];
 
 /**
+ * What a chart groups by. **Exactly one of the two** (the schema refuses both
+ * and neither): a declared column of the table — `categoryColumn` — or, since
+ * T-489 (ADR-0056's fifth addendum, ruling 1), the ORGANISATION that entered
+ * each row — `groupBy: 'organisation'`, "electricity by contractor".
+ *
+ * `groupBy` is a choice from a fixed list of one word, not text: it can hold no
+ * address, no key and no code. The organisation's name already arrives on every
+ * row a viewer receives, so such a chart shows nothing the row table's
+ * Organisation column does not, and the wall is untouched.
+ */
+export const CHART_GROUP_BY = ['organisation'] as const;
+export type ChartGrouping =
+  | { categoryColumn: string; groupBy?: never }
+  | { categoryColumn?: never; groupBy: (typeof CHART_GROUP_BY)[number] };
+
+/**
  * One part of a screen.
  *
  * Every field here is either text Infora renders as text, a boolean, or a
@@ -735,16 +851,15 @@ export type AppScreenBlock =
    * rule) and a screen that could name a picture would be a screen that reaches
    * outward.
    */
-  | { kind: 'barChart'; label: string; categoryColumn: string; valueColumn: string }
-  | {
+  | ({ kind: 'barChart'; label: string; valueColumn: string } & ChartGrouping)
+  | ({
       kind: 'lineChart';
       label: string;
-      categoryColumn: string;
       valueColumn: string;
       /** draw the straight line of best fit through the points as well */
       showTrend: boolean;
-    }
-  | { kind: 'pieChart'; label: string; categoryColumn: string; valueColumn: string };
+    } & ChartGrouping)
+  | ({ kind: 'pieChart'; label: string; valueColumn: string } & ChartGrouping);
 
 /** A whole screen. `version` is the grammar's version, not the app's. */
 export type AppScreen = { version: 1; blocks: AppScreenBlock[] };
@@ -773,11 +888,21 @@ export function columnsNamedBy(block: AppScreenBlock): string[] {
     case 'barChart':
     case 'lineChart':
     case 'pieChart':
-      return [block.categoryColumn, block.valueColumn];
+      // T-489 — a chart grouped by organisation names no category column
+      return block.categoryColumn === undefined
+        ? [block.valueColumn]
+        : [block.categoryColumn, block.valueColumn];
   }
 }
 
 const text = z.string().min(1).max(400);
+/** T-489 — a closed choice, never text (see `ChartGrouping`). */
+const chartGroupBy = z.enum(CHART_GROUP_BY);
+/** A chart groups by a declared column OR by the entering organisation, never
+ * both and never neither. */
+const groupsExactlyOneWay = (chart: { categoryColumn?: string | undefined; groupBy?: string | undefined }) =>
+  (chart.categoryColumn === undefined) !== (chart.groupBy === undefined);
+const groupingMessage = 'a chart groups by a column or by organisation — exactly one';
 const columnKey = z.string().min(1).max(64).regex(/^[a-z0-9_]+$/);
 
 /**
@@ -801,25 +926,34 @@ export const appScreenBlockSchema = z.discriminatedUnion('kind', [
   }),
   z.strictObject({ kind: z.literal('total'), columnKey, label: text }),
   z.strictObject({ kind: z.literal('count'), label: text }),
-  z.strictObject({
-    kind: z.literal('barChart'),
-    label: text,
-    categoryColumn: columnKey,
-    valueColumn: columnKey,
-  }),
-  z.strictObject({
-    kind: z.literal('lineChart'),
-    label: text,
-    categoryColumn: columnKey,
-    valueColumn: columnKey,
-    showTrend: z.boolean(),
-  }),
-  z.strictObject({
-    kind: z.literal('pieChart'),
-    label: text,
-    categoryColumn: columnKey,
-    valueColumn: columnKey,
-  }),
+  z
+    .strictObject({
+      kind: z.literal('barChart'),
+      label: text,
+      categoryColumn: columnKey.optional(),
+      groupBy: chartGroupBy.optional(),
+      valueColumn: columnKey,
+    })
+    .refine(groupsExactlyOneWay, groupingMessage),
+  z
+    .strictObject({
+      kind: z.literal('lineChart'),
+      label: text,
+      categoryColumn: columnKey.optional(),
+      groupBy: chartGroupBy.optional(),
+      valueColumn: columnKey,
+      showTrend: z.boolean(),
+    })
+    .refine(groupsExactlyOneWay, groupingMessage),
+  z
+    .strictObject({
+      kind: z.literal('pieChart'),
+      label: text,
+      categoryColumn: columnKey.optional(),
+      groupBy: chartGroupBy.optional(),
+      valueColumn: columnKey,
+    })
+    .refine(groupsExactlyOneWay, groupingMessage),
 ]);
 
 export const appScreenSchema = z.strictObject({
@@ -1069,6 +1203,7 @@ export const appDefinitionSchema = z.strictObject({
 export const BUILDER_AGENT_ACT_KINDS = [
   'describeApp',
   'declareTable',
+  'addColumn',
   'writeScreen',
   'removeScreen',
   'setSchedule',
@@ -1138,6 +1273,20 @@ export const builderAgentActSchema = z.discriminatedUnion('kind', [
       message: 'a data table declares at least one column',
       path: ['columns'],
     }),
+  // T-489 (ADR-0056's fifth addendum, ruling 1) — a column added to a table
+  // that already exists, on the working copy. 🔒 It has no `required` (an added
+  // column is always optional: the rows already entered have no value for it),
+  // and the agent has NO act that removes a column or changes its type.
+  z.strictObject({
+    kind: z.literal('addColumn'),
+    table: tableRef,
+    column: z.strictObject({
+      key: z.string().min(1).max(64).regex(/^[a-z0-9_]+$/).optional(),
+      label: agentLabel,
+      type: z.enum(APP_COLUMN_TYPES),
+      choices: z.array(z.string().min(1).max(200)).max(50).optional(),
+    }),
+  }),
   z.strictObject({
     kind: z.literal('writeScreen'),
     /** an existing screen to rewrite; absent for a new one */

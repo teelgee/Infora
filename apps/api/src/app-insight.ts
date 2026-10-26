@@ -25,7 +25,7 @@
 // common. So "a run by a person who cannot see a shared table's rows covers
 // only their own" is a consequence rather than a promise: this file is handed
 // the rows that person received.
-import { calendarMonth } from '@infora/contracts';
+import { calendarMonth, notYetAcceptedCount } from '@infora/contracts';
 import type { AppColumn, AppRowRecord } from '@infora/contracts';
 import type { Router } from '@infora/model';
 
@@ -73,6 +73,15 @@ export type TableFigures = {
    * charts order by — `calendarMonth`). Null when it has none.
    */
   byMonth: { columnLabel: string; months: Array<{ month: string; rows: number; totals: ColumnTotal[] }> } | null;
+  /**
+   * T-489 — how many of the counted rows are still awaiting the client's decision
+   * (`draft` or `submitted`). They are in every figure, because they are the best
+   * there is so far, and the run says so. Zero on a table with no acceptance step.
+   */
+  notYetAccepted: number;
+  /** whether the table has an acceptance step — the note about rejected rows is
+   * only true (and only said) where there is one */
+  hasAcceptance: boolean;
   /** where the table has an acceptance step, how the rows stand */
   byState: Array<{ state: string; rows: number }>;
   columns: ColumnFigures[];
@@ -184,6 +193,8 @@ export function figuresFor(table: CoveredTable): TableFigures {
       }),
     ),
     byMonth,
+    notYetAccepted: notYetAcceptedCount(table.rows),
+    hasAcceptance: table.hasAcceptance,
     byState: table.hasAcceptance
       ? tally(table.rows.map((row) => row.state ?? 'none')).map(([state, rows]) => ({ state, rows }))
       : [],
@@ -202,7 +213,18 @@ export function figuresAsText(figures: TableFigures[]): string {
   if (figures.length === 0) return 'There are no rows you can read in this app.';
   return figures
     .map((table) => {
-      const lines = [`Table “${table.name}” — ${table.rows} current row(s) readable.`];
+      const lines = [`Table “${table.name}” — ${table.rows} counted row(s) readable.`];
+      // T-489 — what is NOT in the figures, and what is in them but not yet final
+      // (ADR-0056's fifth addendum, ruling 4). Rejected and replaced rows never
+      // count; the rows still waiting for the client do.
+      if (table.hasAcceptance) {
+        lines.push('  Rows the client rejected, and rows a later row replaced, are not counted anywhere below.');
+      }
+      if (table.notYetAccepted > 0) {
+        lines.push(
+          `  Includes ${table.notYetAccepted} not yet accepted — rows still waiting for the client's decision, counted in every figure below, which may change.`,
+        );
+      }
       // T-488 — per organisation and per month, beside the whole-column totals.
       // Both are sums over the same current rows this person may read.
       lines.push('  PER ORGANISATION (the organisation that entered the rows):');
@@ -240,6 +262,7 @@ const INSIGHT_SYSTEM = [
   'Rules, and they are the whole job:',
   '- Use ONLY the figures you are given. Do not calculate a new one, do not estimate, and do not round differently.',
   '- If a figure you would want is not there, say what is missing rather than supplying it.',
+  '- If the figures say some rows are "not yet accepted", say so in plain words — for example "includes 3 not yet accepted" — because those figures are still waiting for the client and may change. Say nothing about rows the figures do not count.',
   '- Plain English for a reader who is not an engineer. No headings, no bullet points, no markdown, no JSON.',
   '- Never say who should do anything, and never say the analysis is complete or approved. You are describing a set of rows at a moment, not signing anything off.',
   '- You have not seen any row, any document or any person’s name beyond the organisation names in the figures, and you do not pretend to have.',

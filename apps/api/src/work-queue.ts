@@ -20,10 +20,11 @@ import type { Db } from '@infora/db';
 import { canEditPlan } from '@infora/governance';
 import type { EntitledSlice } from '@infora/governance';
 import { deliverableVisibleSql as deliverableVisible } from '@infora/knowledge';
+import { rejectedRowsToCorrect } from './app-rows';
 import { mayIssueExternally } from './external-issue';
 import { overdueMilestonesFor } from './milestones';
 import { projectScope } from './requester';
-import type { AppEnv } from './requester';
+import type { AppEnv, UserRow } from './requester';
 
 export function workQueueRoutes(deps: { db: Db }) {
   const app = new Hono<AppEnv>();
@@ -31,14 +32,14 @@ export function workQueueRoutes(deps: { db: Db }) {
 
   app.get('/projects/:projectId/work-queue', project, async (c) => {
     const slice = c.get('slice');
-    const [items, recent, views] = await Promise.all([queue(deps.db, slice), recentDocuments(deps.db, slice), savedViews(deps.db, slice)]);
+    const [items, recent, views] = await Promise.all([queue(deps.db, slice, c.get('user')), recentDocuments(deps.db, slice), savedViews(deps.db, slice)]);
     return c.json({ items, recent, views } satisfies GetWorkQueueResponse);
   });
 
   return app;
 }
 
-async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
+async function queue(db: Db, slice: EntitledSlice, user: UserRow): Promise<WorkQueueItem[]> {
   const isOwner = slice.membershipRole === 'owner';
   const ownerSuper = isOwner && canEditPlan(slice);
   const items: WorkQueueItem[] = [];
@@ -170,6 +171,12 @@ async function queue(db: Db, slice: EntitledSlice): Promise<WorkQueueItem[]> {
       at: `${m.targetDate}T00:00:00.000Z`,
     });
   }
+
+  // T-489 — a return my organisation entered was rejected, and we may correct it
+  // (ADR-0056's fifth addendum, ruling 3) — on the app's page, one click from the
+  // correction. The rule is the opened table's own (`mayCorrect`); nothing here
+  // decides who may correct. No notification event stands behind this.
+  items.push(...(await rejectedRowsToCorrect(db, user, slice)));
 
   // comments without a response on rounds issued to deliverables I author — on the cycle
   const authored = await db

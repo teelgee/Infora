@@ -36,7 +36,7 @@ const app = buildApp({
   sessionSecret: 'test-secret',
   router: fakeRouter((system, prompt) =>
     system.includes('about figures that have already been calculated')
-      ? `INSIGHT: ${/Table “.+?” — (\d+) current row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
+      ? `INSIGHT: ${/Table “.+?” — (\d+) counted row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
       : 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
   ),
 });

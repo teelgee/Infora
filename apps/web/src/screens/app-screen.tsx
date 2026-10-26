@@ -29,9 +29,26 @@
 // drawing is the acts and the states, and the plain kit is how they are
 // rendered. A generated screen that could bring its own styling would be a
 // second design system nobody reviewed.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppColumn, AppRowRecord, AppScreen, AppScreenBlock, AppState, AppTableRecord } from '@infora/contracts';
-import { calendarKey, isCurrentAppRow, parseAppScreen, rowStateLabel } from '@infora/contracts';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import type {
+  AppColumn,
+  AppRowRecord,
+  AppScreen,
+  AppScreenBlock,
+  AppState,
+  AppTableRecord,
+  DecideAppRowBody,
+} from '@infora/contracts';
+import {
+  calendarKey,
+  isCountedAppRow,
+  isCurrentAppRow,
+  notYetAcceptedCount,
+  notYetAcceptedLine,
+  parseAppScreen,
+  rowMonth,
+  rowStateLabel,
+} from '@infora/contracts';
 import { Badge, Button, Card, Field, SectionLabel, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { inputTypeFor } from './shared';
@@ -75,6 +92,32 @@ export function screenFor(source: string | null, table: AppTableRecord): AppScre
  * every row here already arrived through `canReadAppRow`.
  */
 
+/**
+ * T-489 — **what a figure counts** (ADR-0056's fifth addendum, ruling 4). The
+ * `total`, `count` and chart blocks add up COUNTED rows: current, and not
+ * rejected (`isCountedAppRow`, the contracts' one predicate, also used by the
+ * analysis run). A return still waiting for the client's decision counts, and a
+ * plain line under the figure says how many (`notYetAcceptedLine`). The row
+ * table below still lists every row it did, rejected ones with their state.
+ */
+function NotYetAccepted(props: { rows: AppRowRecord[] }) {
+  const line = notYetAcceptedLine(notYetAcceptedCount(props.rows));
+  return line === null ? null : <p className="field-hint">{line}</p>;
+}
+
+/**
+ * T-489 — how a chart is grouped, in the words the builder's panel shows:
+ * "by organisation" for a chart grouped by the entering organisation (ADR-0056's
+ * fifth addendum, ruling 1), otherwise "by <the column's label>".
+ */
+export function chartGroupingWords(
+  block: Extract<AppScreenBlock, { kind: 'barChart' | 'lineChart' | 'pieChart' }>,
+  table: AppTableRecord,
+): string {
+  if (block.categoryColumn === undefined) return 'by organisation';
+  return `by ${table.columns.find((column) => column.key === block.categoryColumn)?.label ?? block.categoryColumn}`;
+}
+
 /** One block, drawn. Every branch renders text as text. */
 export function ScreenBlock(props: {
   block: AppScreenBlock;
@@ -82,33 +125,43 @@ export function ScreenBlock(props: {
   rows: AppRowRecord[];
   onEnter: (values: Record<string, unknown>) => void;
   pending: boolean;
+  /** T-489 — records the client's decision on a row; the row table offers
+   * Accept and Reject only on a row the server flagged `mayDecide`, and only
+   * when this is given */
+  onDecide?: (row: AppRowRecord, body: DecideAppRowBody) => Promise<void>;
 }) {
   const { block, table, rows } = props;
   const label = (key: string) => table.columns.find((column) => column.key === key)?.label ?? key;
-  const current = rows.filter(isCurrentAppRow);
+  const counted = rows.filter(isCountedAppRow);
 
   if (block.kind === 'heading') return <SectionLabel>{block.text}</SectionLabel>;
   if (block.kind === 'paragraph') return <p className="page-sub">{block.text}</p>;
 
   if (block.kind === 'count') {
     return (
-      <p className="page-sub">
-        {block.label}: <strong>{current.length}</strong>
-      </p>
+      <>
+        <p className="page-sub">
+          {block.label}: <strong>{counted.length}</strong>
+        </p>
+        <NotYetAccepted rows={counted} />
+      </>
     );
   }
 
   if (block.kind === 'total') {
     // the sum of what THIS viewer received — never a figure computed elsewhere
     // and handed down, which would be a number about rows they cannot read
-    const total = current.reduce((sum, row) => {
+    const total = counted.reduce((sum, row) => {
       const value = row.values[block.columnKey];
       return typeof value === 'number' ? sum + value : sum;
     }, 0);
     return (
-      <p className="page-sub">
-        {block.label}: <strong>{formatFigure(total, isMoneyLabel(label(block.columnKey)))}</strong>
-      </p>
+      <>
+        <p className="page-sub">
+          {block.label}: <strong>{formatFigure(total, isMoneyLabel(label(block.columnKey)))}</strong>
+        </p>
+        <NotYetAccepted rows={counted} />
+      </>
     );
   }
 
@@ -125,10 +178,24 @@ export function ScreenBlock(props: {
   }
 
   if (block.kind === 'barChart' || block.kind === 'lineChart' || block.kind === 'pieChart') {
-    return <ScreenChart block={block} rows={current} table={table} />;
+    return <ScreenChart block={block} rows={counted} table={table} />;
   }
 
-  return <ScreenRowTable block={block} rows={rows} label={label} />;
+  return (
+    <ScreenRowTable block={block} rows={rows} label={label} columns={table.columns} {...(props.onDecide && { onDecide: props.onDecide })} />
+  );
+}
+
+/**
+ * T-489 — what a row is called in the words of the decision buttons: "return
+ * from Redgate Ecology, October 2026". The month is read from the row's own
+ * values with the same reader the charts order by (`calendarMonth`); a row with
+ * no readable month is "row from Redgate Ecology".
+ */
+export function decisionSubject(row: AppRowRecord, columns: readonly AppColumn[]): string {
+  // the same function the home page's "your … return was rejected" reads
+  const month = rowMonth(columns, row.values);
+  return month !== null ? `return from ${row.organisationName}, ${month.label}` : `row from ${row.organisationName}`;
 }
 
 /**
@@ -149,14 +216,51 @@ export function ScreenRowTable(props: {
   block: Extract<AppScreenBlock, { kind: 'rowTable' }>;
   rows: AppRowRecord[];
   label: (key: string) => string;
+  /** the table's declared columns, so a row's month is read from its date and
+   * text columns exactly as the home page's rejection sentence reads it */
+  columns?: readonly AppColumn[];
   showEarlier?: boolean;
+  /** T-489 — the client's Accept or Reject on a row (ADR-0056's fifth addendum,
+   * ruling 2). Offered ONLY on a row the server flagged `mayDecide`, so the
+   * people the opened table already offers the decision to are the only ones who
+   * see it here; this screen decides nothing for itself. */
+  onDecide?: (row: AppRowRecord, body: DecideAppRowBody) => Promise<void>;
+  /** the row whose rejection reason box is open at the start — like
+   * `showEarlier`, it exists so the open state can be drawn, and tested, without
+   * a browser; the block itself never passes it */
+  startRejecting?: string;
 }) {
   const { block } = props;
   const [revealed, setRevealed] = useState(props.showEarlier ?? false);
+  // T-489 — the row whose rejection is being worded, and what has been typed
+  const [rejecting, setRejecting] = useState<string | null>(props.startRejecting ?? null);
+  const [reason, setReason] = useState('');
+  const [deciding, setDeciding] = useState(false);
+  const [decisionNotice, setDecisionNotice] = useState<string | null>(null);
   const current = props.rows.filter(isCurrentAppRow);
   const earlier = props.rows.filter((row) => !isCurrentAppRow(row));
   const shown = revealed ? [...current, ...earlier] : current;
-  const width = block.columnKeys.length + (block.showOrganisation ? 1 : 0) + (block.showState ? 1 : 0);
+  const decidable = props.onDecide !== undefined && shown.some((row) => row.mayDecide);
+  const width =
+    block.columnKeys.length + (block.showOrganisation ? 1 : 0) + (block.showState ? 1 : 0) + (decidable ? 1 : 0);
+
+  const decide = async (row: AppRowRecord, body: DecideAppRowBody) => {
+    if (props.onDecide === undefined) return;
+    setDeciding(true);
+    setDecisionNotice(null);
+    try {
+      await props.onDecide(row, body);
+      setRejecting(null);
+      setReason('');
+    } catch {
+      setDecisionNotice(
+        body.decision === 'accept' ? 'That could not be accepted.' : 'That could not be rejected.',
+      );
+    } finally {
+      setDeciding(false);
+    }
+  };
+
   return (
     <>
       <Table>
@@ -168,6 +272,7 @@ export function ScreenRowTable(props: {
                 <th key={key}>{props.label(key)}</th>
               ))}
               {block.showState && <th>State</th>}
+              {decidable && <th>Decision</th>}
             </tr>
           </thead>
           <tbody>
@@ -183,48 +288,105 @@ export function ScreenRowTable(props: {
               shown.map((row) => {
                 const isEarlier = !isCurrentAppRow(row);
                 const state = rowStateLabel(row);
+                const what = decisionSubject(row, props.columns ?? []);
                 return (
-                  <tr key={row.id} style={isEarlier ? { opacity: 0.55 } : undefined} data-earlier={isEarlier ? 'true' : undefined}>
-                    {block.showOrganisation && <td>{row.organisationName}</td>}
-                    {block.columnKeys.map((key, index) => (
-                      <td key={key}>
-                        {formatValue(row.values[key])}
-                        {/* a table that does not show the State column still has
-                            to mark a row that no longer counts */}
-                        {isEarlier && !block.showState && index === 0 && (
-                          <>
-                            {' '}
-                            <Badge tone="neutral">{state ?? 'Replaced'}</Badge>
-                          </>
-                        )}
-                      </td>
-                    ))}
-                    {block.showState && (
-                      <td>
-                        {state === null ? (
-                          <span className="page-sub">—</span>
-                        ) : (
-                          <Badge
-                            tone={
-                              !isEarlier && row.state === 'accepted'
-                                ? 'success'
-                                : row.state === 'rejected' && !isEarlier
-                                  ? 'danger'
-                                  : 'neutral'
-                            }
+                  <Fragment key={row.id}>
+                    <tr style={isEarlier ? { opacity: 0.55 } : undefined} data-earlier={isEarlier ? 'true' : undefined}>
+                      {block.showOrganisation && <td>{row.organisationName}</td>}
+                      {block.columnKeys.map((key, index) => (
+                        <td key={key}>
+                          {formatValue(row.values[key])}
+                          {/* a table that does not show the State column still has
+                              to mark a row that no longer counts */}
+                          {isEarlier && !block.showState && index === 0 && (
+                            <>
+                              {' '}
+                              <Badge tone="neutral">{state ?? 'Replaced'}</Badge>
+                            </>
+                          )}
+                        </td>
+                      ))}
+                      {block.showState && (
+                        <td>
+                          {state === null ? (
+                            <span className="page-sub">—</span>
+                          ) : (
+                            <Badge
+                              tone={
+                                !isEarlier && row.state === 'accepted'
+                                  ? 'success'
+                                  : row.state === 'rejected' && !isEarlier
+                                    ? 'danger'
+                                    : 'neutral'
+                              }
+                            >
+                              {state}
+                            </Badge>
+                          )}
+                        </td>
+                      )}
+                      {decidable && (
+                        <td>
+                          {props.onDecide !== undefined && row.mayDecide && (
+                            <div className="shelf-head" style={{ gap: 6 }}>
+                              <Button
+                                size="sm"
+                                disabled={deciding}
+                                aria-label={`Accept the ${what}`}
+                                onClick={() => void decide(row, { decision: 'accept' })}
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="quiet"
+                                disabled={deciding}
+                                aria-label={`Reject the ${what}`}
+                                onClick={() => {
+                                  setRejecting(row.id);
+                                  setReason('');
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                    {rejecting === row.id && row.mayDecide && (
+                      <tr>
+                        <td colSpan={width}>
+                          <Field
+                            label={`Why is the ${what} being rejected?`}
+                            hint="The organisation that submitted it reads this on the row. A rejection has to say why."
                           >
-                            {state}
-                          </Badge>
-                        )}
-                      </td>
+                            <TextInput value={reason} onChange={setReason} />
+                          </Field>
+                          <div className="shelf-head" style={{ gap: 6 }}>
+                            <Button
+                              size="sm"
+                              disabled={deciding || reason.trim() === ''}
+                              aria-label={`Confirm the rejection of the ${what}`}
+                              onClick={() => void decide(row, { decision: 'reject', reason: reason.trim() })}
+                            >
+                              Reject
+                            </Button>
+                            <Button size="sm" variant="quiet" onClick={() => setRejecting(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </Fragment>
                 );
               })
             )}
           </tbody>
         </table>
       </Table>
+      {decisionNotice !== null && <p className="page-sub">{decisionNotice}</p>}
       {earlier.length > 0 && (
         <Button variant="quiet" size="sm" onClick={() => setRevealed((open) => !open)}>
           {revealed
@@ -391,6 +553,33 @@ export function chartSeries(
   return withEmpty.map((label) => ({ label, value: Number(totals.get(label)!.toFixed(4)) }));
 }
 
+/**
+ * T-489 — **a chart grouped by the entering organisation** (ADR-0056's fifth
+ * addendum, ruling 1): one group per organisation, the value column added up
+ * over that organisation's rows, in alphabetical order so the chart does not
+ * shuffle as rows arrive.
+ *
+ * *In plain terms: "electricity by contractor".* The organisation's name is on
+ * every row this viewer received (`organisationName`) — nothing new is fetched,
+ * and a viewer only ever sees the organisations whose rows they may read — so
+ * the chart shows nothing the row table's Organisation column does not. The
+ * rows handed in are already the COUNTED ones. A row whose value is not a
+ * number contributes nothing, as in `chartSeries`.
+ */
+export function organisationSeries(rows: AppRowRecord[], valueColumn: string): ChartSlice[] {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const value = row.values[valueColumn];
+    totals.set(
+      row.organisationName,
+      (totals.get(row.organisationName) ?? 0) + (typeof value === 'number' && Number.isFinite(value) ? value : 0),
+    );
+  }
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'en-GB'))
+    .map(([label, value]) => ({ label, value: Number(value.toFixed(4)) }));
+}
+
 /** The straight line of best fit through the points, as (first, last) values.
  * Least squares over the point index — which is what a trend over an ordered
  * category column means. Null when there is nothing to fit. */
@@ -410,11 +599,13 @@ export function trendLine(values: number[]): { first: number; last: number } | n
   return { first: meanY - slope * meanX, last: meanY + slope * (n - 1 - meanX) };
 }
 
-function ChartFrame(props: { label: string; children: React.ReactNode }) {
+function ChartFrame(props: { label: string; notYetAccepted?: number; children: React.ReactNode }) {
+  const line = notYetAcceptedLine(props.notYetAccepted ?? 0);
   return (
     <div className="app-chart">
       <p className="page-sub">{props.label}</p>
       {props.children}
+      {line !== null && <p className="field-hint">{line}</p>}
     </div>
   );
 }
@@ -437,13 +628,19 @@ export function ScreenChart(props: {
   table: AppTableRecord;
 }) {
   const { block } = props;
-  const series = chartSeries(
-    props.rows,
-    block.categoryColumn,
-    block.valueColumn,
-    props.table.columns.find((column) => column.key === block.categoryColumn)?.type,
-  );
+  // T-489 — grouped by the entering organisation, or by a declared column
+  const series =
+    block.categoryColumn === undefined
+      ? organisationSeries(props.rows, block.valueColumn)
+      : chartSeries(
+          props.rows,
+          block.categoryColumn,
+          block.valueColumn,
+          props.table.columns.find((column) => column.key === block.categoryColumn)?.type,
+        );
   if (series.length === 0) return <NothingToDraw label={block.label} />;
+  // the rows handed in are the counted ones; some may still await a decision
+  const notYetAccepted = notYetAcceptedCount(props.rows);
 
   const W = 360;
   const H = 180;
@@ -481,7 +678,7 @@ export function ScreenChart(props: {
       return { slice, index, x1, y1, x2, y2, large, whole };
     });
     return (
-      <ChartFrame label={block.label}>
+      <ChartFrame label={block.label} notYetAccepted={notYetAccepted}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={block.label}>
           <title>{block.label}</title>
           {wedges.map((wedge) =>
@@ -536,7 +733,7 @@ export function ScreenChart(props: {
       step,
     );
     return (
-      <ChartFrame label={block.label}>
+      <ChartFrame label={block.label} notYetAccepted={notYetAccepted}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={block.label}>
           <title>{block.label}</title>
           <line x1={PAD_L} y1={base} x2={W - 8} y2={base} stroke="var(--hairline)" />
@@ -587,7 +784,7 @@ export function ScreenChart(props: {
     .join(' ');
   const trend = block.showTrend ? trendLine(values) : null;
   return (
-    <ChartFrame label={block.label}>
+    <ChartFrame label={block.label} notYetAccepted={notYetAccepted}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={block.label}>
         <title>{block.label}</title>
         {/* the value scale: light gridlines, each with its figure */}
@@ -749,6 +946,14 @@ export function GeneratedScreen(props: {
     }
   };
 
+  // T-489 — the client's decision, through the existing decide route, then the
+  // rows are read again so the figures beside it move at once
+  const decide = async (row: AppRowRecord, body: DecideAppRowBody) => {
+    await api.decideAppRow(row.id, body);
+    load();
+    props.onChanged?.();
+  };
+
   if (screen === null) {
     return (
       <Card>
@@ -773,6 +978,7 @@ export function GeneratedScreen(props: {
             rows={rows}
             onEnter={(values) => void enter(values)}
             pending={pending || props.appState !== 'open'}
+            onDecide={decide}
           />
         ))
       )}

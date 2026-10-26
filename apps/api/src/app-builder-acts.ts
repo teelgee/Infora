@@ -272,3 +272,109 @@ export async function setTableAcceptanceAct(
   );
   return 'ok';
 }
+
+/** The most columns one table may carry — the declaring act's own ceiling. */
+export const MAX_TABLE_COLUMNS = 40;
+
+/** A column key worked out from its label ("Diesel used (litres)" →
+ * `diesel_used_litres`), unique among `taken`. */
+export function columnKeyFor(label: string, taken: ReadonlySet<string>): string {
+  const base =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 56) || 'column';
+  let candidate = base;
+  for (let n = 2; taken.has(candidate); n += 1) candidate = `${base}_${n}`;
+  return candidate;
+}
+
+/**
+ * T-489 — **add a column to a table that already exists, on the working copy**
+ * (ADR-0056's fifth addendum, ruling 1) — `POST /app-tables/:id/columns`, and
+ * the agent's `addColumn`.
+ *
+ * *In plain terms: the one change to a table's shape that can still be made once
+ * people have entered rows. The new column is always optional — the rows already
+ * entered have no value for it — and the app's people see it from the next
+ * publish, not before (`isPublishedColumn`). There is deliberately no act that
+ * removes a column or changes its type: rows have been entered under it.*
+ *
+ * Refused in words: the table is not live, is an insight table (Infora fixes its
+ * four columns), already has the key, is at the ceiling, or a choice column has
+ * no choices. The column is stamped `addedAt` by the DATABASE clock — the same
+ * clock that stamps `published_at` — so "added after the last publish" is never
+ * a comparison between two machines' times.
+ */
+export async function addColumnAct(
+  db: Db,
+  input: {
+    appId: string;
+    participantId: string;
+    appTableId: string;
+    column: { key?: string | undefined; label: string; type: AppColumn['type']; choices?: string[] | undefined };
+  },
+): Promise<{ ok: true; table: typeof s.appTables.$inferSelect; column: AppColumn } | { ok: false; reason: string }> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const [table] = await db
+      .select()
+      .from(s.appTables)
+      .where(and(eq(s.appTables.id, input.appTableId), eq(s.appTables.appId, input.appId)))
+      .limit(1);
+    if (!table) return { ok: false, reason: 'that table does not exist' };
+    if (table.retiredAt !== null) return { ok: false, reason: `“${table.name}” has been retired, so it takes no new column` };
+    if (table.kind === 'insight') {
+      return { ok: false, reason: `“${table.name}” is where a run writes what it found; Infora fixes its columns` };
+    }
+    const existing = table.columns as AppColumn[];
+    if (existing.length >= MAX_TABLE_COLUMNS) {
+      return { ok: false, reason: `“${table.name}” already has ${MAX_TABLE_COLUMNS} columns, which is as many as a table takes` };
+    }
+    const taken = new Set(existing.map((column) => column.key));
+    const label = input.column.label.trim();
+    if (label === '') return { ok: false, reason: 'a column needs a label' };
+    if (input.column.key !== undefined && taken.has(input.column.key)) {
+      return { ok: false, reason: `“${table.name}” already has a column with the key “${input.column.key}”` };
+    }
+    const key = input.column.key ?? columnKeyFor(label, taken);
+    const choices =
+      input.column.type === 'choice'
+        ? [...new Set((input.column.choices ?? []).map((choice) => choice.trim()).filter((choice) => choice !== ''))]
+        : [];
+    if (input.column.type === 'choice' && choices.length === 0) {
+      return { ok: false, reason: 'a choice column needs at least one choice' };
+    }
+    const added: AppColumn = {
+      key,
+      label,
+      type: input.column.type,
+      // 🔒 always optional: the rows already entered have no value for it
+      required: false,
+      ...(choices.length > 0 && { choices }),
+    };
+    // one statement: append only if the columns are still what was just read, so
+    // two builders adding at once cannot lose one another's column
+    const updated = await db
+      .update(s.appTables)
+      .set({
+        columns: sql`${s.appTables.columns} || jsonb_build_array(${JSON.stringify(added)}::jsonb || jsonb_build_object('addedAt', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')))`,
+      })
+      .where(and(eq(s.appTables.id, table.id), sql`${s.appTables.columns} = ${JSON.stringify(existing)}::jsonb`))
+      .returning();
+    if (updated.length === 0) continue;
+    // an edit of the working copy: the counter moves and says who and when, so
+    // the app reads "changes not yet opened" until the next publish
+    await db
+      .update(s.apps)
+      .set({
+        definitionVersion: sql`${s.apps.definitionVersion} + 1`,
+        definitionUpdatedByParticipantId: input.participantId,
+        definitionUpdatedAt: sql`now()`,
+      })
+      .where(eq(s.apps.id, input.appId));
+    const stored = (updated[0]!.columns as AppColumn[]).find((column) => column.key === key)!;
+    return { ok: true, table: updated[0]!, column: stored };
+  }
+  return { ok: false, reason: 'the table changed while the column was being added — try again' };
+}

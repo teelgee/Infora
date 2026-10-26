@@ -309,3 +309,45 @@ describe('the required questions are computed, not remembered by a model', () =>
     expect(pendingBuilderQuestions(answered, tables)).toEqual([]);
   });
 });
+
+// ── T-489 — a chart may group by the organisation that entered each row ───────
+
+describe('a chart grouped by organisation (T-489, ADR-0056 fifth addendum ruling 1)', () => {
+  const byOrganisation: AppScreen = {
+    version: 1,
+    blocks: [
+      { kind: 'barChart', label: 'Energy by contractor', groupBy: 'organisation', valueColumn: 'energy' },
+      { kind: 'lineChart', label: 'Energy by contractor', groupBy: 'organisation', valueColumn: 'energy', showTrend: false },
+      { kind: 'pieChart', label: 'Energy by contractor', groupBy: 'organisation', valueColumn: 'energy' },
+    ],
+  };
+
+  it('takes all three charts, and names only the value column — there is no category column to declare', () => {
+    expect(parseAppScreen(serialiseAppScreen(byOrganisation), ['energy'])).toEqual(byOrganisation);
+    expect(columnsNamedBy(byOrganisation.blocks[0]!)).toEqual(['energy']);
+    // the value column is still checked against the table's declaration
+    expect(parseAppScreen(serialiseAppScreen(byOrganisation), ['month'])).toBeNull();
+  });
+
+  it('groups by a column OR by organisation — both, and neither, refuse the whole screen', () => {
+    const both = { version: 1, blocks: [{ kind: 'barChart', label: 'x', categoryColumn: 'month', groupBy: 'organisation', valueColumn: 'energy' }] };
+    const neither = { version: 1, blocks: [{ kind: 'barChart', label: 'x', valueColumn: 'energy' }] };
+    expect(parseAppScreen(JSON.stringify(both))).toBeNull();
+    expect(parseAppScreen(JSON.stringify(neither))).toBeNull();
+  });
+
+  it('is a closed choice, not text: nothing but the one word is accepted, so it can hold no address, key or code', () => {
+    for (const value of ['https://exfiltrate.example', 'organisation ', 'Organisation', 'team', '', 'month']) {
+      expect(
+        parseAppScreen(
+          JSON.stringify({ version: 1, blocks: [{ kind: 'barChart', label: 'x', groupBy: value, valueColumn: 'energy' }] }),
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it('leaves the list of block kinds exactly as it was — a field widened, not a block added', () => {
+    expect(appScreenBlockSchema.options).toHaveLength(APP_SCREEN_BLOCK_KINDS.length);
+    expect(APP_SCREEN_BLOCK_KINDS).toHaveLength(9);
+  });
+});

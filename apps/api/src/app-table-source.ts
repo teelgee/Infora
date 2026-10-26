@@ -40,7 +40,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { attachTableSourceBody, sourceDocumentRef } from '@infora/contracts';
+import { attachTableSourceBody, publishedColumnsOf, sourceDocumentRef } from '@infora/contracts';
 import type {
   ApiError,
   AppColumn,
@@ -599,7 +599,7 @@ type Derived =
 /** Everything an import needs, read and checked BEFORE anything is written. */
 async function derive(db: Db, source: StoredSource): Promise<Derived> {
   const [table] = await db
-    .select({ table: s.appTables, closedAt: s.apps.closedAt })
+    .select({ table: s.appTables, closedAt: s.apps.closedAt, publishedAt: s.apps.publishedAt })
     .from(s.appTables)
     .innerJoin(s.apps, eq(s.apps.id, s.appTables.appId))
     .where(eq(s.appTables.id, source.appTableId))
@@ -607,7 +607,10 @@ async function derive(db: Db, source: StoredSource): Promise<Derived> {
   if (!table) return { ok: false, reason: 'The table no longer exists.' };
   if (table.closedAt !== null) return { ok: false, reason: 'The app is closed.' };
   if (table.table.retiredAt !== null) return { ok: false, reason: 'The table has been retired.' };
-  const columns = table.table.columns as AppColumn[];
+  // T-489 — an import maps the PUBLISHED columns only: a column a builder added
+  // since the last publish is theirs alone until then, so a row an import writes
+  // can never carry a value the app's people may not yet see
+  const columns = publishedColumnsOf(table.table.columns as AppColumn[], table.publishedAt?.toISOString() ?? null);
   const mapping = source.mapping as SourceMappingEntry[];
   const problem = mappingProblem(mapping, source.headerRow as string[], columns);
   if (problem !== null) return { ok: false, reason: `The mapping no longer fits the table: ${problem}.` };
@@ -827,7 +830,9 @@ export async function attachSourceAct(
   // a document this builder cannot open is answered exactly as one that does
   // not exist — its existence is not theirs to learn
   if ((await documentReadable(db, slice, pointer)) === null) return { ok: false, status: 404 };
-  const columns = table.columns as AppColumn[];
+  // T-489 — published columns only (see `derive`)
+  const [owner] = await db.select({ publishedAt: s.apps.publishedAt }).from(s.apps).where(eq(s.apps.id, table.appId)).limit(1);
+  const columns = publishedColumnsOf(table.columns as AppColumn[], owner?.publishedAt?.toISOString() ?? null);
   const problem = mappingProblem(body.mapping, body.headerRow, columns);
   if (problem !== null) return { ok: false, status: 400, detail: `${problem}.` };
   const file = await currentFile(db, pointer);
