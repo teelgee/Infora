@@ -56,7 +56,14 @@ export async function publishGateFor(
   row: Pick<typeof s.apps.$inferSelect, 'id' | 'definition'>,
 ): Promise<PublishGate> {
   const tables = await liveTables(db, row.id);
-  return publishGateOf(pendingBuilderQuestions(row.definition as AppDefinition, tables));
+  const definition = row.definition as AppDefinition;
+  return publishGateOf(pendingBuilderQuestions(definition, tables), {
+    // T-487 (walk defect 11) — an app with nothing in it has no question
+    // pending, and used to say it could be opened. It needs a table people
+    // enter rows into (an insight table is written by a run) and a screen.
+    hasTable: tables.some((table) => table.kind !== 'insight'),
+    hasScreen: definition.interfaces.length > 0,
+  });
 }
 
 /** The app's live (unretired) declared tables, by name. */

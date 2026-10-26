@@ -24,6 +24,7 @@ import type {
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
+import { addStandInScreen } from './app-test-support';
 
 const { db, pool } = createDb();
 // T-443 — the router echoes the FIGURES it was shown, so the assertions below
@@ -35,7 +36,7 @@ const app = buildApp({
   sessionSecret: 'test-secret',
   router: fakeRouter((system, prompt) =>
     system.includes('about figures that have already been calculated')
-      ? `INSIGHT: ${/Table “.+?” — (\d+) row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
+      ? `INSIGHT: ${/Table “.+?” — (\d+) current row\(s\) readable\./.exec(prompt)?.[1] ?? '?'} rows, total ${/total ([\d.]+),/.exec(prompt)?.[1] ?? 'none'}`
       : 'The investigation recorded contamination exceedances. [S1] An unsupported figure of 40%.',
   ),
 });
@@ -172,6 +173,20 @@ async function declareTable(appId: string, hasAcceptance: boolean): Promise<AppT
   return (await res.json()) as AppTableRecord;
 }
 
+/**
+ * Publish an app — after giving it the least the publish gate asks to see
+ * (T-487, walk defect 11): a table people fill in, and a screen to open. An app
+ * with neither cannot be opened, and these tests are about scope, runs and
+ * reassignment rather than about what an app holds, so a stand-in table and
+ * screen are added only when the test did not make its own.
+ */
+async function publish(appId: string): Promise<Response> {
+  const current = (await (await get(builderCookie, `/apps/${appId}`)).json()) as GetAppResponse;
+  if (!current.tables.some((table) => table.kind !== 'insight')) await declareTable(appId, false);
+  await addStandInScreen((path, init) => app.request(path, init), builderCookie, appId);
+  return post(builderCookie, `/apps/${appId}/publish`);
+}
+
 describe('who may create an app — the organisation’s own toggle (ADR-0056 §12)', () => {
   it('creates one for a person their firm lets build, and refuses a colleague who is not', async () => {
     const created = await newApp(`returns ${stamp}`);
@@ -222,7 +237,7 @@ describe('an unpublished app is open to its builders alone (the addendum, ruling
     // and naming the id directly is the same 404 the silence gives
     expect((await get(ownerCookie, `/apps/${created.id}`)).status).toBe(404);
 
-    const published = (await (await post(builderCookie, `/apps/${created.id}/publish`)).json()) as AppRecord;
+    const published = (await (await publish(created.id)).json()) as AppRecord;
     expect(published.state).toBe('open');
     // publishing stamps who and when — the act is recorded, not merely done
     expect(published.publishedVersion).not.toBeNull();
@@ -235,7 +250,7 @@ describe('an unpublished app is open to its builders alone (the addendum, ruling
 
   it('gives the working copy only to a builder; everyone else gets the published copy', async () => {
     const created = await newApp(`working copy ${stamp}`);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const asBuilder = (await (await get(builderCookie, `/apps/${created.id}`)).json()) as GetAppResponse;
     const asClient = (await (await get(ownerCookie, `/apps/${created.id}`)).json()) as GetAppResponse;
     expect(asBuilder.app.definition).not.toBeNull();
@@ -250,7 +265,7 @@ describe('scope is the grant set, and revoking closes the door', () => {
   it('an organisation outside the scope cannot open the app, and can once granted', async () => {
     const created = await newApp(`scoped ${stamp}`);
     // created open to owner + peer; take the peer out again
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const record = (await (await get(builderCookie, `/apps/${created.id}`)).json()) as GetAppResponse;
     const peerGrant = record.app.scope.find((g) => g.organisationId === peerOrg)!;
     await post(builderCookie, `/apps/${created.id}/scope/${peerGrant.id}/revocation`);
@@ -265,7 +280,7 @@ describe('the owner’s table share is the project owner’s act and nobody else
   it('refuses a builder and a peer, and takes it from the project owner', async () => {
     const created = await newApp(`sharing ${stamp}`);
     const table = await declareTable(created.id, true);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
 
     expect((await post(builderCookie, `/app-tables/${table.id}/shares`, { organisationId: peerOrg })).status)
       .toBe(404);
@@ -279,7 +294,7 @@ describe('the owner’s table share is the project owner’s act and nobody else
   it('refuses sharing with an organisation that is not on the project — a share widens INSIDE it', async () => {
     const created = await newApp(`share outside ${stamp}`);
     const table = await declareTable(created.id, false);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const res = await post(ownerCookie, `/app-tables/${table.id}/shares`, {
       organisationId: outsideOrg,
     });
@@ -291,7 +306,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
   it('an app whose owner is removed renders defunct, cannot run, and runs again once reassigned', async () => {
     const created = await newApp(`defunct ${stamp}`);
     await declareTable(created.id, false);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
 
     // it runs while its owner is on the project, and records the PUBLISHED
     // version rather than the working copy
@@ -334,7 +349,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
 
   it('refuses handing the app to somebody who cannot build it — that is handing it to nobody', async () => {
     const created = await newApp(`reassign guard ${stamp}`);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const res = await post(ownerCookie, `/apps/${created.id}/reassignment`, {
       participantId: builderColleagueParticipantId,
     });
@@ -347,7 +362,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
     // the receipt was wrong
     const created = await newApp(`run naming ${stamp}`);
     await declareTable(created.id, false);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const run = await post(ownerCookie, `/apps/${created.id}/runs`, { trigger: 'manual' });
     expect(run.status).toBe(201);
     const body = (await run.json()) as { run: { asName: string } };
@@ -360,7 +375,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
     // project owner's, and a reassignment is not the door another firm's app
     // walks through to change hands
     const created = await newApp(`reassign scope ${stamp}`);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const res = await post(ownerCookie, `/apps/${created.id}/reassignment`, {
       participantId: peerParticipantId,
     });
@@ -370,7 +385,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
 
   it('refuses a peer firm taking somebody else’s app', async () => {
     const created = await newApp(`reassign peer ${stamp}`);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const res = await post(peerCookie, `/apps/${created.id}/reassignment`, {
       participantId: peerParticipantId,
     });
@@ -380,7 +395,7 @@ describe('reassign-or-close, and the DEFUNCT state (§5, §7)', () => {
   it('closes, and a closed app’s tables are still readable', async () => {
     const created = await newApp(`closing ${stamp}`);
     await declareTable(created.id, false);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const closed = await post(ownerCookie, `/apps/${created.id}/closure`);
     expect(closed.status).toBe(200);
     expect(((await closed.json()) as AppRecord).state).toBe('closed');
@@ -407,7 +422,7 @@ describe('nothing runs an unpublished app', () => {
 describe('a scheduled-shape run acts as the app’s owner, against the published version', () => {
   it('records the published version and the owner, and the two actor stamps agree', async () => {
     const created = await newApp(`scheduled ${stamp}`);
-    const published = (await (await post(builderCookie, `/apps/${created.id}/publish`)).json()) as AppRecord;
+    const published = (await (await publish(created.id)).json()) as AppRecord;
 
     // No clock exists yet (ADR-0056 §13d), so the scheduled shape is written
     // here as the scheduler would write it — which is the point: the STORE has
@@ -465,7 +480,7 @@ describe('a run reads as the runner, computes in code, and lands an insight', ()
     });
     expect(insightRes.status).toBe(201);
     const insight = (await insightRes.json()) as AppTableRecord;
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     return { app: created, data, insight };
   }
 
@@ -577,7 +592,7 @@ describe('a run reads as the runner, computes in code, and lands an insight', ()
   it('records having nowhere to write when the app declared no insight table', async () => {
     const created = await newApp(`no insight table ${stamp}`);
     await declareTable(created.id, false);
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    await publish(created.id);
     const run = (await (
       await post(builderCookie, `/apps/${created.id}/runs`, { trigger: 'manual' })
     ).json()) as { run: AppRunRecord };

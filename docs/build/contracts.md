@@ -2058,3 +2058,56 @@ are not recorded here.
   before anyone looks at it; the **reason it also judges the parsed file** is
   that a client can declare a short length or none. The refusal before the body
   is read cannot name the file (no name exists yet), so its words say "the file".
+
+- **2026-10-25 (T-487) — `AiTransparencyResponse.routes`.** *Plainly: "How the AI
+  works here" now says when no model route meets the deployment's security tier,
+  with the reasons, above its description of the tier.* The **reason it is a
+  separate field and not folded into `tier`** is that `tier` states what the tier
+  *allows* — a fact of the deployment's policy — while `routes` states whether this
+  setup has *declared* anything that meets it; on a fresh setup the first reads
+  "UK, zero retention" while every call is being refused, which was the walk's
+  defect 1. The **reason the explanation is one function in the model package**
+  (`explainRoutes`) is that the start-up warning, the log line when a call is
+  refused and this read must tell one story. `problems` names settings and tiers
+  and never an endpoint or a key, because the read is open to everyone on the
+  project; it is empty when a route qualifies, so a page that ignores it changes
+  nothing for a working setup.
+
+- **2026-10-25 (T-487) — `declareTable`'s `columns` is optional for an insight
+  table (`builderAgentActSchema`); `AppBuildTurn.rawReply`.** *Plainly: the
+  builder's agent may leave an analysis table's columns out, and when Infora
+  refuses an answer whole the builder can see what was sent.* The **reason the
+  columns are optional** is that the agent is told Infora fixes an insight
+  table's columns (`declareTableAct` applies them whatever is sent), so a model
+  that obeys sent none — and the schema, demanding one, refused its *whole*
+  answer, the person's recorded replies to the wall questions included. A data
+  table still needs one; the object stays strict. The **reason `rawReply` is
+  optional and present only on a refused turn** is that nothing else needs it,
+  and it is free text a model sends that can echo what named people typed: it
+  rides the conversation read, which only the app's builders can make, and is
+  deleted with the app (personal-data.md).
+
+- **2026-10-25 (T-487) — `publishGateOf(questions, { hasTable, hasScreen })`.**
+  *Plainly: an app with no table for people to fill in or no screen to open
+  cannot be opened, and the gate says so in the same sentence as any open
+  question.* The **reason the gate gained a second input** is that it asked only
+  whether the required questions were answered, and an app with nothing in it has
+  none to ask — so a brand-new app read "every required question has an answer,
+  so this app can be opened" and could be opened (walk defect 11). The **reason
+  the panel and the refusal still share one function** is unchanged from T-448:
+  the sentence a builder reads before the click and the sentence a refused
+  publish carries must not be able to differ. An insight table does not count as
+  a table people fill in: a run writes it.
+
+- **2026-10-25 (T-487) — `isCurrentAppRow`.** *Plainly: one answer to "does this
+  row count when figures are added up?", used by the dashboard and by the written
+  analysis.* The **reason it is in `contracts` and not in the screen** is that the
+  recheck found the screen and the run each deciding for themselves, and a
+  corrected rejected return was counted twice — once as itself, once as its
+  correction. A rejected row's stored state has to stay `rejected` (its reason
+  must survive, drawer 9), so "replaced" cannot be a state; the predicate reads
+  the successor (`supersededByRowId`) instead. Alongside it, **the successor is
+  now set only from correcting rows the requester may read**: it used to be
+  computed over every row of the table, so the project owner was handed the id of
+  a contractor's *draft* correction — learning that one had been started, which
+  the draft rule exists to prevent.

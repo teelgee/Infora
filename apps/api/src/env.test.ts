@@ -1,7 +1,7 @@
 // T-206 — SESSION_SECRET is required: no default, so a deployment cannot
 // silently run on a publicly-known signing key.
 import { describe, expect, it } from 'vitest';
-import { loadApiEnv, parseChatRoutes } from './env';
+import { loadApiEnv, parseChatRoutes, resolveRouteAttributes } from './env';
 
 const base = {
   ANTHROPIC_API_KEY: 'test-anthropic-key',
@@ -63,5 +63,42 @@ describe('parseChatRoutes (T-285)', () => {
   it('refuses malformed JSON and an empty chain', () => {
     expect(() => parseChatRoutes('{', {})).toThrow(/not valid JSON/);
     expect(() => parseChatRoutes('[]', {})).toThrow(/non-empty array/);
+  });
+});
+
+// T-487 — the four model-route settings. A route is trusted only when all four
+// are declared; but what WAS declared is kept, so the refusal can name exactly
+// the settings still unset instead of blaming all four.
+describe('resolveRouteAttributes (T-487)', () => {
+  const withSession = { ...base, SESSION_SECRET: 'a-real-secret' };
+
+  it('is undefined when none of the four settings is declared', () => {
+    expect(resolveRouteAttributes(loadApiEnv(withSession))).toBeUndefined();
+  });
+
+  it('keeps the settings that were declared and marks only the rest unknown', () => {
+    const env = loadApiEnv({ ...withSession, MODEL_REGION: 'uk', MODEL_ELIGIBILITY: 'self-hosted' });
+    expect(resolveRouteAttributes(env)).toEqual({
+      region: 'uk',
+      retention: 'unknown',
+      jurisdiction: 'unknown',
+      eligibility: 'self-hosted',
+    });
+  });
+
+  it('resolves a fully declared route as declared', () => {
+    const env = loadApiEnv({
+      ...withSession,
+      MODEL_REGION: 'uk',
+      MODEL_RETENTION: 'zero',
+      MODEL_JURISDICTION: 'uk-sovereign',
+      MODEL_ELIGIBILITY: 'enterprise-zdr',
+    });
+    expect(resolveRouteAttributes(env)).toEqual({
+      region: 'uk',
+      retention: 'zero',
+      jurisdiction: 'uk-sovereign',
+      eligibility: 'enterprise-zdr',
+    });
   });
 });

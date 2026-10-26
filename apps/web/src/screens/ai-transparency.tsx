@@ -100,11 +100,32 @@ export function AiTransparencyScreen() {
 
 /** the table itself — the project page and the workspace page share it */
 export function TransparencyTable(props: { table: AiTransparencyResponse; onThrow?: ((f: AiFeatureRow) => void) | undefined }) {
-  const { tier } = props.table;
+  const { tier, routes } = props.table;
   return (
     <>
+      {/* T-487 — the line below says what the tier ALLOWS. When no model route is
+          declared to meet it, every AI feature is refused, and describing UK,
+          zero-retention calls as if they were happening would be false. */}
+      {!routes.anyQualifies && (
+        <div className="banner banner--warning" role="alert" style={{ marginTop: 12 }}>
+          <strong>AI features are not working on this setup.</strong> No model route meets the{' '}
+          <strong>{tier.tier}</strong> security tier, so every AI feature is refused rather than
+          sent somewhere the tier does not allow.
+          {routes.problems.length > 0 && (
+            <ul aria-label="Why no model route qualifies" style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+              {routes.problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          )}
+          <div style={{ marginTop: 6 }}>
+            This is for whoever runs Infora here to put right: they declare what is true of the model
+            contract behind it, in the settings described in <code>.env.example</code>.
+          </div>
+        </div>
+      )}
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '12px 0 8px' }}>
-        <strong>Where every call runs:</strong> the <strong>{tier.tier}</strong> tier — region {tier.region.join(', ')}; retention{' '}
+        <strong>{routes.anyQualifies ? 'Where every call runs:' : 'Where a call would run, if a route qualified:'}</strong> the <strong>{tier.tier}</strong> tier — region {tier.region.join(', ')}; retention{' '}
         {tier.retention.join(', ')}; jurisdiction {tier.jurisdiction.join(', ')}. The model router enforces this on every call and refuses rather
         than falls back (ADR-0037). <strong>No model is ever trained on this project’s data</strong> (ADR-0026).
       </p>

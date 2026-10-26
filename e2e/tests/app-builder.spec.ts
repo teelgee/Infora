@@ -23,7 +23,7 @@ import type {
   WriteAppScreenResponse,
 } from '@infora/contracts';
 import { EMPTY_APP_DEFINITION, parseAppScreen } from '@infora/contracts';
-import { ApiSession, SEEDED } from './support/api';
+import { ApiSession, SEEDED, addStandInScreen } from './support/api';
 
 const stamp = Date.now();
 
@@ -253,6 +253,7 @@ test('an export by a contractor and an export by the client, over one app', asyn
     kind: 'data',
     hasAcceptance: true,
   });
+  await addStandInScreen(eleanor, app.id); // T-487 — the gate wants a screen to open
   await eleanor.post(`/apps/${app.id}/publish`, {});
   await eleanor.post<AppRowResponse>(`/app-tables/${table.id}/rows`, {
     values: { month: `October ${stamp}`, landfill: 41.5 },

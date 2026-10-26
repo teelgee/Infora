@@ -178,6 +178,13 @@ export function aiFeatureRoutes(deps: { db: Db; router: Router }) {
     return { tier: p.tier, region: [...p.region], retention: [...p.retention], jurisdiction: [...p.jurisdiction] };
   };
 
+  // T-487 — the router's own account of whether any chat route meets the tier,
+  // so the page cannot describe zero-retention UK calls while every call is refused
+  const routes = () => {
+    const readiness = deps.router.chatReadiness;
+    return { anyQualifies: readiness.anyQualifies, problems: [...readiness.problems] };
+  };
+
   async function table(projectId: string, slice: EntitledSlice): Promise<AiTransparencyResponse> {
     const rows = await deps.db
       .select({
@@ -196,6 +203,7 @@ export function aiFeatureRoutes(deps: { db: Db; router: Router }) {
     for (const r of rows) if (!latest.has(r.feature)) latest.set(r.feature, r);
     return {
       tier: tier(),
+      routes: routes(),
       features: AI_FEATURES.map((f) => {
         const last = latest.get(f.key);
         return {
@@ -221,6 +229,7 @@ export function aiFeatureRoutes(deps: { db: Db; router: Router }) {
   app.get('/ai-transparency', (c) => {
     const body: AiTransparencyResponse = {
       tier: tier(),
+      routes: routes(),
       features: AI_FEATURES.map((f) => ({ ...f, enabled: true, lastChange: null })),
       mayConfigure: false,
       history: [],
@@ -255,7 +264,13 @@ export function aiFeatureRoutes(deps: { db: Db; router: Router }) {
       `How the AI works here — ${projectRow?.name ?? 'this project'}`,
       `Exported ${new Date().toISOString().slice(0, 10)}`,
       '',
-      `Where every call runs: the ${t.tier.tier} tier — region ${t.tier.region.join(', ')}; retention ${t.tier.retention.join(', ')}; jurisdiction ${t.tier.jurisdiction.join(', ')}. No model is ever trained on this project's data (ADR-0026).`,
+      ...(t.routes.anyQualifies
+        ? []
+        : [
+            `Not working on this setup: no model route meets the ${t.tier.tier} security tier, so every AI feature is refused. ${t.routes.problems.join('; ')}.`,
+            '',
+          ]),
+      `${t.routes.anyQualifies ? 'Where every call runs:' : 'Where a call would run, if a route qualified:'} the ${t.tier.tier} tier — region ${t.tier.region.join(', ')}; retention ${t.tier.retention.join(', ')}; jurisdiction ${t.tier.jurisdiction.join(', ')}. No model is ever trained on this project's data (ADR-0026).`,
       '',
     ];
     for (const f of t.features) {

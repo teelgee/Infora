@@ -22,7 +22,7 @@ import type {
   MeResponse,
 } from '@infora/contracts';
 import { serialiseAppScreen } from '@infora/contracts';
-import { ApiSession, SEEDED } from './support/api';
+import { ApiSession, SEEDED, addStandInScreen } from './support/api';
 
 const stamp = Date.now();
 
@@ -86,6 +86,7 @@ test('a run acts as whoever pressed it, computes in code, and lands an insight o
       answeredQuestions: [`contractual-data:${returns.id}`],
     },
   });
+  await addStandInScreen(eleanor, app.id); // T-487 — the gate wants a screen to open
   const opened = await eleanor.post<AppRecord>(`/apps/${app.id}/publish`, {});
   expect(opened.state).toBe('open');
   // T-442's label survives: the schedule is stored, and nothing on a clock runs

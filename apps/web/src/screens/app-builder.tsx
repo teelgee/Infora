@@ -296,6 +296,21 @@ function Turn({ turn }: { turn: AppBuildTurn }) {
           </ul>
         </div>
       )}
+      {/* T-487 — a reply Infora refused whole is kept, and offered here, closed.
+          It is plain text in a <pre>: never markup, never a link — it is what a
+          model sent, and a model's words are not trusted to be harmless. */}
+      {turn.rawReply !== undefined && (
+        <details className="builder-receipt builder-raw-reply">
+          <summary>What the agent sent</summary>
+          <p className="page-sub">
+            This is the agent’s reply exactly as it came back. Infora could not use it, so nothing in
+            it was done.
+          </p>
+          <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: 0, fontSize: 12 }}>
+            {turn.rawReply}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }
@@ -1361,7 +1376,7 @@ function PanelOpen(props: { appId: string; projectId: string; data: GetAppRespon
       <p className={gate.open ? 'page-sub' : 'builder-gate is-closed'} role="status">
         {gate.words}
       </p>
-      {!gate.open && (
+      {!gate.open && gate.questions.length > 0 && (
         <ul className="builder-list">
           {gate.questions.map((question) => (
             <li key={`${question.kind}:${question.subjectId}`}>{question.question.split('?')[0]}?</li>

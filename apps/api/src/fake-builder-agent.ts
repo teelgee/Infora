@@ -12,6 +12,16 @@
 // proposes rather than performs a removal. The suites that prove the server
 // refuses a BAD agent use routers of their own.
 //
+// **It is also taught the two shapes the real model sent in the T-446 walk**
+// (T-487), because a stand-in that only ever answers perfectly proves nothing
+// about the day the real one does not:
+//   - asked for “a place for the analysis”, it declares an INSIGHT table with
+//     NO `columns` field — the agent is told Infora fixes those columns, obeys,
+//     and the answer used to be thrown away whole for it (walk defect 2);
+//   - asked for something “by contractor”, it answers with a sentence of prose
+//     and then the structured answer BARE, with no fence around it (walk
+//     defect 3, shot 19).
+//
 // Never deployed: imported by `e2e-server.ts` and by tests only.
 import { CONVERSATION_SYSTEM } from './app-builder-agent';
 
@@ -124,6 +134,16 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
     }
   }
 
+  // ── a place for the analysis: an insight table with no columns (walk defect 2)
+  if (
+    /analysis/.test(said) &&
+    /\b(place|table)\b/.test(said) &&
+    !state.tables.some((table) => table.name === 'Analysis notes')
+  ) {
+    acts.push({ kind: 'declareTable', name: 'Analysis notes', tableKind: 'insight' });
+    says.push('I added “Analysis notes”, where each run writes what it found. Infora fixes its columns.');
+  }
+
   // ── a change to the dashboard ─────────────────────────────────────────────
   const dashboard = state.screens.find((screen) => screen.label.toLowerCase().includes('dashboard'));
   if (/\bpie\b/.test(said) && dashboard !== undefined) {
@@ -142,6 +162,27 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
       },
     });
     says.push(`I added a pie chart to “${dashboard.label}”.`);
+  }
+
+  // ── "by contractor": prose, then the answer bare, unfenced (walk defect 3) ──
+  let proseFirst: string | null = null;
+  if (/by contractor/.test(said) && dashboard !== undefined) {
+    acts.push({
+      kind: 'writeScreen',
+      screen: dashboard.id,
+      label: dashboard.label,
+      table: dashboard.table ?? 'Monthly returns',
+      layout: {
+        ...DASHBOARD_LAYOUT,
+        blocks: [
+          ...DASHBOARD_LAYOUT.blocks.slice(0, 4),
+          { kind: 'barChart', label: 'Energy used by month', categoryColumn: 'month', valueColumn: 'energy_kwh' },
+          DASHBOARD_LAYOUT.blocks[4],
+        ],
+      },
+    });
+    says.push(`I added an energy chart to “${dashboard.label}”.`);
+    proseFirst = 'Good idea — I have put that chart on the dashboard for you.';
   }
 
   // ── a removal is proposed first, and performed only once agreed ───────────
@@ -167,5 +208,6 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
   }
 
   if (says.length === 0) says.push('Tell me what the app should do, and I will draft it.');
-  return JSON.stringify({ say: says.join(' '), acts, asks, proposals });
+  const answer = JSON.stringify({ say: says.join(' '), acts, asks, proposals });
+  return proseFirst === null ? answer : `${proseFirst}\n\n${answer}`;
 }

@@ -509,6 +509,13 @@ export const appBuildTurns = pgTable(
     acts: jsonb('acts').notNull().default([]),
     /** what the agent proposed for a person to do: `{kind, summary}[]` */
     proposals: jsonb('proposals').notNull().default([]),
+    /** T-487 (migration 0084) — what the model actually sent, kept ONLY on an
+     * agent turn whose reply Infora refused whole (the first 20,000 characters),
+     * so a builder can see what was thrown away. Free text from the model that
+     * can echo what named people typed; same standing and same deletion as the
+     * turn — builders-of-this-app private, deleted with the app. Null on every
+     * other turn. */
+    rawReply: text('raw_reply'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('app_build_turns_app_idx').on(t.appId, t.seq)],

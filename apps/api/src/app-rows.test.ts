@@ -21,6 +21,7 @@ import type {
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
+import { addStandInScreen } from './app-test-support';
 
 const { db, pool } = createDb();
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
@@ -125,6 +126,7 @@ async function newTable(hasAcceptance: boolean): Promise<{ appId: string; tableI
       hasAcceptance,
     })
   ).json()) as AppTableRecord;
+  await addStandInScreen((path, init) => app.request(path, init), builderCookie, created.id);
   await post(builderCookie, `/apps/${created.id}/publish`);
   return { appId: created.id, tableId: table.id };
 }

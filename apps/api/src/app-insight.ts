@@ -118,7 +118,7 @@ export function figuresAsText(figures: TableFigures[]): string {
   if (figures.length === 0) return 'There are no rows you can read in this app.';
   return figures
     .map((table) => {
-      const lines = [`Table “${table.name}” — ${table.rows} row(s) readable.`];
+      const lines = [`Table “${table.name}” — ${table.rows} current row(s) readable.`];
       for (const entry of table.byOrganisation) {
         lines.push(`  entered by ${entry.organisationName}: ${entry.rows} row(s)`);
       }

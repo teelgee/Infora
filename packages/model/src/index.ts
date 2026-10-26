@@ -10,6 +10,7 @@ export {
   type DeploymentSecurity,
   type ChatRouteSpec,
   type FallbackPolicy,
+  type RouterDiagnostics,
 } from './router.js';
 // T-285 — fallback chains: what counts as an outage, and the exhaustion error
 export {

@@ -15,7 +15,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
-import { runAppBody } from '@infora/contracts';
+import { isCurrentAppRow, runAppBody } from '@infora/contracts';
 import type {
   ApiError,
   AppColumn,
@@ -121,7 +121,9 @@ export function appRunRoutes(deps: { db: Db; router: Router }) {
       if (table.kind === 'insight') continue;
       const context = await reachTable(deps.db, user, table.id);
       if (!context) continue;
-      const rows = await listRows(deps.db, context);
+      // T-487 — the run adds up CURRENT rows only: the same predicate the
+      // dashboard uses, so a corrected return is covered once, as its correction
+      const rows = (await listRows(deps.db, context)).filter(isCurrentAppRow);
       covered.push({
         name: table.name,
         columns: table.columns as AppColumn[],

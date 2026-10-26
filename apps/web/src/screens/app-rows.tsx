@@ -35,7 +35,8 @@ const ROW_STATE: Record<string, { tone: BadgeTone; label: string }> = {
   submitted: { tone: 'warning', label: 'Submitted' },
   accepted: { tone: 'success', label: 'Accepted' },
   rejected: { tone: 'danger', label: 'Rejected' },
-  superseded: { tone: 'neutral', label: 'Superseded' },
+  // T-487 — "Replaced": a later row (a correction, or a newer import) took its place
+  superseded: { tone: 'neutral', label: 'Replaced' },
 };
 
 /** The form's own state: one string per declared column, converted on the way
@@ -203,8 +204,10 @@ export function AppTableRows(props: {
                           “{row.rejectionReason}”
                         </div>
                       )}
-                      {row.supersededByRowId !== null && (
-                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>· superseded</div>
+                      {/* a REJECTED row a correction replaced keeps its reason (the
+                          stored state stays `rejected`), so the word is said here */}
+                      {row.supersededByRowId !== null && row.state !== 'superseded' && (
+                        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>· replaced</div>
                       )}
                       {row.retiredAt !== null && (
                         <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>· retired</div>

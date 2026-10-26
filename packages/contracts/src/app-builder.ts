@@ -317,7 +317,9 @@ export type GetAppResponse = {
  * (ADR-0056's third addendum, ruling 1).
  */
 export type PublishGate = {
-  /** true exactly when no required question stands unanswered */
+  /** true exactly when nothing stands in the way: no required question is
+   * unanswered, and the app has a table people fill in and a screen to open
+   * (T-487 added the second half) */
   open: boolean;
   /** each required question still open, in the order a person would answer them */
   questions: BuilderQuestion[];
@@ -362,6 +364,34 @@ export type AppRowRecord = {
   mayCorrect: boolean;
   mayRetire: boolean;
 };
+
+/**
+ * T-487 — **is this row CURRENT?** The one answer, shared by the screen that
+ * draws a dashboard and the run that writes an analysis, so the two can never
+ * count different rows.
+ *
+ * *In plain terms: a row is current unless it was withdrawn, or a later row has
+ * taken its place — a correction, or a newer import of the spreadsheet a table
+ * is fed from. A current row is one that counts when figures are added up.*
+ *
+ * Three ways out: the row is **retired** (its own organisation withdrew it); its
+ * state is **superseded** (an accepted row a correction replaced, or one a newer
+ * import replaced); or it has a **successor** (`supersededByRowId`) — which is
+ * how a REJECTED row a correction replaced is told apart from one still
+ * standing, because its stored state must stay `rejected` to keep its reason
+ * (drawer 9's CHECK). Before this, the screen looked only at the first two, so
+ * a corrected rejected return was counted twice — once as itself, once as its
+ * correction.
+ *
+ * This is about what is ADDED UP, never about what may be SEEN: every row here
+ * has already been through the read predicate, and a person can still read a
+ * replaced row and its state.
+ */
+export function isCurrentAppRow(
+  row: Pick<AppRowRecord, 'retiredAt' | 'state' | 'supersededByRowId'>,
+): boolean {
+  return row.retiredAt === null && row.state !== 'superseded' && row.supersededByRowId === null;
+}
 
 export type ListAppRowsResponse = {
   table: AppTableRecord;
@@ -812,15 +842,35 @@ export function pendingBuilderQuestions(
  * T-448 — the publish gate, in words (ADR-0056's third addendum, ruling 1).
  *
  * *In plain terms: what the platform says when it will not open an app yet —
- * which questions still need an answer, each by name.*
+ * which questions still need an answer, each by name; and, since T-487, that an
+ * app with no table for people to fill in or no screen for them to open has
+ * nothing to open.*
  *
  * The server computes `questions` from the store (`apps.ts`) and refuses a
  * publish while any stands; this turns them into the sentence the refusal
  * carries and the building screen shows before the click. One function, so the
  * words on the screen and the words in the refusal cannot drift apart.
+ *
+ * **T-487 (walk defect 11): an empty app used to say "this app can be opened"**
+ * because it had no question pending — the gate asked only whether the
+ * questions were answered, and an app with nothing in it has none. The gate now
+ * also needs at least one table that people enter rows into (an insight table is
+ * written by a run, so it does not count) and at least one screen. The gaps lead
+ * the sentence and the questions follow, in the same style.
  */
-export function publishGateOf(questions: BuilderQuestion[]): PublishGate {
-  if (questions.length === 0) {
+export function publishGateOf(
+  questions: BuilderQuestion[],
+  shape: { hasTable: boolean; hasScreen: boolean },
+): PublishGate {
+  const gaps =
+    !shape.hasTable && !shape.hasScreen
+      ? 'it has no table for people to fill in and no screen for people to open'
+      : !shape.hasTable
+        ? 'it has no table for people to fill in'
+        : !shape.hasScreen
+          ? 'it has no screen for people to open'
+          : null;
+  if (questions.length === 0 && gaps === null) {
     return {
       open: true,
       questions,
@@ -836,12 +886,16 @@ export function publishGateOf(questions: BuilderQuestion[]): PublishGate {
     named.length === 1
       ? named[0]!
       : `${named.slice(0, -1).join('; ')}; and ${named[named.length - 1]!}`;
+  const pending =
+    questions.length === 0
+      ? null
+      : `${
+          questions.length === 1 ? 'one question still needs' : `${questions.length} questions still need`
+        } an answer — ${list}`;
   return {
     open: false,
     questions,
-    words: `This app cannot be opened yet: ${
-      questions.length === 1 ? 'one question still needs' : `${questions.length} questions still need`
-    } an answer — ${list}.`,
+    words: `This app cannot be opened yet: ${[gaps, pending].filter((part) => part !== null).join(', and ')}.`,
   };
 }
 
@@ -962,24 +1016,33 @@ export const builderAgentActSchema = z.discriminatedUnion('kind', [
     name: agentLabel.optional(),
     description: z.string().max(600).optional(),
   }),
-  z.strictObject({
-    kind: z.literal('declareTable'),
-    name: agentLabel,
-    // 🔒 no `hasAcceptance`: the contractual-data question is the person's
-    tableKind: z.enum(['data', 'insight']),
-    columns: z
-      .array(
-        z.strictObject({
-          key: z.string().min(1).max(64).regex(/^[a-z0-9_]+$/),
-          label: agentLabel,
-          type: z.enum(APP_COLUMN_TYPES),
-          required: z.boolean().optional(),
-          choices: z.array(z.string().min(1).max(200)).max(50).optional(),
-        }),
-      )
-      .min(1)
-      .max(40),
-  }),
+  z
+    .strictObject({
+      kind: z.literal('declareTable'),
+      name: agentLabel,
+      // 🔒 no `hasAcceptance`: the contractual-data question is the person's
+      tableKind: z.enum(['data', 'insight']),
+      // T-487 (walk defect 2) — an INSIGHT table's columns are Infora's, applied
+      // whatever is sent (`declareTableAct`), and the agent is told so; so a
+      // model that obeys and sends none must not have its whole answer refused
+      // for it. A DATA table still needs at least one column, enforced below.
+      columns: z
+        .array(
+          z.strictObject({
+            key: z.string().min(1).max(64).regex(/^[a-z0-9_]+$/),
+            label: agentLabel,
+            type: z.enum(APP_COLUMN_TYPES),
+            required: z.boolean().optional(),
+            choices: z.array(z.string().min(1).max(200)).max(50).optional(),
+          }),
+        )
+        .max(40)
+        .optional(),
+    })
+    .refine((act) => act.tableKind === 'insight' || (act.columns !== undefined && act.columns.length >= 1), {
+      message: 'a data table declares at least one column',
+      path: ['columns'],
+    }),
   z.strictObject({
     kind: z.literal('writeScreen'),
     /** an existing screen to rewrite; absent for a new one */
@@ -1054,5 +1117,14 @@ export type AppBuildTurn = {
   asked: string[];
   acts: BuilderActReceipt[];
   proposals: BuilderProposal[];
+  /**
+   * T-487 — on an agent turn whose answer Infora REFUSED whole, what the model
+   * actually sent (the first 20,000 characters), so a builder can see what was
+   * thrown away instead of guessing. Present only on such a turn. It is free
+   * text from the model and can echo what named people typed, so it has the
+   * conversation's own standing — read by the app's builders alone, deleted
+   * with the app (personal-data.md).
+   */
+  rawReply?: string;
   createdAt: string;
 };

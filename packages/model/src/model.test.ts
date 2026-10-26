@@ -11,7 +11,9 @@ import {
   SecurityPolicyError,
   TIER_POLICIES,
   UNATTRIBUTED,
+  explainRoutes,
   routeConforms,
+  routeProblems,
   selectRoute,
   type RouteAttributes,
 } from './tiers.js';
@@ -558,5 +560,106 @@ describe('fallback chains (T-285)', () => {
     expect(isRouteUnavailable(Object.assign(new Error('x'), { code: 'ECONNRESET' }))).toBe(true);
     expect(isRouteUnavailable(Object.assign(new Error('x'), { status: 400 }))).toBe(false);
     expect(isRouteUnavailable(new Error('model returned no text'))).toBe(false);
+  });
+});
+
+// T-487 (walk defect 1) — when nothing qualifies, SAY why. One explanation, read
+// by the start-up line, the log line when a call is refused, and the "How the
+// AI works here" page.
+describe('saying why no route qualifies (T-487)', () => {
+  const usTransient: RouteAttributes = {
+    region: 'us',
+    retention: 'transient',
+    jurisdiction: 'foreign-reachable',
+    eligibility: 'enterprise-zdr',
+  };
+
+  it('a route that declared nothing is named by the four settings that were never set', () => {
+    expect(routeProblems(TIER_POLICIES.standard, UNATTRIBUTED)).toEqual([
+      'MODEL_REGION is not set',
+      'MODEL_RETENTION is not set',
+      'MODEL_JURISDICTION is not set',
+      'MODEL_ELIGIBILITY is not set',
+    ]);
+  });
+
+  it('a route that declared a US region and transient retention is named by exactly those two values', () => {
+    expect(routeProblems(TIER_POLICIES.standard, usTransient)).toEqual([
+      'region us is not allowed under the standard tier (it allows uk)',
+      'retention transient is not allowed under the standard tier (it allows zero)',
+    ]);
+  });
+
+  it('a partly declared route names only what is missing, and says nothing about what was declared and allowed', () => {
+    const half: RouteAttributes = { ...SELF_HOSTED_UK, retention: 'unknown', eligibility: 'unknown' };
+    expect(routeProblems(TIER_POLICIES.standard, half)).toEqual([
+      'MODEL_RETENTION is not set',
+      'MODEL_ELIGIBILITY is not set',
+    ]);
+  });
+
+  it('a route that conforms has no problems, and its deployment says one qualifies', () => {
+    expect(routeProblems(TIER_POLICIES.standard, SELF_HOSTED_UK)).toEqual([]);
+    expect(explainRoutes(TIER_POLICIES.standard, 'official', [{ attributes: SELF_HOSTED_UK }])).toEqual({
+      anyQualifies: true,
+      problems: [],
+    });
+  });
+
+  it('with several routes, none qualifying, each reason says which route it is about', () => {
+    const readiness = explainRoutes(TIER_POLICIES.standard, 'official', [
+      { attributes: usTransient },
+      { attributes: UNATTRIBUTED },
+    ]);
+    expect(readiness.anyQualifies).toBe(false);
+    expect(readiness.problems[0]).toBe('route 1: region us is not allowed under the standard tier (it allows uk)');
+    expect(readiness.problems).toContain('route 2: MODEL_REGION is not set');
+  });
+
+  it('one qualifying route among several means the deployment can answer — no reasons are listed', () => {
+    expect(
+      explainRoutes(TIER_POLICIES.standard, 'official', [{ attributes: usTransient }, { attributes: SELF_HOSTED_UK }]),
+    ).toEqual({ anyQualifies: true, problems: [] });
+  });
+
+  it('a classification the tier may not carry is the reason, whatever the routes say', () => {
+    expect(explainRoutes(TIER_POLICIES.standard, 'secret', [{ attributes: SELF_HOSTED_UK }])).toEqual({
+      anyQualifies: false,
+      problems: ['the standard tier may not carry secret data'],
+    });
+  });
+
+  it('the refusal itself carries the reasons, after the words earlier callers matched on', () => {
+    const routes = [{ adapter: 'x', attributes: UNATTRIBUTED, endpoint: 'https://secret-host.example' }];
+    let message = '';
+    try {
+      selectRoute(TIER_POLICIES.standard, 'official', routes);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/^no route conforms to tier 'standard' — refusing to dispatch \(fail closed\): MODEL_REGION is not set; /);
+    // never an endpoint: the reasons are about settings and tiers
+    expect(message).not.toContain('secret-host');
+  });
+
+  it('the router reports readiness, and logs a refused call once per reason — not once per call', async () => {
+    const warn = vi.fn();
+    const unattributed = new AnthropicChatAdapter(anthropicStub());
+    const router = new Router(unattributed, conformingEmbeddings(), securityForTier('standard'), {}, { warn });
+    expect(router.chatReadiness.anyQualifies).toBe(false);
+    expect(router.chatReadiness.problems).toContain('MODEL_REGION is not set');
+    expect(warn).not.toHaveBeenCalled(); // readiness is a read; nothing was refused yet
+
+    for (let call = 0; call < 3; call += 1) {
+      await expect(router.chat('draft', { messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(
+        SecurityPolicyError,
+      );
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain('a model call was refused');
+    expect(warn.mock.calls[0]![0]).toContain('MODEL_REGION is not set');
+
+    const fine = new Router(conformingChat(), conformingEmbeddings());
+    expect(fine.chatReadiness).toEqual({ anyQualifies: true, problems: [] });
   });
 });

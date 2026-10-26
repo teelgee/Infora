@@ -21,6 +21,20 @@ pnpm --filter @infora/data run ingest    # embed the library (needs a real VOYAG
 pnpm --filter @infora/api run dev        # the typed API skeleton on :3000
 ```
 
+**The AI will refuse to run until you declare a model route, and that is the
+product working** (T-487). Infora sends nothing to an AI model unless the
+route is declared to meet the deployment's security tier: four settings
+(`MODEL_REGION`, `MODEL_RETENTION`, `MODEL_JURISDICTION`, `MODEL_ELIGIBILITY`),
+each a claim about the contract behind your key, described in
+[`.env.example`](.env.example). Declare only what is true of that contract — under
+the default `standard` tier a route must be UK-hosted with zero retention, so a
+public development key is refused. Tests and the e2e suite use a scripted
+stand-in model and need none of this; whether a developer's own machine may
+reach a real model is open as `Q-059`. When a route is refused you will see why
+in two places: the API's log (one warning line at start-up, and one the first
+time a call is refused) and the **How the AI works here** page in the app, which
+says so above its tier description.
+
 **Editing uploaded Word/Excel files in the browser** (T-453/T-454, optional).
 The editing engine — Collabora Online, the interim until Microsoft Office for
 the web (ADR-0043) — sits behind a compose profile so the line above still

@@ -24,7 +24,7 @@ import type {
   MeResponse,
   PlaybookResponse,
 } from '@infora/contracts';
-import { ApiSession, SEEDED } from './support/api';
+import { ApiSession, SEEDED, addStandInScreen } from './support/api';
 
 const stamp = Date.now();
 
@@ -229,6 +229,7 @@ test('a playbook: kept with no rows, deployed into a second client’s project, 
       ],
     },
   });
+  await addStandInScreen(eleanor, built.id); // T-487 — the gate wants a screen to open
   await eleanor.post(`/apps/${built.id}/publish`, {});
   const again = (await eleanor.post<PlaybookResponse>(`/apps/${built.id}/playbook`, { name }))
     .playbook;

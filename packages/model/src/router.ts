@@ -14,12 +14,14 @@ import {
   TIER_POLICIES,
   UNATTRIBUTED,
   conformingRoutes,
+  explainRoutes,
   selectRoute,
   type Classification,
   type DeploymentTier,
   type EgressFacts,
   SecurityPolicyError,
   type Route,
+  type RouteReadiness,
   type TierPolicy,
 } from './tiers.js';
 
@@ -78,11 +80,24 @@ export type FallbackPolicy = {
   timeoutMs?: number;
 };
 
+/**
+ * T-487 — where the router may SAY something. The router refuses a call that no
+ * route qualifies for, and until now it did so silently: the caller got an
+ * error and the server's log got nothing. `warn` is handed one plain line, once
+ * per distinct reason, the first time a call is refused. Absent (every test),
+ * the router says nothing — a library does not write to a console of its own.
+ */
+export type RouterDiagnostics = { warn?: (line: string) => void };
+
 export class Router {
   private readonly security: DeploymentSecurity;
   private readonly chatRoutes: ChatRoute[];
   private readonly embeddingRoute: Route<EmbeddingAdapter>;
   private readonly fallback: FallbackPolicy;
+  private readonly diagnostics: RouterDiagnostics;
+  /** the refusals already reported, so a refused setup logs each reason once
+   * rather than once per click */
+  private readonly reportedRefusals = new Set<string>();
 
   constructor(
     // A bare adapter is the one-route deployment, kept as the primary form
@@ -91,9 +106,11 @@ export class Router {
     embeddingAdapter: EmbeddingAdapter,
     security: DeploymentSecurity = DEFAULT_SECURITY,
     fallback: FallbackPolicy = {},
+    diagnostics: RouterDiagnostics = {},
   ) {
     this.security = security;
     this.fallback = fallback;
+    this.diagnostics = diagnostics;
     // a route carries the adapter's declared attributes, or UNATTRIBUTED when
     // it declared none (so it conforms to nothing and is refused rather than
     // dispatched to on trust)
@@ -133,7 +150,7 @@ export class Router {
    */
   async chat(task: ChatTask, request: ChatRequest): Promise<ChatResult> {
     const classification = request.classification ?? this.security.defaultClassification;
-    const chain = this.chainFor(task, classification);
+    const chain = this.refusalsReported(() => this.chainFor(task, classification));
 
     const attempts: RouteAttempt[] = [];
     const failures: Array<{ endpoint: string; reason: string }> = [];
@@ -181,6 +198,36 @@ export class Router {
   }
 
   /**
+   * T-487 — run a route selection and, when the TIER refuses it, report the
+   * reason once through `diagnostics.warn` before the refusal travels on to the
+   * caller unchanged. The reason is the refusal's own message, which already
+   * carries `explainRoutes`' explanation, so the log, the error and the page
+   * cannot tell three stories.
+   */
+  private refusalsReported<T>(select: () => T): T {
+    try {
+      return select();
+    } catch (error) {
+      if (error instanceof SecurityPolicyError && !this.reportedRefusals.has(error.message)) {
+        this.reportedRefusals.add(error.message);
+        this.diagnostics.warn?.(`a model call was refused — ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * T-487 — whether ANY chat route meets the deployment's tier, and if none
+   * does, the plain reasons. Read at boot (one warning line), by the "How the AI
+   * works here" page, and — through the refusal's message — in the log when a
+   * call is refused. Never carries an endpoint or a key: only the names of
+   * settings and the values declared.
+   */
+  get chatReadiness(): RouteReadiness {
+    return explainRoutes(this.security.policy, this.security.defaultClassification, this.chatRoutes);
+  }
+
+  /**
    * T-486 — which model a chat call for this task would be sent to FIRST, said
    * without calling anything. A plan prices its steps before the click, and it
    * has to price them at the model the call will really go to: the checker's
@@ -209,7 +256,9 @@ export class Router {
     inputType: EmbedInputType,
     classification: Classification = this.security.defaultClassification,
   ): Promise<EmbedResult> {
-    const route = selectRoute(this.security.policy, classification, [this.embeddingRoute]);
+    const route = this.refusalsReported(() =>
+      selectRoute(this.security.policy, classification, [this.embeddingRoute]),
+    );
     const result = await route.adapter.embed(texts, inputType);
     return { ...result, egress: egressOf(route, classification) };
   }

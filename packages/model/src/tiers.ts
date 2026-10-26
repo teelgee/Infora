@@ -144,6 +144,81 @@ export class SecurityPolicyError extends Error {
   }
 }
 
+// ── Saying WHY no route qualifies (T-487, walk defect 1) ────────────────────
+//
+// *In plain terms: when Infora refuses to call a model because nothing is
+// declared to meet the deployment's security tier, it now says which setting is
+// missing or which value the tier does not allow — in one place, so the server's
+// start-up line, the line in its log when a call is refused, and the "How the AI
+// works here" page all give the same explanation instead of three.*
+//
+// Pure functions over a policy and the routes' declared attributes: no
+// environment, no I/O, and never an endpoint or a key — only the names of
+// settings and the values that were declared.
+
+/** The deployment setting that declares each egress attribute (apps/api/src/env.ts). */
+const SETTING_FOR_AXIS = {
+  region: 'MODEL_REGION',
+  retention: 'MODEL_RETENTION',
+  jurisdiction: 'MODEL_JURISDICTION',
+  eligibility: 'MODEL_ELIGIBILITY',
+} as const satisfies Record<keyof RouteAttributes, string>;
+
+const AXES = ['region', 'retention', 'jurisdiction', 'eligibility'] as const;
+
+/**
+ * The plain reasons ONE route does not meet a tier — empty when it does.
+ * An attribute that was never declared is named by the setting that declares
+ * it; one that was declared but the tier does not permit is named with its
+ * value and what the tier does allow.
+ */
+export function routeProblems(policy: TierPolicy, attrs: RouteAttributes): string[] {
+  const problems: string[] = [];
+  for (const axis of AXES) {
+    const value = attrs[axis];
+    if (value === 'unknown') {
+      problems.push(`${SETTING_FOR_AXIS[axis]} is not set`);
+    } else if (!(policy[axis] as readonly string[]).includes(value)) {
+      problems.push(
+        `${axis} ${value} is not allowed under the ${policy.tier} tier (it allows ${policy[axis].join(' or ')})`,
+      );
+    }
+  }
+  return problems;
+}
+
+/** Whether any route can be dispatched to, and — when none can — why not. */
+export type RouteReadiness = { anyQualifies: boolean; problems: string[] };
+
+/**
+ * The deployment's routes against its tier and default classification. When at
+ * least one qualifies, `problems` is empty: the page and the log speak only of
+ * a setup where every call would be refused. With more than one route each
+ * reason is prefixed with the route's place in the chain ("route 2"), because
+ * the chain is declared in order; with one route the prefix would only be noise.
+ */
+export function explainRoutes(
+  policy: TierPolicy,
+  classification: Classification,
+  routes: ReadonlyArray<{ attributes: RouteAttributes }>,
+): RouteReadiness {
+  if (!classificationPermitted(policy, classification)) {
+    return {
+      anyQualifies: false,
+      problems: [`the ${policy.tier} tier may not carry ${classification} data`],
+    };
+  }
+  if (routes.some((route) => routeConforms(policy, route.attributes))) {
+    return { anyQualifies: true, problems: [] };
+  }
+  const problems = routes.flatMap((route, index) =>
+    routeProblems(policy, route.attributes).map((problem) =>
+      routes.length === 1 ? problem : `route ${index + 1}: ${problem}`,
+    ),
+  );
+  return { anyQualifies: false, problems };
+}
+
 /**
  * THE HARD CONSTRAINT, and the whole of it (§3): the classification the tier
  * may carry, then per-route attribute conformance. Everything eligible, in the
@@ -156,6 +231,9 @@ export class SecurityPolicyError extends Error {
  * fixes is only checkable if the two steps are separable: task selection
  * (tasks.ts) receives this result and can narrow it, and has no policy,
  * classification or attributes with which to re-open it.
+ *
+ * T-487 — the refusal now says WHY (`explainRoutes`), after the words every
+ * earlier caller matched on.
  */
 export function conformingRoutes<R extends Route<unknown>>(
   policy: TierPolicy,
@@ -169,8 +247,9 @@ export function conformingRoutes<R extends Route<unknown>>(
   }
   const conforming = routes.filter((route) => routeConforms(policy, route.attributes));
   if (conforming.length === 0) {
+    const why = explainRoutes(policy, classification, routes).problems;
     throw new SecurityPolicyError(
-      `no route conforms to tier '${policy.tier}' — refusing to dispatch (fail closed)`,
+      `no route conforms to tier '${policy.tier}' — refusing to dispatch (fail closed)${why.length > 0 ? `: ${why.join('; ')}` : ''}`,
     );
   }
   return conforming;

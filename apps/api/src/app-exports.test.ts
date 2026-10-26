@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
+import { addStandInScreen } from './app-test-support';
 import { parseXlsxSheets } from './xlsx';
 
 const { db, pool } = createDb();
@@ -120,6 +121,7 @@ async function returnsApp(): Promise<{ app: AppRecord; table: AppTableRecord }> 
       hasAcceptance: true,
     })
   ).json()) as AppTableRecord;
+  await addStandInScreen((path, init) => app.request(path, init), builderCookie, created.id);
   await post(builderCookie, `/apps/${created.id}/publish`);
   await post(builderCookie, `/app-tables/${table.id}/rows`, {
     values: { month: 'August 2026', landfill: 12.4 },
@@ -323,7 +325,16 @@ describe('an insight as Word', () => {
       })
     ).json()) as AppTableRecord;
     expect(table.columns.map((column) => column.key)).toContain('insight');
-    await post(builderCookie, `/apps/${created.id}/publish`);
+    // T-487 — an app is opened only with a table people fill in and a screen,
+    // and an insight table is neither: the app gets a plain data table too
+    await post(builderCookie, `/apps/${created.id}/tables`, {
+      name: 'Returns',
+      columns: [{ key: 'landfill', label: 'Waste to landfill (tonnes)', type: 'number', required: true }],
+      kind: 'data',
+      hasAcceptance: false,
+    });
+    await addStandInScreen((path, init) => app.request(path, init), builderCookie, created.id);
+    expect((await post(builderCookie, `/apps/${created.id}/publish`)).status).toBe(200);
     const entered = (await (
       await post(builderCookie, `/app-tables/${table.id}/rows`, {
         values: {

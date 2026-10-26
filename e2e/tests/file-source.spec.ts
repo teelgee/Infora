@@ -19,7 +19,7 @@ import type {
   MeResponse,
   SandboxDocument,
 } from '@infora/contracts';
-import { ApiSession, SEEDED } from './support/api';
+import { ApiSession, SEEDED, addStandInScreen } from './support/api';
 import { costReport, XLSX_MIME } from './support/workbook';
 
 const PROJECT = 'Wrenfield–Ashcombe 400kV Connection';
@@ -49,6 +49,7 @@ async function world(stamp: number) {
     kind: 'data',
     hasAcceptance: true,
   });
+  await addStandInScreen(eleanor, app.id); // T-487 — the gate wants a screen to open
   await eleanor.post(`/apps/${app.id}/publish`, {});
 
   // Owen uploads his cost report into Calder & Hale's sandbox

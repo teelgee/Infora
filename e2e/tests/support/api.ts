@@ -2,6 +2,7 @@
 // to the e2e api directly (not through the vite proxy), holding the httpOnly
 // session cookie the way a browser would.
 import type { APIRequestContext } from '@playwright/test';
+import type { GetAppResponse } from '@infora/contracts';
 import { request as playwrightRequest } from '@playwright/test';
 import { API_URL } from '../../playwright.config';
 
@@ -63,4 +64,27 @@ export class ApiSession {
     }
     return (await res.json()) as T;
   }
+}
+
+/**
+ * T-487 (walk defect 11) — Infora will not open an app that has no table for
+ * people to fill in or no screen to open. Most of these specs build an app
+ * through the API to test rows, runs, exports or playbooks, and declared a table
+ * and nothing more; this puts a plain stand-in screen on such an app (with its
+ * "who may open it" question answered) so it can be opened and the spec carries
+ * on testing what it was written to test. A no-op when the app already has a
+ * screen.
+ */
+export async function addStandInScreen(builder: ApiSession, appId: string): Promise<void> {
+  const working = (await builder.get<GetAppResponse>(`/apps/${appId}`)).app.definition!;
+  if (working.interfaces.length > 0) return;
+  await builder.patch(`/apps/${appId}/definition`, {
+    definition: {
+      ...working,
+      interfaces: [
+        { id: 'stand-in', label: 'Stand-in screen', appTableId: null, openToOrganisationIds: [], source: null },
+      ],
+      answeredQuestions: [...working.answeredQuestions, 'who-may-open:stand-in'],
+    },
+  });
 }

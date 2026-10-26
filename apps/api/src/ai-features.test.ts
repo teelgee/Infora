@@ -8,8 +8,11 @@ import type { AiTransparencyResponse, ListToolsResponse } from '@infora/contract
 import { createDb, schema as s } from '@infora/db';
 import { createWorkerRegistry } from '@infora/capabilities';
 import { loadWorkflows } from '@infora/workflows';
+import { Router, SELF_HOSTED_UK, TIER_POLICIES, securityForTier } from '@infora/model';
+import type { ChatAdapter, EmbeddingAdapter, RouteAttributes } from '@infora/model';
 import { buildApp } from './app';
-import { fakeRouter } from './test-router';
+import { docxToText } from './extract';
+import { FAKE_EMBED_DIMENSIONS, FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
 
 const { db, pool } = createDb();
 const app = buildApp({
@@ -106,5 +109,110 @@ describe('the AI transparency table and the feature switch (T-463)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-disposition')).toContain('how-the-ai-works-here.docx');
     expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+  });
+});
+
+// T-487 (walk defect 1) — the page used to describe what the tier ALLOWS (UK,
+// zero retention) whether or not any model route was declared to meet it, so on
+// a fresh setup it described calls that were all being refused. The read now
+// says whether a route qualifies, and why not.
+describe('whether any model route qualifies (T-487)', () => {
+  const embeddings: EmbeddingAdapter = {
+    modelId: FAKE_EMBED_MODEL,
+    dimensions: FAKE_EMBED_DIMENSIONS,
+    attributes: SELF_HOSTED_UK,
+    embed: (texts) =>
+      Promise.resolve({
+        embeddings: texts.map(fakeVector),
+        model: { id: FAKE_EMBED_MODEL, version: 'fake-1' },
+        usage: { tokens: 0 },
+      }),
+  };
+  const chatWith = (attributes?: RouteAttributes): ChatAdapter => ({
+    modelId: 'route-under-test',
+    ...(attributes !== undefined && { attributes }),
+    chat: () => Promise.reject(new Error('never called')),
+  });
+  const appOver = (router: Router) =>
+    buildApp({
+      db,
+      sessionSecret: 'test-secret',
+      router,
+      workflows: loadWorkflows({ workers: createWorkerRegistry(), production: true }),
+      workers: createWorkerRegistry(),
+    });
+  const readWorkspace = async (over: ReturnType<typeof appOver>) =>
+    (await (await over.request('/ai-transparency', { headers: { cookie: eleanor } })).json()) as AiTransparencyResponse;
+  const readProject = async (over: ReturnType<typeof appOver>) =>
+    (await (await over.request(`/projects/${projectId}/ai-transparency`, { headers: { cookie: eleanor } })).json()) as AiTransparencyResponse;
+
+  it('a scripted stand-in model attributed to a UK self-hosted route: one qualifies, nothing to explain', async () => {
+    const ws = await readWorkspace(app);
+    expect(ws.routes).toEqual({ anyQualifies: true, problems: [] });
+    expect((await table(rachel)).routes).toEqual({ anyQualifies: true, problems: [] });
+  });
+
+  it('a router whose only route declares nothing: none qualifies, and it says which settings are unset', async () => {
+    const undeclared = appOver(new Router(chatWith(), embeddings));
+    for (const read of [readWorkspace, readProject]) {
+      const body = await read(undeclared);
+      expect(body.routes.anyQualifies).toBe(false);
+      expect(body.routes.problems).toEqual([
+        'MODEL_REGION is not set',
+        'MODEL_RETENTION is not set',
+        'MODEL_JURISDICTION is not set',
+        'MODEL_ELIGIBILITY is not set',
+      ]);
+      // the page still shows what the tier ALLOWS — the warning is what makes it honest
+      expect(body.tier.tier).toBe('standard');
+    }
+  });
+
+  it('a route declared in the US with transient retention under the standard tier: none qualifies, and the reasons name the region and the retention', async () => {
+    const usRoute: RouteAttributes = {
+      region: 'us',
+      retention: 'transient',
+      jurisdiction: 'foreign-reachable',
+      eligibility: 'enterprise-zdr',
+    };
+    const body = await readWorkspace(appOver(new Router(chatWith(usRoute), embeddings)));
+    expect(body.routes.anyQualifies).toBe(false);
+    expect(body.routes.problems).toEqual([
+      'region us is not allowed under the standard tier (it allows uk)',
+      'retention transient is not allowed under the standard tier (it allows zero)',
+    ]);
+  });
+
+  it('the same route is accepted under a tier that allows it — the reasons are about the tier, not the route', async () => {
+    const ukZdr: RouteAttributes = {
+      region: 'uk',
+      retention: 'zero',
+      jurisdiction: 'foreign-reachable',
+      eligibility: 'enterprise-zdr',
+    };
+    expect(TIER_POLICIES.standard.jurisdiction).toContain('foreign-reachable');
+    expect((await readWorkspace(appOver(new Router(chatWith(ukZdr), embeddings)))).routes.anyQualifies).toBe(true);
+    const sovereign = await readWorkspace(appOver(new Router(chatWith(ukZdr), embeddings, securityForTier('sovereign'))));
+    expect(sovereign.routes.anyQualifies).toBe(false);
+    expect(sovereign.routes.problems.join(' ')).toContain('sovereign');
+  });
+
+  it('never carries an endpoint, a host or a key — only the names of settings and the values declared', async () => {
+    const adapter: ChatAdapter = { ...chatWith(), endpoint: 'https://secret-host.example/v1' };
+    const body = await readWorkspace(appOver(new Router(adapter, embeddings)));
+    expect(JSON.stringify(body.routes)).not.toContain('secret-host');
+  });
+
+  it('the export of the page says so too, instead of describing calls that are all being refused', async () => {
+    const res = await appOver(new Router(chatWith(), embeddings)).request(`/projects/${projectId}/ai-transparency/export`, {
+      headers: { cookie: rachel },
+    });
+    expect(res.status).toBe(200);
+    const text = docxToText(Buffer.from(await res.arrayBuffer()))!;
+    expect(text).toContain('Not working on this setup: no model route meets the standard security tier');
+    expect(text).toContain('MODEL_REGION is not set');
+    // and a setup where a route qualifies prints no such line
+    const fine = await app.request(`/projects/${projectId}/ai-transparency/export`, { headers: { cookie: rachel } });
+    expect(docxToText(Buffer.from(await fine.arrayBuffer()))!).not.toContain('Not working on this setup');
   });
 });

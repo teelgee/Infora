@@ -11,7 +11,10 @@
 //   2. the same for an unanswered SCREEN question, with a hand-built definition
 //      PATCHed straight at the API, which is the route around every surface;
 //   3. answering through the ordinary acts clears it;
-//   4. an app with no tables and no screens still publishes (nothing was asked).
+//   4. ~~an app with no tables and no screens still publishes (nothing was
+//      asked)~~ — REVERSED by T-487 (walk defect 11): an app with no table for
+//      people to fill in or no screen for them to open cannot be opened, and the
+//      refusal says which, in the same sentence as any open question.
 //
 // The fixture is apps.test.ts's shape: three firms on one project.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,6 +29,7 @@ import { EMPTY_APP_DEFINITION, serialiseAppScreen } from '@infora/contracts';
 import { createDb, hashPassword, schema as s } from '@infora/db';
 import { buildApp } from './app';
 import { fakeRouter } from './test-router';
+import { addStandInScreen } from './app-test-support';
 
 const { db, pool } = createDb();
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
@@ -123,6 +127,21 @@ async function declareUnanswered(appId: string, name = 'Monthly returns'): Promi
   return (await res.json()) as AppTableRecord;
 }
 
+/** A table whose contractual-data question IS answered (working data). */
+async function declareAnswered(appId: string, name = 'Monthly returns'): Promise<AppTableRecord> {
+  const res = await post(builderCookie, `/apps/${appId}/tables`, {
+    name,
+    columns: COLUMNS,
+    kind: 'data',
+    hasAcceptance: false,
+  });
+  expect(res.status).toBe(201);
+  return (await res.json()) as AppTableRecord;
+}
+
+/** A screen, with its who-may-open question answered. */
+const addScreen = (appId: string) => addStandInScreen((path, init) => app.request(path, init), builderCookie, appId);
+
 async function publishedDefinitionOf(appId: string) {
   const [row] = await db
     .select({ published: s.apps.publishedDefinition, version: s.apps.publishedVersion })
@@ -132,16 +151,79 @@ async function publishedDefinitionOf(appId: string) {
 }
 
 describe('the publish gate refuses while a required question stands', () => {
-  it('publishes an app with no tables and no screens — nothing was asked', async () => {
-    const built = await newApp(`t448 empty ${stamp}`);
+  // T-487 (walk defect 11) — this used to read 'publishes an app with no tables
+  // and no screens — nothing was asked'. No question is pending on an empty app,
+  // and that was exactly the trouble: it said it was ready.
+  it('refuses an app with nothing in it, in words, though no question is pending', async () => {
+    const built = await newApp(`t487 empty ${stamp}`);
     const res = await post(builderCookie, `/apps/${built.id}/publish`);
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as AppRecord).state).toBe('open');
+    expect(res.status).toBe(409);
+    const refused = (await res.json()) as PublishRefusedResponse;
+    expect(refused.error).toBe('conflict');
+    expect(refused.detail).toBe(
+      'This app cannot be opened yet: it has no table for people to fill in and no screen for people to open.',
+    );
+    expect(refused.questions).toEqual([]);
+    expect((await publishedDefinitionOf(built.id)).published).toBeNull();
+    // the panel says the same, before the click, from the same computation
+    const shown = (await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse;
+    expect(shown.publishGate?.open).toBe(false);
+    expect(shown.publishGate?.words).toBe(refused.detail);
+  });
+
+  it('names the one thing that is missing — a screen, a table, or a table that is only an insight', async () => {
+    const tableOnly = await newApp(`t487 table only ${stamp}`);
+    await declareAnswered(tableOnly.id);
+    const noScreen = await post(builderCookie, `/apps/${tableOnly.id}/publish`);
+    expect(noScreen.status).toBe(409);
+    expect(((await noScreen.json()) as PublishRefusedResponse).detail).toBe(
+      'This app cannot be opened yet: it has no screen for people to open.',
+    );
+
+    const screenOnly = await newApp(`t487 screen only ${stamp}`);
+    await addScreen(screenOnly.id);
+    const noTable = await post(builderCookie, `/apps/${screenOnly.id}/publish`);
+    expect(noTable.status).toBe(409);
+    expect(((await noTable.json()) as PublishRefusedResponse).detail).toBe(
+      'This app cannot be opened yet: it has no table for people to fill in.',
+    );
+
+    // an insight table is written by a run, not filled in by people
+    const insightOnly = await newApp(`t487 insight only ${stamp}`);
+    await post(builderCookie, `/apps/${insightOnly.id}/tables`, { name: 'Insights', columns: COLUMNS, kind: 'insight' });
+    await addScreen(insightOnly.id);
+    const stillNoTable = await post(builderCookie, `/apps/${insightOnly.id}/publish`);
+    expect(stillNoTable.status).toBe(409);
+    expect(((await stillNoTable.json()) as PublishRefusedResponse).detail).toBe(
+      'This app cannot be opened yet: it has no table for people to fill in.',
+    );
+  });
+
+  it('puts the missing piece and the open questions in ONE sentence', async () => {
+    const built = await newApp(`t487 both ${stamp}`);
+    await declareUnanswered(built.id);
+    const res = await post(builderCookie, `/apps/${built.id}/publish`);
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as PublishRefusedResponse).detail).toBe(
+      'This app cannot be opened yet: it has no screen for people to open, and one question still needs an answer — whether “Monthly returns” holds contractual data.',
+    );
+  });
+
+  it('opens once there is a table and a screen and every question has an answer', async () => {
+    const built = await newApp(`t487 whole ${stamp}`);
+    await declareAnswered(built.id);
+    await addScreen(built.id);
+    const opened = await post(builderCookie, `/apps/${built.id}/publish`);
+    expect(opened.status).toBe(200);
+    expect(((await opened.json()) as AppRecord).state).toBe('open');
+    const shown = (await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse;
+    expect(shown.publishGate?.words).toBe('Every required question has an answer, so this app can be opened.');
   });
 
   it('refuses a table whose contractual-data question was never answered, naming it in words', async () => {
     const built = await newApp(`t448 table ${stamp}`);
     await declareUnanswered(built.id);
+    await addScreen(built.id);
     const res = await post(builderCookie, `/apps/${built.id}/publish`);
     expect(res.status).toBe(409);
     const refused = (await res.json()) as PublishRefusedResponse;
@@ -157,6 +239,7 @@ describe('the publish gate refuses while a required question stands', () => {
   it('is cleared by answering through the ordinary act — setting the acceptance choice', async () => {
     const built = await newApp(`t448 cleared ${stamp}`);
     const table = await declareUnanswered(built.id);
+    await addScreen(built.id);
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(409);
     // "no, it is working data" — a real answer, given in the act that sets it
     expect((await patch(builderCookie, `/app-tables/${table.id}`, { hasAcceptance: false })).status).toBe(200);
@@ -185,6 +268,7 @@ describe('the publish gate refuses while a required question stands', () => {
         })
       ).status,
     ).toBe(201);
+    await addScreen(built.id);
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
   });
 
@@ -255,12 +339,18 @@ describe('the publish gate refuses while a required question stands', () => {
 
   it('refuses a REPUBLISH too, when a new screen arrives unanswered after the first opening', async () => {
     const built = await newApp(`t448 republish ${stamp}`);
+    await declareAnswered(built.id);
+    await addScreen(built.id);
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
     const before = await publishedDefinitionOf(built.id);
+    const working = ((await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse).app.definition!;
     await patch(builderCookie, `/apps/${built.id}/definition`, {
       definition: {
-        ...EMPTY_APP_DEFINITION,
-        interfaces: [{ id: 'late', label: 'A late screen', appTableId: null, openToOrganisationIds: [], source: null }],
+        ...working,
+        interfaces: [
+          ...working.interfaces,
+          { id: 'late', label: 'A late screen', appTableId: null, openToOrganisationIds: [], source: null },
+        ],
       },
     });
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(409);
@@ -270,7 +360,11 @@ describe('the publish gate refuses while a required question stands', () => {
 
   it('does not ask about a retired table', async () => {
     const built = await newApp(`t448 retired ${stamp}`);
-    const table = await declareUnanswered(built.id);
+    // one answered table keeps the app openable; the unanswered one is retired
+    await declareAnswered(built.id, 'Kept returns');
+    const table = await declareUnanswered(built.id, 'Retired returns');
+    await addScreen(built.id);
+    expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(409);
     await db.update(s.appTables).set({ retiredAt: new Date() }).where(eq(s.appTables.id, table.id));
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
   });
@@ -280,6 +374,7 @@ describe('the gate’s state is shown to the builder before the click, in the sa
   it('rides the app record for a builder, and is null for everybody else', async () => {
     const built = await newApp(`t448 shown ${stamp}`);
     await declareUnanswered(built.id);
+    await addScreen(built.id);
     const asBuilder = (await (await get(builderCookie, `/apps/${built.id}`)).json()) as GetAppResponse;
     expect(asBuilder.publishGate?.open).toBe(false);
     const refused = (await (await post(builderCookie, `/apps/${built.id}/publish`)).json()) as PublishRefusedResponse;
@@ -298,6 +393,8 @@ describe('the gate’s state is shown to the builder before the click, in the sa
 
   it('is not the client’s or a peer’s act to force: their publish is the same 404 as before', async () => {
     const built = await newApp(`t448 others ${stamp}`);
+    await declareAnswered(built.id);
+    await addScreen(built.id);
     expect((await post(builderCookie, `/apps/${built.id}/publish`)).status).toBe(200);
     for (const cookie of [ownerCookie, peerCookie]) {
       expect((await post(cookie, `/apps/${built.id}/publish`)).status).toBe(404);

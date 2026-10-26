@@ -72,6 +72,8 @@ test('the cost dashboard: attach from the panel, rows land, and a colleague’s 
             blocks: [
               { kind: 'total', columnKey: 'cost', label: 'Spent to date' },
               { kind: 'barChart', label: 'Cost by month', categoryColumn: 'month', valueColumn: 'cost' },
+              // T-487 — the row table too: current rows by default, history one click away
+              { kind: 'rowTable', columnKeys: ['month', 'cost'], showOrganisation: false, showState: true },
             ],
           }),
         },
@@ -134,6 +136,18 @@ test('the cost dashboard: attach from the panel, rows land, and a colleague’s 
   await expect(chart.getByText('125', { exact: true })).toBeVisible();
   // November's superseded 120 is history, not a second bar
   await expect(chart.getByText('120', { exact: true })).toHaveCount(0);
+
+  // ── T-487 — and the row table agrees with them: three rows for three months,
+  // the two it replaced one click away (it used to list all five, unmarked) ────
+  const monthTable = page.locator('table', { has: page.locator('th', { hasText: 'Month' }) }).first();
+  await expect(monthTable.getByRole('row')).toHaveCount(4); // the heading and Oct, Nov, Dec
+  await expect(monthTable.getByText('120', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show 2 earlier rows' }).click();
+  await expect(monthTable.getByRole('row')).toHaveCount(6);
+  await expect(monthTable.getByText('120', { exact: true })).toBeVisible();
+  await expect(monthTable.getByText('Retired', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Hide earlier rows' }).click();
+  await expect(monthTable.getByRole('row')).toHaveCount(4);
 
   // ── and the panel shows what the table now reflects ───────────────────────
   await page.context().clearCookies();

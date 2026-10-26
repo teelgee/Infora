@@ -56,6 +56,7 @@ import type {
 import { builderAgentAnswerSchema, parseAppScreen, pendingBuilderQuestions } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
+import { SecurityPolicyError } from '@infora/model';
 import type { Router } from '@infora/model';
 // T-449 — the ONLY acts the conversation can perform, shared with a person's
 // own routes. Nothing that publishes, grants, shares, reassigns or closes is
@@ -258,7 +259,7 @@ export const CONVERSATION_SYSTEM = [
   '"say" is what you tell the person, in plain English, at most six sentences. Say what you did and what you need from them.',
   'The acts you may perform, and NOTHING else (anything else makes your whole answer void and nothing happens):',
   '  {"kind":"describeApp","name":"…","description":"…"} — either field may be left out',
-  '  {"kind":"declareTable","name":"…","tableKind":"data"|"insight","columns":[{"key":"lower_case_key","label":"…","type":"text"|"number"|"date"|"boolean"|"choice","required":true|false}]} — an insight table is where a run writes what it found; Infora fixes its columns',
+  '  {"kind":"declareTable","name":"…","tableKind":"data"|"insight","columns":[{"key":"lower_case_key","label":"…","type":"text"|"number"|"date"|"boolean"|"choice","required":true|false}]} — an insight table is where a run writes what it found; Infora fixes its columns, so for an insight table leave "columns" out',
   '  {"kind":"writeScreen","label":"…","table":"<table name or id>","layout":{"version":1,"blocks":[…]},"screen":"<id of an existing screen, only when rewriting one>"}',
   '  {"kind":"removeScreen","screen":"<id>"} — ONLY after you proposed it and the person agreed in a later message',
   '  {"kind":"setSchedule","schedule":"manual"|"daily"|"weekly"|"monthly"}',
@@ -289,6 +290,25 @@ const REFUSED_SAY =
 
 const UNREACHABLE_SAY =
   'I could not be reached just now, so nothing was changed. What you said is kept, and you can say it again.';
+
+/** T-487 (walk defect 1) — the security tier refused the call: that is a setting
+ * to put right, not a model that was unreachable, and saying "could not be
+ * reached" sent the walker looking in the wrong place. */
+const TIER_REFUSED_SAY =
+  'I could not use the AI at all: no model route on this setup meets its security tier, so Infora refused the call and nothing was changed. What you said is kept. “How the AI works here” says why, and whoever runs this setup can put it right.';
+
+/** T-487 — said first when the reply held no structured answer at all, so the
+ * person is never left to infer from the model’s words that something happened. */
+const TALK_ONLY_LEAD = 'Nothing in the app changed this turn.';
+
+/** T-487 — said first when an act the agent attempted was not made. The model’s
+ * own words were written before Infora checked its acts, and may describe a
+ * change that did not happen, so they are not shown. */
+const NOT_ALL_DONE_LEAD = 'Not everything I tried was done.';
+
+/** T-487 — a refused reply is kept so a builder can see what was thrown away;
+ * capped, because a turn is a turn and not a document. */
+export const MAX_RAW_REPLY = 20000;
 
 /** How many earlier turns the model is shown. The whole conversation stays
  * stored and readable; this bounds one call. */
@@ -330,32 +350,109 @@ function turnDto(turn: TurnRow, speakerName: string): AppBuildTurn {
     asked: turn.asked,
     acts: turn.acts as BuilderActReceipt[],
     proposals: turn.proposals as BuilderProposal[],
+    // T-487 — present only on a turn whose reply was refused whole. Every
+    // caller of `turnDto` has already checked `canBuildApp`.
+    ...(turn.rawReply !== null && { rawReply: turn.rawReply }),
     createdAt: turn.createdAt.toISOString(),
   };
 }
 
-/** Turn a model's answer into what to do. Not JSON → it only talked, and talk
- * does nothing. JSON that is not a valid answer → refused WHOLE. */
-export function parseBuilderAnswer(
-  text: string,
-): { kind: 'answer'; answer: BuilderAgentAnswer } | { kind: 'refused' } {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(unfence(text));
-  } catch {
-    const said = text.trim().slice(0, 4000);
-    return {
-      kind: 'answer',
-      answer: {
-        say: said === '' ? 'I did not follow that — what would you like the app to do?' : said,
-        acts: [],
-        asks: [],
-        proposals: [],
-      },
-    };
+/**
+ * The balanced `{ … }` objects embedded in a piece of text, outermost first, in
+ * the order their opening brace appears. A counter of brace depth that respects
+ * strings and their escapes, so a brace inside a quoted sentence does not end
+ * an object early. Each candidate is only TEXT that is balanced — whether it
+ * parses is the caller's question.
+ */
+function embeddedObjects(text: string): string[] {
+  const found: string[] = [];
+  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i]!;
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === '{') depth += 1;
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          found.push(text.slice(start, i + 1));
+          break;
+        }
+      }
+    }
   }
-  const parsed = builderAgentAnswerSchema.safeParse(raw);
-  return parsed.success ? { kind: 'answer', answer: parsed.data } : { kind: 'refused' };
+  return found;
+}
+
+/** What the model's reply was, once read. */
+export type ParsedBuilderAnswer =
+  /** a structured answer was found and passed the strict schema */
+  | { kind: 'answer'; answer: BuilderAgentAnswer }
+  /** no structured answer at all — the model only talked, and talk does nothing */
+  | { kind: 'talk'; said: string }
+  /** something that looks like an answer was there, and was not a valid one —
+   * refused WHOLE, nothing of it performed */
+  | { kind: 'refused' };
+
+/**
+ * Turn a model's reply into what to do.
+ *
+ * T-487 (walk defect 3) — **a structured answer is found wherever the model put
+ * it.** It used to be read only when the whole reply was JSON or sat inside a
+ * fenced block, so a reply of a sentence followed by the bare answer failed to
+ * parse, and the WHOLE text — JSON included — was shown as the agent's message
+ * while nothing was done. Now, in order: the whole reply; a fenced block (each
+ * judged alone if it is a JSON object); then, only if neither is, each balanced `{ … }` object in the text, first to last, the first that is a
+ * valid answer winning. The words around it are dropped: the answer's own `say`
+ * is the message.
+ *
+ * A reply with no JSON object at all only talked: it does nothing. A reply with
+ * a JSON object in it, none of which is a valid answer, is refused WHOLE.
+ */
+export function parseBuilderAnswer(text: string): ParsedBuilderAnswer {
+  let sawObject = false;
+  const attempt = (candidate: string): BuilderAgentAnswer | null => {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(candidate);
+    } catch {
+      return null;
+    }
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+    sawObject = true;
+    const parsed = builderAgentAnswerSchema.safeParse(raw);
+    return parsed.success ? parsed.data : null;
+  };
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)?.[1];
+  // If the whole reply, or its fenced block, IS a JSON object, that object is
+  // the answer and is judged alone: a valid answer nested inside an invalid one
+  // must not be fished out and performed (refused WHOLE). Embedded objects are
+  // searched only when neither parses as an object.
+  const direct = [text.trim(), ...(fenced === undefined ? [] : [fenced.trim()])];
+  for (const candidate of direct) {
+    const answer = attempt(candidate);
+    if (answer !== null) return { kind: 'answer', answer };
+  }
+  if (!sawObject) {
+    for (const candidate of embeddedObjects(text)) {
+      const answer = attempt(candidate);
+      if (answer !== null) return { kind: 'answer', answer };
+    }
+  }
+  if (sawObject) return { kind: 'refused' };
+  const said = text.trim().slice(0, 4000);
+  return {
+    kind: 'talk',
+    said: said === '' ? 'I did not follow that — what would you like the app to do?' : said,
+  };
 }
 
 /** A hyphenated id for a new screen or connection, unique among `taken`, and
@@ -516,7 +613,11 @@ async function runBuilderTurnNow(
     .filter((line, index) => index > 0 || line !== '')
     .join('\n');
 
-  let parsed: ReturnType<typeof parseBuilderAnswer> | 'unreachable';
+  // `refused-by-tier` is told apart from `unreachable` (T-487): the first is a
+  // setting to put right and the second is a model that did not answer
+  let parsed: ParsedBuilderAnswer | 'unreachable' | 'refused-by-tier';
+  // what the model sent, kept ONLY when its answer was refused whole (T-487)
+  let rawReply: string | null = null;
   try {
     const result = await deps.router.chat('draft', {
       system: CONVERSATION_SYSTEM,
@@ -524,8 +625,11 @@ async function runBuilderTurnNow(
       maxTokens: 4000,
     });
     parsed = parseBuilderAnswer(result.text);
-  } catch {
-    parsed = 'unreachable';
+    // NUL cannot be stored in a text column; a model reply never means one
+    if (parsed.kind === 'refused') rawReply = result.text.replaceAll('\u0000', '').slice(0, MAX_RAW_REPLY);
+  } catch (error) {
+    // the router logs a tier refusal itself, once, with the reason
+    parsed = error instanceof SecurityPolicyError ? 'refused-by-tier' : 'unreachable';
   }
 
   const receipts: BuilderActReceipt[] = [];
@@ -536,8 +640,12 @@ async function runBuilderTurnNow(
 
   if (parsed === 'unreachable') {
     say = UNREACHABLE_SAY;
+  } else if (parsed === 'refused-by-tier') {
+    say = TIER_REFUSED_SAY;
   } else if (parsed.kind === 'refused') {
     say = REFUSED_SAY;
+  } else if (parsed.kind === 'talk') {
+    say = `${TALK_ONLY_LEAD}\n\n${parsed.said}`;
   } else {
     say = parsed.answer.say;
     proposals.push(...parsed.answer.proposals);
@@ -583,13 +691,23 @@ async function runBuilderTurnNow(
   });
   for (const q of unasked) askedNow.add(`${q.kind}:${q.subjectId}`);
 
-  const text = [
-    say,
-    notes.length > 0 ? notes.join(' ') : '',
-    unasked.length > 0
-      ? ['Before this app can be opened, I need you to answer:', ...unasked.map((q) => `— ${q.question}`)].join('\n')
-      : '',
-  ]
+  const questionList = (questions: BuilderQuestion[]) =>
+    questions.length > 0
+      ? ['Before this app can be opened, I need you to answer:', ...questions.map((q) => `— ${q.question}`)].join('\n')
+      : '';
+  // T-487 (walk defect 3) — **never a claim of a change that was not made.** The
+  // model's `say` is written before Infora checks the acts it attached, so when
+  // any of them was not made (`notes` is exactly that list) it may describe a
+  // change that did not happen. Then the message is Infora's own account — what
+  // was and was not done — and the model's words are not shown. Every required
+  // question still open follows, including those the model asked in its own
+  // words, which would otherwise vanish with them; they stay recorded as asked.
+  const notEverythingDone = notes.length > 0 && typeof parsed === 'object' && parsed.kind === 'answer';
+  const text = (
+    notEverythingDone
+      ? [NOT_ALL_DONE_LEAD, notes.map((note) => `— ${note}`).join('\n'), questionList(open)]
+      : [say, notes.length > 0 ? notes.join(' ') : '', questionList(unasked)]
+  )
     .filter((part) => part !== '')
     .join('\n\n')
     .slice(0, 8000);
@@ -604,6 +722,7 @@ async function runBuilderTurnNow(
       asked: [...askedNow],
       acts: receipts,
       proposals,
+      rawReply,
     })
     .returning();
 
@@ -737,7 +856,9 @@ export async function perform(
         appId: ctx.appId,
         participantId: ctx.participantId,
         name: act.name,
-        columns: act.columns.map((c) => ({
+        // an insight table may arrive with no columns (T-487): they are
+        // Infora's and `declareTableAct` applies them whatever is sent
+        columns: (act.columns ?? []).map((c) => ({
           key: c.key,
           label: c.label,
           type: c.type,
@@ -751,7 +872,7 @@ export async function perform(
       done(
         act.tableKind === 'insight'
           ? `Declared “${created.name}”, where each run writes what it found.`
-          : `Declared the table “${created.name}” (${act.columns.map((c) => c.label).join(', ')}).`,
+          : `Declared the table “${created.name}” (${(act.columns ?? []).map((c) => c.label).join(', ')}).`,
       );
       return;
     }

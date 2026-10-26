@@ -87,26 +87,39 @@ export function loadApiEnv(source: NodeJS.ProcessEnv = process.env): ApiEnv {
   return parsed.data;
 }
 
-// The route attributes only when the deployment declared all four (ADR-0037
-// §3); otherwise undefined, which the router treats as unattributed and
-// refuses. Honest by construction: a partially-declared endpoint is not
-// trusted on the strength of what it did declare.
+// The route attributes the deployment declared (ADR-0037 §3). All four must be
+// declared for a route to CONFORM to a real tier; one left unset is carried as
+// 'unknown', which no tier permits, so the route is refused (fail closed) and a
+// partially-declared endpoint is still not trusted on the strength of what it
+// did declare.
+//
+// T-487 — what changed: a partly declared route used to collapse to
+// `undefined` (everything 'unknown'), so the refusal could not say WHICH
+// setting was missing — and would have blamed ones the operator had set. It now
+// keeps what was declared and marks only the rest unknown, so the start-up
+// warning, the log line and the "How the AI works here" page name exactly the
+// settings still unset. `undefined` remains the answer when none was declared.
 export function resolveRouteAttributes(env: ApiEnv):
-  | { region: 'uk' | 'eu' | 'us'; retention: 'zero' | 'transient'; jurisdiction: 'uk-sovereign' | 'foreign-reachable'; eligibility: 'enterprise-zdr' | 'self-hosted' }
+  | {
+      region: 'uk' | 'eu' | 'us' | 'unknown';
+      retention: 'zero' | 'transient' | 'unknown';
+      jurisdiction: 'uk-sovereign' | 'foreign-reachable' | 'unknown';
+      eligibility: 'enterprise-zdr' | 'self-hosted' | 'unknown';
+    }
   | undefined {
   if (
-    env.MODEL_REGION === undefined ||
-    env.MODEL_RETENTION === undefined ||
-    env.MODEL_JURISDICTION === undefined ||
+    env.MODEL_REGION === undefined &&
+    env.MODEL_RETENTION === undefined &&
+    env.MODEL_JURISDICTION === undefined &&
     env.MODEL_ELIGIBILITY === undefined
   ) {
     return undefined;
   }
   return {
-    region: env.MODEL_REGION,
-    retention: env.MODEL_RETENTION,
-    jurisdiction: env.MODEL_JURISDICTION,
-    eligibility: env.MODEL_ELIGIBILITY,
+    region: env.MODEL_REGION ?? 'unknown',
+    retention: env.MODEL_RETENTION ?? 'unknown',
+    jurisdiction: env.MODEL_JURISDICTION ?? 'unknown',
+    eligibility: env.MODEL_ELIGIBILITY ?? 'unknown',
   };
 }
 

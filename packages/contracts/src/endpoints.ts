@@ -2670,6 +2670,14 @@ export type AiFeatureRow = {
 export type AiTransparencyResponse = {
   /** the deployment's posture, from the router (ADR-0037): where every call runs */
   tier: { tier: string; region: string[]; retention: string[]; jurisdiction: string[] };
+  /**
+   * T-487 — whether any model route is DECLARED to meet that tier, which the
+   * `tier` line above does not say (it shows what the tier allows, not what
+   * this setup has). When none does, every AI feature is refused, and
+   * `problems` says why in plain words — names of settings and tiers, never an
+   * endpoint or a key. Empty when at least one route qualifies.
+   */
+  routes: { anyQualifies: boolean; problems: string[] };
   features: AiFeatureRow[];
   /** the owner's super user may throw a switch */
   mayConfigure: boolean;

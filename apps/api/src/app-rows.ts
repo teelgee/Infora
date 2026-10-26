@@ -257,6 +257,32 @@ function dtoOf(
   };
 }
 
+/**
+ * Which row replaced which, as THIS requester may know it — `replaced row id →
+ * correcting row id`.
+ *
+ * 🔒 **T-487 (wall fix, found by the 2026-10-25 recheck): the successor is set
+ * only from correcting rows this requester may READ.** It used to be computed
+ * over every row of the table, so the project owner was handed the id of a
+ * contractor's DRAFT correction — a row the first addendum's ruling 3 says it
+ * may not read — and so learned that a correction had been started. A draft is
+ * its entering organisation's alone, and the fact that one exists is part of it.
+ * The owner now sees the original as it stood until the correction is
+ * submitted, exactly as it sees "no return yet" for a month nobody has
+ * submitted.
+ *
+ * The entering organisation reads its own drafts, so it still sees its own
+ * correction — which is what keeps `mayCorrect` refusing a SECOND correction of
+ * the same row by the same organisation.
+ */
+function successorsFor(all: StoredRow[], context: TableContext): Map<string, string> {
+  const supersededBy = new Map<string, string>();
+  for (const row of all) {
+    if (row.supersedesRowId !== null && visible(row, context)) supersededBy.set(row.supersedesRowId, row.id);
+  }
+  return supersededBy;
+}
+
 /** Rows this requester may read, newest first, with the archived prior
  * versions left out — a prior version is history of the row above it, not a
  * second row somebody entered. */
@@ -269,10 +295,7 @@ export async function listRows(db: Db, context: TableContext): Promise<AppRowRec
   const archived = new Set(
     all.flatMap((row) => (row.previousVersionId === null ? [] : [row.previousVersionId])),
   );
-  const supersededBy = new Map<string, string>();
-  for (const row of all) {
-    if (row.supersedesRowId !== null) supersededBy.set(row.supersedesRowId, row.id);
-  }
+  const supersededBy = successorsFor(all, context);
   const readable = all.filter((row) => !archived.has(row.id) && visible(row, context));
   const names = await namesFor(db, readable);
   return readable.map((row) => dtoOf(row, context, names, supersededBy));
@@ -280,14 +303,8 @@ export async function listRows(db: Db, context: TableContext): Promise<AppRowRec
 
 async function oneRow(db: Db, rowId: string, context: TableContext): Promise<AppRowResponse> {
   const [row] = await db.select().from(s.appRows).where(eq(s.appRows.id, rowId)).limit(1);
-  const all = await db
-    .select({ id: s.appRows.id, supersedesRowId: s.appRows.supersedesRowId })
-    .from(s.appRows)
-    .where(eq(s.appRows.appTableId, context.table.id));
-  const supersededBy = new Map<string, string>();
-  for (const other of all) {
-    if (other.supersedesRowId !== null) supersededBy.set(other.supersedesRowId, other.id);
-  }
+  const all = await db.select().from(s.appRows).where(eq(s.appRows.appTableId, context.table.id));
+  const supersededBy = successorsFor(all, context);
   const names = await namesFor(db, [row!]);
   return { row: dtoOf(row!, context, names, supersededBy) };
 }
@@ -430,20 +447,19 @@ export function appRowRoutes(deps: { db: Db }) {
    * ruling 4), so flipping a rejected row would force its reason to be erased —
    * the record failing in exactly the way the ruling exists to prevent. The
    * supersession is read off the correcting row instead, which is how the
-   * approved mockup draws it: *"Rejected · superseded"*.
+   * approved mockup draws it: *"Rejected · replaced"* (the word is "replaced"
+   * since T-487; `isCurrentAppRow` in contracts is what makes such a row stop
+   * counting once its correction exists).
    */
   app.post('/app-rows/:appRowId/correction', async (c) => {
     const reached = await reachRow(deps.db, c.get('user'), c.req.param('appRowId'));
     if (!reached) return notFound(c);
     const { row, context } = reached;
-    const supersededBy = new Map<string, string>();
-    const others = await deps.db
-      .select({ id: s.appRows.id, supersedesRowId: s.appRows.supersedesRowId })
-      .from(s.appRows)
-      .where(eq(s.appRows.appTableId, row.appTableId));
-    for (const other of others) {
-      if (other.supersedesRowId !== null) supersededBy.set(other.supersedesRowId, other.id);
-    }
+    // only corrections THIS requester may read count (see `successorsFor`); the
+    // entering organisation reads its own drafts, so a second correction by it
+    // is still refused
+    const others = await deps.db.select().from(s.appRows).where(eq(s.appRows.appTableId, row.appTableId));
+    const supersededBy = successorsFor(others, context);
     const names = await namesFor(deps.db, [row]);
     if (!dtoOf(row, context, names, supersededBy).mayCorrect) return notFound(c);
     const parsed = enterAppRowBody.safeParse(await c.req.json().catch(() => null));

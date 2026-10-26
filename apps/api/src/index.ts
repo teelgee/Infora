@@ -63,7 +63,19 @@ const router = new Router(
     ...(env.MODEL_FALLBACK_ATTEMPTS !== undefined && { attempts: env.MODEL_FALLBACK_ATTEMPTS }),
     ...(env.MODEL_ATTEMPT_TIMEOUT_MS !== undefined && { timeoutMs: env.MODEL_ATTEMPT_TIMEOUT_MS }),
   },
+  // T-487 — a call the tier refuses is logged, once per reason, with the reason
+  { warn: (line) => console.warn(`@infora/api: ${line}`) },
 );
+// T-487 (walk defect 1) — say at BOOT, in one plain line, when no model route
+// meets the deployment's tier. Every AI feature would be refused, and until
+// this line the only symptom was a screen saying "could not be reached". The
+// four MODEL_* settings it names are described in .env.example.
+const readiness = router.chatReadiness;
+if (!readiness.anyQualifies) {
+  console.warn(
+    `@infora/api: no model route meets the ${security.policy.tier} security tier, so every AI feature will be refused — ${readiness.problems.join('; ')}. See MODEL_* in .env.example and "How the AI works here" in the app.`,
+  );
+}
 // T-216: deployments widen CORS only by declaring origins explicitly
 const allowedOrigins = env.ALLOWED_ORIGINS?.split(',')
   .map((origin) => origin.trim())

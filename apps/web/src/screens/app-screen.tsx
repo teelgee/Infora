@@ -30,8 +30,8 @@
 // rendered. A generated screen that could bring its own styling would be a
 // second design system nobody reviewed.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppRowRecord, AppScreen, AppScreenBlock, AppState, AppTableRecord } from '@infora/contracts';
-import { parseAppScreen } from '@infora/contracts';
+import type { AppColumn, AppRowRecord, AppScreen, AppScreenBlock, AppState, AppTableRecord } from '@infora/contracts';
+import { isCurrentAppRow, parseAppScreen } from '@infora/contracts';
 import { Badge, Button, Card, Field, SectionLabel, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
 
@@ -40,8 +40,24 @@ const ROW_STATE_LABEL: Record<string, string> = {
   submitted: 'Submitted',
   accepted: 'Accepted',
   rejected: 'Rejected',
-  superseded: 'Superseded',
+  // T-487 — "Replaced", not "Superseded": the word a person reads for a row
+  // that a later row (a correction, or a newer import) has taken the place of
+  superseded: 'Replaced',
 };
+
+/**
+ * What the State column says of a row. A withdrawn row is "Retired"; a row a
+ * later row took the place of is "Replaced" — and a REJECTED row a correction
+ * replaced is "Rejected · replaced", because its stored state stays `rejected`
+ * to keep the reason (drawer 9's CHECK) while the screen still has to say it is
+ * no longer the figure that stands.
+ */
+export function rowStateLabel(row: AppRowRecord): string | null {
+  if (row.retiredAt !== null) return 'Retired';
+  if (row.state === null) return row.supersededByRowId !== null ? 'Replaced' : null;
+  const base = ROW_STATE_LABEL[row.state] ?? row.state;
+  return row.supersededByRowId !== null && row.state !== 'superseded' ? `${base} · replaced` : base;
+}
 
 /**
  * Read a stored screen back for one table.
@@ -58,22 +74,25 @@ export function screenFor(source: string | null, table: AppTableRecord): AppScre
   );
 }
 
-/**
- * T-452 — **a figure is drawn from CURRENT rows only**: neither retired nor
- * superseded. A superseded row is the history of a figure somebody corrected,
- * and a retired one was withdrawn by its own organisation; counting either
- * beside its replacement double-counts. It mattered little while corrections
- * were rare, and it is every month once a table refills from a spreadsheet
- * (ADR-0059): each import supersedes the last, so a chart over every row would
- * grow by a whole report a month. The table block still lists every row it
- * received, each with its state, because history is what a table is for.
+/*
+ * T-452 — **a figure is drawn from CURRENT rows only**: not withdrawn, not
+ * replaced. A replaced row is the history of a figure somebody corrected, and a
+ * retired one was withdrawn by its own organisation; counting either beside its
+ * replacement double-counts. It mattered little while corrections were rare,
+ * and it is every month once a table refills from a spreadsheet (ADR-0059):
+ * each import supersedes the last, so a chart over every row would grow by a
+ * whole report a month.
+ *
+ * T-487 — the predicate itself moved to `isCurrentAppRow` in the contracts, one
+ * copy shared with the analysis run (and widened to rows that have a successor,
+ * so a corrected REJECTED return is counted once). And the row table no longer
+ * lists history by default: it shows the current rows, with the earlier ones one
+ * click away — a table that listed 35 rows for 9 months contradicted the total
+ * and the charts beside it.
  *
  * This is not an access decision and narrows nothing the viewer could read —
  * every row here already arrived through `canReadAppRow`.
  */
-export function isCurrentRow(row: AppRowRecord): boolean {
-  return row.retiredAt === null && row.state !== 'superseded';
-}
 
 /** One block, drawn. Every branch renders text as text. */
 export function ScreenBlock(props: {
@@ -85,7 +104,7 @@ export function ScreenBlock(props: {
 }) {
   const { block, table, rows } = props;
   const label = (key: string) => table.columns.find((column) => column.key === key)?.label ?? key;
-  const current = rows.filter(isCurrentRow);
+  const current = rows.filter(isCurrentAppRow);
 
   if (block.kind === 'heading') return <SectionLabel>{block.text}</SectionLabel>;
   if (block.kind === 'paragraph') return <p className="page-sub">{block.text}</p>;
@@ -125,59 +144,116 @@ export function ScreenBlock(props: {
   }
 
   if (block.kind === 'barChart' || block.kind === 'lineChart' || block.kind === 'pieChart') {
-    return <ScreenChart block={block} rows={current} />;
+    return <ScreenChart block={block} rows={current} table={table} />;
   }
 
-  return (
-    <Table>
-      <table>
-        <thead>
-          <tr>
-            {block.showOrganisation && <th>Organisation</th>}
-            {block.columnKeys.map((key) => (
-              <th key={key}>{label(key)}</th>
-            ))}
-            {block.showState && <th>State</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td
-                colSpan={
-                  block.columnKeys.length + (block.showOrganisation ? 1 : 0) + (block.showState ? 1 : 0)
-                }
-              >
-                <span className="page-sub">Nothing entered yet.</span>
-              </td>
-            </tr>
-          ) : (
-            rows.map((row) => (
-              <tr key={row.id}>
-                {block.showOrganisation && <td>{row.organisationName}</td>}
-                {block.columnKeys.map((key) => (
-                  <td key={key}>{formatValue(row.values[key])}</td>
-                ))}
-                {block.showState && (
-                  <td>
-                    {row.state === null ? (
-                      <span className="page-sub">—</span>
-                    ) : (
-                      <Badge tone={row.state === 'accepted' ? 'success' : row.state === 'rejected' ? 'danger' : 'neutral'}>
-                        {ROW_STATE_LABEL[row.state] ?? row.state}
-                      </Badge>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </Table>
-  );
+  return <ScreenRowTable block={block} rows={rows} label={label} />;
 }
 
+/**
+ * The row table block — **current rows by default, history one click away**
+ * (T-487, walk defect 4).
+ *
+ * *In plain terms: the table shows the rows that count. If earlier rows exist —
+ * ones a correction or a newer spreadsheet replaced, or ones their organisation
+ * withdrew — one button under the table shows them, greyed and marked, and
+ * hides them again.*
+ *
+ * "Nothing entered yet" is said only when there is nothing at all, current or
+ * earlier. `showEarlier` sets the opening state; the block itself never passes
+ * it, so a screen always opens collapsed — it exists so the open state can be
+ * drawn, and tested, without a browser.
+ */
+export function ScreenRowTable(props: {
+  block: Extract<AppScreenBlock, { kind: 'rowTable' }>;
+  rows: AppRowRecord[];
+  label: (key: string) => string;
+  showEarlier?: boolean;
+}) {
+  const { block } = props;
+  const [revealed, setRevealed] = useState(props.showEarlier ?? false);
+  const current = props.rows.filter(isCurrentAppRow);
+  const earlier = props.rows.filter((row) => !isCurrentAppRow(row));
+  const shown = revealed ? [...current, ...earlier] : current;
+  const width = block.columnKeys.length + (block.showOrganisation ? 1 : 0) + (block.showState ? 1 : 0);
+  return (
+    <>
+      <Table>
+        <table>
+          <thead>
+            <tr>
+              {block.showOrganisation && <th>Organisation</th>}
+              {block.columnKeys.map((key) => (
+                <th key={key}>{props.label(key)}</th>
+              ))}
+              {block.showState && <th>State</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.length === 0 ? (
+              <tr>
+                <td colSpan={width}>
+                  <span className="page-sub">
+                    {earlier.length === 0 ? 'Nothing entered yet.' : 'No current rows.'}
+                  </span>
+                </td>
+              </tr>
+            ) : (
+              shown.map((row) => {
+                const isEarlier = !isCurrentAppRow(row);
+                const state = rowStateLabel(row);
+                return (
+                  <tr key={row.id} style={isEarlier ? { opacity: 0.55 } : undefined} data-earlier={isEarlier ? 'true' : undefined}>
+                    {block.showOrganisation && <td>{row.organisationName}</td>}
+                    {block.columnKeys.map((key, index) => (
+                      <td key={key}>
+                        {formatValue(row.values[key])}
+                        {/* a table that does not show the State column still has
+                            to mark a row that no longer counts */}
+                        {isEarlier && !block.showState && index === 0 && (
+                          <>
+                            {' '}
+                            <Badge tone="neutral">{state ?? 'Replaced'}</Badge>
+                          </>
+                        )}
+                      </td>
+                    ))}
+                    {block.showState && (
+                      <td>
+                        {state === null ? (
+                          <span className="page-sub">—</span>
+                        ) : (
+                          <Badge
+                            tone={
+                              !isEarlier && row.state === 'accepted'
+                                ? 'success'
+                                : row.state === 'rejected' && !isEarlier
+                                  ? 'danger'
+                                  : 'neutral'
+                            }
+                          >
+                            {state}
+                          </Badge>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </Table>
+      {earlier.length > 0 && (
+        <Button variant="quiet" size="sm" onClick={() => setRevealed((open) => !open)}>
+          {revealed
+            ? 'Hide earlier rows'
+            : `Show ${earlier.length} earlier ${earlier.length === 1 ? 'row' : 'rows'}`}
+        </Button>
+      )}
+    </>
+  );
+}
 
 // ── T-443's three charts, drawn from the rows this viewer received ──────────
 //
@@ -197,9 +273,54 @@ export function ScreenBlock(props: {
 const CHART_INK = ['var(--accent)', 'var(--authority)', 'var(--amber)', 'var(--danger)'];
 
 /** One bar, point or slice: a category, and the sum of the value column over
- * the rows in it. First-seen order, so a month column reads in the order the
- * returns arrived rather than alphabetically. */
+ * the rows in it. In calendar order when the category column is a date (or text
+ * that is all dates or months), otherwise first-seen, and the group for a row
+ * that left the category empty ("—") last. */
 export type ChartSlice = { label: string; value: number };
+
+const MONTHS = [
+  ['jan', 'january'],
+  ['feb', 'february'],
+  ['mar', 'march'],
+  ['apr', 'april'],
+  ['may', 'may'],
+  ['jun', 'june'],
+  ['jul', 'july'],
+  ['aug', 'august'],
+  ['sep', 'september', 'sept'],
+  ['oct', 'october'],
+  ['nov', 'november'],
+  ['dec', 'december'],
+];
+
+/**
+ * Where a category value falls on the calendar, as a sortable number — or null
+ * when it does not read as a date or a month at all.
+ *
+ * Reads exactly these shapes, and guesses at nothing else: ISO `2026-10` and
+ * `2026-10-01` (a time after the day is ignored), and an English month name
+ * with its year — "October 2026", "Oct 2026", case-insensitive. A bare "October"
+ * is not read (which year?), and neither is "10/11/2026" (whose day comes
+ * first?): a value this does not understand sends the whole column back to
+ * first-seen order rather than ordering it wrongly.
+ */
+export function calendarKey(raw: string): number | null {
+  const text = raw.trim();
+  const iso = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[T ].*)?$/.exec(text);
+  if (iso !== null) {
+    const month = Number(iso[2]);
+    const day = iso[3] === undefined ? 1 : Number(iso[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return Number(iso[1]) * 10000 + month * 100 + day;
+  }
+  const named = /^([A-Za-z]+)\.?,?\s+(\d{4})$/.exec(text);
+  if (named !== null) {
+    const name = named[1]!.toLowerCase();
+    const index = MONTHS.findIndex((forms) => forms.includes(name));
+    if (index !== -1) return Number(named[2]) * 10000 + (index + 1) * 100 + 1;
+  }
+  return null;
+}
 
 /**
  * Group the rows this viewer received by one column and add up another.
@@ -207,11 +328,23 @@ export type ChartSlice = { label: string; value: number };
  * A row whose value is not a number contributes nothing — the same rule the
  * `total` block follows. A category with no numeric rows at all still appears,
  * at zero, because "this month, nothing" is a fact a dashboard should show.
+ *
+ * **Order (T-487, walk defect 5).** Rows arrive oldest-entered first, so a
+ * returns table whose October return was entered before its May one drew
+ * October first — and a line chart and its trend line through months out of
+ * order say something false. When the grouping column is declared `date`, the
+ * groups are ordered by date, earliest first. When it is `text` and EVERY
+ * non-empty value reads as a date or a month, the same. Anything else — a
+ * category like "Waste" or "Energy" — keeps the order it was first seen, which
+ * is the order a person entered it. The column's TYPE is passed in, from the
+ * table's declaration: it is never guessed from the column's key. The empty
+ * group ("—") goes last either way.
  */
 export function chartSeries(
   rows: AppRowRecord[],
   categoryColumn: string,
   valueColumn: string,
+  categoryType?: AppColumn['type'],
 ): ChartSlice[] {
   const order: string[] = [];
   const totals = new Map<string, number>();
@@ -227,7 +360,23 @@ export function chartSeries(
       totals.set(key, totals.get(key)! + value);
     }
   }
-  return order.map((label) => ({ label, value: Number(totals.get(label)!.toFixed(4)) }));
+  const named = order.filter((label) => label !== '—');
+  const keys = new Map(named.map((label) => [label, calendarKey(label)]));
+  const ordered =
+    categoryType === 'date' || (categoryType === 'text' && named.length > 0 && named.every((label) => keys.get(label) !== null))
+      ? // earliest first; a date column's value that is not a date follows the
+        // dated ones in the order seen; Array.sort is stable, so ties keep it too
+        [...named].sort((a, b) => {
+          const ka = keys.get(a) ?? null;
+          const kb = keys.get(b) ?? null;
+          if (ka === null && kb === null) return 0;
+          if (ka === null) return 1;
+          if (kb === null) return -1;
+          return ka - kb;
+        })
+      : named;
+  const withEmpty = order.includes('—') ? [...ordered, '—'] : ordered;
+  return withEmpty.map((label) => ({ label, value: Number(totals.get(label)!.toFixed(4)) }));
 }
 
 /** The straight line of best fit through the points, as (first, last) values.
@@ -277,9 +426,17 @@ function NothingToDraw(props: { label: string }) {
 export function ScreenChart(props: {
   block: Extract<AppScreenBlock, { kind: 'barChart' | 'lineChart' | 'pieChart' }>;
   rows: AppRowRecord[];
+  /** the table the rows belong to — the grouping column's declared TYPE decides
+   * whether its groups are put in calendar order */
+  table: AppTableRecord;
 }) {
   const { block } = props;
-  const series = chartSeries(props.rows, block.categoryColumn, block.valueColumn);
+  const series = chartSeries(
+    props.rows,
+    block.categoryColumn,
+    block.valueColumn,
+    props.table.columns.find((column) => column.key === block.categoryColumn)?.type,
+  );
   if (series.length === 0) return <NothingToDraw label={block.label} />;
 
   const W = 360;

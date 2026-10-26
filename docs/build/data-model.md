@@ -1482,6 +1482,33 @@ authority on its shape; what stays here is what the schema cannot say.
   material with the working copy's standing — readable exactly by the people
   who may build the app (`canBuildApp`), which the route checks before any row
   is read.
+- **`raw_reply` — drawn 2026-10-25 (T-487), what the model actually sent when
+  Infora refused its answer whole.** *Plainly: when the agent's reply cannot be
+  used, the builder can open "What the agent sent" and see it, instead of being
+  told only that nothing happened.* The walk could not trace why two of six real
+  turns were thrown away, because the reply was dropped the moment it was
+  refused. One nullable text column on the `agent` turn: **set only on a turn
+  whose reply was refused whole** (a reply that was used, or only talked, leaves
+  it null), **capped at the first 20,000 characters** by the code that writes it
+  and by a `CHECK` that also refuses it on a person's turn (the same shape as
+  the receipt `CHECK` above). It is free text from the model and can echo what
+  named people typed, so it takes the turn's own standing and nothing wider:
+  **read by the builders of this app alone, through the same `canBuildApp` check
+  that guards the turn, and deleted with the app by the same `ON DELETE
+  CASCADE`.** The table's append-only trigger already refuses UPDATE, so the
+  column is written once, on insert. The application role holds the table-level
+  grant, so it can insert the new column without a grant of its own.
+
+*Built the same day (migration 0084); per the state rule the drawing above stands
+only as the drawing it was, and
+[drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts) is the authority
+on its shape. As drawn, with nothing added: the nullable column, and the `CHECK`
+(`app_build_turns_raw_reply_agent_only_and_bounded`) that refuses it on a
+person's turn and past 20,000 characters, hand-written below the generated line
+because drizzle does not model checks. No grant was written: `has_column_privilege
+('infora_app', 'app_build_turns', 'raw_reply', 'INSERT')` answers true in `psql`
+against the migrated database, and the API suite inserts and reads the column
+through that role.*
 
 **After deployment — `connections`, `connection_loans`, `connection_calls`** *(ADR-0057; not in T-439's migration; drawn so the shape is agreed).*
 - `connections`: `id`, `organisation_id` (the owner of the outside system), `system` (e.g. `arcgis`), `mode`: `read` | `write`, `reach` (jsonb — named layers/tables/endpoints), `secret_ref` (**a pointer into the secrets store, never a value**), `created_by_participant_id`, `created_at`, `retired_at`

@@ -26,7 +26,7 @@ import type {
   MeResponse,
   RosterEntry,
 } from '@infora/contracts';
-import { ApiSession, SEEDED } from './support/api';
+import { ApiSession, SEEDED, addStandInScreen } from './support/api';
 
 const stamp = Date.now();
 
@@ -88,6 +88,7 @@ test('an app instance: built, opened, scoped, shared, orphaned and given away', 
   expect(await ids(nadia)).not.toContain(app.id);
   expect((await rachel.raw('get', `/apps/${app.id}`)).status()).toBe(404);
 
+  await addStandInScreen(eleanor, app.id); // T-487 — the gate wants a screen to open
   const opened = await eleanor.post<AppRecord>(`/apps/${app.id}/publish`, {});
   expect(opened.state).toBe('open');
   expect(opened.publishedByName).toBe('Eleanor Price');
@@ -204,6 +205,7 @@ test('rows across three organisations: entered, submitted, accepted, rejected an
     kind: 'data',
     hasAcceptance: true,
   });
+  await addStandInScreen(eleanor, app.id); // T-487 — the gate wants a screen to open
   await eleanor.post(`/apps/${app.id}/publish`, {});
 
   const rowIds = async (session: ApiSession) =>

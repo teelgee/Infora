@@ -73,7 +73,8 @@ import type { PassageProvenance } from '@infora/contracts';
 import { NOTHING_TO_READ, ScopeControl, WHOLE_LIBRARY, documentsNote, scopeField, scopeGroups, scopeLabel, scopeOf } from './scope-control';
 import type { ScopeState } from './scope-control';
 import { ExternalDocumentView } from './screens/external-document';
-import { ScreenBlock, chartSeries, screenFor, trendLine } from './screens/app-screen';
+import { ScreenBlock, ScreenRowTable, calendarKey, chartSeries, screenFor, trendLine } from './screens/app-screen';
+import { TransparencyTable } from './screens/ai-transparency';
 import { BuilderConversation } from './screens/app-builder';
 import { MemoryRouter } from 'react-router';
 import {
@@ -2471,10 +2472,131 @@ describe('a generated screen (T-442, ADR-0056 §11)', () => {
     expect(
       drawOver({ kind: 'barChart', label: 'By month', categoryColumn: 'month', valueColumn: 'landfill' }),
     ).toContain('>12.4<');
-    // the table block still lists the history, each row with its state
+    // (T-487) the table block no longer lists the history by default — see
+    // 'a dashboard’s row table' below — but says it is there
     expect(
       drawOver({ kind: 'rowTable', columnKeys: ['month'], showOrganisation: false, showState: true }),
-    ).toContain('Superseded');
+    ).toContain('Show 2 earlier rows');
+  });
+
+  // ── T-487 (walk defect 4) — the row table shows the CURRENT rows ──────────
+  //
+  // After three spreadsheet refills the client's table listed 35 rows for 9
+  // months, beside a total and charts that were right. The table now agrees with
+  // them, and the history is one click away.
+  describe('a dashboard’s row table (T-487)', () => {
+    const earlierRows = [
+      { ...rows[0]!, id: 'old-1', values: { month: 'July 2026', landfill: 3 }, state: 'superseded' as const },
+      { ...rows[1]!, id: 'old-2', values: { month: 'June 2026', landfill: 4 }, retiredAt: '2026-09-04T09:00:00.000Z' },
+    ];
+    const everyRow = [...earlierRows, ...rows];
+    const block = (showState: boolean) =>
+      ({ kind: 'rowTable', columnKeys: ['month', 'landfill'], showOrganisation: false, showState }) as never;
+    const label = (key: string) => key;
+
+    it('opens on the current rows alone, with one real button offering the earlier ones', () => {
+      const html = renderToStaticMarkup(<ScreenRowTable block={block(true)} rows={everyRow as never} label={label} />);
+      expect(html).toContain('August 2026');
+      expect(html).toContain('September 2026');
+      expect(html).not.toContain('July 2026');
+      expect(html).not.toContain('June 2026');
+      // a real <button> (keyboard-reachable), in words, with the count
+      expect(html).toMatch(/<button[^>]*type="button"[^>]*>Show 2 earlier rows<\/button>/);
+    });
+
+    it('revealed, shows the earlier rows after the current ones, greyed and each marked with its state', () => {
+      const html = renderToStaticMarkup(
+        <ScreenRowTable block={block(true)} rows={everyRow as never} label={label} showEarlier />,
+      );
+      expect(html).toContain('July 2026');
+      expect(html).toContain('June 2026');
+      expect(html).toContain('Replaced'); // the superseded import
+      expect(html).toContain('Retired'); // the withdrawn row
+      expect(html).toContain('opacity:0.55');
+      expect(html).toContain('Hide earlier rows');
+      expect(html).not.toContain('Show 2 earlier rows');
+      // current rows come first
+      expect(html.indexOf('August 2026')).toBeLessThan(html.indexOf('July 2026'));
+    });
+
+    it('marks an earlier row even on a table that does not show the State column', () => {
+      const html = renderToStaticMarkup(
+        <ScreenRowTable block={block(false)} rows={everyRow as never} label={label} showEarlier />,
+      );
+      expect(html).not.toContain('<th>State</th>');
+      expect(html).toContain('July 2026 <span class="badge b-neutral"><span class="dot"></span>Replaced</span>');
+      expect(html).toContain('June 2026 <span class="badge b-neutral"><span class="dot"></span>Retired</span>');
+    });
+
+    it('says “Nothing entered yet” only when there is nothing at all — not when only earlier rows exist', () => {
+      const none = renderToStaticMarkup(<ScreenRowTable block={block(true)} rows={[]} label={label} />);
+      expect(none).toContain('Nothing entered yet.');
+      expect(none).not.toContain('earlier row');
+      const onlyHistory = renderToStaticMarkup(
+        <ScreenRowTable block={block(true)} rows={earlierRows as never} label={label} />,
+      );
+      expect(onlyHistory).not.toContain('Nothing entered yet.');
+      expect(onlyHistory).toContain('No current rows.');
+      expect(onlyHistory).toContain('Show 2 earlier rows');
+    });
+
+    it('says “1 earlier row” in the singular, and draws no button when nothing is earlier', () => {
+      expect(
+        renderToStaticMarkup(<ScreenRowTable block={block(true)} rows={[earlierRows[0]!, ...rows] as never} label={label} />),
+      ).toContain('Show 1 earlier row<');
+      expect(renderToStaticMarkup(<ScreenRowTable block={block(true)} rows={rows as never} label={label} />)).not.toContain(
+        '<button',
+      );
+    });
+  });
+
+  // ── T-487 (the recheck's new finding) — a corrected REJECTED return ───────
+  //
+  // Its stored state stays `rejected` so the reason survives, which the screen
+  // used to read as still current: the dashboard counted the rejected original
+  // AND its correction.
+  describe('a corrected rejected return (T-487)', () => {
+    const rejected = {
+      ...rows[0]!,
+      id: 'row-original',
+      values: { month: 'October 2026', landfill: 12.4 },
+      state: 'rejected' as const,
+      rejectionReason: 'Landfill looks like a decimal slip.',
+      supersededByRowId: 'row-correction',
+    };
+    const correction = {
+      ...rows[0]!,
+      id: 'row-correction',
+      values: { month: 'October 2026', landfill: 1.24 },
+      state: 'submitted' as const,
+      supersedesRowId: 'row-original',
+    };
+    const drawOver = (block: unknown) =>
+      renderToStaticMarkup(
+        <ScreenBlock block={block as never} table={table as never} rows={[rejected, correction] as never} onEnter={() => {}} pending={false} />,
+      );
+
+    it('counts the correction once: the total, the count and a chart see one row, not two', () => {
+      expect(drawOver({ kind: 'total', columnKey: 'landfill', label: 'Year to date' })).toContain('<strong>1.24</strong>');
+      expect(drawOver({ kind: 'count', label: 'Returns' })).toContain('<strong>1</strong>');
+      const chart = drawOver({ kind: 'barChart', label: 'By month', categoryColumn: 'month', valueColumn: 'landfill' });
+      expect(chart).toContain('>1.24<');
+      expect(chart).not.toContain('13.64');
+    });
+
+    it('lists the original under the earlier rows as “Rejected · replaced”, and the correction as current', () => {
+      const html = renderToStaticMarkup(
+        <ScreenRowTable
+          block={{ kind: 'rowTable', columnKeys: ['landfill'], showOrganisation: false, showState: true } as never}
+          rows={[rejected, correction] as never}
+          label={(key) => key}
+          showEarlier
+        />,
+      );
+      expect(html).toContain('Rejected · replaced');
+      expect(html).toContain('Submitted');
+      expect(html.indexOf('>1.24<')).toBeLessThan(html.indexOf('>12.4<'));
+    });
   });
 
   it('refuses a screen naming a column the table no longer declares', () => {
@@ -2578,6 +2700,122 @@ describe('a generated screen (T-442, ADR-0056 §11)', () => {
     ]);
   });
 
+  // ── T-487 (walk defect 5) — months in calendar order ──────────────────────
+  //
+  // Rows arrive oldest-entered first, so October, entered before May, used to
+  // come first — and a line and its trend line through months out of order say
+  // something false.
+  describe('chart groups in calendar order (T-487)', () => {
+    const entered = (category: unknown, landfill: number) => ({ values: { month: category, landfill } });
+
+    it('a date column entered Oct, May, Jul draws May, Jul, Oct', () => {
+      expect(
+        chartSeries(
+          [entered('2026-10-01', 5), entered('2026-05-01', 2), entered('2026-07-15', 3)] as never,
+          'month',
+          'landfill',
+          'date',
+        ).map((slice) => slice.label),
+      ).toEqual(['2026-05-01', '2026-07-15', '2026-10-01']);
+    });
+
+    it('a text column whose every value is a month and year is put in calendar order — across years too', () => {
+      expect(
+        chartSeries(
+          [entered('October 2026', 5), entered('may 2026', 2), entered('Jan 2027', 1), entered('2026-07', 3), entered('Sept 2026', 4)] as never,
+          'month',
+          'landfill',
+          'text',
+        ).map((slice) => slice.label),
+      ).toEqual(['may 2026', '2026-07', 'Sept 2026', 'October 2026', 'Jan 2027']);
+    });
+
+    it('a text column of categories keeps the order it was first seen', () => {
+      expect(
+        chartSeries(
+          [entered('Waste', 5), entered('Energy', 2), entered('Water', 1)] as never,
+          'month',
+          'landfill',
+          'text',
+        ).map((slice) => slice.label),
+      ).toEqual(['Waste', 'Energy', 'Water']);
+    });
+
+    it('a text column where even one value is not a month keeps first-seen order — it never half-sorts', () => {
+      expect(
+        chartSeries(
+          [entered('October 2026', 5), entered('Q2 summary', 2), entered('May 2026', 1)] as never,
+          'month',
+          'landfill',
+          'text',
+        ).map((slice) => slice.label),
+      ).toEqual(['October 2026', 'Q2 summary', 'May 2026']);
+    });
+
+    it('with no declared column type there is nothing to go on, and the order stays first-seen', () => {
+      expect(
+        chartSeries([entered('October 2026', 5), entered('May 2026', 2)] as never, 'month', 'landfill').map((slice) => slice.label),
+      ).toEqual(['October 2026', 'May 2026']);
+    });
+
+    it('a number or choice column is never reordered, whatever it holds', () => {
+      for (const type of ['number', 'choice', 'boolean'] as const) {
+        expect(
+          chartSeries([entered('2026-10', 5), entered('2026-05', 2)] as never, 'month', 'landfill', type).map((slice) => slice.label),
+        ).toEqual(['2026-10', '2026-05']);
+      }
+    });
+
+    it('the empty group “—” goes last, and a date column’s non-date value follows the dated ones', () => {
+      expect(
+        chartSeries(
+          [entered('', 1), entered('2026-10-01', 5), entered('later', 9), entered('2026-05-01', 2)] as never,
+          'month',
+          'landfill',
+          'date',
+        ).map((slice) => slice.label),
+      ).toEqual(['2026-05-01', '2026-10-01', 'later', '—']);
+    });
+
+    it('reads only the shapes it knows: ISO and a named month with a year — not a bare month, not a day-first date', () => {
+      expect(calendarKey('2026-10')).toBeLessThan(calendarKey('2026-10-02')!);
+      expect(calendarKey('October 2026')).toBe(calendarKey('Oct 2026'));
+      expect(calendarKey('october 2026')).toBe(calendarKey('2026-10-01'));
+      expect(calendarKey('October')).toBeNull();
+      expect(calendarKey('10/11/2026')).toBeNull();
+      expect(calendarKey('2026-13')).toBeNull();
+    });
+
+    it('the drawn chart follows: months entered Oct, May, Jul are drawn May, Jul, Oct, and the line’s points rise with the calendar', () => {
+      const monthTable = {
+        ...table,
+        columns: [
+          { key: 'month', label: 'Month', type: 'date' as const, required: true },
+          { key: 'landfill', label: 'Waste', type: 'number' as const, required: true },
+        ],
+      };
+      const entries = [
+        { ...rows[0]!, id: 'a', values: { month: '2026-10-01', landfill: 30 } },
+        { ...rows[0]!, id: 'b', values: { month: '2026-05-01', landfill: 10 } },
+        { ...rows[0]!, id: 'c', values: { month: '2026-07-01', landfill: 20 } },
+      ];
+      const html = renderToStaticMarkup(
+        <ScreenBlock
+          block={{ kind: 'lineChart', label: 'Over time', categoryColumn: 'month', valueColumn: 'landfill', showTrend: true } as never}
+          table={monthTable as never}
+          rows={entries as never}
+          onEnter={() => {}}
+          pending={false}
+        />,
+      );
+      const labels = [...html.matchAll(/>(2026-\d\d-\d\d)<\/text>/g)].map((m) => m[1]);
+      expect(labels).toEqual(['2026-05-01', '2026-07-01', '2026-10-01']);
+      // the points climb left to right (SVG y falls as the value rises)
+      const ys = [...html.matchAll(/<polyline points="([^"]+)"/g)][0]![1]!.split(' ').map((p) => Number(p.split(',')[1]));
+      expect(ys[0]! > ys[1]! && ys[1]! > ys[2]!).toBe(true);
+    });
+  });
+
   it('fits a straight trend line, and refuses to fit one through a single point', () => {
     expect(trendLine([1, 2, 3])).toEqual({ first: 1, last: 3 });
     expect(trendLine([5])).toBeNull();
@@ -2625,6 +2863,70 @@ describe('the builder’s conversation', () => {
     expect(html).toContain('Declared the table “Monthly returns”.');
     expect(html).toContain('It suggests');
     expect(html).toContain('Open the app to its people, from the panel.');
+  });
+
+  // T-487 (walk defect 2) — a reply Infora refused whole was dropped, so the
+  // walk could not trace it. It is now kept and offered, closed.
+  it('offers a refused turn’s raw reply in a closed disclosure, as plain text', () => {
+    const html = renderToStaticMarkup(
+      <BuilderConversation
+        appId="app-1"
+        turns={[
+          turn({
+            id: 'a',
+            text: 'I tried to answer with something I am not able to do here, so I changed nothing.',
+            rawReply: '{"say":"<script>alert(1)</script>","acts":[{"kind":"publish"}]}',
+          }),
+        ]}
+        onTurn={() => {}}
+      />,
+    );
+    expect(html).toContain('<details');
+    expect(html).not.toMatch(/<details[^>]*\sopen/); // closed by default
+    expect(html).toContain('<summary>What the agent sent</summary>');
+    // text, never markup: the angle brackets arrive as characters
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+
+  it('offers nothing of the kind on a turn that was used', () => {
+    const html = renderToStaticMarkup(
+      <BuilderConversation appId="app-1" turns={[turn({ id: 'a', text: 'Done.' })]} onTurn={() => {}} />,
+    );
+    expect(html).not.toContain('What the agent sent');
+  });
+});
+
+// T-487 (walk defect 1) — the page says when no model route qualifies, instead
+// of describing UK, zero-retention calls while every call is being refused.
+describe('“How the AI works here” when no model route qualifies (T-487)', () => {
+  const base = {
+    tier: { tier: 'standard', region: ['uk'], retention: ['zero'], jurisdiction: ['uk-sovereign', 'foreign-reachable'] },
+    features: [],
+    mayConfigure: false,
+    history: [],
+  };
+
+  it('puts a warning ABOVE the tier description, naming the tier and each reason', () => {
+    const html = renderToStaticMarkup(
+      <TransparencyTable
+        table={{ ...base, routes: { anyQualifies: false, problems: ['MODEL_REGION is not set', 'MODEL_RETENTION is not set'] } }}
+      />,
+    );
+    expect(html).toContain('AI features are not working on this setup.');
+    expect(html).toContain('No model route meets the <strong>standard</strong> security tier');
+    expect(html).toContain('MODEL_REGION is not set');
+    expect(html).toContain('MODEL_RETENTION is not set');
+    expect(html.indexOf('AI features are not working')).toBeLessThan(html.indexOf('the <strong>standard</strong> tier'));
+    // and the line that follows no longer claims calls ARE running there
+    expect(html).not.toContain('Where every call runs:');
+    expect(html).toContain('Where a call would run, if a route qualified:');
+  });
+
+  it('says nothing of the kind when a route qualifies', () => {
+    const html = renderToStaticMarkup(<TransparencyTable table={{ ...base, routes: { anyQualifies: true, problems: [] } }} />);
+    expect(html).not.toContain('AI features are not working');
+    expect(html).toContain('Where every call runs:');
   });
 });
 

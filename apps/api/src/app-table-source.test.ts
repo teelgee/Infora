@@ -27,6 +27,7 @@ import { findRegions, importOnVersionLanding, rowsFromWorkbook } from './app-tab
 import { purgeSandboxDocument } from './purge';
 import { putBlob } from './renditions';
 import { fakeRouter } from './test-router';
+import { addStandInScreen } from './app-test-support';
 import { testWorkbook } from './test-workbook';
 import type { TestCell } from './test-workbook';
 import { parseXlsxSheets, readXlsxCells, usesDate1904 } from './xlsx';
@@ -140,6 +141,7 @@ async function newTable(hasAcceptance: boolean): Promise<{ appId: string; tableI
       hasAcceptance,
     })
   ).json()) as AppTableRecord;
+  await addStandInScreen((path, init) => app.request(path, init), builderCookie, created.id);
   await post(builderCookie, `/apps/${created.id}/publish`);
   return { appId: created.id, tableId: table.id };
 }
