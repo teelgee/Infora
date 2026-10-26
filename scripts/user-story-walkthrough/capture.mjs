@@ -41,6 +41,12 @@
 // document in Act II's shots. The checker's own section works a draft of its
 // own, because by the time it runs the journey's draft has been frozen,
 // promoted and accepted, and a frozen head is read-only.
+//
+// T-447 (2026-10-26) added THE APP BUILDER, the last section on the page: Apps
+// beside Tools, the agent-led build, the publish gate, a returns app met by a
+// contractor and by the client, a rejection and where the contractor finds it,
+// the cost dashboard fed from a spreadsheet, and the firm's template shelf.
+// The building agent answers through the e2e fake model, as the suite drives it.
 /* global document, window, MouseEvent */ // page.evaluate bodies run in the browser
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -50,6 +56,11 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const requireFromE2e = createRequire(path.join(repoRoot, 'e2e', 'package.json'));
 const { chromium, request } = requireFromE2e('@playwright/test');
+// T-447 — the app builder's section needs a real workbook to upload; the e2e
+// suite's own writer is reused rather than copied (Node 24 reads .ts directly).
+import { costReport, XLSX_MIME } from '../../e2e/tests/support/workbook.ts';
+// a screen is stored as JSON — the contracts' `serialiseAppScreen` is this call
+const serialiseAppScreen = JSON.stringify;
 
 // the ports honour the same E2E_API_PORT / E2E_WEB_PORT as e2e/playwright.config.ts
 const API = `http://localhost:${process.env['E2E_API_PORT'] ?? '3210'}`;
@@ -1679,6 +1690,226 @@ console.log('threads and compare —');
   await e.locator('[data-compare] ins').first().waitFor();
   await shot(e, 'b6-compare');
   await nadiaApi.ctx.dispose();
+}
+
+// ══ THE APP BUILDER — a tool section (T-447) ═══════════════════════════════
+// The app builder (Apps, beside Tools) photographed in the order a firm meets it:
+// the Apps page; describing an app to the agent with the state panel beside it;
+// the publish gate refusing in words; the published returns app as a contractor
+// fills it in; the client's dashboard (a chart by contractor, "includes N not
+// yet accepted", Accept / Reject on a row); a rejection with its reason; the
+// contractor's home page; the cost dashboard fed from a spreadsheet; the
+// firm's template shelf.
+//
+// ⚠ **THE BUILDING AGENT ANSWERS THROUGH THE E2E FAKE MODEL** (fake-builder-agent.ts,
+// wired in e2e-server.ts), exactly as the end-to-end suite drives it: it drafts the
+// returns app, asks the questions it may not answer, and records the person's
+// answers in words. What is on screen is the product's own response to it. The real
+// agent is slower and less predictable (docs/walks/t446.md photographed it).
+//
+// Driven through the API rather than clicked: the two contractors' earlier
+// returns (the same act the form performs — Nadia's October one IS typed into the
+// form), and the cost dashboard's table and screen, which stand in for a build the
+// returns app already shows being done. The spreadsheet is uploaded and attached
+// on the builder's own panel.
+console.log('the app builder —');
+{
+  const nadiaApi = await login('nadia.okonjo@redgate.example');
+  const nCtx = await browser.newContext(ctxOpts);
+  const n = await nCtx.newPage();
+  const appName = `Monthly sustainability returns ${stamp3}`;
+  const roster = (await rachelApi.get(`/projects/${projectId}/participants`)).items;
+  const redgateName = 'Redgate Ecology';
+
+  // 1 — the Apps page, a name typed into the New app box
+  await e.goto(`${WEB}/projects/${projectId}/apps`);
+  await e.getByRole('heading', { name: 'Apps', exact: true }).waitFor();
+  await e.getByText('Apps built for this project').waitFor();
+  await e.getByLabel('New app').fill(appName);
+  await shot(e, 'c1-apps-page');
+  await e.getByRole('button', { name: 'Create', exact: true }).click();
+  await e.getByRole('link', { name: new RegExp(appName) }).click();
+  await e.getByRole('button', { name: 'Build it with the agent' }).click();
+  await e.getByRole('complementary', { name: 'The state of the app' }).waitFor();
+  const appId = /\/apps\/([0-9a-f-]+)\/build$/.exec(e.url())[1];
+
+  // 2 — open it to the two other firms (the person's act; the agent has none),
+  // describe the app, and the panel fills in beside the conversation
+  const panel = e.getByRole('complementary', { name: 'The state of the app' });
+  const openTo = panel.locator('select', { has: e.locator('option', { hasText: 'Open it to…' }) });
+  for (const organisation of ['Trentmoor Energy', redgateName]) {
+    await openTo.selectOption({ label: organisation });
+    await panel.getByRole('button', { name: 'Open it to this organisation' }).click();
+    await panel.locator('.builder-list li', { hasText: organisation }).waitFor();
+  }
+  const box = e.getByPlaceholder('e.g. Build me a monthly sustainability returns app for three contractors.');
+  await box.fill('Build me a monthly sustainability returns app for three contractors.');
+  await e.getByRole('button', { name: 'Send' }).click();
+  await e.getByText('I have drafted a monthly returns app').waitFor();
+  await panel.locator('[data-screen-id="client-dashboard"]').waitFor();
+  await e.waitForTimeout(300);
+  await shot(e, 'c2-agent-and-panel');
+
+  // 3 — the publish gate: opening it now is refused, in words, naming each question
+  await e.goto(`${WEB}/projects/${projectId}/apps/${appId}`);
+  await e.getByRole('button', { name: 'Check and open' }).click();
+  await e.getByText(/cannot be opened yet: 3 questions still need an answer/).waitFor();
+  await shot(e, 'c3-publish-refused');
+
+  // 4 — she answers in her own words; the agent records them, adds the chart she
+  // asked for, and she opens the app herself
+  await e.goto(`${WEB}/projects/${projectId}/apps/${appId}/build`);
+  await e.getByPlaceholder('e.g. Build me a monthly sustainability returns app for three contractors.').fill(
+    'Yes — the returns are contractual. Everyone may open Submit a return. Only Trentmoor Energy may open Client dashboard. And add a chart of energy by contractor to the dashboard.',
+  );
+  await e.getByRole('button', { name: 'Send' }).click();
+  await e.getByText('I added a chart of energy used by contractor').waitFor();
+  const gate = e.getByRole('complementary', { name: 'The state of the app' }).getByRole('status');
+  await gate.getByText('Every required question has an answer').waitFor();
+  await e.getByRole('complementary', { name: 'The state of the app' }).getByRole('button', { name: 'Open it', exact: true }).click();
+  await e.getByText('Open as version', { exact: false }).waitFor();
+
+  // earlier returns, entered by each firm as itself (the form's own act)
+  const tableId = (await eleanorApi.get(`/apps/${appId}`)).tables.find((t) => t.name === 'Monthly returns').id;
+  const month = (m, kwh, waste) => ({ values: { month: m, energy_kwh: kwh, waste_tonnes: waste, water_m3: 310 }, submit: true });
+  await eleanorApi.post(`/app-tables/${tableId}/rows`, month('September 2026', 41200, 6.4));
+  await eleanorApi.post(`/app-tables/${tableId}/rows`, month('October 2026', 39800, 5.9));
+  await nadiaApi.post(`/app-tables/${tableId}/rows`, month('September 2026', 18400, 3.1));
+
+  // 5 — the contractor's form: Nadia types October's return and, before she
+  // submits, the screen is photographed filled in
+  await signIn(n, 'nadia.okonjo@redgate.example');
+  await n.goto(`${WEB}/projects/${projectId}/apps/${appId}`);
+  await n.getByLabel('Month', { exact: true }).waitFor();
+  await n.getByLabel('Month', { exact: true }).fill('October 2026');
+  await n.getByLabel('Energy used (kWh)').fill('31900');
+  await n.getByLabel('Waste to landfill (tonnes)').fill('3.4');
+  await n.getByLabel('Water used (m³)').fill('295');
+  await shot(n, 'c4-contractor-form');
+  await n.getByRole('button', { name: 'Submit this month' }).click();
+  await n.getByRole('row').filter({ hasText: 'October 2026' }).first().waitFor();
+
+  // 6 — the client's dashboard. September's two returns were accepted from it
+  // (the buttons Rachel will use below); October's three wait.
+  await r.goto(`${WEB}/projects/${projectId}/apps/${appId}`);
+  for (const who of ['Calder & Hale', redgateName]) {
+    // the same return also sits, read-only, in the contractor's own form screen — the dashboard's button is the enabled one
+    const accept = r.locator(`button[aria-label="Accept the return from ${who}, September 2026"]:not([disabled])`);
+    await accept.last().click();
+    const accepted = r.getByRole('row').filter({ hasText: who }).filter({ hasText: 'September 2026' }).filter({ hasText: 'Accepted' }).last();
+    // the decision is recorded and the screen reloads its rows; if the reload raced the
+    // click, reading the page again shows the same recorded decision
+    await accepted.waitFor({ timeout: 8000 }).catch(async () => {
+      await r.reload();
+      await accepted.waitFor();
+    });
+  }
+  await r.getByText(/Includes \d+ not yet accepted/).first().waitFor();
+  await r.locator('.app-chart').first().waitFor();
+  await r.locator('.app-chart').nth(1).evaluate((el) => el.scrollIntoView({ block: 'start' }));
+  await r.waitForTimeout(300);
+  await shot(r, 'c5-client-dashboard');
+
+  // 7 — the client rejects Redgate's October return from the row, with a reason
+  const rejectName = `Reject the return from ${redgateName}, October 2026`;
+  await r.getByRole('button', { name: rejectName }).last().click();
+  const reason = 'Electricity is up by almost three quarters on September. Please check the meter reading and send it again.';
+  await r.getByLabel(`Why is the return from ${redgateName}, October 2026 being rejected?`).fill(reason);
+  await r.getByRole('button', { name: rejectName }).last().evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot(r, 'c6-rejection-reason');
+  await r.getByRole('button', { name: `Confirm the rejection of the return from ${redgateName}, October 2026` }).click();
+  await r.getByRole('row').filter({ hasText: redgateName }).filter({ hasText: 'Rejected' }).first().waitFor();
+
+  // 8 — the contractor's home page: the rejection is waiting on her, with the reason
+  await n.goto(WEB + '/');
+  const waiting = n.getByRole('list', { name: /^Waiting on you/ }).getByRole('listitem').filter({ hasText: 'was rejected' });
+  await waiting.first().waitFor();
+  await shot(n, 'c7-contractor-home');
+
+  // 9 — the cost dashboard fed from a spreadsheet. The table and its dashboard
+  // are set up over the API; the file is uploaded and attached on the panel.
+  const costApp = await eleanorApi.post(`/projects/${projectId}/apps`, {
+    name: `Ground investigation cost dashboard ${stamp3}`,
+    organisationIds: [roster.find((p) => p.name === 'Rachel Bowen').organisationId],
+    participantIds: [],
+  });
+  const costTable = await eleanorApi.post(`/apps/${costApp.id}/tables`, {
+    name: 'Monthly costs',
+    columns: [
+      { key: 'month', label: 'Month', type: 'text', required: true },
+      { key: 'cost', label: 'Cost', type: 'number', required: true },
+    ],
+    kind: 'data',
+    hasAcceptance: false,
+  });
+  await eleanorApi.patch(`/apps/${costApp.id}/definition`, {
+    definition: {
+      connections: [],
+      interfaces: [
+        {
+          id: 'dashboard',
+          label: 'Cost dashboard',
+          appTableId: costTable.id,
+          openToOrganisationIds: [],
+          source: serialiseAppScreen({
+            version: 1,
+            blocks: [
+              { kind: 'heading', text: 'Ground investigation cost to date' },
+              { kind: 'total', columnKey: 'cost', label: 'Spent to date (£)' },
+              { kind: 'barChart', label: 'Cost by month', categoryColumn: 'month', valueColumn: 'cost' },
+              { kind: 'rowTable', columnKeys: ['month', 'cost'], showOrganisation: false, showState: false },
+            ],
+          }),
+        },
+      ],
+      schedule: 'manual',
+      analysisPrompt: null,
+      answeredQuestions: [`contractual-data:${costTable.id}`, 'who-may-open:dashboard'],
+    },
+  });
+  await eleanorApi.post(`/apps/${costApp.id}/publish`, {});
+  await e.goto(`${WEB}/projects/${projectId}/apps/${costApp.id}/build`);
+  const source = e.getByRole('group', { name: 'Source of Monthly costs' });
+  await source.getByRole('button', { name: 'Feed this table from a spreadsheet' }).click();
+  await source.getByLabel('Or upload one to your sandbox').setInputFiles({
+    name: `Ground investigation cost report ${stamp3}.xlsx`,
+    mimeType: XLSX_MIME,
+    buffer: costReport([['July', 41500], ['August', 58200], ['September', 47800]]),
+  });
+  await source.getByText(/row 3: Month, Cost \(£\) — 3 rows/).waitFor();
+  await source.getByRole('button', { name: 'Feed the table from these cells' }).click();
+  await source.getByText('Imported 3 rows from v0.1.').waitFor();
+  await source.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await shot(e, 'c8-cost-source');
+
+  // a colleague who may not build uploads next month's file; nobody touches the app
+  const docs = await owenApi.get(`/projects/${projectId}/sandbox-documents`);
+  const report = docs.items.find((d) => d.title === `Ground investigation cost report ${stamp3}`);
+  const replaced = await owenApi.ctx.post(`/sandbox-documents/${report.id}/file`, {
+    multipart: {
+      file: {
+        name: 'cost report.xlsx',
+        mimeType: XLSX_MIME,
+        buffer: costReport([['July', 41500], ['August', 58200], ['September', 47800], ['October', 52300]]),
+      },
+    },
+  });
+  if (replaced.status() !== 200) throw new Error(`replacing the cost report failed: ${replaced.status()}`);
+  await r.goto(`${WEB}/projects/${projectId}/apps/${costApp.id}`);
+  await r.locator('strong', { hasText: /199,800/ }).first().waitFor();
+  await r.locator('.app-chart').first().waitFor();
+  await shot(r, 'c9-cost-dashboard');
+
+  // 10 — the template shelf: the firm keeps the returns app as a template
+  await e.goto(`${WEB}/projects/${projectId}/apps/${appId}`);
+  await e.getByRole('button', { name: 'Keep this as a template' }).click();
+  await e.getByText(/Kept on your firm’s shelf/).waitFor();
+  await e.goto(`${WEB}/workspace/playbooks`);
+  await e.getByText(appName).first().waitFor();
+  await shot(e, 'c10-template-shelf');
+
+  await nadiaApi.ctx.dispose();
+  await nCtx.close();
 }
 
 await browser.close();

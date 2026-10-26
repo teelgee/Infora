@@ -13,6 +13,7 @@
     --consultant: #6d5dd3;
     --reviewer: #159a74;
     --internal: #b8622f;
+    --contractor: #2f7fb8;
     --external: #8a6d3b;
     --gap-tint: #f3ede0;
     --gap-edge: #d8c9a4;
@@ -67,6 +68,7 @@
   .shot--consultant .shot-lane { color: var(--consultant); }
   .shot--reviewer .shot-lane { color: var(--reviewer); }
   .shot--internal .shot-lane { color: var(--internal); }
+  .shot--contractor .shot-lane { color: var(--contractor); }
   .shot--external .shot-lane { color: var(--external); }
   .shot-lane::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: currentColor; vertical-align: 1px; }
   .shot-screen { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
@@ -171,6 +173,7 @@
       <li><a href="#tool-the-working-draft"><span class="c-num">Tool</span> The working draft</a></li>
       <li><a href="#tool-moving-around"><span class="c-num">Tool</span> Moving around</a></li>
       <li><a href="#tool-review-threads-and-comparing-versions"><span class="c-num">Tool</span> Review threads and comparing versions</a></li>
+      <li><a href="#tool-the-app-builder"><span class="c-num">Tool</span> The app builder</a></li>
     </ol>
   </nav>
 
@@ -1559,6 +1562,137 @@
   
 </section>
 
+<section class="act tool" id="tool-the-app-builder">
+  <header class="act-head">
+    <span class="act-num tool-num">Tool</span>
+    <div>
+      <h2>The app builder</h2>
+      <p class="lede">Apps is where a firm has a small standing application built for a project: a form every contractor fills in, a dashboard the client reads, a register. A builder describes what is wanted to an agent in plain words, the agent drafts it, and two questions it may never answer for the builder are put to the builder: whether a table holds contractual data, and who may open each screen. Nothing opens until they are answered. Every row belongs to the firm that typed it, and the same app shows each person only what they could already see. Photographed here as the returns app is built, used, and has a figure rejected, then a second app fed from a spreadsheet, then the firm’s template shelf. <strong>The building agent in these pictures is the substrate’s scripted stand-in</strong>, as in the end-to-end suite: the product’s responses to it are real, the agent’s wording is not what a live model would write.</p>
+    </div>
+  </header>
+  
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Apps</span></div>
+    <img src="user-story-screens/c1-apps-page.png" alt="Apps has its own place beside Tools — Apps screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Apps has its own place beside Tools</h3>
+    <p>Eleanor opens Apps from the project’s menu, beside Tools. Nothing has been built yet, so the list says so, and there is a box to name a new app, already filled in here. Once her firm has kept a template, a picker for starting from it appears beside the box; a person whose firm has not let them build sees a line saying so instead of the box.</p>
+    <p class="tags"><span class="tag">ADR-0056</span><span class="tag">ADR-0058</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">App · build with the agent</span></div>
+    <img src="user-story-screens/c2-agent-and-panel.png" alt="Describe the app to the agent; the state of the app fills in beside it — App · build with the agent screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>Describe the app to the agent; the state of the app fills in beside it</h3>
+    <p>Eleanor asks for a monthly sustainability returns app for three contractors. The agent lists what it did, and asks in its own words the questions it must not decide. The panel beside the conversation shows the app as it now stands, a table with its columns and a “Still to answer” note on what is open. Opening the app to the other firms is Eleanor’s own act in the panel; the agent has no way to do it.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">App · Check and open</span></div>
+    <img src="user-story-screens/c3-publish-refused.png" alt="The publish gate refuses, and names each unanswered question — App · Check and open screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The publish gate refuses, and names each unanswered question</h3>
+    <p>Eleanor tries to open the app before answering. It will not open, and the refusal says why in a sentence: three questions still need an answer, naming whether “Monthly returns” holds contractual data and who may open each of the two screens. Nobody outside the builders can see the app while it is not open.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--contractor">
+    <div class="shot-bar"><span class="shot-lane">Nadia Okonjo — contractor, Redgate Ecology</span><span class="shot-screen">App · Submit a return</span></div>
+    <img src="user-story-screens/c4-contractor-form.png" alt="The published app: a contractor fills in the month’s return — App · Submit a return screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The published app: a contractor fills in the month’s return</h3>
+    <p>Eleanor answers in her own words (the agent records them), asks for a chart by contractor, and opens the app herself. Nadia, at the second contractor, meets only what the app offers her: a form to fill in, and under it her firm’s own earlier return. She cannot see Calder &amp; Hale’s figures, and never sees the conversation that built the app.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--reviewer">
+    <div class="shot-bar"><span class="shot-lane">Rachel Bowen — owner super-user, Trentmoor Energy</span><span class="shot-screen">App · Client dashboard</span></div>
+    <img src="user-story-screens/c5-client-dashboard.png" alt="The client’s dashboard: energy by contractor, and what is not yet accepted — App · Client dashboard screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The client’s dashboard: energy by contractor, and what is not yet accepted</h3>
+    <p>Rachel, at the client, sees both contractors’ returns. The chart draws energy used for each contractor by name, and says under it that it includes two returns not yet accepted. September’s two returns have been accepted; October’s wait, each row with Accept and Reject beside it. The contractors see no such buttons: the decision is the client’s.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--reviewer">
+    <div class="shot-bar"><span class="shot-lane">Rachel Bowen — owner super-user, Trentmoor Energy</span><span class="shot-screen">App · Client dashboard</span></div>
+    <img src="user-story-screens/c6-rejection-reason.png" alt="A rejection has to say why — App · Client dashboard screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>A rejection has to say why</h3>
+    <p>Rachel rejects Redgate’s October return straight from the dashboard row. The reason box asks why the return is being rejected, and the button stays closed until a reason is typed. The line beneath says the organisation that submitted it reads this on the row.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--contractor">
+    <div class="shot-bar"><span class="shot-lane">Nadia Okonjo — contractor, Redgate Ecology</span><span class="shot-screen">Home · Waiting on you</span></div>
+    <img src="user-story-screens/c7-contractor-home.png" alt="The rejected contractor finds it on their home page — Home · Waiting on you screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The rejected contractor finds it on their home page</h3>
+    <p>When Nadia signs in, her home page already lists “Your October 2026 return was rejected — correct it”, with Rachel’s reason beneath. Nobody else is told: not the client who decided and not the other contractor. Opening the item takes her to the form with the correction started.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">App · build panel · Source</span></div>
+    <img src="user-story-screens/c8-cost-source.png" alt="A table fed from a spreadsheet, set up on the panel — App · build panel · Source screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>A table fed from a spreadsheet, set up on the panel</h3>
+    <p>A second app tracks ground investigation cost. Eleanor uploads the contractor’s monthly cost report, picks the table Infora found in it, confirms which heading fills which column, and the rows land. The panel then says what version of the file the table reflects, and the last import’s receipt in words.</p>
+    <p class="tags"><span class="tag">ADR-0059</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--reviewer">
+    <div class="shot-bar"><span class="shot-lane">Rachel Bowen — owner super-user, Trentmoor Energy</span><span class="shot-screen">App · Cost dashboard</span></div>
+    <img src="user-story-screens/c9-cost-dashboard.png" alt="The cost dashboard, fed from the spreadsheet — App · Cost dashboard screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The cost dashboard, fed from the spreadsheet</h3>
+    <p>Owen Vance, a colleague who may not build, uploaded next month’s version of the spreadsheet, and nobody touched the app. Rachel opens the dashboard and the total, the bar for each month and the table are the new figures, each month once. The older rows stay one click away under “Show 3 earlier rows”.</p>
+    <p class="tags"><span class="tag">ADR-0059</span></p>
+  </figcaption>
+</figure>
+
+<figure class="beat">
+  <div class="shot shot--consultant">
+    <div class="shot-bar"><span class="shot-lane">Eleanor Price — lead author, Calder &amp; Hale</span><span class="shot-screen">Workspace · Kept apps</span></div>
+    <img src="user-story-screens/c10-template-shelf.png" alt="The firm’s template shelf — Workspace · Kept apps screen" loading="lazy">
+  </div>
+  <figcaption>
+    <h3>The firm’s template shelf</h3>
+    <p>Eleanor kept the returns app as a template from its own page. It sits on Calder &amp; Hale’s shelf in the workspace, named for the project it came from, with its shape (two tables, two screens) and no row of anyone’s data. Only her own firm can see the shelf, and it is the same on every project.</p>
+    <p class="tags"><span class="tag">ADR-0056</span></p>
+  </figcaption>
+</figure>
+  
+</section>
+
   <footer class="prov-foot">
     <p><strong>Provenance.</strong> Recaptured 2026-09-02 from the running application: e2e API substrate with deterministic
     model providers, the seeded three-organisation Wrenfield world, Playwright-driven browser sessions for all three personas —
@@ -1582,6 +1716,15 @@
     that screen. Not photographed: the Collabora editing pane (it needs a running editing engine), the replacement box
     in the supersede dialog beyond what its beat shows, and the reference upload of a scanned PDF, which the end-to-end
     suite covers.</p>
+    <p><strong>The app builder section (T-447).</strong> Ten pictures, driven as the people who would use it. The building agent
+    answers through the end-to-end substrate’s scripted stand-in, exactly as the end-to-end suite drives it, so the agent’s
+    sentences are not what a live model writes (the acceptance walk, <code>docs/walks/t446.md</code>, photographed the live one).
+    Clicked on screen: creating the app, describing it, opening it to the other firms, the refused and the successful open, the
+    contractor’s form, the client’s accept and reject, the reason, keeping the template, attaching the spreadsheet on the panel.
+    Driven through the API: the two contractors’ September returns and Calder &amp; Hale’s October one (the form’s own act), the cost
+    app’s table and its dashboard screen, and the colleague’s replacement of the spreadsheet. Not photographed: the agent’s refusal of
+    something it cannot do, the correction form a rejected contractor reaches from the home page, the app’s export, the analysis run and
+    its insight, and the stepped builder this one replaced; the end-to-end suite covers each.</p>
     <p><strong>What the tools’ capture walked into, recorded rather than staged around.</strong> Three things, all
     photographed as found. The estimated cost on both tools reads <em>not priced</em>, because this substrate’s model
     carries no rate and an unpriced step says so rather than showing a plausible £0.00. The creator’s bound-deliverable

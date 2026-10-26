@@ -282,6 +282,21 @@ stored from the first ticket and honoured when a clock exists. (e) The Tools
 surface as built by T-334–T-336 and Slice Tools 2 — the app builder is a
 fourth tool on it.
 
+*Re-checked against the build, 2026-10-26 (T-447). In plain terms: of the five
+things this record assumed would be true when it was built, four still are and
+one is not. **(a) holds** — password login and per-project participants are the
+only identities; sign-in moving to Entra is still future. **(b) holds** — no
+object store exists in the code; export and file-source files still sit where
+`file_ref` points locally. **(c) holds** — no secrets store, so no connection is
+built, as ruled. **(d) holds** — nothing runs on a clock; a run is started by a
+person, and the schedule is stored and labelled as such on the screen. **(e) no
+longer holds** — apps are not a tool: ADR-0058 (2026-10-18) took them off the
+Tools surface and gave them an Apps section of their own, beside Tools in the
+project's menu, and the workspace's shelf of kept templates is its own section
+too. The "fourth tool" sentence above, and the matching sentence in
+Consequences below, record the assumption as it was made and are superseded by
+that ruling.*
+
 **Considered and not taken.** *The client must own every cross-organisation
 app* (§6). *A departing firm's instance follows the sandbox rule exactly,
 or is exported and removed, or removed outright* (§7). *A playbook with no
@@ -297,8 +312,9 @@ any migration is written. The access gateway gains a new subject kind whose
 predicate is *entering organisation or owner, within scope, or shared*, and
 nothing else. The privacy programme's deletion rule reaches app rows with no
 new clause: whose material it is decides, and acceptance is where that
-changes. The Tools surface gains its fourth tool and the workspace gains a
-playbook shelf. Five glossary terms land in `CONTEXT.md` (app, app table,
+changes. The Tools surface gains its fourth tool *(superseded 2026-10-18 by
+ADR-0058: apps have an Apps section of their own, not a place on Tools)* and
+the workspace gains a playbook shelf. Five glossary terms land in `CONTEXT.md` (app, app table,
 scope of an app, playbook, connection). **Personal data:** app rows will hold
 data about named people — a land register's landowners and negotiation notes —
 and every row names the person who entered it and, where there is an

@@ -26,6 +26,7 @@ const CONSULTANT = { key: 'consultant', label: 'Eleanor Price — lead author, C
 const CONSULTANT_SUPER = { key: 'consultant', label: 'Eleanor Price — super-user, Calder & Hale' };
 const REVIEWER = { key: 'reviewer', label: 'Rachel Bowen — lead reviewer, Trentmoor Energy' };
 const OWNER = { key: 'reviewer', label: 'Rachel Bowen — owner super-user, Trentmoor Energy' };
+const CONTRACTOR = { key: 'contractor', label: 'Nadia Okonjo — contractor, Redgate Ecology' };
 const INTERNAL = { key: 'internal', label: 'Owen Vance — internal QA reviewer, Calder & Hale' };
 
 // ── the narrative ───────────────────────────────────────────────────────────
@@ -1067,6 +1068,104 @@ const toolSections = [
       },
     ],
   },
+  {
+    key: 'appbuilder',
+    title: 'The app builder',
+    lede:
+      'Apps is where a firm has a small standing application built for a project: a form every contractor fills in, a dashboard the client reads, a register. A builder describes what is wanted to an agent in plain words, the agent drafts it, and two questions it may never answer for the builder are put to the builder: whether a table holds contractual data, and who may open each screen. Nothing opens until they are answered. Every row belongs to the firm that typed it, and the same app shows each person only what they could already see. Photographed here as the returns app is built, used, and has a figure rejected, then a second app fed from a spreadsheet, then the firm’s template shelf. <strong>The building agent in these pictures is the substrate’s scripted stand-in</strong>, as in the end-to-end suite: the product’s responses to it are real, the agent’s wording is not what a live model would write.',
+    beats: [
+      {
+        img: 'c1-apps-page',
+        lane: CONSULTANT,
+        screen: 'Apps',
+        title: 'Apps has its own place beside Tools',
+        prose:
+          'Eleanor opens Apps from the project’s menu, beside Tools. Nothing has been built yet, so the list says so, and there is a box to name a new app, already filled in here. Once her firm has kept a template, a picker for starting from it appears beside the box; a person whose firm has not let them build sees a line saying so instead of the box.',
+        adrs: ['ADR-0056', 'ADR-0058'],
+      },
+      {
+        img: 'c2-agent-and-panel',
+        lane: CONSULTANT,
+        screen: 'App · build with the agent',
+        title: 'Describe the app to the agent; the state of the app fills in beside it',
+        prose:
+          'Eleanor asks for a monthly sustainability returns app for three contractors. The agent lists what it did, and asks in its own words the questions it must not decide. The panel beside the conversation shows the app as it now stands, a table with its columns and a “Still to answer” note on what is open. Opening the app to the other firms is Eleanor’s own act in the panel; the agent has no way to do it.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c3-publish-refused',
+        lane: CONSULTANT,
+        screen: 'App · Check and open',
+        title: 'The publish gate refuses, and names each unanswered question',
+        prose:
+          'Eleanor tries to open the app before answering. It will not open, and the refusal says why in a sentence: three questions still need an answer, naming whether “Monthly returns” holds contractual data and who may open each of the two screens. Nobody outside the builders can see the app while it is not open.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c4-contractor-form',
+        lane: CONTRACTOR,
+        screen: 'App · Submit a return',
+        title: 'The published app: a contractor fills in the month’s return',
+        prose:
+          'Eleanor answers in her own words (the agent records them), asks for a chart by contractor, and opens the app herself. Nadia, at the second contractor, meets only what the app offers her: a form to fill in, and under it her firm’s own earlier return. She cannot see Calder & Hale’s figures, and never sees the conversation that built the app.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c5-client-dashboard',
+        lane: OWNER,
+        screen: 'App · Client dashboard',
+        title: 'The client’s dashboard: energy by contractor, and what is not yet accepted',
+        prose:
+          'Rachel, at the client, sees both contractors’ returns. The chart draws energy used for each contractor by name, and says under it that it includes two returns not yet accepted. September’s two returns have been accepted; October’s wait, each row with Accept and Reject beside it. The contractors see no such buttons: the decision is the client’s.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c6-rejection-reason',
+        lane: OWNER,
+        screen: 'App · Client dashboard',
+        title: 'A rejection has to say why',
+        prose:
+          'Rachel rejects Redgate’s October return straight from the dashboard row. The reason box asks why the return is being rejected, and the button stays closed until a reason is typed. The line beneath says the organisation that submitted it reads this on the row.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c7-contractor-home',
+        lane: CONTRACTOR,
+        screen: 'Home · Waiting on you',
+        title: 'The rejected contractor finds it on their home page',
+        prose:
+          'When Nadia signs in, her home page already lists “Your October 2026 return was rejected — correct it”, with Rachel’s reason beneath. Nobody else is told: not the client who decided and not the other contractor. Opening the item takes her to the form with the correction started.',
+        adrs: ['ADR-0056'],
+      },
+      {
+        img: 'c8-cost-source',
+        lane: CONSULTANT,
+        screen: 'App · build panel · Source',
+        title: 'A table fed from a spreadsheet, set up on the panel',
+        prose:
+          'A second app tracks ground investigation cost. Eleanor uploads the contractor’s monthly cost report, picks the table Infora found in it, confirms which heading fills which column, and the rows land. The panel then says what version of the file the table reflects, and the last import’s receipt in words.',
+        adrs: ['ADR-0059'],
+      },
+      {
+        img: 'c9-cost-dashboard',
+        lane: OWNER,
+        screen: 'App · Cost dashboard',
+        title: 'The cost dashboard, fed from the spreadsheet',
+        prose:
+          'Owen Vance, a colleague who may not build, uploaded next month’s version of the spreadsheet, and nobody touched the app. Rachel opens the dashboard and the total, the bar for each month and the table are the new figures, each month once. The older rows stay one click away under “Show 3 earlier rows”.',
+        adrs: ['ADR-0059'],
+      },
+      {
+        img: 'c10-template-shelf',
+        lane: CONSULTANT,
+        screen: 'Workspace · Kept apps',
+        title: 'The firm’s template shelf',
+        prose:
+          'Eleanor kept the returns app as a template from its own page. It sits on Calder & Hale’s shelf in the workspace, named for the project it came from, with its shape (two tables, two screens) and no row of anyone’s data. Only her own firm can see the shelf, and it is the same on every project.',
+        adrs: ['ADR-0056'],
+      },
+    ],
+  },
 ];
 
 // ── page assembly ───────────────────────────────────────────────────────────
@@ -1179,6 +1278,7 @@ function build(srcFor) {
     --consultant: #6d5dd3;
     --reviewer: #159a74;
     --internal: #b8622f;
+    --contractor: #2f7fb8;
     --external: #8a6d3b;
     --gap-tint: #f3ede0;
     --gap-edge: #d8c9a4;
@@ -1233,6 +1333,7 @@ function build(srcFor) {
   .shot--consultant .shot-lane { color: var(--consultant); }
   .shot--reviewer .shot-lane { color: var(--reviewer); }
   .shot--internal .shot-lane { color: var(--internal); }
+  .shot--contractor .shot-lane { color: var(--contractor); }
   .shot--external .shot-lane { color: var(--external); }
   .shot-lane::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; background: currentColor; vertical-align: 1px; }
   .shot-screen { margin-left: auto; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
@@ -1388,6 +1489,15 @@ function build(srcFor) {
     that screen. Not photographed: the Collabora editing pane (it needs a running editing engine), the replacement box
     in the supersede dialog beyond what its beat shows, and the reference upload of a scanned PDF, which the end-to-end
     suite covers.</p>
+    <p><strong>The app builder section (T-447).</strong> Ten pictures, driven as the people who would use it. The building agent
+    answers through the end-to-end substrate’s scripted stand-in, exactly as the end-to-end suite drives it, so the agent’s
+    sentences are not what a live model writes (the acceptance walk, <code>docs/walks/t446.md</code>, photographed the live one).
+    Clicked on screen: creating the app, describing it, opening it to the other firms, the refused and the successful open, the
+    contractor’s form, the client’s accept and reject, the reason, keeping the template, attaching the spreadsheet on the panel.
+    Driven through the API: the two contractors’ September returns and Calder &amp; Hale’s October one (the form’s own act), the cost
+    app’s table and its dashboard screen, and the colleague’s replacement of the spreadsheet. Not photographed: the agent’s refusal of
+    something it cannot do, the correction form a rejected contractor reaches from the home page, the app’s export, the analysis run and
+    its insight, and the stepped builder this one replaced; the end-to-end suite covers each.</p>
     <p><strong>What the tools’ capture walked into, recorded rather than staged around.</strong> Three things, all
     photographed as found. The estimated cost on both tools reads <em>not priced</em>, because this substrate’s model
     carries no rate and an unpriced step says so rather than showing a plausible £0.00. The creator’s bound-deliverable
