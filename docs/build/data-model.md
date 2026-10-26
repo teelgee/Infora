@@ -1510,6 +1510,26 @@ because drizzle does not model checks. No grant was written: `has_column_privile
 against the migrated database, and the API suite inserts and reads the column
 through that role.*
 
+- **`playbooks.description` — drawn 2026-10-26 (T-488), what the app was for,
+  kept with its template.** *Plainly: a template remembers the one-line
+  description of the app it was saved from, so an app deployed from it starts
+  with that line instead of a blank, and the person deploying can change it
+  first.* The walk found a deployed copy arrived with no description at all,
+  though the original had one. One nullable text column on `playbooks`; null
+  where the source app had none, and for every template saved before this
+  migration (no description is invented for them). It is **free text and can
+  name a client or a person** — which is exactly why the deploy form shows it
+  editable — so it takes the template's own standing and nothing wider: **read
+  by the firm that owns the template (and, for a template Infora supplies, by
+  every firm), copied into the new app only as the deployer submitted it, and
+  deleted with the template.** No read predicate of its own, no grant: the
+  application role holds the table-level privileges.
+
+*Built the same day (migration 0085); per the state rule the drawing above stands
+only as the drawing it was, and
+[drawer9-apps.ts](../../packages/db/src/schema/drawer9-apps.ts) is the authority
+on its shape.*
+
 **After deployment — `connections`, `connection_loans`, `connection_calls`** *(ADR-0057; not in T-439's migration; drawn so the shape is agreed).*
 - `connections`: `id`, `organisation_id` (the owner of the outside system), `system` (e.g. `arcgis`), `mode`: `read` | `write`, `reach` (jsonb — named layers/tables/endpoints), `secret_ref` (**a pointer into the secrets store, never a value**), `created_by_participant_id`, `created_at`, `retired_at`
 - `connection_loans`: `connection_id`, `app_id`, `granted_by_participant_id`, `granted_at`, `approved_by_participant_id`, `approved_at` (**required when the connection's mode is `write` — the project owner's person; `CHECK` via trigger**), `revoked_at`

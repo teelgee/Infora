@@ -31,7 +31,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { desc, eq } from 'drizzle-orm';
-import { exportAppBody } from '@infora/contracts';
+import { exportAppBody, isCurrentAppRow, rowStateLabel } from '@infora/contracts';
 import type {
   ApiError,
   AppColumn,
@@ -52,13 +52,19 @@ import type { AppEnv } from './requester';
 const notFound = (c: Context) => c.json({ error: 'not_found' } satisfies ApiError, 404);
 const invalid = (c: Context) => c.json({ error: 'invalid' } satisfies ApiError, 400);
 
-/** Excel caps a sheet name at 31 characters and forbids a handful of them. Two
- * tables whose names collide after trimming would silently produce one sheet,
- * so the index is appended rather than hoped against. */
-function sheetName(name: string, index: number): string {
-  const cleaned = name.replace(/[\\/?*[\]:]/g, ' ').trim();
-  const suffix = ` (${index + 1})`;
-  return `${cleaned.slice(0, 31 - suffix.length)}${suffix}`;
+/** Excel caps a sheet name at 31 characters and forbids a handful of them.
+ * T-488 — the name is the table's own; a number in brackets is added only when
+ * two tables would otherwise share a name (compared the way Excel does, without
+ * regard to case), so the sheet a person opens is called what the table is. */
+function sheetName(name: string, taken: Set<string>): string {
+  const cleaned = name.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31) || 'Sheet';
+  let candidate = cleaned;
+  for (let n = 2; taken.has(candidate.toLowerCase()); n++) {
+    const suffix = ` (${n})`;
+    candidate = `${cleaned.slice(0, 31 - suffix.length)}${suffix}`;
+  }
+  taken.add(candidate.toLowerCase());
+  return candidate;
 }
 
 function cell(value: unknown): string | null {
@@ -85,7 +91,9 @@ function provenanceRows(appName: string, tableNames: string[], dataAsOf: Date): 
 }
 
 /** One table's sheet: the organisation that entered each row, the declared
- * columns, and the row's state where the table has an acceptance step.
+ * columns, and — where the table has an acceptance step, or some row is no
+ * longer current — the row's State and, for an acceptance table, the reason
+ * for a rejection (T-488).
  *
  * **Deliberately no person's name.** A row's `entered_by` is registered
  * personal data with a deletion path through its organisation (personal-data
@@ -95,15 +103,24 @@ function provenanceRows(appName: string, tableNames: string[], dataAsOf: Date): 
  * the project owner's export readable at all. */
 function sheetFor(
   name: string,
-  index: number,
+  taken: Set<string>,
   columns: AppColumn[],
   rows: AppRowRecord[],
   hasAcceptance: boolean,
 ): XlsxSheet {
+  // T-488 — a State column says what became of each row, in the words the screen
+  // uses ("Accepted", "Rejected", "Replaced", "Retired"): wherever the table has
+  // an acceptance step, and wherever some row is no longer the current one (a
+  // spreadsheet-fed table has no acceptance step but does have replaced rows).
+  // The rejection reason is a column too: a rejected row without its reason is
+  // the phone call the record exists to prevent. Both are what the screen shows
+  // this same person, from the same rows — nothing wider.
+  const withState = hasAcceptance || rows.some((row) => !isCurrentAppRow(row));
   const header = ['Organisation', ...columns.map((column) => column.label)];
-  if (hasAcceptance) header.push('State');
+  if (withState) header.push('State');
+  if (hasAcceptance) header.push('Reason for rejection');
   return {
-    name: sheetName(name, index),
+    name: sheetName(name, taken),
     rows: [
       header,
       ...rows.map((row) => {
@@ -111,7 +128,8 @@ function sheetFor(
           row.organisationName,
           ...columns.map((column) => cell(row.values[column.key])),
         ];
-        if (hasAcceptance) line.push(row.state);
+        if (withState) line.push(rowStateLabel(row));
+        if (hasAcceptance) line.push(row.rejectionReason);
         return line;
       }),
     ],
@@ -193,15 +211,17 @@ export function appExportRoutes(deps: { db: Db }) {
         : declared.filter((t) => named.includes(t.id)).map((t) => t.id);
 
     const sheets: XlsxSheet[] = [];
+    // the closing sheet's name is spoken for, so a table of that name is numbered
+    const takenSheetNames = new Set(['provenance']);
     const tablesCovered: string[] = [];
     const tableNames: string[] = [];
     let rowsCovered = 0;
-    for (const [index, appTableId] of wanted.entries()) {
+    for (const appTableId of wanted) {
       const context: TableContext | null = await reachTable(deps.db, user, appTableId);
       if (!context) continue;
       const rows = await listRows(deps.db, context);
       const columns = context.table.columns as AppColumn[];
-      sheets.push(sheetFor(context.table.name, index, columns, rows, context.table.hasAcceptance));
+      sheets.push(sheetFor(context.table.name, takenSheetNames, columns, rows, context.table.hasAcceptance));
       tablesCovered.push(appTableId);
       tableNames.push(context.table.name);
       rowsCovered += rows.length;

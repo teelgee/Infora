@@ -97,7 +97,7 @@ export function fakeBuilderAgent(system: string, prompt: string): string | null 
     );
     says.push(
       'I have drafted a monthly returns app: a “Monthly returns” table, a form each contractor fills in, a dashboard over every return, a monthly schedule and an analysis prompt.',
-      'Before it can be opened I need three answers from you. Does “Monthly returns” hold contractual data — will the client accept or reject each return? Who may open “Submit a return”? And who may open “Client dashboard”?',
+      'Before it can be opened I need three answers from you; they are listed just below.',
     );
     return JSON.stringify({ say: says.join(' '), acts, asks, proposals });
   }

@@ -34,10 +34,16 @@ export function TextInput(props: {
   onEnter?: () => void;
   /** T-472 — names a field that has no visible label of its own (a cell in a table) */
   ariaLabel?: string;
+  /** T-488 — a number or a date gets the browser's own box for one; the value
+   * handed to `onChange` is still the text the box holds (a number's digits, a
+   * date as `2026-10-31`). Plain text when omitted. */
+  type?: 'text' | 'number' | 'date';
 }) {
   return (
     <input
       className={`field-input${props.mono ? ' mono' : ''}`}
+      type={props.type ?? 'text'}
+      {...(props.type === 'number' && { step: 'any' })}
       aria-label={props.ariaLabel}
       value={props.value}
       placeholder={props.placeholder}

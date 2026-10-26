@@ -62,6 +62,7 @@ import {
 import { api, RequestError } from '../api';
 import { GeneratedScreen } from './app-screen';
 import { formatDateTime } from './shared';
+import { suggestMapping } from './heading-match';
 
 /** What a declared table is for, in the words a builder reads. */
 const TABLE_KIND_WORDS: Record<AppTableKind, string> = {
@@ -632,15 +633,6 @@ function PanelTables(props: {
 
 // ── T-452 — a table's Source: fed from a spreadsheet the project holds ─────
 
-/** Headings compare as a person reads them — case, spacing and a trailing
- * unit in brackets ("Cost (£)") are not a different heading from "Cost". */
-const headingKey = (text: string) =>
-  text
-    .replace(/\([^)]*\)/g, '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-
 /**
  * **A table's Source** (ADR-0059; T-451's acts, T-452's panel).
  *
@@ -817,16 +809,11 @@ function SourcePicker(props: {
    * column's label fills it; the builder confirms or changes every one. */
   const suggest = useCallback(
     (region: SourceRegion) => {
-      const byHeading = new Map(region.headers.map((header) => [headingKey(header), header]));
-      const next: Record<string, string> = {};
-      for (const column of table.columns) {
-        const kept = current?.mapping.find((entry) => entry.columnKey === column.key)?.header;
-        const header =
-          kept !== undefined && region.headers.includes(kept)
-            ? kept
-            : (byHeading.get(headingKey(column.label)) ?? byHeading.get(headingKey(column.key)));
-        if (header !== undefined) next[column.key] = header;
-      }
+      // T-488 — paired on words, not exact strings (heading-match.ts)
+      const kept = Object.fromEntries(
+        (current?.mapping ?? []).map((entry) => [entry.columnKey, entry.header]),
+      );
+      const next = suggestMapping(table.columns, region.headers, kept);
       setMapping(next);
     },
     [table.columns, current],

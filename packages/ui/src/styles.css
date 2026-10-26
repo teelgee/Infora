@@ -31,6 +31,10 @@
   --amber-soft: #f8efdd;
   --danger: #8c2f2f;
   --danger-soft: #f7e9e9;
+  /* T-488 — eight distinct chart inks, so a pie never repeats a colour; the
+     first four are the four the charts always used */
+  --chart-1: #14563f; --chart-2: #274a6d; --chart-3: #8a5a12; --chart-4: #8c2f2f;
+  --chart-5: #5b3f7a; --chart-6: #1f7a80; --chart-7: #6b6a1f; --chart-8: #a8467a;
   --radius: 10px;
   --radius-sm: 6px;
   --veil: rgba(250, 249, 246, .9);      /* topbar scrim over the paper */
@@ -65,6 +69,8 @@
   --amber-soft: #322a1a;
   --danger: #d1706f;
   --danger-soft: #362222;
+  --chart-1: #3f9b74; --chart-2: #6f9cc9; --chart-3: #d1a04e; --chart-4: #d1706f;
+  --chart-5: #a98bd1; --chart-6: #55b9bf; --chart-7: #b3b55c; --chart-8: #d17fb0;
   --veil: rgba(25, 24, 19, .9);
   --tint: #201f19;
   --tint-2: #26251e;
@@ -427,9 +433,12 @@ a.tool-card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface-a
    respond — but it keeps the card form, because what it says about itself
    belongs INSIDE the card rather than beside it. */
 .tool-card--unbuilt { box-shadow: none; background: var(--surface-sunken); }
-.tool-card-head { display: flex; align-items: center; gap: 8px; }
+.tool-card-head { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; }
+/* T-488 — a long state label ("Not opened yet — only its builders can see it")
+   wraps inside its card instead of running out past the edge */
+.tool-card-head .badge { white-space: normal; max-width: 100%; line-height: 1.35; }
 .tool-card-icon { display: inline-flex; color: var(--table-icon-color); }
-.tool-card-name { font-weight: 600; font-size: 13.5px; }
+.tool-card-name { font-weight: 600; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
 .tool-card-desc { color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; margin: 0; }
 .tool-card-waits { color: var(--text-muted); font-size: 11.5px; margin: 0; }
 

@@ -31,33 +31,14 @@
 // second design system nobody reviewed.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AppColumn, AppRowRecord, AppScreen, AppScreenBlock, AppState, AppTableRecord } from '@infora/contracts';
-import { isCurrentAppRow, parseAppScreen } from '@infora/contracts';
+import { calendarKey, isCurrentAppRow, parseAppScreen, rowStateLabel } from '@infora/contracts';
 import { Badge, Button, Card, Field, SectionLabel, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
+import { inputTypeFor } from './shared';
 
-const ROW_STATE_LABEL: Record<string, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted',
-  accepted: 'Accepted',
-  rejected: 'Rejected',
-  // T-487 — "Replaced", not "Superseded": the word a person reads for a row
-  // that a later row (a correction, or a newer import) has taken the place of
-  superseded: 'Replaced',
-};
+export { calendarKey };
 
-/**
- * What the State column says of a row. A withdrawn row is "Retired"; a row a
- * later row took the place of is "Replaced" — and a REJECTED row a correction
- * replaced is "Rejected · replaced", because its stored state stays `rejected`
- * to keep the reason (drawer 9's CHECK) while the screen still has to say it is
- * no longer the figure that stands.
- */
-export function rowStateLabel(row: AppRowRecord): string | null {
-  if (row.retiredAt !== null) return 'Retired';
-  if (row.state === null) return row.supersededByRowId !== null ? 'Replaced' : null;
-  const base = ROW_STATE_LABEL[row.state] ?? row.state;
-  return row.supersededByRowId !== null && row.state !== 'superseded' ? `${base} · replaced` : base;
-}
+export { rowStateLabel };
 
 /**
  * Read a stored screen back for one table.
@@ -126,7 +107,7 @@ export function ScreenBlock(props: {
     }, 0);
     return (
       <p className="page-sub">
-        {block.label}: <strong>{Number.isInteger(total) ? total : total.toFixed(2)}</strong>
+        {block.label}: <strong>{formatFigure(total, isMoneyLabel(label(block.columnKey)))}</strong>
       </p>
     );
   }
@@ -270,57 +251,88 @@ export function ScreenRowTable(props: {
 // so a chart follows the light and dark palettes like everything else and a
 // generated screen still cannot bring styling of its own — the block has no
 // field for a colour, and this list is Infora's.
-const CHART_INK = ['var(--accent)', 'var(--authority)', 'var(--amber)', 'var(--danger)'];
+//
+// T-488 — eight inks (`--chart-1` … `--chart-8`, both palettes), so a pie of up
+// to eight slices never repeats a colour; past that the smallest slices are
+// grouped as "Other" (`pieSlices`) rather than the list wrapping round.
+export const CHART_INK = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `var(--chart-${n})`);
+
+/** Does a column's label say its figures are money in pounds? Decided from the
+ * label alone — the screen grammar has no field for a unit, and gains none. */
+export function isMoneyLabel(label: string): boolean {
+  return /£|gbp|pounds/i.test(label);
+}
+
+const FIGURE_FORMAT = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+
+/** A figure as a person reads it: thousands separators, at most two decimals,
+ * no trailing zeroes, and a leading £ on money ("£12,400", "-£1,200.50"). */
+export function formatFigure(value: number, money = false): string {
+  const digits = FIGURE_FORMAT.format(Math.abs(value));
+  const negative = value < 0 && digits !== '0';
+  return `${negative ? '-' : ''}${money ? '£' : ''}${digits}`;
+}
+
+/**
+ * Show every k-th category label, k computed from the room each one has: the
+ * widest label's estimated width (a 10px label is about 6px a character)
+ * against the width of one slot. 1 means every label fits.
+ */
+export function labelStride(labels: string[], slotWidth: number, fontSize = 10): number {
+  const widest = labels.reduce((most, label) => Math.max(most, label.length), 0) * fontSize * 0.6 + 6;
+  return Math.max(1, Math.ceil(widest / Math.max(slotWidth, 1)));
+}
+
+/** Where to centre a label on its slot without letting it run off either edge of
+ * the drawing: a label near the first or last slot is nudged inwards by the
+ * amount it would have overhung (about 6px a character at 10px). */
+export function labelCentre(centre: number, label: string, left: number, right: number, fontSize = 10): number {
+  const half = (label.length * fontSize * 0.6) / 2;
+  return Math.min(Math.max(centre, left + half), right - half);
+}
+
+/** Three to five round numbers within [low, high] for a value scale ("0, 5,000,
+ * 10,000, 15,000"), or just the one when the range is flat. */
+export function valueTicks(low: number, high: number): number[] {
+  if (!(high > low)) return [low];
+  const span = high - low;
+  for (const intervals of [4, 3, 5]) {
+    const magnitude = 10 ** Math.floor(Math.log10(span / intervals));
+    for (const factor of [1, 2, 2.5, 5, 10]) {
+      const step = factor * magnitude;
+      const ticks: number[] = [];
+      for (let v = Math.ceil(low / step - 1e-9) * step; v <= high + step * 1e-9; v += step) {
+        ticks.push(Number(v.toFixed(10)));
+      }
+      if (ticks.length >= 3 && ticks.length <= 5) return ticks;
+    }
+  }
+  return [low, high];
+}
+
+/** The slices a pie draws: at most `max` of them. Past that, the smallest are
+ * added together as one "Other" slice, and the larger ones keep their order. */
+export function pieSlices(series: ChartSlice[], max = CHART_INK.length): ChartSlice[] {
+  if (series.length <= max) return series;
+  const keep = new Set(
+    series
+      .map((slice, index) => ({ index, value: slice.value }))
+      .sort((a, b) => b.value - a.value || a.index - b.index)
+      .slice(0, max - 1)
+      .map((entry) => entry.index),
+  );
+  const rest = series.filter((_, index) => !keep.has(index));
+  return [
+    ...series.filter((_, index) => keep.has(index)),
+    { label: 'Other', value: Number(rest.reduce((sum, slice) => sum + slice.value, 0).toFixed(4)) },
+  ];
+}
 
 /** One bar, point or slice: a category, and the sum of the value column over
  * the rows in it. In calendar order when the category column is a date (or text
  * that is all dates or months), otherwise first-seen, and the group for a row
  * that left the category empty ("—") last. */
 export type ChartSlice = { label: string; value: number };
-
-const MONTHS = [
-  ['jan', 'january'],
-  ['feb', 'february'],
-  ['mar', 'march'],
-  ['apr', 'april'],
-  ['may', 'may'],
-  ['jun', 'june'],
-  ['jul', 'july'],
-  ['aug', 'august'],
-  ['sep', 'september', 'sept'],
-  ['oct', 'october'],
-  ['nov', 'november'],
-  ['dec', 'december'],
-];
-
-/**
- * Where a category value falls on the calendar, as a sortable number — or null
- * when it does not read as a date or a month at all.
- *
- * Reads exactly these shapes, and guesses at nothing else: ISO `2026-10` and
- * `2026-10-01` (a time after the day is ignored), and an English month name
- * with its year — "October 2026", "Oct 2026", case-insensitive. A bare "October"
- * is not read (which year?), and neither is "10/11/2026" (whose day comes
- * first?): a value this does not understand sends the whole column back to
- * first-seen order rather than ordering it wrongly.
- */
-export function calendarKey(raw: string): number | null {
-  const text = raw.trim();
-  const iso = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[T ].*)?$/.exec(text);
-  if (iso !== null) {
-    const month = Number(iso[2]);
-    const day = iso[3] === undefined ? 1 : Number(iso[3]);
-    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return Number(iso[1]) * 10000 + month * 100 + day;
-  }
-  const named = /^([A-Za-z]+)\.?,?\s+(\d{4})$/.exec(text);
-  if (named !== null) {
-    const name = named[1]!.toLowerCase();
-    const index = MONTHS.findIndex((forms) => forms.includes(name));
-    if (index !== -1) return Number(named[2]) * 10000 + (index + 1) * 100 + 1;
-  }
-  return null;
-}
 
 /**
  * Group the rows this viewer received by one column and add up another.
@@ -398,12 +410,6 @@ export function trendLine(values: number[]): { first: number; last: number } | n
   return { first: meanY - slope * meanX, last: meanY + slope * (n - 1 - meanX) };
 }
 
-/** A number as a chart label reads it: at most two decimals, and no trailing
- * zeroes — `12.40` on an axis reads as a precision the return did not claim. */
-function tick(value: number): string {
-  return String(Number(value.toFixed(2)));
-}
-
 function ChartFrame(props: { label: string; children: React.ReactNode }) {
   return (
     <div className="app-chart">
@@ -441,9 +447,12 @@ export function ScreenChart(props: {
 
   const W = 360;
   const H = 180;
-  const PAD_L = 8;
   const PAD_B = 22;
   const top = 12;
+  // T-488 — figures print with thousands separators, and with a £ when the value
+  // column's own label says money
+  const money = isMoneyLabel(props.table.columns.find((column) => column.key === block.valueColumn)?.label ?? '');
+  const fmt = (value: number) => formatFigure(value, money);
   const values = series.map((slice) => slice.value);
   const highest = Math.max(...values, 0);
   const lowest = Math.min(...values, 0);
@@ -451,13 +460,14 @@ export function ScreenChart(props: {
   const y = (value: number) => top + (H - PAD_B - top) * (1 - (value - lowest) / span);
 
   if (block.kind === 'pieChart') {
-    const total = values.reduce((sum, value) => sum + Math.max(value, 0), 0);
+    const slices = pieSlices(series);
+    const total = slices.reduce((sum, slice) => sum + Math.max(slice.value, 0), 0);
     if (total <= 0) return <NothingToDraw label={block.label} />;
     const cx = 90;
     const cy = 90;
     const r = 74;
     let angle = -Math.PI / 2;
-    const wedges = series.map((slice, index) => {
+    const wedges = slices.map((slice, index) => {
       const sweep = (Math.max(slice.value, 0) / total) * Math.PI * 2;
       const x1 = cx + r * Math.cos(angle);
       const y1 = cy + r * Math.sin(angle);
@@ -467,7 +477,7 @@ export function ScreenChart(props: {
       const large = sweep > Math.PI ? 1 : 0;
       // a single category is a whole circle, and an arc from a point to itself
       // draws nothing — so it is drawn as a circle instead
-      const whole = series.length === 1 || sweep >= Math.PI * 2 - 1e-9;
+      const whole = slices.length === 1 || sweep >= Math.PI * 2 - 1e-9;
       return { slice, index, x1, y1, x2, y2, large, whole };
     });
     return (
@@ -486,7 +496,7 @@ export function ScreenChart(props: {
               />
             ),
           )}
-          {series.map((slice, index) => (
+          {slices.map((slice, index) => (
             <g key={slice.label}>
               <rect
                 x={190}
@@ -496,7 +506,7 @@ export function ScreenChart(props: {
                 fill={CHART_INK[index % CHART_INK.length]}
               />
               <text x={206} y={27 + index * 18} fontSize="11" fill="var(--ink-soft)">
-                {`${slice.label} — ${tick(slice.value)}`}
+                {`${slice.label.length > 22 ? `${slice.label.slice(0, 21)}…` : slice.label} — ${fmt(slice.value)}`}
               </text>
             </g>
           ))}
@@ -505,19 +515,36 @@ export function ScreenChart(props: {
     );
   }
 
-  const step = (W - PAD_L * 2) / Math.max(series.length, 1);
+  // the line chart carries a value scale down its left edge, so it needs room
+  // for the widest tick label; the bar chart prints its values on the bars
+  const ticks = block.kind === 'lineChart' ? valueTicks(lowest, highest) : [];
+  const PAD_L =
+    block.kind === 'lineChart'
+      ? 8 + Math.max(...ticks.map((value) => fmt(value).length)) * 6
+      : 8;
+  const step = (W - PAD_L - 8) / Math.max(series.length, 1);
+  // every k-th category label, so neighbours never overprint
+  const labelEvery = labelStride(
+    series.map((slice) => slice.label),
+    step,
+  );
 
   if (block.kind === 'barChart') {
     const base = y(Math.max(lowest, 0) === 0 && lowest < 0 ? 0 : lowest);
+    const valueEvery = labelStride(
+      series.map((slice) => fmt(slice.value)),
+      step,
+    );
     return (
       <ChartFrame label={block.label}>
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={block.label}>
           <title>{block.label}</title>
-          <line x1={PAD_L} y1={base} x2={W - PAD_L} y2={base} stroke="var(--hairline)" />
+          <line x1={PAD_L} y1={base} x2={W - 8} y2={base} stroke="var(--hairline)" />
           {series.map((slice, index) => {
             const height = Math.abs(base - y(slice.value));
             return (
               <g key={slice.label}>
+                <title>{`${slice.label}: ${fmt(slice.value)}`}</title>
                 <rect
                   x={PAD_L + index * step + step * 0.2}
                   y={Math.min(base, y(slice.value))}
@@ -525,24 +552,28 @@ export function ScreenChart(props: {
                   height={Math.max(height, 1)}
                   fill={CHART_INK[0]}
                 />
-                <text
-                  x={PAD_L + index * step + step / 2}
-                  y={H - 8}
-                  fontSize="10"
-                  textAnchor="middle"
-                  fill="var(--muted)"
-                >
-                  {slice.label}
-                </text>
-                <text
-                  x={PAD_L + index * step + step / 2}
-                  y={Math.min(base, y(slice.value)) - 3}
-                  fontSize="10"
-                  textAnchor="middle"
-                  fill="var(--ink-soft)"
-                >
-                  {tick(slice.value)}
-                </text>
+                {index % labelEvery === 0 && (
+                  <text
+                    x={labelCentre(PAD_L + index * step + step / 2, slice.label, 0, W)}
+                    y={H - 8}
+                    fontSize="10"
+                    textAnchor="middle"
+                    fill="var(--muted)"
+                  >
+                    {slice.label}
+                  </text>
+                )}
+                {index % valueEvery === 0 && (
+                  <text
+                    x={labelCentre(PAD_L + index * step + step / 2, fmt(slice.value), 0, W)}
+                    y={Math.min(base, y(slice.value)) - 3}
+                    fontSize="10"
+                    textAnchor="middle"
+                    fill="var(--ink-soft)"
+                  >
+                    {fmt(slice.value)}
+                  </text>
+                )}
               </g>
             );
           })}
@@ -559,7 +590,22 @@ export function ScreenChart(props: {
     <ChartFrame label={block.label}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={block.label}>
         <title>{block.label}</title>
-        <line x1={PAD_L} y1={y(Math.min(lowest, 0))} x2={W - PAD_L} y2={y(Math.min(lowest, 0))} stroke="var(--hairline)" />
+        {/* the value scale: light gridlines, each with its figure */}
+        {ticks.map((value) => (
+          <g key={value}>
+            <line
+              x1={PAD_L}
+              y1={y(value)}
+              x2={W - 8}
+              y2={y(value)}
+              stroke={value === 0 ? 'var(--muted)' : 'var(--hairline)'}
+              strokeWidth={1}
+            />
+            <text x={PAD_L - 4} y={y(value) + 3} fontSize="10" textAnchor="end" fill="var(--muted)">
+              {fmt(value)}
+            </text>
+          </g>
+        ))}
         <polyline points={points} fill="none" stroke={CHART_INK[0]} strokeWidth="2" />
         {trend !== null && (
           <line
@@ -579,16 +625,20 @@ export function ScreenChart(props: {
               cy={y(slice.value)}
               r={3}
               fill={CHART_INK[0]}
-            />
-            <text
-              x={PAD_L + index * step + step / 2}
-              y={H - 8}
-              fontSize="10"
-              textAnchor="middle"
-              fill="var(--muted)"
             >
-              {slice.label}
-            </text>
+              <title>{`${slice.label}: ${fmt(slice.value)}`}</title>
+            </circle>
+            {index % labelEvery === 0 && (
+              <text
+                x={labelCentre(PAD_L + index * step + step / 2, slice.label, 0, W)}
+                y={H - 8}
+                fontSize="10"
+                textAnchor="middle"
+                fill="var(--muted)"
+              >
+                {slice.label}
+              </text>
+            )}
           </g>
         ))}
       </svg>
@@ -644,6 +694,7 @@ function ScreenForm(props: {
       {columns.map((column) => (
         <Field key={column.key} label={props.label(column.key)}>
           <TextInput
+            type={inputTypeFor(column.type)}
             value={draft[column.key] ?? ''}
             onChange={(next) => setDraft((prev) => ({ ...prev, [column.key]: next }))}
           />

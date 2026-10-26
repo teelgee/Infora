@@ -28,7 +28,7 @@ import type { AppColumn, AppRowRecord, AppState, AppTableRecord } from '@infora/
 import type { BadgeTone } from '@infora/ui';
 import { Badge, Button, Card, Field, SectionLabel, Table, TextInput } from '@infora/ui';
 import { api } from '../api';
-import { formatDateTime } from './shared';
+import { formatDateTime, inputTypeFor } from './shared';
 
 const ROW_STATE: Record<string, { tone: BadgeTone; label: string }> = {
   draft: { tone: 'neutral', label: 'Draft' },
@@ -137,6 +137,7 @@ export function AppTableRows(props: {
                 {...(column.required && { hint: 'Required' })}
               >
                 <TextInput
+                  type={inputTypeFor(column.type)}
                   value={draft[column.key] ?? ''}
                   onChange={(value) => setDraft((d) => ({ ...d, [column.key]: value }))}
                 />

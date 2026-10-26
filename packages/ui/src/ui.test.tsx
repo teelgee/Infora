@@ -1262,3 +1262,13 @@ describe('MultiPicker (T-470)', () => {
     expect(multiPickerStep({ active: 0, size: 3, query: 'ground' }, ' ')).toMatchObject({ act: null, handled: false });
   });
 });
+
+describe('TextInput types (T-488)', () => {
+  it('is a plain text box unless told otherwise, and draws a number box or a date box when asked', () => {
+    expect(renderToStaticMarkup(<TextInput value="" onChange={() => {}} />)).toContain('type="text"');
+    const number = renderToStaticMarkup(<TextInput value="12" onChange={() => {}} type="number" />);
+    expect(number).toContain('type="number"');
+    expect(number).toContain('step="any"'); // a figure with decimals is not refused by the box
+    expect(renderToStaticMarkup(<TextInput value="2026-10-31" onChange={() => {}} type="date" />)).toContain('type="date"');
+  });
+});

@@ -1,6 +1,14 @@
 import type { BadgeTone, LifecyclePosition } from '@infora/ui';
 import { lifecycleBadge } from '@infora/ui';
-import type { ContextState, InternalRound, LibraryItem, PlanRow, SandboxDocument } from '@infora/contracts';
+import type { AppColumn, ContextState, InternalRound, LibraryItem, PlanRow, SandboxDocument } from '@infora/contracts';
+
+/** T-488 — which box a column's value is typed into: a number column gets a
+ * number box and a date column a date box; everything else is text. The value
+ * sent stays what the server's row check accepts (see `toValues` in the row
+ * editor and `enter` in the form block). */
+export function inputTypeFor(type: AppColumn['type']): 'text' | 'number' | 'date' {
+  return type === 'number' ? 'number' : type === 'date' ? 'date' : 'text';
+}
 
 export function initialsOf(name: string): string {
   return name

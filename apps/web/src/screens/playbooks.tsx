@@ -20,7 +20,7 @@
 // safe to hand to the next client without anybody having to remember why.
 import { useCallback, useEffect, useState } from 'react';
 import type { PlaybookRecord } from '@infora/contracts';
-import { Badge, Button, Card, Field, SectionLabel, SelectInput, TextInput } from '@infora/ui';
+import { Badge, Button, Card, Field, SectionLabel, SelectInput, TextArea, TextInput } from '@infora/ui';
 import { api } from '../api';
 import { ShelfList } from './knowledge';
 import { formatDateTime } from './shared';
@@ -164,6 +164,9 @@ export function SaveAsPlaybook(props: { appId: string; appName: string; mayBuild
 export function DeployFromPlaybook(props: { projectId: string; onDeployed: () => void }) {
   const [items, setItems] = useState<PlaybookRecord[]>([]);
   const [playbookId, setPlaybookId] = useState('');
+  // T-488 — the template's own description, pre-filled and editable: one written
+  // for another client might name that client
+  const [description, setDescription] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -174,13 +177,17 @@ export function DeployFromPlaybook(props: { projectId: string; onDeployed: () =>
   }, []);
   useEffect(load, [load]);
 
-  if (items.length === 0) return null;
   const chosen = items.find((item) => item.id === playbookId);
+  useEffect(() => {
+    setDescription(chosen?.description ?? '');
+  }, [chosen?.id, chosen?.description]);
+
+  if (items.length === 0) return null;
 
   const deploy = async () => {
     setNotice(null);
     try {
-      await api.deployPlaybook(props.projectId, { playbookId });
+      await api.deployPlaybook(props.projectId, { playbookId, description });
       setPlaybookId('');
       props.onDeployed();
     } catch {
@@ -210,11 +217,23 @@ export function DeployFromPlaybook(props: { projectId: string; onDeployed: () =>
         </Button>
       </div>
       {chosen !== undefined && (
-        <p className="page-sub">
-          {countOf(chosen.tableDeclarations.length, 'table')} —{' '}
-          {chosen.tableDeclarations.map((table) => table.name).join(', ')}. Kept by{' '}
-          {chosen.savedByName}.
-        </p>
+        <>
+          <p className="page-sub">
+            {countOf(chosen.tableDeclarations.length, 'table')} —{' '}
+            {chosen.tableDeclarations.map((table) => table.name).join(', ')}. Kept by{' '}
+            {chosen.savedByName}.
+          </p>
+          <Field
+            label="What the new app is for"
+            hint={
+              chosen.description === null
+                ? 'Say what the new app is for, if you like.'
+                : 'Copied from the template. Change it first if it names another client or person.'
+            }
+          >
+            <TextArea value={description} onChange={setDescription} rows={2} />
+          </Field>
+        </>
       )}
       {notice !== null && <p className="page-sub">{notice}</p>}
     </div>

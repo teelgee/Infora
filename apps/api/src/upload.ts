@@ -31,7 +31,7 @@ import { sandboxUploadFields } from '@infora/contracts';
 import type { ApiError, SandboxDocument } from '@infora/contracts';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { putBlob, getBlob } from './renditions';
+import { putBlob, getBlob, mimeTypes } from './renditions';
 import { docxToText } from './extract';
 import { extractOnUpload, landFileRevision, uploadFormats } from './file-revision';
 import { releaseLapsedEngineLock } from './engine-lock';
@@ -121,6 +121,41 @@ export function uploadRoutes(deps: { db: Db }) {
     return c.json(toSandboxDocument(doc!), 201);
   });
 
+  // T-488 (walk defect 12) — DOWNLOAD the document's file from the working area.
+  //
+  // *In plain terms: a spreadsheet or a Word file someone uploaded can be
+  // taken back out, as the file, with its own name.*
+  //
+  // 🔒 The access check is `documentScope` — the very middleware the open and
+  // read of this document run — so whoever is refused there (another
+  // organisation's people, anyone outside the working area's grants) is refused
+  // here with the same plain 404, and nobody learns the document exists. The
+  // bytes are the document's CURRENT file (`file_ref`, which every replace and
+  // every editor save moves forward); an authored document has no file of its
+  // own (its original, if any, is kept for fidelity, not as the current text),
+  // so it is a 404 as well.
+  app.get('/sandbox-documents/:id/file', documentScope, async (c) => {
+    const [doc] = await deps.db
+      .select()
+      .from(s.sandboxDocuments)
+      .where(eq(s.sandboxDocuments.id, c.req.param('id')))
+      .limit(1);
+    if (!doc || doc.origin !== 'uploaded' || !doc.fileRef) {
+      return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    }
+    const bytes = getBlob(doc.fileRef);
+    if (!bytes) return c.json({ error: 'not_found' } satisfies ApiError, 404);
+    const name = `${doc.title.replace(/[\\/:*?"<>|\r\n]/g, ' ').replace(/\s+/g, ' ').trim() || 'document'}.${doc.format}`;
+    // an ASCII fallback for old clients, and the real name in the RFC 5987 form
+    const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '');
+    const contentType =
+      doc.format in mimeTypes ? mimeTypes[doc.format as keyof typeof mimeTypes] : 'application/octet-stream';
+    return c.body(new Uint8Array(bytes), 200, {
+      'content-type': contentType,
+      'content-disposition': `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+    });
+  });
+
   // T-220 — replace the canonical native file (ADR-0043 P1). An uploaded
   // document keeps its native file canonical (ADR-0034); this swaps that file
   // for a new upload of the SAME format family — a new blob + file_ref — and
@@ -160,7 +195,8 @@ export function uploadRoutes(deps: { db: Db }) {
     // of it. (Reconciled with office-editing in review 2026-10-18: the replace
     // logic moved into landFileRevision, and the editor's saves fire the same
     // event from the WOPI route.)
-    await importOnVersionLanding(deps.db, { sandboxDocumentId: doc!.id });
+    // T-488 — the same file as the one already held is no new version: nothing landed
+    if (!landed.unchanged) await importOnVersionLanding(deps.db, { sandboxDocumentId: doc!.id });
     return c.json(toSandboxDocument(landed.doc) satisfies SandboxDocument);
   });
 

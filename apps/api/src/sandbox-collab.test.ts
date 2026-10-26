@@ -394,7 +394,10 @@ describe('a freeze of an uploaded or PDF document names the version it holds (T-
     expect(await marks(doc.id)).toEqual({ 'v0.3': undefined, 'v0.2': ['v0.2'], 'v0.1': undefined });
     // a PDF replaced by one with the SAME text still marks the latest version at or before the freeze
     const same = await uploadDoc('T486 d same.pdf', textToPdf('Survey', 'Unchanged text.'));
-    await replaceFile(same.id, 'again.pdf', textToPdf('Survey', 'Unchanged text.'));
+    // (T-488 — a file byte-for-byte the same as the one held now lands NO version, so the
+    // replacement is a different file carrying the same words: a comment after the PDF's end
+    // changes the bytes and not one word of the text)
+    await replaceFile(same.id, 'again.pdf', Buffer.concat([textToPdf('Survey', 'Unchanged text.'), Buffer.from('\n% saved again\n')]));
     await freezeIt(same.id);
     expect(await marks(same.id)).toEqual({ 'v0.2': ['v0.2'], 'v0.1': undefined });
   });

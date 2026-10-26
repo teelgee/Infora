@@ -18,7 +18,8 @@
 import { eq, sql } from 'drizzle-orm';
 import { schema as s } from '@infora/db';
 import type { Db } from '@infora/db';
-import { putBlob } from './renditions';
+import { createHash } from 'node:crypto';
+import { getBlob, putBlob } from './renditions';
 import { extractText } from './extract';
 
 export const uploadFormats = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx', pdf: 'pdf' } as const;
@@ -64,14 +65,27 @@ type SandboxDocumentRow = typeof s.sandboxDocuments.$inferSelect;
  * `db` may be a transaction: the WOPI host runs this inside the same
  * transaction as its entitlement re-check, so a grant revoked a moment earlier
  * cannot let one last save through.
+ *
+ * **T-488 (walk defect 13) — bytes that equal the document's current file land
+ * nothing.** Closing the in-browser editor without a change makes the engine
+ * save the file anyway; that used to add a version to the history (and refill
+ * any table fed from the file). The two files are compared by a hash of their
+ * bytes: when they are the same, no blob is written, no version is added, the
+ * row is not touched, and the result says `unchanged: true` so the caller
+ * answers success without announcing a new version to anything that listens.
  */
 export async function landFileRevision(
   db: Db,
-  doc: Pick<SandboxDocumentRow, 'id' | 'format'>,
+  doc: Pick<SandboxDocumentRow, 'id' | 'format' | 'fileRef'>,
   bytes: Buffer,
   participantId: string,
-): Promise<{ ok: true; doc: SandboxDocumentRow } | { ok: false; detail: string }> {
+): Promise<{ ok: true; doc: SandboxDocumentRow; unchanged: boolean } | { ok: false; detail: string }> {
   const format = doc.format as UploadFormat;
+  const current = doc.fileRef ? getBlob(doc.fileRef) : null;
+  if (current !== null && sameBytes(current, bytes)) {
+    const [row] = await db.select().from(s.sandboxDocuments).where(eq(s.sandboxDocuments.id, doc.id)).limit(1);
+    if (row) return { ok: true, doc: row, unchanged: true };
+  }
   // T-305 — the replacement's text replaces the old text, or the row keeps
   // grounding on a document that is no longer there. Refused on the same
   // terms as a first upload: a scan swapped in for a readable PDF is a
@@ -92,5 +106,12 @@ export async function landFileRevision(
     fileRef,
     createdByParticipantId: participantId,
   });
-  return { ok: true, doc: updated! };
+  return { ok: true, doc: updated!, unchanged: false };
+}
+
+function sameBytes(a: Buffer, b: Buffer): boolean {
+  return (
+    a.byteLength === b.byteLength &&
+    createHash('sha256').update(a).digest('hex') === createHash('sha256').update(b).digest('hex')
+  );
 }

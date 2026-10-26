@@ -243,14 +243,27 @@ async function downloadFile(path: string): Promise<void> {
     const body = (await res.json().catch(() => null)) as ApiError | null;
     throw new RequestError(res.status, body);
   }
-  const filename =
-    res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
+  const filename = dispositionFilename(res.headers.get('content-disposition'));
   const url = URL.createObjectURL(await res.blob());
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+/** T-488 — the file name a response asks for: the RFC 5987 `filename*` (the real
+ * name, any characters) first, else the plain `filename`, else "download". */
+export function dispositionFilename(header: string | null): string {
+  const encoded = header?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded !== undefined) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      // fall through to the plain name
+    }
+  }
+  return header?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
 }
 
 // T-444 — a binary POST. An export is an ACT before it is a file: it records
@@ -1371,6 +1384,9 @@ export const api = {
   // T-444 — the export. The file contains only what this person may read,
   // decided by the same predicate over the same routes, and its stamp says what
   // data and when — never who produced it (ADR-0056 §8).
+  // T-488 — an uploaded file, taken back out of a working area; the server runs
+  // the same access check the document's opening does
+  downloadSandboxDocument: (id: string) => downloadFile(`/sandbox-documents/${id}/file`),
   exportAppData: (appId: string, appTableIds: string[] = []) =>
     downloadPost(`/apps/${appId}/exports`, { format: 'xlsx', appTableIds }),
   exportAppInsight: (appId: string, appRowId: string) =>

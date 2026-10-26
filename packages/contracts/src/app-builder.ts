@@ -277,6 +277,14 @@ export type AppRecord = AppSummary & {
   /** is this requester's organisation the project's owner organisation */
   isProjectOwner: boolean;
   /**
+   * T-488 — may THIS requester close the app, and may they hand it to someone
+   * else. Resolved on the server by the same checks the close and reassign
+   * routes apply, so a screen draws "Close the app" and "Give it to…" only for
+   * people the server would let do it — never from a rule of its own.
+   */
+  mayClose: boolean;
+  mayReassign: boolean;
+  /**
    * T-445 — which playbook, and which VERSION of it, this instance was deployed
    * from; null for an app built here from nothing.
    *
@@ -391,6 +399,90 @@ export function isCurrentAppRow(
   row: Pick<AppRowRecord, 'retiredAt' | 'state' | 'supersededByRowId'>,
 ): boolean {
   return row.retiredAt === null && row.state !== 'superseded' && row.supersededByRowId === null;
+}
+
+// T-488 — moved here from the web screen so the spreadsheet export says the same
+// words for a row's state as the dashboard does.
+const ROW_STATE_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  // T-487 — "Replaced", not "Superseded": the word a person reads for a row
+  // that a later row (a correction, or a newer import) has taken the place of
+  superseded: 'Replaced',
+};
+
+/**
+ * What the State column says of a row. A withdrawn row is "Retired"; a row a
+ * later row took the place of is "Replaced" — and a REJECTED row a correction
+ * replaced is "Rejected · replaced", because its stored state stays `rejected`
+ * to keep the reason (drawer 9's CHECK) while the screen still has to say it is
+ * no longer the figure that stands.
+ */
+export function rowStateLabel(row: AppRowRecord): string | null {
+  if (row.retiredAt !== null) return 'Retired';
+  if (row.state === null) return row.supersededByRowId !== null ? 'Replaced' : null;
+  const base = ROW_STATE_LABEL[row.state] ?? row.state;
+  return row.supersededByRowId !== null && row.state !== 'superseded' ? `${base} · replaced` : base;
+}
+
+// T-488 — moved here from the web screen so the analysis run reads months with the
+// SAME reader the charts order by (one reader, never two).
+const MONTHS = [
+  ['jan', 'january'],
+  ['feb', 'february'],
+  ['mar', 'march'],
+  ['apr', 'april'],
+  ['may', 'may'],
+  ['jun', 'june'],
+  ['jul', 'july'],
+  ['aug', 'august'],
+  ['sep', 'september', 'sept'],
+  ['oct', 'october'],
+  ['nov', 'november'],
+  ['dec', 'december'],
+];
+
+/**
+ * Where a category value falls on the calendar, as a sortable number — or null
+ * when it does not read as a date or a month at all.
+ *
+ * Reads exactly these shapes, and guesses at nothing else: ISO `2026-10` and
+ * `2026-10-01` (a time after the day is ignored), and an English month name
+ * with its year — "October 2026", "Oct 2026", case-insensitive. A bare "October"
+ * is not read (which year?), and neither is "10/11/2026" (whose day comes
+ * first?): a value this does not understand sends the whole column back to
+ * first-seen order rather than ordering it wrongly.
+ */
+export function calendarKey(raw: string): number | null {
+  const text = raw.trim();
+  const iso = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:[T ].*)?$/.exec(text);
+  if (iso !== null) {
+    const month = Number(iso[2]);
+    const day = iso[3] === undefined ? 1 : Number(iso[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return Number(iso[1]) * 10000 + month * 100 + day;
+  }
+  const named = /^([A-Za-z]+)\.?,?\s+(\d{4})$/.exec(text);
+  if (named !== null) {
+    const name = named[1]!.toLowerCase();
+    const index = MONTHS.findIndex((forms) => forms.includes(name));
+    if (index !== -1) return Number(named[2]) * 10000 + (index + 1) * 100 + 1;
+  }
+  return null;
+}
+
+/** The calendar month a value falls in, as a sortable number (year × 100 +
+ * month) and the words a person reads ("October 2026") — or null when
+ * `calendarKey` does not read it. The analysis run groups by this. */
+export function calendarMonth(raw: string): { sort: number; label: string } | null {
+  const key = calendarKey(raw);
+  if (key === null) return null;
+  const sort = Math.floor(key / 100);
+  const month = sort % 100;
+  const name = MONTHS[month - 1]![1]!;
+  return { sort, label: `${name.charAt(0).toUpperCase()}${name.slice(1)} ${Math.floor(sort / 100)}` };
 }
 
 export type ListAppRowsResponse = {
@@ -518,6 +610,9 @@ export type PlaybookRecord = {
   id: Id;
   organisationId: Id;
   name: string;
+  /** T-488 — what the app it was saved from said it was for; a deployed copy
+   * starts with it, and the deployer may change it first */
+  description: string | null;
   version: number;
   definition: PlaybookDefinition;
   tableDeclarations: PlaybookTableDeclaration[];

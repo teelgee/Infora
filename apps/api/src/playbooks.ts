@@ -131,6 +131,18 @@ async function loadShelf(db: Db, organisationId: string): Promise<LoadedPlaybook
 }
 
 /**
+ * T-488 — the ONE condition under which a requester may be told what the source
+ * app's words were (its name, and now the template's description): they are on
+ * the project it was saved from. Used by the shelf record and by deploy.
+ * A template with no source project at all (one Infora supplies) has no client's
+ * words to withhold.
+ */
+async function onSourceProjectOf(db: Db, user: UserRow, savedFromProjectId: string | null): Promise<boolean> {
+  if (savedFromProjectId === null) return false;
+  return (await resolveSlice(db, user, savedFromProjectId)) !== null;
+}
+
+/**
  * The record, for one requester.
  *
  * `savedFromProjectName` — and, since the review of 2026-09-07,
@@ -150,23 +162,23 @@ async function playbookRecord(
   loaded: LoadedPlaybook,
 ): Promise<PlaybookRecord> {
   let savedFromProjectName: string | null = null;
-  let onSourceProject = false;
-  if (loaded.savedFromProjectId !== null) {
-    const slice = await resolveSlice(db, user, loaded.savedFromProjectId);
-    if (slice !== null) {
-      onSourceProject = true;
-      const [project] = await db
-        .select({ name: s.projects.name })
-        .from(s.projects)
-        .where(eq(s.projects.id, loaded.savedFromProjectId))
-        .limit(1);
-      savedFromProjectName = project?.name ?? null;
-    }
+  const onSourceProject = await onSourceProjectOf(db, user, loaded.savedFromProjectId);
+  if (onSourceProject) {
+    const [project] = await db
+      .select({ name: s.projects.name })
+      .from(s.projects)
+      .where(eq(s.projects.id, loaded.savedFromProjectId!))
+      .limit(1);
+    savedFromProjectName = project?.name ?? null;
   }
   return {
     id: loaded.row.id,
     organisationId: loaded.row.organisationId,
     name: loaded.row.name,
+    // T-488 — the description is the source app's own words and may name its
+    // client, so it is withheld exactly as `savedFromAppName` is (ADR-0046); a
+    // template with no source project (Infora's own) has none to withhold
+    description: onSourceProject || loaded.savedFromProjectId === null ? loaded.row.description : null,
     version: loaded.row.version,
     definition: loaded.row.definition as PlaybookDefinition,
     tableDeclarations: loaded.row.tableDeclarations as PlaybookTableDeclaration[],
@@ -287,6 +299,8 @@ export function playbookRoutes(deps: { db: Db }) {
       .values({
         organisationId: user.organisationId,
         name,
+        // T-488 — the app's own description travels with the template
+        description: loaded.row.description,
         version: (highest?.version ?? 0) + 1,
         definition: travellingDefinition(source, tables),
         tableDeclarations: declarations,
@@ -352,13 +366,34 @@ export function playbookRoutes(deps: { db: Db }) {
     // definition is filled in below, once the tables it points at exist.
     // the same guard the save route has: a whitespace name trims to nothing
     // (review 2026-09-07)
+    // T-488 — "nothing sent" falls back to the template's description only for a
+    // requester who may be told it (`onSourceProjectOf`, the shelf's own condition)
+    const [sourceApp] =
+      playbook.savedFromAppId === null
+        ? []
+        : await deps.db
+            .select({ projectId: s.apps.projectId })
+            .from(s.apps)
+            .where(eq(s.apps.id, playbook.savedFromAppId))
+            .limit(1);
+    const deployFallback =
+      playbook.savedFromAppId === null || (await onSourceProjectOf(deps.db, user, sourceApp?.projectId ?? null))
+        ? playbook.description
+        : null;
     const deployName = (parsed.data.name ?? playbook.name).trim();
     if (deployName === '') return invalid(c);
     const appId = await createAppInstance(deps.db, {
       projectId,
       slice,
       name: deployName,
-      description: parsed.data.description ?? null,
+      // T-488 — what was submitted wins (an empty box clears it); sent nothing,
+      // the deployed copy carries the template's own description
+      description:
+        parsed.data.description === undefined
+          ? deployFallback
+          : parsed.data.description.trim() === ''
+            ? null
+            : parsed.data.description.trim(),
       // nothing inherits the source project's scope: `createAppInstance` grants
       // the deploying firm's own organisation, and nothing else is passed
       organisationIds: [],

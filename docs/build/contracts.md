@@ -2111,3 +2111,33 @@ are not recorded here.
   computed over every row of the table, so the project owner was handed the id of
   a contractor's *draft* correction — learning that one had been started, which
   the draft rule exists to prevent.
+
+- **2026-10-26 (T-488) — `AppRecord.mayClose` and `mayReassign`.** *Plainly: the
+  app's page used to draw "Close the app" and "Give it to…" for everybody and let
+  the server refuse the people who may not; now it draws them only for the people
+  who may.* The **reason they are server-resolved flags and not something the page
+  works out** is the standing one: a screen that decided for itself who may close
+  an app would be a second copy of the access rule, and the first disagreement
+  between the copies is a button offered to a contractor that the server then
+  answers with "not found". Both flags come from the one function the two routes
+  already apply, and both are false once the app is closed (a state the routes
+  answer with 400, which the page should not offer at all).
+
+- **2026-10-26 (T-488) — `calendarKey`, `calendarMonth` and `rowStateLabel` moved
+  into the contract.** *Plainly: three small readers the charts used now also serve
+  the written analysis and the spreadsheet export.* The **reason is the same as
+  `isCurrentAppRow`'s**: the analysis was about to be given figures "per month" and
+  the export to say "Replaced" and "Retired", and each would have grown its own
+  idea of what reads as a month and what a row's state is called. One reader of
+  months (the one T-487's chart ordering uses, unchanged) and one set of state
+  words, so the dashboard, the analysis and the file agree.
+
+- **2026-10-26 (T-488) — `PlaybookRecord.description`.** *Plainly: a template now
+  remembers what the app it was saved from was for, and the deploy form shows it,
+  editable.* The **reason it is a field of the template and not of the deploy
+  request alone** is that the walk found a deployed copy arriving with no
+  description at all; and the reason the deploy request's own `description` wins
+  when it is sent (an empty one clears it) is that a description written for one
+  client may name that client — the deployer sees it, and changes it, before it
+  becomes the new app's. Migration **0085**; see the personal-data register's
+  playbook row.

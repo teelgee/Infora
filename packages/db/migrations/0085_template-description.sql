@@ -1,0 +1,15 @@
+-- T-488 — a template remembers what the app it was saved from was for (drawn in
+-- data-model.md, Drawer 9, on 2026-10-26 before this file was written; walk
+-- defect 20).
+--
+-- *In plain terms: an app deployed from a template used to arrive with no
+-- description, though the app it was saved from had one. The template now keeps
+-- that line, the deploy form shows it pre-filled and editable, and the deployed
+-- app takes whatever the deployer submits.*
+--
+-- ONE NULLABLE COLUMN, nothing else: no backfill (a template saved before this
+-- has no description, and none is invented), no CHECK, no grant (the application
+-- role holds the table-level privileges). It is free text and can name a client
+-- or a person, so it is deleted with the template (personal-data.md, the
+-- playbook row).
+ALTER TABLE "playbooks" ADD COLUMN "description" text;

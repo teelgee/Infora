@@ -32,7 +32,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type {
-  AppColumnType,
   AppExportRecord,
   AppRecord,
   AppRunRecord,
@@ -170,6 +169,13 @@ export function AppsSection({ projectId }: { projectId: string }) {
             table empty. Offered on the same answer as creating one from
             nothing, because it IS creating one — the same code path makes it. */}
         {mayCreate && <DeployFromPlaybook projectId={projectId} onDeployed={load} />}
+        {/* T-488 — a person who may not build is told why there is no box, in
+            one sentence, instead of finding nothing */}
+        {!mayCreate && (
+          <p className="page-sub" style={{ marginTop: 12 }}>
+            Your organisation decides who among its people may build apps; you have not been given that right.
+          </p>
+        )}
         {error !== null && <p className="page-sub">{error}</p>}
       </Card>
     </>
@@ -386,7 +392,6 @@ export function AppScreen() {
             </table>
           </Table>
         )}
-        {app.mayBuild && app.state !== 'closed' && <DeclareTable appId={app.id} onDone={load} />}
       </Card>
 
       {openTableId !== null && tables.some((t) => t.id === openTableId) && (
@@ -532,7 +537,12 @@ export function AppScreen() {
         </>
       )}
 
-      <ReassignAndClose app={app} roster={roster} onDone={load} onClosed={() => navigate(`/projects/${projectId}/tools`)} />
+      {/* T-488 — drawn only when the server says this person may do it; the same
+          check the two routes apply, so a contractor is not offered buttons the
+          server would refuse */}
+      {(app.mayReassign || app.mayClose) && (
+        <ReassignAndClose app={app} roster={roster} onDone={load} onClosed={() => navigate(`/projects/${projectId}/tools`)} />
+      )}
     </div>
   );
 }
@@ -602,73 +612,6 @@ function ShareCell(props: {
   );
 }
 
-/**
- * Declaring a table, with **the acceptance question asked rather than found**
- * (ADR-0056 §2b). The full stepped builder with its agent is T-442; what is
- * here is the substrate's own form, and the question is on it from the start
- * because it is the one choice that decides whether a figure can ever change
- * hands.
- */
-function DeclareTable(props: { appId: string; onDone: () => void }) {
-  const [name, setName] = useState('');
-  const [columns, setColumns] = useState('month:Month:text, landfill:Waste to landfill (tonnes):number');
-  const [hasAcceptance, setHasAcceptance] = useState('no');
-
-  const declare = async () => {
-    const parsed = columns
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const [key, label, type] = part.split(':').map((piece) => piece.trim());
-        return {
-          key: key ?? '',
-          label: label ?? key ?? '',
-          type: (type ?? 'text') as AppColumnType,
-          required: false,
-        };
-      });
-    await api.declareAppTable(props.appId, {
-      name: name.trim(),
-      columns: parsed,
-      kind: 'data',
-      hasAcceptance: hasAcceptance === 'yes',
-    });
-    setName('');
-    props.onDone();
-  };
-
-  return (
-    <div style={{ marginTop: 12 }}>
-      <Field label="New table">
-        <TextInput value={name} onChange={setName} placeholder="Monthly returns" />
-      </Field>
-      <Field label="Columns" hint="key:label:type, separated by commas">
-        <TextInput value={columns} onChange={setColumns} mono />
-      </Field>
-      {/* this quick form declares a DATA table; an insight table (where a run
-          writes what it found) is declared at step 2 of the stepped builder,
-          where its fixed columns can be shown alongside the choice */}
-      <Field
-        label="Does this table hold contractual data?"
-        hint="If it does, a row is submitted and then accepted or rejected, and an accepted row becomes the project owner's record — it can never be edited or deleted afterwards."
-      >
-        <SelectInput
-          value={hasAcceptance}
-          onChange={setHasAcceptance}
-          options={[
-            { value: 'no', label: 'No — rows are just entered' },
-            { value: 'yes', label: 'Yes — rows are submitted, then accepted or rejected' },
-          ]}
-        />
-      </Field>
-      <Button onClick={() => void declare()} disabled={name.trim() === ''}>
-        Declare the table
-      </Button>
-    </div>
-  );
-}
-
 function GrantScope(props: { appId: string; roster: RosterEntry[]; onDone: () => void }) {
   const [organisationId, setOrganisationId] = useState('');
   const organisations = [
@@ -697,10 +640,10 @@ function GrantScope(props: { appId: string; roster: RosterEntry[]; onDone: () =>
 /**
  * Reassign-or-close (§5, §7) — the two acts that end a defunct state.
  *
- * The controls are rendered from the server's own answer about who may act:
- * this component asks for the acts and shows what comes back, and a person who
- * may not do either simply gets a refusal rather than a hidden control that was
- * never offered — which is why the failure message says what happened.
+ * T-488 — the controls are drawn only from the server's own answer about who
+ * may act (`mayReassign`, `mayClose`, resolved by the same check the routes
+ * apply). This component decides nothing; the failure message stays for the
+ * case where the answer changed between reading the app and pressing the button.
  */
 function ReassignAndClose(props: {
   app: AppRecord;
@@ -723,35 +666,41 @@ function ReassignAndClose(props: {
           tables can still be read by the same people as before.
         </p>
         <div className="shelf-head" style={{ gap: 8 }}>
-          <SelectInput
-            value={participantId}
-            onChange={setParticipantId}
-            options={people}
-            placeholder="Give it to…"
-          />
-          <Button
-            disabled={participantId === ''}
-            onClick={() =>
-              void api
-                .reassignApp(props.app.id, participantId)
-                .then(props.onDone, () =>
-                  setNotice(
-                    'That could not be done. The new owner has to be on this project and allowed to build apps.',
-                  ),
-                )
-            }
-          >
-            Give it to this person
-          </Button>
-          <Button
-            onClick={() =>
-              void api
-                .closeApp(props.app.id)
-                .then(props.onClosed, () => setNotice('That could not be closed.'))
-            }
-          >
-            Close the app
-          </Button>
+          {props.app.mayReassign && (
+            <>
+              <SelectInput
+                value={participantId}
+                onChange={setParticipantId}
+                options={people}
+                placeholder="Give it to…"
+              />
+              <Button
+                disabled={participantId === ''}
+                onClick={() =>
+                  void api
+                    .reassignApp(props.app.id, participantId)
+                    .then(props.onDone, () =>
+                      setNotice(
+                        'That could not be done. The new owner has to be on this project and allowed to build apps.',
+                      ),
+                    )
+                }
+              >
+                Give it to this person
+              </Button>
+            </>
+          )}
+          {props.app.mayClose && (
+            <Button
+              onClick={() =>
+                void api
+                  .closeApp(props.app.id)
+                  .then(props.onClosed, () => setNotice('That could not be closed.'))
+              }
+            >
+              Close the app
+            </Button>
+          )}
         </div>
         {notice !== null && <p className="page-sub">{notice}</p>}
       </Card>

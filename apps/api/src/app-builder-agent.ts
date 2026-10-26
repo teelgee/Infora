@@ -256,7 +256,7 @@ export const CONVERSATION_SYSTEM = [
   'You are the agent that builds an app with a person, inside Infora — a platform engineering consultancies use on infrastructure projects. The person describes what they want; you build the WORKING COPY of the app in front of them, and ask what you must.',
   'Answer with JSON only, no prose around it, in exactly this shape:',
   '{"say":"…","acts":[…],"asks":[…],"proposals":[…]}',
-  '"say" is what you tell the person, in plain English, at most six sentences. Say what you did and what you need from them.',
+  '"say" is what you tell the person, in plain English, at most six sentences. Say what you did, and anything you need from them other than the required questions (those go in "asks", not here).',
   'The acts you may perform, and NOTHING else (anything else makes your whole answer void and nothing happens):',
   '  {"kind":"describeApp","name":"…","description":"…"} — either field may be left out',
   '  {"kind":"declareTable","name":"…","tableKind":"data"|"insight","columns":[{"key":"lower_case_key","label":"…","type":"text"|"number"|"date"|"boolean"|"choice","required":true|false}]} — an insight table is where a run writes what it found; Infora fixes its columns, so for an insight table leave "columns" out',
@@ -270,7 +270,7 @@ export const CONVERSATION_SYSTEM = [
   '  {"kind":"answerWhoMayOpen","screen":"<screen id>","organisationIds":[…]} — ONLY to record the person’s answer to a question you asked in an earlier turn; an empty list means everyone the app is open to',
   'A screen layout is a list of these parts, over the columns of its one table:',
   SCREEN_PARTS,
-  '"asks" lists the required questions you are putting to the person THIS turn: {"kind":"contractual-data","table":"<table>"} or {"kind":"who-may-open","screen":"<screen id or label>"}. Ask them in "say" too, in your own words.',
+  '"asks" lists the required questions you are putting to the person THIS turn: {"kind":"contractual-data","table":"<table>"} or {"kind":"who-may-open","screen":"<screen id or label>"}. Put them in "asks" and do NOT restate them in "say": Infora shows the person its own list of every required question still open, in its own words, under what you say, so repeating one would show it twice.',
   '"proposals" lists things you suggest the PERSON does, or that you will do once they agree: {"kind":"removeScreen"|"removeConnection"|"openTo"|"shareTable"|"publish"|"reassign"|"close","subject":"<what it is about, or null>","summary":"…"}.',
   'Rules:',
   '- Draft freely: declare tables, write screens, set the schedule and the prompt as soon as you can tell what is wanted. The working copy is seen only by the people building the app, and they will correct you.',
@@ -278,11 +278,12 @@ export const CONVERSATION_SYSTEM = [
   '- A table holds contractual data when a payment hangs on it, it discharges a condition, or the project owner will rely on it as its record; such a table gets an acceptance step.',
   '- You cannot open the app to anyone, share a table, publish the app, hand it to somebody else or close it. Those are the person’s to do on the app’s page. You may propose them.',
   '- The state of the app is shown to you fresh each time, including any change the person made by hand. Never undo a change the person made unless they ask you to.',
-  '- A schedule is stored and starts working when there is a server that stays on. A connection is described here and connected after Infora is deployed. Say so rather than implying either works today.',
+  '- A schedule is stored and starts working when there is a server that stays on; say so rather than implying it runs by itself today.',
+  '- A connection to a system OUTSIDE Infora is only described here, and is connected after Infora is deployed; say so rather than implying it works today. That waiting applies to outside-system connections alone.',
   '- You have not seen any row of any table or any project document, and you do not pretend to have.',
   // T-452 (ADR-0059 decision 4) — the agent may TALK about a file source and
   // has no act that attaches one: a person does that from the panel
-  '- A table can be fed from a spreadsheet the project already holds, refilling each time a new version is uploaded. Pointing a table at one is the person’s to do, from the table’s Source in the panel beside us — you cannot do it, and you may suggest it in "say".',
+  '- A table can be fed from a spreadsheet the project already holds, refilling each time a new version is uploaded. This works now, from the table’s Source in the panel beside us, with nothing to wait for. Pointing a table at one is the person’s to do — you cannot do it, and you may suggest it in "say".',
 ].join('\n');
 
 const REFUSED_SAY =
@@ -680,7 +681,9 @@ async function runBuilderTurnNow(
     }
   }
 
-  // ── the agent ALWAYS asks what is still open and nobody has asked ─────────
+  // ── what is still open after the turn: recorded as asked, and all of it listed ──
+  // (`unasked` is only what to RECORD as put to the person now; the list shown
+  // is every question still open — see `questionList` below)
   const finalSnapshot = await readSnapshot(db, ctx.appId);
   const open = pendingBuilderQuestions(finalSnapshot.definition, await liveTables(db, ctx.appId));
   const openKeys = new Set(open.map((q) => `${q.kind}:${q.subjectId}`));
@@ -691,6 +694,11 @@ async function runBuilderTurnNow(
   });
   for (const q of unasked) askedNow.add(`${q.kind}:${q.subjectId}`);
 
+  // T-488 (walk defect 22) — **one list of open questions: the product's.** It
+  // names EVERY required question still open after this turn, not only the ones
+  // nobody had asked, so the person reads each exactly once, in Infora's words,
+  // under whatever the agent said. (The agent is told to put its questions in
+  // "asks" and not in "say"; `asked` still records what was put to the person.)
   const questionList = (questions: BuilderQuestion[]) =>
     questions.length > 0
       ? ['Before this app can be opened, I need you to answer:', ...questions.map((q) => `— ${q.question}`)].join('\n')
@@ -706,7 +714,7 @@ async function runBuilderTurnNow(
   const text = (
     notEverythingDone
       ? [NOT_ALL_DONE_LEAD, notes.map((note) => `— ${note}`).join('\n'), questionList(open)]
-      : [say, notes.length > 0 ? notes.join(' ') : '', questionList(unasked)]
+      : [say, notes.length > 0 ? notes.join(' ') : '', questionList(open)]
   )
     .filter((part) => part !== '')
     .join('\n\n')
@@ -980,7 +988,7 @@ export async function perform(
         connections: [...fresh.definition.connections, { id, system: act.system, needs: act.needs }],
       });
       state.ownWrites.add('connections');
-      done(`Described a connection to ${act.system} (it cannot be connected until Infora is deployed).`);
+      done(`Described a connection to ${act.system} (a connection to an outside system can only be made once Infora is deployed).`);
       return;
     }
     case 'removeConnection': {

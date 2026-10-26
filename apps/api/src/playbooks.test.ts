@@ -695,3 +695,89 @@ describe('the store refuses rows in a playbook, whatever a route does (migration
     ).toContain('never rows');
   });
 });
+
+describe('a template carries its description, and the deployer can change it (T-488, walk defect 20)', () => {
+  it('saves the source app’s description, and a deploy that sends nothing starts with it', async () => {
+    const { app: built } = await returnsApp(`described ${stamp}`);
+    await db
+      .update(s.apps)
+      .set({ description: 'Wrenfield sustainability returns for Calder & Hale.' })
+      .where(eq(s.apps.id, built.id));
+
+    const { playbook } = (await (await save(builderCookie, built.id, `Described template ${stamp}`)).json()) as PlaybookResponse;
+    expect(playbook.description).toBe('Wrenfield sustainability returns for Calder & Hale.');
+    // the shelf shows it too
+    const shelf = (await (await get(builderCookie, '/organisation/playbooks')).json()) as ListPlaybooksResponse;
+    expect(shelf.items.find((item) => item.id === playbook.id)!.description).toBe(
+      'Wrenfield sustainability returns for Calder & Hale.',
+    );
+
+    const deployed = (await (
+      await post(builderCookie, `/projects/${projectB}/apps/deployments`, { playbookId: playbook.id })
+    ).json()) as GetAppResponse;
+    expect(deployed.app.description).toBe('Wrenfield sustainability returns for Calder & Hale.');
+  });
+
+  it('an edited description lands edited; an emptied one clears it; a template without one gives none', async () => {
+    const { app: built } = await returnsApp(`edited ${stamp}`);
+    await db.update(s.apps).set({ description: 'For the Wrenfield scheme.' }).where(eq(s.apps.id, built.id));
+    const { playbook } = (await (await save(builderCookie, built.id, `Edited template ${stamp}`)).json()) as PlaybookResponse;
+
+    const edited = (await (
+      await post(builderCookie, `/projects/${projectB}/apps/deployments`, {
+        playbookId: playbook.id,
+        description: '  Sustainability returns for this scheme.  ',
+      })
+    ).json()) as GetAppResponse;
+    expect(edited.app.description).toBe('Sustainability returns for this scheme.');
+
+    const cleared = (await (
+      await post(builderCookie, `/projects/${projectB}/apps/deployments`, { playbookId: playbook.id, description: '   ' })
+    ).json()) as GetAppResponse;
+    expect(cleared.app.description).toBeNull();
+
+    // the template itself is untouched by either deploy, and an app with no
+    // description saves a template with none
+    const stored = await db.select().from(s.playbooks).where(eq(s.playbooks.id, playbook.id));
+    expect(stored[0]!.description).toBe('For the Wrenfield scheme.');
+    const { app: plain } = await returnsApp(`plain ${stamp}`);
+    const plainTemplate = (await (await save(builderCookie, plain.id, `Plain template ${stamp}`)).json()) as PlaybookResponse;
+    expect(plainTemplate.playbook.description).toBeNull();
+    const fromPlain = (await (
+      await post(builderCookie, `/projects/${projectB}/apps/deployments`, { playbookId: plainTemplate.playbook.id })
+    ).json()) as GetAppResponse;
+    expect(fromPlain.app.description).toBeNull();
+  });
+});
+
+describe('the description is withheld from a builder who is not on the source project (T-488, ADR-0046)', () => {
+  it('a same-firm builder on a different project gets no description on the shelf, and a deploy that sends none lands none', async () => {
+    const { app: built } = await returnsApp(`walled ${stamp}`);
+    await db.update(s.apps).set({ description: 'Calder & Hale returns for client A only.' }).where(eq(s.apps.id, built.id));
+    const { playbook } = (await (await save(builderCookie, built.id, `Walled template ${stamp}`)).json()) as PlaybookResponse;
+
+    // the same firm, may build, on project B only — never on the source project A
+    const elsewhere = await makeUser('t488-ellis', builderOrg, { mayBuildApps: true, projects: [projectB] });
+    const elsewhereCookie = await session(elsewhere.email);
+
+    // the builder who IS on the source project is told it; Ellis is not
+    const own = (await (await get(builderCookie, '/organisation/playbooks')).json()) as ListPlaybooksResponse;
+    expect(own.items.find((item) => item.id === playbook.id)!.description).toBe('Calder & Hale returns for client A only.');
+    const theirs = (await (await get(elsewhereCookie, '/organisation/playbooks')).json()) as ListPlaybooksResponse;
+    const seen = theirs.items.find((item) => item.id === playbook.id)!;
+    expect(seen.description).toBeNull();
+    expect(seen.savedFromAppName).toBeNull(); // the precedent it follows
+    expect(JSON.stringify(theirs)).not.toContain('client A only');
+
+    // a deploy by Ellis that sends none lands none
+    const deployed = (await (
+      await post(elsewhereCookie, `/projects/${projectB}/apps/deployments`, { playbookId: playbook.id })
+    ).json()) as GetAppResponse;
+    expect(deployed.app.description).toBeNull();
+    // and one that sends her own words keeps them
+    const written = (await (
+      await post(elsewhereCookie, `/projects/${projectB}/apps/deployments`, { playbookId: playbook.id, description: 'Returns for scheme B.' })
+    ).json()) as GetAppResponse;
+    expect(written.app.description).toBe('Returns for scheme B.');
+  });
+});

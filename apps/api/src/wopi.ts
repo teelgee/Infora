@@ -300,6 +300,8 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
       return c.json({ error: 'invalid', detail: 'the file is larger than the editor may save' } satisfies ApiError, 413);
     }
     const lock = c.req.header('x-wopi-lock') ?? '';
+    // T-488 — set when the bytes sent were the file already held: nothing landed
+    let unchanged = false;
     const response = await deps.db.transaction(async (tx) => {
       const db = tx as unknown as Db;
       const gate = await admit(db, c, true);
@@ -319,6 +321,7 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
       }
       const landed = await landFileRevision(db, doc, bytes, slice.participantId);
       if (!landed.ok) return c.json({ error: 'invalid', detail: landed.detail } satisfies ApiError, 400);
+      unchanged = landed.unchanged;
       // a save is activity: the engine's 30 minutes start again
       await extendEngineLock(db, doc.id);
       c.header('X-WOPI-ItemVersion', await itemVersion(db, doc.id));
@@ -327,7 +330,7 @@ export function wopiRoutes(deps: { db: Db; sessionPolicy?: SessionPolicy; editin
     // T-451 ∩ T-453 (reconciled in review 2026-10-18): an editor's save is a
     // version landing like any replace-file, so a sourced table re-derives
     // from it — fired AFTER the save's transaction committed, never inside it
-    if (response.status === 200) {
+    if (response.status === 200 && !unchanged) {
       const fileId = c.req.param('fileId');
       if (isUuid(fileId)) await importOnVersionLanding(deps.db, { sandboxDocumentId: fileId });
     }

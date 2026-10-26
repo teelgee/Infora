@@ -434,6 +434,10 @@ export const playbooks = pgTable(
       .notNull()
       .references(() => organisations.id),
     name: text('name').notNull(),
+    /** T-488 — what the app it was saved from said it was for, kept so a deployed
+     * copy can carry it (editable at deploy). Free text: it may name a client or
+     * a person, so it is deleted with the template (personal-data.md). */
+    description: text('description'),
     /** a save is a NEW version row; prior versions are retained because
      * instances name them (`apps.playbook_version`) */
     version: integer('version').notNull().default(1),

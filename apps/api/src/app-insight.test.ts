@@ -7,8 +7,10 @@
 // the real predicate, driven as each party.
 import { describe, expect, it } from 'vitest';
 import type { AppColumn, AppRowRecord } from '@infora/contracts';
-import { figuresAsText, figuresFor, writeInsightSentence } from './app-insight';
-import { fakeRouter } from './test-router';
+import { figuresAsText, figuresFor, wholeSentences, writeInsightSentence } from './app-insight';
+import { Router, SELF_HOSTED_UK } from '@infora/model';
+import type { ChatAdapter } from '@infora/model';
+import { FAKE_EMBED_DIMENSIONS, FAKE_EMBED_MODEL, fakeRouter, fakeVector } from './test-router';
 
 const columns: AppColumn[] = [
   { key: 'month', label: 'Month', type: 'text', required: true },
@@ -74,8 +76,8 @@ describe('the figures a run reports are arithmetic over the rows it was handed',
       },
     ]);
     expect(figures.byOrganisation).toEqual([
-      { organisationName: 'Calder & Hale', rows: 2 },
-      { organisationName: 'Redgate Ecology', rows: 1 },
+      { organisationName: 'Calder & Hale', rows: 2, totals: [{ label: 'Waste to landfill (t)', total: 20 }] },
+      { organisationName: 'Redgate Ecology', rows: 1, totals: [{ label: 'Waste to landfill (t)', total: 20 }] },
     ]);
     expect(figures.byState).toEqual([
       { state: 'accepted', rows: 2 },
@@ -177,5 +179,182 @@ describe('what the model is asked for, and what it is shown', () => {
       figures: [],
     });
     expect(sentence).toBeNull();
+  });
+});
+
+// ── T-488 (walk defect 9) — the analysis is given figures per month and per
+// organisation, and is never cut off mid-word ────────────────────────────────
+
+describe('figures per month and per organisation (T-488)', () => {
+  const dated: AppColumn[] = [
+    { key: 'when', label: 'Return date', type: 'date', required: true },
+    { key: 'landfill', label: 'Waste to landfill (t)', type: 'number', required: true },
+  ];
+  const datedTable = (rows: AppRowRecord[]) => ({ name: 'Returns', columns: dated, hasAcceptance: false, rows });
+
+  it('groups a date column by calendar month, earliest first, with each number column’s total', () => {
+    const figures = figuresFor(
+      datedTable([
+        row({ values: { when: '2026-10-14', landfill: 5 } }),
+        row({ values: { when: '2026-09-02', landfill: 2 } }),
+        row({ values: { when: '2026-10-30', landfill: 1.5 }, organisationName: 'Redgate Ecology' }),
+        row({ values: { when: 'not a date', landfill: 99 } }),
+      ]),
+    );
+    expect(figures.byMonth).toEqual({
+      columnLabel: 'Return date',
+      months: [
+        { month: 'September 2026', rows: 1, totals: [{ label: 'Waste to landfill (t)', total: 2 }] },
+        { month: 'October 2026', rows: 2, totals: [{ label: 'Waste to landfill (t)', total: 6.5 }] },
+      ],
+    });
+  });
+
+  it('reads a text column as months only when every value reads as one — the chart ordering’s reader', () => {
+    const textual = (months: string[]) =>
+      figuresFor(
+        table(months.map((month) => row({ values: { month, landfill: 1 } }))),
+      );
+    expect(textual(['October 2026', 'Sep 2026', '2026-08']).byMonth?.months.map((m) => m.month)).toEqual([
+      'August 2026',
+      'September 2026',
+      'October 2026',
+    ]);
+    // one value that does not read sends the whole column back to “no months”
+    expect(textual(['October 2026', 'Waste']).byMonth).toBeNull();
+    // a bare month name is not read (which year?), exactly as the charts do not
+    expect(textual(['August', 'September']).byMonth).toBeNull();
+  });
+
+  it('gives each organisation’s rows and totals, over the rows it was handed', () => {
+    const figures = figuresFor(
+      table([
+        row({ values: { month: 'August 2026', landfill: 10 } }),
+        row({ values: { month: 'September 2026', landfill: 5 } }),
+        row({ values: { month: 'August 2026', landfill: 7 }, organisationName: 'Redgate Ecology' }),
+      ]),
+    );
+    expect(figures.byOrganisation).toEqual([
+      { organisationName: 'Calder & Hale', rows: 2, totals: [{ label: 'Waste to landfill (t)', total: 15 }] },
+      { organisationName: 'Redgate Ecology', rows: 1, totals: [{ label: 'Waste to landfill (t)', total: 7 }] },
+    ]);
+  });
+
+  it('the prompt the model receives carries a per-month block and a per-organisation block, beside the whole table', async () => {
+    let seenSystem = '';
+    let seenPrompt = '';
+    const router = fakeRouter((system, prompt) => {
+      seenSystem = system;
+      seenPrompt = prompt;
+      return 'Waste fell in September.';
+    });
+    await writeInsightSentence(router, {
+      appName: 'Returns',
+      analysisPrompt: null,
+      figures: [
+        figuresFor(
+          table([
+            row({ values: { month: 'September 2026', landfill: 5 } }),
+            row({ values: { month: 'August 2026', landfill: 10 } }),
+            row({ values: { month: 'August 2026', landfill: 7 }, organisationName: 'Redgate Ecology' }),
+          ]),
+        ),
+      ],
+    });
+    expect(seenPrompt).toContain('PER ORGANISATION');
+    expect(seenPrompt).toContain('Calder & Hale: 2 row(s) — Waste to landfill (t) total 15');
+    expect(seenPrompt).toContain('Redgate Ecology: 1 row(s) — Waste to landfill (t) total 7');
+    expect(seenPrompt).toContain('PER MONTH');
+    // earliest first
+    expect(seenPrompt.indexOf('August 2026: 2 row(s) — Waste to landfill (t) total 17')).toBeGreaterThan(-1);
+    expect(seenPrompt.indexOf('August 2026:')).toBeLessThan(seenPrompt.indexOf('September 2026:'));
+    expect(seenPrompt).toContain('WHOLE TABLE');
+    expect(seenPrompt).toContain('total 22, average 7.33');
+    // and the instruction says it now has these breakdowns
+    expect(seenSystem).toContain('PER MONTH');
+    expect(seenSystem).toContain('PER ORGANISATION');
+  });
+
+  it('a table with no month column shows no month block', () => {
+    const text = figuresAsText([figuresFor(table([row({ values: { month: 'Waste', landfill: 1 } })]))]);
+    expect(text).toContain('PER ORGANISATION');
+    expect(text).not.toContain('PER MONTH');
+  });
+});
+
+describe('the analysis is never cut off mid-word or mid-sentence (T-488)', () => {
+  it('leaves a reply that ends on a sentence exactly as it is', () => {
+    const text = 'Waste fell by a fifth in September. Redgate Ecology returned late.';
+    expect(wholeSentences(text, 600)).toBe(text);
+  });
+
+  it('trims a reply the model ran out of room for back to the last whole sentence', () => {
+    expect(wholeSentences('Waste fell by a fifth in September. Redgate Ecology returned la', 600, true)).toBe(
+      'Waste fell by a fifth in September.',
+    );
+  });
+
+  it('leaves a short reply the model finished alone, even if it is not a sentence', () => {
+    expect(wholeSentences('INSIGHT: 1 rows, total 4.6', 600)).toBe('INSIGHT: 1 rows, total 4.6');
+  });
+
+  it('trims a reply longer than the limit to the last sentence that fits, never inside a word or a decimal', () => {
+    const text = 'Waste to landfill totalled 12.5 tonnes in August. It rose to 20.25 tonnes in September. Calder and Hale supplied most of it.';
+    const cut = wholeSentences(text, 70);
+    expect(cut).toBe('Waste to landfill totalled 12.5 tonnes in August.');
+    // a limit that lands inside “20.25” still ends on a sentence
+    for (let max = 20; max < text.length; max++) {
+      const out = wholeSentences(text, max);
+      expect(text.startsWith(out.replace(/…$/, ''))).toBe(true);
+      expect(out.endsWith('.') || out.endsWith('…')).toBe(true);
+      // never inside a decimal: what follows a trimmed full stop is a space (or nothing)
+      if (out.endsWith('.')) expect(text[out.length] === undefined || text[out.length] === ' ').toBe(true);
+    }
+  });
+
+  it('with no sentence to fall back on, stops at the last whole word and says so with “…”', () => {
+    expect(wholeSentences('Calder and Hale returned the most waste across the whole of the scheme this', 40)).toBe(
+      'Calder and Hale returned the most waste…',
+    );
+    expect(wholeSentences('Waste fell by a fifth in Septem', 600, true)).toBe('Waste fell by a fifth in…');
+  });
+
+  it('a long scripted reply is stored by the writer ending on a whole sentence', async () => {
+    const long = `${'Waste to landfill was steady across the scheme. '.repeat(40)}And then it began to`;
+    const sentence = await writeInsightSentence(fakeRouter(long), {
+      appName: 'Returns',
+      analysisPrompt: null,
+      figures: [],
+    });
+    expect(sentence!.length).toBeLessThanOrEqual(1500);
+    expect(sentence!.endsWith('scheme.')).toBe(true);
+  });
+});
+
+describe('a reply the model ran out of room for (T-488)', () => {
+  it('is trimmed back to its last whole sentence when the model used every token it was allowed', async () => {
+    const chat: ChatAdapter = {
+      modelId: 'fake-chat',
+      attributes: SELF_HOSTED_UK,
+      chat: () =>
+        Promise.resolve({
+          text: 'Waste fell in September. Calder and Hale returned the most of it, and Redgate Ecol',
+          model: { id: 'fake-chat', version: 'fake-chat-1' },
+          usage: { tokensPrompt: 500, tokensCompletion: 700 },
+        }),
+    };
+    const router = new Router(chat, {
+      modelId: FAKE_EMBED_MODEL,
+      dimensions: FAKE_EMBED_DIMENSIONS,
+      attributes: SELF_HOSTED_UK,
+      embed: (texts) =>
+        Promise.resolve({
+          embeddings: texts.map(fakeVector),
+          model: { id: FAKE_EMBED_MODEL, version: 'fake-1' },
+          usage: { tokens: 0 },
+        }),
+    });
+    const sentence = await writeInsightSentence(router, { appName: 'Returns', analysisPrompt: null, figures: [] });
+    expect(sentence).toBe('Waste fell in September.');
   });
 });

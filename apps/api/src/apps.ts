@@ -245,6 +245,17 @@ function openableInterfaces(definition: AppDefinition, slice: EntitledSlice): Ap
 }
 
 /**
+ * T-488 — the ONE check behind both "Give it to…" and "Close the app": the
+ * routes apply it, and the record reports it as `mayReassign` / `mayClose`, so
+ * a screen draws the buttons only for people the server would let do it. (Both
+ * routes also refuse an app already closed; that is a state, answered with
+ * 400, and the record's flags carry it as "not closed".)
+ */
+function mayReassignOrClose(slice: EntitledSlice, app: LoadedApp): boolean {
+  return canReassignApp(slice, { ownerOrganisationId: app.ownerOrganisationId });
+}
+
+/**
  * The record, for one requester. **The working copy goes only to a builder**
  * (ruling 2): everyone else gets the published copy, so a form nobody has
  * opened yet cannot be read out of the API by the people it is being built for.
@@ -289,6 +300,8 @@ export async function recordOf(
     scope: await scopeDto(db, app),
     mayBuild,
     isProjectOwner: slice.organisationId === app.projectOwnerOrganisationId,
+    mayClose: mayReassignOrClose(slice, app) && app.row.closedAt === null,
+    mayReassign: mayReassignOrClose(slice, app) && app.row.closedAt === null,
   };
 }
 
@@ -924,9 +937,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!loaded) return notFound(c);
     const slice = await resolveSlice(deps.db, user, loaded.row.projectId);
     if (!slice) return notFound(c);
-    if (!canReassignApp(slice, { ownerOrganisationId: loaded.ownerOrganisationId })) {
-      return notFound(c);
-    }
+    if (!mayReassignOrClose(slice, loaded)) return notFound(c);
     if (loaded.row.closedAt !== null) return invalid(c);
     const parsed = reassignAppBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return invalid(c);
@@ -981,9 +992,7 @@ export function appRoutes(deps: { db: Db; router: Router }) {
     if (!loaded) return notFound(c);
     const slice = await resolveSlice(deps.db, user, loaded.row.projectId);
     if (!slice) return notFound(c);
-    if (!canReassignApp(slice, { ownerOrganisationId: loaded.ownerOrganisationId })) {
-      return notFound(c);
-    }
+    if (!mayReassignOrClose(slice, loaded)) return notFound(c);
     if (loaded.row.closedAt !== null) return invalid(c);
     await deps.db
       .update(s.apps)

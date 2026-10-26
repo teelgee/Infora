@@ -20,6 +20,7 @@ import { buildApp } from './app';
 import { fakeRouter } from './test-router';
 import { addStandInScreen } from './app-test-support';
 import { parseXlsxSheets } from './xlsx';
+import { sheetFor, sheetName } from './app-exports';
 
 const { db, pool } = createDb();
 const app = buildApp({ db, sessionSecret: 'test-secret', router: fakeRouter() });
@@ -148,7 +149,7 @@ describe('an export contains only what the exporting person may see', () => {
   it('a contractor’s export holds its own organisation’s rows and nobody else’s', async () => {
     const { app: built } = await returnsApp();
     const sheets = await exportSheets(builderCookie, built.id);
-    const data = sheets.find((sheet) => sheet.name.startsWith('Monthly returns'))!;
+    const data = sheets.find((sheet) => sheet.name === 'Monthly returns')!;
     // header + exactly one row
     expect(data.rows).toHaveLength(2);
     expect(data.rows[1]![0]).toBe(`t444 builder ${stamp}`);
@@ -164,7 +165,7 @@ describe('an export contains only what the exporting person may see', () => {
   it('the peer consultancy’s export holds its own, and not the other consultancy’s', async () => {
     const { app: built } = await returnsApp();
     const sheets = await exportSheets(peerCookie, built.id);
-    const data = sheets.find((sheet) => sheet.name.startsWith('Monthly returns'))!;
+    const data = sheets.find((sheet) => sheet.name === 'Monthly returns')!;
     expect(data.rows).toHaveLength(2);
     expect(data.rows[1]![0]).toBe(`t444 peer ${stamp}`);
     // the whole workbook again, minus the clock times, for the reason given in the
@@ -175,7 +176,7 @@ describe('an export contains only what the exporting person may see', () => {
   it('the project owner’s export holds all of them', async () => {
     const { app: built } = await returnsApp();
     const sheets = await exportSheets(ownerCookie, built.id);
-    const data = sheets.find((sheet) => sheet.name.startsWith('Monthly returns'))!;
+    const data = sheets.find((sheet) => sheet.name === 'Monthly returns')!;
     expect(data.rows).toHaveLength(3);
     expect(data.rows.slice(1).map((row) => row[0]).sort()).toEqual(
       [`t444 builder ${stamp}`, `t444 peer ${stamp}`].sort(),
@@ -377,3 +378,112 @@ describe('an insight as Word', () => {
 function eqAppId(appId: string) {
   return eq(s.appExports.appId, appId);
 }
+
+// ── T-488 (walk defect 18) — the sheet is called what the table is, and says what
+// became of each row ──────────────────────────────────────────────────────────
+
+describe('sheet names are the tables’ own, numbered only on a collision (T-488)', () => {
+  it('a table’s sheet carries no “(n)”; two tables of one name are told apart; nothing takes the Provenance sheet’s name', () => {
+    const taken = new Set(['provenance']);
+    expect(sheetName('Monthly returns', taken)).toBe('Monthly returns');
+    expect(sheetName('Insights', taken)).toBe('Insights');
+    expect(sheetName('Monthly returns', taken)).toBe('Monthly returns (2)');
+    expect(sheetName('monthly RETURNS', taken)).toBe('monthly RETURNS (3)'); // Excel compares without regard to case
+    expect(sheetName('Provenance', taken)).toBe('Provenance (2)');
+  });
+
+  it('keeps within Excel’s 31 characters, even when it has to number a long name', () => {
+    const taken = new Set<string>();
+    const long = 'A very long table name that goes past thirty-one characters';
+    const first = sheetName(long, taken);
+    const second = sheetName(long, taken);
+    expect(first).toHaveLength(31);
+    expect(second.length).toBeLessThanOrEqual(31);
+    expect(second.endsWith(' (2)')).toBe(true);
+    expect(first).not.toBe(second);
+  });
+});
+
+describe('a table’s sheet carries the reason for a rejection and what became of earlier rows (T-488)', () => {
+  const columns = [
+    { key: 'month', label: 'Month', type: 'text' as const, required: true },
+    { key: 'landfill', label: 'Waste to landfill (tonnes)', type: 'number' as const, required: true },
+  ];
+  const row = (over: Record<string, unknown>) =>
+    ({
+      organisationName: 'Calder & Hale',
+      values: { month: 'October 2026', landfill: 4.6 },
+      state: 'submitted',
+      rejectionReason: null,
+      supersededByRowId: null,
+      retiredAt: null,
+      ...over,
+    }) as never;
+
+  it('an acceptance table: a State column in the screen’s words, and the rejection reason beside it', () => {
+    const sheet = sheetFor(
+      'Monthly returns',
+      new Set(),
+      columns,
+      [
+        row({ state: 'accepted' }),
+        row({ state: 'rejected', rejectionReason: 'Looks like a decimal slip.', supersededByRowId: 'next' }),
+        row({ state: 'draft' }),
+        row({ state: 'superseded' }),
+        row({ state: 'accepted', retiredAt: '2026-10-01T00:00:00.000Z' }),
+      ],
+      true,
+    );
+    expect(sheet.name).toBe('Monthly returns');
+    expect(sheet.rows[0]).toEqual(['Organisation', 'Month', 'Waste to landfill (tonnes)', 'State', 'Reason for rejection']);
+    expect(sheet.rows.slice(1).map((line) => [line[3], line[4]])).toEqual([
+      ['Accepted', null],
+      ['Rejected · replaced', 'Looks like a decimal slip.'],
+      ['Draft', null],
+      ['Replaced', null],
+      ['Retired', null],
+    ]);
+  });
+
+  it('a table with no acceptance step gains a State column only when some row is no longer current', () => {
+    const current = sheetFor('Costs', new Set(), columns, [row({ state: null })], false);
+    expect(current.rows[0]).toEqual(['Organisation', 'Month', 'Waste to landfill (tonnes)']);
+    const withHistory = sheetFor(
+      'Costs',
+      new Set(),
+      columns,
+      [row({ state: null, retiredAt: '2026-10-01T00:00:00.000Z' }), row({ state: null })],
+      false,
+    );
+    expect(withHistory.rows[0]).toEqual(['Organisation', 'Month', 'Waste to landfill (tonnes)', 'State']);
+    expect(withHistory.rows.slice(1).map((line) => line[3])).toEqual(['Retired', null]);
+  });
+});
+
+describe('the exported workbook, end to end (T-488)', () => {
+  it('names the sheet “Monthly returns”, and a rejected return’s reason is in the file for the people who may read it', async () => {
+    const { app: built, table } = await returnsApp();
+    const rows = (await (await get(ownerCookie, `/app-tables/${table.id}/rows`)).json()) as {
+      items: Array<{ id: string; organisationName: string }>;
+    };
+    const target = rows.items.find((item) => item.organisationName === `t444 builder ${stamp}`)!;
+    const rejected = await post(ownerCookie, `/app-rows/${target.id}/decision`, {
+      decision: 'reject',
+      reason: 'Decimal slip — please check the tonnage.',
+    });
+    expect(rejected.status).toBe(200);
+
+    const asOwner = await exportSheets(ownerCookie, built.id);
+    expect(asOwner.map((sheet) => sheet.name)).toEqual(['Monthly returns', 'Provenance']);
+    const data = asOwner[0]!;
+    expect(data.rows[0]).toContain('State');
+    expect(data.rows[0]).toContain('Reason for rejection');
+    expect(JSON.stringify(data.rows)).toContain('Decimal slip — please check the tonnage.');
+    expect(JSON.stringify(data.rows)).toContain('Rejected');
+
+    // the peer firm, whose own row was not rejected, gets no such reason — it
+    // never could read the other firm's row
+    const asPeer = await exportSheets(peerCookie, built.id);
+    expect(JSON.stringify(asPeer)).not.toContain('Decimal slip');
+  });
+});

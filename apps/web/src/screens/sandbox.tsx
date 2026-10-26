@@ -26,6 +26,7 @@ import {
   Building2,
   ChevronDown,
   ChevronRight,
+  Download,
   FileCog,
   FilePlus2,
   FileText,
@@ -1177,6 +1178,19 @@ function DocActions(props: {
         {doc.origin === 'uploaded' && doc.format !== 'pdf' && (
           <DropdownMenuItem onClick={() => navigate(`/projects/${props.projectId}/sandbox/edit/${doc.id}`)}>
             <PenLine size={13} strokeWidth={2} /> Edit in browser
+          </DropdownMenuItem>
+        )}
+        {/* T-488 — take the file back out; the server runs the same access check
+            the document's opening does, and only an uploaded document has a file */}
+        {doc.origin === 'uploaded' && (
+          <DropdownMenuItem
+            onClick={() =>
+              void api
+                .downloadSandboxDocument(doc.id)
+                .catch(() => props.setNote('That could not be downloaded.', 'error'))
+            }
+          >
+            <Download size={13} strokeWidth={2} /> Download
           </DropdownMenuItem>
         )}
         {/* replace swaps the canonical native file — uploaded documents only */}
