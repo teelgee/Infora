@@ -2429,3 +2429,94 @@ because nothing a firm touches can precede it:
 - ~~**T-358 → T-368 + T-355 — Slice Walkthrough**~~ ✅ **Closed 2026-08-09, one day** — the second owner-directed slice, and the first cut from a walk of the *built product*: the DMS walkthrough session's nine rulings (S1–S9) became the schema's Excel template and the plan's create-only batch import, org-standard plan columns, the row detail as a card, row-edit delegation to the lead author, the structure builder's plan seed and its agent, plan-locked sandboxes, the bind confirmation card with read-through titles, and the internal QA surface with the promotion-requires-QA gate — then **T-368** recaptured the walkthrough against all of it, so the page that provoked the session photographs the product again. Migrations 0042–0045; record in [plan-history.md](plan-history.md), session record in [grill-history.md](../grill-sessions/grill-history.md). **`Q-039` was raised by it** (a plan-locked shared sandbox discloses the whole TIDP's shape).
 
 - ~~**T-371 → T-375 — Slice Walkthrough 2**~~ ✅ **Built 2026-08-22** *(minted the same day)* — the third owner-directed slice and the second cut from a walk of the built product: the review period gains an owner, the lead reviewer accepts their own appointment, promotion gets a reconfirming window, the receipt narrows to the lead, and the DRR finally renders as the table its component doc has always named. **T-371, T-372 and T-375 are unblocked today**; T-373 and T-374 sequence behind them. All three surfaces were drawn and ruled in [docs/design/mockups/](../design/mockups/) before any code. **Closed out 2026-08-22:** the five screens are **photographed** into [user-stories-walkthrough.html](../architecture/user-stories-walkthrough.html) (33 beats), the four gap cards the walk left are now beats, and the three mockups are deleted — a mockup dies when its capture becomes the record ([design/README.md](../design/README.md)). `Q-041` (where the review record lives) was ruled the same day: **the pane**. The capture itself found two defects worth the run — the promotion window's cards clipped inside the modal grid, and the record stating "0 comments" to the walled side, which is the very absence its notice denies.
+
+## Where to start — the frontier notes, 2026-07-31 to 2026-09-02, moved 2026-10-27
+
+*The board's [Where to start](plan.md#where-to-start) section had become a stack of dated "the frontier moved" notes, the last of them saying the next frontier "is not yet named" — written before the app builder and the best-in-class batches were built. It was rewritten as a current lookup on 2026-10-27, and the notes moved here as they stood; the only change is that their in-page links now point at `plan.md`, so they still resolve from this file. The closed-ticket records the struck pointers name are in [the 2026-08-28 move](#where-to-start-records--moved-2026-08-28) just above.*
+
+**✅ The Ask MVP closed 2026-08-01.** T-281 → T-299 → T-282 → T-283 → T-259 all landed, with T-251, T-252, T-254 and the T-270 spike beside them. Ask now returns a grounded, cited answer whose register changes with the Lens; sessions are revocable and re-checked between steps; and a run records a real cost, or says it could not price one. **The sequence stands: Ask MVP → V1 → beyond.**
+
+**✅ Landed 2026-08-03 → 04, off this frontier.** ~~**T-302**~~ ingest takes a
+version id and the sweep is now `ingestAllVersions`, off every request path.
+~~**T-343**~~ `check:questions` — `pnpm run check:questions -- --next` is how a
+session derives a question number. ~~**T-300**~~ three organisations on Wrenfield,
+with `three-organisations.spec.ts` asserting the B↔C negative
+[v1.md](v1.md)'s acceptance names. ~~**T-271**~~ offsets on `version_chunks`,
+everything else derived — [spike-locators.md](spikes/spike-locators.md) closes with it.
+~~**T-342**~~ the conflict register's `reason`, narrowed on screen. **T-301's
+refusal audit** landed (migration 0038); its supersede half did not — see below.
+Full records in [plan-history.md](plan-history.md).
+
+**▶ The frontier moved 2026-08-31.** Waypoint C closed (the checker, the
+creator, the tools and their walkthrough sections all landed and reviewed),
+and the owner's first render review of the creator produced a comment-directed
+session the same day. The frontier is now **[Slice Creator 2](plan.md#building-for-v1)**
+— T-403–T-410, the creator's re-cut, with the already-open creator defects
+T-401 and T-402 building in the same pass — plus **T-399** (upload into a
+check), the one other unblocked build ticket. Build order and the clean stop
+are on the slice's own header. *(Updated 2026-08-31: all of the above have now
+landed. T-399 and T-411 closed last, in the same pass; the slice is complete
+and the next frontier is not yet named.)*
+
+**▶ The frontier moved 2026-09-01.** The owner's second render review of both
+tools produced session Cr2 — `Q-037` ruled closed, ADR-0053 addenda A4–A5,
+and one deferred-register entry. The frontier is
+**[Slice Tools 2](plan.md#building-for-v1)** — T-412–T-420: the creator half
+(sub-sections, the sandbox-location launch, saved starting outlines), the
+checker half (per-check options, the two searches, the workflow-shaped plan,
+the run-progress box), the markup audit, and the finesse pass last. Build
+order and the clean stop are on the slice's own header.
+
+**✅ Both 2026-09-01 slices closed 2026-09-02.** Slice Knowledge (T-422–T-430,
+T-433) and Slice External Issue (T-431–T-432) landed, and the three tidy-up
+tickets raised in review closed behind them: **T-435** (the browser-test
+stand-in learned the rules workbench, and the seed carries one accepted rule
+set), **T-436** (the external link's first-open receipt, migration **0066**),
+and **T-434** (the record caught up — the Knowledge fold into component 4, the
+external-issue beat into the journey, and one recapture of the walkthrough).
+**The next frontier is not yet named.** Full records in
+[plan-history.md](plan-history.md).
+
+**▶ The frontier moved 2026-09-01 (second move that day).** The owner's
+directed design session on the **Knowledge section** ruled where the writing
+rules live and, in doing so, re-cut what a project style guide *is*: it stops
+being a document the checker reads as prose and becomes a set of **typed rules
+a person accepted**. `Q-050` and `Q-040` both closed. The frontier is
+**[Slice Knowledge](plan.md#building-for-v1)** — T-422–T-430 with T-433–T-434, and **T-430 (the Vale
+spike) worth running early because it can overturn T-428's engine** — and
+**[Slice External Issue](plan.md#building-for-v1)** (T-431–T-432) beside it, which
+shares no dependency with it and can build in parallel. Build orders are on
+each slice's own header.
+
+**▶ The frontier moved 2026-08-27.** Waypoint A's floor and the corpus's format
+reach are **complete** — T-300 through T-307, plus T-337 and the T-276 spike, in
+two sessions. A pilot corpus can now be loaded, read in four formats, cited to a
+page, and told apart from the produced record. Everything that landed off this
+frontier is a struck pointer below; **the records moved to
+[plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28) on 2026-08-28**, when the board
+guard's scope widened to this whole section:
+
+- ~~**T-341** — library removal.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-312** — size the eval fixture.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-344** — re-sync the drizzle snapshot.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-345** — wire the eval smoke tier into CI.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-315** — session revocation on remove-user.~~ ✅ **Built 2026-08-27** (migration 0050) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-308** — the rulebook's home.~~ ✅ **Built 2026-08-27** (migration 0051) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-328** — the finding schema.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+
+*What the frontier was until 2026-08-27* — [v1.md](v1.md)'s Waypoint A floor,
+because nothing a firm touches can precede it:
+
+- ~~**T-303 → T-304** — the bulk-load path, then the reference-material marker.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-305** — PDF text extraction.~~ ✅ **Built 2026-08-27** (migration 0048) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-307** — the chunker's heading-number split.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-276** — the authority-corpus spike.~~ ✅ **Findings 2026-08-27** → [spikes/spike-authority-corpus.md](spikes/spike-authority-corpus.md) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-337** — schema import (Slice V1-S).~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- **T-340** — Purge. ⚠ **Built 2026-08-27 and deliberately NOT closed** (migration 0049), exactly as this line predicted: the derived half is done and tested both ways, the S3 clause cannot be met while Slice V1-I is parked (`deleteBlob` is the named seam), and the `unreconstructable` clause is **T-341's**. It stays on this list until those two close.
+- ~~**T-301 (part)** — the supersede half.~~ ✅ Absorbed into Slice Document Status (T-383–T-391) when `Q-036` ruled 2026-08-27 — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-346 → T-350 — Slice Review Surface**~~ ✅ **Minted and built 2026-08-06, one day** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-358 → T-368 + T-355 — Slice Walkthrough**~~ ✅ **Closed 2026-08-09, one day** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+- ~~**T-371 → T-375 — Slice Walkthrough 2**~~ ✅ **Built and closed out 2026-08-22** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
+
+
+**⏸ Ticketed but not the frontier, 2026-09-06.** The app builder (T-437–T-447) is ticketed in [the deferred register](plan.md#the-app-builder-ticketed-2026-09-06-post-v1--built-locally-ahead-of-deployment-by-owner-decision) by the owner's decision to build it locally ahead of deployment; **Slice V1-I, the pilot deployment, remains ahead of it in importance — and is PARKED by the owner (2026-08-04, "we're not going to set that up yet"), so its twelve tickets are open because nobody may start them, not because they are active** *(honesty added in review 2026-09-06 — the note read as if the pilot slice were in progress)*. An agent picks the app builder up when the owner names it, not because it is the newest thing on the board.

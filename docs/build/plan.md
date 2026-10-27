@@ -20,7 +20,54 @@
 
 ## Where to start
 
-*Added 2026-07-31 with the V1 re-cut. Four states, so "what next" is a lookup rather than a reconstruction across 300 lines.*
+*Added 2026-07-31 with the V1 re-cut, so "what next" is a lookup rather than a
+reconstruction across 300 lines. Rewritten 2026-10-27 as a current lookup: the
+dated "the frontier moved" notes this section had stacked up between
+2026-07-31 and 2026-09-02 are in
+[plan-history.md](plan-history.md#where-to-start--the-frontier-notes-2026-07-31-to-2026-09-02-moved-2026-10-27),
+as they stood — history, not a reading of today.*
+
+**Where things stand, in plain terms (2026-10-27).** Nearly everything this
+board has ever ticketed is built, tested and saved in the main version, running
+on a laptop against a local database. The document journey runs end to end: a
+firm plans its deliverables, drafts with the AI (which shows its plan first,
+reads only what that person may see, and cites each claim to a place in a
+source), runs the QA checker, passes the firm's own QA, promotes to the client,
+goes through the project review cycle to acceptance, and can issue a
+deliverable to someone with no account. Three organisations share one project
+and the ethical wall keeps each firm's work invisible to the others. Ask
+answers with citations; the document creator and the QA checker run as tools;
+the Knowledge section holds the writing rules; an uploaded Word or Excel file
+can be edited in the browser when the editing engine is started. The **app
+builder** is built: it was walked end to end on the owner's behalf (T-446,
+76 pictures and 23 defects, every one ruled on), and the fixes that walk
+produced landed (T-487–T-489). The **best-in-class batch** of October 2026
+(T-455–T-486 — the register, reach and working-together batches, then their
+follow-ups) re-made the library, plan, review and context screens against the
+market review in [docs/reference/](../reference/README.md). Every one of those
+tickets is a struck line below, its record in [plan-history.md](plan-history.md).
+
+**What is next — two things, and both are the owner's.** First, **the owner's
+deep-dive walk of the whole app**: the owner sits down with the built product
+and goes through every part of it, the way the app builder's acceptance test
+was done — every defect found becomes a ticket on this board, and nothing is
+fixed silently. The tickets that walk raises are the next frontier. Second,
+**the open-questions triage**:
+[grill-questions.md](../grill-sessions/grill-questions.md) holds 38 open
+questions (Q-001 to Q-059; 21 ruled), and the owner decides in a design session
+which to rule, which to park and which to leave open. Until the walk has
+happened, a build agent starts no new product work unasked.
+
+**What is gated.** The **pilot deployment** (Slice V1-I, T-316–T-327 and
+T-333) is **parked by the owner** (2026-08-04, *"we're not going to set that up
+yet"*): its tickets are open because nobody may start them, not because they
+are active, and four more wait behind it (⏳ below). The decision session that
+gate needed was held on 2026-08-01
+([ADR-0047](../architecture/adr/0047-pilot-deployment-substrate.md)), so what
+remains is the owner lifting the park, plus two lead-time items no ticket
+clears — the data-processing agreement with the pilot firm, and the
+zero-data-retention agreement with Anthropic. The other gates are re-checked
+below.
 
 | State | Meaning |
 |---|---|
@@ -29,101 +76,35 @@
 | **🌫 Fog** | Real work, deliberately not ticketed until its slice starts. |
 | **🚧 Gate** | Cannot be cleared by a ticket at all — an owner action or a decision session. |
 
-**✅ The Ask MVP closed 2026-08-01.** T-281 → T-299 → T-282 → T-283 → T-259 all landed, with T-251, T-252, T-254 and the T-270 spike beside them. Ask now returns a grounded, cited answer whose register changes with the Lens; sessions are revocable and re-checked between steps; and a run records a real cost, or says it could not price one. **The sequence stands: Ask MVP → V1 → beyond.**
+**▶ Frontier (2026-10-27).** Nothing a build agent picks up unasked: the next
+frontier is whatever the owner's walk raises (above). One open, unblocked build
+ticket remains on the V1 board — **T-297**, row-level security on
+`containers` — whose only dependency (T-247) closed long ago; it is a
+whole-or-nothing refactor, and an agent takes it when the owner names it. The
+next free ticket number is derived, never read:
+`pnpm run check:tickets -- --next` ([How to read a ticket](#how-to-read-a-ticket)).
 
-**✅ Landed 2026-08-03 → 04, off this frontier.** ~~**T-302**~~ ingest takes a
-version id and the sweep is now `ingestAllVersions`, off every request path.
-~~**T-343**~~ `check:questions` — `pnpm run check:questions -- --next` is how a
-session derives a question number. ~~**T-300**~~ three organisations on Wrenfield,
-with `three-organisations.spec.ts` asserting the B↔C negative
-[v1.md](v1.md)'s acceptance names. ~~**T-271**~~ offsets on `version_chunks`,
-everything else derived — [spike-locators.md](spikes/spike-locators.md) closes with it.
-~~**T-342**~~ the conflict register's `reason`, narrowed on screen. **T-301's
-refusal audit** landed (migration 0038); its supersede half did not — see below.
-Full records in [plan-history.md](plan-history.md).
+**⏳ Sequenced.** Behind the parked pilot slice: **T-314** (the rate-limit
+store; Deps: T-316), **T-339** (break-glass access; Deps: T-316), **T-340**'s
+remaining S3 clause (Purge is built and deliberately not closed until that
+clause can be met), and **T-330** (the pilot events by email; Deps: T-323, the
+SES transport). Behind work marked → beyond V1: **T-296** (four-register
+rendering) waits on T-278 and T-279, and the five tickets carrying that marker
+(T-275, T-277, T-278, T-279, T-286) are recorded, not scheduled. In the
+deferred register, T-287–T-291 (scoping questions, Teach) wait on their
+entries' gates.
 
-**▶ The frontier moved 2026-08-31.** Waypoint C closed (the checker, the
-creator, the tools and their walkthrough sections all landed and reviewed),
-and the owner's first render review of the creator produced a comment-directed
-session the same day. The frontier is now **[Slice Creator 2](#building-for-v1)**
-— T-403–T-410, the creator's re-cut, with the already-open creator defects
-T-401 and T-402 building in the same pass — plus **T-399** (upload into a
-check), the one other unblocked build ticket. Build order and the clean stop
-are on the slice's own header. *(Updated 2026-08-31: all of the above have now
-landed. T-399 and T-411 closed last, in the same pass; the slice is complete
-and the next frontier is not yet named.)*
+**🌫 Fog.** The extractor as a tool — built as a capability, out of V1 since the
+owner's ruling of 2026-09-04 (ADR-0053 A6), its screen held in the deferred
+register behind `Q-049`.
 
-**▶ The frontier moved 2026-09-01.** The owner's second render review of both
-tools produced session Cr2 — `Q-037` ruled closed, ADR-0053 addenda A4–A5,
-and one deferred-register entry. The frontier is
-**[Slice Tools 2](#building-for-v1)** — T-412–T-420: the creator half
-(sub-sections, the sandbox-location launch, saved starting outlines), the
-checker half (per-check options, the two searches, the workflow-shaped plan,
-the run-progress box), the markup audit, and the finesse pass last. Build
-order and the clean stop are on the slice's own header.
+**🚧 The three gates, re-checked 2026-10-27** — none of which a ticket can clear:
 
-**✅ Both 2026-09-01 slices closed 2026-09-02.** Slice Knowledge (T-422–T-430,
-T-433) and Slice External Issue (T-431–T-432) landed, and the three tidy-up
-tickets raised in review closed behind them: **T-435** (the browser-test
-stand-in learned the rules workbench, and the seed carries one accepted rule
-set), **T-436** (the external link's first-open receipt, migration **0066**),
-and **T-434** (the record caught up — the Knowledge fold into component 4, the
-external-issue beat into the journey, and one recapture of the walkthrough).
-**The next frontier is not yet named.** Full records in
-[plan-history.md](plan-history.md).
-
-**▶ The frontier moved 2026-09-01 (second move that day).** The owner's
-directed design session on the **Knowledge section** ruled where the writing
-rules live and, in doing so, re-cut what a project style guide *is*: it stops
-being a document the checker reads as prose and becomes a set of **typed rules
-a person accepted**. `Q-050` and `Q-040` both closed. The frontier is
-**[Slice Knowledge](#building-for-v1)** — T-422–T-430 with T-433–T-434, and **T-430 (the Vale
-spike) worth running early because it can overturn T-428's engine** — and
-**[Slice External Issue](#building-for-v1)** (T-431–T-432) beside it, which
-shares no dependency with it and can build in parallel. Build orders are on
-each slice's own header.
-
-**▶ The frontier moved 2026-08-27.** Waypoint A's floor and the corpus's format
-reach are **complete** — T-300 through T-307, plus T-337 and the T-276 spike, in
-two sessions. A pilot corpus can now be loaded, read in four formats, cited to a
-page, and told apart from the produced record. Everything that landed off this
-frontier is a struck pointer below; **the records moved to
-[plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28) on 2026-08-28**, when the board
-guard's scope widened to this whole section:
-
-- ~~**T-341** — library removal.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-312** — size the eval fixture.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-344** — re-sync the drizzle snapshot.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-345** — wire the eval smoke tier into CI.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-315** — session revocation on remove-user.~~ ✅ **Built 2026-08-27** (migration 0050) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-308** — the rulebook's home.~~ ✅ **Built 2026-08-27** (migration 0051) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-328** — the finding schema.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-
-*What the frontier was until 2026-08-27* — [v1.md](v1.md)'s Waypoint A floor,
-because nothing a firm touches can precede it:
-
-- ~~**T-303 → T-304** — the bulk-load path, then the reference-material marker.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-305** — PDF text extraction.~~ ✅ **Built 2026-08-27** (migration 0048) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-307** — the chunker's heading-number split.~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-276** — the authority-corpus spike.~~ ✅ **Findings 2026-08-27** → [spikes/spike-authority-corpus.md](spikes/spike-authority-corpus.md) — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-337** — schema import (Slice V1-S).~~ ✅ **Built 2026-08-27** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- **T-340** — Purge. ⚠ **Built 2026-08-27 and deliberately NOT closed** (migration 0049), exactly as this line predicted: the derived half is done and tested both ways, the S3 clause cannot be met while Slice V1-I is parked (`deleteBlob` is the named seam), and the `unreconstructable` clause is **T-341's**. It stays on this list until those two close.
-- ~~**T-301 (part)** — the supersede half.~~ ✅ Absorbed into Slice Document Status (T-383–T-391) when `Q-036` ruled 2026-08-27 — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-346 → T-350 — Slice Review Surface**~~ ✅ **Minted and built 2026-08-06, one day** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-358 → T-368 + T-355 — Slice Walkthrough**~~ ✅ **Closed 2026-08-09, one day** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-- ~~**T-371 → T-375 — Slice Walkthrough 2**~~ ✅ **Built and closed out 2026-08-22** — moved record in [plan-history.md](plan-history.md#where-to-start-records--moved-2026-08-28)
-
-**⏳ Sequenced, and named so nobody starts them early:** **Slice V1-I is parked by the owner (2026-08-04)** — *"we're not going to set that up yet"* — so **T-316 is not to be started**, and **T-314** (Deps: T-316) and **T-339** (Deps: T-316) are parked with it, as is **T-340**'s S3 clause. Nothing else in the slice moves until that is lifted; it is an owner decision, not a dependency a ticket can clear. **T-297** (RLS on `containers`) waits on a per-request scoping seam that **does not exist yet — building it is the ticket** (its entry was re-cut 2026-08-28 to say so). **T-310** and **T-311** (the checker and its findings surface) were blocked on `Q-007`/`Q-008` when this section was written and were **unblocked the same day** by ADR-0048 — they now wait on **T-328** and on `extractor` (T-274), which is a dependency rather than a gate.
-
-**🚧 The three gates**, none of which a ticket can clear:
-
-1. ~~**The infra/security decision session.**~~ ✅ **Held 2026-08-01 → [ADR-0047](../architecture/adr/0047-pilot-deployment-substrate.md)** (amending ADR-0037 with a third `pilot` tier), [operating-envelope.md](../architecture/operating-envelope.md) re-cut and `Q-027` closed. AWS London, S3 behind `file_ref`, RDS with managed PITR, customer-managed keys, logical tenant isolation, OIDC-federated deployment. **The gate is now a build, not a decision — Slice V1-I (T-316–T-327).** Two things it produced that no ticket clears: the **DPA with the pilot firm**, which gates the corpus load, and the **zero-data-retention agreement with Anthropic**, without which T-319's `pilot` tier must not be used. **The DPA's design blockers cleared 2026-08-03 → [ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md)** (`Q-032` and `Q-033`), so it is now an owner action rather than a design session plus an owner action. ~~but **`Q-035`, the controller/processor model, blocks it afresh** and is the one remaining design item on the corpus-load path~~ — **struck 2026-08-26: that sentence converted an owner action back into a design gate, and it was wrong.** A DPA is a commercial contract drafted from positions the design supplies, and ADR-0050 supplied them. Whether Infora is controller or processor is a **legal determination** — it turns on who decides the purposes and means, which is a matter of fact about the arrangement and is what a solicitor advises on, not what a grill session rules. **The DPA is a lead-time item, not a gate:** it can be drafted today, it moves at another firm's legal pace, and no ticket and no design session stands between it and being signed. What the design still owes it is narrow and is recorded on `Q-035`. **The owner ruled 2026-08-01 that the Anthropic conversation is started *last*** — so T-319 ends at built-and-tested, the cutover is **T-333**, and **T-321 moves embeddings to Bedrock first** so the corpus load is not stuck behind that clock too. Deferring does not shorten the agreement: a late start moves the pilot date.
-2. **The Microsoft CSPP application** — owner-driven; blocks Slice A3 P3 only. P1 shipped, P2 builds against a dev-harness engine regardless.
-3. **Six design questions** *(`Q-032` and `Q-033` closed 2026-08-03 → **ADR-0050**, ticketed as T-339–T-342; **`Q-035`** raised in their place — *narrowed 2026-08-26; it no longer blocks the DPA, which is a lead-time item rather than a gate (see gate 1)*; **`Q-036`** raised 2026-08-04 by T-301, and it is the second question a ticket found by trying to build the thing — ADR-0013 calls supersede and withdraw "owner-set states" while ADR-0033/T-176 built every container write as a producing-organisation act, and the build followed the later one)* — **`Q-049`** (raised 2026-08-30) is the newest after `Q-040`, and blocks the **extractor as a tool**, held as fog in Slice V1-T rather than ticketed, per the Q/T boundary rule: the capability is built and no user can reach it, and nothing says what a user picks, how a run is scoped, or where the output lands. `Q-028` blocks wiring the retrieval scope filter; `Q-029` (raised 2026-08-01 by T-259) blocks telling an unentitled user *why* they got nothing. ~~**`Q-040`** — external issue.~~ ✅ **Ruled 2026-09-01 → [ADR-0055](../architecture/adr/0055-external-issue-to-a-party-with-no-account.md)**, and ticketed as T-431–T-432, so the one capability [v1.md](v1.md) newly brought *into* scope no longer waits on a design fork. **`Q-050`** (the style guide's amendment event) closed the same day → [ADR-0054](../architecture/adr/0054-the-knowledge-section-and-style-guides-as-rules.md). *(`Q-007` and `Q-008` closed 2026-08-01 → **ADR-0048**, T-308/T-310/T-311 unblocked with T-328 minted ahead of them; `Q-012` closed the same day → **ADR-0049**, ticketed as Slice V1-N, T-329–T-332.)* All in [grill-questions.md](../grill-sessions/grill-questions.md).
+1. **The pilot deployment** — see *What is gated* above. The design was ruled 2026-08-01 (ADR-0047, closing `Q-027`; [ADR-0050](../architecture/adr/0050-the-privacy-programme-operator-access-and-deletion.md) on 2026-08-03 cleared the DPA's design blockers, closing `Q-032` and `Q-033`), the build is Slice V1-I, and the slice is parked by the owner. Two lead-time items ride it: the DPA with the pilot firm — a commercial contract drafted from positions ADR-0050 supplies, with what the design still owes it recorded on `Q-035` — and the zero-data-retention agreement with Anthropic, which the owner ruled 2026-08-01 is started *last*: T-319 ends at built-and-tested, the cutover is T-333, and T-321 moves embeddings first so the corpus load is not stuck behind that clock.
+2. **The Microsoft CSPP application** — owner-driven; blocks part 3 of the co-authoring slice only. Parts 1 and 2 are built (T-453 and T-454 landed 2026-10-18 on Collabora as the interim engine, ADR-0043).
+3. **Design questions that still block something** — `Q-049` (the extractor's tool, above); `Q-029` (what an unentitled user is told, raised 2026-08-01 by T-259); `Q-056` (the sealed box for code-built apps); `Q-059` (whether a developer's own machine may reach a real AI model, raised 2026-10-26 by the app-builder fixes — the owner's to rule); and `Q-035`'s legal half, which blocks nothing on the board. All in [grill-questions.md](../grill-sessions/grill-questions.md), each with its own Blocks field; the triage above is where they are read together.
 
 **V1 vs post-V1 — the structure now answers this** *(re-cut 2026-08-05)*. [v1.md](v1.md) stays the authority (its **[one-page summary](v1.md#v1-on-one-page)** is the fast read); the board carries the answer structurally: everything under **[Building for V1](#building-for-v1)** ships in the pilot, except the handful of pre-cut tickets individually marked **→ beyond V1** (the authority corpus beyond its spike — T-277/T-278; `web_research` — T-279; `verifier` — T-275/T-286); everything under **[Beyond V1 — the deferred register](#beyond-v1--the-deferred-register)** is recorded, gated, and not scheduled.
-
-**⏸ Ticketed but not the frontier, 2026-09-06.** The app builder (T-437–T-447) is ticketed in [the deferred register](#the-app-builder-ticketed-2026-09-06-post-v1--built-locally-ahead-of-deployment-by-owner-decision) by the owner's decision to build it locally ahead of deployment; **Slice V1-I, the pilot deployment, remains ahead of it in importance — and is PARKED by the owner (2026-08-04, "we're not going to set that up yet"), so its twelve tickets are open because nobody may start them, not because they are active** *(honesty added in review 2026-09-06 — the note read as if the pilot slice were in progress)*. An agent picks the app builder up when the owner names it, not because it is the newest thing on the board.
 
 ### The fold-in register
 
