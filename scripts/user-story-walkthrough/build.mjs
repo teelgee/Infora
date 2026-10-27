@@ -2,7 +2,7 @@
 // source and the committed screenshots in docs/architecture/user-story-screens/.
 // This page is the record of what EXISTS: every beat is the real application.
 // Anything built that the user stories describe is captured here in its final
-// form, and the mockup that proposed it is then deleted (docs/design/README.md).
+// form, and the mockup that proposed it is then archived (docs/design/README.md).
 // A design that is ruled but unbuilt is a gap card, never a beat — and it
 // carries `mockup` so the drawing and the story can be read against each other.
 // Pass --inline <path> to also emit a self-contained variant (data URIs) for

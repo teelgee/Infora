@@ -15,7 +15,7 @@ const providerSdkImports = [
 
 export default tseslint.config(
   // .claude/** holds agent git worktrees (full repo copies) — never lint them
-  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', 'docs/**', '.claude/**'] },
+  { ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', 'docs/**', '.claude/**', 'demo/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // pin the root explicitly: a worktree under .claude/ would otherwise make

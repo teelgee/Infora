@@ -25,3 +25,9 @@ docs/architecture/diagrams/*.png
 # raw walkthrough captures (scripts/user-story-walkthrough/capture.mjs; the
 # downscaled, committed views live in docs/architecture/user-story-screens/)
 scripts/user-story-walkthrough/shots/
+
+# demo videos: rendered MP4s, regenerated from demo/studio and never committed
+# (backed up outside the repo). The studio's own out/ and node_modules are
+# ignored by demo/studio/.gitignore and the rule above.
+demo/videos/
+demo/archive/**/*.mp4

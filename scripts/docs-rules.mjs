@@ -52,6 +52,13 @@ const INDEXED = [
   // The folder's own rule had said so for weeks; nothing was checking.
   'docs/design',
   'docs/design/mockups',
+  // `source/` and `mockups/archive/` joined 2026-10-18, when the owner ruled
+  // that an overtaken mockup is archived rather than deleted, and the Claude
+  // Design exploration the system came from moved out of `mockups/`. Both
+  // hold drawings that must never be mistaken for a spec, so each needs an
+  // index that says so.
+  'docs/design/source',
+  'docs/design/mockups/archive',
   // `docs/reference` and `docs/grill-sessions` joined later the same day, off
   // the audit's break-it pass: a file dropped in either was caught by nothing.
   // `docs/reference` had NO index at all — the exact preconditions of the

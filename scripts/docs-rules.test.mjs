@@ -27,6 +27,8 @@ const SIBLINGS = [
   'docs/build/spikes',
   'docs/design',
   'docs/design/mockups',
+  'docs/design/source',
+  'docs/design/mockups/archive',
   'docs/reference',
   'docs/grill-sessions',
   'docs/walks',

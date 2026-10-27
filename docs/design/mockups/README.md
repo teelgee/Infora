@@ -1,43 +1,41 @@
-# Mockups — the pending register
+# Mockups - the live register
 
-Screens **drawn before they exist**, awaiting a ruling or a build. The lifecycle
-that governs them is in [the design README](../README.md#the-lifecycle-and-how-a-mockup-dies);
-the one line worth repeating here is its corollary:
-
-> **This folder should only ever hold pending work. A mockup of something
-> already built is a bug in the process, not an archive.**
-
-This index exists because that rule was written down and still failed.
-`deliverable-status-page.html` — the mockup ADR-0051 came out of — sat here for
-three weeks after its screen shipped and was photographed into the walkthrough,
-which is precisely the "stale drawing beside a real screenshot" the lifecycle
-calls a trap. Nothing caught it: `docs/design/` was outside the docs-index guard
-until 2026-08-28. It is now inside it, and this file is the register.
+A mockup is a **visual test**: a screen drawn before it exists, to see whether
+a design and a feature work before anything is built. When the build overtakes
+it, it moves to [`archive/`](archive/README.md). Why, and the full loop, are in
+[the design README](../README.md#mockups-what-they-are-for).
 
 > **Enforced by `pnpm run check` and by CI** (`scripts/docs-rules.mjs`, both
-> directions). A mockup added without a row fails; a row naming a mockup that
-> has been captured-and-deleted fails. **Deleting a mockup means deleting its
-> row in the same commit** — which is the point at which somebody has to
-> confirm the ruling reached its ADR, because that is all that survives.
+> directions). A mockup added without a row fails, and so does a row naming a
+> file that isn't here. **Archiving a mockup means moving its row to the
+> archive's index in the same commit.** That is the moment to confirm its
+> rulings reached an ADR, because the ADR is what carries them forward.
 
-| Doc | State | What it proposes |
-|-----|-------|------------------|
-| `workspace-redesign.dc.html` | 🔴 **Status unresolved — needs a decision** | The workspace screen. **Do not treat it as a spec until this row is settled.** Three things about it are unexplained by anything in the repo: the `.dc.html` extension is a convention documented nowhere; it loads `./support.js`, which is not in this folder, so it does not render; and it was last touched at **T-145**, long before the design-system re-skin (`slice-ui-redesign`, ✅ closed 2026-08-06) shipped [workspace.tsx](../../../apps/web/src/screens/workspace.tsx), which is captured in the walkthrough as `01-workspace.png`. By the lifecycle's corollary a mockup of a built screen goes — but "redesign" may mean a proposal the re-skin never executed, and that is an owner call, not an inference from a filename. |
+| Doc | State | What it tests |
+|-----|-------|---------------|
 
-**Empty is the healthy state.** A register with no rows means every drawing has
-become a screen and a capture, which is the lifecycle working. Do not keep a
-mockup here for reference — the reference is the ADR and the walkthrough.
+*Empty at the moment (2026-10-27).* The two app-builder drawings (T-438) were
+archived on 2026-10-26, when T-447 photographed the built builder; their rows
+are in [the archive's index](archive/README.md). The Claude Design exploration
+that sat here for weeks flagged "status unresolved" was never a mockup: it is
+the design system's source, and it now lives in [`../source/`](../source/README.md).
 
-## Archived
+## How to make a mockup
 
-Captured mockups are moved to [`archive/`](archive/), not deleted (owner ruling,
-2026-10-18). Nothing in `archive/` is pending, nothing in it is a spec, and the
-register above does not list it.
+1. **Start from the design system.** Read `../design-rules.md`, and use only
+   the values in `../design-tokens.json`. Copy patterns from the built screens
+   (`docs/architecture/user-story-screens/`) before inventing new ones.
+2. **One self-contained HTML file** in this folder, named for what it tests
+   (`returns-app-two-seats.html`, not `mockup-3.html`). No external scripts,
+   so it renders on its own.
+3. **Use the seeded world**: the Wrenfield-Ashcombe project, its
+   organisations, people and documents. Use words from `CONTEXT.md`; a new word
+   is a question to raise, not a word to ship.
+4. **Put open questions in the drawing**, in a notes grid marked so they read
+   as undecided.
+5. **Render it and look at it** (headless Chrome, read the PNG) before
+   showing it.
+6. **Add its row above** in the same commit, and show it to the owner.
 
-- `archive/app-builder-stepped-flow.html` — **archived 2026-10-26 (T-447).**
-  The stepped build flow. Built as T-442, then replaced by the agent-led
-  conversation (ADR-0056's third addendum); the walkthrough's "The app builder"
-  section photographs what exists.
-- `archive/returns-app-two-seats.html` — **archived 2026-10-26 (T-447).** The
-  returns app as a contractor and as the client. Built as T-442 and T-443 and
-  photographed in the walkthrough's "The app builder" section.
+**A short register is the healthy state.** It should hold only what is still
+being tested.

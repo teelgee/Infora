@@ -113,7 +113,8 @@ design session. Entry is on the owner's instruction only.
   saying what happened in the story and pointing into that tool's section. All
   other built work outside the journey belongs in its component doc and is
   never forced into the walkthrough — a beat that cannot be photographed stays a
-  card saying so. The mockup that proposed it **dies at capture**:
+  card saying so. The mockup that proposed it **is archived at capture**
+  *(owner ruling, 2026-10-18; it was previously deleted)*:
   [docs/design/README.md](docs/design/README.md) owns that lifecycle, and the
   regeneration commands are on the walkthrough's row in
   [docs/architecture/README.md](docs/architecture/README.md).
