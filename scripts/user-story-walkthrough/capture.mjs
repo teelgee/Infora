@@ -11,9 +11,10 @@
 //   PORT=3210 pnpm --filter @infora/api run start:e2e
 //   API_PROXY_TARGET=http://localhost:3210 pnpm --filter @infora/web exec vite --port 5273 --strictPort
 // Then:  node scripts/user-story-walkthrough/capture.mjs
-// Downscale into the committed views:
-//   for f in scripts/user-story-walkthrough/shots/*.png; do
-//     sips --resampleWidth 1440 "$f" --out "docs/architecture/user-story-screens/$(basename $f)"; done
+// Slim into the committed views (1440 wide, 8-bit palette PNG — slim.mjs says
+// why; the sips loop this replaced wrote 24-bit files and the page outgrew the
+// 16 MB an artifact may be):
+//   node scripts/user-story-walkthrough/slim.mjs
 // And rebuild the page:  node scripts/user-story-walkthrough/build.mjs
 //
 // AFTERWARDS: this run mutates the seeded world (it plans rows, plan-locks the
@@ -68,8 +69,8 @@ const WEB = `http://localhost:${process.env['E2E_WEB_PORT'] ?? '5273'}`;
 const OUT = path.join(fileURLToPath(new URL('.', import.meta.url)), 'shots');
 // 🔒 EMPTIED FIRST, and this is not tidiness (found by T-404's recapture).
 // `shots/` is gitignored, so it accumulates across runs — and when a beat is
-// RENAMED, its old file stays behind. The downscale step in the recipe above
-// copies `shots/*.png` wholesale, so six screenshots of the creator as it was
+// RENAMED, its old file stays behind. The slimming step in the recipe above
+// converts `shots/*.png` wholesale, so six screenshots of the creator as it was
 // BEFORE this slice re-cut it were copied into the committed folder beside
 // their replacements and would have shipped as part of the page's asset set.
 // The duplicate-shot guard could not catch it: it checksums the frames this
